@@ -47,8 +47,6 @@ concept RefConvInstance = requires(Conv& conv,
 /// @brief Generic `run` implementation for forward/backwards reference kerneks.
 ///
 /// @tparam SIGNATURE The signature of the operation to perform.
-/// @throws std::runtime_error if the arguments weren't actually valid for the
-/// operation. This should be caught and reported by the testing framework.
 ///
 /// @return std::tuple<bool, float> - whether the problem is supported and
 ///         kernel execution time (0.0f for reference).
@@ -102,8 +100,6 @@ concept RefConvFwdInstance =
 /// forward implementation.
 ///
 /// @tparam SIGNATURE The signature of the operation to perform. Must be forwards.
-/// @throws std::runtime_error if the arguments weren't actually valid for the
-/// operation. This should be caught and reported by the testing framework.
 ///
 /// @see run()
 template <auto SIGNATURE>
@@ -131,8 +127,6 @@ concept RefConvBwdWeightInstance =
 /// backward weight implementation.
 ///
 /// @tparam SIGNATURE The signature of the operation to perform. Must be backwards weight.
-/// @throws std::runtime_error if the arguments weren't actually valid for the
-/// operation. This should be caught and reported by the testing framework.
 ///
 /// @see run()
 template <auto SIGNATURE>

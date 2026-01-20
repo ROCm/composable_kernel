@@ -180,6 +180,21 @@ struct ReferenceOutputMatcher
         if(listener->IsInterested() && !errors.empty())
         {
             *listener << errors.size() << " tensors failed to validate";
+
+            for(const auto& e : errors)
+            {
+                *listener << "\n    - " << e.tensor_name << ": ";
+
+                if(e.is_all_zero())
+                    *listener << "all elements in actual and expected tensors are zero";
+                else
+                {
+                    // Round to 2 digits
+                    const float percentage = e.wrong_elements * 10000 / e.total_elements / 100.f;
+                    *listener << e.wrong_elements << "/" << e.total_elements
+                              << " incorrect elements (~" << percentage << "%)";
+                }
+            }
         }
 
         return errors.empty();

@@ -147,15 +147,13 @@ concept CkConvBwdWeightMultipleDInstance =
 /// @brief `run()` specialization for backward weight convolution and old CK.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
-/// @throws std::runtime_error if the arguments werent actually valid for the
-/// operation. This should be caught and reported by the testing framework.
 ///
 /// @see run()
 template <auto SIGNATURE>
-void run(CkConvBwdWeightInstance<SIGNATURE> auto& conv,
-         const Args<SIGNATURE>& args,
-         const Inputs<SIGNATURE>& inputs,
-         const Outputs<SIGNATURE>& outputs)
+std::tuple<bool, float> run(CkConvBwdWeightInstance<SIGNATURE> auto& conv,
+                            const Args<SIGNATURE>& args,
+                            const Inputs<SIGNATURE>& inputs,
+                            const Outputs<SIGNATURE>& outputs)
 {
     using Types = factory::internal::ConvTensorDataTypes<SIGNATURE>;
 
@@ -199,14 +197,14 @@ void run(CkConvBwdWeightInstance<SIGNATURE> auto& conv,
                                      args.a_elementwise_op,
                                      args.b_elementwise_op,
                                      args.cde_elementwise_op,
-                                     1 /* TODO: split_k */);
+                                     args.k_batch);
 
     if(!conv.IsSupportedArgument(ck_args))
     {
-        throw std::runtime_error("invalid argument");
+        return std::make_tuple(false, 0);
     }
 
-    conv.MakeInvoker().Run(ck_args, {});
+    return std::make_tuple(true, conv.MakeInvoker().Run(ck_args, {}));
 }
 
 /// @brief `run()` specialization for backward weight convolution and old CK.
@@ -214,15 +212,13 @@ void run(CkConvBwdWeightInstance<SIGNATURE> auto& conv,
 /// This overload is specialized for Multiple-D.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
-/// @throws std::runtime_error if the arguments werent actually valid for the
-/// operation. This should be caught and reported by the testing framework.
 ///
 /// @see run()
 template <auto SIGNATURE>
-void run(CkConvBwdWeightMultipleDInstance<SIGNATURE> auto& conv,
-         const Args<SIGNATURE>& args,
-         const Inputs<SIGNATURE>& inputs,
-         const Outputs<SIGNATURE>& outputs)
+std::tuple<bool, float> run(CkConvBwdWeightMultipleDInstance<SIGNATURE> auto& conv,
+                            const Args<SIGNATURE>& args,
+                            const Inputs<SIGNATURE>& inputs,
+                            const Outputs<SIGNATURE>& outputs)
 {
     using Types = factory::internal::ConvTensorDataTypes<SIGNATURE>;
 
@@ -269,14 +265,14 @@ void run(CkConvBwdWeightMultipleDInstance<SIGNATURE> auto& conv,
                                      args.a_elementwise_op,
                                      args.b_elementwise_op,
                                      args.cde_elementwise_op,
-                                     1 /* TODO: split_k */);
+                                     args.k_batch);
 
     if(!conv.IsSupportedArgument(ck_args))
     {
-        throw std::runtime_error("invalid argument");
+        return std::make_tuple(false, 0);
     }
 
-    conv.MakeInvoker().Run(ck_args, {});
+    return std::make_tuple(true, conv.MakeInvoker().Run(ck_args, {}));
 }
 
 } // namespace ck_tile::builder::test

@@ -128,6 +128,11 @@ std::tuple<bool, float> run(CkConvInstance<SIGNATURE> auto& conv,
     const auto weight_desc = args.make_weight_descriptor();
     const auto output_desc = args.make_output_descriptor();
 
+    if(args.k_batch != 1)
+    {
+        return std::make_tuple(false, 0);
+    }
+
     auto ck_args = conv.MakeArgument(inputs.input,
                                      inputs.weight,
                                      {},
@@ -150,7 +155,7 @@ std::tuple<bool, float> run(CkConvInstance<SIGNATURE> auto& conv,
 
     if(!conv.IsSupportedArgument(ck_args))
     {
-        std::cout << "invalid argument" << std::endl;
+        return std::make_tuple(false, 0);
     }
 
     return std::make_tuple(true, conv.MakeInvoker().Run(ck_args, s_conf));
