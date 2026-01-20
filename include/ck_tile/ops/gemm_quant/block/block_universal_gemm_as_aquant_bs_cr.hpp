@@ -544,7 +544,8 @@ struct AQuantBlockUniversalGemmAsBsCr
             MakeCBlockTile();
     }
 
-    template <typename ASmemBlockWindow,
+    template <index_t KIdx = 0,
+              typename ASmemBlockWindow,
               typename BSmemBlockWindow,
               bool ALoadTranspose = false,
               bool BLoadTranspose = false>
@@ -553,7 +554,15 @@ struct AQuantBlockUniversalGemmAsBsCr
                                       bool_constant<ALoadTranspose> a_load_tr = {},
                                       bool_constant<BLoadTranspose> b_load_tr = {})
     {
-        block_gemm_impl_.LocalPrefetch(a_block_window, b_block_window, a_load_tr, b_load_tr);
+        if constexpr(Scheduler == GemmPipelineScheduler::Interwave)
+        {
+            block_gemm_impl_.template LocalPrefetch<KIdx>(
+                a_block_window, b_block_window, a_load_tr, b_load_tr);
+        }
+        else
+        {
+            block_gemm_impl_.LocalPrefetch(a_block_window, b_block_window, a_load_tr, b_load_tr);
+        }
     }
 
     // C += A * B
