@@ -77,7 +77,7 @@ concept CkTileConvInstance = detail::CkTileConvInstance<Conv, SIGNATURE>;
 /// @brief `run()` specialization for forward convolution and CK Tile.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
-/// @returns RunResult about how the operation completed (or not).///
+/// @returns RunResult about how the operation completed (or not).
 ///
 /// @see run()
 template <auto SIGNATURE>
@@ -99,7 +99,7 @@ template <auto SIGNATURE>
 /// @brief `run()` specialization for backwards weight convolution and CK Tile.
 ///
 /// @tparam SIGNATURE Backwards weight convolution signature.
-/// @returns RunResult about how the operation completed (or not).///
+/// @returns RunResult about how the operation completed (or not).
 ///
 /// @see run()
 template <auto SIGNATURE>

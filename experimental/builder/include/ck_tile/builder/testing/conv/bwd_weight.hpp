@@ -9,7 +9,7 @@
 #include "ck_tile/builder/testing/conv/fwd.hpp"
 #include "ck_tile/builder/testing/error.hpp"
 
-/// This file deals with the forward-specific details of running grouped
+/// This file deals with the backward weight-specific details of running grouped
 /// convolution backwards weight operations. It mainly defines the data
 /// structures (`Input` and `Output`), initialization, and validation. Note
 /// that for this operation specifically, many of the operations are
@@ -19,7 +19,7 @@ namespace ck_tile::builder::test {
 
 /// @brief `Inputs` specialization for backwards weight convolution.
 ///
-/// @tparam SIGNATURE Forward convolution signature.
+/// @tparam SIGNATURE Backwards weight convolution signature.
 ///
 /// @see Inputs
 template <auto SIGNATURE>
@@ -39,7 +39,7 @@ struct Inputs<SIGNATURE>
 
 /// @brief `Outputs` specialization for backwards weight convolution.
 ///
-/// @tparam SIGNATURE Forward convolution signature.
+/// @tparam SIGNATURE Backwards weight convolution signature.
 ///
 /// @see Outputs
 template <auto SIGNATURE>
@@ -57,7 +57,7 @@ struct Outputs<SIGNATURE>
 
 /// @brief `init_inputs()` specialization for backwards convolution.
 ///
-/// @tparam SIGNATURE Forward convolution signature.
+/// @tparam SIGNATURE Backwards weight convolution signature.
 ///
 /// @see init_inputs()
 template <auto SIGNATURE>

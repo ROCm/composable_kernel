@@ -44,7 +44,7 @@ concept RefConvInstance = requires(Conv& conv,
     { conv.Run(input, weight, output, param) };
 };
 
-/// @brief Generic `run` implementation for forward/backwards reference kerneks.
+/// @brief Generic `run` implementation for forward/backwards reference kernels.
 ///
 /// @tparam SIGNATURE The signature of the operation to perform.
 ///
@@ -93,7 +93,7 @@ concept RefConvFwdInstance =
 /// forward implementation.
 ///
 /// @tparam SIGNATURE The signature of the operation to perform. Must be forwards.
-/// @returns RunResult about how the operation completed (or not).///
+/// @returns RunResult about how the operation completed (or not).
 ///
 /// @see run()
 template <auto SIGNATURE>
@@ -121,7 +121,7 @@ concept RefConvBwdWeightInstance =
 /// backward weight implementation.
 ///
 /// @tparam SIGNATURE The signature of the operation to perform. Must be backwards weight.
-/// @returns RunResult about how the operation completed (or not).///
+/// @returns RunResult about how the operation completed (or not).
 ///
 /// @see run()
 template <auto SIGNATURE>

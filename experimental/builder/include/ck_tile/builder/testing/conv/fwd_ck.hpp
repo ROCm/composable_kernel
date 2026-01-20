@@ -90,7 +90,7 @@ concept CkConvFwdInstance = detail::CkConvFwdInstance<Conv, SIGNATURE>;
 /// @brief `run()` specialization for forward convolution and old CK.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
-/// @returns RunResult about how the operation completed (or not).//////
+/// @returns RunResult about how the operation completed (or not).
 ///
 /// @see run()
 template <auto SIGNATURE>

@@ -147,7 +147,7 @@ concept CkConvBwdWeightMultipleDInstance =
 /// @brief `run()` specialization for backward weight convolution and old CK.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
-/// @returns RunResult about how the operation completed (or not).///
+/// @returns RunResult about how the operation completed (or not).
 ///
 /// @see run()
 template <auto SIGNATURE>
@@ -211,7 +211,7 @@ template <auto SIGNATURE>
 /// This overload is specialized for Multiple-D.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
-/// @returns RunResult about how the operation completed (or not).///
+/// @returns RunResult about how the operation completed (or not).
 ///
 /// @see run()
 template <auto SIGNATURE>
