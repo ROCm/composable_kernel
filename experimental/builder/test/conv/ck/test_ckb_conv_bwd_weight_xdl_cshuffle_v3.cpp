@@ -16,6 +16,7 @@ namespace cku = ck_tile::builder::test_utils;
 
 using enum ck_tile::builder::TensorLayout;
 using ck_tile::test::MatchesReference;
+using ck_tile::test::SuccessfulRun;
 
 constexpr auto SIGNATURE = ckt::ConvSignature{.spatial_dim = 1,
                                               .direction   = ckb::ConvDirection::BACKWARD_WEIGHT,
@@ -84,10 +85,10 @@ TEST(BwdWeight_1DBf16_CShuffle_V3, Execution)
     ckt::init_inputs(args, inputs.get());
 
     auto conv = Instance{};
-    ckt::run(conv, args, inputs.get(), outputs.get());
+    EXPECT_THAT(ckt::run(conv, args, inputs.get(), outputs.get()), SuccessfulRun());
 
     auto ref_conv = Reference{};
-    ckt::run(ref_conv, args, inputs.get(), reference.get());
+    EXPECT_THAT(ckt::run(ref_conv, args, inputs.get(), reference.get()), SuccessfulRun());
 
     EXPECT_THAT(outputs.get(), MatchesReference(args, reference.get()));
 }

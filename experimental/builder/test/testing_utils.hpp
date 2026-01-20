@@ -161,6 +161,23 @@ struct HipStatusMatcher : public ::testing::MatcherInterface<hipError_t>
 /// @param error The error to expect.
 ::testing::Matcher<hipError_t> HipError(hipError_t error);
 
+/// @brief RunResult matcher
+///
+/// `ckt::run` returns a RunResult which indicates whether there was any
+/// problem while running the algorithm. This matcher is used to match those
+/// values.
+struct RunResultMatcher : public ::testing::MatcherInterface<builder::test::RunResult>
+{
+    bool MatchAndExplain(builder::test::RunResult actual,
+                         ::testing::MatchResultListener* listener) const override;
+    void DescribeTo(std::ostream* os) const override;
+    void DescribeNegationTo(std::ostream* os) const override;
+};
+
+/// @brief Construct a Google Test matcher that checks that a ckt::run result
+/// was successful.
+::testing::Matcher<builder::test::RunResult> SuccessfulRun();
+
 template <auto SIGNATURE>
 struct ReferenceOutputMatcher
     : public ::testing::MatcherInterface<builder::test::Outputs<SIGNATURE>>

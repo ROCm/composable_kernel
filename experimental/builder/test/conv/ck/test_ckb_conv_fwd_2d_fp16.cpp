@@ -15,6 +15,7 @@ namespace ckt = ck_tile::builder::test;
 namespace cku = ck_tile::builder::test_utils;
 
 using ck_tile::test::MatchesReference;
+using ck_tile::test::SuccessfulRun;
 
 constexpr auto SIGNATURE =
     ckt::ConvSignature{.spatial_dim            = 2,
@@ -93,10 +94,10 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, Execution)
     ckt::init_inputs(args, inputs.get());
 
     auto conv = Instance{};
-    ckt::run(conv, args, inputs.get(), outputs.get());
+    EXPECT_THAT(ckt::run(conv, args, inputs.get(), outputs.get()), SuccessfulRun());
 
     auto ref_conv = Reference{};
-    ckt::run(ref_conv, args, inputs.get(), reference.get());
+    EXPECT_THAT(ckt::run(ref_conv, args, inputs.get(), reference.get()), SuccessfulRun());
 
     EXPECT_THAT(outputs.get(), MatchesReference(args, reference.get()));
 }
