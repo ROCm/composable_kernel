@@ -160,3 +160,29 @@ TEST(MakeNaiveTensorDescriptorAligned, Align8)
     constexpr auto desc    = make_naive_tensor_descriptor_aligned(lengths, Number<8>{});
     EXPECT_EQ(desc.GetElementSpaceSize(), 119);
 }
+
+// Test high-dimensional tensors (8D) to verify no integer overflow
+TEST(MakeNaiveTensorDescriptorPacked, Simple8D)
+{
+    // 8D packed tensor with small prime dimensions: 2x3x5x7x11x13x2x3
+    // element_space_size = 2*3*5*7*11*13*2*3 = 180180
+    constexpr auto lengths = make_tuple(Number<2>{}, Number<3>{}, Number<5>{}, Number<7>{},
+                                        Number<11>{}, Number<13>{}, Number<2>{}, Number<3>{});
+    constexpr auto desc    = make_naive_tensor_descriptor_packed(lengths);
+    EXPECT_EQ(desc.GetElementSpaceSize(), 180180);
+}
+
+TEST(MakeNaiveTensorDescriptor, ElementSpaceSize8D)
+{
+    // 8D tensor with permuted layout (non-monotonous strides): 2x3x5x7x11x13x17x19
+    // Memory order: [dim7, dim3, dim1, dim5, dim2, dim0, dim6, dim4]
+    // This gives strides: [25935, 133, 5187, 19, 881790, 399, 51870, 1]
+    // Note: strides go up/down/up/down - not monotonously increasing or decreasing
+    // element_space_size = 2*3*5*7*11*13*17*19 = 9699690
+    constexpr auto lengths = make_tuple(Number<2>{}, Number<3>{}, Number<5>{}, Number<7>{},
+                                        Number<11>{}, Number<13>{}, Number<17>{}, Number<19>{});
+    constexpr auto strides = make_tuple(Number<25935>{}, Number<133>{}, Number<5187>{}, Number<19>{},
+                                        Number<881790>{}, Number<399>{}, Number<51870>{}, Number<1>{});
+    constexpr auto desc    = make_naive_tensor_descriptor(lengths, strides);
+    EXPECT_EQ(desc.GetElementSpaceSize(), 9699690);
+}
