@@ -36,8 +36,8 @@ struct SinkhornKnoppDefaultPolicy : public Reduce2dDefaultPolicy
             tile_distribution_encoding<
                 sequence<>,
                 tuple<
-                    sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M, S::ThreadTile_M>>,
-                sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::ThreadTile_N>,
+                    sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M, S::ThreadTile_M>,
+                    sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::ThreadTile_N>>,
                 tuple<sequence<1, 2>, sequence<1, 2>>,
                 tuple<sequence<1, 1>, sequence<1, 1>>,
                 sequence<1, 1, 2, 2>,
