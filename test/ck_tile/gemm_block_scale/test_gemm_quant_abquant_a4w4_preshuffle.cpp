@@ -12,10 +12,7 @@
 // Type aliases for readability
 using RowMajor    = ck_tile::tensor_layout::gemm::RowMajor;
 using ColumnMajor = ck_tile::tensor_layout::gemm::ColumnMajor;
-using FP8         = ck_tile::fp8_t;
-using BF8         = ck_tile::bf8_t;
 using Half        = ck_tile::half_t;
-using PkInt4      = ck_tile::pk_int4_t;
 using PkFP4       = ck_tile::pk_fp4_t;
 using ABQuantGrouped =
     std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::ABQuantGrouped>;
@@ -31,11 +28,7 @@ using GroupSize2D = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
 // QuantType, GemmConfig, AQuantGroupSize, BQuantGroupSize, BQLayout>
 // clang-format off
 using ABQuantTypes = ::testing::Types<
-    // PreshuffleQuant = false && TransposeC = false (RCR layout with RowMajor AQ)
-    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, PkFP4, PkFP4, float, Half, ABQuantGrouped, GemmConfigBase, GroupSize1D, GroupSize2D, ColumnMajor>,
-    //std::tuple<ColumnMajor, RowMajor, RowMajor, RowMajor, PkFP4, PkFP4, float, Half, ABQuantGrouped, GemmConfigBase, GroupSize1D, GroupSize2D, ColumnMajor>,
-    //std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, PkFP4, PkFP4, float, Half, ABQuantGrouped, GemmConfigBase, GroupSize1D, GroupSize2D, ColumnMajor>
-
+    // RCR layout with RowMajor AQ, ColumnMajor BQ
     // PreshuffleB = true && TransposeC = false
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, PkFP4, PkFP4, float, Half, ABQuantGrouped, GemmConfigPreshuffleBPrefill, GroupSize1D, GroupSize2D, ColumnMajor>
 >;

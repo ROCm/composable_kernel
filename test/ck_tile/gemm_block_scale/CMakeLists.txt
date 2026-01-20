@@ -34,11 +34,6 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_abquant_base PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
-    add_gtest_executable(test_tile_gemm_quant_abquant_a4w4
-        test_gemm_quant_abquant_a4w4.cpp
-    )
-    target_compile_options(test_tile_gemm_quant_abquant_a4w4 PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
-
     add_gtest_executable(test_tile_gemm_quant_abquant_padding
         test_gemm_quant_abquant_padding.cpp
     )
@@ -48,6 +43,22 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         test_gemm_quant_abquant_preshuffle_2d.cpp
     )
     target_compile_options(test_tile_gemm_quant_abquant_preshuffle PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+
+    add_gtest_executable(test_tile_gemm_quant_abquant_a4w4_base
+        test_gemm_quant_abquant_a4w4_base.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_abquant_a4w4_base PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_abquant_a4w4_padding
+        test_gemm_quant_abquant_a4w4_padding.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_abquant_a4w4_padding PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_abquant_a4w4_preshuffle
+        test_gemm_quant_abquant_a4w4_preshuffle.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_abquant_a4w4_preshuffle PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
     # AQuant tests
     add_gtest_executable(test_tile_gemm_quant_aquant_prefill 
