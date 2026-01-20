@@ -3,6 +3,7 @@
 
 add_subdirectory(image_to_column)
 add_subdirectory(gemm)
+add_subdirectory(gemm_persistent_async_input)
 add_subdirectory(gemm_weight_preshuffle)
 add_subdirectory(batched_gemm)
 add_subdirectory(grouped_gemm)
