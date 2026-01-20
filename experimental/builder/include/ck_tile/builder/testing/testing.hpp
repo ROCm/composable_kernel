@@ -317,13 +317,17 @@ ValidationReport validate(const Args<SIGNATURE>& args,
 /// @param inputs The input tensor data. Will not be modified by this function.
 /// @param outputs The output tensor data. The contents will be overwritten by
 ///   this function.
+/// @param s_conf Stream config used to launch kernel.
+/// @return std::tuple<bool, float> - whether the problem is supported and
+///         kernel execution time (0.0f if s_conf time_kernel is false).
 ///
 /// @note This function is explicitly deleted to generate compile errors
 /// for missing implementations.
-template <auto SIGNATURE, typename Operation>
-void run(Operation& operation,
-         const Args<SIGNATURE>& args,
-         const Inputs<SIGNATURE>& inputs,
-         const Outputs<SIGNATURE>& outputs) = delete;
+template <auto SIGNATURE, typename Operation, typename StreamConf>
+std::tuple<bool, float> run(Operation& operation,
+                            const Args<SIGNATURE>& args,
+                            const Inputs<SIGNATURE>& inputs,
+                            const Outputs<SIGNATURE>& outputs,
+                            const StreamConf s_conf = {}) = delete;
 
 } // namespace ck_tile::builder::test

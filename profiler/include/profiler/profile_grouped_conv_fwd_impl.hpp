@@ -86,50 +86,68 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     copy(conv_param.input_left_pads_, input_left_pads);
     copy(conv_param.input_right_pads_, input_right_pads);
 
-    // Get element space sizes for GPU allocation
-    const auto input_size  = in_g_n_c_wis_desc.GetElementSpaceSize();
-    const auto weight_size = wei_g_k_c_xs_desc.GetElementSpaceSize();
-    const auto output_size = out_g_n_k_wos_desc.GetElementSpaceSize();
-
     std::cout << "input: " << in_g_n_c_wis_desc << std::endl;
     std::cout << "weight: " << wei_g_k_c_xs_desc << std::endl;
     std::cout << "output: " << out_g_n_k_wos_desc << std::endl;
 
-    // Allocate GPU memory first (GPU-first workflow)
-    DeviceMem in_device_buf(sizeof(InDataType) * input_size);
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * weight_size);
-    DeviceMem out_device_buf(sizeof(OutDataType) * output_size);
-
-    // Generate data directly on GPU using DeviceMem methods
-    switch(init_method)
-    {
-    case 0:
-        // Zero initialization
-        in_device_buf.SetZero();
-        wei_device_buf.SetZero();
-        break;
-    case 1:
-        // Discrete integer generation: {-5, -4, -3, ..., 3, 4}
-        in_device_buf.FillUniformRandInteger<InDataType>(-5, 5);
-        wei_device_buf.FillUniformRandInteger<WeiDataType>(-5, 5);
-        break;
-    default:
-        // Continuous float generation
-        in_device_buf.FillUniformRandFp<InDataType>(0.0f, 1.0f);
-        wei_device_buf.FillUniformRandFp<WeiDataType>(-0.5f, 0.5f);
-    }
-
-    // Create host tensors (for verification if needed)
+    // Create host tensors
     Tensor<InDataType> input(in_g_n_c_wis_desc);
     Tensor<WeiDataType> weight(wei_g_k_c_xs_desc);
     Tensor<OutDataType> host_output(out_g_n_k_wos_desc);
     Tensor<OutDataType> device_output(out_g_n_k_wos_desc);
 
-    // Copy to host only if CPU verification is needed
-    if(do_verification == 1)
+    // Get element space sizes for allocation
+    const auto input_size  = in_g_n_c_wis_desc.GetElementSpaceSize();
+    const auto weight_size = wei_g_k_c_xs_desc.GetElementSpaceSize();
+    const auto output_size = out_g_n_k_wos_desc.GetElementSpaceSize();
+
+    // Allocate GPU memory
+    DeviceMem in_device_buf(sizeof(InDataType) * input_size);
+    DeviceMem wei_device_buf(sizeof(WeiDataType) * weight_size);
+    DeviceMem out_device_buf(sizeof(OutDataType) * output_size);
+
+    // Initialize tensors based on do_verification:
+    // - do_verification=2: GPU-side initialization
+    // - do_verification=0,1: CPU-side initialization
+    if(do_verification == 2)
     {
-        in_device_buf.FromDevice(input.mData.data());
-        wei_device_buf.FromDevice(weight.mData.data());
+        // GPU-side initialization for GPU verification workflow
+        switch(init_method)
+        {
+        case 0:
+            // Zero initialization
+            in_device_buf.SetZero();
+            wei_device_buf.SetZero();
+            break;
+        case 1:
+            // Discrete integer generation: {-5, -4, -3, ..., 3, 4}
+            in_device_buf.FillUniformRandInteger<InDataType>(-5, 5);
+            wei_device_buf.FillUniformRandInteger<WeiDataType>(-5, 5);
+            break;
+        default:
+            // Continuous float generation
+            in_device_buf.FillUniformRandFp<InDataType>(0.0f, 1.0f);
+            wei_device_buf.FillUniformRandFp<WeiDataType>(-0.5f, 0.5f);
+        }
+    }
+    else
+    {
+        // CPU-side initialization for do_verification=0,1
+        switch(init_method)
+        {
+        case 0: break; // Tensors are already zero-initialized by default
+        case 1:
+            input.GenerateTensorValue(GeneratorTensor_2<InDataType>{-5, 5});
+            weight.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
+            break;
+        default:
+            input.GenerateTensorValue(GeneratorTensor_3<InDataType>{0.0, 1.0});
+            weight.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
+        }
+
+        // Copy initialized host data to device
+        in_device_buf.ToDevice(input.mData.data());
+        wei_device_buf.ToDevice(weight.mData.data());
     }
 
     // Allocate GPU reference buffer (used only if do_verification == 2)
