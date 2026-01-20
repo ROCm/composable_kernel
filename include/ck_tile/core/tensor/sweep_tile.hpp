@@ -26,7 +26,6 @@ CK_TILE_DEVICE void sweep_tile_span(TileDistributedSpan_, const F& f)
     else
         static_ford<DstrSpanImpl>{}(
             [&](auto dstr_idx_impl) { f(detail::make_tile_distributed_index(dstr_idx_impl)); });
-
 }
 
 // unpacked span, this version support span with unpack(multi-arg) functor

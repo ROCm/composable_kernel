@@ -3,20 +3,14 @@
 
 #include "run_gemm_quant_example.inc"
 
-//template <typename T>
-//using GemmConfig = GemmConfigQuantPrefill<T>;
 template <typename T>
-struct GemmConfig : public GemmConfigQuantPrefill<T>
-{
-    static constexpr bool kPadK      = false;
-    static constexpr bool TransposeC = true;
-};
+using GemmConfig = GemmConfigABQuantPrefill<T>;
+
 template <typename T>
-struct GemmConfigPreshuffleB : public GemmConfigPreshuffleB_BQuant_Prefill<T>
-{
-    static constexpr bool kPadK      = false;
-    static constexpr bool TransposeC = true;
-};
+using GemmConfigPreshuffleB = GemmConfigPreshuffleB_ABQuant_Prefill<T>;
+
+// template <typename T>
+// using GemmConfigPreshuffleB = GemmConfigPreshuffleB_ABQuant_Decode<T>;
 
 void abquant_quantgrouped_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)

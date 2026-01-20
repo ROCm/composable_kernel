@@ -213,9 +213,9 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                 });
             });
         };
-#if 1
-        using I0 = number<0>;
-        using I1 = number<1>;
+
+        using I0            = number<0>;
+        using I1            = number<1>;
         auto q_block_tensor = std::move(aq_block_tensor);
         if constexpr(Traits::NQPerBlock == 1)
         {
@@ -265,31 +265,36 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                     {
                         constexpr auto tbuf_offset =
                             number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
-                                    merge_sequences(sequence<mIter, nIter>{},
-                                                    c_warp_y_index_zeros)) /
-                                CBlockTensor::PackedSize>{};
+                                       merge_sequences(sequence<mIter, nIter>{},
+                                                       c_warp_y_index_zeros)) /
+                                   CBlockTensor::PackedSize>{};
 
-                        constexpr auto block_idx_m = tile_distributed_index<mIter>{};
+                        constexpr auto block_idx_m  = tile_distributed_index<mIter>{};
                         constexpr auto block_idx_kq = tile_distributed_index<kQScale>{};
 
                         static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
                             auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
                             const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
-                            c_ref              = c_ref + acc_val * q_block_tensor(make_tuple(block_idx_m, block_idx_kq)); //b_scale_reg_f
+                            c_ref =
+                                c_ref + acc_val * q_block_tensor(make_tuple(
+                                                      block_idx_m, block_idx_kq)); // b_scale_reg_f
                         });
-                    } else {
-                        AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(aq_block_tensor);
+                    }
+                    else
+                    {
+                        AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(
+                            aq_block_tensor);
                         constexpr auto tbuf_offset =
                             number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
-                                    merge_sequences(sequence<mIter, nIter>{},
-                                                    c_warp_y_index_zeros)) /
-                                CBlockTensor::PackedSize>{};
+                                       merge_sequences(sequence<mIter, nIter>{},
+                                                       c_warp_y_index_zeros)) /
+                                   CBlockTensor::PackedSize>{};
 
                         index_t reg_offset = [&]() {
                             if constexpr(QuantGroupSize::kN >= (NWarp * WG::kN))
                             {
                                 return (nIter * NWarp * WG::kN) / QuantGroupSize::kN * KPerBlockBQ +
-                                    kQScale;
+                                       kQScale;
                             }
                             else
                             {
@@ -310,71 +315,6 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                 });
             });
         });
-#else
-        static_for<0, QScalesPerBlockRow, 1>{}([&](auto kQScale) {
-            zero_accumulators();
-            static_for<0, KIterPerQScale, 1>{}([&](auto kIterInQScale) {
-                constexpr auto kIter = kQScale * KIterPerQScale + kIterInQScale;
-                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                    constexpr auto AwarpIter = (kIter * MIterPerWarp + mIter) % m_preload;
-                    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                        // warp GEMM
-                        WG{}(c_acc(mIter)(nIter),
-                             a_warp_tensor(number<AwarpIter>{}),
-                             b_warp_tensor(nIter)(number<kIter>{}));
-                    });
-                    __builtin_amdgcn_sched_barrier(0x7F6);
-                    // preload next A from lds
-                    if constexpr((kIter * MIterPerWarp + mIter) <
-                                 (KIterPerWarp * MIterPerWarp - m_preload))
-                    {
-                        constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
-                        constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
-                        a_warp_tensor(number<AwarpIter>{}) =
-                            load_tile(a_warp_windows(number<AmIter>{})(number<AkIter>{}));
-                    }
-                    // barrier
-                    // Could be deleted
-                    if constexpr((mIter == MIter_2nd_last))
-                    {
-                        block_sync_lds();
-                    }
-                });
-            });
-            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(aq_block_tensor);
-                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                    constexpr auto tbuf_offset =
-                        number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
-                                   merge_sequences(sequence<mIter, nIter>{},
-                                                   c_warp_y_index_zeros)) /
-                               CBlockTensor::PackedSize>{};
-
-                    index_t reg_offset = [&]() {
-                        if constexpr(QuantGroupSize::kN >= (NWarp * WG::kN))
-                        {
-                            return (nIter * NWarp * WG::kN) / QuantGroupSize::kN * KPerBlockBQ +
-                                   kQScale;
-                        }
-                        else
-                        {
-                            return nIter * KPerBlockBQ + kQScale;
-                        }
-                    }();
-                    auto& scale_reg = bq_block_tensor.get_thread_buffer()[reg_offset];
-                    float b_scale_reg_f =
-                        aq_picker.template cvt_scale_to_fp32<BQDataType>(scale_reg);
-
-                    static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
-                        float a_scale_reg_f = aq_picker.template pick<c_row>();
-                        auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
-                        const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
-                        c_ref              = c_ref + acc_val * b_scale_reg_f * a_scale_reg_f;
-                    });
-                });
-            });
-        });
-#endif
     }
 };
 

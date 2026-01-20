@@ -302,7 +302,6 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
             static_for<0, Traits::QScalesPerBlockRow, 1>{}([&](auto kQScale) {
                 static_for_product<number<MIterPerWarp>, number<NIterPerWarp>>{}([&](auto mIter,
                                                                                      auto nIter) {
-
                     CWarpTensor c_warp_tensor;
                     static_for<0, Traits::KIterPerQScale, 1>{}([&](auto kIterInQScale) {
                         constexpr auto kIter = kQScale * Traits::KIterPerQScale + kIterInQScale;
