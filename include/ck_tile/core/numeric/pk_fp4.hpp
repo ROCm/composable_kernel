@@ -441,20 +441,24 @@ CK_TILE_HOST_DEVICE constexpr fp16x2_t pk_fp4_t::to_fp16x2(float scale) const
 }
 CK_TILE_HOST_DEVICE constexpr fp8_t pk_fp4_t::to_fp8(float scale) const
 {
-#if CK_TILE_FP4_CVT_DEVICE
-    return impl::_from_f4<fp8_t>(data, scale);
-#else
+    // NOTE: No specialized fp4 to fp8 instructions are available. Unsure whether fp4 to fp16 to fp8
+    // would be better than the naive implementation below
+    // #if CK_TILE_FP4_CVT_DEVICE
+    //    return impl::_from_f4<fp8_t>(data, scale);
+    // #else
     return fp8_t{type_convert<fp8_t>(convert_to_float<pk_fp4_t>(_unpack(number<0>{}), scale))};
-#endif
+    // #endif
 }
 CK_TILE_HOST_DEVICE constexpr fp8x2_t pk_fp4_t::to_fp8x2(float scale) const
 {
-#if CK_TILE_FP4_CVT_DEVICE
-    return impl::_from_f4<fp8x2_t>(data, scale);
-#else
+    // NOTE: No specialized fp4 to fp8 instructions are available. Unsure whether fp4 to fp16 to fp8
+    // would be better than the naive implementation below
+    // #if CK_TILE_FP4_CVT_DEVICE
+    //    return impl::_from_f4<fp8x2_t>(data, scale);
+    // #else
     return fp8x2_t{type_convert<fp8_t>(convert_to_float<pk_fp4_t>(_unpack(number<0>{}), scale)),
                    type_convert<fp8_t>(convert_to_float<pk_fp4_t>(_unpack(number<1>{}), scale))};
-#endif
+    // #endif
 }
 #else
 CK_TILE_HOST_DEVICE constexpr float pk_fp4_t::to_float(float scale) const
