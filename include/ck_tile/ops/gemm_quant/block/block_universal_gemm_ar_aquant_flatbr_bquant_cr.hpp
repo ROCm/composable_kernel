@@ -216,14 +216,14 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
 
         using I0            = number<0>;
         using I1            = number<1>;
-        auto q_block_tensor = std::move(aq_block_tensor);
+        auto aq_scaled_block_tensor = std::move(aq_block_tensor);
         if constexpr(Traits::NQPerBlock == 1)
         {
             constexpr auto aq_spans = AQBlockTensor::get_distributed_spans();
             // CK_PRINT<decltype(aq_spans)>();
             sweep_tile_span(aq_spans[I0{}], [&](auto im) {
                 sweep_tile_span(aq_spans[I1{}], [&](auto ik) {
-                    q_block_tensor(make_tuple(im, ik)) *=
+                    aq_scaled_block_tensor(make_tuple(im, ik)) *=
                         bq_block_tensor(make_tuple(tile_distributed_index<0>{}, ik));
                 });
             });
