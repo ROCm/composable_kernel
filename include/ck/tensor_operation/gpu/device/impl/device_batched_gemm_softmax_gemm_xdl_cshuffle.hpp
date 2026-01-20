@@ -1059,7 +1059,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                       c_grid_desc_m_n)},
               has_main_k_block_loop{GridwiseGemm64::CalculateHasMainKBlockLoop(
                   a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2))},
-              c0_matrix_mask{c.GetLength(I1)},
+              c0_matrix_mask{b.GetLength(I0)},
               a_element_op{a_element_op_},
               b_element_op{b_element_op_},
               b1_element_op{b1_element_op_},
