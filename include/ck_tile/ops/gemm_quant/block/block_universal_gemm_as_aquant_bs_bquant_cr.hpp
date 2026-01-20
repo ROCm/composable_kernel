@@ -285,14 +285,18 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                           "C block tensor data type!");
             constexpr auto warp_size = get_warp_size();
 
-            auto q_block_tensor = std::move(aq_block_tensor);
+            // Start from AQ block tensor and then scale it using BQ; this represents
+            // the combined A/B quantization scales for the block.
+            auto aq_scaled_block_tensor = std::move(aq_block_tensor);
+            // Backward-compatible alias for any existing uses of q_block_tensor in this scope.
+            auto& q_block_tensor        = aq_scaled_block_tensor;
             if constexpr(Traits::NQPerBlock == 1)
             {
                 constexpr auto aq_spans = AQBlockTensor::get_distributed_spans();
                 // CK_PRINT<decltype(aq_spans)>();
                 sweep_tile_span(aq_spans[I0{}], [&](auto im) {
                     sweep_tile_span(aq_spans[I1{}], [&](auto ik) {
-                        q_block_tensor(make_tuple(im, ik)) *=
+                        aq_scaled_block_tensor(make_tuple(im, ik)) *=
                             bq_block_tensor(make_tuple(tile_distributed_index<0>{}, ik));
                     });
                 });
