@@ -42,7 +42,7 @@ template <typename SrcDataType,
           typename WarpWindow>
 CK_TILE_DEVICE void load_int4_tile(WarpTile& dst, const WarpWindow& src)
 {
-    if constexpr(std::is_same_v<SrcDataType, pk_int4_t> || std::is_same_v<SrcDataType, pk_fp4_t>)
+    if constexpr(numeric_traits<SrcDataType>::PackedSize > 1)
     {
         static_assert(!LoadTranspose, "LoadTranspose not supported with pk_int4_t or pk_fp4_t");
         InterleavedPKTypeLoader<SrcDataType, DstDataType, UnaryOpSize>::load_interleaved_pk_type(
