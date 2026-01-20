@@ -40,6 +40,32 @@ TEST(MakeNaiveTensorDescriptor, BroadcastDimension)
     EXPECT_EQ(desc.GetElementSpaceSize(), 5);
 }
 
+TEST(MakeNaiveTensorDescriptor, BroadcastNonAdjacentDims7D)
+{
+    // 7D tensor: 2x3x5x7x11x13x17 with broadcast on dims 2 and 4 (non-adjacent)
+    // Underlying data is 2x3x7x13x17 = 9282 elements, broadcast over dims 2 and 4
+    // strides: [4641, 1547, 0, 221, 0, 17, 1]
+    // element_space_size = 1 + (2-1)*4641 + (3-1)*1547 + (5-1)*0 + (7-1)*221
+    //                        + (11-1)*0 + (13-1)*17 + (17-1)*1
+    //                    = 1 + 4641 + 3094 + 0 + 1326 + 0 + 204 + 16 = 9282
+    constexpr auto lengths = make_tuple(Number<2>{},
+                                        Number<3>{},
+                                        Number<5>{},
+                                        Number<7>{},
+                                        Number<11>{},
+                                        Number<13>{},
+                                        Number<17>{});
+    constexpr auto strides = make_tuple(Number<4641>{},
+                                        Number<1547>{},
+                                        Number<0>{},
+                                        Number<221>{},
+                                        Number<0>{},
+                                        Number<17>{},
+                                        Number<1>{});
+    constexpr auto desc    = make_naive_tensor_descriptor(lengths, strides);
+    EXPECT_EQ(desc.GetElementSpaceSize(), 9282);
+}
+
 TEST(MakeNaiveTensorDescriptor, WithPaddingArbitrary)
 {
     // 11x7x3 tensor with arbitrary strides [2, 97, 23] (prime numbers, no common factors)
@@ -166,8 +192,14 @@ TEST(MakeNaiveTensorDescriptorPacked, Simple8D)
 {
     // 8D packed tensor with small prime dimensions: 2x3x5x7x11x13x2x3
     // element_space_size = 2*3*5*7*11*13*2*3 = 180180
-    constexpr auto lengths = make_tuple(Number<2>{}, Number<3>{}, Number<5>{}, Number<7>{},
-                                        Number<11>{}, Number<13>{}, Number<2>{}, Number<3>{});
+    constexpr auto lengths = make_tuple(Number<2>{},
+                                        Number<3>{},
+                                        Number<5>{},
+                                        Number<7>{},
+                                        Number<11>{},
+                                        Number<13>{},
+                                        Number<2>{},
+                                        Number<3>{});
     constexpr auto desc    = make_naive_tensor_descriptor_packed(lengths);
     EXPECT_EQ(desc.GetElementSpaceSize(), 180180);
 }
@@ -179,10 +211,22 @@ TEST(MakeNaiveTensorDescriptor, ElementSpaceSize8D)
     // This gives strides: [25935, 133, 5187, 19, 881790, 399, 51870, 1]
     // Note: strides go up/down/up/down - not monotonously increasing or decreasing
     // element_space_size = 2*3*5*7*11*13*17*19 = 9699690
-    constexpr auto lengths = make_tuple(Number<2>{}, Number<3>{}, Number<5>{}, Number<7>{},
-                                        Number<11>{}, Number<13>{}, Number<17>{}, Number<19>{});
-    constexpr auto strides = make_tuple(Number<25935>{}, Number<133>{}, Number<5187>{}, Number<19>{},
-                                        Number<881790>{}, Number<399>{}, Number<51870>{}, Number<1>{});
+    constexpr auto lengths = make_tuple(Number<2>{},
+                                        Number<3>{},
+                                        Number<5>{},
+                                        Number<7>{},
+                                        Number<11>{},
+                                        Number<13>{},
+                                        Number<17>{},
+                                        Number<19>{});
+    constexpr auto strides = make_tuple(Number<25935>{},
+                                        Number<133>{},
+                                        Number<5187>{},
+                                        Number<19>{},
+                                        Number<881790>{},
+                                        Number<399>{},
+                                        Number<51870>{},
+                                        Number<1>{});
     constexpr auto desc    = make_naive_tensor_descriptor(lengths, strides);
     EXPECT_EQ(desc.GetElementSpaceSize(), 9699690);
 }
