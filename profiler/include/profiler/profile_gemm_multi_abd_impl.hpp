@@ -201,8 +201,8 @@ bool profile_gemm_multi_abd_impl(int do_verification,
                                                               AComputeType,
                                                               BComputeType>;
 
-        auto ref_gemm               = ReferenceGemmInstance{};
-        auto ref_invoker            = ref_gemm.MakeInvoker();
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
 
         auto ref_argument =
             ref_gemm.MakeArgument(a_m_k, b_k_n, c_m_n, PassThrough{}, PassThrough{}, PassThrough{});
