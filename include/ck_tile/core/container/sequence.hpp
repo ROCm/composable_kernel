@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/core/container/trivial_array.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/numeric/math.hpp"
@@ -12,9 +13,6 @@
 #include "ck_tile/core/utility/print.hpp"
 
 namespace ck_tile {
-
-template <typename, index_t>
-struct array; // declare for later use (array->seq utility)
 
 template <index_t...>
 struct sequence;
@@ -38,6 +36,7 @@ template <typename Seq>
 CK_TILE_HOST_DEVICE constexpr auto sequence_pop_back(Seq);
 
 namespace impl {
+
 // static_assert(__has_builtin(__type_pack_element), "can't find __type_pack_element");
 template <index_t I, typename... Ts>
 using at_index_t = __type_pack_element<I, Ts...>;
@@ -336,6 +335,7 @@ struct uniform_sequence_gen
 
 // reverse inclusive scan (with init) sequence
 namespace impl {
+
 template <typename Seq, typename Reduce, index_t Init>
 struct sequence_reverse_inclusive_scan_impl;
 
@@ -352,10 +352,10 @@ struct sequence_reverse_inclusive_scan_impl<sequence<Is...>, Reduce, Init>
         }
         else
         {
-            constexpr array<index_t, size> arr = []() {
-                array<index_t, size> values = {Is...};
-                array<index_t, size> result = {0};
-                result[size - 1]            = Reduce{}(values[size - 1], Init);
+            constexpr auto arr = []() {
+                trivial_array<index_t, size> values = {Is...};
+                trivial_array<index_t, size> result = {0};
+                result[size - 1]                    = Reduce{}(values[size - 1], Init);
                 for(index_t i = size - 1; i > 0; --i)
                 {
                     result[i - 1] = Reduce{}(values[i - 1], result[i]);
@@ -1130,7 +1130,7 @@ CK_TILE_HOST_DEVICE constexpr auto histogram_sorted_sequence(SeqSortedSamples, s
 {
     constexpr auto bins      = sizeof...(rs); // or categories
     constexpr auto histogram = [&]() {
-        array<index_t, bins> h{0}; // make sure this can clear all element to zero
+        trivial_array<index_t, bins> h{0}; // make sure this can clear all element to zero
         detail::sorted_sequence_histogram<0, SeqSortedSamples, sequence<rs...>>{}(h);
         return h;
     }();
@@ -1143,7 +1143,7 @@ CK_TILE_HOST_DEVICE constexpr auto generate_array(F&& f, number<N>)
 {
     using T = remove_cvref_t<decltype(f(number<0>{}))>;
 
-    return unpack([&f](auto&&... is) { return array<T, N>{f(is)...}; },
+    return unpack([&f](auto&&... is) { return trivial_array<T, N>{f(is)...}; },
                   typename arithmetic_sequence_gen<0, N, 1>::type{});
 }
 

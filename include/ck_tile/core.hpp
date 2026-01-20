@@ -41,6 +41,7 @@
 #include "ck_tile/core/container/span.hpp"
 #include "ck_tile/core/container/statically_indexed_array.hpp"
 #include "ck_tile/core/container/thread_buffer.hpp"
+#include "ck_tile/core/container/trivial_array.hpp"
 #include "ck_tile/core/container/tuple.hpp"
 #include "ck_tile/core/numeric/bfloat16.hpp"
 #include "ck_tile/core/numeric/e8m0.hpp"
