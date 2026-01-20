@@ -62,7 +62,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3;
 namespace ck_tile {
 namespace reflect {
 
-/// @brief Tag type for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle device kernel
+/// @brief Tag type for DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_v3 device kernel
 struct DeviceGroupedConvBwdWeight_multiple_d_Wmma_CShuffle_V3_Tag
 {
 };

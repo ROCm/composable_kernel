@@ -149,7 +149,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_W
 {
     static constexpr auto kTensorOpName = "DeviceGroupedConvBwdWeight_Wmma_CShuffle";
 
-    static constexpr ck::index_t kNDimSpatial = NDimSpatial;
+    static constexpr ck::index_t kSpatialDim = NDimSpatial;
 
     using InLayout  = InLayout_;
     using WeiLayout = WeiLayout_;
@@ -164,7 +164,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_W
     using WeiElementwiseOperation = WeiElementwiseOperation_;
     using OutElementwiseOperation = OutElementwiseOperation_;
 
-    static constexpr auto kConvBackwardWeightSpecialization = ConvBackwardWeightSpecialization;
+    static constexpr auto kConvBwdWeightSpecialization = ConvBackwardWeightSpecialization;
 
     static constexpr ck::index_t kBlockSize                 = BlockSize;
     static constexpr ck::index_t kMPerBlock                 = MPerBlock;
@@ -216,7 +216,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_W
         oss << "DeviceGroupedConvBwdWeight_Wmma_CShuffle";
 
         // Template parameters in exact order
-        oss << "<" << kNDimSpatial;                     // 1. NDimSpatial
+        oss << "<" << kSpatialDim;                      // 1. NDimSpatial
         oss << "," << detail::layout_name<InLayout>();  // 2. InLayout
         oss << "," << detail::layout_name<WeiLayout>(); // 3. WeiLayout
         oss << "," << detail::layout_name<OutLayout>(); // 4. OutLayout
@@ -234,16 +234,16 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_W
                                                                        // OutElementwiseOperation
         oss << ","
             << detail::conv_bwd_weight_spec_name(
-                   kConvBackwardWeightSpecialization); // 12. ConvBackwardWeightSpecialization
-        oss << "," << kBlockSize;                      // 13. BlockSize
-        oss << "," << kMPerBlock;                      // 14. MPerBlock
-        oss << "," << kNPerBlock;                      // 15. NPerBlock
-        oss << "," << kK0PerBlock;                     // 16. K0PerBlock
-        oss << "," << kK1;                             // 17. K1
-        oss << "," << kMPerWMMA;                       // 18. MPerWMMA
-        oss << "," << kNPerWMMA;                       // 19. NPerWMMA
-        oss << "," << kMRepeat;                        // 20. MRepeat
-        oss << "," << kNRepeat;                        // 21. NRepeat
+                   kConvBwdWeightSpecialization); // 12. ConvBackwardWeightSpecialization
+        oss << "," << kBlockSize;                 // 13. BlockSize
+        oss << "," << kMPerBlock;                 // 14. MPerBlock
+        oss << "," << kNPerBlock;                 // 15. NPerBlock
+        oss << "," << kK0PerBlock;                // 16. K0PerBlock
+        oss << "," << kK1;                        // 17. K1
+        oss << "," << kMPerWMMA;                  // 18. MPerWMMA
+        oss << "," << kNPerWMMA;                  // 19. NPerWMMA
+        oss << "," << kMRepeat;                   // 20. MRepeat
+        oss << "," << kNRepeat;                   // 21. NRepeat
         oss << "," << detail::sequence_name<ABlockTransferThreadClusterLengths_K0_M_K1>(); // 22.
         oss << "," << detail::sequence_name<ABlockTransferThreadClusterArrangeOrder>();    // 23.
         oss << "," << detail::sequence_name<ABlockTransferSrcAccessOrder>();               // 24.

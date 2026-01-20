@@ -102,7 +102,7 @@ struct ConvTraits
 
     OutputTileTransferInfo c_tile_transfer;
 
-    std::optional<int> num_gemm_prefetch_stage = std::nullopt;
+    std::optional<int> num_gemm_k_prefetch_stage = std::nullopt;
 
     builder::PipelineVersion pipeline_version;
     builder::PipelineScheduler pipeline_scheduler;
