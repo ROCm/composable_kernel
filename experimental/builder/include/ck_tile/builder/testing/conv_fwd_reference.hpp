@@ -62,6 +62,8 @@ concept RefConvInstance = requires(Conv& conv,
 /// @throws std::runtime_error if the arguments weren't actually valid for the
 /// operation. This should be caught and reported by the testing framework.
 ///
+/// @return std::tuple<bool, float> - whether the problem is supported and
+///         kernel execution time (0.0f for reference).
 /// @see run()
 template <auto SIGNATURE>
     requires ValidConvSignature<SIGNATURE> &&
@@ -69,10 +71,10 @@ template <auto SIGNATURE>
              // for now, just concern outselves with reference and see when the
              // rest of the bwd/weight plumbing is there.
              ConvDirectionIsForward<SIGNATURE>
-void run(RefConvInstance<SIGNATURE> auto& conv,
-         const Args<SIGNATURE>& args,
-         const Inputs<SIGNATURE>& inputs,
-         const Outputs<SIGNATURE>& outputs)
+std::tuple<bool, float> run(RefConvInstance<SIGNATURE> auto& conv,
+                            const Args<SIGNATURE>& args,
+                            const Inputs<SIGNATURE>& inputs,
+                            const Outputs<SIGNATURE>& outputs)
 {
     // We don't want to compute the output dims manually, just get
     // them via the existing infrastructure
@@ -86,15 +88,27 @@ void run(RefConvInstance<SIGNATURE> auto& conv,
     for(auto right_pad : param.input_right_pads_)
     {
         if(right_pad != 0)
-            throw std::runtime_error("TODO: Support right pad in reference conv");
+        {
+            std::cout << "TODO: Support right pad in reference conv" << std::endl;
+            return std::make_tuple(false, 0.0f);
+        }
     }
 
     if(!args.make_input_descriptor().is_packed())
-        throw std::runtime_error("TODO: Support non-packed input tensor in reference conv");
+    {
+        std::cout << "TODO: Support non-packed input tensor in reference conv" << std::endl;
+        return std::make_tuple(false, 0.0f);
+    }
     if(!args.make_weight_descriptor().is_packed())
-        throw std::runtime_error("TODO: Support non-packed weight tensor in reference conv");
+    {
+        std::cout << "TODO: Support non-packed weight tensor in reference conv" << std::endl;
+        return std::make_tuple(false, 0.0f);
+    }
     if(!args.make_output_descriptor().is_packed())
-        throw std::runtime_error("TODO: Support non-packed output tensor in reference conv");
+    {
+        std::cout << "TODO: Support non-packed output tensor in reference conv" << std::endl;
+        return std::make_tuple(false, 0.0f);
+    }
 
     conv.Run(inputs.input,
              inputs.weight,
@@ -109,6 +123,7 @@ void run(RefConvInstance<SIGNATURE> auto& conv,
              param.conv_filter_strides_,
              param.conv_filter_dilations_,
              param.input_left_pads_);
+    return std::make_tuple(true, 0.0f);
 }
 
 } // namespace ck_tile::builder::test
