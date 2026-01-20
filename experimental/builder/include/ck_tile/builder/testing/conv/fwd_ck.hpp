@@ -90,15 +90,12 @@ concept CkConvFwdInstance = detail::CkConvFwdInstance<Conv, SIGNATURE>;
 /// @brief `run()` specialization for forward convolution and old CK.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
-/// @throws std::runtime_error if the arguments weren't actually valid for the
-/// operation. This should be caught and reported by the testing framework.
-/// @return std::tuple<bool, float> - whether the problem is supported and
-///         kernel execution time (0.0f if s_conf time_kernel is false).
+/// @returns RunResult about how the operation completed (or not).//////
 ///
 /// @see run()
 template <auto SIGNATURE>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
-std::tuple<bool, float> run(CkConvInstance<SIGNATURE> auto& conv,
+[[nodiscard]] RunResult run(CkConvFwdInstance<SIGNATURE> auto& conv,
                             const Args<SIGNATURE>& args,
                             const Inputs<SIGNATURE>& inputs,
                             const Outputs<SIGNATURE>& outputs,
@@ -129,9 +126,7 @@ std::tuple<bool, float> run(CkConvInstance<SIGNATURE> auto& conv,
     const auto output_desc = args.make_output_descriptor();
 
     if(args.k_batch != 1)
-    {
-        return std::make_tuple(false, 0);
-    }
+        return RunResult::not_supported("ck fwd does not support k_batch != 1");
 
     auto ck_args = conv.MakeArgument(inputs.input,
                                      inputs.weight,
@@ -154,11 +149,9 @@ std::tuple<bool, float> run(CkConvInstance<SIGNATURE> auto& conv,
                                      args.cde_elementwise_op);
 
     if(!conv.IsSupportedArgument(ck_args))
-    {
-        return std::make_tuple(false, 0);
-    }
+        return RunResult::not_supported("unsupported ck arguments");
 
-    return std::make_tuple(true, conv.MakeInvoker().Run(ck_args, s_conf));
+    return RunResult::from_runtime(conv.MakeInvoker().Run(ck_args, s_conf));
 }
 
 } // namespace ck_tile::builder::test

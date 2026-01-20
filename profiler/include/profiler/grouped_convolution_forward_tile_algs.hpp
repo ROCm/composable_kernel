@@ -113,8 +113,8 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
     auto reference = ckt::alloc_outputs(args);
     using ReferenceInstance =
         typename ckb::ConvBuilder<SIGNATURE, ckt::ConvAlgorithm_Reference{}>::Instance;
-    auto ref_conv = ReferenceInstance{};
-    ckt::run(ref_conv, args, inputs, reference.get());
+    auto ref_conv                    = ReferenceInstance{};
+    [[maybe_unused]] auto ref_result = ckt::run(ref_conv, args, inputs, reference.get());
 
     [[maybe_unused]] auto run_alg = [&](auto&& run_alg_func) {
         std::tie(is_supported, avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);

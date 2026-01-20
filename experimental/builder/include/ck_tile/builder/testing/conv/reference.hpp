@@ -52,7 +52,7 @@ concept RefConvInstance = requires(Conv& conv,
 ///         kernel execution time (0.0f for reference).
 /// @see run()
 template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename OutDataType>
-std::tuple<bool, float>
+[[nodiscard]] RunResult
 run(RefConvInstance<SIGNATURE, InDataType, WeiDataType, OutDataType> auto& conv,
     const Args<SIGNATURE>& args,
     InDataType* input,
@@ -68,23 +68,16 @@ run(RefConvInstance<SIGNATURE, InDataType, WeiDataType, OutDataType> auto& conv,
     // eventually.
 
     if(!args.make_input_descriptor().is_packed())
-    {
-        std::cout << "TODO: Support non-packed input tensor in reference conv" << std::endl;
-        return std::make_tuple(false, 0.0f);
-    }
+        return RunResult::not_supported("TODO: Support non-packed input tensor in reference conv");
+
     if(!args.make_weight_descriptor().is_packed())
-    {
-        std::cout << "TODO: Support non-packed weight tensor in reference conv" << std::endl;
-        return std::make_tuple(false, 0.0f);
-    }
+        return RunResult::not_supported("TODO: Support non-packed weight tensor in reference conv");
+
     if(!args.make_output_descriptor().is_packed())
-    {
-        std::cout << "TODO: Support non-packed output tensor in reference conv" << std::endl;
-        return std::make_tuple(false, 0.0f);
-    }
+        return RunResult::not_supported("TODO: Support non-packed output tensor in reference conv");
 
     conv.Run(input, weight, output, param);
-    return std::make_tuple(true, 0.0f);
+    return RunResult::from_runtime(0); // ref conv does not return a meaningful runtime.
 }
 
 } // namespace detail
@@ -100,6 +93,7 @@ concept RefConvFwdInstance =
 /// forward implementation.
 ///
 /// @tparam SIGNATURE The signature of the operation to perform. Must be forwards.
+/// @returns RunResult about how the operation completed (or not).///
 ///
 /// @see run()
 template <auto SIGNATURE>
@@ -108,7 +102,7 @@ template <auto SIGNATURE>
              // for now, just concern outselves with reference and see when the
              // rest of the bwd/weight plumbing is there.
              ConvDirectionIsForward<SIGNATURE>
-std::tuple<bool, float> run(RefConvFwdInstance<SIGNATURE> auto& conv,
+[[nodiscard]] RunResult run(RefConvFwdInstance<SIGNATURE> auto& conv,
                             const Args<SIGNATURE>& args,
                             const Inputs<SIGNATURE>& inputs,
                             const Outputs<SIGNATURE>& outputs)
@@ -127,10 +121,11 @@ concept RefConvBwdWeightInstance =
 /// backward weight implementation.
 ///
 /// @tparam SIGNATURE The signature of the operation to perform. Must be backwards weight.
+/// @returns RunResult about how the operation completed (or not).///
 ///
 /// @see run()
 template <auto SIGNATURE>
-std::tuple<bool, float> run(RefConvBwdWeightInstance<SIGNATURE> auto& conv,
+[[nodiscard]] RunResult run(RefConvBwdWeightInstance<SIGNATURE> auto& conv,
                             const Args<SIGNATURE>& args,
                             const Inputs<SIGNATURE>& inputs,
                             const Outputs<SIGNATURE>& outputs)

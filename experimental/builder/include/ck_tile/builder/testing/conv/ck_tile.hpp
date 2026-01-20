@@ -32,7 +32,7 @@ concept CkTileConvInstance = requires(Conv&) {
 };
 
 template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename OutDataType>
-std::tuple<bool, float> run(CkTileConvInstance<SIGNATURE> auto& conv,
+[[nodiscard]] RunResult run(CkTileConvInstance<SIGNATURE> auto& conv,
                             const Args<SIGNATURE>& args,
                             InDataType* input,
                             WeiDataType* weight,
@@ -51,17 +51,13 @@ std::tuple<bool, float> run(CkTileConvInstance<SIGNATURE> auto& conv,
     const dim3 blocks = Conv::BlockSize();
 
     if(!Conv::IsSupportedArgument(kargs))
-    {
-        return std::make_tuple(false, 0.f);
-    }
+        return RunResult::not_supported("unsupported ck_tile arguments");
 
     constexpr index_t minimum_occupancy =
         Conv::GemmPipeline::Scheduler == ck_tile::GemmPipelineScheduler::Intrawave ? 1 : 2;
 
-    return std::make_tuple(
-        true,
-        ck_tile::launch_kernel(
-            s_conf, ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs)));
+    return RunResult::from_runtime(ck_tile::launch_kernel(
+        s_conf, ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs)));
 }
 
 } // namespace detail
@@ -81,13 +77,12 @@ concept CkTileConvInstance = detail::CkTileConvInstance<Conv, SIGNATURE>;
 /// @brief `run()` specialization for forward convolution and CK Tile.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
-/// @return std::tuple<bool, float> - whether the problem is supported and
-///         kernel execution time (0.0f if s_conf time_kernel is false).
+/// @returns RunResult about how the operation completed (or not).///
 ///
 /// @see run()
 template <auto SIGNATURE>
     requires ConvDirectionIsForward<SIGNATURE>
-std::tuple<bool, float> run(CkTileConvInstance<SIGNATURE> auto& conv,
+[[nodiscard]] RunResult run(CkTileConvInstance<SIGNATURE> auto& conv,
                             const Args<SIGNATURE>& args,
                             const Inputs<SIGNATURE>& inputs,
                             const Outputs<SIGNATURE>& outputs,
@@ -104,13 +99,12 @@ std::tuple<bool, float> run(CkTileConvInstance<SIGNATURE> auto& conv,
 /// @brief `run()` specialization for backwards weight convolution and CK Tile.
 ///
 /// @tparam SIGNATURE Backwards weight convolution signature.
-/// @return std::tuple<bool, float> - whether the problem is supported and
-///         kernel execution time (0.0f if s_conf time_kernel is false).
+/// @returns RunResult about how the operation completed (or not).///
 ///
 /// @see run()
 template <auto SIGNATURE>
     requires ConvDirectionIsBackwardWeight<SIGNATURE>
-std::tuple<bool, float> run(CkTileConvInstance<SIGNATURE> auto& conv,
+[[nodiscard]] RunResult run(CkTileConvInstance<SIGNATURE> auto& conv,
                             const Args<SIGNATURE>& args,
                             const Inputs<SIGNATURE>& inputs,
                             const Outputs<SIGNATURE>& outputs,

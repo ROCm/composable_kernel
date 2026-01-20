@@ -147,10 +147,11 @@ concept CkConvBwdWeightMultipleDInstance =
 /// @brief `run()` specialization for backward weight convolution and old CK.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
+/// @returns RunResult about how the operation completed (or not).///
 ///
 /// @see run()
 template <auto SIGNATURE>
-std::tuple<bool, float> run(CkConvBwdWeightInstance<SIGNATURE> auto& conv,
+[[nodiscard]] RunResult run(CkConvBwdWeightInstance<SIGNATURE> auto& conv,
                             const Args<SIGNATURE>& args,
                             const Inputs<SIGNATURE>& inputs,
                             const Outputs<SIGNATURE>& outputs)
@@ -200,11 +201,9 @@ std::tuple<bool, float> run(CkConvBwdWeightInstance<SIGNATURE> auto& conv,
                                      args.k_batch);
 
     if(!conv.IsSupportedArgument(ck_args))
-    {
-        return std::make_tuple(false, 0);
-    }
+        return RunResult::not_supported("invalid ck arguments");
 
-    return std::make_tuple(true, conv.MakeInvoker().Run(ck_args, {}));
+    return RunResult::from_runtime(conv.MakeInvoker().Run(ck_args, {}));
 }
 
 /// @brief `run()` specialization for backward weight convolution and old CK.
@@ -212,10 +211,11 @@ std::tuple<bool, float> run(CkConvBwdWeightInstance<SIGNATURE> auto& conv,
 /// This overload is specialized for Multiple-D.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
+/// @returns RunResult about how the operation completed (or not).///
 ///
 /// @see run()
 template <auto SIGNATURE>
-std::tuple<bool, float> run(CkConvBwdWeightMultipleDInstance<SIGNATURE> auto& conv,
+[[nodiscard]] RunResult run(CkConvBwdWeightMultipleDInstance<SIGNATURE> auto& conv,
                             const Args<SIGNATURE>& args,
                             const Inputs<SIGNATURE>& inputs,
                             const Outputs<SIGNATURE>& outputs)
@@ -268,11 +268,9 @@ std::tuple<bool, float> run(CkConvBwdWeightMultipleDInstance<SIGNATURE> auto& co
                                      args.k_batch);
 
     if(!conv.IsSupportedArgument(ck_args))
-    {
-        return std::make_tuple(false, 0);
-    }
+        return RunResult::not_supported("invalid ck arguments");
 
-    return std::make_tuple(true, conv.MakeInvoker().Run(ck_args, {}));
+    return RunResult::from_runtime(conv.MakeInvoker().Run(ck_args, {}));
 }
 
 } // namespace ck_tile::builder::test

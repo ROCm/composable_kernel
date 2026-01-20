@@ -10,6 +10,7 @@ using ck_tile::test::HipSuccess;
 using ck_tile::test::InstanceMatcher;
 using ck_tile::test::InstanceSet;
 using ck_tile::test::StringEqWithDiff;
+using ck_tile::test::SuccessfulRun;
 
 TEST(InstanceSet, FromFactory)
 {
