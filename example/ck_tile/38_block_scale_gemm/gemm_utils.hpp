@@ -271,6 +271,24 @@ struct GemmConfigABQuantPrefill : public GemmConfigQuantPrefill<PrecType>
     static constexpr bool TransposeC = true;
 };
 
+// Used for A=16bit and B=8bit. The warp tile has KPack=16
+// Matrix A: Vectorsize =  8, KPack=16 -> LDS read/write vectorsize =  8 (128bit)
+// Matrix B: Vectorsize = 16, KPack=16 -> LDS read/write vectorsize = 16 (128bit)
+struct GemmConfigMixedPrecision : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 64;
+};
+
 template <typename PrecType>
 struct GemmConfigPreshuffleBQuantPrefill : public GemmConfigQuantPrefill<PrecType>
 {
