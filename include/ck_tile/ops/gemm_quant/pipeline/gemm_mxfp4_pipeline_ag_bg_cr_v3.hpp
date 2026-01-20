@@ -440,6 +440,23 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
             constexpr auto idx1_js = tile_distributed_index<0>{};
             constexpr auto b_block = decltype(b_fp4_block_tile)::get_distributed_spans();
 
+            // Internally this is using V_CVT_SCALEF32_PK_BF16_FP4 or V_CVT_SCALEF32_PK_FP16_FP4 on
+            // gfx950
+            auto pk_mxfp4_to_compute_v2 = [](auto pk_mxfp4, float fscale) {
+                if constexpr(std::is_same_v<BDqDataType, half_t>)
+                {
+                    return pk_fp4_to_fp16x2(pk_mxfp4, fscale);
+                }
+                else if constexpr(std::is_same_v<BDqDataType, bf16_t>)
+                {
+                    return pk_fp4_to_bf16x2(pk_mxfp4, fscale);
+                }
+                else
+                {
+                    static_assert(sizeof(pk_mxfp4) == 0, "unsupported compute type");
+                }
+            };
+
             auto apply_scale_func = [&]() {
                 sweep_tile_span(b_block[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(b_block[number<1>{}], [&](auto idx1) {
@@ -454,13 +471,12 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                                 tile_distributed_index<idx1.impl_.at(0) * 2 + 1>{};
                             constexpr auto i_j_idx_lo = make_tuple(idx0, idx1_lo);
                             constexpr auto i_j_idx_hi = make_tuple(idx0, idx1_hi);
-                            auto b_pack  = type_convert<pk_fp4_t>(b_fp4_block_tile(i_j_idx));
-                            auto b_f4_lo = type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
-                            auto b_f4_hi = type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
-                            b_block_tile(i_j_idx_lo) = type_convert<BDqDataType>(
-                                type_convert<float>(b_f4_lo) * bit_cast<float>(b_scale_uint));
-                            b_block_tile(i_j_idx_hi) = type_convert<BDqDataType>(
-                                type_convert<float>(b_f4_hi) * bit_cast<float>(b_scale_uint));
+                            auto b_pack               = b_fp4_block_tile(i_j_idx);
+
+                            auto cvt =
+                                pk_mxfp4_to_compute_v2(b_pack, bit_cast<float>(b_scale_uint));
+                            b_block_tile(i_j_idx_lo) = cvt.x;
+                            b_block_tile(i_j_idx_hi) = cvt.y;
                         }
                         else
                         {
