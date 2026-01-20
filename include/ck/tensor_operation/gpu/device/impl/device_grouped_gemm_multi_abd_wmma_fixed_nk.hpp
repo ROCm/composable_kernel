@@ -727,8 +727,8 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
         // vector load size.
         if constexpr(GemmSpec != GemmSpecialization::Default)
         {
-            // [A|B]BlockTransferSrcVectorDim value define dimension in the block {K0,M,K1}
-            // layout, thus we have to adapt it to the {M,K} or {N,K} layout.
+            // [A|B]BlockTransferSrcVectorDim value define dimension in the block {K0,M,K1} layout,
+            // thus we have to adapt it to the {M,K} or {N,K} layout.
             const auto a_raw_vector_dim = ABlockTransferSrcVectorDim != 1 ? 1 : 0;
             const auto b_raw_vector_dim = BBlockTransferSrcVectorDim != 1 ? 1 : 0;
 
@@ -737,19 +737,8 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
                 const auto a_vector_dim = arg.a_mtx_mraw_kraw_[i].At(Number<a_raw_vector_dim>{});
                 const auto b_vector_dim = arg.b_mtx_nraw_kraw_[i].At(Number<b_raw_vector_dim>{});
 
-                bool isABlockTransferValid = (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
-                if(!isABlockTransferValid && ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    printf("Invalid block transfer for A block.\n");
-                }
-
-                bool isBBlockTransferValid = (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
-                if(!isBBlockTransferValid && ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    printf("Invalid block transfer for B block.\n");
-                }
-
-                supported &= isABlockTransferValid && isBBlockTransferValid;
+                supported = supported & (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
+                supported = supported & (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
             }
         }
 

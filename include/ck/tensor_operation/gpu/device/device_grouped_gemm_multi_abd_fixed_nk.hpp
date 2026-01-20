@@ -5,7 +5,6 @@
 
 #include <iostream>
 #include <array>
-#include <vector>
 
 #include "device_grouped_gemm_multi_abd.hpp"
 
@@ -72,10 +71,6 @@ struct DeviceGroupedGemmMultiABDFixedNK : DeviceGroupedGemmMultiABD<AsLayout,
                                                                     BElementwiseOperation,
                                                                     CElementwiseOperation>
 {
-    static constexpr index_t NumATensor = AsDataType::Size();
-    static constexpr index_t NumBTensor = BsDataType::Size();
-    static constexpr index_t NumDTensor = DsDataType::Size();
-
     virtual void SetDeviceKernelArgs(BaseArgument* p_arg, const void* kernel_args) const = 0;
     virtual size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const               = 0;
     virtual void SetKBatch(BaseArgument* p_arg, index_t k_batch) const                   = 0;

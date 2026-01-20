@@ -39,7 +39,7 @@ template <typename AsTensorTuple,
           typename AComputeType,
           typename BComputeType>
 struct ReferenceGemmMultiABD : public device::BaseOperator
-{    
+{
     // Argument
     struct Argument : public device::BaseArgument
     {
@@ -93,9 +93,9 @@ struct ReferenceGemmMultiABD : public device::BaseOperator
                     // result
                     auto data_refs1 = ck::tie(a_m_k(m, k));
                     // inputs
-                    auto data_refs2 =
-                        generate_tie([&](auto i) -> auto& { return arg.as_m_k_[Number<i>{}](m, k); },
-                                    Number<NumATensor>{});
+                    auto data_refs2 = generate_tie(
+                        [&](auto i) -> auto& { return arg.as_m_k_[Number<i>{}](m, k); },
+                        Number<NumATensor>{});
                     auto data_refs = concat_tuple_of_refs(data_refs1, data_refs2);
                     unpack(arg.a_element_op_, data_refs);
                 }
@@ -109,9 +109,9 @@ struct ReferenceGemmMultiABD : public device::BaseOperator
                     // result
                     auto data_refs1 = ck::tie(b_k_n(k, n));
                     // inputs
-                    auto data_refs2 =
-                        generate_tie([&](auto i) -> auto& { return arg.bs_k_n_[Number<i>{}](k, n); },
-                                    Number<NumBTensor>{});
+                    auto data_refs2 = generate_tie(
+                        [&](auto i) -> auto& { return arg.bs_k_n_[Number<i>{}](k, n); },
+                        Number<NumBTensor>{});
                     auto data_refs = concat_tuple_of_refs(data_refs1, data_refs2);
                     unpack(arg.b_element_op_, data_refs);
                 }
@@ -130,8 +130,8 @@ struct ReferenceGemmMultiABD : public device::BaseOperator
             auto ref_gemm               = ReferenceGemmInstance{};
             auto ref_invoker            = ref_gemm.MakeInvoker();
 
-            auto ref_argument =
-                ref_gemm.MakeArgument(a_m_k, b_k_n, c_m_n, PassThrough{}, PassThrough{}, PassThrough{});
+            auto ref_argument = ref_gemm.MakeArgument(
+                a_m_k, b_k_n, c_m_n, PassThrough{}, PassThrough{}, PassThrough{});
 
             ref_invoker.Run(ref_argument);
 
@@ -142,9 +142,9 @@ struct ReferenceGemmMultiABD : public device::BaseOperator
                     // compulsory
                     auto data_refs1 = ck::tie(arg.e_m_n_(m, n), c_m_n(m, n));
                     // optional (if multiple Ds)
-                    auto data_refs2 =
-                        generate_tie([&](auto i) -> auto& { return arg.ds_m_n_[Number<i>{}](m, n); },
-                                    Number<NumDTensor>{});
+                    auto data_refs2 = generate_tie(
+                        [&](auto i) -> auto& { return arg.ds_m_n_[Number<i>{}](m, n); },
+                        Number<NumDTensor>{});
                     auto data_refs = concat_tuple_of_refs(data_refs1, data_refs2);
                     unpack(arg.cde_element_op_, data_refs);
                 }

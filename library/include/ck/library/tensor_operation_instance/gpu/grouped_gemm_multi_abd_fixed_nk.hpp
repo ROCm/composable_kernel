@@ -20,7 +20,6 @@ using Multiply    = ck::tensor_operation::element_wise::Multiply;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using AddFastGelu = ck::tensor_operation::element_wise::AddFastGelu;
 
-
 #if defined(CK_USE_XDL)
 // RRR
 void add_device_grouped_gemm_xdl_fixed_nk_multi_abd_bf16_i8_bf16_mk_kn_mn_bias_gelu_instances(
@@ -341,7 +340,6 @@ void add_device_grouped_gemm_wmma_fixed_nk_multi_abd_bf16_i8_bf16_km_kn_mn_insta
                                                                  Multiply,
                                                                  PassThrough>>>& instances);
 #endif // CK_USE
-
 
 // GEMM + Add + Gelu
 template <typename AsLayout,

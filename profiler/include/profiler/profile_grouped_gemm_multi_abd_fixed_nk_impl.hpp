@@ -285,7 +285,7 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
             ds_stride[i]      = StrideDs[g];
         });
 
-        g_e_device_buf[g] = std::make_unique<DeviceMem>(sizeof(EDataType) * Ms[g] * Ns[g]);
+        g_e_device_buf[g]  = std::make_unique<DeviceMem>(sizeof(EDataType) * Ms[g] * Ns[g]);
         g_e_device_view[g] = g_e_device_buf[g]->GetDeviceBuffer();
 
         g_gemm_descs.push_back(tensor_operation::device::GemmMultiABDDesc{
@@ -387,11 +387,12 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
         auto argument_ptr = gemm_ptr->MakeArgumentPointer(
             g_as_device_view, g_bs_device_view, g_ds_device_view, g_e_device_view, g_gemm_descs);
 
-        if (!gemm_ptr->IsSupportedArgument(argument_ptr.get()))
+        if(!gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-                std::cout << "Gemm incompatible with runtime set parameters. Skipping..." << std::endl;
+                std::cout << "Gemm incompatible with runtime set parameters. Skipping..."
+                          << std::endl;
             }
 
             continue;
@@ -400,13 +401,15 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
         DeviceMem gemm_workspace_dev(gemm_ptr->GetWorkSpaceSize(argument_ptr.get()));
         gemm_ptr->SetWorkSpacePointer(argument_ptr.get(), gemm_workspace_dev.GetDeviceBuffer());
 
-        DeviceMem grouped_gemm_kernel_args_dev(gemm_ptr->GetDeviceKernelArgSize(argument_ptr.get()));
+        DeviceMem grouped_gemm_kernel_args_dev(
+            gemm_ptr->GetDeviceKernelArgSize(argument_ptr.get()));
         hipGetErrorString(hipMemcpy(grouped_gemm_kernel_args_dev.GetDeviceBuffer(),
                                     grouped_gemm_kernel_args_host.data(),
                                     gemm_ptr->GetDeviceKernelArgSize(argument_ptr.get()),
                                     hipMemcpyHostToDevice));
 
-        gemm_ptr->SetDeviceKernelArgs(argument_ptr.get(), grouped_gemm_kernel_args_dev.GetDeviceBuffer());
+        gemm_ptr->SetDeviceKernelArgs(argument_ptr.get(),
+                                      grouped_gemm_kernel_args_dev.GetDeviceBuffer());
         gemm_ptr->SetElementwiseOps(argument_ptr.get(), a_element_op, b_element_op, cde_element_op);
 
         auto invoker_ptr = gemm_ptr->MakeInvokerPointer();

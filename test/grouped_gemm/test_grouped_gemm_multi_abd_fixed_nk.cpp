@@ -128,8 +128,8 @@ class TestGroupedGemmMultiABDFixedNK : public testing::Test
 
     template <typename Layouts>
     void SetTupleStrides(std::vector<int>& strides,
-                    const std::vector<int>& rows,
-                    const std::vector<int>& cols) const
+                         const std::vector<int>& rows,
+                         const std::vector<int>& cols) const
     {
         if constexpr(Layouts::Size() > 0)
         {
@@ -146,7 +146,7 @@ class TestGroupedGemmMultiABDFixedNK : public testing::Test
              const std::vector<int>& StrideAs = {},
              const std::vector<int>& StrideBs = {},
              const std::vector<int>& StrideDs = {},
-             const std::vector<int>& StrideE = {})
+             const std::vector<int>& StrideE  = {})
     {
         std::vector<int> stride_as = StrideAs;
         std::vector<int> stride_bs = StrideBs;
@@ -190,32 +190,32 @@ class TestGroupedGemmMultiABDFixedNK : public testing::Test
                    const std::vector<int>& StrideDs,
                    const std::vector<int>& StrideE)
     {
-        bool pass = ck::profiler::profile_grouped_gemm_multi_abd_fixed_nk_impl<AsDataType,
-                                                                               BsDataType,
-                                                                               DsDataType,
-                                                                               EDataType,
-                                                                               AccDataType,
-                                                                               AsLayout,
-                                                                               BsLayout,
-                                                                               DsLayout,
-                                                                               ELayout,
-                                                                               AElementOp,
-                                                                               BElementOp,
-                                                                               CDEElementOp>(
-            verify_,
-            init_method_,
-            log_,
-            bench_,
-            Ms,
-            Ns,
-            Ks,
-            StrideAs,
-            StrideBs,
-            StrideDs,
-            StrideE,
-            k_batches_,
-            n_warmup_,
-            n_iter_);
+        bool pass =
+            ck::profiler::profile_grouped_gemm_multi_abd_fixed_nk_impl<AsDataType,
+                                                                       BsDataType,
+                                                                       DsDataType,
+                                                                       EDataType,
+                                                                       AccDataType,
+                                                                       AsLayout,
+                                                                       BsLayout,
+                                                                       DsLayout,
+                                                                       ELayout,
+                                                                       AElementOp,
+                                                                       BElementOp,
+                                                                       CDEElementOp>(verify_,
+                                                                                     init_method_,
+                                                                                     log_,
+                                                                                     bench_,
+                                                                                     Ms,
+                                                                                     Ns,
+                                                                                     Ks,
+                                                                                     StrideAs,
+                                                                                     StrideBs,
+                                                                                     StrideDs,
+                                                                                     StrideE,
+                                                                                     k_batches_,
+                                                                                     n_warmup_,
+                                                                                     n_iter_);
         EXPECT_TRUE(pass);
     }
 };

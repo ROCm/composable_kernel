@@ -725,6 +725,26 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
             }
         }
 
+        for(index_t i = 0; i < arg.group_count_; i++)
+        {
+            if(get_warp_size() == 64)
+            {
+                if(GridwiseGemm64::CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[i].K_) !=
+                   true)
+                {
+                    supported = false;
+                }
+            }
+            else
+            {
+                if(GridwiseGemm32::CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[i].K_) !=
+                   true)
+                {
+                    supported = false;
+                }
+            }
+        }
+
         return supported;
     }
 
@@ -733,8 +753,6 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
     }
-
-    static auto MakeInvoker() { return Invoker{}; }
 
     static auto MakeArgument(std::vector<std::array<const void*, NumATensor>>& p_As,
                              std::vector<std::array<const void*, NumBTensor>>& p_Bs,
@@ -748,6 +766,8 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
         return Argument{
             p_As, p_Bs, p_Ds, p_Es, gemm_descs, a_element_op, b_element_op, c_element_op};
     }
+
+    static auto MakeInvoker() { return Invoker{}; }
 
     // polymorphic
     std::unique_ptr<BaseArgument>
