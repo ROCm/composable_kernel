@@ -1,13 +1,13 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include "utils/ckb_conv_test_configs.hpp"
-#include "utils/ckb_conv_test_utils.hpp"
-#include "utils/conv_algorithm_type_utils.hpp"
-#include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/builder/testing/conv/bwd_weight.hpp"
 #include "ck_tile/builder/testing/conv/bwd_weight_ck.hpp"
 #include "ck_tile/builder/testing/conv/reference.hpp"
+#include "ck_tile/host/device_prop.hpp"
+#include "utils/ckb_conv_test_configs.hpp"
+#include "utils/ckb_conv_test_utils.hpp"
+#include "utils/conv_algorithm_type_utils.hpp"
 #include "testing_utils.hpp"
 
 namespace ckb = ck_tile::builder;
