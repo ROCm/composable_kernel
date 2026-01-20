@@ -18,10 +18,10 @@ using ABQuantGrouped =
     std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::ABQuantGrouped>;
 
 // 1d block sizes for AQuant
-using GroupSize1D = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 16>>;
+using GroupSize1D = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
 
 // 2d block sizes for BQuant
-using GroupSize2D = ck_tile::QuantGroupShape<ck_tile::sequence<1, 16, 16>>;
+using GroupSize2D = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
 
 // Type combinations for ABQuant tests
 // Tuple format: <ALayout, BLayout, CLayout, AQLayout, ADataType, BDataType, QDataType, CDataType,
