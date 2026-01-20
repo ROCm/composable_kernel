@@ -6,7 +6,6 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
-#include <new>
 #include <numeric>
 #include <queue>
 #include <sstream>
@@ -625,22 +624,25 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_V3_Large_Tensor
                     GridwiseGemm::MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         e_grid_desc_m_n, m_block, n_block);
 
-                auto* gemm_args = &gemm_desc_kernel_args_.At(valid_gemms_count_);
-                new(gemm_args) GemmArgs{p_as_grid,
-                                        p_bs_grid,
-                                        p_ds_grid,
-                                        p_e_grid,
-                                        a_element_op_,
-                                        b_element_op_,
-                                        cde_element_op_,
-                                        gemm_m,
-                                        gemm_n,
-                                        a_grid_desc,
-                                        b_grid_desc,
-                                        ds_desc_mblock_mperblock_nblock_nperblock,
-                                        e_desc_mblock_mperblock_nblock_nperblock,
-                                        BlockStart,
-                                        BlockEnd};
+                gemm_desc_kernel_args_.Emplace(
+                    valid_gemms_count_,
+                    GemmArgs{.a_ptrs_         = p_as_grid,
+                             .b_ptrs_         = p_bs_grid,
+                             .ds_ptrs_        = p_ds_grid,
+                             .e_ptr_          = p_e_grid,
+                             .a_element_op_   = a_element_op_,
+                             .b_element_op_   = b_element_op_,
+                             .cde_element_op_ = cde_element_op_,
+                             .M_              = gemm_m,
+                             .N_              = gemm_n,
+                             .a_grid_desc_    = a_grid_desc,
+                             .b_grid_desc_    = b_grid_desc,
+                             .ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                                 ds_desc_mblock_mperblock_nblock_nperblock,
+                             .e_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                                 e_desc_mblock_mperblock_nblock_nperblock,
+                             .BlockStart_ = BlockStart,
+                             .BlockEnd_   = BlockEnd});
 
                 valid_gemms_count_++;
             }
