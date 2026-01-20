@@ -1,0 +1,414 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK ROCProf Tool - Profile CK applications with rocprof-compute
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(get_project_root "${SCRIPT_DIR}")
+CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
+
+# Profiling configuration
+VENV_PATH="${CK_PROFILE_VENV:-/opt/rocprof_venv}"
+ROCPROF_BIN="${CK_ROCPROF_BIN:-/opt/rocm-7.0.1/bin/rocprof-compute}"
+WORKLOAD_DIR="${CK_WORKLOAD_DIR:-/workspace/build/workloads}"
+ROCM_REQUIREMENTS="/opt/rocm-7.0.1/libexec/rocprofiler-compute/requirements.txt"
+
+# Help message
+show_help() {
+    cat << EOF
+CK ROCProf Tool - Profile CK applications with rocprof-compute
+
+Usage: ck-rocprof <command> [options]
+
+Commands:
+  setup                           One-time setup: create Python venv and install dependencies
+  run <name> <executable> [args]  Profile executable and save results as <name>
+  analyze <name> [block]          Analyze profiling results (default: block 12 - LDS metrics)
+  compare <name1> <name2>         Compare two profiling runs
+  list                            List available profiling runs
+  help                            Show this help message
+
+Examples:
+  ck-rocprof setup
+  ck-rocprof run baseline ./bin/tile_example_gemm_universal
+  ck-rocprof analyze baseline
+  ck-rocprof analyze baseline 12
+  ck-rocprof compare baseline optimized
+  ck-rocprof list
+
+Environment Variables:
+  CK_PROFILE_VENV    - Python venv path (default: /opt/rocprof_venv)
+  CK_ROCPROF_BIN     - rocprof-compute binary path (default: /opt/rocm-7.0.1/bin/rocprof-compute)
+  CK_WORKLOAD_DIR    - Workload storage directory (default: /workspace/build/workloads)
+  CK_CONTAINER_NAME  - Docker container name (for remote profiling)
+
+Profiling Metrics:
+  Block 12 (LDS - Local Data Share):
+    - 12.1.3: Bank Conflict Rate (% of peak)
+    - 12.2.9: Bank Conflicts/Access (conflicts/access)
+    - 12.2.12: Bank Conflict (cycles per kernel)
+    - 12.2.17: LDS Data FIFO Full Rate (cycles)
+
+Notes:
+  - Profiling runs inside Docker container if CK_CONTAINER_NAME is set
+  - Results stored in ${WORKLOAD_DIR}/<name>/<gpu_arch>/
+  - Use 'analyze' to view detailed metrics for specific blocks
+  - Use 'compare' to see side-by-side metrics from two runs
+EOF
+}
+
+# Get rocprof-compute wrapper path
+get_rocprof_wrapper() {
+    echo "${VENV_PATH}/bin/rocprof-compute"
+}
+
+# Check if setup is complete
+is_setup_complete() {
+    local wrapper=$(get_rocprof_wrapper)
+    [ -d "${VENV_PATH}" ] && [ -f "${wrapper}" ]
+}
+
+# Setup: Create Python venv and install rocprof-compute dependencies
+cmd_setup() {
+    echo "Setting up rocprof-compute profiling environment..."
+    echo "==========================================="
+
+    # Check if rocprof-compute exists
+    if [ ! -f "${ROCPROF_BIN}" ]; then
+        echo "Error: rocprof-compute not found at ${ROCPROF_BIN}"
+        echo "Please ensure ROCm is installed and CK_ROCPROF_BIN is set correctly"
+        return 1
+    fi
+
+    # Check if requirements file exists
+    if [ ! -f "${ROCM_REQUIREMENTS}" ]; then
+        echo "Error: rocprofiler-compute requirements.txt not found at ${ROCM_REQUIREMENTS}"
+        echo "Please ensure ROCm is properly installed"
+        return 1
+    fi
+
+    # Create Python venv
+    if [ -d "${VENV_PATH}" ]; then
+        echo "Python venv already exists at ${VENV_PATH}"
+    else
+        echo "Creating Python virtual environment at ${VENV_PATH}..."
+        python3 -m venv "${VENV_PATH}"
+        echo "* Virtual environment created"
+    fi
+
+    # Install dependencies
+    echo "Installing rocprofiler-compute dependencies..."
+    "${VENV_PATH}/bin/pip" install --quiet -r "${ROCM_REQUIREMENTS}"
+    echo "* Dependencies installed"
+
+    # Create wrapper script
+    local wrapper=$(get_rocprof_wrapper)
+    cat > "${wrapper}" << 'WRAPPER_EOF'
+#!/bin/bash
+# rocprof-compute wrapper using venv Python
+VENV_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+exec "${VENV_DIR}/bin/python" /opt/rocm-7.0.1/bin/rocprof-compute "$@"
+WRAPPER_EOF
+    chmod +x "${wrapper}"
+    echo "* Wrapper script created at ${wrapper}"
+
+    echo ""
+    echo "Setup complete! You can now use:"
+    echo "  ck-rocprof run <name> <executable>"
+}
+
+# Detect GPU architecture
+# rocprof-compute uses marketing names (MI350, MI300X, etc.) for directory naming
+# This function attempts to match that convention
+detect_gpu_arch() {
+    if [ -n "${GPU_TARGET:-}" ]; then
+        echo "${GPU_TARGET}"
+        return 0
+    fi
+
+    # Try to get marketing name from rocminfo
+    local marketing_name=$(rocminfo 2>/dev/null | grep "Marketing Name:" | grep -oP 'MI\d+[A-Z]*' | head -1 || echo "")
+    if [ -n "$marketing_name" ]; then
+        echo "$marketing_name"
+        return 0
+    fi
+
+    # Fallback: Try gfx name from rocminfo
+    local gfx_name=$(rocminfo 2>/dev/null | grep -oP 'gfx[0-9a-z]+' | head -1 || echo "")
+    if [ -n "$gfx_name" ]; then
+        echo "$gfx_name"
+        return 0
+    fi
+
+    # Fallback: try to detect from existing workload dirs (any architecture pattern)
+    if [ -d "${WORKLOAD_DIR}" ]; then
+        local first_dir=$(find "${WORKLOAD_DIR}" -maxdepth 2 -type d \( -name 'gfx*' -o -name 'MI*' \) 2>/dev/null | head -1)
+        if [ -n "$first_dir" ]; then
+            basename "$first_dir"
+            return 0
+        fi
+    fi
+
+    # Final fallback
+    echo "MI350"
+}
+
+# Run profiling
+cmd_run() {
+    local name="$1"
+    local executable="$2"
+    shift 2
+    local -a exe_args=("$@")
+
+    if [ -z "$name" ] || [ -z "$executable" ]; then
+        echo "Error: name and executable required"
+        echo "Usage: ck-rocprof run <name> <executable> [args]"
+        return 1
+    fi
+
+    # Check setup
+    if ! is_setup_complete; then
+        echo "Error: Profiling environment not set up"
+        echo "Run: ck-rocprof setup"
+        return 1
+    fi
+
+    # Check if executable exists
+    if [ ! -f "$executable" ]; then
+        echo "Error: Executable not found: $executable"
+        return 1
+    fi
+
+    local wrapper=$(get_rocprof_wrapper)
+    local gpu_arch=$(detect_gpu_arch)
+
+    echo "Profiling: $executable ${exe_args[*]}"
+    echo "Run name: $name"
+    echo "GPU arch: $gpu_arch"
+    echo "==========================================="
+
+    # Build command
+    local cmd="${wrapper} profile --name ${name}"
+    cmd="${cmd} --"
+    cmd="${cmd} ${executable}"
+    for arg in "${exe_args[@]}"; do
+        cmd="${cmd} $(printf '%q' "$arg")"
+    done
+
+    # Run profiling
+    eval "${cmd}"
+
+    echo ""
+    echo "* Profiling complete"
+    echo "Results saved to: ${WORKLOAD_DIR}/${name}/${gpu_arch}/"
+    echo ""
+    echo "Analyze with: ck-rocprof analyze ${name}"
+}
+
+# Find actual GPU architecture directory for a given run name
+# rocprof-compute creates directories with various naming schemes (MI350, gfx950, etc.)
+# This function finds whatever directory actually exists
+find_workload_path() {
+    local name="$1"
+    local run_dir="${WORKLOAD_DIR}/${name}"
+
+    if [ ! -d "$run_dir" ]; then
+        return 1
+    fi
+
+    # Find first subdirectory (should be GPU architecture)
+    local gpu_dir=$(find "$run_dir" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)
+
+    if [ -n "$gpu_dir" ] && [ -d "$gpu_dir" ]; then
+        echo "$gpu_dir"
+        return 0
+    fi
+
+    return 1
+}
+
+# Analyze profiling results
+cmd_analyze() {
+    local name="$1"
+    local block="${2:-12}"  # Default to block 12 (LDS metrics)
+
+    if [ -z "$name" ]; then
+        echo "Error: name required"
+        echo "Usage: ck-rocprof analyze <name> [block]"
+        return 1
+    fi
+
+    # Check setup
+    if ! is_setup_complete; then
+        echo "Error: Profiling environment not set up"
+        echo "Run: ck-rocprof setup"
+        return 1
+    fi
+
+    local wrapper=$(get_rocprof_wrapper)
+    local workload_path=$(find_workload_path "${name}")
+
+    if [ -z "$workload_path" ]; then
+        echo "Error: Profiling results not found for '${name}'"
+        echo ""
+        echo "Available runs:"
+        cmd_list
+        return 1
+    fi
+
+    local gpu_arch=$(basename "$workload_path")
+    echo "Analyzing: ${name} (GPU: ${gpu_arch}, Block ${block})"
+    echo "==========================================="
+    echo ""
+
+    "${wrapper}" analyze --path "${workload_path}" --block "${block}"
+}
+
+# Extract key LDS metrics from profiling results
+extract_lds_metrics() {
+    local name="$1"
+    local gpu_arch=$(detect_gpu_arch)
+    local workload_path="${WORKLOAD_DIR}/${name}/${gpu_arch}"
+    local csv_file="${workload_path}/SQ_INST_LEVEL_LDS.csv"
+
+    if [ ! -f "$csv_file" ]; then
+        echo "N/A (CSV not found)"
+        return 1
+    fi
+
+    # Extract key metrics (simplified - would need proper CSV parsing)
+    # For now, just indicate that raw data is available
+    echo "Raw data available at: ${csv_file}"
+}
+
+# Compare two profiling runs
+cmd_compare() {
+    local name1="$1"
+    local name2="$2"
+
+    if [ -z "$name1" ] || [ -z "$name2" ]; then
+        echo "Error: two run names required"
+        echo "Usage: ck-rocprof compare <name1> <name2>"
+        return 1
+    fi
+
+    # Check setup
+    if ! is_setup_complete; then
+        echo "Error: Profiling environment not set up"
+        echo "Run: ck-rocprof setup"
+        return 1
+    fi
+
+    # Verify both runs exist
+    local path1=$(find_workload_path "${name1}")
+    local path2=$(find_workload_path "${name2}")
+
+    if [ -z "$path1" ]; then
+        echo "Error: Profiling results not found for '${name1}'"
+        return 1
+    fi
+
+    if [ -z "$path2" ]; then
+        echo "Error: Profiling results not found for '${name2}'"
+        return 1
+    fi
+
+    local gpu1=$(basename "$path1")
+    local gpu2=$(basename "$path2")
+
+    echo "Comparing profiling runs:"
+    echo "  Baseline:  ${name1} (${gpu1})"
+    echo "  Optimized: ${name2} (${gpu2})"
+    echo "==========================================="
+    echo ""
+
+    echo "=== ${name1} - Block 12 (LDS) ==="
+    cmd_analyze "${name1}" 12 2>/dev/null | head -40
+
+    echo ""
+    echo "=== ${name2} - Block 12 (LDS) ==="
+    cmd_analyze "${name2}" 12 2>/dev/null | head -40
+
+    echo ""
+    echo "==========================================="
+    echo "For detailed analysis, run:"
+    echo "  ck-rocprof analyze ${name1} 12"
+    echo "  ck-rocprof analyze ${name2} 12"
+}
+
+# List available profiling runs
+cmd_list() {
+    if [ ! -d "${WORKLOAD_DIR}" ]; then
+        echo "No profiling runs found (workload directory doesn't exist)"
+        return 0
+    fi
+
+    local runs=$(find "${WORKLOAD_DIR}" -maxdepth 1 -mindepth 1 -type d -exec basename {} \; 2>/dev/null | sort)
+
+    if [ -z "$runs" ]; then
+        echo "No profiling runs found in ${WORKLOAD_DIR}"
+        return 0
+    fi
+
+    echo "Available profiling runs:"
+    echo "==========================================="
+
+    while IFS= read -r run; do
+        local path=$(find_workload_path "$run")
+
+        if [ -n "$path" ]; then
+            local gpu_arch=$(basename "$path")
+            local size=$(du -sh "$path" 2>/dev/null | cut -f1)
+            local date=$(stat -c %y "$path" 2>/dev/null | cut -d' ' -f1)
+            printf "  %-25s [%-8s, %s, %s]\n" "$run" "$gpu_arch" "$size" "$date"
+        else
+            printf "  %-25s [no data]\n" "$run"
+        fi
+    done <<< "$runs"
+
+    echo ""
+    echo "Analyze with: ck-rocprof analyze <name>"
+}
+
+# Main command dispatcher
+case "${1:-}" in
+    setup)
+        cmd_setup
+        ;;
+    run)
+        shift
+        cmd_run "$@"
+        ;;
+    analyze)
+        shift
+        cmd_analyze "$@"
+        ;;
+    compare)
+        shift
+        cmd_compare "$@"
+        ;;
+    list)
+        cmd_list
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        if [ -z "${1:-}" ]; then
+            show_help
+        else
+            echo "Unknown command: ${1}"
+            echo ""
+            show_help
+            exit 1
+        fi
+        ;;
+esac
