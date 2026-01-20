@@ -325,6 +325,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                              BComputeDataType>
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
+    static_assert(MXdlPerWave > 0 && NXdlPerWave > 0, "Invalid MXdlPerWave or NXdlPerWave");
+    static_assert(MPerXDL > 0 && NPerXDL > 0, "Invalid MPerXDL or NPerXDL");
     GET_MXDL_PER_WAVE_IMPL
     // Force usage of 16x16 instruction for WMMA
     static constexpr bool Wave32Force16MNPerXDL =
