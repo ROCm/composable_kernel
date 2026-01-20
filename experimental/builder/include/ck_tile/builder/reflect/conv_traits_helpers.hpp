@@ -349,6 +349,8 @@ inline constexpr bool layouts_are =
     std::is_same_v<A, ExpectedA> && std::is_same_v<B, ExpectedB> && std::is_same_v<E, ExpectedE>;
 
 /// @brief Helper function to report unsupported layout combinations with a clear error message.
+/// @details This consteval function uses throw (not static_assert) to ensure the error is not
+/// silently ignored during SFINAE. The thrown string becomes part of the compiler error message.
 /// @details This consteval function is designed to fail at compile time with a descriptive
 /// error message when an unsupported layout combination is encountered.
 template <typename A, typename B, typename E, int SpatialDim>
