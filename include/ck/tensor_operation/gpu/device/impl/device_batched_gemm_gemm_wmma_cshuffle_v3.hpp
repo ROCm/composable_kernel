@@ -3,24 +3,15 @@
 
 #pragma once
 
-#include <iostream>
 #include <sstream>
-#include <numeric>
 #include <initializer_list>
 #include <cstdlib>
 
 #include "ck/ck.hpp"
-#include "ck/utility/common_header.hpp"
-#include "ck/tensor_description/tensor_descriptor.hpp"
-#include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_gemm_wmma_cshuffle_v3_common.hpp"
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_gemm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_batched_gemm_gemm_wmma_cshuffle_v3.hpp"
-#include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm_arraybase.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
 #include "ck/utility/tuple.hpp"
 
 namespace ck {
