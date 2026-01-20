@@ -34,27 +34,29 @@ void add_device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhw
                                        Tuple<BF16, BF16, BF16, BF16, BF16>,
                                        BiasNormalizeInInferClamp>{});
 
-    add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<
-                                       2,
-                                       NHWGC,
-                                       GKYXC,
-                                       Tuple<NHWGK, NHWGK, NHWGK, NHWGK, NHWGK>,
-                                       NHWGK,
-                                       ConvFwd1x1P0,
-                                       Tuple<BF16, BF16, BF16, BF16, BF16>,
-                                       BiasNormalizeInInferClamp>{});
+    // Note: Commented out temporarily , might be used later.
 
-    add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<
-                                       2,
-                                       NHWGC,
-                                       GKYXC,
-                                       Tuple<NHWGK, NHWGK, NHWGK, NHWGK, NHWGK>,
-                                       NHWGK,
-                                       ConvFwd1x1S1P0,
-                                       Tuple<BF16, BF16, BF16, BF16, BF16>,
-                                       BiasNormalizeInInferClamp>{});
+    // add_device_operation_instances(instances,
+    //                                device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<
+    //                                    2,
+    //                                    NHWGC,
+    //                                    GKYXC,
+    //                                    Tuple<NHWGK, NHWGK, NHWGK, NHWGK, NHWGK>,
+    //                                    NHWGK,
+    //                                    ConvFwd1x1P0,
+    //                                    Tuple<BF16, BF16, BF16, BF16, BF16>,
+    //                                    BiasNormalizeInInferClamp>{});
+
+    // add_device_operation_instances(instances,
+    //                                device_grouped_conv_fwd_wmma_cshufflev3_bf16_generic_instances<
+    //                                    2,
+    //                                    NHWGC,
+    //                                    GKYXC,
+    //                                    Tuple<NHWGK, NHWGK, NHWGK, NHWGK, NHWGK>,
+    //                                    NHWGK,
+    //                                    ConvFwd1x1S1P0,
+    //                                    Tuple<BF16, BF16, BF16, BF16, BF16>,
+    //                                    BiasNormalizeInInferClamp>{});
 }
 
 } // namespace instance
