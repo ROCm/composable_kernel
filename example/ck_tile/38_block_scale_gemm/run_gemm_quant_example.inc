@@ -557,7 +557,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     std::mt19937 gen(rd());
     std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
 
-    if(init_method == 0) // uniform distribution
+    if(init_method == 0)
     {
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
@@ -627,12 +627,12 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                 *bq_tensor_ptr);
         }
     }
-    else if(init_method == 1) // monotonic initialization
+    else if(init_method == 1)
     {
         std::cout << "Monotonic initialization is not supported." << std::endl;
         return 0;
     }
-    else if(init_method == 2) // constant initialization
+    else if(init_method == 2)
     {
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
@@ -659,7 +659,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             }
         }
     }
-    else if(init_method == 3) // constant initialization
+    else if(init_method == 3)
     {
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
@@ -686,7 +686,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             }
         }
     }
-    else if(init_method == 4) // uniform distribution
+    else if(init_method == 4)
     {
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
@@ -756,7 +756,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                 *bq_tensor_ptr);
         }
     }
-    else if(init_method == 5) // uniform distribution
+    else if(init_method == 5)
     {
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
