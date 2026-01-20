@@ -418,6 +418,10 @@ struct TensorDescriptor
         size_t x = 1;
         for(size_t i = 0; i < RANK; ++i)
         {
+            if(lengths[indices[i]] == 1)
+            {
+                continue;
+            }
             if(strides[indices[i]] != x)
                 return false;
 
@@ -441,6 +445,15 @@ struct TensorDescriptor
         ck_tile::builder::test::Extent<1> lengths = {this->get_element_space_size()};
         ck_tile::builder::test::Extent<1> strides = {1};
         return TensorDescriptor<DT, 1>(lengths, strides);
+    }
+
+    /// @brief Print tensor descriptor details.
+    ///
+    /// Print tensor descriptor details - lengths and strides.
+    friend std::ostream& operator<<(std::ostream& os, const TensorDescriptor<DT, RANK>& tensor_desc)
+    {
+        os << tensor_desc.inner_descriptor_;
+        return os;
     }
 
     private:
