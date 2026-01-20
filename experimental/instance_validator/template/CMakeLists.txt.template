@@ -1,0 +1,102 @@
+cmake_minimum_required(VERSION 3.16)
+
+# Use hipcc as the C++ compiler
+set(CMAKE_CXX_COMPILER "/opt/rocm/bin/hipcc")
+
+project(conv_instance_test LANGUAGES CXX)
+
+# Use the same compiler settings as main CK project
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Include paths - point to main CK project
+set(CK_ROOT_DIR "{{CK_ROOT_DIR}}")
+include_directories(
+    ${CK_ROOT_DIR}/includecmake_minimum_required(VERSION 3.16)
+
+# Use hipcc as the C++ compiler
+set(CMAKE_CXX_COMPILER "/opt/rocm/bin/hipcc")
+
+set(CK_CXX_STANDARD "20" CACHE STRING "C++ standard to use (e.g. 17 or 20)")
+set(valid_cxx_standards 17 20)
+set_property(CACHE CK_CXX_STANDARD PROPERTY STRINGS ${valid_cxx_standards})
+if(NOT CK_CXX_STANDARD IN_LIST valid_cxx_standards)
+    message(FATAL_ERROR "CK_CXX_STANDARD must be one of ${valid_cxx_standards}")
+endif()
+
+project(conv_instance_test LANGUAGES CXX)
+
+set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
+
+add_definitions(-DCK_ENABLE_FP16)
+set(CK_ENABLE_FP16 "ON")
+
+set(ROCM_SYMLINK_LIBS OFF)
+find_package(ROCM REQUIRED PATHS /opt/rocm)
+
+include(ROCMInstallTargets)
+include(ROCMPackageConfigHelpers)
+include(ROCMSetupVersion)
+include(ROCMInstallSymlinks)
+include(ROCMCreatePackage)
+include(CheckCXXCompilerFlag)
+include(ROCMCheckTargetIds)
+#include(TargetFlags)
+
+rocm_setup_version(VERSION ${version})
+
+list(APPEND CMAKE_PREFIX_PATH ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}/llvm ${CMAKE_INSTALL_PREFIX}/hip /opt/rocm /opt/rocm/llvm /opt/rocm/hip "$ENV{ROCM_PATH}" "$ENV{HIP_PATH}")
+
+message(STATUS "GPU_TARGETS= ${GPU_TARGETS}")
+message(STATUS "GPU_ARCHS= ${GPU_ARCHS}")
+
+if(GPU_ARCHS)
+    unset(GPU_TARGETS CACHE)
+    unset(AMDGPU_TARGETS CACHE)
+endif()
+if(GPU_TARGETS)
+    set(USER_GPU_TARGETS 1)
+else()
+    set(USER_GPU_TARGETS 0)
+endif()
+
+find_package(hip REQUIRED)
+enable_language(HIP)
+
+
+configure_file(../../../../include/ck/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/ck/config.h)
+
+## HIP
+set(CMAKE_HIP_PLATFORM amd)
+set(CMAKE_HIP_COMPILER ${CMAKE_CXX_COMPILER})
+set(CMAKE_HIP_EXTENSIONS ON)
+message(STATUS "CMAKE_HIP_COMPILER: ${CMAKE_HIP_COMPILER}")
+
+link_libraries(hip::device)
+add_compile_definitions(__HIP_PLATFORM_AMD__=1)
+
+# Include paths - point to main CK project
+set(CK_ROOT_DIR "/home/AMD/vpietila/git/composable_kernel")
+include_directories(
+    ${CK_ROOT_DIR}/include
+    ${CK_ROOT_DIR}/library/include
+    ${CK_ROOT_DIR}/build-test/include
+)
+
+# Create test executable
+add_executable(instance_test test_instance.cpp)
+
+    ${CK_ROOT_DIR}/library/include
+    ${CK_ROOT_DIR}/build-test/include
+)
+
+# Compiler flags matching main project
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG -std=c++20")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCK_ENABLE_FP16 -DCK_ENABLE_FP32")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCK_USE_XDL -D__HIP_PLATFORM_AMD__=1")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -x hip --offload-arch=gfx950")
+
+# Create test executable
+add_executable(instance_test test_instance.cpp)
