@@ -125,7 +125,7 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
 
     struct PipelineImpl : public PipelineImplBase
     {
-        using Base = GemmPipelineAgBgCrImplBase<Problem, Policy>;
+        using Base = PipelineImplBase;
 
         template <typename AsDramBlockWindowTmp,
                   typename BsDramBlockWindowTmp,
@@ -188,7 +188,7 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
 
             auto b_lds_block = make_tensor_view<address_space_enum::lds>(p_b_lds, b_lds_block_desc);
 
-            // // Tile distribution for load from lds
+            // Tile distribution for load from lds
             constexpr auto a_lds_load_tile_distr =
                 make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
             constexpr auto b_lds_load_tile_distr =
