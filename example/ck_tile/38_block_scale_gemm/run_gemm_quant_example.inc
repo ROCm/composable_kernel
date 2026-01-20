@@ -594,7 +594,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             {
                 ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
             }
-            ck_tile::FillUniformDistribution<AQDataType>{1.0f, 1.0f, fill_seed(gen)}(
+            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
                 *aq_tensor_ptr);
             ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
         }
@@ -726,6 +726,87 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             ck_tile::FillUniformDistribution<AQDataType>{2.0f, 2.0f, fill_seed(gen)}(
                 *aq_tensor_ptr);
             ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
+        {
+            if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
+            {
+                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
+                    a_m_k);
+                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
+                    b_k_n);
+            }
+            else
+            {
+                ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
+                ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
+            }
+            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *aq_tensor_ptr);
+            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *bq_tensor_ptr);
+        }
+        else
+        {
+            ck_tile::FillUniformDistribution<ADataType>{-2.0f, 2.0f, fill_seed(gen)}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{-2.0f, 2.0f, fill_seed(gen)}(b_k_n);
+            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *aq_tensor_ptr);
+            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *bq_tensor_ptr);
+        }
+    }
+    else if(init_method == 5) // uniform distribution
+    {
+        if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+        {
+            if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+            {
+                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
+                    b_k_n);
+                ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                    *bq_tensor_ptr);
+            }
+            else if constexpr(std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>)
+            {
+                ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
+                ck_tile::FillUniformDistribution<BQDataType>{125.f, 130.f, fill_seed(gen)}(
+                    *bq_tensor_ptr);
+            }
+            else
+            {
+                ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
+                ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                    *bq_tensor_ptr);
+            }
+
+            ck_tile::FillUniformDistribution<ADataType>{-5.0f, 5.0f, fill_seed(gen)}(a_m_k);
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
+        {
+            if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
+            {
+                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
+                    a_m_k);
+            }
+            else
+            {
+                ck_tile::FillUniformDistribution<ADataType>{1.0f, 1.0f, fill_seed(gen)}(a_m_k);
+            }
+            // Fill aquant such that column j has value 2^j (1, 2, 4, 8, ...)
+            for(ck_tile::index_t row = 0;
+                row < static_cast<ck_tile::index_t>(aq_tensor_ptr->get_length(0));
+                ++row)
+            {
+                for(ck_tile::index_t col = 0;
+                    col < static_cast<ck_tile::index_t>(aq_tensor_ptr->get_length(1));
+                    ++col)
+                {
+                    (*aq_tensor_ptr)(row, col) = static_cast<AQDataType>(col + 1);
+                }
+            }
+            // std::cout << "aq_tensor_ptr: " << *aq_tensor_ptr << std::endl;
+            ck_tile::FillUniformDistribution<BDataType>{1.0f, 1.0f, fill_seed(gen)}(b_k_n);
         }
         else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
         {
