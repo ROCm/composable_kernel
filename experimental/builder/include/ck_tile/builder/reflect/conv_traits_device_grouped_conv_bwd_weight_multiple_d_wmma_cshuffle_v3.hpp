@@ -8,15 +8,15 @@
 #include "ck_tile/builder/reflect/conv_traits.hpp"
 #include "ck_tile/builder/reflect/conv_traits_helpers.hpp"
 #include "ck_tile/builder/reflect/instance_traits.hpp"
-#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_bwd_weight_two_stage_xdl_cshuffle.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_bwd_weight_multiple_d_wmma_cshuffle_v3.hpp"
 
 namespace ck_tile::reflect::conv {
 
-/// @brief Tag dispatch implementation for DeviceGroupedConvBwdTwoStage_Xdl_CShuffle_Tag
+/// @brief Tag dispatch implementation for DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle_Tag
 template <typename Instance>
     requires HasInstanceTraits<Instance> &&
              std::same_as<typename InstanceTraits<Instance>::device_kernel_tag,
-                          DeviceGroupedConvBwdWeight_two_stage_Xdl_CShuffle_Tag>
+                          DeviceGroupedConvBwdWeight_multiple_d_Wmma_CShuffle_V3_Tag>
 constexpr ConvTraits instance_to_conv_traits()
 {
     using InstTraits = InstanceTraits<Instance>;
@@ -36,21 +36,10 @@ constexpr ConvTraits instance_to_conv_traits()
             conv_traits_a_transfer_params<InstTraits>(InstTraits::kK1, InstTraits::kKPerBlock),
         .b_tile_transfer =
             conv_traits_b_transfer_params<InstTraits>(InstTraits::kK1, InstTraits::kKPerBlock),
-        .warp_gemm = conv_traits_xdl_warp_gemm_params<InstTraits>(),
-        .c_tile_transfer =
-            {.shuffle_params = {.m_gemms_per_shuffle = InstTraits::kCShuffleMXdlPerWavePerShuffle,
-                                .n_gemms_per_shuffle = InstTraits::kCShuffleNXdlPerWavePerShuffle},
-             .thread_cluster_dims = {InstTraits::kCThreadClusterLengths[0],
-                                     InstTraits::kCThreadClusterLengths[1],
-                                     InstTraits::kCThreadClusterLengths[2],
-                                     InstTraits::kCThreadClusterLengths[3]},
-             .scalar_per_vector   = InstTraits::kCBlockTransferScalarPerVector_NWaveNPerXdl},
+        .warp_gemm          = conv_traits_wmma_warp_gemm_params<InstTraits>(),
+        .c_tile_transfer    = conv_traits_wmma_c_tile_transfer<InstTraits>(),
         .pipeline_version   = get_pipeline_version<InstTraits>(),
         .pipeline_scheduler = get_pipeline_scheduler<InstTraits>(),
-        .max_transpose_transfer_src_scalar_per_vector =
-            InstTraits::kTransposeTransferSrcScalarPerVector,
-        .max_transpose_dst_scalar_per_vector = InstTraits::kTransposeTransferDstScalarPerVector,
-        .num_groups_to_merge                 = InstTraits::kNumGroupsToMerge,
     };
 }
 

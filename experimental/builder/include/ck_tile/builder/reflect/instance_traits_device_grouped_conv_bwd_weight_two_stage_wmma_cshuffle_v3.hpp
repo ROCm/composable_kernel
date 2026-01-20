@@ -63,6 +63,11 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3;
 namespace ck_tile {
 namespace reflect {
 
+/// @brief Tag type for DeviceGroupedConvBwdWeight_two_stage_Wmma_CShuffle_Tag device kernel
+struct DeviceGroupedConvBwdWeight_two_stage_Wmma_CShuffle_Tag
+{
+};
+
 template <ck::index_t NDimSpatial,
           typename InLayout_,
           typename WeiLayout_,
@@ -161,7 +166,9 @@ struct InstanceTraits<
 {
     static constexpr auto kTensorOpName = "DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3";
 
-    static constexpr ck::index_t kNDimSpatial = NDimSpatial;
+    using device_kernel_tag = DeviceGroupedConvBwdWeight_two_stage_Wmma_CShuffle_Tag;
+
+    static constexpr ck::index_t kSpatialDim = NDimSpatial;
 
     using InLayout  = InLayout_;
     using WeiLayout = WeiLayout_;
@@ -201,12 +208,21 @@ struct InstanceTraits<
         ABlockTransferThreadClusterLengths_AK0_M_AK1_;
     using ABlockTransferThreadClusterArrangeOrder = ABlockTransferThreadClusterArrangeOrder_;
     using ABlockTransferSrcAccessOrder            = ABlockTransferSrcAccessOrder_;
+
+    // A block transfer thread cluster dimensions (converted to std::array)
+    static constexpr auto kAThreadClusterLengths =
+        detail::SequenceToArray<ABlockTransferThreadClusterLengths_AK0_M_AK1>::value;
+    static constexpr auto kAThreadClusterArrangeOrder =
+        detail::SequenceToArray<ABlockTransferThreadClusterArrangeOrder>::value;
+    static constexpr auto kABlockTransferSrcAccessOrder =
+        detail::SequenceToArray<ABlockTransferSrcAccessOrder_>::value;
+
     static constexpr ck::index_t kABlockTransferSrcVectorDim = ABlockTransferSrcVectorDim;
     static constexpr ck::index_t kABlockTransferSrcScalarPerVector =
         ABlockTransferSrcScalarPerVector;
-    static constexpr ck::index_t kABlockTransferDstScalarPerVector_AK1 =
+    static constexpr ck::index_t kABlockTransferDstScalarPerVectorK1 =
         ABlockTransferDstScalarPerVector_AK1;
-    static constexpr bool kABlockLdsAddExtraM = ABlockLdsAddExtraM;
+    static constexpr bool kABlockLdsExtraM = ABlockLdsAddExtraM;
 
     using BBlockTransferThreadClusterLengths_BK0_N_BK1 =
         BBlockTransferThreadClusterLengths_BK0_N_BK1_;
@@ -215,12 +231,25 @@ struct InstanceTraits<
     static constexpr ck::index_t kBBlockTransferSrcVectorDim = BBlockTransferSrcVectorDim;
     static constexpr ck::index_t kBBlockTransferSrcScalarPerVector =
         BBlockTransferSrcScalarPerVector;
-    static constexpr ck::index_t kBBlockTransferDstScalarPerVector_BK1 =
+    static constexpr ck::index_t kBBlockTransferDstScalarPerVectorK1 =
         BBlockTransferDstScalarPerVector_BK1;
-    static constexpr bool kBBlockLdsAddExtraN = BBlockLdsAddExtraN;
+
+    // B block transfer thread cluster dimensions (converted to std::array)
+    static constexpr auto kBThreadClusterLengths =
+        detail::SequenceToArray<BBlockTransferThreadClusterLengths_BK0_N_BK1>::value;
+    static constexpr auto kBThreadClusterArrangeOrder =
+        detail::SequenceToArray<BBlockTransferThreadClusterArrangeOrder>::value;
+    static constexpr auto kBBlockTransferSrcAccessOrder =
+        detail::SequenceToArray<BBlockTransferSrcAccessOrder_>::value;
+    static constexpr bool kBBlockLdsExtraN = BBlockLdsAddExtraN;
 
     using CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_;
+
+    static constexpr auto kCDEThreadClusterLengths = detail::SequenceToArray<
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>::value;
+    static constexpr int kCDEBlockTransferScalarPerVector =
+        CShuffleBlockTransferScalarPerVector_NPerBlock;
 
     static constexpr ck::BlockGemmPipelineScheduler kBlkGemmPipeSched = BlkGemmPipeSched;
     static constexpr ck::BlockGemmPipelineVersion kBlkGemmPipelineVer = BlkGemmPipelineVer;
@@ -237,7 +266,7 @@ struct InstanceTraits<
         oss << "DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3";
 
         // Template parameters in exact order
-        oss << "<" << kNDimSpatial;                     // 1. NDimSpatial
+        oss << "<" << kSpatialDim;                      // 1. NDimSpatial
         oss << "," << detail::layout_name<InLayout>();  // 2. InLayout
         oss << "," << detail::layout_name<WeiLayout>(); // 3. WeiLayout
         oss << "," << detail::layout_name<OutLayout>(); // 4. OutLayout
@@ -270,15 +299,15 @@ struct InstanceTraits<
         oss << "," << detail::sequence_name<ABlockTransferSrcAccessOrder>();                 // 24.
         oss << "," << kABlockTransferSrcVectorDim;                                           // 25.
         oss << "," << kABlockTransferSrcScalarPerVector;                                     // 26.
-        oss << "," << kABlockTransferDstScalarPerVector_AK1;                                 // 27.
-        oss << "," << (kABlockLdsAddExtraM ? "true" : "false");                              // 28.
+        oss << "," << kABlockTransferDstScalarPerVectorK1;                                   // 27.
+        oss << "," << (kABlockLdsExtraM ? "true" : "false");                                 // 28.
         oss << "," << detail::sequence_name<BBlockTransferThreadClusterLengths_BK0_N_BK1>(); // 29.
         oss << "," << detail::sequence_name<BBlockTransferThreadClusterArrangeOrder>();      // 30.
         oss << "," << detail::sequence_name<BBlockTransferSrcAccessOrder>();                 // 31.
         oss << "," << kBBlockTransferSrcVectorDim;                                           // 32.
         oss << "," << kBBlockTransferSrcScalarPerVector;                                     // 33.
-        oss << "," << kBBlockTransferDstScalarPerVector_BK1;                                 // 34.
-        oss << "," << (kBBlockLdsAddExtraN ? "true" : "false");                              // 35.
+        oss << "," << kBBlockTransferDstScalarPerVectorK1;                                   // 34.
+        oss << "," << (kBBlockLdsExtraN ? "true" : "false");                                 // 35.
         oss << "," << kCShuffleMRepeatPerShuffle;                                            // 36.
         oss << "," << kCShuffleNRepeatPerShuffle;                                            // 37.
         oss << ","
