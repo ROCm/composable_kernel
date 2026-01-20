@@ -736,6 +736,19 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
     static auto MakeInvoker() { return Invoker{}; }
 
+    static auto MakeArgument(std::vector<std::array<const void*, NumATensor>>& p_As,
+                             std::vector<std::array<const void*, NumBTensor>>& p_Bs,
+                             std::vector<std::array<const void*, NumDTensor>>& p_Ds,
+                             std::vector<void*>& p_Es,
+                             std::vector<GemmMultiABDDesc> gemm_descs,
+                             AElementwiseOperation a_element_op   = AElementwiseOperation{},
+                             BElementwiseOperation b_element_op   = BElementwiseOperation{},
+                             CDEElementwiseOperation c_element_op = CDEElementwiseOperation{})
+    {
+        return Argument{
+            p_As, p_Bs, p_Ds, p_Es, gemm_descs, a_element_op, b_element_op, c_element_op};
+    }
+
     // polymorphic
     std::unique_ptr<BaseArgument>
     MakeArgumentPointer(std::vector<std::array<const void*, NumATensor>>& p_As,

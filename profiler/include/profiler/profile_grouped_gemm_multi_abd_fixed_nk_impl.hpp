@@ -352,23 +352,23 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
                                       EDataType,
                                       remove_cvref_t<tuple_element_t<0, BsDataType>>>::type;
 
+        using ReferenceGemmInstance =
+            ck::tensor_operation::host::ReferenceGemmMultiABD<AsTensorTuple,
+                                                              BsTensorTuple,
+                                                              DsTensorTuple,
+                                                              EDataType,
+                                                              AccDataType,
+                                                              AElementOp,
+                                                              BElementOp,
+                                                              CDEElementOp,
+                                                              AComputeType,
+                                                              BComputeType>;
+
+        auto ref_gemm    = ReferenceGemmInstance{};
+        auto ref_invoker = ref_gemm.MakeInvoker();
+
         for(std::size_t i = 0; i < group_count; i++)
         {
-            using ReferenceGemmInstance =
-                ck::tensor_operation::host::ReferenceGemmMultiABD<AsTensorTuple,
-                                                                  BsTensorTuple,
-                                                                  DsTensorTuple,
-                                                                  EDataType,
-                                                                  AccDataType,
-                                                                  AElementOp,
-                                                                  BElementOp,
-                                                                  CDEElementOp,
-                                                                  AComputeType,
-                                                                  BComputeType>;
-
-            auto ref_gemm    = ReferenceGemmInstance{};
-            auto ref_invoker = ref_gemm.MakeInvoker();
-
             auto ref_argument = ref_gemm.MakeArgument(g_as_m_k[i],
                                                       g_bs_k_n[i],
                                                       g_ds_m_n[i],

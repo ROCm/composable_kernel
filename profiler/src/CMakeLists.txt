@@ -58,7 +58,6 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9|gfx1[12]")
     list(APPEND PROFILER_OPS profile_gemm_add_relu.cpp)
     list(APPEND PROFILER_OPS profile_gemm_add_relu_add_layernorm.cpp)
     list(APPEND PROFILER_OPS profile_grouped_gemm_fixed_nk.cpp)
-    list(APPEND PROFILER_OPS profile_grouped_gemm_multi_abd_fixed_nk.cpp)
     list(APPEND PROFILER_OPS profile_grouped_gemm_fastgelu.cpp)
     list(APPEND PROFILER_OPS profile_grouped_gemm_tile_loop.cpp)
     list(APPEND PROFILER_OPS profile_grouped_gemm_multiply_tile_loop.cpp)
@@ -296,22 +295,3 @@ message(VERBOSE "ckProfiler libs: ${PROFILER_LIBS}")
 target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE ${PROFILER_LIBS})
 
 rocm_install(TARGETS ${PROFILER_EXECUTABLE} COMPONENT profiler)
-
-## Defining specific operation targets
-
-macro(define_profiler_target NAME SOURCES LIBS)
-  add_executable(${NAME} profiler.cpp ${SOURCES})
-  target_compile_options(${NAME} PRIVATE -Wno-global-constructors)
-
-  if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
-    target_compile_options(${NAME} PRIVATE --offload-compress)
-  endif()
-
-  target_link_libraries(${NAME} PRIVATE utility getopt::getopt ${LIBS})
-  
-  rocm_install(TARGETS ${NAME} COMPONENT profiler)
-endmacro()
-
-define_profiler_target(ckProfiler_fixed_nk 
-  "profile_grouped_gemm_multi_abd_fixed_nk.cpp" 
-  "device_grouped_gemm_fixed_nk_multi_abd_instance")

@@ -481,10 +481,12 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
             // TODO: use occupancy api to calculate appropriate batch size.
         }
 
-        Argument(std::vector<std::array<const void*, NumATensor>>& p_As,
-                 std::vector<std::array<const void*, NumBTensor>>& p_Bs,
-                 std::vector<std::array<const void*, NumDTensor>>& p_Ds,
-                 std::vector<void*>& p_Es,
+        // Client is expected to manually copy the kernel arguments to the device therefore there is
+        // no point in setting tensor device pointers for the argument structure.
+        Argument(std::vector<std::array<const void*, NumATensor>>&,
+                 std::vector<std::array<const void*, NumBTensor>>&,
+                 std::vector<std::array<const void*, NumDTensor>>&,
+                 std::vector<void*>&,
                  std::vector<GemmMultiABDDesc>& gemm_descs,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -499,16 +501,6 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
               grid_size_{0},
               k_batch_{kbatch}
         {
-
-            if(!(group_count_ == ck::type_convert<ck::index_t>(p_As.size()) &&
-                 group_count_ == ck::type_convert<ck::index_t>(p_Bs.size()) &&
-                 ((NumDTensor == 0 && p_Ds.size() == 0) ||
-                  group_count_ == ck::type_convert<ck::index_t>(p_Ds.size())) &&
-                 group_count_ == ck::type_convert<ck::index_t>(p_Es.size())))
-            {
-                throw std::runtime_error("wrong! group_count_ != p_As/b/d/e.size");
-            }
-
             gemm_desc_kernel_arg_.reserve(group_count_);
 
             index_t group_id = 0;
@@ -603,7 +595,7 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
                 auto karg = GemmTransKernelArg({p_as_grid,
                                                 p_bs_grid,
                                                 p_ds_grid,
-                                                type_convert<EDataType*>(p_Es[g]),
+                                                nullptr,
                                                 AverM,
                                                 N,
                                                 K,
