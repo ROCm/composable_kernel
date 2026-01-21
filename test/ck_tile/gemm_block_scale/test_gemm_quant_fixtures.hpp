@@ -53,6 +53,22 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<false>();
 };
 
+struct GemmConfigDecode : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile      = 16;
+    static constexpr ck_tile::index_t N_Tile      = 64;
+    static constexpr ck_tile::index_t K_Tile      = 256;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
+};
+
+struct GemmConfigPrefill : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile      = 128;
+    static constexpr ck_tile::index_t N_Tile      = 128;
+    static constexpr ck_tile::index_t K_Tile      = 128;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
+};
+
 struct GemmConfigPrefillIntrawave : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
