@@ -190,6 +190,8 @@ TEST(TensorDescriptor, IsPacked)
         ckt::make_descriptor<dt>(ckt::Extent{10, 11, 12}, ckt::Extent{1, 100, 1100}).is_packed());
     EXPECT_FALSE(
         ckt::make_descriptor<dt>(ckt::Extent{30, 20, 10}, ckt::Extent{1, 1, 1}).is_packed());
+    EXPECT_TRUE(
+        ckt::make_descriptor<dt>(ckt::Extent{30, 20, 1}, ckt::Extent{1, 30, 30}).is_packed());
 }
 
 TEST(TensorDescriptor, PrintExtent)
