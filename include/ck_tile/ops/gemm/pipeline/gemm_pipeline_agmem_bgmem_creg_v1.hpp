@@ -587,7 +587,6 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
                                          num_loop,
                                          p_smem);
     }
-
 };
 
 } // namespace ck_tile
