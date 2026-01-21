@@ -904,7 +904,7 @@ def get_fwd_splitkv_blobs(
                     or pipeline.F_logits == "f"
                 ):
                     continue
-                # sink_size is only meaningful when no masking is applied
+                # sink_size is only meaningful when mask is applied
                 if pipeline.F_mask in no_mask_keys and pipeline.F_sink == "t":
                     continue
 
