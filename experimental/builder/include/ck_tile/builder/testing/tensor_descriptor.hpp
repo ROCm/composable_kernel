@@ -7,6 +7,7 @@
 #include <array>
 #include <vector>
 #include <sstream>
+#include <iosfwd>
 #include <concepts>
 #include <algorithm>
 #include <hip/hip_runtime.h>
@@ -122,6 +123,33 @@ struct Extent : std::array<size_t, RANK>
 // correct type. This definition is practically the same as that of `std::array`.
 template <typename... T>
 Extent(T...) -> Extent<sizeof...(T)>;
+
+/// @brief Extent printer
+///
+/// This function implements an ostream printing overload for `Extent`, so that
+/// they can be printed in the usual `stream << extent` fashion.
+///
+/// @tparam RANK Rank (number of spatial dimensions) of the extent.
+///
+/// @param stream The stream to print the extent to.
+/// @param extent The extent to print to the stream.
+template <size_t RANK>
+std::ostream& operator<<(std::ostream& stream, const Extent<RANK>& extent)
+{
+    stream << '[';
+    bool first = true;
+    for(const auto x : extent)
+    {
+        if(first)
+            first = false;
+        else
+            stream << ", ";
+
+        stream << x;
+    }
+
+    return stream << ']';
+}
 
 /// @brief Concept for automatically deriving tensor memory layout.
 ///
@@ -390,6 +418,10 @@ struct TensorDescriptor
         size_t x = 1;
         for(size_t i = 0; i < RANK; ++i)
         {
+            if(lengths[indices[i]] == 1)
+            {
+                continue;
+            }
             if(strides[indices[i]] != x)
                 return false;
 
@@ -413,6 +445,15 @@ struct TensorDescriptor
         ck_tile::builder::test::Extent<1> lengths = {this->get_element_space_size()};
         ck_tile::builder::test::Extent<1> strides = {1};
         return TensorDescriptor<DT, 1>(lengths, strides);
+    }
+
+    /// @brief Print tensor descriptor details.
+    ///
+    /// Print tensor descriptor details - lengths and strides.
+    friend std::ostream& operator<<(std::ostream& os, const TensorDescriptor<DT, RANK>& tensor_desc)
+    {
+        os << tensor_desc.inner_descriptor_;
+        return os;
     }
 
     private:

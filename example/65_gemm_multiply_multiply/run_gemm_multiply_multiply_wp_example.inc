@@ -5,6 +5,8 @@
 
 int run_gemm_example(int argc, char* argv[])
 {
+    using Bypass = ck::tensor_layout::BypassLayoutVerification;
+
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = false;
@@ -64,11 +66,11 @@ int run_gemm_example(int argc, char* argv[])
 
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return ck::HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return ck::HostTensorDescriptor({row, col}, {stride, 1_uz}, Bypass{});
             }
             else
             {
-                return ck::HostTensorDescriptor({row, col}, {1_uz, stride});
+                return ck::HostTensorDescriptor({row, col}, {1_uz, stride}, Bypass{});
             }
         };
 

@@ -27,7 +27,7 @@ TEST(ConvTensorType, Exhaustive)
     case FP32: EXPECT_TRUE((check_same<FP32, float>)); break;
     case FP16: EXPECT_TRUE((check_same<FP16, ck::half_t>)); break;
     case BF16: EXPECT_TRUE((check_same<BF16, ck::bhalf_t>)); break;
-    case INT32: EXPECT_TRUE((check_same<INT32, uint32_t>)); break;
+    case I32: EXPECT_TRUE((check_same<I32, uint32_t>)); break;
     case FP8: EXPECT_TRUE((check_same<FP8, ck::f8_t>)); break;
     case I8: EXPECT_TRUE((check_same<I8, int8_t>)); break;
     case U8: EXPECT_TRUE((check_same<U8, uint8_t>)); break;

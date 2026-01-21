@@ -85,21 +85,23 @@ The top-level signature contains global properties that apply to the entire conv
 template <typename T>
 concept ConvSignatureDescriptor = requires(T t) {
     { t.spatial_dim } -> std::convertible_to<unsigned int>;  // 1, 2, or 3
-    { t.data_type } -> std::convertible_to<DataType>;        // Default data type
     { t.input } -> ConvTensorDescriptor;
     { t.weight } -> ConvTensorDescriptor;
     { t.output } -> ConvTensorDescriptor;
     requires ConvolutionDirectionWellDefinedIfProvided<T>;   // Optional direction
+    requires detail::DataTypeWellDefinedIfProvided<T>; // Optional default data type
+    requires detail::ElementwiseOpWellDefinedIfProvided<T>; // Optional default elementwise operation
 };
 ```
 
 **Properties:**
 - **`spatial_dim`**: Dimensionality of the convolution (1D, 2D, or 3D)
-- **`direction`**: Operation type (optional, defaults to FORWARD)
+- **`direction`**: Operation type (Optional, defaults to FORWARD)
   - `FORWARD`: Standard forward convolution
   - `BACKWARD_DATA`: Gradient computation w.r.t. input
   - `BACKWARD_WEIGHT`: Gradient computation w.r.t. weights
-- **`data_type`**: Default data type for all tensors (FP32, FP16, BF16, FP8, I8, U8)
+- **`data_type`**: Default data type for all tensors (FP32, FP16, BF16, FP8, I8, U8). (Optional, defaults to UNDEFINED_DATA_TYPE which indicates the type should be inferred or specified per-tensor, may be overridden by individual tensors)
+- **`elementwise_operation`**: Default elementwise operation for all tensors (Optional, defaults to PASS_THROUGH, may be overridden by individual tensors via their `operation` field)
 - **`accumulation_data_type`**: Type used for internal accumulation
 
 #### 2. Tensor Level
@@ -116,7 +118,7 @@ concept ConvTensorDescriptor = requires(T t) {
 
 A tensor descriptor encapsulates:
 - **Configuration**: Layout and data type information
-- **Operation** (optional): Fused elementwise operations on this tensor
+- **operation** Fused elementwise operations on this tensor (Optional, default provided by ConvSignatureDescriptor)
 
 #### 3. Tensor Configuration
 
@@ -126,11 +128,14 @@ Describes the memory layout and data types:
 template <typename T>
 concept TensorConfigDescriptor = requires(T t) {
     { t.layout } -> std::convertible_to<ConvLayout>;
-    { t.data_type } -> std::convertible_to<DataType>;  // Optional override
+    requires detail::DataTypeWellDefinedIfProvided<T>; // Override data type (Optional, default provided by ConvSignatureDescriptor)
 };
 ```
 
 **Layout Types** (dimension-specific):
+- **Special Values**:
+  - `UNDEFINED_TENSOR_LAYOUT`: Placeholder value indicating layout is not yet specified or should be inferred
+
 - **1D Convolution**:
   - Input: `GNCW`, `GNWC`, `NWGC`, `NGCW`, `G_NW_C_strided`
   - Weight: `GKXC`, `GKCX`, `KXGC`, `G_K_X_C_strided`
@@ -145,6 +150,9 @@ concept TensorConfigDescriptor = requires(T t) {
   - Input: `GNCDHW`, `GNDHWC`, `NDHWGC`, `NGCDHW`, `G_NDHW_C_strided`
   - Weight: `GKZYXC`, `GKCZYX`, `KZYXGC`, `G_K_ZYX_C_strided`
   - Output: `GNKDHW`, `GNDHWK`, `NDHWGK`, `NGKDHW`, `G_NDHW_K_strided`
+
+- **Bias Tensors**:
+  - `GC`, `G_C_strided`, `G_K_strided`
 
 Where:
 - `G` = Groups

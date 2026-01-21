@@ -39,7 +39,7 @@ constexpr size_t data_type_sizeof(DataType data_type)
     case DataType::FP8: return 1;
     case DataType::BF8: return 1;
     case DataType::FP64: return 8;
-    case DataType::INT32: return 4;
+    case DataType::I32: return 4;
     case DataType::I8: return 1;
     case DataType::I8_I8: return 2;
     case DataType::U8: return 1;

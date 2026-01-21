@@ -52,19 +52,20 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
 __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-    kernel_batched_gemm_xdlops_bwd_weight(const FloatA* __restrict__ p_a_grid,
-                                          const FloatB* __restrict__ p_b_grid,
-                                          FloatC* __restrict__ p_c_grid,
-                                          const AElementwiseOperation a_element_op,
-                                          const BElementwiseOperation b_element_op,
-                                          const CElementwiseOperation c_element_op,
-                                          const index_t batch_count,
-                                          const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
-                                          const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
-                                          const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
-                                              c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                          const Block2CTileMap block_2_ctile_map,
-                                          const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+    kernel_batched_gemm_xdlops_bwd_weight_multiple_d(
+        const FloatA* __restrict__ p_a_grid,
+        const FloatB* __restrict__ p_b_grid,
+        FloatC* __restrict__ p_c_grid,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const CElementwiseOperation c_element_op,
+        const index_t batch_count,
+        const AGridDesc_B_K0_M_K1 a_b_k0_m_k1_grid_desc,
+        const BGridDesc_B_K0_N_K1 b_b_k0_n_k1_grid_desc,
+        const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
+            c_grid_desc_mblock_mperblock_nblock_nperblock,
+        const Block2CTileMap block_2_ctile_map,
+        const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
@@ -568,7 +569,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
             int max_occupancy               = 0;
             hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
                 &max_occupancy,
-                kernel_batched_gemm_xdlops_bwd_weight<
+                kernel_batched_gemm_xdlops_bwd_weight_multiple_d<
                     GridwiseGemm,
                     ADataType,
                     BDataType,
@@ -841,7 +842,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                         p_c_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
                 };
 
-                const auto kernel = kernel_batched_gemm_xdlops_bwd_weight<
+                const auto kernel = kernel_batched_gemm_xdlops_bwd_weight_multiple_d<
                     GridwiseGemm,
                     ADataType,
                     BDataType,
