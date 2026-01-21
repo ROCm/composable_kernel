@@ -242,11 +242,19 @@ class ConvDescription : public Description
         f.writeLine(4,
                     "Vector access (GMEM write) instruction size: ",
                     algorithm_.c_tile_transfer.scalar_per_vector);
+        if(algorithm_.num_gemm_k_prefetch_stage)
+            f.writeLine(2,
+                        "Max Transpose transfer scr scalar per vector: ",
+                        algorithm_.num_gemm_k_prefetch_stage.value_or(0));
+        else
+            f.writeLine(2,
+                        "Struct does not contain optional "
+                        "num_gemm_k_prefetch_stage parameter");
+
         if(algorithm_.max_transpose_transfer_src_scalar_per_vector)
             f.writeLine(2,
                         "Max Transpose transfer scr scalar per vector: ",
-                        algorithm_.max_transpose_transfer_src_scalar_per_vector.value_or(
-                            builder::GemmPadding::DEFAULT));
+                        algorithm_.max_transpose_transfer_src_scalar_per_vector.value_or(0));
         else
             f.writeLine(2,
                         "Struct does not contain optional "
@@ -254,17 +262,13 @@ class ConvDescription : public Description
         if(algorithm_.max_transpose_dst_scalar_per_vector)
             f.writeLine(2,
                         "Max Transpose dst scalar per vector: ",
-                        algorithm_.max_transpose_dst_scalar_per_vector.value_or(
-                            builder::GemmPadding::DEFAULT));
+                        algorithm_.max_transpose_dst_scalar_per_vector.value_or(0));
         else
             f.writeLine(
                 2,
                 "Struct does not contain optional max_transpose_dst_scalar_per_vector parameter");
         if(algorithm_.num_groups_to_merge)
-            f.writeLast(2,
-                        "Num groups to merge: ",
-                        algorithm_.max_transpose_transfer_src_scalar_per_vector.value_or(
-                            builder::GemmPadding::DEFAULT));
+            f.writeLast(2, "Num groups to merge: ", algorithm_.num_groups_to_merge.value_or(0));
         else
             f.writeLast(2, "Struct does not contain optional num_groups_to_merge parameter");
 
