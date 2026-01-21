@@ -198,14 +198,55 @@ struct StreamKTilePartitionerBaseConfig
 
 struct StreamKTilePartitionerBaseConfigDP2TileSK : public StreamKTilePartitionerBaseConfig
 {
-    static constexpr ck_tile::index_t M    = 28;
-    static constexpr ck_tile::index_t N    = 4;
-    static constexpr ck_tile::index_t K    = 16;
+    static constexpr ck_tile::index_t M = 28;
+    static constexpr ck_tile::index_t N = 4;
+    static constexpr ck_tile::index_t K = 16;
+    // The minimum number of bytes needed for the flags array is GRID * 4B = 3 * 4B = 12B. To ensure
+    // the total byte size of the array is 128B-aligned, the flags array must be 128B.
     static constexpr ck_tile::index_t GRID = 3;
 
     static constexpr ck_tile::index_t M_TILE = 4;
     static constexpr ck_tile::index_t N_TILE = 4;
     static constexpr ck_tile::index_t K_TILE = 8;
+
+    using GemmShape = ck_tile::TileGemmShape<ck_tile::sequence<M_TILE, N_TILE, K_TILE>,
+                                             ck_tile::sequence<UNUSED, UNUSED, UNUSED>,
+                                             ck_tile::sequence<UNUSED, UNUSED, UNUSED>>;
+};
+
+struct StreamKTilePartitionerBaseConfigFlagsSizeEqual128Bytes
+    : public StreamKTilePartitionerBaseConfig
+{
+    static constexpr ck_tile::index_t M = 28;
+    static constexpr ck_tile::index_t N = 4;
+    static constexpr ck_tile::index_t K = 32;
+    // The minimum number of bytes needed for the flags array is GRID * 4B = 32 * 4B = 128B. So, the
+    // number of bytes for the flags array should be 128B.
+    static constexpr ck_tile::index_t GRID = 32;
+
+    static constexpr ck_tile::index_t M_TILE = 4;
+    static constexpr ck_tile::index_t N_TILE = 4;
+    static constexpr ck_tile::index_t K_TILE = 1;
+
+    using GemmShape = ck_tile::TileGemmShape<ck_tile::sequence<M_TILE, N_TILE, K_TILE>,
+                                             ck_tile::sequence<UNUSED, UNUSED, UNUSED>,
+                                             ck_tile::sequence<UNUSED, UNUSED, UNUSED>>;
+};
+
+struct StreamKTilePartitionerBaseConfigFlagsSizeGreaterThan128Bytes
+    : public StreamKTilePartitionerBaseConfig
+{
+    static constexpr ck_tile::index_t M = 28;
+    static constexpr ck_tile::index_t N = 4;
+    static constexpr ck_tile::index_t K = 33;
+    // The minimum number of bytes needed for the flags array is GRID * 4B = 33 * 4B = 132B. So, the
+    // number of bytes for the flags array should be 2 * 128B = 256B to ensure the total byte size
+    // of the array is 128B-aligned.
+    static constexpr ck_tile::index_t GRID = 33;
+
+    static constexpr ck_tile::index_t M_TILE = 4;
+    static constexpr ck_tile::index_t N_TILE = 4;
+    static constexpr ck_tile::index_t K_TILE = 1;
 
     using GemmShape = ck_tile::TileGemmShape<ck_tile::sequence<M_TILE, N_TILE, K_TILE>,
                                              ck_tile::sequence<UNUSED, UNUSED, UNUSED>,
