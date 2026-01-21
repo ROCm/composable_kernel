@@ -610,10 +610,10 @@ struct QuantGemmKernel
                 static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 using QuantGroupSize   = remove_cvref_t<typename GemmPipeline::AQuantGroupSize>;
                 constexpr auto block_m = TilePartitioner::MPerBlock;
-                constexpr auto block_k = TilePartitioner::KPerBlock;
+                constexpr auto aqk_per_block = TilePartitioner::KPerBlock / QuantGroupSize::kK;
                 return make_tile_window(
                     aq_tensor_view,
-                    make_tuple(number<block_m>{}, number<block_k / QuantGroupSize::kK>{}),
+                    make_tuple(number<block_m>{}, number<aqk_per_block>{}),
                     {i_m, 0});
             }
             else if constexpr(kQuantType == QuantType::RowColQuant)

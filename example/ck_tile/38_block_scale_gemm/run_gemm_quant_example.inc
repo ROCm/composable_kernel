@@ -55,8 +55,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                     BLayout,
                                                     CLayout,
                                                     QuantMode,
-                                                    AQLayout, // for AQLayout
-                                                    BQLayout, // for BQLayout
+                                                    AQLayout,
+                                                    BQLayout,
                                                     false,
                                                     GemmConfig::DoubleSmemBuffer>;
 
@@ -537,20 +537,12 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     // Create BQ tensor with appropriate shape
     std::unique_ptr<ck_tile::HostTensor<BQDataType>> bq_tensor_ptr = nullptr;
     if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped ||
-                 QuantMode == ck_tile::QuantType::RowColQuant)
+                 QuantMode == ck_tile::QuantType::ABQuantGrouped ||
+                 QuantMode == ck_tile::QuantType::RowColQuant ||
+                 QuantMode == ck_tile::QuantType::TensorQuant)
     {
         bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
             ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, is_row_major(bq_layout)));
-    }
-    else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
-    {
-        bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
-            ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, is_row_major(bq_layout)));
-    }
-    else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
-    {
-        bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
-            ck_tile::host_tensor_descriptor(1, 1, stride_BQ, is_row_major(bq_layout)));
     }
 
     std::random_device rd;
