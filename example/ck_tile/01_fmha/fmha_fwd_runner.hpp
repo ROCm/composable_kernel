@@ -210,6 +210,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         const ck_tile::stream_config& stream_config,
                         std::optional<std::string> json = std::nullopt)
 {
+    // Note: block_scale_size_q_ and block_scale_size_kv_ should be greater than or equal to the
+    // compute block size
     constexpr ck_tile::index_t block_scale_size_q_  = 128;
     constexpr ck_tile::index_t block_scale_size_kv_ = 128;
 
