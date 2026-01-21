@@ -723,8 +723,11 @@ struct GroupedConvolutionForwardKernel
         if constexpr(GroupedConvTraitsType_::ExplicitGemm &&
                      ConvSpecialization != ConvolutionSpecialization::Filter1x1Stride1Pad0)
         {
-            CK_TILE_ERROR(
-                "Explicit Gemm is supported only for Filter1x1Stride1Pad0 specialization!");
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR(
+                    "Explicit Gemm is supported only for Filter1x1Stride1Pad0 specialization!");
+            }
             return false;
         }
 
@@ -736,13 +739,19 @@ struct GroupedConvolutionForwardKernel
             // Check access per C
             if(ConvC % GroupedConvTraitsType_::VectorSizeA != 0)
             {
-                CK_TILE_ERROR("Conv C is not a multiple of vector load size for input image!");
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("Conv C is not a multiple of vector load size for input image!");
+                }
                 return false;
             }
         }
         else
         {
-            CK_TILE_ERROR("Not supported input layout!");
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Not supported input layout!");
+            }
             return false;
         }
 
@@ -754,13 +763,19 @@ struct GroupedConvolutionForwardKernel
         {
             if(ConvC % GroupedConvTraitsType_::VectorSizeB != 0)
             {
-                CK_TILE_ERROR("Conv C is not a multiple of vector load size for weight!");
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("Conv C is not a multiple of vector load size for weight!");
+                }
                 return false;
             }
         }
         else
         {
-            CK_TILE_ERROR("Not supported weight layout!");
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Not supported weight layout!");
+            }
             return false;
         }
 
@@ -771,13 +786,20 @@ struct GroupedConvolutionForwardKernel
         {
             if(ConvK % GroupedConvTraitsType_::VectorSizeC != 0)
             {
-                CK_TILE_ERROR("Conv K is not a multiple of vector store size for output image!");
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR(
+                        "Conv K is not a multiple of vector store size for output image!");
+                }
                 return false;
             }
         }
         else
         {
-            CK_TILE_ERROR("Not supported output layout!");
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Not supported output layout!");
+            }
             return false;
         }
 
@@ -786,7 +808,10 @@ struct GroupedConvolutionForwardKernel
             const index_t ConvG = kargs.wei_g_k_c_xs_lengths[number<0>{}];
             if(ConvG % GroupedConvTraitsType_::NumGroupsToMerge != 0)
             {
-                CK_TILE_ERROR("ConvG must be a multiple of NumGroupsToMerge!");
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("ConvG must be a multiple of NumGroupsToMerge!");
+                }
                 return false;
             }
         }
@@ -955,7 +980,8 @@ struct GroupedConvolutionForwardKernel
         else
         {
             if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                           is_any_of<OutDataType, fp16_t, bf16_t>::value))
+                           is_any_of<OutDataType, fp16_t, bf16_t>::value) &&
+                         IsSplitKSupported)
             {
                 auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
                     c_ptr, c_desc, block_idx_m, block_idx_n);
