@@ -10,6 +10,7 @@
 #include "ck_tile/builder/testing/testing_reflect.hpp"
 #include "ck_tile/builder/testing/filter_extent.hpp"
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
+#include "ck_tile/host/convolution_parameter.hpp"
 #include "ck_tile/builder/testing/tensor_initialization.hpp"
 #include "ck_tile/builder/testing/tensor_descriptor.hpp"
 #include "ck_tile/builder/testing/validation.hpp"
@@ -93,6 +94,8 @@ struct Args<SIGNATURE>
     Ops::WeiElementwiseOp b_elementwise_op;
     Ops::OutElementwiseOp cde_elementwise_op;
 
+    int k_batch = 1;
+
     /// This function returns the `TensorDescriptor` corresponding to
     /// the input-tensor of the convolution problem. This can then
     /// be used to, for example, allocate memory.
@@ -168,6 +171,36 @@ struct Args<SIGNATURE>
                                           to_vector(this->filter_dilation),
                                           to_vector(this->input_left_pad),
                                           to_vector(this->input_right_pad));
+    }
+
+    /// Convert the Args structure into a CK Tile conv_param structure.
+    /// This function is mainly used to be able to use the existing
+    /// CK Tile functionality to obtain tensor descriptors.
+    ck_tile::conv::ConvParam to_ck_tile_conv_param() const
+    {
+        const auto to_vector = [](const auto& extent) {
+            if constexpr(SPATIAL_DIM == 1)
+                return std::vector<ck_tile::index_t>{ck::index_t(extent.width)};
+            else if constexpr(SPATIAL_DIM == 2)
+                return std::vector<ck_tile::index_t>{ck::index_t(extent.height),
+                                                     ck::index_t(extent.width)};
+            else
+                return std::vector<ck_tile::index_t>{ck::index_t(extent.depth),
+                                                     ck::index_t(extent.height),
+                                                     ck::index_t(extent.width)};
+        };
+
+        return ck_tile::conv::ConvParam(SPATIAL_DIM,
+                                        this->lengths.groups,
+                                        this->lengths.batch_size,
+                                        this->lengths.output_channels,
+                                        this->lengths.input_channels,
+                                        to_vector(this->lengths.filter),
+                                        to_vector(this->lengths.image),
+                                        to_vector(this->filter_strides),
+                                        to_vector(this->filter_dilation),
+                                        to_vector(this->input_left_pad),
+                                        to_vector(this->input_right_pad));
     }
 };
 
