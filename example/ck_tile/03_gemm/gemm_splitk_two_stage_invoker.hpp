@@ -72,7 +72,7 @@ struct SplitKTwoStageInvoker
                                                   ck_tile::element_wise::PassThrough,
                                                   ck_tile::element_wise::PassThrough,
                                                   ComputeDataType>;
-        using WorkspaceType        = ck_tile::remove_cvref_t<typename GemmConfig::WorkspaceType>;
+        using WorkspaceType = ck_tile::remove_cvref_t<typename GemmConfig::WorkspaceType>;
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
