@@ -53,6 +53,14 @@ struct SinkhornKnoppKernelReduce
 template <typename Problem, typename Policy>
 struct SinkhornKnoppKernelDummyNonStochastic
 {
+
+    static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
+
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? kBlockSize / 2 : kBlockSize;
+    }
+
     template <typename XDistributedTensor_>
     CK_TILE_DEVICE static auto MakeYBlockTile()
     {
@@ -67,16 +75,16 @@ struct SinkhornKnoppKernelDummyNonStochastic
         return tensor;
     }
 
-    CK_TILE_DEVICE void operator()(const SinkhornKnoppArgs& args) const
+    CK_TILE_DEVICE void operator()([[maybe_unused]]const SinkhornKnoppArgs& args) const
     {
-        using S = Problem::BlockShape;
+        // using S = Problem::BlockShape;
 
-        static_assert(S::Block_M == S::Block_N, "Input must be a square matrix!");
+        // static_assert(S::Block_M == S::Block_N, "Input must be a square matrix!");
 
-        const auto x_desc = make_naive_tensor_descriptor(make_tuple(args.input_m, args.input_m),
-                                                         make_tuple(args.input_m, 1),
-                                                         number<4>{}, // TODO: Hardcoded vectorization, we should calculate it!
-                                                         number<1>{});
+        // const auto x_desc = make_naive_tensor_descriptor(make_tuple(args.input_m, args.input_m),
+        //                                                  make_tuple(args.input_m, 1),
+        //                                                  number<4>{}, // TODO: Hardcoded vectorization, we should calculate it!
+        //                                                  number<1>{});
 
         // auto buffer_view = make_buffer_view<address_space_enum::global>(
         //     args.p_x, desc.get_element_space_size(), number<0>{});

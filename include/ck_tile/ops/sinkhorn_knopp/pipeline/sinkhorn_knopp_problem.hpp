@@ -29,7 +29,7 @@ template <typename BlockWarps, // num warps along seq<M, N>
           typename BlockTile,  // block size, seq<M, N>
           typename WarpTile,   // warp size, seq<M, N>
           typename ThreadTile> // contiguous pixels(vector size) along seq<M, N>
-struct SinkHornKnoppShape
+struct SinkhornKnoppShape
 {
     static constexpr index_t Block_M = BlockTile::at(number<0>{});
     static constexpr index_t Block_N = BlockTile::at(number<1>{});
