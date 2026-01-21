@@ -1461,7 +1461,7 @@ pipeline {
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
+                        execute_args = """ cmake .. --preset dev-gfx90a && \
                                            make -j64 test_grouped_convnd_fwd_large_cases test_grouped_convnd_bwd_data_large_cases test_grouped_convnd_fwd_bias_clamp_large_cases && \
                                            ./bin/test_grouped_convnd_fwd_large_cases && ./bin/test_grouped_convnd_bwd_data_large_cases && ./bin/test_grouped_convnd_fwd_bias_clamp_large_cases"""
                     }
@@ -1490,8 +1490,8 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cd ../build && \
-                                           ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 test_grouped_convnd_fwd_dataset_xdl \
+                                           cmake .. --preset dev-gfx90a && \
+                                           make -j64 test_grouped_convnd_fwd_dataset_xdl && \
                                            test_grouped_convnd_bwd_data_dataset_xdl \
                                            test_grouped_convnd_bwd_weight_dataset_xdl && \
                                            cd ../test_data && \
