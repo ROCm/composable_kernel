@@ -76,7 +76,6 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     if(karg.M == 0 || karg.N == 0 || karg.K == 0)
         return;
 
-        // using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
 #if defined(__gfx11__)
     // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
     if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
@@ -651,7 +650,7 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
         {
             if(arg.grouped_gemm_kernel_args_dev == nullptr)
             {
-                throw std::runtime_error("wrong! grouped_gemm_kernel_args_dev is nullpr");
+                throw std::runtime_error("wrong! grouped_gemm_kernel_args_dev is nullptr");
             }
 
             float ave_time = 0;

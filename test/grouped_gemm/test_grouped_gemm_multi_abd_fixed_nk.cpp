@@ -273,7 +273,10 @@ TYPED_TEST(TestGroupedGemmMultiABDFixedNK, Regular)
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
-    if(argc == 1) {}
+    if(argc == 1)
+    {
+        // Run with default arguments.
+    }
     else if(argc == 3)
     {
         param_mask     = strtol(argv[1], nullptr, 0);

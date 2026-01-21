@@ -191,21 +191,22 @@ bool profile_gemm_multi_abd_impl(int do_verification,
                                       remove_cvref_t<tuple_element_t<0, BsDataType>>>::type;
 
         using ReferenceGemmInstance =
-            ck::tensor_operation::host::ReferenceGemmMultiABD<AComputeType,
-                                                              BComputeType,
+            ck::tensor_operation::host::ReferenceGemmMultiABD<decltype(as_m_k),
+                                                              decltype(bs_k_n),
+                                                              decltype(ds_m_n),
+                                                              EDataType,
                                                               AccDataType,
-                                                              AccDataType,
-                                                              PassThrough,
-                                                              PassThrough,
-                                                              PassThrough,
+                                                              AElementOp,
+                                                              BElementOp,
+                                                              CDEElementOp,
                                                               AComputeType,
                                                               BComputeType>;
 
         auto ref_gemm    = ReferenceGemmInstance{};
         auto ref_invoker = ref_gemm.MakeInvoker();
 
-        auto ref_argument =
-            ref_gemm.MakeArgument(a_m_k, b_k_n, c_m_n, PassThrough{}, PassThrough{}, PassThrough{});
+        auto ref_argument = ref_gemm.MakeArgument(
+            as_m_k, bs_k_n, ds_m_n, e_m_n_host_result, a_element_op, b_element_op, cde_element_op);
 
         ref_invoker.Run(ref_argument);
     }

@@ -605,7 +605,7 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
             if(arg.grouped_gemm_kernel_args_dev == nullptr)
             {
-                throw std::runtime_error("wrong! grouped_gemm_kernel_args_dev is nullpr");
+                throw std::runtime_error("wrong! grouped_gemm_kernel_args_dev is nullptr");
             }
 
             float ave_time = 0;

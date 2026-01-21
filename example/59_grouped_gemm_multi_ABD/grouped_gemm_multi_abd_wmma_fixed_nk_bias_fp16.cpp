@@ -392,7 +392,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=n0, 1=yes)\n");
+        printf("arg3: time kernel (0=no, 1=yes)\n");
         printf("arg4: k_batch (>0)\n");
         exit(0);
     }

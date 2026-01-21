@@ -47,9 +47,9 @@ using B0DataType       = F16;
 using BsDataType       = ck::Tuple<B0DataType>;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
-using D0DataType       = F32;
+using D0DataType       = F16;
 using DsDataType       = ck::Tuple<D0DataType>;
-using EDataType        = F32;
+using EDataType        = F16;
 
 using A0Layout = Row;
 using A1Layout = Row;
@@ -394,7 +394,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=n0, 1=yes)\n");
+        printf("arg3: time kernel (0=no, 1=yes)\n");
         printf("arg4: k_batch (>0)\n");
         exit(0);
     }

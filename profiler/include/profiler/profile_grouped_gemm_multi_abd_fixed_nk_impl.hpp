@@ -97,7 +97,7 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
     auto generateInputTupleA = [&](std::size_t g) {
         if constexpr(NumATensor == 0)
         {
-            return ck::Tuple<>();
+            static_assert("Gemm problem should have at least 1 A tensor.");
         }
         else
         {
@@ -114,7 +114,7 @@ bool profile_grouped_gemm_multi_abd_fixed_nk_impl(int do_verification,
     auto generateInputTupleB = [&](std::size_t g) {
         if constexpr(NumBTensor == 0)
         {
-            return ck::Tuple<>();
+            static_assert("Gemm problem should have at least 1 B tensor.");
         }
         else
         {
