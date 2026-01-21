@@ -349,48 +349,15 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
     // polymorphic
     std::string GetTypeString() const override
     {
-        auto str = std::stringstream();
-
-        std::map<BlockGemmPipelineScheduler, std::string> BlkGemmPipelineSchedulerToString{
-            {BlockGemmPipelineScheduler::Intrawave, "Intrawave"},
-            {BlockGemmPipelineScheduler::Interwave, "Interwave"}};
-
-        std::map<BlockGemmPipelineVersion, std::string> BlkGemmPipelineVersionToString{
-            {BlockGemmPipelineVersion::v1, "v1"},
-            {BlockGemmPipelineVersion::v2, "v2"},
-            {BlockGemmPipelineVersion::v3, "v3"},
-            {BlockGemmPipelineVersion::v4, "v4"},
-            {BlockGemmPipelineVersion::v5, "v5"}};
-
-        // clang-format off
-        str << "DeviceBatchedGemm_Wmma_CShuffleV3"
-            << "<"
-            << getGemmSpecializationString(GemmSpec) << ", "
-            << std::string(ALayout::name)[0]
-            << std::string(BLayout::name)[0]
-            << std::string(CLayout::name)[0]
-            << ">"
-            << " BlkSize: "
-            << BlockSize << ", "
-            << "BlkTile: "
-            << MPerBlock << "x" << NPerBlock << "x" << KPerBlock << ", "
-            << "WaveTile: "
-            << MPerWmma << "x"<<NPerWmma << ", "
-            << "WaveMap: "
-            << MRepeat << "x" << NRepeat << ", "
-            << "VmemReadVec: "
-            << ABlockTransferSrcScalarPerVector << "x" << BBlockTransferSrcScalarPerVector << ", "
-            << "BlkGemmPipelineScheduler: "
-            << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
-            << "BlkGemmPipelineVersion: "
-            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
-            << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages << ", "
-            << "KPack: "
-            << GridwiseGemm::KPack;
-        // clang-format on
-
-        return str.str();
+        return DeviceGemmCommon::template GetTypeString<MPerWmma,
+                                                        NPerWmma,
+                                                        MRepeat,
+                                                        NRepeat,
+                                                        ABlockTransferSrcScalarPerVector,
+                                                        BBlockTransferSrcScalarPerVector,
+                                                        ALayout,
+                                                        BLayout,
+                                                        CLayout>();
     }
     REGISTER_EXTRA_PRINTING_METHODS
 };

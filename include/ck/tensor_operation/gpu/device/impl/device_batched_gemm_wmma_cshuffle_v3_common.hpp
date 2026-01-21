@@ -457,6 +457,71 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_Common
 
         return GridwiseGemm::CheckValidity(arg);
     }
+
+    template <ck::index_t MPerWmma,
+              ck::index_t NPerWmma,
+              ck::index_t MRepeat,
+              ck::index_t NRepeat,
+              ck::index_t ABlockTransferSrcScalarPerVector,
+              ck::index_t BBlockTransferSrcScalarPerVector,
+              typename ALayout,
+              typename BLayout,
+              typename CLayout>
+    static std::string GetTypeString()
+    {
+        auto str = std::stringstream();
+
+        std::map<BlockGemmPipelineScheduler, std::string> BlkGemmPipelineSchedulerToString{
+            {BlockGemmPipelineScheduler::Intrawave, "Intrawave"},
+            {BlockGemmPipelineScheduler::Interwave, "Interwave"}};
+
+        std::map<BlockGemmPipelineVersion, std::string> BlkGemmPipelineVersionToString{
+            {BlockGemmPipelineVersion::v1, "v1"},
+            {BlockGemmPipelineVersion::v2, "v2"},
+            {BlockGemmPipelineVersion::v3, "v3"},
+            {BlockGemmPipelineVersion::v4, "v4"},
+            {BlockGemmPipelineVersion::v5, "v5"}};
+
+        constexpr auto type = []() {
+            if constexpr(IsBScaled)
+            {
+                return "DeviceBatchedGemm_Wmma_CShuffleV3_BScale";
+            }
+            else
+            {
+                return "DeviceBatchedGemm_Wmma_CShuffleV3";
+            }
+        }();
+        // clang-format off
+        str << type
+            << "<"
+            << getGemmSpecializationString(GemmSpec) << ", "
+            << std::string(ALayout::name)[0]
+            << std::string(BLayout::name)[0]
+            << std::string(CLayout::name)[0]
+            << ">"
+            << " BlkSize: "
+            << BlockSize << ", "
+            << "BlkTile: "
+            << MPerBlock << "x" << NPerBlock << "x" << KPerBlock << ", "
+            << "WaveTile: "
+            << MPerWmma << "x"<<NPerWmma << ", "
+            << "WaveMap: "
+            << MRepeat << "x" << NRepeat << ", "
+            << "VmemReadVec: "
+            << ABlockTransferSrcScalarPerVector << "x" << BBlockTransferSrcScalarPerVector << ", "
+            << "BlkGemmPipelineScheduler: "
+            << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
+            << "BlkGemmPipelineVersion: "
+            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
+            << "BlkGemmPipelinePrefetchStages: "
+            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages << ", "
+            << "KPack: "
+            << GridwiseGemm::KPack;
+        // clang-format on
+
+        return str.str();
+    }
 };
 
 } // namespace device
