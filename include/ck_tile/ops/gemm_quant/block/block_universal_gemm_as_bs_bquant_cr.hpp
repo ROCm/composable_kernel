@@ -36,7 +36,7 @@ struct BQuantBlockUniversalGemmAsBsCr
         using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
         using CDataType       = remove_cvref_t<typename Problem::CDataType>;
         using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
-        using QuantGroupSize  = remove_cvref_t<typename Problem::BQuantGroupSize>;
+        using BQuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
         static constexpr index_t kBlockSize = Problem::kBlockSize;
         static constexpr auto Scheduler     = Problem::Scheduler;
@@ -46,8 +46,8 @@ struct BQuantBlockUniversalGemmAsBsCr
         static constexpr index_t NPerBlock = BlockGemmShape::kN;
         static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-        static constexpr index_t NQPerBlock = NPerBlock / QuantGroupSize::kN;
-        static constexpr index_t KQPerBlock = KPerBlock / QuantGroupSize::kK;
+        static constexpr index_t NQPerBlock = NPerBlock / BQuantGroupSize::kN;
+        static constexpr index_t KQPerBlock = KPerBlock / BQuantGroupSize::kK;
 
         static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WarpGemm               = remove_cvref_t<decltype(config.template at<0>())>;
@@ -75,20 +75,20 @@ struct BQuantBlockUniversalGemmAsBsCr
         static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
 
         static constexpr index_t QScalesPerBlockRow =
-            integer_divide_ceil(KPerBlock, QuantGroupSize::kK);
+            integer_divide_ceil(KPerBlock, BQuantGroupSize::kK);
         static constexpr index_t QScalesPerWarpGemmRow =
-            integer_divide_ceil(WarpGemm::kK, QuantGroupSize::kK);
+            integer_divide_ceil(WarpGemm::kK, BQuantGroupSize::kK);
 
         static constexpr index_t KIterPerQScale = KIterPerWarp / QScalesPerBlockRow;
 
-        static_assert(QuantGroupSize::kK % WarpGemm::kK == 0,
-                      "Error! WarpGemm::kK should be a multiple of QuantGroupSize");
+        static_assert(BQuantGroupSize::kK % WarpGemm::kK == 0,
+                      "Error! WarpGemm::kK should be a multiple of BQuantGroupSize");
         static_assert(QScalesPerWarpGemmRow == 1,
-                      "Error! QuantGroupSize shouldn't be smaller than WarpGemm::kK");
+                      "Error! BQuantGroupSize shouldn't be smaller than WarpGemm::kK");
         static_assert(KIterPerWarp % QScalesPerBlockRow == 0,
                       "Error! KItersPerWarp should be a multiple of QscalesPerBlockRow");
 
-        static_assert(KPerBlock / QuantGroupSize::kK > 0,
+        static_assert(KPerBlock / BQuantGroupSize::kK > 0,
                       "Error! Each row of blockgemm should have a separate scale");
 
         static_assert(MIterPerWarp * MWarp * WarpGemm::kM == MPerBlock,
@@ -321,11 +321,11 @@ struct BQuantBlockUniversalGemmAsBsCr
                         {
                             // constexpr index_t reg_offset = nIter;
                             constexpr index_t reg_offset = [&]() {
-                                if constexpr(GemmTraits::QuantGroupSize::kN >
+                                if constexpr(GemmTraits::BQuantGroupSize::kN >
                                              (NWarp * WarpGemm::kN))
                                 {
                                     if constexpr(Traits::NPerBlock ==
-                                                 GemmTraits::QuantGroupSize::kN)
+                                                 GemmTraits::BQuantGroupSize::kN)
                                         return kQScale;
                                     else
                                         return nIter; // for prefill needs kQscale, for decode needs
@@ -370,10 +370,11 @@ struct BQuantBlockUniversalGemmAsBsCr
                         {
                             // Multiply bquant with accumulated C
                             constexpr index_t reg_offset = [&]() {
-                                if constexpr(GemmTraits::QuantGroupSize::kN >=
+                                if constexpr(GemmTraits::BQuantGroupSize::kN >=
                                              (NWarp * WarpGemm::kN))
                                     return (nIter * NWarp * WarpGemm::kN) /
-                                               GemmTraits::QuantGroupSize::kN * Traits::KQPerBlock +
+                                               GemmTraits::BQuantGroupSize::kN *
+                                               Traits::KQPerBlock +
                                            kQScale;
                                 else
                                 {

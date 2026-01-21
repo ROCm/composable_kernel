@@ -45,8 +45,8 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
 
         constexpr index_t BlockSize    = Problem::kBlockSize;
         constexpr index_t NPerBlock    = Problem::BlockGemmShape::kN;
-        constexpr index_t NPerBlockBQ  = (Problem::QuantGroupSize::kN <= NPerBlock)
-                                             ? NPerBlock / Problem::QuantGroupSize::kN
+        constexpr index_t NPerBlockBQ  = (Problem::BQuantGroupSize::kN <= NPerBlock)
+                                             ? NPerBlock / Problem::BQuantGroupSize::kN
                                              : 1;
         constexpr index_t KPerBlock    = Problem::BlockGemmShape::kK;
         constexpr index_t KPerBlockBQ  = KPerBlock / Problem::BQuantGroupSize::kK;
