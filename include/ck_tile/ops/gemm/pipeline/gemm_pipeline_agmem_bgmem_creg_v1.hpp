@@ -580,7 +580,7 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
                                         index_t num_loop,
                                         void* p_smem) const
     {
-        return PipelineImpl{}.operator()(a_dram_block_window_tmp,
+        return PipelineImpl<Scheduler>{}.operator()(a_dram_block_window_tmp,
                                          a_element_func,
                                          b_dram_block_window_tmp,
                                          b_element_func,
