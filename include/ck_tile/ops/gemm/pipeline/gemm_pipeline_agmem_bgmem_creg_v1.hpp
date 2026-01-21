@@ -90,6 +90,8 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
 
     static constexpr bool Preshuffle = Problem::Preshuffle;
 
+    static constexpr auto Scheduler = Problem::Scheduler;
+
     static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
     static constexpr index_t kLdsAlignmentInBytes = 16;
