@@ -9,6 +9,7 @@
 #include "ck/utility/data_type.hpp"
 
 #include "ck/ck.hpp"
+#include "ck/utility/type.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "profiler/profile_grouped_gemm_multi_abd_fixed_nk_impl.hpp"
 
@@ -134,7 +135,7 @@ class TestGroupedGemmMultiABDFixedNK : public testing::Test
         if constexpr(Layouts::Size() > 0)
         {
             // As of now multi ABD implementation supports only tensors with matching layouts.
-            using Layout = std::remove_cvref_t<ck::tuple_element_t<ck::Number<0>{}, Layouts>>;
+            using Layout = ck::remove_cvref_t<ck::tuple_element_t<ck::Number<0>{}, Layouts>>;
             SetStrides<Layout>(strides, rows, cols);
         }
     }
