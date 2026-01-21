@@ -340,7 +340,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
 
-                // Note: here occ are all cleard, return it
+                // Note: here occ are all cleared, return it
                 return o_acc;
             }
             __builtin_amdgcn_sched_barrier(0); // make sure sched_barrier(0) for this check
