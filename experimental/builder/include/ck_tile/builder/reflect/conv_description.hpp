@@ -65,6 +65,10 @@ struct GemmAlgorithmInfo
     builder::PipelineScheduler pipeline_scheduler;
     builder::ConvSpecialization conv_specialization;
     std::optional<builder::GemmPadding> padding;
+    std::optional<int> num_gemm_k_prefetch_stage;
+    std::optional<int> max_transpose_src_scalar_per_vector;
+    std::optional<int> max_transpose_dst_scalar_per_vector;
+    std::optional<int> num_groups_to_merge;
 };
 
 /// @brief Provides human-readable descriptions of convolution kernel instances
@@ -235,9 +239,35 @@ class ConvDescription : public Description
                     algorithm_.c_tile_transfer.thread_cluster_dims[2],
                     "×",
                     algorithm_.c_tile_transfer.thread_cluster_dims[3]);
-        f.writeLast(4,
+        f.writeLine(4,
                     "Vector access (GMEM write) instruction size: ",
                     algorithm_.c_tile_transfer.scalar_per_vector);
+        if(algorithm_.max_transpose_transfer_src_scalar_per_vector)
+            f.writeLine(2,
+                        "Max Transpose transfer scr scalar per vector: ",
+                        algorithm_.max_transpose_transfer_src_scalar_per_vector.value_or(
+                            builder::GemmPadding::DEFAULT));
+        else
+            f.writeLine(2,
+                        "Struct does not contain optional "
+                        "max_transpose_transfer_src_scalar_per_vector parameter");
+        if(algorithm_.max_transpose_dst_scalar_per_vector)
+            f.writeLine(2,
+                        "Max Transpose dst scalar per vector: ",
+                        algorithm_.max_transpose_dst_scalar_per_vector.value_or(
+                            builder::GemmPadding::DEFAULT));
+        else
+            f.writeLine(
+                2,
+                "Struct does not contain optional max_transpose_dst_scalar_per_vector parameter");
+        if(algorithm_.num_groups_to_merge)
+            f.writeLast(2,
+                        "Num groups to merge: ",
+                        algorithm_.max_transpose_transfer_src_scalar_per_vector.value_or(
+                            builder::GemmPadding::DEFAULT));
+        else
+            f.writeLast(2, "Struct does not contain optional num_groups_to_merge parameter");
+
         return f.getString();
     }
 
