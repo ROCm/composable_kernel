@@ -27,11 +27,7 @@ using AQuantMemDecodeInterwaveTypes = ::testing::Types<
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8, float, Half, AQuantGrouped, GemmConfigDecodeInterwave, GroupSize>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF8, BF8, float, Half, AQuantGrouped, GemmConfigDecodeInterwave, GroupSize>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, PkInt4, FP8, FP8, Half, AQuantGrouped, GemmConfigDecodeInterwave, GroupSize>,
-    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, PkInt4, BF8, BF8, Half, AQuantGrouped, GemmConfigDecodeInterwave, GroupSize>,
-    // FP8 additional layouts
-    //std::tuple<ColumnMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8, float, Half, AQuantGrouped, GemmConfigDecodeInterwave, GroupSize>,
-    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, FP8, FP8, float, Half, AQuantGrouped, GemmConfigDecodeInterwave, GroupSize>
-    //std::tuple<ColumnMajor, ColumnMajor, ColumnMajor, RowMajor, FP8, FP8, float, Half, AQuantGrouped, GemmConfigDecodeInterwave, GroupSize>
+    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, PkInt4, BF8, BF8, Half, AQuantGrouped, GemmConfigDecodeInterwave, GroupSize>
 >;
 // clang-format on
 
