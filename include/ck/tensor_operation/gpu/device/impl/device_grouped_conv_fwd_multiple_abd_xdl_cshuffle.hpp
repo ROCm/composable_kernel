@@ -829,6 +829,22 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op}
         {
+            if constexpr (NeedTransposeKernel)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Needs transpose kernel for input and weight tensors" << std::endl;
+                }
+            }
+
+            if constexpr (CTranspose)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Needs transpose for output tensor" << std::endl;
+                }
+            }
+
             // A/B/E Batch Stride
             if constexpr(isMultiA || isMultiB)
             {
@@ -1476,6 +1492,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
                 if(!(SpatialDim == 1 && ConvStride == 1 && LeftPad == 0 && RightPad == 0))
                 {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "Unsupported! Not a 1x1 filter, stride=1 pad=0 convolution: SpatialDim="
+                                  << SpatialDim << ", ConvStride=" << ConvStride
+                                  << ", LeftPad=" << LeftPad << ", RightPad=" << RightPad
+                                  << std::endl;
+                    }
                     return false;
                 }
             }
@@ -1492,6 +1515,12 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
                 if(!(SpatialDim == 1 && LeftPad == 0 && RightPad == 0))
                 {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "Unsupported! Not a 1x1 filter, pad=0 convolution: SpatialDim="
+                                  << SpatialDim << ", LeftPad=" << LeftPad
+                                  << ", RightPad=" << RightPad << std::endl;
+                    }
                     return false;
                 }
             }
@@ -1500,6 +1529,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             if(C != 1)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! C != 1 for 3x3 filter convolution: C=" << C
+                              << std::endl;
+                }
                 return false;
             }
             for(index_t i = 0; i < NDimSpatial; ++i)
@@ -1508,6 +1542,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
                 if(filter_spatial_dim != I3)
                 {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "Unsupported! Not a 3x3 filter convolution: filter_spatial_dim="
+                                  << filter_spatial_dim << std::endl;
+                    }
                     return false;
                 }
             }
@@ -1515,12 +1554,17 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         if constexpr(NumGroupsToMerge > 1)
         {
-            if(!(C == 1))
-            {
-                return false;
-            }
+            // if(!(C == 1))
+            // {
+            //     return false;
+            // }
             if(G % NumGroupsToMerge != 0)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! G % NumGroupsToMerge != 0: G=" << G
+                              << ", NumGroupsToMerge=" << NumGroupsToMerge << std::endl;
+                }
                 return false;
             }
             if constexpr(!(is_NSpatialGC_GKSpatial_NSpatialGK<ALayout, BLayout, ELayout>() ||
@@ -1528,6 +1572,14 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
                            is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>()))
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! Layouts not supported for NumGroupsToMerge > 1"
+                              << " layouts: ALayout=" << get_type_name<ALayout>()
+                                << ", BLayout=" << get_type_name<BLayout>()
+                                << ", ELayout=" << get_type_name<ELayout>()
+                              << std::endl;
+                }
                 return false;
             }
         }
@@ -1551,6 +1603,15 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                       is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>()) &&
                      G % ABlockTransferSrcScalarPerVector == 0))
                 {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "Unsupported! ABlockTransferSrcVectorDim and "
+                                     "ABlockTransferSrcScalarPerVector not matching: "
+                                  << "ABlockTransferSrcVectorDim=" << ABlockTransferSrcVectorDim
+                                  << ", ABlockTransferSrcScalarPerVector="
+                                  << ABlockTransferSrcScalarPerVector << ", C=" << C
+                                  << ", G=" << G << std::endl;
+                    }
                     return false;
                 }
             }
@@ -1574,6 +1635,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         }
         else
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported! Layouts not supported for A: ALayout="
+                          << get_type_name<ALayout>() << std::endl;
+            }
             return false;
         }
 
@@ -1589,13 +1655,27 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             if(!(BBlockTransferSrcVectorDim == 2 && C % BBlockTransferSrcScalarPerVector == 0))
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! BBlockTransferSrcVectorDim and "
+                                 "BBlockTransferSrcScalarPerVector not matching: "
+                              << "BBlockTransferSrcVectorDim=" << BBlockTransferSrcVectorDim
+                              << ", BBlockTransferSrcScalarPerVector="
+                              << BBlockTransferSrcScalarPerVector << ", C=" << C << std::endl;
+                }
                 return false;
             }
         }
         else
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported! Layouts not supported for B: BLayout="
+                          << get_type_name<BLayout>() << std::endl;
+            }
             return false;
         }
+
         //  check vector access of Ds
         bool valid = true;
 
@@ -1611,6 +1691,14 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             {
                 if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
                 {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "Unsupported! CDEBlockTransferScalarPerVector_NPerBlock not "
+                                     "matching: K="
+                                  << K
+                                  << ", CDEBlockTransferScalarPerVector_NPerBlock="
+                                  << CDEBlockTransferScalarPerVector_NPerBlock << std::endl;
+                    }
                     valid = false;
                 }
 
@@ -1620,6 +1708,15 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     if(arg.ds_g_n_k_wos_lengths_[i][0] != arg.e_g_n_k_wos_lengths_[0] ||
                        arg.ds_g_n_k_wos_lengths_[i][2] != arg.e_g_n_k_wos_lengths_[2])
                     {
+                        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                        {
+                            std::cout << "Unsupported! D and E must have the same G and K shape: "
+                                         "D_G="
+                                      << arg.ds_g_n_k_wos_lengths_[i][0]
+                                      << ", E_G=" << arg.e_g_n_k_wos_lengths_[0]
+                                      << ", D_K=" << arg.ds_g_n_k_wos_lengths_[i][2]
+                                      << ", E_K=" << arg.e_g_n_k_wos_lengths_[2] << std::endl;
+                        }
                         valid = false;
                     }
                 }
@@ -1630,6 +1727,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     {
                         if(arg.ds_g_n_k_wos_lengths_[i][d] != arg.e_g_n_k_wos_lengths_[d])
                         {
+                            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                            {
+                                std::cout << "Unsupported! D and E must have the same shape: D["
+                                          << d << "]=" << arg.ds_g_n_k_wos_lengths_[i][d]
+                                          << ", E[" << d << "]="
+                                          << arg.e_g_n_k_wos_lengths_[d] << std::endl;
+                            }
                             valid = false;
                         }
                     }
@@ -1637,6 +1741,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             }
             else
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! Layouts not supported for D: DLayout="
+                              << get_type_name<DLayout>() << std::endl;
+                }
                 valid = false;
             }
         });
@@ -1645,11 +1754,25 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             if((G * C) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! CDEBlockTransferScalarPerVector_NPerBlock not matching: G*C="
+                              << (G * C)
+                              << ", CDEBlockTransferScalarPerVector_NPerBlock="
+                              << CDEBlockTransferScalarPerVector_NPerBlock << std::endl;
+                }
                 return false;
             }
 
             if((G * K) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! CDEBlockTransferScalarPerVector_NPerBlock not matching: G*K="
+                              << (G * K)
+                              << ", CDEBlockTransferScalarPerVector_NPerBlock="
+                              << CDEBlockTransferScalarPerVector_NPerBlock << std::endl;
+                }
                 return false;
             }
 
@@ -1658,11 +1781,25 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
             if(input_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! CDEBlockTransferScalarPerVector_NPerBlock not matching: input_spatial_acum="
+                              << input_spatial_acum
+                              << ", CDEBlockTransferScalarPerVector_NPerBlock="
+                              << CDEBlockTransferScalarPerVector_NPerBlock << std::endl;
+                }
                 return false;
             }
 
             if(output_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! CDEBlockTransferScalarPerVector_NPerBlock not matching: output_spatial_acum="
+                              << output_spatial_acum
+                              << ", CDEBlockTransferScalarPerVector_NPerBlock="
+                              << CDEBlockTransferScalarPerVector_NPerBlock << std::endl;
+                }
                 return false;
             }
 
@@ -1682,6 +1819,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             if(!(arg.a_out_transpose_desc_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
                  arg.e_in_transpose_desc_.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! Transpose tensor size exceeds 2GB limit."
+                              << std::endl;
+                }
                 return false;
             }
         }
@@ -1703,6 +1845,14 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             {
                 if(!(K % CDEBlockTransferScalarPerVector_NPerBlock == 0))
                 {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "Unsupported! CDEBlockTransferScalarPerVector_NPerBlock not "
+                                     "matching: K="
+                                  << K
+                                  << ", CDEBlockTransferScalarPerVector_NPerBlock="
+                                  << CDEBlockTransferScalarPerVector_NPerBlock << std::endl;
+                    }
                     return false;
                 }
             }
@@ -1713,12 +1863,25 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
                 if(output_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
                 {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "Unsupported! CDEBlockTransferScalarPerVector_NPerBlock not "
+                                     "matching: output_spatial_acum="
+                                  << output_spatial_acum
+                                  << ", CDEBlockTransferScalarPerVector_NPerBlock="
+                                  << CDEBlockTransferScalarPerVector_NPerBlock << std::endl;
+                    }
                     return false;
                 }
             }
         }
         else
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported! Layouts not supported for E: ELayout="
+                          << get_type_name<ELayout>() << std::endl;
+            }
             return false;
         }
         if constexpr(is_same_v<AComputeDataType, ck::tf32_t> ||
@@ -1726,6 +1889,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             if(!is_tf32_supported())
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "TF32 is not supported on this device" << std::endl;
+                }
                 return false;
             }
             if constexpr(!is_same_v<AComputeDataType, BComputeDataType>)
@@ -1750,36 +1917,54 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         [&](auto) { return arg.a_grid_desc_m_k_; }, Number<NumATensor>{});
                     const auto bs_grid_desc_bk0_n_bk1 = generate_tuple(
                         [&](auto) { return arg.b_grid_desc_n_k_; }, Number<NumBTensor>{});
-                    return GridwiseGemm64::CheckValidity(as_grid_desc_ak0_m_ak1,
+
+                    const bool valid_gemm = GridwiseGemm64::CheckValidity(as_grid_desc_ak0_m_ak1,
                                                          bs_grid_desc_bk0_n_bk1,
                                                          arg.ds_grid_desc_m_n_,
                                                          arg.e_grid_desc_m_n_,
                                                          arg.block_2_etile_map_);
+                     if(!valid_gemm && ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                     {
+                        std::cout << "GridwiseGemm64::CheckValidity failed for multiple A or B tensors"
+                                  << std::endl;
+                     }
+                    return valid_gemm;
                 }
                 else
                 {
                     if constexpr(CTranspose)
                     {
-                        return GridwiseGemmCTranspose64::CheckValidity(arg.b_grid_desc_n_k_,
+                        const bool valid_gemm = GridwiseGemmCTranspose64::CheckValidity(arg.b_grid_desc_n_k_,
                                                                        arg.a_grid_desc_m_k_,
                                                                        arg.ds_grid_desc_m_n_,
                                                                        arg.e_grid_desc_m_n_,
                                                                        arg.block_2_etile_map_);
+                        if(!valid_gemm && ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                        {
+                            std::cout << "GridwiseGemmCTranspose64::CheckValidity failed for CTranspose=true"
+                                      << std::endl;
+                        }
+                        return valid_gemm;
                     }
                     else
                     {
-                        return GridwiseGemmCTranspose64::CheckValidity(arg.a_grid_desc_m_k_,
+                        const bool valid_gemm = GridwiseGemmCTranspose64::CheckValidity(arg.a_grid_desc_m_k_,
                                                                        arg.b_grid_desc_n_k_,
                                                                        arg.ds_grid_desc_m_n_,
                                                                        arg.e_grid_desc_m_n_,
                                                                        arg.block_2_etile_map_);
+                        if(!valid_gemm && ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                        {
+                            std::cout << "GridwiseGemmCTranspose64::CheckValidity failed for CTranspose=false"
+                                      << std::endl;
+                        }
+                        return valid_gemm;   
                     }
                 }
             }
         }
         else
         {
-
             if constexpr(MXdlPerWave32 > 0)
             {
                 if constexpr(isMultiA || isMultiB)

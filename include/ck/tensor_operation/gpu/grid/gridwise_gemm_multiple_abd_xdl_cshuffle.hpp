@@ -912,8 +912,8 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
                 Sequence<0, 1, 2, 3>, // typename DstDimAccessOrder,
                 3,                    // index_t SrcVectorDim,
                 3,                    // index_t DstVectorDim,
-                CDEShuffleBlockTransferScalarPerVector_NPerBlock,
-                CDEShuffleBlockTransferScalarPerVector_NPerBlock,
+                CDEShuffleBlockTransferScalarPerVector_NPerBlock, // SrcScalarPerVector
+                CDEShuffleBlockTransferScalarPerVector_NPerBlock, // DstScalarPerVector
                 sequence_merge_t<
                     Sequence<true>,
                     uniform_sequence_gen_t<NumDTensor,
