@@ -101,10 +101,14 @@ struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRe
                       concat('x', kPadM, kPadN, kPadK), AQuantGroupSize::GetName(), BQuantGroupSize::GetName());
         // clang-format on
     }
-
+    /**
+     * @tparam nloop The number of iterations in the hot loop,
+     * used to normalize scheduling costs.
+     */
     template <index_t nloop>
     CK_TILE_HOST_DEVICE static constexpr auto HotLoopScheduler()
     {
+        static_assert(nloop > 0, "nloop must be greater than 0");
         // Estimated number of VMEM vector loads for A per block:
         //   total A bytes / (threads per block * vector width)
         constexpr index_t Aload_inst =
@@ -132,7 +136,8 @@ struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRe
         // (e.g., writing A from VMEM into LDS once per A load)
         constexpr index_t ds_write_inst = Aload_inst;
         // Number of MFMA instructions per wave for one block tile:
-        constexpr index_t mfma_inst = (kMPerBlock / WG::kM) / nloop * (kNPerBlock / WG::kN) / nloop;
+        constexpr index_t mfma_inst =
+            ((kMPerBlock / WG::kM) / nloop) * ((kNPerBlock / WG::kN) / nloop);
         // How often (in MFMA units) we should insert DS (LDS) operations.
         constexpr index_t ds_rep = mfma_inst / (ds_read_inst + ds_write_inst);
         // How often (in MFMA units) we should insert VMEM buffer loads.
