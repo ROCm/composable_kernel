@@ -339,8 +339,6 @@ struct BlockFmhaPipelineQRKSVSAsync
 
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
-                buffer_load_fence(0); // rocm-6.1, if whole tile is masked out, need to fence(0)
-                                      // otherwise will have compute error(maybe compiler bug?)
 
                 // Note: here occ are all cleard, return it
                 return o_acc;
