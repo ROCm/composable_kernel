@@ -853,11 +853,20 @@ struct BlockFmhaFwdV3Pipeline
                     sp(sp_reg_idx).p.thread_buf_[idx]     = casted.x;
                     sp(sp_reg_idx).p.thread_buf_[idx + 1] = casted.y;
                 }
-                else
+                else if constexpr(std::is_same_v<PDataType, bf16_t>)
                 {
                     auto casted                           = detail::cvt_pk_bf16_f32(x, y);
                     sp(sp_reg_idx).p.thread_buf_[idx]     = casted.x;
                     sp(sp_reg_idx).p.thread_buf_[idx + 1] = casted.y;
+                }
+                else if constexpr(std::is_same_v<PDataType, fp8_t>)
+                {
+                    sp(sp_reg_idx).p.thread_buf_[idx]     = type_convert<PDataType>(x);
+                    sp(sp_reg_idx).p.thread_buf_[idx + 1] = type_convert<PDataType>(y);
+                }
+                else
+                {
+                    static_assert(false, "unsupported data type for P");
                 }
             });
 
