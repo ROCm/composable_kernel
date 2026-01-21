@@ -66,7 +66,7 @@ struct GemmAlgorithmInfo
     builder::ConvSpecialization conv_specialization;
     std::optional<builder::GemmPadding> padding;
     std::optional<int> num_gemm_k_prefetch_stage;
-    std::optional<int> max_transpose_src_scalar_per_vector;
+    std::optional<int> max_transpose_transfer_src_scalar_per_vector;
     std::optional<int> max_transpose_dst_scalar_per_vector;
     std::optional<int> num_groups_to_merge;
 };
