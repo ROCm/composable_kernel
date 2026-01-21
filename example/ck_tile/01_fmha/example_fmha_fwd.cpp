@@ -114,7 +114,8 @@ auto create_args(int argc, char* argv[])
         .insert("kv_eff_lens",
                 "",
                 "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
-                "Comma-separated list of length 'b'. If empty, no override.");
+                "Comma-separated list of length 'b'. If empty, no override.")
+        .insert("init_sink", "0", "value to init the output tensor sink value for validation");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -157,6 +158,7 @@ auto run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t num_splits      = arg_parser.get_int("num_splits");
     std::string init_method          = arg_parser.get_str("init");
     uint32_t seed                    = arg_parser.get_uint32("seed");
+    int init_sink_value              = arg_parser.get_int("init_sink");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -203,6 +205,7 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         init_method,
                                         seed,
                                         do_validation,
+                                        init_sink_value,
                                         stream_config,
                                         json);
 }

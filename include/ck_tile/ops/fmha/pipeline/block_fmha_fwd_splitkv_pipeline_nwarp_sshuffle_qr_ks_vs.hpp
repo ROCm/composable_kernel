@@ -164,7 +164,8 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
-               void* smem_ptr) const
+               void* smem_ptr,
+               float sink_v) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -254,8 +255,16 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         auto l = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, -numeric<SMPLComputeDataType>::infinity());
-        clear_tile(l);
+        if((__builtin_isinf_sign(sink_v) >= 0) && i_split == 0)
+        {
+            set_tile(m, SMPLComputeDataType{sink_v * C_LOG2E});
+            set_tile(l, SMPLComputeDataType{1.0f});
+        }
+        else
+        {
+            set_tile(m, -numeric<SMPLComputeDataType>::infinity());
+            clear_tile(l);
+        }
 
         const auto q_origin          = q_dram_window.get_window_origin();
         const auto tile_range_result = [&mask, &q_origin, num_splits, i_split]() {
@@ -285,7 +294,14 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                     auto lse_acc =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
+                    if(__builtin_isinf_sign(sink_v) >= 0 && i_split == 0)
+                    {
+                        set_tile(lse_acc, SMPLComputeDataType{sink_v * scale_s});
+                    }
+                    else
+                    {
+                        set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
+                    }
 
                     if(get_thread_local_1d_id() < kM0)
                     {
@@ -299,7 +315,16 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                 return o_acc;
             }
         }
-
+        if(i_split > 0)
+        {
+            auto [start, end] = mask.GetTileRangeAlongX(
+                q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split - 1);
+            if((__builtin_isinf_sign(sink_v) >= 0) && start >= end)
+            {
+                set_tile(m, SMPLComputeDataType{sink_v});
+                set_tile(l, SMPLComputeDataType{1.0f});
+            }
+        }
         const index_t physical_seqlen_k_start = logical_seqlen_k_start + kv_l2p_offset;
         const index_t physical_seqlen_k_end   = logical_seqlen_k_end + kv_l2p_offset;
         // make sure the first tile is completely located in page-block (page-block size should be
@@ -879,7 +904,8 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
-               void* smem_ptr) const
+               void* smem_ptr,
+               float sink_v) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -905,7 +931,8 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                           variant_params,
                           block_indices,
                           kv_l2p_offset,
-                          smem_ptr);
+                          smem_ptr,
+                          sink_v);
     }
 };
 

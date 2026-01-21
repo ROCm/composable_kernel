@@ -574,11 +574,13 @@ def cmake_build(Map conf=[:]){
     def setup_cmd
     def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
+    //check the node gpu architecture
+    def arch_name = check_arch_name()
     if(!setup_args.contains("NO_CK_BUILD")){
         if (params.NINJA_BUILD_TRACE) {
             echo "running ninja build trace"
         }
-        if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
+        if ((params.RUN_BUILDER_TESTS || params.RUN_FULL_CONV_TILE_TESTS) && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
             setup_args = " -D CK_EXPERIMENTAL_BUILDER=ON "  + setup_args
         }
         setup_cmd = conf.get(
@@ -646,15 +648,15 @@ def cmake_build(Map conf=[:]){
 
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
-            sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${check_arch_name()}.json"
-            archiveArtifacts "ck_build_trace_${check_arch_name()}.json"
-            sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${check_arch_name()}.json"
+            sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${arch_name}.json"
+            archiveArtifacts "ck_build_trace_${arch_name}.json"
+            sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${arch_name}.json"
             if (params.NINJA_BUILD_TRACE || params.BUILD_INSTANCES_ONLY){
                 if (params.NINJA_FTIME_TRACE) {
                     echo "running ClangBuildAnalyzer"
                     sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
-                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${check_arch_name()}.log"
-                    archiveArtifacts "clang_build_analysis_${check_arch_name()}.log"
+                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${arch_name}.log"
+                    archiveArtifacts "clang_build_analysis_${arch_name}.log"
                 }
 
 
@@ -672,8 +674,8 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${check_arch_name()}.deb"
-                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${check_arch_name()}"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
                     }
                 }
                 if(params.BUILD_INSTANCES_ONLY){
@@ -699,16 +701,14 @@ def cmake_build(Map conf=[:]){
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${check_arch_name()}.deb"
-                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${check_arch_name()}"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
                     }
                 }
             }
         }
     }
 
-    //check the node gpu architecture
-    def arch_name = check_arch_name()
     if (params.RUN_CK_TILE_FMHA_TESTS){
         try{
             archiveArtifacts "perf_fmha_*.log"
@@ -811,41 +811,12 @@ def Build_CK(Map conf=[:]){
                             archiveArtifacts "perf_*.log"
                             stash includes: "perf_**.log", name: "perf_log_${arch}"
                         }
-                        // disable performance tests on gfx1030 for now.
-                        //else if ( arch == "gfx10"){
-                            // run basic tests on gfx1030
-                        //    echo "Run gemm performance tests"
-                        //    sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx10"
-                        //    archiveArtifacts "perf_onnx_gemm_gfx10.log"
-                        //    stash includes: "perf_onnx_gemm_gfx10.log", name: "perf_log_gfx10"
-                        //}
-                        else if ( arch == "gfx11"){
-                            // run basic tests on gfx11
+				        else if ( arch != "gfx10"){
+                            // run basic tests on gfx11/gfx12/gfx908/gfx950, but not on gfx10, it takes too long
                             echo "Run gemm performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx11"
-                            archiveArtifacts "perf_onnx_gemm_gfx11.log"
-                            stash includes: "perf_onnx_gemm_gfx11.log", name: "perf_log_gfx11"
-                        }
-                        else if ( arch == "gfx120" ){
-                            // run basic tests on gfx12
-                            echo "Run gemm performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx12"
-                            archiveArtifacts "perf_onnx_gemm_gfx12.log"
-                            stash includes: "perf_onnx_gemm_gfx12.log", name: "perf_log_gfx12"
-                        }
-                        else if ( arch == "gfx908" ){
-                            // run basic tests on gfx908
-                            echo "Run performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx908"
-                            archiveArtifacts "perf_onnx_gemm_gfx908.log"
-                            stash includes: "perf_onnx_gemm_gfx908.log", name: "perf_log_gfx908"
-                        }
-                        else if ( arch == "gfx950" ){
-                            // run basic tests on gfx950
-                            echo "Run performance tests"
-                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx950"
-                            archiveArtifacts "perf_onnx_gemm_gfx950.log"
-                            stash includes: "perf_onnx_gemm_gfx950.log", name: "perf_log_gfx950"
+                            sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} ${arch}"
+                            archiveArtifacts "perf_onnx_gemm_*.log"
+                            stash includes: "perf_onnx_gemm_**.log", name: "perf_log_${arch}"
                         }
                         }
                     }
@@ -1049,6 +1020,7 @@ def run_aiter_tests(Map conf=[:]){
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_batch_prefill.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_2stage.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_blockscale.py"
@@ -1119,7 +1091,7 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
-                                              0 13 * * * % RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
+                                              0 13 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
                                               0 11 * * * % RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
 
 pipeline {
@@ -1201,8 +1173,8 @@ pipeline {
             description: "Run the ck_tile FMHA tests (default: OFF)")
         booleanParam(
             name: "RUN_TILE_ENGINE_BASIC_TESTS",
-            defaultValue: false,
-            description: "Run the tile_engine_basic tests (default: OFF)")
+            defaultValue: true,
+            description: "Run the tile_engine_basic tests (default: ON)")
         booleanParam(
             name: "RUN_TILE_ENGINE_GEMM_TESTS",
             defaultValue: false,
@@ -1283,6 +1255,10 @@ pipeline {
             name: "RUN_AITER_TESTS",
             defaultValue: false,
             description: "Run AITER tests with latest CK develop branch (default: OFF)")
+        booleanParam(
+            name: "RUN_FULL_CONV_TILE_TESTS",
+            defaultValue: false,
+            description: "Run CK Tile grouped convolution tests with latest CK develop branch (default: OFF)")
         string(
             name: 'aiter_branch',
             defaultValue: 'main',
@@ -1346,21 +1322,15 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_cmd = "(cd .. && git ls-files \'*.h\' \
-                                \'*.hpp\' \
-                                \'*.cpp\' \
-                                \'*.h.in\' \
-                                \'*.hpp.in\' \
-                                \'*.cpp.in\' \
-                                \'*.cl\' \
-                                | grep -v 'build/' \
-                                | grep -v 'include/rapidjson' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\') && \
+                        execute_cmd = """cd .. && \
+                                find . -type f \\( -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.h.in' -o -name '*.hpp.in' -o -name '*.cpp.in' -o -name '*.cl' \\) \
+                                -not -path '*/build/*' -not -path '*/include/rapidjson/*' | \
+                                xargs -P 8 -I{} sh -c 'clang-format-18 -style=file {} | diff -u - {} || (echo "ERROR: {} needs formatting" && exit 1)' && \
                                 /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
                                 -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 \
                                 -D __gfx908__ -D __gfx90a__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
                                 -U __gfx803__ -U __gfx900__ -U __gfx906__ -U CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4 \
-                                --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"
+                                --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd)
@@ -1376,17 +1346,10 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_cmd = "(cd .. && git ls-files \
-                                \'*.h\' \
-                                \'*.hpp\' \
-                                \'*.cpp\' \
-                                \'*.h.in\' \
-                                \'*.hpp.in\' \
-                                \'*.cpp.in\' \
-                                \'*.cl\' \
-                                | grep -v 'build/' \
-                                | grep -v 'include/rapidjson' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\')"
+                        execute_cmd = """cd .. && \
+                                find . -type f \\( -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.h.in' -o -name '*.hpp.in' -o -name '*.cpp.in' -o -name '*.cl' \\) \
+                                -not -path '*/build/*' -not -path '*/include/rapidjson/*' | \
+                                xargs -P 8 -I{} sh -c 'clang-format-18 -style=file {} | diff -u - {} || (echo "ERROR: {} needs formatting" && exit 1)'"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd)
@@ -1446,6 +1409,36 @@ pipeline {
                     agent{ label rocmnode("gfx950")}
                     steps{
                         run_aiter_tests()
+                        cleanWs()
+                    }
+                }
+            }
+        }
+        stage("Run Full Grouped Conv Tile Tests")
+        {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
+            parallel
+            {
+                stage("Run Full Grouped Conv Tile Tests on gfx90a")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_FULL_CONV_TILE_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a")}
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ python3 ../experimental/builder/src/generate_instances.py --mode=profiler && \
+                                           ../script/cmake-ck-dev.sh  ../ gfx90a && \
+                                           make -j64 test_grouped_convnd_fwd_tile && \
+                                           ./bin/test_grouped_convnd_fwd_tile"""
+                    }
+                    steps{
+                        // TODO: Reenable after the instance fixes
+                        // buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1650,7 +1643,10 @@ pipeline {
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -D GEMM_PRESHUFFLE_CONFIG_FILE="default_ci_config.json" .. && \
-                                           ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all """
+                                           ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
+                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
@@ -1667,37 +1663,6 @@ pipeline {
             }
             parallel
             {
-                stage("Run TILE_ENGINE_GEMM Tests on gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx90a") }
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                            -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
-                                            -D CMAKE_BUILD_TYPE=Release \
-                                            -D GPU_TARGETS="gfx90a" \
-                                            -D GEMM_UNIVERSAL_DATATYPE="fp8;fp16" \
-                                            -D GEMM_UNIVERSAL_LAYOUT="rcr;rrr;crr;ccr" \
-                                            -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
-                                            -D GEMM_STREAMK_LAYOUT="rcr" \
-                                            -D GEMM_MULTI_D_DATATYPE="fp16" \
-                                            -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
-                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
-                                            -D GEMM_PRESHUFFLE_LAYOUT="rcr" .. && \
-                                           ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all && \
-                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
-                        cleanWs()
-                    }
-                }
                 stage("Run TILE_ENGINE_GEMM Tests on gfx942")
                 {
                     when {
@@ -1787,7 +1752,10 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        setup_args = """ -DGPU_TARGETS="gfx942" -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
+                        // SLES15 is a legacy platform with limited C++20 ecosystem support (older system libraries,
+                        // standard library implementation). While the ROCm compiler supports C++20, the experimental
+                        // CK Builder requires full C++20 feature support that does not be reliably available on SLES15.
+                        setup_args = """ -DGPU_TARGETS="gfx942" -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 -DCK_EXPERIMENTAL_BUILDER=OFF """
                         execute_args = " "
                     }
                     steps{

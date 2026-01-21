@@ -35,10 +35,10 @@ struct ReferenceCommonTraits
         typename builder::factory::internal::LayoutToCK<SIGNATURE.output.config.layout>::type;
 
     // Data types - extract from factory's type helper
-    using Types       = builder::factory::internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using ADataType   = typename Types::ADataType;
-    using BDataType   = typename Types::BDataType;
-    using EDataType   = typename Types::EDataType;
+    using Types       = builder::factory::internal::ConvTensorDataTypes<SIGNATURE>;
+    using ADataType   = typename Types::InDataType;
+    using BDataType   = typename Types::WeiDataType;
+    using EDataType   = typename Types::OutDataType;
     using AccDataType = float; // Reference uses float accumulation
 
     // Elementwise operations - reference only supports PassThrough

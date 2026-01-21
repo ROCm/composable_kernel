@@ -307,6 +307,7 @@ class GemmKernelBuilder:
             "fp16": "ck_tile::fp16_t",
             "fp8": "ck_tile::fp8_t",
             "bf16": "ck_tile::bf16_t",
+            "bf8": "ck_tile::bf8_t",
             "fp32": "float",
             "fp64": "double",
         }
@@ -776,7 +777,7 @@ def main():
     parser.add_argument(
         "--datatype",
         required=True,
-        choices=["fp16", "fp8", "bf16", "fp32", "fp64"],
+        choices=["fp16", "fp8", "bf16", "bf8", "fp32", "fp64"],
         help="Data type",
     )
     parser.add_argument(

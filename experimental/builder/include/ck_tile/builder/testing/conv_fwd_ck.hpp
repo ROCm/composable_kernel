@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/builder/testing/conv_fwd.hpp"
+#include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
 #include <type_traits>
 #include <array>
@@ -27,7 +28,7 @@ template <typename Conv,
           auto SIGNATURE,
           size_t SPATIAL_DIM = SIGNATURE.spatial_dim,
           // TODO: We shouldn't need to call into an internal namespace here.
-          typename Ops = factory::internal::ElementwiseOps<SIGNATURE>>
+          typename Ops = factory::internal::ConvElementwiseOps<SIGNATURE>>
 concept CkConvInstance = requires(Conv& conv,
                                   // TODO: This should be changed depending on IsMultiA etc.
                                   // Currently that is not yet supported elsewhere anyway.
@@ -37,9 +38,9 @@ concept CkConvInstance = requires(Conv& conv,
                                   std::array<index_t, SPATIAL_DIM + 3> lengths,
                                   std::array<index_t, SPATIAL_DIM + 3> strides,
                                   std::array<index_t, SPATIAL_DIM> filter,
-                                  Ops::AElementwiseOp elementwise_a,
-                                  Ops::BElementwiseOp elementwise_b,
-                                  Ops::CDEElementwiseOp elementwise_cde) {
+                                  Ops::InElementwiseOp elementwise_a,
+                                  Ops::WeiElementwiseOp elementwise_b,
+                                  Ops::OutElementwiseOp elementwise_cde) {
     {
         conv.MakeArgument(p_a,
                           p_b,
@@ -87,16 +88,19 @@ concept CkConvInstance = detail::CkConvInstance<Conv, SIGNATURE>;
 /// @brief `run()` specialization for forward convolution and old CK.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
-/// @throws std::runtime_error if the arguments werent actually valid for the
+/// @throws std::runtime_error if the arguments weren't actually valid for the
 /// operation. This should be caught and reported by the testing framework.
+/// @return std::tuple<bool, float> - whether the problem is supported and
+///         kernel execution time (0.0f if s_conf time_kernel is false).
 ///
 /// @see run()
 template <auto SIGNATURE>
     requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
-void run(CkConvInstance<SIGNATURE> auto& conv,
-         const Args<SIGNATURE>& args,
-         const Inputs<SIGNATURE>& inputs,
-         const Outputs<SIGNATURE>& outputs)
+std::tuple<bool, float> run(CkConvInstance<SIGNATURE> auto& conv,
+                            const Args<SIGNATURE>& args,
+                            const Inputs<SIGNATURE>& inputs,
+                            const Outputs<SIGNATURE>& outputs,
+                            const StreamConfig s_conf = {})
 {
     constexpr auto spatial_dim = SIGNATURE.spatial_dim;
 
@@ -144,10 +148,10 @@ void run(CkConvInstance<SIGNATURE> auto& conv,
 
     if(!conv.IsSupportedArgument(ck_args))
     {
-        throw std::runtime_error("invalid argument");
+        std::cout << "invalid argument" << std::endl;
     }
 
-    conv.MakeInvoker().Run(ck_args, {});
+    return std::make_tuple(true, conv.MakeInvoker().Run(ck_args, s_conf));
 }
 
 } // namespace ck_tile::builder::test
