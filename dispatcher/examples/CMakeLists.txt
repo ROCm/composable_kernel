@@ -39,9 +39,6 @@ file(MAKE_DIRECTORY ${KERNEL_OUTPUT_DIR})
 
 # Sentinel files to track generation
 set(GEMM_SENTINEL "${KERNEL_OUTPUT_DIR}/.gemm_generated")
-set(CONV_FWD_SENTINEL "${KERNEL_OUTPUT_DIR}/.conv_fwd_generated")
-set(CONV_BWD_SENTINEL "${KERNEL_OUTPUT_DIR}/.conv_bwd_generated")
-set(ALL_KERNELS_SENTINEL "${KERNEL_OUTPUT_DIR}/.all_generated")
 
 # Generate GEMM kernels (standard + preshuffle + multi_d) - runs with internal parallelism
 # Note: 4-char layout "rcrr" means A=row, B=col, C=row, D=row (for multi-d)
@@ -61,65 +58,9 @@ add_custom_target(generate_gemm_kernels
     COMMENT "GEMM kernel generation target"
 )
 
-# Generate Conv forward kernels (2D and 3D) - runs with internal parallelism
-add_custom_command(
-    OUTPUT ${CONV_FWD_SENTINEL}
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
-            --datatype fp16 --variant forward --ndim 2 3
-            --output ${KERNEL_OUTPUT_DIR}
-    COMMAND ${CMAKE_COMMAND} -E touch ${CONV_FWD_SENTINEL}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Generating Conv forward kernels (fp16, 2D+3D) with internal parallelism..."
-    VERBATIM
-)
-
-add_custom_target(generate_conv_fwd_kernels
-    DEPENDS ${CONV_FWD_SENTINEL}
-    COMMENT "Conv forward kernel generation target"
-)
-
-# Generate Conv backward kernels (bwd_data and bwd_weight, 2D) - runs with internal parallelism
-add_custom_command(
-    OUTPUT ${CONV_BWD_SENTINEL}
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
-            --datatype fp16 --variant bwd_data bwd_weight --ndim 2
-            --output ${KERNEL_OUTPUT_DIR}
-    COMMAND ${CMAKE_COMMAND} -E touch ${CONV_BWD_SENTINEL}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Generating Conv backward kernels (fp16, 2D) with internal parallelism..."
-    VERBATIM
-)
-
-add_custom_target(generate_conv_bwd_kernels
-    DEPENDS ${CONV_BWD_SENTINEL}
-    COMMENT "Conv backward kernel generation target"
-)
-
-# Combined kernel generation targets (these can run in parallel with make -j)
-add_custom_target(generate_conv_kernels 
-    DEPENDS generate_conv_fwd_kernels generate_conv_bwd_kernels
-)
-
+# Alias for generate_all_kernels (GEMM only now)
 add_custom_target(generate_all_kernels 
-    DEPENDS generate_gemm_kernels generate_conv_kernels
-)
-
-# Parallel kernel generation - generates all kernels in a single parallel job
-# This is faster than running separate targets sequentially
-# Uses separate commands that can run in parallel via make -j
-add_custom_command(
-    OUTPUT ${ALL_KERNELS_SENTINEL}
-    COMMAND python3 unified_gemm_codegen.py --datatype fp16 --layout rcrr --variants standard preshuffle multi_d --output ${KERNEL_OUTPUT_DIR}
-    COMMAND python3 unified_conv_codegen.py --datatype fp16 --variant forward --ndim 2 3 --output ${KERNEL_OUTPUT_DIR}
-    COMMAND python3 unified_conv_codegen.py --datatype fp16 --variant bwd_data bwd_weight --ndim 2 --output ${KERNEL_OUTPUT_DIR}
-    COMMAND ${CMAKE_COMMAND} -E touch ${GEMM_SENTINEL} ${CONV_FWD_SENTINEL} ${CONV_BWD_SENTINEL} ${ALL_KERNELS_SENTINEL}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Generating ALL kernels (GEMM + Conv forward + Conv backward)..."
-)
-
-add_custom_target(generate_all_kernels_parallel
-    DEPENDS ${ALL_KERNELS_SENTINEL}
-    COMMENT "Parallel kernel generation target (fastest for full builds)"
+    DEPENDS generate_gemm_kernels
 )
 
 # =============================================================================
@@ -142,7 +83,6 @@ add_custom_target(generate_all_kernels_parallel
 # Example output:
 #   [  1/128] Building kernel: gemm_fp16_rcr_128x128x32
 #   [  2/128] Building kernel: gemm_fp16_rcr_256x256x64
-#   [  3/128] Building kernel: conv_fwd_fp16_2d_128x128
 #   ...
 #   [128/128] Linking: libdispatcher_kernels.so
 # =============================================================================
@@ -159,7 +99,7 @@ add_custom_command(
             --generate-makefile
             --generate-cmake
     COMMAND ${CMAKE_COMMAND} -E touch ${WRAPPER_SENTINEL}
-    DEPENDS ${GEMM_SENTINEL} ${CONV_FWD_SENTINEL} ${CONV_BWD_SENTINEL}
+    DEPENDS ${GEMM_SENTINEL}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
     COMMENT "Generating per-kernel wrapper .cpp files..."
     VERBATIM
@@ -210,19 +150,8 @@ add_custom_target(regenerate_gemm_kernels
     VERBATIM
 )
 
-add_custom_target(regenerate_conv_kernels
-    COMMAND ${CMAKE_COMMAND} -E remove -f ${CONV_FWD_SENTINEL} ${CONV_BWD_SENTINEL}
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
-            --datatype fp16 --variant forward bwd_data bwd_weight --ndim 2 3
-            --output ${KERNEL_OUTPUT_DIR}
-    COMMAND ${CMAKE_COMMAND} -E touch ${CONV_FWD_SENTINEL} ${CONV_BWD_SENTINEL}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Force regenerating Conv kernels..."
-    VERBATIM
-)
-
 add_custom_target(regenerate_all_kernels
-    DEPENDS regenerate_gemm_kernels regenerate_conv_kernels
+    DEPENDS regenerate_gemm_kernels
 )
 
 # Clean all per-example kernel directories
@@ -258,7 +187,6 @@ function(add_gpu_example NAME SOURCE KERNEL_HEADER)
     if(HEADER_NAME STREQUAL "register_all_kernels.hpp")
         # Registration header - examples include it directly
         target_compile_options(${NAME} PRIVATE
-            -DCONV_KERNEL_AVAILABLE=1
             -DGEMM_KERNEL_AVAILABLE=1
             -mllvm -enable-noalias-to-md-conversion=0
             -Wno-undefined-func-template
@@ -269,7 +197,6 @@ function(add_gpu_example NAME SOURCE KERNEL_HEADER)
         # Specific kernel header - force-include it
         target_compile_options(${NAME} PRIVATE
             -include ${KERNEL_HEADER}
-            -DCONV_KERNEL_AVAILABLE=1
             -mllvm -enable-noalias-to-md-conversion=0
             -Wno-undefined-func-template
             -Wno-float-equal
@@ -295,36 +222,6 @@ function(add_standalone_gpu_example NAME SOURCE)
     )
     
     target_compile_options(${NAME} PRIVATE
-        -mllvm -enable-noalias-to-md-conversion=0
-        -Wno-undefined-func-template
-        -Wno-float-equal
-        --offload-compress
-    )
-    
-    if(hip_FOUND)
-        target_link_libraries(${NAME} PRIVATE hip::device hip::host)
-    endif()
-endfunction()
-
-# Helper for conv GPU examples - uses include_all_conv_kernels.hpp 
-# This header is generated during make and includes all conv kernel headers
-function(add_conv_gpu_example NAME SOURCE KERNEL_TYPE)
-    add_executable(${NAME} ${SOURCE})
-    
-    target_link_libraries(${NAME} PRIVATE ck_tile_dispatcher)
-    
-    target_include_directories(${NAME} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../include              # CK root include
-        ${CMAKE_CURRENT_SOURCE_DIR}/../include                 # Dispatcher include
-        ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels # Generated kernels
-    )
-    
-    # Force include the appropriate conv registration header
-    set(CONV_REG_HEADER "${KERNEL_OUTPUT_DIR}/include_all_${KERNEL_TYPE}_kernels.hpp")
-    
-    target_compile_options(${NAME} PRIVATE
-        -include ${CONV_REG_HEADER}
-        -DCONV_KERNEL_AVAILABLE=1
         -mllvm -enable-noalias-to-md-conversion=0
         -Wno-undefined-func-template
         -Wno-float-equal
@@ -425,7 +322,6 @@ function(add_declarative_gpu_example NAME SOURCE)
     # Force-include the generated registration header
     target_compile_options(${NAME} PRIVATE
         -include ${EXAMPLE_HEADER}
-        -DCONV_KERNEL_AVAILABLE=1
         -DGEMM_KERNEL_AVAILABLE=1
         -mllvm -enable-noalias-to-md-conversion=0
         -Wno-undefined-func-template
@@ -500,118 +396,10 @@ add_dependencies(dispatcher_gemm_lib generate_gemm_fallback_kernel)
 
 message(STATUS "GEMM examples configured - kernels will be generated during 'make'")
 
-# =============================================================================
-# Convolution Examples - Declarative kernel generation
-# =============================================================================
-
-# Conv examples use DECL_CONV_KERNEL_SET - declarative kernel specification
-# No hardcoded paths - kernels are generated and compiled at make time
-
-add_declarative_gpu_example(conv_01_forward         conv/cpp/01_conv_forward.cpp)
-add_declarative_gpu_example(conv_02_validation      conv/cpp/02_conv_validation.cpp)
-add_declarative_gpu_example(conv_03_multi_size      conv/cpp/03_multi_size.cpp)
-add_declarative_gpu_example(conv_04_benchmark       conv/cpp/04_benchmark.cpp)
-add_declarative_gpu_example(conv_05_heuristics      conv/cpp/05_heuristics.cpp)
-add_declarative_gpu_example(conv_06_json_export     conv/cpp/06_json_export.cpp)
-add_declarative_gpu_example(conv_07_multi_registry  conv/cpp/07_multi_registry.cpp)
-add_declarative_gpu_example(conv_08_conv3d_forward  conv/cpp/08_conv3d_forward.cpp)
-add_declarative_gpu_example(conv_09_bwd_data        conv/cpp/09_bwd_data.cpp)
-add_declarative_gpu_example(conv_10_bwd_weight      conv/cpp/10_bwd_weight.cpp)
-add_declarative_gpu_example(conv_11_advanced_benchmark conv/cpp/11_advanced_benchmark.cpp)
-
-message(STATUS "Conv examples configured - kernels will be generated during 'make'")
-
-# =============================================================================
-# Python helper libraries for conv (from bindings) - Single Fallback Kernels
-# =============================================================================
-
-# Generate single fallback kernels for Python library (one each for fwd, bwdd, bwdw)
-set(CONV_FALLBACK_DIR "${CMAKE_CURRENT_BINARY_DIR}/conv_python_fallback")
-set(CONV_FWD_FALLBACK "${CONV_FALLBACK_DIR}/include_all_conv_fwd_kernels.hpp")
-set(CONV_BWDD_FALLBACK "${CONV_FALLBACK_DIR}/include_all_conv_bwdd_kernels.hpp")
-set(CONV_BWDW_FALLBACK "${CONV_FALLBACK_DIR}/include_all_conv_bwdw_kernels.hpp")
-set(CONV_FALLBACK_SENTINEL "${CONV_FALLBACK_DIR}/.fallback_generated")
-
-# Generate all conv fallback kernels in one command (uses --tile-m/n to produce 1 kernel per variant)
-# Note: backward ops only support compv3 pipeline (compv4/compv5 have ck_tile template issues)
-add_custom_command(
-    OUTPUT ${CONV_FALLBACK_SENTINEL}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CONV_FALLBACK_DIR}
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
-            --datatype fp16 --variant forward --ndim 2
-            --tile-m 128 --tile-n 128 --warp-m 2 --warp-n 2
-            --output ${CONV_FALLBACK_DIR}
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
-            --datatype fp16 --variant bwd_data --ndim 2
-            --tile-m 128 --tile-n 128 --warp-m 2 --warp-n 2
-            --pipeline compv3
-            --output ${CONV_FALLBACK_DIR}
-    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
-            --datatype fp16 --variant bwd_weight --ndim 2
-            --tile-m 16 --tile-n 64 --tile-k 64 --warp-m 1 --warp-n 4
-            --warp-tile-m 16 --warp-tile-n 16 --warp-tile-k 32
-            --pipeline compv3 --scheduler intrawave
-            --output ${CONV_FALLBACK_DIR}
-    COMMAND ${CMAKE_COMMAND} -E touch ${CONV_FALLBACK_SENTINEL}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-    COMMENT "Generating single fallback Conv kernels for Python library (3 kernels)"
-    VERBATIM
-)
-
-add_custom_target(generate_conv_fallback_kernels DEPENDS ${CONV_FALLBACK_SENTINEL})
-
-# Forward + backward data library (single fallback kernel each)
-add_library(dispatcher_conv_lib SHARED ${CMAKE_CURRENT_SOURCE_DIR}/../bindings/ctypes/conv_ctypes_lib.cpp)
-target_link_libraries(dispatcher_conv_lib PRIVATE ck_tile_dispatcher)
-target_include_directories(dispatcher_conv_lib PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include
-    ${CONV_FALLBACK_DIR}
-)
-target_compile_options(dispatcher_conv_lib PRIVATE
-    "SHELL:-include ${CONV_FWD_FALLBACK}"
-    "SHELL:-include ${CONV_BWDD_FALLBACK}"
-    -DCONV_KERNEL_AVAILABLE=1
-    -DCONV_BWD_DATA_AVAILABLE=1
-    -mllvm -enable-noalias-to-md-conversion=0
-    -Wno-undefined-func-template
-    -Wno-float-equal
-    --offload-compress
-)
-if(hip_FOUND)
-    target_link_libraries(dispatcher_conv_lib PRIVATE hip::device hip::host)
-endif()
-add_dependencies(dispatcher_conv_lib generate_conv_fallback_kernels)
-
-# Backward weight library - Using same config as working C++ example (compv3/intrawave)
-add_library(dispatcher_conv_bwdw_lib SHARED 
-    ${CMAKE_CURRENT_SOURCE_DIR}/../bindings/ctypes/conv_bwdw_ctypes_lib.cpp)
-target_link_libraries(dispatcher_conv_bwdw_lib PRIVATE ck_tile_dispatcher)
-target_include_directories(dispatcher_conv_bwdw_lib PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include
-    ${CONV_FALLBACK_DIR}
-)
-target_compile_options(dispatcher_conv_bwdw_lib PRIVATE
-    -DCK_TILE_SINGLE_KERNEL_INCLUDE
-    "SHELL:-include ${CONV_BWDW_FALLBACK}"
-    -DCONV_KERNEL_AVAILABLE=1
-    -DCONV_BWD_WEIGHT_AVAILABLE=1
-    -DGEMM_KERNEL_AVAILABLE=1
-    -mllvm -enable-noalias-to-md-conversion=0
-    -Wno-undefined-func-template
-    -Wno-float-equal
-    --offload-compress
-)
-if(hip_FOUND)
-    target_link_libraries(dispatcher_conv_bwdw_lib PRIVATE hip::device hip::host)
-endif()
-add_dependencies(dispatcher_conv_bwdw_lib generate_conv_fallback_kernels)
-
 # Convenience target to build all Python ctypes libraries
 add_custom_target(python_libs
-    DEPENDS dispatcher_gemm_lib dispatcher_conv_lib dispatcher_conv_bwdw_lib
-    COMMENT "Building all Python ctypes libraries"
+    DEPENDS dispatcher_gemm_lib
+    COMMENT "Building Python ctypes libraries (GEMM)"
 )
 
 # =============================================================================
@@ -631,19 +419,9 @@ foreach(ARCH ${SUPPORTED_GPU_ARCHS})
         VERBATIM
     )
     
-    # Conv kernels for this arch
-    add_custom_target(generate_conv_kernels_${ARCH}
-        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/../codegen/unified_conv_codegen.py 
-                --datatype fp16 --variant forward bwd_data bwd_weight --ndim 2 3 --arch ${ARCH}
-                --output ${KERNEL_OUTPUT_DIR}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../codegen
-        COMMENT "Generating Conv kernels for ${ARCH}..."
-        VERBATIM
-    )
-    
-    # All kernels for this arch
+    # Alias for kernels (GEMM only now)
     add_custom_target(generate_kernels_${ARCH}
-        DEPENDS generate_gemm_kernels_${ARCH} generate_conv_kernels_${ARCH}
+        DEPENDS generate_gemm_kernels_${ARCH}
         COMMENT "Generating all kernels for ${ARCH}..."
     )
 endforeach()

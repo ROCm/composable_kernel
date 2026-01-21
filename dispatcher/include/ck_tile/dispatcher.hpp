@@ -9,11 +9,6 @@
 #include "ck_tile/dispatcher/kernel_key.hpp"
 #include "ck_tile/dispatcher/kernel_config.hpp"
 #include "ck_tile/dispatcher/kernel_decl.hpp"
-
-// Convolution support
-#include "ck_tile/dispatcher/conv_problem.hpp"
-#include "ck_tile/dispatcher/conv_kernel_decl.hpp"
-#include "ck_tile/dispatcher/conv_registry.hpp"
 #include "ck_tile/dispatcher/problem.hpp"
 #include "ck_tile/dispatcher/kernel_instance.hpp"
 #include "ck_tile/dispatcher/registry.hpp"

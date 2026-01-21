@@ -4,6 +4,8 @@ A unified kernel dispatch system for AMD GPUs with C++ and Python frontends.
 
 **Validated Platform:** AMD Instinct MI300 series (gfx942)
 
+> **Note**: Convolution examples have been archived to `ck-2/conv_archive/` for reference.
+
 ---
 
 ## Table of Contents
@@ -44,7 +46,6 @@ make -j$(nproc)
 
 # Step 4: Run C++ examples
 ./examples/gemm_01_basic
-./examples/conv_01_forward
 
 # Step 5: Build Python libraries (required for Python examples)
 make python_libs
@@ -52,7 +53,6 @@ make python_libs
 # Step 6: Run Python examples (from dispatcher directory)
 cd ..
 python3 examples/gemm/python/01_basic_gemm.py
-python3 examples/conv/python/01_basic_conv.py
 ```
 
 ---
@@ -259,9 +259,7 @@ cmake .. \
 ```
 -- Found hip: /opt/rocm (found suitable version "6.x.x")
 -- Generating GEMM kernels...
--- Generating Conv kernels...
--- Built: gemm_01 through gemm_09, dispatcher_gemm_lib.so
--- Built: conv_01 through conv_11, dispatcher_conv_lib.so
+-- Built: gemm_01 through gemm_06, dispatcher_gemm_lib.so
 -- Configuring done
 ```
 
@@ -274,8 +272,6 @@ make -j$(nproc)
 # Or build specific targets
 make gemm_01_basic          # Single GEMM example
 make dispatcher_gemm_lib    # GEMM shared library for Python
-make dispatcher_conv_lib    # Conv shared library for Python
-make dispatcher_conv_bwdw_lib # Conv backward weight library for Python
 
 # Build ONLY Python libraries (faster if you don't need C++ examples)
 make python_libs -j$(nproc)
@@ -289,16 +285,12 @@ Kernels are generated automatically during `make`, but you can also control gene
 # Generate all kernels only (no compilation)
 make generate_all_kernels
 
-# Generate specific kernel types
-make generate_gemm_kernels      # GEMM kernels only
-make generate_conv_kernels      # Conv kernels (fwd + bwd)
-make generate_conv_fwd_kernels  # Conv forward only
-make generate_conv_bwd_kernels  # Conv backward only
+# Generate GEMM kernels only
+make generate_gemm_kernels
 
 # Force regenerate (even if kernels exist)
 make regenerate_all_kernels
 make regenerate_gemm_kernels
-make regenerate_conv_kernels
 
 # Generate for specific GPU architecture
 make generate_kernels_gfx942    # MI300X
@@ -311,12 +303,9 @@ make generate_kernels_gfx1100   # RDNA3
 ```bash
 # Check executables were built
 ls examples/gemm_*
-ls examples/conv_*
 
 # Check shared libraries were built
 ls examples/libdispatcher_gemm_lib.so
-ls examples/libdispatcher_conv_lib.so
-ls examples/libdispatcher_conv_bwdw_lib.so
 ```
 
 ### CMake Options Reference
@@ -351,13 +340,6 @@ cd build/examples
 ./gemm_04_heuristics         # Heuristic kernel selection
 ./gemm_05_json_export        # Registry JSON export
 ./gemm_06_multi_registry     # Multiple registries
-
-# Convolution Examples
-./conv_01_forward        # Basic 2D convolution
-./conv_02_validation     # Forward with CPU validation (add --verify)
-./conv_03_multi_size     # Multiple problem sizes
-./conv_09_bwd_data       # Backward data (add --verify for validation)
-./conv_10_bwd_weight     # Backward weight (add --verify for validation)
 ```
 
 ### Python Examples
@@ -369,13 +351,9 @@ cd /path/to/composable_kernel/dispatcher
 
 # GEMM Examples
 python3 examples/gemm/python/01_basic_gemm.py     # Basic multi-kernel GEMM
+python3 examples/gemm/python/04_validation.py     # CPU reference validation
 python3 examples/gemm/python/07_stress_test.py    # Stress test (48 kernels)
 python3 examples/gemm/python/08_heuristics.py     # Heuristic selection
-
-# Convolution Examples
-python3 examples/conv/python/01_basic_conv.py
-python3 examples/conv/python/04_conv2d_bwd_data.py --verify  # With CPU validation
-python3 examples/conv/python/07_validation.py
 ```
 
 ### Example Output
@@ -410,28 +388,6 @@ Step 4: GPU Execution
 
 > **Note:** Timing values vary by GPU model and system configuration.
 
-**Expected Python output (`01_basic_conv.py`):**
-```
-======================================================================
-Example 01: Basic Convolution with GPU Execution
-======================================================================
-
-Step 3: Load Library
---------------------------------------------------
-  Library: /path/to/build/examples/libdispatcher_conv_lib.so
-  Has kernels: True
-
-Step 4: GPU Execution
---------------------------------------------------
-  Input:  (1, 28, 28, 64) -> GPU
-  Weight: (128, 3, 3, 64) -> GPU
-  Output: (1, 28, 28, 128) (allocated)
-
-  *** GPU EXECUTION SUCCESSFUL ***
-  Time:   <varies> ms
-  TFLOPS: <varies>
-```
-
 ---
 
 ## Benchmark Parameters
@@ -453,23 +409,16 @@ The dispatcher supports fine-grained control over benchmarking, matching CK Tile
 ### Python Usage
 
 ```python
-from conv_utils import GpuConvRunner
+from ctypes_utils import DispatcherLib
 
 # Basic usage (default benchmark settings)
-runner = GpuConvRunner()
+lib = DispatcherLib.load()
 
-# Advanced benchmark settings
-runner = GpuConvRunner(
-    warmup=10,           # More warmup iterations
-    repeat=100,          # More benchmark iterations
-    flush_cache=True,    # Flush L2 cache (for memory-bound analysis)
-    rotating_count=4,    # 4 rotating buffers
-    timer="gpu",         # Use GPU timer (most accurate)
-)
-
-result = runner.run(input_data, weight_data, problem)
-print(f"Average time: {result['time_ms']:.4f} ms")
-print(f"TFLOPS: {result['tflops']:.2f}")
+# Advanced benchmark settings via command line
+python3 examples/gemm/python/10_advanced_benchmark.py \
+    --warmup 10 \
+    --repeat 100 \
+    --flush-cache
 ```
 
 ### C++ Usage
@@ -506,12 +455,6 @@ python3 examples/gemm/python/10_advanced_benchmark.py \
     --flush-cache \
     --rotating-count 4 \
     --timer gpu
-
-# For memory-bound analysis
-python3 examples/conv/python/13_advanced_benchmark.py \
-    --flush-cache \
-    --init constant \
-    -n 1 -c 256 -k 256 -hi 56 -wi 56
 ```
 
 ### When to Use Each Parameter
@@ -572,13 +515,9 @@ target_include_directories(your_target PRIVATE ${CK_INCLUDE_DIRS})
 ```python
 import sys
 sys.path.insert(0, "/path/to/composable_kernel/dispatcher/examples/gemm/python")
-sys.path.insert(0, "/path/to/composable_kernel/dispatcher/examples/conv/python")
 
 # For GEMM
 from ctypes_utils import DispatcherLib, Dispatcher, KernelConfig
-
-# For Conv
-from conv_utils import ConvDispatcherLib, GpuConvRunner, ConvProblem
 ```
 
 ### Required Include Paths
@@ -615,12 +554,10 @@ For Python scripts outside the dispatcher directory:
 ```bash
 # Option 1: Environment variable
 export PYTHONPATH="/path/to/composable_kernel/dispatcher/examples/gemm/python:$PYTHONPATH"
-export PYTHONPATH="/path/to/composable_kernel/dispatcher/examples/conv/python:$PYTHONPATH"
 
 # Option 2: In your Python script
 import sys
 sys.path.insert(0, "/path/to/composable_kernel/dispatcher/examples/gemm/python")
-sys.path.insert(0, "/path/to/composable_kernel/dispatcher/examples/conv/python")cmake
 ```
 
 ### Library Search Paths
@@ -634,13 +571,6 @@ SEARCH_PATHS = [
     "../build/examples/libdispatcher_gemm_lib.so",
     "../../build/examples/libdispatcher_gemm_lib.so",
 ]
-
-# For Conv (conv_utils.py)
-SEARCH_PATHS = [
-    "build/examples/libdispatcher_conv_lib.so",
-    "../build/examples/libdispatcher_conv_lib.so",
-    "../../build/examples/libdispatcher_conv_lib.so",
-]
 ```
 
 If using from a different location, set the library path explicitly:
@@ -649,10 +579,6 @@ If using from a different location, set the library path explicitly:
 # GEMM
 from ctypes_utils import DispatcherLib
 lib = DispatcherLib.load("/absolute/path/to/libdispatcher_gemm_lib.so")
-
-# Conv
-from conv_utils import ConvDispatcherLib
-lib = ConvDispatcherLib.load("/absolute/path/to/libdispatcher_conv_lib.so")
 ```
 
 ---
@@ -678,22 +604,9 @@ KernelConfig → Registry → Dispatcher → GPU Execution
 | CRR | Col | Row | Row | A transposed |
 | CCR | Col | Col | Row | Both inputs column-major |
 
-### Convolution Layouts
-
-| Layout | Input | Weight | Output | Description |
-|--------|-------|--------|--------|-------------|
-| NHWGC | N,H,W,G,C | G,K,Y,X,C | N,H,W,G,K | Grouped convolution |
-
 ### Split-K Support
 
 Split-K divides the K dimension across multiple thread blocks, useful for large K dimensions.
-
-| Operation | Split-K | Notes |
-|-----------|---------|-------|
-| GEMM | ✅ Yes | Runtime `k_batch` parameter |
-| Conv Forward | ❌ No | Not supported in CK Tile |
-| Conv Backward Data | ❌ No | Not supported in CK Tile |
-| Conv Backward Weight | ✅ Yes | Automatic when beneficial |
 
 **Usage (C++):**
 ```cpp
@@ -765,59 +678,6 @@ make -j$(nproc)
 
 ---
 
-## Technical Notes
-
-### Tensor Layouts
-
-CK Tile uses specific internal layouts for convolution operations:
-
-**2D Convolution (NHWGC layout):**
-- Input: `(N, H, W, G, C)` - Batch, Height, Width, Groups, Channels
-- Weight: `(G, K, Y, X, C)` - Groups, Output channels, Filter height, Filter width, Input channels  
-- Output: `(N, H, W, G, K)` - Batch, Height, Width, Groups, Output channels
-
-The CK Tile kernel expects **2D spatial dimensions** `{H, W}` for 2D convolution, not `{D, H, W}`.
-
-**3D Convolution (NDHWGC layout):**
-- Uses all three spatial dimensions `{D, H, W}`
-- Input: `(N, D, H, W, G, C)`
-- Filter: `{Z, Y, X}` (depth, height, width)
-
-**Important:** When interfacing via ctypes, the `ConvParam` must be constructed with the correct number of spatial dimensions:
-- 2D: `filter_spatial = {Y, X}`, `input_spatial = {H, W}`
-- 3D: `filter_spatial = {Z, Y, X}`, `input_spatial = {D, H, W}`
-
-### Backward Weight Architecture
-
-Backward weight is built as a **separate shared library** (`libdispatcher_conv_bwdw_lib.so`) to avoid CK Tile template conflicts that occur when combining forward/backward_data/backward_weight in the same compilation unit.
-
-**Libraries:**
-- `libdispatcher_conv_lib.so` - Forward + Backward Data
-- `libdispatcher_conv_bwdw_lib.so` - Backward Weight (separate)
-
-**Python Usage:**
-```python
-from conv_utils import GpuConvRunner, GpuConvBwdWeightRunner
-
-# Forward and Backward Data use GpuConvRunner
-runner_fwd = GpuConvRunner()
-
-# Backward Weight uses separate runner
-runner_bwdw = GpuConvBwdWeightRunner()
-result = runner_bwdw.run(input_np, grad_output_np, problem, grad_weight_np)
-```
-
-### Convolution Support Matrix
-
-| Operation | C++ Examples | Python ctypes | Status |
-|-----------|--------------|---------------|--------|
-| Forward 2D | ✅ conv_01 - conv_08 | ✅ GpuConvRunner | Full support |
-| Forward 3D | ✅ conv_09 | ✅ GpuConvRunner | Full support |
-| Backward Data | ✅ conv_10 | ✅ GpuConvRunner | Full support |
-| Backward Weight | ✅ conv_11 | ✅ GpuConvBwdWeightRunner | Full support (separate lib) |
-
----
-
 ## File Structure
 
 ```
@@ -828,31 +688,25 @@ dispatcher/
 ├── include/ck_tile/dispatcher/  # C++ headers
 │   ├── dispatcher.hpp           # GEMM dispatcher
 │   ├── registry.hpp             # Kernel registry
-│   ├── kernel_key.hpp          # Kernel configuration
-│   └── conv_utils.hpp          # Conv utilities
+│   └── kernel_key.hpp          # Kernel configuration
 │
 ├── src/                        # C++ implementation
 │
 ├── codegen/                    # Kernel generation
 │   ├── unified_gemm_codegen.py # GEMM kernel generator
-│   ├── unified_conv_codegen.py # Conv kernel generator
 │   └── arch_specs.json         # GPU specifications
 │
 ├── bindings/ctypes/            # Python ctypes interface
-│   ├── gemm_ctypes_lib.cpp     # GEMM Python library
-│   └── conv_ctypes_lib.cpp     # Conv Python library
+│   └── gemm_ctypes_lib.cpp     # GEMM Python library
 │
 ├── examples/                   # Examples
-│   ├── gemm/
-│   │   ├── cpp/                # C++ GEMM examples (01-06)
-│   │   └── python/             # Python GEMM examples (01-11)
-│   └── conv/
-│       ├── cpp/                # C++ Conv examples (01-11)
-│       └── python/             # Python Conv examples (01-12)
+│   └── gemm/
+│       ├── cpp/                # C++ GEMM examples (01-06)
+│       └── python/             # Python GEMM examples (01-11)
 │
 ├── scripts/                    # Build scripts
 │
-└── test/                       # Unit tests
+└── tests/                      # Unit tests
 ```
 
 ---
@@ -863,9 +717,18 @@ dispatcher/
 |-----------|--------|
 | GEMM C++ | [examples/gemm/cpp/README.md](examples/gemm/cpp/README.md) |
 | GEMM Python | [examples/gemm/python/README.md](examples/gemm/python/README.md) |
-| Conv C++ | [examples/conv/cpp/README.md](examples/conv/cpp/README.md) |
-| Conv Python | [examples/conv/python/README.md](examples/conv/python/README.md) |
 | Codegen | [codegen/README.md](codegen/README.md) |
+
+---
+
+## Archived Content
+
+Convolution examples and utilities have been archived to `ck-2/conv_archive/dispatcher/`:
+- `examples/conv/cpp/` - 11 C++ convolution examples
+- `examples/conv/python/` - 14 Python convolution examples
+- `codegen/unified_conv_codegen.py` - Conv kernel generator
+- `include/ck_tile/dispatcher/conv_*.hpp` - Conv headers
+- `python/conv_utils.py` - Conv Python utilities
 
 ---
 

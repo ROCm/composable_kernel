@@ -54,18 +54,6 @@ set_tests_properties(dispatcher_test_gemm_validation PROPERTIES
 )
 
 add_test(
-    NAME dispatcher_test_conv_validation
-    COMMAND ${Python3_EXECUTABLE} -m unittest test_autocorrect.TestConvValidation test_autocorrect.TestConvExpansion -v
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
-set_tests_properties(dispatcher_test_conv_validation PROPERTIES
-    LABELS "dispatcher;python;conv;validation"
-    TIMEOUT 60
-    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
-)
-
-add_test(
     NAME dispatcher_test_python_autocorrect
     COMMAND ${Python3_EXECUTABLE} -m unittest test_autocorrect.TestPythonAutoCorrect -v
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -158,19 +146,6 @@ set_tests_properties(dispatcher_integration_gemm PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
-# Conv examples integration
-add_test(
-    NAME dispatcher_integration_conv
-    COMMAND ${Python3_EXECUTABLE} -m pytest ${CMAKE_CURRENT_SOURCE_DIR}/test_examples_integration.py::TestConvPythonExamples -v
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..
-)
-
-set_tests_properties(dispatcher_integration_conv PROPERTIES
-    LABELS "dispatcher;python;integration;conv"
-    TIMEOUT 300
-    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
-)
-
 # =============================================================================
 # C++ Tests (Google Test)
 # =============================================================================
@@ -242,10 +217,6 @@ endforeach()
 # Standalone integration tests (with their own main())
 set(STANDALONE_TESTS
     test_minimal.cpp
-    test_conv_config.cpp
-    test_conv_problem.cpp
-    test_conv_kernel_decl.cpp
-    test_conv_registry.cpp
 )
 
 foreach(test_source ${STANDALONE_TESTS})

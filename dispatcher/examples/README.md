@@ -1,6 +1,8 @@
 # CK Tile Dispatcher Examples
 
-Comprehensive examples for GEMM and Convolution operations with GPU execution.
+Comprehensive examples for GEMM operations with GPU execution.
+
+> **Note**: Convolution examples have been moved to `ck-2/conv_archive/` for reference.
 
 ---
 
@@ -33,12 +35,11 @@ cd build/examples
 
 # GEMM
 ./gemm_01_basic
+./gemm_02_multi_size
 ./gemm_03_benchmark_validation
-
-# Conv
-./conv_01_basic
-./conv_10_bwd_data --verify
-./conv_11_bwd_weight --verify
+./gemm_04_heuristics
+./gemm_05_json_export
+./gemm_06_multi_registry
 ```
 
 ### Step 3: Run Python Examples
@@ -48,12 +49,9 @@ cd /path/to/composable_kernel/dispatcher
 
 # GEMM
 python3 examples/gemm/python/01_basic_gemm.py
+python3 examples/gemm/python/04_validation.py
 python3 examples/gemm/python/07_stress_test.py
 python3 examples/gemm/python/08_heuristics.py
-
-# Conv
-python3 examples/conv/python/01_basic_conv.py
-python3 examples/conv/python/04_conv2d_bwd_data.py --verify
 ```
 
 ---
@@ -66,9 +64,7 @@ examples/
 │   ├── cpp/           # 6 C++ GEMM examples
 │   └── python/        # 11 Python GEMM examples
 │
-└── conv/
-    ├── cpp/           # 11 C++ Conv examples
-    └── python/        # 12 Python Conv examples
+└── README.md
 ```
 
 ---
@@ -107,72 +103,6 @@ examples/
 | 11 | `11_json_import.py` | Import kernels from JSON |
 
 **Details:** [gemm/python/README.md](gemm/python/README.md)
-
----
-
-## Convolution Examples
-
-### C++ Examples
-
-| # | Example | Description |
-|---|---------|-------------|
-| 01 | `conv_01_basic` | Basic 2D forward convolution |
-| 02 | `conv_02_forward` | Detailed 2D forward |
-| 03 | `conv_03_validation` | CPU reference validation |
-| 04 | `conv_04_multi_size` | Multiple problem sizes |
-| 05 | `conv_05_benchmark` | Performance benchmarking |
-| 06 | `conv_06_heuristics` | Heuristic kernel selection |
-| 07 | `conv_07_json_export` | Registry JSON export |
-| 08 | `conv_08_multi_registry` | Multiple registries |
-| 09 | `conv_09_conv3d_forward` | 3D volumetric convolution |
-| 10 | `conv_10_bwd_data` | Backward data gradient |
-| 11 | `conv_11_bwd_weight` | Backward weight gradient |
-
-**Details:** [conv/cpp/README.md](conv/cpp/README.md)
-
----
-
-### Python Examples
-
-| # | Example | Description |
-|---|---------|-------------|
-| 01 | `01_basic_conv.py` | Basic 2D forward |
-| 02 | `02_conv2d_fwd.py` | 2D forward patterns |
-| 03 | `03_conv3d_fwd.py` | 3D forward patterns |
-| 04 | `04_conv2d_bwd_data.py` | Backward data with validation |
-| 05 | `05_conv2d_bwd_weight.py` | Backward weight with validation |
-| 06 | `06_benchmark.py` | Performance benchmarking |
-| 07 | `07_validation.py` | CPU vs GPU validation |
-| 08 | `08_json_export.py` | Registry JSON export |
-| 09 | `09_multi_registry.py` | Multiple registries |
-| 10 | `10_conv3d_forward.py` | 3D conv with GPU |
-| 11 | `11_bwd_data.py` | Backward data API |
-| 12 | `12_bwd_weight.py` | Backward weight API |
-
-**Details:** [conv/python/README.md](conv/python/README.md)
-
----
-
-## Validation Examples
-
-### C++ Validation
-
-```bash
-./gemm_03_benchmark_validation --verify 1    # GEMM with CPU reference
-./gemm_03_benchmark_validation --verify 2    # GEMM with GPU reference
-./conv_03_validation                         # Forward conv validation
-./conv_10_bwd_data --verify                  # Backward data with CPU reference
-./conv_11_bwd_weight --verify                # Backward weight with CPU reference
-```
-
-### Python Validation
-
-```bash
-python3 examples/gemm/python/04_validation.py
-python3 examples/gemm/python/07_stress_test.py   # Multi-kernel validation
-python3 examples/conv/python/04_conv2d_bwd_data.py --verify
-python3 examples/conv/python/07_validation.py
-```
 
 ---
 
@@ -222,6 +152,24 @@ Invalid configurations are automatically pruned during code generation.
 
 ---
 
+## Validation Examples
+
+### C++ Validation
+
+```bash
+./gemm_03_benchmark_validation --verify 1    # GEMM with CPU reference
+./gemm_03_benchmark_validation --verify 2    # GEMM with GPU reference
+```
+
+### Python Validation
+
+```bash
+python3 examples/gemm/python/04_validation.py
+python3 examples/gemm/python/07_stress_test.py   # Multi-kernel validation
+```
+
+---
+
 ## Troubleshooting
 
 ### Python: Library not found
@@ -250,3 +198,13 @@ cd build/examples
 rocminfo | grep "Name:"
 # Should show: gfx942, gfx90a, etc.
 ```
+
+---
+
+## Archived Examples
+
+Convolution examples have been archived to `ck-2/conv_archive/dispatcher/`:
+- `examples/conv/cpp/` - 11 C++ convolution examples
+- `examples/conv/python/` - 14 Python convolution examples
+
+See the archive for convolution functionality reference.
