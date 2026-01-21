@@ -519,17 +519,12 @@ struct AQuantBlockUniversalGemmAsBsCr
                         static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                             [&](auto c_row) {
                                 float scale_reg_f = aq_picker.template pick<c_row>();
-                                // if(get_thread_id() == 0 && get_block_id() == 0)
-                                // {
-                                //     printf("scale_reg_f: %f\n", scale_reg_f);
-                                // }
                                 c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
                                     (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);
                             });
                     });
                 });
 
-                // Reset scheduling priority after completing M iteration
                 __builtin_amdgcn_sched_barrier(0);
                 __builtin_amdgcn_s_setprio(0);
                 __builtin_amdgcn_sched_barrier(0);

@@ -520,10 +520,6 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                        index_t num_loop,
                                        void* p_smem) const
         {
-            // if(get_thread_id() == 0 && get_block_id() == 0)
-            // {
-            //     printf("HasHotLoop: %d\n", HasHotLoop);
-            // }
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
@@ -606,21 +602,12 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             constexpr AQDramTileWindowStep aq_dram_tile_window_step =
                 is_aq_col_major ? make_array(KPerBlockAQ, 0) : make_array(0, KPerBlockAQ);
 
-            // if(get_thread_id() == 0 && get_block_id() == 0)
-            // {
-            //     printf("First prefetch\n");
-            // }
             LoadAndConvertATile(
                 a_block_tiles.get(I0{}), a_copy_dram_window, a_dram_tile_window_step);
             Base::GlobalPrefetch(
                 b_block_tiles.get(I0{}), b_copy_dram_window, b_dram_tile_window_step);
             Base::GlobalPrefetch(
                 aq_block_tiles.get(I0{}), aq_copy_dram_window, aq_dram_tile_window_step);
-
-            // if(get_thread_id() == 0 && get_block_id() == 0)
-            // {
-            //     printf("First prefetch done\n");
-            // }
 
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
@@ -633,10 +620,6 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             }
             else
             {
-                // if(get_thread_id() == 0 && get_block_id() == 0)
-                // {
-                //     printf("Local prefill A done\n");
-                // }
                 Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I0{}), a_element_func);
             }
             if constexpr(is_b_row_major && !is_b_load_tr_v())
@@ -648,18 +631,10 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             }
             else
             {
-                // if(get_thread_id() == 0 && get_block_id() == 0)
-                // {
-                //     printf("Local prefill B done\n");
-                // }
                 Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I0{}), b_element_func);
             }
 
             static_for<1, PrefetchStages, 1>{}([&](auto prefetch_idx) {
-                // if(get_thread_id() == 0 && get_block_id() == 0)
-                // {
-                //     printf("Second Prefetch %d\n", static_cast<int>(prefetch_idx));
-                // }
                 LoadAndConvertATile(a_block_tiles.get(number<prefetch_idx>{}),
                                     a_copy_dram_window,
                                     a_dram_tile_window_step);
@@ -669,10 +644,6 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                 Base::GlobalPrefetch(aq_block_tiles.get(number<prefetch_idx>{}),
                                      aq_copy_dram_window,
                                      aq_dram_tile_window_step);
-                // if(get_thread_id() == 0 && get_block_id() == 0)
-                // {
-                //     printf("Second Prefetch %d done\n", static_cast<int>(prefetch_idx));
-                // }
             });
 
             if constexpr(HasHotLoop)
@@ -736,10 +707,6 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
             }
 
             auto HotLoopTail = [&](auto tail_num) {
-                // if(get_thread_id() == 0 && get_block_id() == 0)
-                // {
-                //     printf("HotLoopTail %d\n", static_cast<int>(tail_num));
-                // }
                 static_for<0, tail_num - 1, 1>{}([&](auto prefetch_idx) {
                     block_sync_lds();
                     block_gemm(c_block_tile,
@@ -784,20 +751,12 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
             if constexpr(TailNum == TailNumber::One)
             {
-                // if(get_thread_id() == 0 && get_block_id() == 0)
-                // {
-                //     printf("TailNum: One\n");
-                // }
                 block_sync_lds();
                 block_gemm(
                     c_block_tile, aq_block_tiles.get(I0{}), a_lds_gemm_window, b_lds_gemm_window);
             }
             else if constexpr(TailNum == TailNumber::Two)
             {
-                // if(get_thread_id() == 0 && get_block_id() == 0)
-                // {
-                //     printf("TailNum: Two\n");
-                // }
                 HotLoopTail(number<2>{});
             }
             else if constexpr(TailNum == TailNumber::Three)
