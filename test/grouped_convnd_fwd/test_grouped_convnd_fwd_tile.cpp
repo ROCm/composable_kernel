@@ -13,6 +13,8 @@
 
 // TODO: Remove limitation of conv fwd gpu reference which does not support right pad
 #define CK_CONV_FWD_REF_SKIP_RIGHT_PAD_CASES 1
+// TODO: Remove this limitation after gpu reference fix
+#define ENABLE_BHALF_GROUPED_CONV_FWD_TESTS 1
 
 static ck::index_t args_mask      = 0xffff;
 static ck::index_t instance_index = -1;
@@ -20,8 +22,6 @@ static ck::index_t instance_index = -1;
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
 namespace ckp = ck_tile::builder::profiling;
-
-#define ENABLE_BHALF_GROUPED_CONV_FWD_TESTS
 
 template <ck_tile::index_t num_spatial_dim_,
           ckb::DataType data_type_,
