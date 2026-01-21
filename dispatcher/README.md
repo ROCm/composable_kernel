@@ -4,7 +4,6 @@ A unified kernel dispatch system for AMD GPUs with C++ and Python frontends.
 
 **Validated Platform:** AMD Instinct MI300 series (gfx942)
 
-> **Note**: Convolution examples have been archived to `ck-2/conv_archive/` for reference.
 
 ---
 
