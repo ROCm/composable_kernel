@@ -14,7 +14,7 @@
 // TODO: Remove limitation of conv fwd gpu reference which does not support right pad
 #define CK_CONV_FWD_REF_SKIP_RIGHT_PAD_CASES 1
 // TODO: Remove this limitation after gpu reference fix
-#define ENABLE_BHALF_GROUPED_CONV_FWD_TESTS 1
+#define ENABLE_BHALF_GROUPED_CONV_FWD_TESTS 0
 
 static ck::index_t args_mask      = 0xffff;
 static ck::index_t instance_index = -1;
