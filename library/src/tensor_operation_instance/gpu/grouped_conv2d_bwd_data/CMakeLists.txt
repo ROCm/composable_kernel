@@ -49,5 +49,8 @@ add_instance_library(
     wmma/device_grouped_conv2d_bwd_data_wmma_v3_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
     wmma/device_grouped_conv2d_bwd_data_wmma_v3_nhwgc_gkyxc_nhwgk_bf16_16_16_instance.cpp
 
- 
+
+
+ wmma/device_grouped_conv2d_bwd_data_wmma_v3_wave_transfer_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
+ wmma/device_grouped_conv2d_bwd_data_wmma_v3_wave_transfer_nhwgc_gkyxc_nhwgk_f16_instance.cpp
 )

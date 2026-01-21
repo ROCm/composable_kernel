@@ -45,6 +45,10 @@ set(GROUPED_CONV3D_BWD_DATA
 
    wmma/device_grouped_conv3d_bwd_data_wmma_v3_ndhwgc_gkzyxc_ndhwgk_f16_16_16_instance.cpp
    wmma/device_grouped_conv3d_bwd_data_wmma_v3_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
+
+   
+ wmma/device_grouped_conv3d_bwd_data_wmma_v3_wave_transfer_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
+ wmma/device_grouped_conv3d_bwd_data_wmma_v3_wave_transfer_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
 )
   
 
