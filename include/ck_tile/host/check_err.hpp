@@ -746,14 +746,15 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     if(check_size_mismatch(out, ref, msg))
         return false;
 
-    int err_count = 0;
-
+    int err_count   = 0;
+    float max_err   = 0.0f;
     auto update_err = [&](float o, float r, std::size_t index) {
         if(std::fabs(o - r) > 1e-8)
         {
             std::cerr << msg << " out[" << index << "] != ref[" << index << "]: " << o
                       << " != " << r << std::endl;
             ++err_count;
+            max_err = max_err < std::fabs(o - r) ? o : max_err;
         }
     };
     for(std::size_t i = 0; i < ref.size(); ++i)
@@ -767,7 +768,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     }
     if(err_count > 0)
     {
-        report_error_stats(err_count, numeric<pk_fp4_t>::max(), ref.size());
+        report_error_stats(err_count, max_err, ref.size());
     }
     return err_count == 0;
 }
