@@ -11,12 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Include paths - point to main CK project
-set(CK_ROOT_DIR "{{CK_ROOT_DIR}}")
-include_directories(
-    ${CK_ROOT_DIR}/includecmake_minimum_required(VERSION 3.16)
-
-# Use hipcc as the C++ compiler
-set(CMAKE_CXX_COMPILER "/opt/rocm/bin/hipcc")
+set(CK_ROOT_DIR "{{CK_ROOT_DIR_VALUE}}")
 
 set(CK_CXX_STANDARD "20" CACHE STRING "C++ standard to use (e.g. 17 or 20)")
 set(valid_cxx_standards 17 20)
@@ -42,7 +37,6 @@ include(ROCMInstallSymlinks)
 include(ROCMCreatePackage)
 include(CheckCXXCompilerFlag)
 include(ROCMCheckTargetIds)
-#include(TargetFlags)
 
 rocm_setup_version(VERSION ${version})
 
@@ -77,26 +71,11 @@ link_libraries(hip::device)
 add_compile_definitions(__HIP_PLATFORM_AMD__=1)
 
 # Include paths - point to main CK project
-set(CK_ROOT_DIR "/home/AMD/vpietila/git/composable_kernel")
 include_directories(
     ${CK_ROOT_DIR}/include
     ${CK_ROOT_DIR}/library/include
     ${CK_ROOT_DIR}/build-test/include
 )
-
-# Create test executable
-add_executable(instance_test test_instance.cpp)
-
-    ${CK_ROOT_DIR}/library/include
-    ${CK_ROOT_DIR}/build-test/include
-)
-
-# Compiler flags matching main project
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG -std=c++20")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCK_ENABLE_FP16 -DCK_ENABLE_FP32")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DCK_USE_XDL -D__HIP_PLATFORM_AMD__=1")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -x hip --offload-arch=gfx950")
 
 # Create test executable
 add_executable(instance_test test_instance.cpp)

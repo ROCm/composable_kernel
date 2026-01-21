@@ -61,7 +61,9 @@ using DeviceInstance = DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
 
 int main()
 {
-    // Just instantiate the type to trigger compile-time validation
-    using Instance = DeviceInstance;
+    // Create an instance get the type string to ensure all compile-time checks are done. 
+    auto instance = DeviceInstance{};
+    const auto type_string = instance.GetTypeString();
+    std::cout << type_string << std::endl;
     return 0;
 }
