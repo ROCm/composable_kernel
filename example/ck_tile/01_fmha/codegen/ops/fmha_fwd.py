@@ -826,7 +826,7 @@ class CompatibilityRuleFactory:
                 or kernel_ctx.pipeline.F_logits == "f"
             ):
                 return False
-            # sink_size is only meaningful when no masking is applied
+            # sink_size is only meaningful when mask is applied
             if (
                 kernel_ctx.pipeline.F_mask in no_mask_keys
                 and kernel_ctx.pipeline.F_sink == "t"
