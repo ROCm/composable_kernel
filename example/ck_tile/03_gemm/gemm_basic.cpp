@@ -9,7 +9,6 @@
 
 int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
-
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
@@ -47,6 +46,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
         return run_gemm_example_prec_type<GemmConfig, Invoker, float>(
             a_layout, b_layout, arg_parser);
     }
+#ifdef CK_GFX950_SUPPORT
     else if(data_type == "tf32")
     {
         return run_gemm_example_prec_type<GemmConfig,
@@ -56,6 +56,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
                                           float,
                                           ck_tile::tf32_t>(a_layout, b_layout, arg_parser);
     }
+#endif
     else if(data_type == "fp8")
     {
         return run_gemm_example_prec_type<GemmConfig,

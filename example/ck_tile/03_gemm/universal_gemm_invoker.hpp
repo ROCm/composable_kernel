@@ -17,7 +17,8 @@ struct UniversalInvoker
               typename DsLayout,
               typename ELayout,
               bool Persistent,
-              typename CDEElementWise>
+              typename CDEElementWise,
+              typename ComputeDataType = ADataType>
     static float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 
     {
@@ -50,12 +51,16 @@ struct UniversalInvoker
 
         constexpr auto scheduler = GemmConfig::Scheduler;
 
-        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                           BDataType,
-                                                                           AccDataType,
-                                                                           GemmShape,
-                                                                           GemmUniversalTraits,
-                                                                           scheduler>;
+        using UniversalGemmProblem =
+            ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                  BDataType,
+                                                  AccDataType,
+                                                  GemmShape,
+                                                  GemmUniversalTraits,
+                                                  scheduler,
+                                                  ck_tile::element_wise::PassThrough,
+                                                  ck_tile::element_wise::PassThrough,
+                                                  ComputeDataType>;
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;

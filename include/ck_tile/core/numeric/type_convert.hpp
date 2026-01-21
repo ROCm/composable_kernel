@@ -59,15 +59,15 @@ CK_TILE_TYPE_CONVERT(float, float, bf8_t, bf8)
 
 enum class tf32_rounding_mode
 {
-    truncate = 0,
-    standard = 1, // RTNE
+    trunc = 0, // truncate
+    rne   = 1, // round to nearest even (RTNE)
 };
 
-template <tf32_rounding_mode rounding = tf32_rounding_mode::truncate>
+template <tf32_rounding_mode rounding = tf32_rounding_mode::trunc>
 CK_TILE_HOST_DEVICE constexpr float float_to_tf32(float x)
 {
     uint32_t i = bit_cast<uint32_t>(x);
-    if constexpr(rounding == tf32_rounding_mode::standard)
+    if constexpr(rounding == tf32_rounding_mode::rne)
     {
         if((i & 0x7f800000) != 0x7f800000)
         {
