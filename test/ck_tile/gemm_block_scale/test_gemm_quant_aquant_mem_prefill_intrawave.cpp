@@ -19,23 +19,27 @@ using PkInt4        = ck_tile::pk_int4_t;
 using AQuantGrouped = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::AQuantGrouped>;
 using GroupSize     = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
 
-// Type combinations for AQuant tests - Prefill Configuration
+// Type combinations for AQuant tests - Mem Prefill Intrawave Configuration
 // Tuple format: <ALayout, BLayout, CLayout, AQLayout, ADataType, BDataType, QDataType, CDataType,
 // QuantType, GemmConfig, QuantGroupSize>
 // clang-format off
-using AQuantPrefillTypes = ::testing::Types<
-    // RCR layout - with the Prefill BlockTile Config.
+using AQuantMemPrefillIntrawaveTypes = ::testing::Types<
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8, float, Half, AQuantGrouped, GemmConfigPrefillIntrawave, GroupSize>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF8, BF8, float, Half, AQuantGrouped, GemmConfigPrefillIntrawave, GroupSize>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, PkInt4, FP8, FP8, Half, AQuantGrouped, GemmConfigPrefillIntrawave, GroupSize>,
-    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, PkInt4, BF8, BF8, Half, AQuantGrouped, GemmConfigPrefillIntrawave, GroupSize>
+    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, PkInt4, BF8, BF8, Half, AQuantGrouped, GemmConfigPrefillIntrawave, GroupSize>,
+    // FP8 additional layouts
+    //std::tuple<ColumnMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8, float, Half, AQuantGrouped, GemmConfigPrefillIntrawave, GroupSize>,
+    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, FP8, FP8, float, Half, AQuantGrouped, GemmConfigPrefillIntrawave, GroupSize>
+    //std::tuple<ColumnMajor, ColumnMajor, ColumnMajor, RowMajor, FP8, FP8, float, Half, AQuantGrouped, GemmConfigPrefillIntrawave, GroupSize>
 >;
 // clang-format on
 
-// Test suite for AQuant Prefill
-TYPED_TEST_SUITE(TestCkTileGemmAQuant, AQuantPrefillTypes);
+// Test suite for AQuant Mem Prefill Intrawave
+TYPED_TEST_SUITE(TestCkTileGemmAQuantMem, AQuantMemPrefillIntrawaveTypes);
 
 // AQuant tests
-TYPED_TEST(TestCkTileGemmAQuant, AQuantGroupedTest)
+TYPED_TEST(TestCkTileGemmAQuantMem, AQuantMemPrefillIntrawaveTest)
 {
     this->run_test_with_validation(1024, 1024, 1024);
 }
