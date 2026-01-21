@@ -359,6 +359,84 @@ CK_TILE_DEVICE bf8x4_t i4_to_bf8x4(int q)
 }
 #endif
 
+CK_TILE_HOST_DEVICE bf16x8_t bf8x8_to_bf16x8_scale(const bf8x8_t& src, const float& scale)
+{
+    bf16x8_t y;
+#if defined(__gfx950__)
+    union
+    {
+        uint32_t i16val;
+        bf8_t i8val[4];
+    } input;
+
+    union
+    {
+        bf16x2_t bhalf_vec;
+        bf16_t bhalf_arr[2];
+    } output;
+
+    input.i8val[0]   = src[0];
+    input.i8val[1]   = src[1];
+    input.i8val[2]   = src[2];
+    input.i8val[3]   = src[3];
+    output.bhalf_vec = __builtin_amdgcn_cvt_scalef32_pk_bf16_bf8(input.i16val, scale, 0);
+    y[0]             = output.bhalf_arr[0];
+    y[1]             = output.bhalf_arr[1];
+    output.bhalf_vec = __builtin_amdgcn_cvt_scalef32_pk_bf16_bf8(input.i16val, scale, 1);
+    y[2]             = output.bhalf_arr[0];
+    y[3]             = output.bhalf_arr[1];
+
+    input.i8val[0]   = src[4];
+    input.i8val[1]   = src[5];
+    input.i8val[2]   = src[6];
+    input.i8val[3]   = src[7];
+    output.bhalf_vec = __builtin_amdgcn_cvt_scalef32_pk_bf16_bf8(input.i16val, scale, 0);
+    y[4]             = output.bhalf_arr[0];
+    y[5]             = output.bhalf_arr[1];
+    output.bhalf_vec = __builtin_amdgcn_cvt_scalef32_pk_bf16_bf8(input.i16val, scale, 1);
+    y[6]             = output.bhalf_arr[0];
+    y[7]             = output.bhalf_arr[1];
+#else
+    static_for<0, 8, 1>{}([&](auto i) {
+        y[i.value] = type_convert<bf16_t>(type_convert<float>(src[i.value]) * scale);
+    });
+#endif
+    return y;
+}
+
+CK_TILE_HOST_DEVICE bf16x8_t fp4x4_to_bf16x8_scale(const pk_fp4x4_t& src, const float& scale)
+{
+    bf16x8_t y;
+#if defined(__gfx950__)
+    union
+    {
+        uint32_t u32;
+        pk_fp4x4_t pf4;
+    } cvt;
+    cvt.pf4     = src;
+    bf16x2_t y0 = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp4(cvt.u32, scale, 0);
+    bf16x2_t y1 = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp4(cvt.u32, scale, 1);
+    bf16x2_t y2 = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp4(cvt.u32, scale, 2);
+    bf16x2_t y3 = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp4(cvt.u32, scale, 3);
+
+    y[0] = y0[0];
+    y[1] = y0[1];
+    y[2] = y1[0];
+    y[3] = y1[1];
+    y[4] = y2[0];
+    y[5] = y2[1];
+    y[6] = y3[0];
+    y[7] = y3[1];
+#else
+    static_for<0, 4, 1>{}([&](auto i) {
+        auto yi            = pk_fp4_to_bf16x2(src[i.value], scale);
+        y[2 * i.value]     = yi[0];
+        y[2 * i.value + 1] = yi[1];
+    });
+#endif
+    return y;
+}
+
 struct PassThroughPack8
 {
     static constexpr const char* name = "PassThroughPack8";
@@ -435,6 +513,26 @@ struct DequantPack8
     {
         y.lo = i4_to_half4_scale(bit_cast<int>(x), z);
         y.hi = i4_to_half4_scale(bit_cast<int>(x) >> 8, z);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void
+    operator()(bf16x8_t& y, const pk_fp4x4_t& x, const float& z) const
+    {
+        y = fp4x4_to_bf16x8_scale(x, z);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void
+    operator()(bf16x8_t& y, const bf8x8_t& x, const float& z) const
+    {
+        y = bf8x8_to_bf16x8_scale(x, z);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void
+    operator()(bf16x8_t& y, const bf16x8_t& x, const float& z) const
+    {
+        static_for<0, 8, 1>{}([&](auto i) {
+            y[i.value] = type_convert<bf16_t>(type_convert<float>(x[i.value]) * z);
+        });
     }
 
     constexpr const static bool is_pack8_invocable = true;

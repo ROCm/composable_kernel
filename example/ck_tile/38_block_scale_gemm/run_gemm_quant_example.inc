@@ -93,6 +93,10 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
         constexpr auto tail_number_v  = tail_number_.value;
+        constexpr auto b_cast_policy =
+            std::is_same_v<typename TypeConfig::ADataType, typename TypeConfig::BDataType>
+                ? ck_tile::CastPolicy::BeforeLDSWrite
+                : ck_tile::CastPolicy::AfterLDSRead;
 
         // row-col and tensor quants use the regular pipeline, A/B/AB quants use their own
         using PipelineProblem = std::conditional_t<
@@ -135,7 +139,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                        ComputeDataType,
                                                        GemmConfig::Scheduler,
                                                        has_hot_loop_v,
-                                                       tail_number_v>,
+                                                       tail_number_v,
+                                                       b_cast_policy>,
                     ck_tile::GemmABQuantPipelineProblem<typename TypeConfig::ADataType,
                                                         typename TypeConfig::QDataType, // For AQ
                                                         typename TypeConfig::BDataType,
@@ -239,11 +244,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             ck_tile::HostTensor<typename TypeConfig::ADataType> a_m(ck_tile::host_tensor_descriptor(
                 args.M, args.K, args.stride_A, is_row_major(ALayout{})));
             ck_tile::HostTensor<typename TypeConfig::BDataType> b_n(ck_tile::host_tensor_descriptor(
-                std::is_same_v<typename TypeConfig::BDataType, ck_tile::pk_fp4_t> ? args.K / 2
-                                                                                  : args.K,
-                args.N,
-                args.stride_B,
-                is_row_major(BLayout{})));
+                args.K, args.N, args.stride_B, is_row_major(BLayout{})));
 
             auto size_a_buffer = a_m.get_element_space_size_in_bytes();
             auto size_b_buffer = b_n.get_element_space_size_in_bytes();
@@ -475,11 +476,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     int rotating_count           = arg_parser.get_int("rotating_count");
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
-    stride_B =
-        ck_tile::get_default_stride((std::is_same_v<BDataType, ck_tile::pk_fp4_t>) ? (K / 2) : K,
-                                    N,
-                                    stride_B,
-                                    is_row_major(b_layout));
+    stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
     stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
 
     // Conditional stride calculation based on QuantMode
@@ -511,11 +508,8 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
 
     ck_tile::HostTensor<ADataType> a_m_k(
         ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(a_layout)));
-    ck_tile::HostTensor<BDataType> b_k_n(ck_tile::host_tensor_descriptor(
-        (std::is_same_v<BDataType, ck_tile::pk_fp4_t>) ? (K / 2) : K,
-        N,
-        stride_B,
-        is_row_major(b_layout)));
+    ck_tile::HostTensor<BDataType> b_k_n(
+        ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 

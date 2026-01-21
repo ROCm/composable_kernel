@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/ops/gemm/block/block_universal_gemm_as_bs_cr.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/elementwise.hpp"
@@ -101,15 +102,18 @@ struct BQuantBlockUniversalGemmAsBsCr
         // 2. bf8, bf8, fp32 -> f32
         // 3. i4,  fp8, (fp8/fp32) -> f32
         // 4. i4,  bf8, (fp8/fp32) -> f32
-        static_assert((std::is_same_v<ADataType, fp8_t> || std::is_same_v<ADataType, bf8_t>) &&
-                      (std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t> ||
-                       std::is_same_v<BDataType, ck_tile::pk_int4_t>) &&
-                      (std::is_same_v<BQDataType, float> ||
-                       std::is_same_v<BQDataType, ck_tile::fp8_t> ||
-                       std::is_same_v<BQDataType, ck_tile::bf8_t>) &&
-                      (std::is_same_v<ComputeDataType, fp8_t> ||
-                       std::is_same_v<ComputeDataType, bf8_t>) &&
-                      std::is_same_v<CDataType, fp32_t>);
+        static_assert(
+            (std::is_same_v<ADataType, fp8_t> || std::is_same_v<ADataType, bf8_t> ||
+             std::is_same_v<ADataType, bf16_t>) &&
+            (std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t> ||
+             std::is_same_v<BDataType, ck_tile::pk_int4_t> || std::is_same_v<BDataType, bf16_t> ||
+             std::is_same_v<BDataType, ck_tile::pk_fp4_t>) &&
+            (std::is_same_v<BQDataType, float> || std::is_same_v<BQDataType, ck_tile::fp8_t> ||
+             std::is_same_v<BQDataType, ck_tile::bf8_t> ||
+             std::is_same_v<BQDataType, ck_tile::e8m0_t>) &&
+            (std::is_same_v<ComputeDataType, fp8_t> || std::is_same_v<ComputeDataType, bf8_t> ||
+             std::is_same_v<ComputeDataType, bf16_t>) &&
+            std::is_same_v<CDataType, fp32_t>);
 
         static constexpr index_t InterWaveSchedulingMacClusters = 1;
 
@@ -176,57 +180,17 @@ struct BQuantBlockUniversalGemmAsBsCr
     using I0 = number<0>;
     using I1 = number<1>;
 
+    // Use gemm universal block distribution encoding instead of duplicating it
+    using BlockGemmBase = BlockUniversalGemmAsBsCr<Problem_, Policy_, UnaryOpSize_>;
+
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
-        constexpr index_t KPerThread     = Traits::KPerThread;
-        constexpr index_t NumMacClusters = Traits::InterWaveSchedulingMacClusters;
-
-        constexpr index_t KPerInnerLoop =
-            ck_tile::max(KPerThread / NumMacClusters, WarpGemm::kKPerThread);
-
-        constexpr index_t KIterInterwave = KPerInnerLoop / WarpGemm::kKPerThread;
-
-        using KIterSeq = std::conditional_t<Scheduler == GemmPipelineScheduler::Interwave,
-                                            sequence<KIterInterwave>,
-                                            sequence<KIterPerWarp>>;
-
-        constexpr auto a_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<NWarp>,
-                                       tuple<sequence<MIterPerWarp, MWarp>, KIterSeq>,
-                                       tuple<sequence<1, 0>>,
-                                       tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-        constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
-
-        return a_block_dstr_encode;
+        return BlockGemmBase::MakeABlockDistributionEncode();
     }
 
     CK_TILE_DEVICE static constexpr auto MakeBBlockDistributionEncode()
     {
-        constexpr index_t KPerThread     = Traits::KPerThread;
-        constexpr index_t NumMacClusters = Traits::InterWaveSchedulingMacClusters;
-        constexpr index_t KPerInnerLoop =
-            ck_tile::max(KPerThread / NumMacClusters, WarpGemm::kKPerThread);
-        constexpr index_t KIterInterwave = KPerInnerLoop / WarpGemm::kKPerThread;
-
-        using KIterSeq = std::conditional_t<Scheduler == GemmPipelineScheduler::Interwave,
-                                            sequence<KIterInterwave>,
-                                            sequence<KIterPerWarp>>;
-
-        constexpr auto b_block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<MWarp>,
-                                       tuple<sequence<NIterPerWarp, NWarp>, KIterSeq>,
-                                       tuple<sequence<0, 1>>,
-                                       tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
-
-        constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
-
-        return b_block_dstr_encode;
+        return BlockGemmBase::MakeBBlockDistributionEncode();
     }
 
     private:
@@ -235,19 +199,22 @@ struct BQuantBlockUniversalGemmAsBsCr
     {
     };
 
+    using BlockGemmImplBase = typename BlockUniversalGemmAsBsCr<Problem_, Policy_, UnaryOpSize_>::
+        template BlockGemmImpl<GemmPipelineScheduler::Intrawave, Traits>;
+
     template <typename GemmTraits>
-    struct BlockGemmImpl<GemmPipelineScheduler::Intrawave, GemmTraits>
+    struct BlockGemmImpl<GemmPipelineScheduler::Intrawave, GemmTraits> : public BlockGemmImplBase
     {
-        static constexpr auto ALdsTileDistr =
-            decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
-        static constexpr auto BLdsTileDistr =
-            decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
+        using BlockGemmImplBase::a_warp_tile_;
+        using BlockGemmImplBase::b_warp_tile_;
+        using BlockGemmImplBase::BLdsTileDistr;
+        // If we apply scale while reading from LDS, then we can use the operator() from
+        // BlockUniversalGemmAsBsCr
+        using BlockGemmImplBase::operator();
 
-        using ALdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(ALdsTileDistr));
-        using BLdsTile = decltype(make_static_distributed_tensor<ComputeDataType>(BLdsTileDistr));
-
-        ALdsTile a_warp_tile_;
-        BLdsTile b_warp_tile_;
+        // static distributed tensor with LDS type
+        using BTypeTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
+        BTypeTile b_warp_tile_lds_;
 
         template <typename ASmemBlockWindow,
                   typename BSmemBlockWindow,
@@ -263,6 +230,87 @@ struct BQuantBlockUniversalGemmAsBsCr
             // If B datatype were pkint4 it would be converted prior to storing in LDS
             load_int4_tile<OverrideBDataType, ComputeDataType, UnaryOpSize_, BLoadTranspose>(
                 b_warp_tile_, b_block_window);
+        }
+
+        template <typename ASmemBlockWindow,
+                  typename BSmemBlockWindow,
+                  typename BQRegBlockTile,
+                  bool ALoadTranspose = false,
+                  bool BLoadTranspose = false>
+        CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
+                                          const BSmemBlockWindow& b_block_window,
+                                          BQRegBlockTile& bq_block_tensor,
+                                          bool_constant<ALoadTranspose> = {},
+                                          bool_constant<BLoadTranspose> = {})
+        {
+            load_int4_tile<ADataType, ComputeDataType, UnaryOpSize_, ALoadTranspose>(
+                a_warp_tile_, a_block_window);
+            load_int4_tile<BDataType, ComputeDataType, UnaryOpSize_, BLoadTranspose>(
+                b_warp_tile_lds_, b_block_window);
+
+            // Apply scale
+            using BDataTypeRaw = typename std::
+                conditional<std::is_same_v<BDataType, pk_fp4_t>, pk_fp4_t::type, BDataType>::type;
+
+            constexpr auto warp_size             = get_warp_size();
+            constexpr index_t nelements          = WarpGemm::kK * WarpGemm::kN / warp_size;
+            constexpr index_t thread_buffer_size = nelements / UnaryOpSize_;
+            const element_wise::DequantPack8 elementwise_op{};
+            using SrcVectorRawType =
+                BDataTypeRaw __attribute__((ext_vector_type(UnaryOpSize_ / BPackedSize)));
+            using DstVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize_)));
+
+            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                static_for<0, Traits::QScalesPerBlockRow, 1>{}([&](auto kQScale) {
+                    static_for<0, Traits::KIterPerQScale, 1>{}([&](auto kIterInQScale) {
+                        constexpr auto kIter = kQScale * Traits::KIterPerQScale + kIterInQScale;
+                        // Thread buffers
+                        using BWarpThreadBuffer = decltype(b_warp_tile_.get_y_sliced_thread_data(
+                            merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, b_warp_y_lengths)));
+                        using BLDSThreadBuffer = decltype(b_warp_tile_lds_.get_y_sliced_thread_data(
+                            merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, b_warp_y_lengths)));
+
+                        BWarpThreadBuffer b_warp_thread_buffer;
+                        BLDSThreadBuffer b_lds_thread_buffer;
+
+                        // BQuant register offset
+                        constexpr index_t reg_offset = [&]() {
+                            if constexpr(GemmTraits::QuantGroupSize::kN >= (NWarp * WarpGemm::kN))
+                                return (nIter * NWarp * WarpGemm::kN) /
+                                           GemmTraits::QuantGroupSize::kN * Traits::KQPerBlock +
+                                       kQScale;
+                            else
+                            {
+                                return nIter * Traits::KQPerBlock + kQScale;
+                            }
+                        }();
+
+                        // Load thread buffer from tile (LDS type)
+                        b_lds_thread_buffer = b_warp_tile_lds_.get_y_sliced_thread_data(
+                            merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+
+                        // Apply scale to thread buffer and cast
+                        auto& scale_reg = bq_block_tensor.get_thread_buffer()[reg_offset];
+                        float b_scale_f = float(scale_reg);
+
+                        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
+                            elementwise_op(
+                                b_warp_thread_buffer.template get_as<DstVectorType>()(i),
+                                b_lds_thread_buffer.template get_as<SrcVectorRawType>()[i],
+                                b_scale_f);
+                        });
+
+                        // Store thread buffer to tile (MMA type)
+                        b_warp_tile_.set_y_sliced_thread_data(
+                            merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, b_warp_y_lengths),
+                            b_warp_thread_buffer);
+                    });
+                });
+            });
         }
 
         // C += A * B
@@ -400,6 +448,7 @@ struct BQuantBlockUniversalGemmAsBsCr
             MakeCBlockTile();
     }
 
+    // Read A and B from LDS
     template <typename ASmemBlockWindow,
               typename BSmemBlockWindow,
               bool ALoadTranspose = false,
@@ -412,7 +461,24 @@ struct BQuantBlockUniversalGemmAsBsCr
         block_gemm_impl_.LocalPrefetch(a_block_window, b_block_window, a_load_tr, b_load_tr);
     }
 
+    // Read A and B from LDS and apply scale to B
+    template <typename ASmemBlockWindow,
+              typename BSmemBlockWindow,
+              typename BQRegBlockTile,
+              bool ALoadTranspose = false,
+              bool BLoadTranspose = false>
+    CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
+                                      const BSmemBlockWindow& b_block_window,
+                                      BQRegBlockTile bq_block_tile,
+                                      bool_constant<ALoadTranspose> a_load_tr = {},
+                                      bool_constant<BLoadTranspose> b_load_tr = {})
+    {
+        block_gemm_impl_.LocalPrefetch(
+            a_block_window, b_block_window, bq_block_tile, a_load_tr, b_load_tr);
+    }
+
     // C += A * B
+    // Apply scale after MMA
     template <typename CBlockTensor,
               typename BQBlockTensor,
               typename ASmemBlockWindow,
@@ -423,6 +489,16 @@ struct BQuantBlockUniversalGemmAsBsCr
                                    const BSmemBlockWindow& b_block_window)
     {
         block_gemm_impl_(c_block_tensor, bq_block_tensor, a_block_window, b_block_window);
+    }
+
+    // C += A * B
+    // Scale has already been applied to B, so this is using the gemm universal block implementation
+    template <typename CBlockTensor, typename ASmemBlockWindow, typename BSmemBlockWindow>
+    CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
+                                   const ASmemBlockWindow& a_block_window,
+                                   const BSmemBlockWindow& b_block_window)
+    {
+        block_gemm_impl_(c_block_tensor, a_block_window, b_block_window);
     }
 
     private:

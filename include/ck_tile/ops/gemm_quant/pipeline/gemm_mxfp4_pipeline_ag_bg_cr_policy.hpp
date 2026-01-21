@@ -70,37 +70,70 @@ struct GemmMxFp4PipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBQDramTileDistribution()
     {
-        // using BLayout = remove_cvref_t<typename Problem::BLayout>;
+        if constexpr(Problem::BCastPolicy == CastPolicy::AfterLDSRead)
+        {
+            using BQLayout       = remove_cvref_t<typename Problem::BQLayout>;
+            using BlockGemmShape = typename Problem::BlockGemmShape;
 
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+            constexpr index_t BlockSize   = Problem::kBlockSize;
+            constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
+            constexpr index_t NPerBlockBQ = NPerBlock / Problem::BQuantGroupSize::kN;
+            constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
+            constexpr index_t KPerBlockBQ = KPerBlock / Problem::BQuantGroupSize::kK;
 
-        constexpr index_t KScale = KPerBlock / Problem::BQuantGroupSize::kK; // k_scale num  //2
-        constexpr index_t VecLoadSize =
-            Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>();
-        constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+            using WarpTile = typename Problem::BlockGemmShape::WarpTile;
+            using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
+                                                typename Problem::ComputeDataType,
+                                                typename Problem::CDataType,
+                                                WarpTile::at(I0),
+                                                WarpTile::at(I1),
+                                                WarpTile::at(I2),
+                                                Problem::TransposeC>;
 
-        constexpr index_t warp_size  = get_warp_size();
-        constexpr index_t num_warps  = BlockSize / get_warp_size();
-        constexpr index_t LargestVec = (KPerBlock * NPerBlock) / (num_warps * warp_size);
-        constexpr index_t b_vec      = VecLoadSize > LargestVec ? LargestVec : VecLoadSize;
-        constexpr index_t K0         = KPerBlock / b_vec;
-        constexpr index_t K1         = K0 / KScale;
-        constexpr index_t K3         = K0 / K1;
-        constexpr index_t K2         = 1;
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_bq<BlockGemmShape,
+                                                      WarpGemm,
+                                                      BlockSize,
+                                                      KPerBlockBQ, // Logical K dimension
+                                                      NPerBlockBQ, // Logical N dimension
+                                                      Problem::BQuantGroupSize::kN,
+                                                      Problem::BQuantGroupSize::kK,
+                                                      BQLayout>;
 
-        constexpr index_t N0 = num_warps / NumWaveGroups;
-        constexpr index_t N1 = warp_size / K0;
-        constexpr index_t N2 = NPerBlock / (N0 * N1);
+            return TileEncodingPattern::make_2d_static_tile_distribution();
+        }
+        else
+        {
+            constexpr index_t BlockSize = Problem::kBlockSize;
+            constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
+            constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<K1>,
-                                       tuple<sequence<N0, N1, N2>, sequence<K3, K2>>,
-                                       tuple<sequence<1>, sequence<1, 2, 0>>,
-                                       tuple<sequence<0>, sequence<1, 0, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<2, 1>>{});
+            constexpr index_t KScale = KPerBlock / Problem::BQuantGroupSize::kK; // k_scale num  //2
+            constexpr index_t VecLoadSize =
+                Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>();
+            constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+
+            constexpr index_t warp_size  = get_warp_size();
+            constexpr index_t num_warps  = BlockSize / get_warp_size();
+            constexpr index_t LargestVec = (KPerBlock * NPerBlock) / (num_warps * warp_size);
+            constexpr index_t b_vec      = VecLoadSize > LargestVec ? LargestVec : VecLoadSize;
+            constexpr index_t K0         = KPerBlock / b_vec;
+            constexpr index_t K1         = K0 / KScale;
+            constexpr index_t K3         = K0 / K1;
+            constexpr index_t K2         = 1;
+
+            constexpr index_t N0 = num_warps / NumWaveGroups;
+            constexpr index_t N1 = warp_size / K0;
+            constexpr index_t N2 = NPerBlock / (N0 * N1);
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<K1>,
+                                           tuple<sequence<N0, N1, N2>, sequence<K3, K2>>,
+                                           tuple<sequence<1>, sequence<1, 2, 0>>,
+                                           tuple<sequence<0>, sequence<1, 0, 0>>,
+                                           sequence<1, 2>,
+                                           sequence<2, 1>>{});
+        }
     }
 
     template <typename Problem>
@@ -133,7 +166,7 @@ struct GemmMxFp4PipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPolicy
             BlockWarps,
             WarpGemm>;
 
-        return BlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
+        return BQuantBlockUniversalGemmAsBsCr<Problem, BlockGemmPolicy>{};
     }
 };
 

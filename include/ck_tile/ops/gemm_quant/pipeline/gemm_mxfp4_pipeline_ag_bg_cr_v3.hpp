@@ -24,8 +24,9 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmMxFp4PipelineAgBgCrImplBase<Problem, Policy>;
 
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
+    using ADataType = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType = remove_cvref_t<typename Problem::BDataType>;
+
     using BDqDataType    = std::conditional_t<std::is_same_v<BDataType, ck_tile::pk_fp4_t>,
                                               remove_cvref_t<typename Problem::ADataType>,
                                               BDataType>;
@@ -88,6 +89,8 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
+
+    static constexpr bool IsCastBeforeLDS = Problem::BCastPolicy == CastPolicy::BeforeLDSWrite;
 
     using Base::PrefetchStages;
 
@@ -354,14 +357,12 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                               : (MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                                  KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                           "A block window has incorrect lengths for defined ALayout!");
-            static_assert(
-                is_b_row_major
-                    ? (KPerBlock / BPackedSize ==
-                           BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                       NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}])
-                    : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                       KPerBlock / BPackedSize == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
-                "B block window has incorrect lengths for defined BLayout!");
+            static_assert(is_b_row_major
+                              ? (KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                              : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                          "B block window has incorrect lengths for defined BLayout!");
 
             // ------------------------------------------------------------------------------------
             // Definitions of all needed tiles
@@ -388,11 +389,6 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                 Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
 
             // B scale DRAM tile window for load
-            // auto b_scale_copy_dram_window =
-            //     make_tile_window(bq_dram_block_window_tmp.get_bottom_tensor_view(),
-            //                      bq_dram_block_window_tmp.get_window_lengths(),
-            //                      bq_dram_block_window_tmp.get_window_origin(),
-            //                      Policy::template GetBQDramLoadWindow<Problem>());
             auto bq_copy_dram_window = Base::GetBQDramLoadWindow(bq_dram_block_window_tmp);
 
             auto bq_block_tile = decltype(load_tile(bq_copy_dram_window)){};
@@ -401,7 +397,6 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
             auto block_gemm       = BlockGemm();
             auto c_block_tile     = block_gemm.MakeCBlockTile();
             using ABlockTileDistr = decltype(a_copy_dram_window.get_tile_distribution());
-            // using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
             using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
 
             using ABlockTile =
@@ -418,8 +413,7 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
             constexpr ADramTileWindowStep a_dram_tile_window_step =
                 is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             constexpr BDramTileWindowStep b_dram_tile_window_step =
-                is_b_row_major ? make_array(KPerBlock / BPackedSize, 0)
-                               : make_array(0, KPerBlock / BPackedSize);
+                is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
 
             constexpr index_t b_scale_dram_tile_window_step = KPerBlock / BQuantGroupSize::kK;
             // -----------------------------------------------------------------------------------------
@@ -457,6 +451,17 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                 }
             };
 
+            auto get_b_block_tile = [](auto& b_block_tile_orig, auto& b_block_tile_cast) {
+                if constexpr(IsCastBeforeLDS)
+                {
+                    return b_block_tile_cast;
+                }
+                else
+                {
+                    return b_block_tile_orig;
+                }
+            };
+
             auto apply_scale_func = [&]() {
                 sweep_tile_span(b_block[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(b_block[number<1>{}], [&](auto idx1) {
@@ -466,17 +471,20 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                         auto b_scale_uint            = uint32_t(scale.data) << 23;
                         if constexpr(std::is_same_v<BDataType, ck_tile::pk_fp4_t>)
                         {
-                            constexpr auto idx1_lo = tile_distributed_index<idx1.impl_.at(0) * 2>{};
-                            constexpr auto idx1_hi =
-                                tile_distributed_index<idx1.impl_.at(0) * 2 + 1>{};
-                            constexpr auto i_j_idx_lo = make_tuple(idx0, idx1_lo);
-                            constexpr auto i_j_idx_hi = make_tuple(idx0, idx1_hi);
-                            auto b_pack               = b_fp4_block_tile(i_j_idx);
+                            if constexpr(idx1.impl_.at(0) % BPackedSize == 0)
+                            {
+                                constexpr auto idx1_lo = tile_distributed_index<idx1.impl_.at(0)>{};
+                                constexpr auto idx1_hi =
+                                    tile_distributed_index<idx1.impl_.at(0) + 1>{};
+                                constexpr auto i_j_idx_lo = make_tuple(idx0, idx1_lo);
+                                constexpr auto i_j_idx_hi = make_tuple(idx0, idx1_hi);
+                                auto b_pack               = b_fp4_block_tile(i_j_idx);
 
-                            auto cvt =
-                                pk_mxfp4_to_compute_v2(b_pack, bit_cast<float>(b_scale_uint));
-                            b_block_tile(i_j_idx_lo) = cvt.x;
-                            b_block_tile(i_j_idx_hi) = cvt.y;
+                                auto cvt =
+                                    pk_mxfp4_to_compute_v2(b_pack, bit_cast<float>(b_scale_uint));
+                                b_block_tile(i_j_idx_lo) = cvt.x;
+                                b_block_tile(i_j_idx_hi) = cvt.y;
+                            }
                         }
                         else
                         {
@@ -488,7 +496,8 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                 });
             };
 
-            apply_scale_func();
+            if constexpr(IsCastBeforeLDS)
+                apply_scale_func();
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -511,26 +520,36 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDqDataType>(
                     Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                transpose_tile2d(b_shuffle_tmp, b_block_tile);
+                auto b_block_tile_ = get_b_block_tile(b_fp4_block_tile, b_block_tile);
+                transpose_tile2d(b_shuffle_tmp, b_block_tile_);
                 Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
             }
             else
             {
-                Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+                auto b_block_tile_ = get_b_block_tile(b_fp4_block_tile, b_block_tile);
+                Base::LocalPrefill(b_copy_lds_window, b_block_tile_, b_element_func);
             }
 
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
             Base::GlobalPrefetch(b_fp4_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
-            bq_block_tile = load_tile(bq_copy_dram_window);
-            move_tile_window(bq_copy_dram_window, {0, b_scale_dram_tile_window_step});
+            if constexpr(IsCastBeforeLDS)
+            {
+                bq_block_tile = load_tile(bq_copy_dram_window);
+                move_tile_window(bq_copy_dram_window, {0, b_scale_dram_tile_window_step});
 
-            apply_scale_func();
+                apply_scale_func();
 
-            block_sync_lds();
+                block_sync_lds();
 
-            block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+            }
+            else
+            {
+                block_sync_lds();
 
+                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window, bq_block_tile);
+            }
             __builtin_amdgcn_sched_barrier(0);
 
             // main body
@@ -556,12 +575,14 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                     {
                         auto b_shuffle_tmp = make_static_distributed_tensor<BDqDataType>(
                             Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                        transpose_tile2d(b_shuffle_tmp, b_block_tile);
+                        auto b_block_tile_ = get_b_block_tile(b_fp4_block_tile, b_block_tile);
+                        transpose_tile2d(b_shuffle_tmp, b_block_tile_);
                         Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
                     }
                     else
                     {
-                        Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+                        auto b_block_tile_ = get_b_block_tile(b_fp4_block_tile, b_block_tile);
+                        Base::LocalPrefill(b_copy_lds_window, b_block_tile_, b_element_func);
                     }
 
                     Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
@@ -571,12 +592,18 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                     bq_block_tile = load_tile(bq_copy_dram_window);
                     move_tile_window(bq_copy_dram_window, {0, b_scale_dram_tile_window_step});
 
-                    apply_scale_func();
+                    if constexpr(IsCastBeforeLDS)
+                        apply_scale_func();
 
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
                     block_sync_lds();
 
-                    block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                    if constexpr(IsCastBeforeLDS)
+                        block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                    else
+                        block_gemm.LocalPrefetch(
+                            a_lds_gemm_window, b_lds_gemm_window, bq_block_tile);
+
                     HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
 
@@ -594,6 +621,12 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
             }
             else
             {
+                if constexpr(!IsCastBeforeLDS)
+                {
+                    bq_block_tile = load_tile(bq_copy_dram_window);
+                    move_tile_window(bq_copy_dram_window, {0, b_scale_dram_tile_window_step});
+                }
+
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
                 block_sync_lds();
 
@@ -612,16 +645,25 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                 {
                     auto b_shuffle_tmp = make_static_distributed_tensor<BDqDataType>(
                         Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                    transpose_tile2d(b_shuffle_tmp, b_block_tile);
+                    auto b_block_tile_ = get_b_block_tile(b_fp4_block_tile, b_block_tile);
+                    transpose_tile2d(b_shuffle_tmp, b_block_tile_);
                     Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
                 }
                 else
                 {
-                    Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
+                    auto b_block_tile_ = get_b_block_tile(b_fp4_block_tile, b_block_tile);
+                    Base::LocalPrefill(b_copy_lds_window, b_block_tile_, b_element_func);
                 }
 
                 block_sync_lds();
-                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                if constexpr(IsCastBeforeLDS)
+                {
+                    block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                }
+                else
+                {
+                    block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window, bq_block_tile);
+                }
 
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
                 block_sync_lds();
@@ -648,12 +690,13 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                                    void* p_smem,
                                    index_t n = 0) const
     {
-        ck_tile::ignore = n;
+        using BElementwise = std::conditional_t<IsCastBeforeLDS, BDqDataType, BDataType>;
+        ck_tile::ignore    = n;
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
             [](const ADataType& a) { return a; },
             b_dram_block_window_tmp,
-            [](const BDqDataType& b) { return b; },
+            [](const BElementwise& b) { return b; },
             bq_dram_block_window_tmp,
             num_loop,
             p_smem);

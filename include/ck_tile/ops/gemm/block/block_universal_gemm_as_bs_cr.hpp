@@ -203,14 +203,9 @@ struct BlockUniversalGemmAsBsCr
         static constexpr auto BLdsTileDistr =
             decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
 
-        using ALdsTile  = decltype(make_static_distributed_tensor<ATypeToUse>(ALdsTileDistr));
-        using BLdsTile  = decltype(make_static_distributed_tensor<BTypeToUse>(BLdsTileDistr));
-        using BTypeTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
+        using ALdsTile = decltype(make_static_distributed_tensor<ATypeToUse>(ALdsTileDistr));
+        using BLdsTile = decltype(make_static_distributed_tensor<BTypeToUse>(BLdsTileDistr));
 
-        // static distributed tensor with LDS type
-        BTypeTile b_warp_tile_lds_;
-
-        // static distributed tensors with MMA type
         ALdsTile a_warp_tile_;
         BLdsTile b_warp_tile_;
 
@@ -225,19 +220,8 @@ struct BlockUniversalGemmAsBsCr
         {
             load_int4_tile<ADataType, ATypeToUse, UnaryOpSize_, ALoadTranspose>(a_warp_tile_,
                                                                                 a_block_window);
-            if constexpr(!std::is_same_v<BDataType, BTypeToUse> &&
-                         !std::is_same_v<BDataType, pk_int4_t> &&
-                         !std::is_same_v<BDataType, pk_fp4_t>)
-            {
-                load_int4_tile<BDataType, BTypeToUse, UnaryOpSize_, BLoadTranspose>(
-                    b_warp_tile_lds_, b_block_window);
-                b_warp_tile_ = cast_tile<BTypeToUse>(b_warp_tile_lds_);
-            }
-            else
-            {
-                load_int4_tile<BDataType, BTypeToUse, UnaryOpSize_, BLoadTranspose>(b_warp_tile_,
-                                                                                    b_block_window);
-            }
+            load_int4_tile<BDataType, BTypeToUse, UnaryOpSize_, BLoadTranspose>(b_warp_tile_,
+                                                                                b_block_window);
         }
 
         // C += A * B

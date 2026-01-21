@@ -24,7 +24,8 @@ template <typename ADataType_,
           typename ComputeDataType_        = void,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
-          TailNumber TailNum_              = TailNumber::Full>
+          TailNumber TailNum_              = TailNumber::Full,
+          CastPolicy BCastPolicy_          = CastPolicy::AfterLDSRead>
 struct GemmQuantPipelineProblemBase
     : public GemmPipelineProblemBase<
           ADataType_,
@@ -78,9 +79,10 @@ struct GemmQuantPipelineProblemBase
     using AQLayout = remove_cvref_t<typename Traits::AQLayout>;
     using BQLayout = remove_cvref_t<typename Traits::BQLayout>;
 
-    static constexpr auto Scheduler  = Scheduler_;
-    static constexpr auto HasHotLoop = HasHotLoop_;
-    static constexpr auto TailNum    = TailNum_;
+    static constexpr auto Scheduler   = Scheduler_;
+    static constexpr auto HasHotLoop  = HasHotLoop_;
+    static constexpr auto TailNum     = TailNum_;
+    static constexpr auto BCastPolicy = BCastPolicy_;
 
     static_assert(BlockGemmShape::kM % AQuantGroupSize::kM == 0);
     static_assert(BlockGemmShape::kK % AQuantGroupSize::kK == 0);
@@ -155,7 +157,8 @@ template <typename ADataType_,
           typename ComputeDataType_        = ADataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
-          TailNumber TailNum_              = TailNumber::Full>
+          TailNumber TailNum_              = TailNumber::Full,
+          CastPolicy BCastPolicy_          = CastPolicy::AfterLDSRead>
 using GemmBQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                void, // no AQDataType for BQuant
                                                                BDataType_,
@@ -169,7 +172,8 @@ using GemmBQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                ComputeDataType_,
                                                                Scheduler_,
                                                                HasHotLoop_,
-                                                               TailNum_>;
+                                                               TailNum_,
+                                                               BCastPolicy_>;
 
 template <typename ADataType_,
           typename AQDataType_,

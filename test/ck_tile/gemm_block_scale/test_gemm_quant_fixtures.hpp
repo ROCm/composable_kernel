@@ -661,8 +661,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                   ck_tile::index_t k_batch = 1)
     {
         const ck_tile::index_t stride_A = K;
-        const ck_tile::index_t stride_B =
-            std::is_same_v<BDataType, ck_tile::pk_fp4_t> ? (K / 2) : K;
+        const ck_tile::index_t stride_B = K;
         const ck_tile::index_t stride_C = N;
 
         // BQuant uses block/grouped quantization for B matrix
@@ -673,11 +672,8 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         // Generate test data
         ck_tile::HostTensor<ADataType> a_m_k(
             ck_tile::host_tensor_descriptor(M, K, stride_A, this->is_row_major(ALayout{})));
-        ck_tile::HostTensor<BDataType> b_k_n(ck_tile::host_tensor_descriptor(
-            std::is_same_v<BDataType, ck_tile::pk_fp4_t> ? K / 2 : K,
-            N,
-            stride_B,
-            this->is_row_major(BLayout{})));
+        ck_tile::HostTensor<BDataType> b_k_n(
+            ck_tile::host_tensor_descriptor(K, N, stride_B, this->is_row_major(BLayout{})));
         ck_tile::HostTensor<QDataType> bq_bqk_bqn(
             ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, this->is_row_major(BQLayout{})));
 
