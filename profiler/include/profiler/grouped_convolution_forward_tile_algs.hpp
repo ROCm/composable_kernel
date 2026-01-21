@@ -9,6 +9,7 @@
 #include "grouped_convolution_signatures.hpp"
 
 #include "ck_tile/builder/testing/filter_extent.hpp"
+#include "ck_tile/builder/testing/conv/fwd.hpp"
 #include "ck_tile/builder/testing/conv/ck_tile.hpp"
 #include "ck_tile/builder/testing/conv/reference.hpp"
 #include "ck_tile/builder/conv_builder.hpp"

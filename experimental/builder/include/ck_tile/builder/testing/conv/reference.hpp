@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/builder/testing/testing.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 #include <stdexcept>
 #include <vector>
 
