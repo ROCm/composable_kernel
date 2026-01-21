@@ -75,7 +75,7 @@ struct SinkhornKnoppKernelDummyNonStochastic
         return tensor;
     }
 
-    CK_TILE_DEVICE void operator()([[maybe_unused]]const SinkhornKnoppArgs& args) const
+    CK_TILE_DEVICE void operator()([[maybe_unused]] const SinkhornKnoppArgs& args) const
     {
         // using S = Problem::BlockShape;
 
@@ -83,7 +83,8 @@ struct SinkhornKnoppKernelDummyNonStochastic
 
         // const auto x_desc = make_naive_tensor_descriptor(make_tuple(args.input_m, args.input_m),
         //                                                  make_tuple(args.input_m, 1),
-        //                                                  number<4>{}, // TODO: Hardcoded vectorization, we should calculate it!
+        //                                                  number<4>{}, // TODO: Hardcoded
+        //                                                  vectorization, we should calculate it!
         //                                                  number<1>{});
 
         // auto buffer_view = make_buffer_view<address_space_enum::global>(

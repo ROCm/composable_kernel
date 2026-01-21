@@ -24,7 +24,6 @@ namespace ck_tile {
 //     static constexpr index_t Repeat_N        = Repeat_N;
 // };
 
-
 template <typename BlockWarps, // num warps along seq<M, N>
           typename BlockTile,  // block size, seq<M, N>
           typename WarpTile,   // warp size, seq<M, N>
@@ -56,8 +55,7 @@ struct SinkhornKnoppShape
     static constexpr index_t Repeat_M = Block_M * RepeatInWarp_M / (WarpPerBlock_M * Warp_M);
     static constexpr index_t Repeat_N = Block_N * RepeatInWarp_N / (WarpPerBlock_N * Warp_N);
 
-    // static constexpr index_t BlockSize = ck_tile::get_warp_size();
-    static constexpr index_t BlockSize = 1; // TODO
+    static constexpr index_t BlockSize = ck_tile::get_warp_size();
 };
 
 template <typename _XDataType,
