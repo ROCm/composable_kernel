@@ -296,6 +296,7 @@ class TestGroupedConvndBwdWeight3d : public TestGroupedConvndBwdWeight<Tuple>
 using KernelTypes3d =
     ::testing::Types<std::tuple<float, float, float, ck::Number<3>>,
                      std::tuple<ck::half_t, ck::half_t, ck::half_t, ck::Number<3>>,
+                     std::tuple<ck::bhalf_t, ck::bhalf_t, ck::bhalf_t, ck::Number<3>>,
                      std::tuple<ck::bhalf_t, float, ck::bhalf_t, ck::Number<3>>>;
 
 TYPED_TEST_SUITE(TestGroupedConvndBwdWeight3d, KernelTypes3d);
@@ -310,13 +311,13 @@ TYPED_TEST(TestGroupedConvndBwdWeight3d, Test3D)
     this->conv_params.push_back(
         {3, 2, 32, 128, 128, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
-        {3, 1, 1, 1, 32, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 1, 32, {3, 3, 3}, {12, 12, 12}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 64, 3, {3, 3, 3}, {10, 10, 10}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 1, 1, {3, 3, 3}, {14, 14, 14}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 1, 1, 4, 4, {3, 3, 3}, {14, 28, 28}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 4, 4, {3, 3, 3}, {12, 14, 14}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->Run();
 }
 

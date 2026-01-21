@@ -382,7 +382,7 @@ make_naive_tensor_descriptor_packed(const tuple<Lengths...>& lengths,
 
     constexpr auto visible_dim_hidden_ids = typename arithmetic_sequence_gen<1, N + 1, 1>::type{};
 
-    const auto element_space_size = container_reduce(lengths, multiplies{}, long_number<1>{});
+    const auto element_space_size = container_reduce(lengths, multiplies<>{}, long_number<1>{});
 
     constexpr index_t first_dim_length = []() {
         if constexpr(is_constant_v<remove_cvref_t<decltype(element_space_size)>>)
@@ -428,7 +428,7 @@ CK_TILE_HOST_DEVICE constexpr auto make_naive_tensor_descriptor_packed_with_offs
     number<GuaranteedLastDimensionVectorLength> = number<-1>{})
 {
     const auto desc_0 = [&]() {
-        const auto element_space_size = container_reduce(lengths, multiplies{}, long_number<1>{});
+        const auto element_space_size = container_reduce(lengths, multiplies<>{}, long_number<1>{});
 
         const auto transforms = make_tuple(make_offset_transform(element_space_size, offset));
 
@@ -491,8 +491,12 @@ make_naive_tensor_descriptor_aligned(const tuple<Lengths...>& lengths, Align ali
             }
             else
             {
-                return container_reduce(
-                    lengths, multiplies{}, number<stride_n_minus_2>{}, i + I1, number<N - 1>{}, I1);
+                return container_reduce(lengths,
+                                        multiplies<>{},
+                                        number<stride_n_minus_2>{},
+                                        i + I1,
+                                        number<N - 1>{},
+                                        I1);
             }
         },
         number<N>{});

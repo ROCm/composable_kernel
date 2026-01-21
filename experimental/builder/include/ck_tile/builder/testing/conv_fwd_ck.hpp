@@ -3,10 +3,11 @@
 
 #pragma once
 
-#include <span>
-#include <cstddef>
-
 #include "ck_tile/builder/testing/conv_fwd.hpp"
+#include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_elementwise_op.hpp"
+#include <type_traits>
+#include <array>
 
 /// This file contains the implementation details for invoking/testing
 /// grouped convolution operations in old CK. The main item is the
@@ -14,6 +15,63 @@
 /// CK grouped forward convolution kernels.
 
 namespace ck_tile::builder::test {
+
+namespace detail {
+
+/// @brief Concept for checking whether this is the reference convolution
+/// implementation.
+///
+/// This is the same as `::ck_tile::builder::test::CkConvInstance`, except
+/// with some utility aliases. For that reason, its moved to this detail
+/// namespace.
+template <typename Conv,
+          auto SIGNATURE,
+          size_t SPATIAL_DIM = SIGNATURE.spatial_dim,
+          // TODO: We shouldn't need to call into an internal namespace here.
+          typename Ops = factory::internal::ConvElementwiseOps<SIGNATURE>>
+concept CkConvInstance = requires(Conv& conv,
+                                  // TODO: This should be changed depending on IsMultiA etc.
+                                  // Currently that is not yet supported elsewhere anyway.
+                                  const void* p_a,
+                                  const void* p_b,
+                                  void* p_e,
+                                  std::array<index_t, SPATIAL_DIM + 3> lengths,
+                                  std::array<index_t, SPATIAL_DIM + 3> strides,
+                                  std::array<index_t, SPATIAL_DIM> filter,
+                                  Ops::InElementwiseOp elementwise_a,
+                                  Ops::WeiElementwiseOp elementwise_b,
+                                  Ops::OutElementwiseOp elementwise_cde) {
+    {
+        conv.MakeArgument(p_a,
+                          p_b,
+                          // TODO: Support multiple D outputs.
+                          {},
+                          p_e,
+                          // A lengths/strides
+                          lengths,
+                          strides,
+                          // B lengths/strides
+                          lengths,
+                          strides,
+                          // TODO: Ds lengths/strides
+                          {},
+                          {},
+                          // E lengths/strides
+                          lengths,
+                          strides,
+                          // strides/dilations/pads
+                          filter,
+                          filter,
+                          filter,
+                          filter,
+                          // element-wise operations.
+                          elementwise_a,
+                          elementwise_b,
+                          elementwise_cde)
+    };
+};
+
+} // namespace detail
 
 /// @brief Concept for checking whether a convolution is invoked like old CK.
 ///
@@ -24,28 +82,25 @@ namespace ck_tile::builder::test {
 ///
 /// - SIGNATURE is the operation signature.
 /// - Conv is a convolution instance created by the CK Builder API.
-template <auto SIGNATURE, typename Conv>
-concept IsCkConvInstance =
-    // TODO: This should be implemented by converting the signature into the
-    // type parameters for DeviceGroupedConvFwdMultipleABD. For now, just leave
-    // it empty. Improve when needed, you get the point. Also we should probably
-    // move this to the ck conv factory helper.
-    true;
+template <typename Conv, auto SIGNATURE>
+concept CkConvInstance = detail::CkConvInstance<Conv, SIGNATURE>;
 
 /// @brief `run()` specialization for forward convolution and old CK.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
-/// @throws std::runtime_error if the arguments werent actually valid for the
+/// @throws std::runtime_error if the arguments weren't actually valid for the
 /// operation. This should be caught and reported by the testing framework.
+/// @return std::tuple<bool, float> - whether the problem is supported and
+///         kernel execution time (0.0f if s_conf time_kernel is false).
 ///
 /// @see run()
-template <auto SIGNATURE, typename Conv>
-    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE> &&
-             IsCkConvInstance<SIGNATURE, Conv>
-void run(Conv& conv,
-         const Args<SIGNATURE>& args,
-         const Inputs<SIGNATURE>& inputs,
-         const Outputs<SIGNATURE>& outputs)
+template <auto SIGNATURE>
+    requires ValidConvSignature<SIGNATURE> && ConvDirectionIsForward<SIGNATURE>
+std::tuple<bool, float> run(CkConvInstance<SIGNATURE> auto& conv,
+                            const Args<SIGNATURE>& args,
+                            const Inputs<SIGNATURE>& inputs,
+                            const Outputs<SIGNATURE>& outputs,
+                            const StreamConfig s_conf = {})
 {
     constexpr auto spatial_dim = SIGNATURE.spatial_dim;
 
@@ -93,10 +148,10 @@ void run(Conv& conv,
 
     if(!conv.IsSupportedArgument(ck_args))
     {
-        throw std::runtime_error("invalid argument");
+        std::cout << "invalid argument" << std::endl;
     }
 
-    conv.MakeInvoker().Run(ck_args, {});
+    return std::make_tuple(true, conv.MakeInvoker().Run(ck_args, s_conf));
 }
 
 } // namespace ck_tile::builder::test

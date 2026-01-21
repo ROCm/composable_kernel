@@ -13,11 +13,6 @@
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "conv_configs.hpp"
 
-using MemoryOpSet =
-    std::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::set>;
-using MemoryOpAtomicAdd = std::integral_constant<ck_tile::memory_operation_enum,
-                                                 ck_tile::memory_operation_enum::atomic_add>;
-
 template <typename InDataType, typename WeiDataType, typename AccDataType, typename OutDataType>
 auto calculate_rtol_atol(const ck_tile::index_t GemmK,
                          const ck_tile::index_t kbatch,
