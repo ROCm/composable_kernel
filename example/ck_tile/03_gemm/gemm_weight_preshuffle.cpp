@@ -94,7 +94,10 @@ int main(int argc, char* argv[])
     auto result     = arg_parser.parse(argc, argv);
 
     if(!result)
+    {
+        arg_parser.print();
         return -1;
+    }
 
     try
     {
