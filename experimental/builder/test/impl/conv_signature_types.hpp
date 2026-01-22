@@ -16,6 +16,8 @@ struct TensorConfig
     // Optional data types, override the type defined in the signature if provided.
     DataType data_type{DataType::UNDEFINED_DATA_TYPE};
     DataType compute_type{DataType::UNDEFINED_DATA_TYPE};
+
+    constexpr bool operator==(const TensorConfig& other) const = default;
 };
 
 template <TensorConfig... Configs>
@@ -31,6 +33,8 @@ struct TensorOperation
         return TensorOperation<Configs..., TensorConfig{AuxiliaryConfigs}...>{
             .elementwise_operation = this->elementwise_operation};
     }
+
+    constexpr bool operator==(const TensorOperation& other) const = default;
 };
 
 template <typename Op = TensorOperation<>>
@@ -38,6 +42,8 @@ struct ConvolutionTensor
 {
     TensorConfig config;
     Op operation{};
+
+    constexpr bool operator==(const ConvolutionTensor& other) const = default;
 };
 
 template <typename InputTensor  = ConvolutionTensor<>,
@@ -52,6 +58,8 @@ struct ConvSignature
     InputTensor input;
     WeightTensor weight;
     OutputTensor output;
+
+    constexpr bool operator==(const ConvSignature& other) const = default;
 };
 
 } // namespace ck_tile::builder::test

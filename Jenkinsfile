@@ -115,7 +115,7 @@ def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
         // Run container to get snapshot
         def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules -e BUILD_TRACE_FILE=${buildTraceFileName}"
         // Create unique image name by sanitizing job name
-        def sanitizedJobName = env.JOB_NAME.replaceAll(/[\/\\:*?"<>| ]/, '_')
+        def sanitizedJobName = env.JOB_NAME.replaceAll(/[\/\\:*?"<>| ]/, '_').replaceAll('%2F', '_')
         def architectureName = (buildTraceFileName =~ /(gfx[0-9a-zA-Z]+)/)[0][1]
         def imageName = "perfetto_snapshot_${sanitizedJobName}_build_${env.BUILD_NUMBER}_${architectureName}.png"
         sh """
@@ -580,7 +580,7 @@ def cmake_build(Map conf=[:]){
         if (params.NINJA_BUILD_TRACE) {
             echo "running ninja build trace"
         }
-        if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
+        if ((params.RUN_BUILDER_TESTS || params.RUN_FULL_CONV_TILE_TESTS) && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
             setup_args = " -D CK_EXPERIMENTAL_BUILDER=ON "  + setup_args
         }
         setup_cmd = conf.get(
@@ -1091,7 +1091,7 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
-                                              0 13 * * * % RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
+                                              0 13 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
                                               0 11 * * * % RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
 
 pipeline {
@@ -1255,6 +1255,10 @@ pipeline {
             name: "RUN_AITER_TESTS",
             defaultValue: false,
             description: "Run AITER tests with latest CK develop branch (default: OFF)")
+        booleanParam(
+            name: "RUN_FULL_CONV_TILE_TESTS",
+            defaultValue: false,
+            description: "Run CK Tile grouped convolution tests with latest CK develop branch (default: OFF)")
         string(
             name: 'aiter_branch',
             defaultValue: 'main',
@@ -1318,21 +1322,15 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_cmd = "(cd .. && git ls-files \'*.h\' \
-                                \'*.hpp\' \
-                                \'*.cpp\' \
-                                \'*.h.in\' \
-                                \'*.hpp.in\' \
-                                \'*.cpp.in\' \
-                                \'*.cl\' \
-                                | grep -v 'build/' \
-                                | grep -v 'include/rapidjson' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\') && \
+                        execute_cmd = """cd .. && \
+                                find . -type f \\( -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.h.in' -o -name '*.hpp.in' -o -name '*.cpp.in' -o -name '*.cl' \\) \
+                                -not -path '*/build/*' -not -path '*/include/rapidjson/*' | \
+                                xargs -P 8 -I{} sh -c 'clang-format-18 -style=file {} | diff -u - {} || (echo "ERROR: {} needs formatting" && exit 1)' && \
                                 /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
                                 -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 \
                                 -D __gfx908__ -D __gfx90a__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
                                 -U __gfx803__ -U __gfx900__ -U __gfx906__ -U CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4 \
-                                --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"
+                                --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd)
@@ -1348,17 +1346,10 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_cmd = "(cd .. && git ls-files \
-                                \'*.h\' \
-                                \'*.hpp\' \
-                                \'*.cpp\' \
-                                \'*.h.in\' \
-                                \'*.hpp.in\' \
-                                \'*.cpp.in\' \
-                                \'*.cl\' \
-                                | grep -v 'build/' \
-                                | grep -v 'include/rapidjson' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\')"
+                        execute_cmd = """cd .. && \
+                                find . -type f \\( -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.h.in' -o -name '*.hpp.in' -o -name '*.cpp.in' -o -name '*.cl' \\) \
+                                -not -path '*/build/*' -not -path '*/include/rapidjson/*' | \
+                                xargs -P 8 -I{} sh -c 'clang-format-18 -style=file {} | diff -u - {} || (echo "ERROR: {} needs formatting" && exit 1)'"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd)
@@ -1423,6 +1414,36 @@ pipeline {
                 }
             }
         }
+        stage("Run Full Grouped Conv Tile Tests")
+        {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
+            parallel
+            {
+                stage("Run Full Grouped Conv Tile Tests on gfx90a")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_FULL_CONV_TILE_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a")}
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ python3 ../experimental/builder/src/generate_instances.py --mode=profiler && \
+                                           ../script/cmake-ck-dev.sh  ../ gfx90a && \
+                                           make -j64 test_grouped_convnd_fwd_tile && \
+                                           ./bin/test_grouped_convnd_fwd_tile"""
+                    }
+                    steps{
+                        // TODO: Reenable after the instance fixes
+                        // buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+            }
+        }
         stage("Run Grouped Conv Large Case Tests")
         {
             when {
@@ -1440,7 +1461,7 @@ pipeline {
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
+                        execute_args = """ cmake .. --preset dev-gfx90a && \
                                            make -j64 test_grouped_convnd_fwd_large_cases test_grouped_convnd_bwd_data_large_cases test_grouped_convnd_fwd_bias_clamp_large_cases && \
                                            ./bin/test_grouped_convnd_fwd_large_cases && ./bin/test_grouped_convnd_bwd_data_large_cases && ./bin/test_grouped_convnd_fwd_bias_clamp_large_cases"""
                     }
@@ -1469,8 +1490,8 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cd ../build && \
-                                           ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 test_grouped_convnd_fwd_dataset_xdl \
+                                           cmake .. --preset dev-gfx90a && \
+                                           make -j64 test_grouped_convnd_fwd_dataset_xdl && \
                                            test_grouped_convnd_bwd_data_dataset_xdl \
                                            test_grouped_convnd_bwd_weight_dataset_xdl && \
                                            cd ../test_data && \
@@ -1731,7 +1752,10 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        setup_args = """ -DGPU_TARGETS="gfx942" -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
+                        // SLES15 is a legacy platform with limited C++20 ecosystem support (older system libraries,
+                        // standard library implementation). While the ROCm compiler supports C++20, the experimental
+                        // CK Builder requires full C++20 feature support that does not be reliably available on SLES15.
+                        setup_args = """ -DGPU_TARGETS="gfx942" -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 -DCK_EXPERIMENTAL_BUILDER=OFF """
                         execute_args = " "
                     }
                     steps{

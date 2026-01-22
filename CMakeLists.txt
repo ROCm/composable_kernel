@@ -1,7 +1,7 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.21)
 if(POLICY CMP0140)
   # policies CMP0140 not known to CMake until 3.25
   cmake_policy(SET CMP0140 NEW)
@@ -704,6 +704,11 @@ option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 
 add_subdirectory(library)
 
+if (CK_EXPERIMENTAL_BUILDER)
+  add_subdirectory(experimental/builder)
+  add_subdirectory(experimental/grouped_convolution_tile_instances)
+endif()
+
 if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY)
    rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
@@ -733,10 +738,6 @@ if (NOT MIOPEN_REQ_LIBS_ONLY)
         PACKAGE_NAME ckprofiler
     )
     add_subdirectory(profiler)
-endif()
-
-if (CK_EXPERIMENTAL_BUILDER)
-  add_subdirectory(experimental/builder)
 endif()
 
 if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
