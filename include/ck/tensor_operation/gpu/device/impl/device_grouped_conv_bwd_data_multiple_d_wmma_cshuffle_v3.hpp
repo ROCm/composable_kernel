@@ -450,10 +450,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         BlkGemmPipelineVer,
         AComputeType,
         BComputeType,
-        false,
-        false,
-        false,
-        true>;
+        false, // PermuteA
+        false, // PermuteB
+        false, // IsBPreShuffled
+        true>; // ForceThreadTileTransfer
 
 #define GridwiseGemmCTransposeTemplateParameters                                                   \
     ALayout, BLayout, DsLayout, ELayout, Tuple<ADataType>, Tuple<BDataType>, AccDataType,          \

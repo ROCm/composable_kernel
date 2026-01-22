@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #include <iostream>
 #include <ostream>
