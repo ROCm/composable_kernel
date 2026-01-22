@@ -6,6 +6,7 @@
 #include "ck_tile/builder/testing/tensor_descriptor.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
 #include <cstdint>
+#include <cassert>
 #include <concepts>
 #include <array>
 
@@ -346,6 +347,40 @@ void clear_tensor_buffer(const TensorDescriptor<DT, RANK>& desc,
                          detail::cpp_type_t<DT> value = detail::cpp_type_t<DT>{0})
 {
     fill_tensor_buffer(desc, buffer, [value]([[maybe_unused]] size_t i) { return value; });
+}
+
+/// @brief Utility for copying a tensor from one layout to another
+///
+/// This function copies tensor data from `src_buffer` to `dst_buffer`,
+/// changing the layout from `src_desc` to `dst_desc`. Note that the src and
+/// dst tensor lengths must be compatible, otherwise this function may write
+/// out of bounds.
+///
+/// @tparam DT The element datatype of both tensors.
+/// @tparam RANK The rank (number of spatial dimensions) of the tensors.
+///
+/// @param src_desc The descriptor of the source tensor to copy from.
+/// @param src_buffer The memory of the source tensor.
+/// @param dst_desc The descriptor of the destination tensor to copy to.
+/// @param dst_buffer The memory of the destination tensor.
+template <DataType DT, size_t RANK>
+void copy_tensor(const TensorDescriptor<DT, RANK>& src_desc,
+                 const void* src_buffer,
+                 const TensorDescriptor<DT, RANK>& dst_desc,
+                 void* dst_buffer)
+{
+    assert(src_desc.get_lengths() == dst_desc.get_lengths());
+    const auto src_strides = src_desc.get_strides();
+    const auto dst_strides = dst_desc.get_strides();
+    tensor_foreach(dst_desc.get_lengths(),
+                   [src_buffer, dst_buffer, src_strides, dst_strides](const auto& index) {
+                       using T            = detail::cpp_type_t<DT>;
+                       const auto* src    = static_cast<const T*>(src_buffer);
+                       auto* dst          = static_cast<T*>(dst_buffer);
+                       const auto src_off = calculate_offset(index, src_strides);
+                       const auto dst_off = calculate_offset(index, dst_strides);
+                       dst[dst_off]       = src[src_off];
+                   });
 }
 
 } // namespace ck_tile::builder::test
