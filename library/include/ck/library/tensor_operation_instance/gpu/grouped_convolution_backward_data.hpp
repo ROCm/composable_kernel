@@ -108,6 +108,7 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
                              is_same_v<ComputeTypeB, F16>)
                 {
+                    add_device_grouped_conv2d_bwd_data_xdl_v3_nhwgk_gkyxc_nhwgc_f16_instances(op_ptrs);
                     add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_instances(op_ptrs);
                     add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_16_16_instances(
                         op_ptrs);
