@@ -79,6 +79,7 @@ using DeviceGroupedConvNDFwdInstance =
         1,                // CDEBlockTransferScalarPerVector_NPerBlock
         ck::BlockGemmPipelineScheduler::Intrawave, // BlkGemmPipeSched
         ck::BlockGemmPipelineVersion::v1,          // BlkGemmPipelineVer
+        true,                                      // UseThreadTileTransfer
         AComputeDataType,                          // AComputeDataType
         BComputeDataType,                          // BComputeDataType
         1>;                                        // NumGroupsToMerge
