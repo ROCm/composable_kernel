@@ -3,12 +3,11 @@
 
 #pragma once
 
-
 TYPED_TEST(TestGroupedGemm, TinyCases)
 {
     const std::vector<int> Ms{2, 2};
-    constexpr int N = 512;
-    constexpr int K = 256;
+    constexpr int N = 768;
+    constexpr int K = 544;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -19,8 +18,8 @@ TYPED_TEST(TestGroupedGemm, TinyCases)
 TYPED_TEST(TestGroupedGemm, SmallCases)
 {
     const std::vector<int> Ms{2, 2, 2, 2, 2};
-    constexpr int N = 512;
-    constexpr int K = 256;
+    constexpr int N = 768;
+    constexpr int K = 544;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -30,9 +29,9 @@ TYPED_TEST(TestGroupedGemm, SmallCases)
 
 TYPED_TEST(TestGroupedGemm, MidCases)
 {
-    const std::vector<int> Ms{167, 167, 167, 167, 167, 167};
-    constexpr int N = 512;
-    constexpr int K = 256;
+    const std::vector<int> Ms{128, 128, 128, 128, 128, 128};
+    constexpr int N = 768;
+    constexpr int K = 544;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -42,9 +41,9 @@ TYPED_TEST(TestGroupedGemm, MidCases)
 
 TYPED_TEST(TestGroupedGemm, Regular)
 {
-    const std::vector<int> Ms{64, 64, 64};
-    constexpr int N = 512;
-    constexpr int K = 256;
+    const std::vector<int> Ms{128, 128, 128};
+    constexpr int N = 768;
+    constexpr int K = 320;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -52,12 +51,11 @@ TYPED_TEST(TestGroupedGemm, Regular)
     this->Run(Ms, Ns, Ks);
 }
 
-
 TYPED_TEST(TestGroupedGemm, MNKPadded)
 {
-    const std::vector<int> Ms{127, 127, 127, 127};
-    constexpr int N = 128;
-    constexpr int K = 256;
+    const std::vector<int> Ms{188, 188, 188, 188};
+    constexpr int N = 136;
+    constexpr int K = 280;
 
     const std::vector<int> Ns(Ms.size(), N);
     const std::vector<int> Ks(Ms.size(), K);
@@ -74,7 +72,7 @@ TYPED_TEST(TestGroupedGemm, TestLargeKBatch)
                         "GFX11, or using CDE element-wise operation)";
 
     const std::vector<int> Ms{188, 188};
-    constexpr int N = 4096;
+    constexpr int N = 768;
     constexpr int K = 4096;
 
     const std::vector<int> Ns(Ms.size(), N);

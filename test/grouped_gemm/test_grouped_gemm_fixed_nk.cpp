@@ -63,8 +63,8 @@ using KernelTypes = ::testing::Types<
     std::tuple<     Row, Row, Row, BF16, I8, BF16>,
     std::tuple<     Row, Col, Row, BF16, I8, BF16>,
 
-    std::tuple<Row, Row, Row, F16, I8, F16>,
-    std::tuple<Row, Col, Row, F16, I8, F16>
+    std::tuple<     Row, Row, Row, F16, I8, F16>,
+    std::tuple<     Row, Col, Row, F16, I8, F16>
     >;
 // clang-format on
 

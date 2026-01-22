@@ -344,6 +344,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
+    using GemmSpecialization = ck::tensor_operation::device::GemmSpecialization;
+
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<LDSTypeA>, pk_i4_t>)
             return 2;
@@ -629,7 +631,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                    const std::array<index_t, NumATensor>& StrideAs,
                                    const index_t AK0)
     {
-        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
+        // using GemmSpecialization = tensor_operation::device::GemmSpecialization;
         constexpr bool padM      = GemmSpec == GemmSpecialization::MKPadding ||
                               GemmSpec == GemmSpecialization::MNKPadding ||
                               GemmSpec == GemmSpecialization::MPadding ||
@@ -698,7 +700,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                    const std::array<index_t, NumBTensor>& StrideBs,
                                    const index_t BK0)
     {
-        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
+        // using GemmSpecialization = tensor_operation::device::GemmSpecialization;
         constexpr bool padN      = GemmSpec == GemmSpecialization::NKPadding ||
                               GemmSpec == GemmSpecialization::MNKPadding ||
                               GemmSpec == GemmSpecialization::NPadding ||
@@ -772,6 +774,30 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         return BTransfer::template MakeWmmaTileDescriptor<NRepeat, NWaves>();
     }
 
+
+    template <typename DELayout, GemmSpecialization GemmSpec_>
+    __host__ __device__ static auto
+    MakeEGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideE)
+    {
+        constexpr auto matrix_padder =
+            ck::tensor_operation::device::MatrixPadder<GemmSpec_, index_t, index_t, index_t>{
+                MPerBlock, NPerBlock, KPerBlock};
+        const auto e_grid_desc_mraw_nraw = [&]() {
+            if constexpr(is_same<tensor_layout::gemm::RowMajor, DELayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
+                                                    make_tuple(StrideE, I1));
+            }
+            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DELayout>::value)
+            {
+                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
+                                                    make_tuple(I1, StrideE));
+            }
+        }();
+
+        return matrix_padder.PadCDescriptor_M_N(e_grid_desc_mraw_nraw);
+    }
+
     template <typename DELayout>
     __host__ __device__ static auto
     MakeDEGridDescriptor_M_N(index_t M, index_t MPad, index_t N, index_t NPad, index_t StrideDE)
@@ -795,8 +821,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
         // TODO: Investigate why this path is not used in the original
         // gridwise_gemm_xdl_cshuffle_v3.hpp
-#if 0
-        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
+ #if 0
+        // using GemmSpecialization = tensor_operation::device::GemmSpecialization;
 
         if constexpr(GemmSpec == GemmSpecialization::MNPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
@@ -833,7 +859,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             // not pad M or N
             return c_grid_desc_mraw_nraw;
         }
-#endif
+ #endif
     }
 
     static constexpr auto MakeDsGridPointer()
@@ -1043,34 +1069,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         static_assert((MPerBlock % (MPerWmma * MRepeat) == 0) &&
                           (NPerBlock % (NPerWmma * NRepeat)) == 0,
                       "Invalid tuning param!");
-        // if (!(MPerBlock % (MPerWmma * MRepeat) == 0 && NPerBlock % (NPerWmma * NRepeat) == 0))
-        // {
-        //     std::cout << "[DEBUG] Invalid tuning param!\n"
-        //             << "  MPerBlock: " << MPerBlock << "\n"
-        //             << "  NPerBlock: " << NPerBlock << "\n"
-        //             << "  MPerWmma : " << MPerWmma << "\n"
-        //             << "  NPerWmma : " << NPerWmma << "\n"
-        //             << "  MRepeat  : " << MRepeat << "\n"
-        //             << "  NRepeat  : " << NRepeat << "\n"
-        //             << "  Check: MPerBlock % (MPerWmma * MRepeat) == "
-        //             << (MPerBlock % (MPerWmma * MRepeat)) << "\n"
-        //             << "         NPerBlock % (NPerWmma * NRepeat) == "
-        //             << (NPerBlock % (NPerWmma * NRepeat)) << "\n";
-        // }
-        // std::cout
-        // << "[CK_CHECK] "
-        // << "M=" << karg.M
-        // << " N=" << karg.N
-        // << " K=" << karg.K
-        // << " KBatch=" << karg.KBatch
-        // << " | MPerBlock=" << MPerBlock
-        // << " NPerBlock=" << NPerBlock
-        // << " KPerBlock=" << KPerBlock
-        // << " | MRepeat=" << MRepeat
-        // << " NRepeat=" << NRepeat
-        // << " | AK1=" << AK1Number
-        // << " BK1=" << BK1Number
-        // << std::endl;
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
