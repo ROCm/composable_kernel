@@ -288,7 +288,10 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
             // Start from AQ block tensor and then scale it using BQ; this represents
             // the combined A/B quantization scales for the block.
             auto q_block_tensor = aq_block_tensor;
-            if constexpr(Traits::NQPerBlock == 1)
+            constexpr bool SimpleDequant =
+                Traits::NQPerBlock == 1 &&
+                CWarpTensor::get_distributed_spans()[I0{}].impl_.size() == 0; // c_transpose
+            if constexpr(SimpleDequant)
             {
                 constexpr auto aq_spans = AQBlockTensor::get_distributed_spans();
                 sweep_tile_span(aq_spans[I0{}], [&](auto im) {
@@ -326,10 +329,9 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                         }
                     });
 
-                    if constexpr(Traits::NQPerBlock == 1)
+                    if constexpr(SimpleDequant)
                     {
                         constexpr auto cw_spans = CWarpTensor::get_distributed_spans();
-                        static_assert(cw_spans[I0{}].impl_.size() == 0);
                         sweep_tile_span(cw_spans[I1{}], [&](auto in) {
                             constexpr auto block_idx_m = tile_distributed_index<mIter>{};
                             constexpr auto block_idx_n = detail::make_tile_distributed_index(

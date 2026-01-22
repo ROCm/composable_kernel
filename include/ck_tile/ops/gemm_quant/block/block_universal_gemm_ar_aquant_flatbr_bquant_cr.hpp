@@ -215,7 +215,10 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
         };
 
         auto q_block_tensor = aq_block_tensor;
-        if constexpr(Traits::NQPerBlock == 1)
+        constexpr bool SimpleDequant =
+            Traits::NQPerBlock == 1 &&
+            AccTensor::get_distributed_spans()[I0].impl_.size() == 0; // c_transpose
+        if constexpr(SimpleDequant)
         {
             constexpr auto aq_spans = AQBlockTensor::get_distributed_spans();
             sweep_tile_span(aq_spans[I0], [&](auto im) {
@@ -258,7 +261,7 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
             });
             static_for_product<number<MIterPerWarp>, number<NIterPerWarp>>{}([&](auto mIter,
                                                                                  auto nIter) {
-                if constexpr(Traits::NQPerBlock == 1)
+                if constexpr(SimpleDequant)
                 {
                     constexpr auto tbuf_offset =
                         number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
