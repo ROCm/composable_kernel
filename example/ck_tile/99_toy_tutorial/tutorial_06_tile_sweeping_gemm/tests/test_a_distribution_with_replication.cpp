@@ -18,101 +18,94 @@
 
 using namespace ck_tile;
 
-template<typename DataType>
+template <typename DataType>
 struct TestADistributionKernel
 {
-    static constexpr index_t kBlockSize = 256;  // 4 warps
-    static constexpr index_t MWarp = 2;
-    static constexpr index_t NWarp = 2;
-    static constexpr index_t kM = 16;
-    static constexpr index_t kK = 16;
+    static constexpr index_t kBlockSize = 256; // 4 warps
+    static constexpr index_t MWarp      = 2;
+    static constexpr index_t NWarp      = 2;
+    static constexpr index_t kM         = 16;
+    static constexpr index_t kK         = 16;
 
-    CK_TILE_DEVICE void operator()(const DataType* a,
-                                   DataType* debug_output,
-                                   index_t lda) const
+    CK_TILE_DEVICE void operator()(const DataType* a, DataType* debug_output, index_t lda) const
     {
         if(get_block_id() != 0)
             return;
 
-        const index_t tid = threadIdx.x;
+        const index_t tid     = threadIdx.x;
         const index_t warp_id = tid / 64;
         const index_t lane_id = tid % 64;
 
         // Create tensor view for A (column-major)
         const auto a_tensor = make_naive_tensor_view<address_space_enum::global>(
-            a,
-            make_tuple(kM, kK),
-            make_tuple(1, lda),
-            number<1>{},
-            number<1>{}
-        );
-
+            a, make_tuple(kM, kK), make_tuple(1, lda), number<1>{}, number<1>{});
 
         // A distribution WITH NWarp replication and MWarp in H-dimension
         // Based on 02_gemm pattern: include MWarp in H-tuple
         // R: NWarp replication
-        // H0: MWarp × 16 threads = 2×16 = 32 M positions  
+        // H0: MWarp × 16 threads = 2×16 = 32 M positions
         // H1: 4×4 = 16 K elements
         constexpr auto a_distribution = make_static_tile_distribution(
             tile_distribution_encoding<
-                sequence<NWarp>,                      // R: REPLICATE across 2 N-warps
-                tuple<sequence<MWarp, 16>,            // H0 (M): 2 M-warps × 16 threads = 32 M
-                      sequence<4, 4>>,                // H1 (K): 4×4 = 16 K elements
-                tuple<sequence<0, 1>, sequence<2, 1>>,  // Ps_to_Hs: P0→(R,M), P1→(M,K)
-                tuple<sequence<0, 0>, sequence<0, 1>>,  // Ps_in_Hs: positions
-                sequence<2>,                          // Ys_to_Hs: Y maps to K (dimension 2)
-                sequence<1>>{}                        // Ys_in_Hs: Y at position 1 in K
+                sequence<NWarp>,                       // R: REPLICATE across 2 N-warps
+                tuple<sequence<MWarp, 16>,             // H0 (M): 2 M-warps × 16 threads = 32 M
+                      sequence<4, 4>>,                 // H1 (K): 4×4 = 16 K elements
+                tuple<sequence<0, 1>, sequence<2, 1>>, // Ps_to_Hs: P0→(R,M), P1→(M,K)
+                tuple<sequence<0, 0>, sequence<0, 1>>, // Ps_in_Hs: positions
+                sequence<2>,                           // Ys_to_Hs: Y maps to K (dimension 2)
+                sequence<1>>{}                         // Ys_in_Hs: Y at position 1 in K
         );
 
         auto a_window = make_tile_window(
-            a_tensor,
-            make_tuple(number<kM>{}, number<kK>{}),
-            {0, 0},
-            a_distribution
-        );
+            a_tensor, make_tuple(number<kM>{}, number<kK>{}), {0, 0}, a_distribution);
 
-        const auto a_tile = load_tile(a_window);
+        const auto a_tile         = load_tile(a_window);
         const auto& thread_buffer = a_tile.get_thread_buffer();
 
         // Calculate matrix coordinates using make_tensor_coordinate
         // This shows which matrix positions each thread accesses
-        
+
         __syncthreads();
-        
-        if(tid == 0) {
+
+        if(tid == 0)
+        {
             printf("\n=== Matrix Coverage (Tiled by Warp) ===\n");
             printf("Distribution covers 32×16 matrix (MWarp×16 threads × K)\n");
             printf("With NWarp=2 replication, pattern repeats\n");
             printf("Showing first 16 threads of each warp:\n\n");
         }
-        
+
         __syncthreads();
-        
+
         // Print warp by warp with calculated coordinates
-        for(int w = 0; w < 4; ++w) {
+        for(int w = 0; w < 4; ++w)
+        {
             __syncthreads();
-            
-            if(warp_id == w && lane_id == 0) {
-                printf("\n--- Warp %d (M-warp %d, N-warp %d) ---\n", 
-                       w, w/NWarp, w%NWarp);
+
+            if(warp_id == w && lane_id == 0)
+            {
+                printf("\n--- Warp %d (M-warp %d, N-warp %d) ---\n", w, w / NWarp, w % NWarp);
             }
-            
+
             __syncthreads();
-            
+
             // Print lanes sequentially within each warp
-            for(int lane = 0; lane < 16; ++lane) {
+            for(int lane = 0; lane < 16; ++lane)
+            {
                 __syncthreads();
-                
-                if(warp_id == w && lane_id == lane) {
+
+                if(warp_id == w && lane_id == lane)
+                {
                     printf("W%d L%02d: ", w, lane);
-                    
+
                     // For each Y element, just print the loaded value
                     // The distribution handles the coordinate mapping internally
-                    for(int y_idx = 0; y_idx < thread_buffer.size(); ++y_idx) {
+                    for(int y_idx = 0; y_idx < thread_buffer.size(); ++y_idx)
+                    {
                         float val = static_cast<float>(thread_buffer[y_idx]);
-                        int m = static_cast<int>(val) % 100;
-                        int k = static_cast<int>(val) / 100;
-                        
+                        int m     = static_cast<int>(val) % 100;
+                        int k     = static_cast<int>(val) / 100;
+
                         printf("A[%2d,%2d] ", m, k);
                     }
                     printf("\n");
@@ -122,7 +115,8 @@ struct TestADistributionKernel
 
         __syncthreads();
 
-        if(tid == 0) {
+        if(tid == 0)
+        {
             printf("\n=== Expected Pattern with NWarp Replication ===\n");
             printf("sequence<NWarp> replicates across N-warp dimension:\n");
             printf("Warp 0 (M-warp 0, N-warp 0): Loads some M-rows, K[0-15]\n");
@@ -130,13 +124,16 @@ struct TestADistributionKernel
             printf("Warp 2 (M-warp 1, N-warp 0): Loads SAME as Warp 0 (NWarp replication!)\n");
             printf("Warp 3 (M-warp 1, N-warp 1): Loads SAME as Warp 1 (NWarp replication!)\n");
             printf("\nReplication pairs:\n");
-            printf("  Warps 0 & 2 should be identical (same N-warp 0, replicated across M-warps)\n");
-            printf("  Warps 1 & 3 should be identical (same N-warp 1, replicated across M-warps)\n");
+            printf(
+                "  Warps 0 & 2 should be identical (same N-warp 0, replicated across M-warps)\n");
+            printf(
+                "  Warps 1 & 3 should be identical (same N-warp 1, replicated across M-warps)\n");
             printf("  Warps 0 & 1 should be DIFFERENT (different N-warps)\n");
         }
 
         // Store for verification
-        for(int i = 0; i < thread_buffer.size(); ++i) {
+        for(int i = 0; i < thread_buffer.size(); ++i)
+        {
             debug_output[tid * 4 + i] = thread_buffer[i];
         }
     }
@@ -148,8 +145,8 @@ int main()
     std::cout << "Test A Distribution with NWarp Replication\n";
     std::cout << "==================================================\n\n";
 
-    constexpr index_t M = 16;
-    constexpr index_t K = 16;
+    constexpr index_t M   = 16;
+    constexpr index_t K   = 16;
     constexpr index_t lda = M;
 
     using DataType = half_t;
@@ -159,8 +156,10 @@ int main()
     std::vector<DataType> h_debug(256 * 4, -1);
 
     // Initialize A[m,k] = m + k*100
-    for(index_t k = 0; k < K; ++k) {
-        for(index_t m = 0; m < M; ++m) {
+    for(index_t k = 0; k < K; ++k)
+    {
+        for(index_t m = 0; m < M; ++m)
+        {
             h_a[m + k * lda] = static_cast<DataType>(m + k * 100);
         }
     }
@@ -173,14 +172,13 @@ int main()
 
     stream_config stream;
     launch_kernel(stream,
-                 make_kernel<256>(
-                     TestADistributionKernel<DataType>{},
-                     dim3(1),
-                     dim3(256),
-                     0,
-                     static_cast<const DataType*>(d_a.GetDeviceBuffer()),
-                     static_cast<DataType*>(d_debug.GetDeviceBuffer()),
-                     lda));
+                  make_kernel<256>(TestADistributionKernel<DataType>{},
+                                   dim3(1),
+                                   dim3(256),
+                                   0,
+                                   static_cast<const DataType*>(d_a.GetDeviceBuffer()),
+                                   static_cast<DataType*>(d_debug.GetDeviceBuffer()),
+                                   lda));
 
     hip_check_error(hipDeviceSynchronize());
 
@@ -188,40 +186,52 @@ int main()
 
     // Verify NWarp replication: warps 0&2 identical, warps 1&3 identical
     bool passed = true;
-    
+
     // Check warps 0 and 2 (same N-warp 0, replicated across M-warps)
-    for(int lane = 0; lane < 64; ++lane) {
-        for(int i = 0; i < 4; ++i) {
+    for(int lane = 0; lane < 64; ++lane)
+    {
+        for(int i = 0; i < 4; ++i)
+        {
             float warp0_val = h_debug[lane * 4 + i];
             float warp2_val = h_debug[(128 + lane) * 4 + i];
-            if(std::abs(warp0_val - warp2_val) > 0.01f) {
-                std::cout << "ERROR: Warp 0 and Warp 2 differ at lane " << lane << " element " << i << "\n";
+            if(std::abs(warp0_val - warp2_val) > 0.01f)
+            {
+                std::cout << "ERROR: Warp 0 and Warp 2 differ at lane " << lane << " element " << i
+                          << "\n";
                 std::cout << "  Warp 0: " << warp0_val << ", Warp 2: " << warp2_val << "\n";
                 passed = false;
                 break;
             }
         }
-        if(!passed) break;
+        if(!passed)
+            break;
     }
 
     // Check warps 1 and 3 (same N-warp 1, replicated across M-warps)
-    if(passed) {
-        for(int lane = 0; lane < 64; ++lane) {
-            for(int i = 0; i < 4; ++i) {
+    if(passed)
+    {
+        for(int lane = 0; lane < 64; ++lane)
+        {
+            for(int i = 0; i < 4; ++i)
+            {
                 float warp1_val = h_debug[(64 + lane) * 4 + i];
                 float warp3_val = h_debug[(192 + lane) * 4 + i];
-                if(std::abs(warp1_val - warp3_val) > 0.01f) {
-                    std::cout << "ERROR: Warp 1 and Warp 3 differ at lane " << lane << " element " << i << "\n";
+                if(std::abs(warp1_val - warp3_val) > 0.01f)
+                {
+                    std::cout << "ERROR: Warp 1 and Warp 3 differ at lane " << lane << " element "
+                              << i << "\n";
                     std::cout << "  Warp 1: " << warp1_val << ", Warp 3: " << warp3_val << "\n";
                     passed = false;
                     break;
                 }
             }
-            if(!passed) break;
+            if(!passed)
+                break;
         }
     }
 
-    if(passed) {
+    if(passed)
+    {
         std::cout << "\n✓ NWarp Replication verified:\n";
         std::cout << "  Warps 0 & 2 load identical data (N-warp 0, replicated across M-warps)\n";
         std::cout << "  Warps 1 & 3 load identical data (N-warp 1, replicated across M-warps)\n";

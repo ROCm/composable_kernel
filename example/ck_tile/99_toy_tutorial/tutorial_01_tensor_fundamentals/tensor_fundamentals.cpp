@@ -25,91 +25,85 @@ using namespace ck_tile;
 // Note: These functions demonstrate the API but may be scalarized by the compiler
 // when returning by value. For true vectorization, use get_vectorized_elements inline.
 
-template<typename DataType>
-CK_TILE_DEVICE thread_buffer<DataType, 2> 
-vectorized_read_2(const DataType* p_data, index_t offset)
+template <typename DataType>
+CK_TILE_DEVICE thread_buffer<DataType, 2> vectorized_read_2(const DataType* p_data, index_t offset)
 {
     auto view = make_naive_tensor_view<address_space_enum::global>(
         p_data,
-        make_tuple(12),  // total elements
-        make_tuple(1),   // stride
-        number<2>{},     // GuaranteedLastDimensionVectorLength
-        number<1>{}      // GuaranteedLastDimensionVectorStride
+        make_tuple(12), // total elements
+        make_tuple(1),  // stride
+        number<2>{},    // GuaranteedLastDimensionVectorLength
+        number<1>{}     // GuaranteedLastDimensionVectorStride
     );
-    auto desc = view.get_tensor_descriptor();
+    auto desc  = view.get_tensor_descriptor();
     auto coord = make_tensor_coordinate(desc, make_tuple(offset));
     return view.template get_vectorized_elements<thread_buffer<DataType, 2>>(coord, 0);
 }
 
-template<typename DataType>
-CK_TILE_DEVICE thread_buffer<DataType, 4> 
-vectorized_read_4(const DataType* p_data, index_t offset)
+template <typename DataType>
+CK_TILE_DEVICE thread_buffer<DataType, 4> vectorized_read_4(const DataType* p_data, index_t offset)
 {
     auto view = make_naive_tensor_view<address_space_enum::global>(
         p_data,
-        make_tuple(12),  // total elements
-        make_tuple(1),   // stride
-        number<4>{},     // GuaranteedLastDimensionVectorLength
-        number<1>{}      // GuaranteedLastDimensionVectorStride
+        make_tuple(12), // total elements
+        make_tuple(1),  // stride
+        number<4>{},    // GuaranteedLastDimensionVectorLength
+        number<1>{}     // GuaranteedLastDimensionVectorStride
     );
-    auto desc = view.get_tensor_descriptor();
+    auto desc  = view.get_tensor_descriptor();
     auto coord = make_tensor_coordinate(desc, make_tuple(offset));
     return view.template get_vectorized_elements<thread_buffer<DataType, 4>>(coord, 0);
 }
 
-template<typename DataType>
-CK_TILE_DEVICE void 
+template <typename DataType>
+CK_TILE_DEVICE void
 vectorized_write_4(DataType* p_data, index_t offset, thread_buffer<DataType, 4> buffer)
 {
-    auto view = make_naive_tensor_view<address_space_enum::global>(
-        p_data,
-        make_tuple(12),  // total elements
-        make_tuple(1)    // stride
+    auto view  = make_naive_tensor_view<address_space_enum::global>(p_data,
+                                                                   make_tuple(12), // total elements
+                                                                   make_tuple(1)   // stride
     );
-    auto desc = view.get_tensor_descriptor();
+    auto desc  = view.get_tensor_descriptor();
     auto coord = make_tensor_coordinate(desc, make_tuple(offset));
     view.set_vectorized_elements(coord, 0, buffer);
 }
 
 // Additional functions with fp16 to demonstrate vectorization with smaller types
-CK_TILE_DEVICE thread_buffer<half_t, 4> 
-vectorized_read_4_fp16(const half_t* p_data, index_t offset)
+CK_TILE_DEVICE thread_buffer<half_t, 4> vectorized_read_4_fp16(const half_t* p_data, index_t offset)
 {
     auto view = make_naive_tensor_view<address_space_enum::global>(
         p_data,
-        make_tuple(24),  // total elements (more for fp16)
-        make_tuple(1)    // stride
+        make_tuple(24), // total elements (more for fp16)
+        make_tuple(1)   // stride
     );
-    auto desc = view.get_tensor_descriptor();
+    auto desc  = view.get_tensor_descriptor();
     auto coord = make_tensor_coordinate(desc, make_tuple(offset));
     return view.template get_vectorized_elements<thread_buffer<half_t, 4>>(coord, 0);
 }
 
-CK_TILE_DEVICE thread_buffer<half_t, 8> 
-vectorized_read_8_fp16(const half_t* p_data, index_t offset)
+CK_TILE_DEVICE thread_buffer<half_t, 8> vectorized_read_8_fp16(const half_t* p_data, index_t offset)
 {
-    auto view = make_naive_tensor_view<address_space_enum::global>(
-        p_data,
-        make_tuple(24),  // total elements
-        make_tuple(1)    // stride
+    auto view  = make_naive_tensor_view<address_space_enum::global>(p_data,
+                                                                   make_tuple(24), // total elements
+                                                                   make_tuple(1)   // stride
     );
-    auto desc = view.get_tensor_descriptor();
+    auto desc  = view.get_tensor_descriptor();
     auto coord = make_tensor_coordinate(desc, make_tuple(offset));
     return view.template get_vectorized_elements<thread_buffer<half_t, 8>>(coord, 0);
 }
 
 // The kernel that demonstrates all fundamental concepts
-template<typename DataType>
+template <typename DataType>
 struct TensorFundamentalsKernel
 {
     static constexpr index_t kBlockSize = 64;
 
-    CK_TILE_DEVICE void operator()(const DataType* p_input,
-                                   DataType* p_output,
-                                   index_t H, index_t W, index_t C) const
+    CK_TILE_DEVICE void
+    operator()(const DataType* p_input, DataType* p_output, index_t H, index_t W, index_t C) const
     {
         // Only thread 0 for clean output
-        if(get_thread_id() != 0) return;
+        if(get_thread_id() != 0)
+            return;
 
         printf("\n=== TENSOR FUNDAMENTALS IN CK_TILE ===\n\n");
 
@@ -123,25 +117,31 @@ struct TensorFundamentalsKernel
         // It contains: lengths (shape) + strides (memory layout)
 
         // Create a descriptor for [H,W,C] tensor in row-major layout
-        auto hwc_descriptor = make_naive_tensor_descriptor(
-            make_tuple(H, W, C),        // lengths: [2, 3, 2]
-            make_tuple(W*C, C, 1)       // strides: [6, 2, 1] for row-major
-        );
+        auto hwc_descriptor =
+            make_naive_tensor_descriptor(make_tuple(H, W, C),    // lengths: [2, 3, 2]
+                                         make_tuple(W * C, C, 1) // strides: [6, 2, 1] for row-major
+            );
 
         // Access descriptor properties
         auto lengths = hwc_descriptor.get_lengths();
         // Note: Descriptors don't expose strides directly after transformation
 
         printf("Descriptor for [H=%ld, W=%ld, C=%ld] tensor:\n",
-               static_cast<long>(H), static_cast<long>(W), static_cast<long>(C));
+               static_cast<long>(H),
+               static_cast<long>(W),
+               static_cast<long>(C));
         printf("  Lengths: [%ld, %ld, %ld]\n",
                static_cast<long>(lengths.at(number<0>{})),
                static_cast<long>(lengths.at(number<1>{})),
                static_cast<long>(lengths.at(number<2>{})));
         printf("  Strides: [%ld, %ld, %ld] (row-major)\n",
-               static_cast<long>(W*C), static_cast<long>(C), static_cast<long>(1));
+               static_cast<long>(W * C),
+               static_cast<long>(C),
+               static_cast<long>(1));
         printf("  Memory formula: offset = h*%ld + w*%ld + c*%ld\n\n",
-               static_cast<long>(W*C), static_cast<long>(C), static_cast<long>(1));
+               static_cast<long>(W * C),
+               static_cast<long>(C),
+               static_cast<long>(1));
 
         //==================================================================
         // PART 2: TENSOR VIEW - Three Creation Methods
@@ -152,46 +152,51 @@ struct TensorFundamentalsKernel
         // Method 1: Explicit strides (most control)
         printf("Method 1: make_naive_tensor_view with explicit strides\n");
         auto view1 = make_naive_tensor_view<address_space_enum::global>(
-            p_input,                    // GPU memory pointer
-            make_tuple(H, W, C),        // lengths
-            make_tuple(W*C, C, 1)       // explicit strides
+            p_input,                // GPU memory pointer
+            make_tuple(H, W, C),    // lengths
+            make_tuple(W * C, C, 1) // explicit strides
         );
         printf("  Created view with shape [%ld,%ld,%ld] and strides [%ld,%ld,%ld]\n",
-               static_cast<long>(H), static_cast<long>(W), static_cast<long>(C),
-               static_cast<long>(W*C), static_cast<long>(C), static_cast<long>(1));
+               static_cast<long>(H),
+               static_cast<long>(W),
+               static_cast<long>(C),
+               static_cast<long>(W * C),
+               static_cast<long>(C),
+               static_cast<long>(1));
 
         // Method 2: Packed/contiguous (auto-computes row-major strides)
         printf("\nMethod 2: make_naive_tensor_view_packed (auto strides)\n");
         auto view2 = make_naive_tensor_view_packed<address_space_enum::global>(
-            p_input,                    // GPU memory pointer
-            make_tuple(H, W, C)         // lengths only, strides auto-computed
+            p_input,            // GPU memory pointer
+            make_tuple(H, W, C) // lengths only, strides auto-computed
         );
         printf("  Created packed view - strides computed automatically\n");
-        printf("  For row-major: last dim stride=1, each dim stride = next_dim_stride * next_dim_length\n");
+        printf("  For row-major: last dim stride=1, each dim stride = next_dim_stride * "
+               "next_dim_length\n");
 
         // Method 3: From existing descriptor
         printf("\nMethod 3: make_tensor_view from descriptor\n");
-        auto view3 = make_tensor_view<address_space_enum::global>(
-            p_input,                    // GPU memory pointer
-            hwc_descriptor              // existing descriptor
-        );
+        auto view3 =
+            make_tensor_view<address_space_enum::global>(p_input,       // GPU memory pointer
+                                                         hwc_descriptor // existing descriptor
+            );
         printf("  Created view using pre-existing descriptor\n");
 
         // Demonstrate all three views access the same data
         printf("\nVerifying all three methods create equivalent views:\n");
         {
-            auto coord_test = make_tensor_coordinate(
-                view1.get_tensor_descriptor(), make_tuple(0, 1, 0));
+            auto coord_test =
+                make_tensor_coordinate(view1.get_tensor_descriptor(), make_tuple(0, 1, 0));
             auto val1 = view1.template get_vectorized_elements<thread_buffer<DataType, 1>>(
                 coord_test, 0)[number<0>{}];
 
-            auto coord_test2 = make_tensor_coordinate(
-                view2.get_tensor_descriptor(), make_tuple(0, 1, 0));
+            auto coord_test2 =
+                make_tensor_coordinate(view2.get_tensor_descriptor(), make_tuple(0, 1, 0));
             auto val2 = view2.template get_vectorized_elements<thread_buffer<DataType, 1>>(
                 coord_test2, 0)[number<0>{}];
 
-            auto coord_test3 = make_tensor_coordinate(
-                view3.get_tensor_descriptor(), make_tuple(0, 1, 0));
+            auto coord_test3 =
+                make_tensor_coordinate(view3.get_tensor_descriptor(), make_tuple(0, 1, 0));
             auto val3 = view3.template get_vectorized_elements<thread_buffer<DataType, 1>>(
                 coord_test3, 0)[number<0>{}];
 
@@ -217,11 +222,12 @@ struct TensorFundamentalsKernel
 
         // Coordinate can compute its linear offset
         index_t offset = coord.get_offset();
-        printf("Coordinate [1,2,0] maps to linear offset: %ld\n",
-               static_cast<long>(offset));
+        printf("Coordinate [1,2,0] maps to linear offset: %ld\n", static_cast<long>(offset));
         printf("  Calculation: 1*%ld + 2*%ld + 0*%ld = %ld\n\n",
-               static_cast<long>(W*C), static_cast<long>(C),
-               static_cast<long>(1), static_cast<long>(offset));
+               static_cast<long>(W * C),
+               static_cast<long>(C),
+               static_cast<long>(1),
+               static_cast<long>(offset));
 
         //==================================================================
         // PART 4: ELEMENT ACCESS - The Critical Pattern
@@ -237,8 +243,8 @@ struct TensorFundamentalsKernel
 
             // get_vectorized_elements returns thread_buffer<T,N>, not T!
             auto buffer = view1.template get_vectorized_elements<thread_buffer<DataType, 1>>(
-                read_coord,    // coordinate
-                0              // linear_offset (usually 0)
+                read_coord, // coordinate
+                0           // linear_offset (usually 0)
             );
 
             // Extract actual value from thread_buffer
@@ -261,10 +267,7 @@ struct TensorFundamentalsKernel
 
             // Write to output view
             auto output_view = make_naive_tensor_view<address_space_enum::global>(
-                p_output,
-                make_tuple(H, W, C),
-                make_tuple(W*C, C, 1)
-            );
+                p_output, make_tuple(H, W, C), make_tuple(W * C, C, 1));
 
             output_view.set_vectorized_elements(write_coord, 0, write_buffer);
 
@@ -284,8 +287,8 @@ struct TensorFundamentalsKernel
         // Create a flattened view for easier vectorized access
         auto flat_view = make_naive_tensor_view<address_space_enum::global>(
             p_input,
-            make_tuple(H*W*C),  // [12] - all elements in linear order
-            make_tuple(1)       // stride = 1 (contiguous)
+            make_tuple(H * W * C), // [12] - all elements in linear order
+            make_tuple(1)          // stride = 1 (contiguous)
         );
         auto flat_desc = flat_view.get_tensor_descriptor();
 
@@ -294,10 +297,10 @@ struct TensorFundamentalsKernel
         {
             // Call the vectorized_read_2 function (easy to disassemble in debugger)
             auto buffer = vectorized_read_2(p_input, 0);
-            
+
             DataType val0 = buffer[number<0>{}];
             DataType val1 = buffer[number<1>{}];
-            
+
             printf("  Position [0]: Read 2 elements in one operation\n");
             printf("    buffer[0] = %.0f\n", static_cast<float>(val0));
             printf("    buffer[1] = %.0f\n", static_cast<float>(val1));
@@ -310,7 +313,7 @@ struct TensorFundamentalsKernel
         {
             // Call the vectorized_read_4 function (easy to disassemble in debugger)
             auto buffer = vectorized_read_4(p_input, 4);
-            
+
             printf("  Position [4]: Read 4 elements in one operation\n");
             printf("    buffer[0] = %.0f\n", static_cast<float>(buffer[number<0>{}]));
             printf("    buffer[1] = %.0f\n", static_cast<float>(buffer[number<1>{}]));
@@ -329,10 +332,10 @@ struct TensorFundamentalsKernel
             write_buffer[number<1>{}] = 101.0f;
             write_buffer[number<2>{}] = 102.0f;
             write_buffer[number<3>{}] = 103.0f;
-            
+
             // Call the vectorized_write_4 function (easy to disassemble in debugger)
             vectorized_write_4(p_output, 4, write_buffer);
-            
+
             printf("  Position [4-7]: Wrote 4 elements in one operation\n");
             printf("    Wrote: 100, 101, 102, 103\n");
             printf("  ✓ 4x faster than writing elements individually!\n");
@@ -343,30 +346,32 @@ struct TensorFundamentalsKernel
         printf("Example 4: Vectorized copy - INLINE usage (TRUE vectorization)\n");
         {
             auto output_flat_view = make_naive_tensor_view<address_space_enum::global>(
-                p_output,
-                make_tuple(H*W*C),
-                make_tuple(1)
-            );
+                p_output, make_tuple(H * W * C), make_tuple(1));
             auto out_flat_desc = output_flat_view.get_tensor_descriptor();
-            
+
             // Copy first 8 elements using vector size 4 (2 iterations)
             // THIS is where real vectorization happens - inline, no function calls!
             printf("  Copying first 8 elements using 2 vectorized operations:\n");
-            for(index_t i = 0; i < 8; i += 4) {
-                auto in_coord = make_tensor_coordinate(flat_desc, make_tuple(i));
+            for(index_t i = 0; i < 8; i += 4)
+            {
+                auto in_coord  = make_tensor_coordinate(flat_desc, make_tuple(i));
                 auto out_coord = make_tensor_coordinate(out_flat_desc, make_tuple(i));
-                
+
                 // Read 4 elements - INLINE vectorized load (not through function)
-                auto buffer = flat_view.template get_vectorized_elements<
-                    thread_buffer<DataType, 4>>(in_coord, 0);
-                
+                auto buffer =
+                    flat_view.template get_vectorized_elements<thread_buffer<DataType, 4>>(in_coord,
+                                                                                           0);
+
                 // Write 4 elements (skip positions 4-7 which we already wrote)
-                if(i != 4) {
+                if(i != 4)
+                {
                     output_flat_view.set_vectorized_elements(out_coord, 0, buffer);
                 }
-                
-                printf("    Iteration %ld: Copied elements [%ld-%ld]\n", 
-                       static_cast<long>(i/4), static_cast<long>(i), static_cast<long>(i+3));
+
+                printf("    Iteration %ld: Copied elements [%ld-%ld]\n",
+                       static_cast<long>(i / 4),
+                       static_cast<long>(i),
+                       static_cast<long>(i + 3));
             }
             printf("  ✓ Copied 8 elements with only 2 memory operations!\n");
             printf("  ✓ THIS loop shows true vectorization in assembly!\n\n");
@@ -390,45 +395,39 @@ struct TensorFundamentalsKernel
         // Create two different views of the same memory
         // View A: [H, W, C] = [2, 3, 2]
         auto view_hwc = make_naive_tensor_view<address_space_enum::global>(
-            p_input,
-            make_tuple(H, W, C),
-            make_tuple(W*C, C, 1)
-        );
+            p_input, make_tuple(H, W, C), make_tuple(W * C, C, 1));
 
         // View B: [HW, C] = [6, 2] - flattened spatial dimensions
         auto view_hw_c = make_naive_tensor_view<address_space_enum::global>(
-            p_input,
-            make_tuple(H*W, C),
-            make_tuple(C, 1)
-        );
+            p_input, make_tuple(H * W, C), make_tuple(C, 1));
 
         printf("Two views of same memory:\n");
         printf("  View A: [H=%ld, W=%ld, C=%ld]\n",
-               static_cast<long>(H), static_cast<long>(W), static_cast<long>(C));
-        printf("  View B: [HW=%ld, C=%ld]\n",
-               static_cast<long>(H*W), static_cast<long>(C));
+               static_cast<long>(H),
+               static_cast<long>(W),
+               static_cast<long>(C));
+        printf("  View B: [HW=%ld, C=%ld]\n", static_cast<long>(H * W), static_cast<long>(C));
 
         // Show they access the same data
         printf("\nAccessing same element through different views:\n");
 
         // Access element at h=1, w=1, c=0 through View A
-        auto desc_a = view_hwc.get_tensor_descriptor();
+        auto desc_a  = view_hwc.get_tensor_descriptor();
         auto coord_a = make_tensor_coordinate(desc_a, make_tuple(1, 1, 0));
-        auto buffer_a = view_hwc.template get_vectorized_elements<thread_buffer<DataType, 1>>(
-            coord_a, 0);
+        auto buffer_a =
+            view_hwc.template get_vectorized_elements<thread_buffer<DataType, 1>>(coord_a, 0);
         DataType val_a = buffer_a[number<0>{}];
 
         // Access same element through View B at hw=4 (1*3+1), c=0
-        auto desc_b = view_hw_c.get_tensor_descriptor();
+        auto desc_b  = view_hw_c.get_tensor_descriptor();
         auto coord_b = make_tensor_coordinate(desc_b, make_tuple(4, 0));
-        auto buffer_b = view_hw_c.template get_vectorized_elements<thread_buffer<DataType, 1>>(
-            coord_b, 0);
+        auto buffer_b =
+            view_hw_c.template get_vectorized_elements<thread_buffer<DataType, 1>>(coord_b, 0);
         DataType val_b = buffer_b[number<0>{}];
 
         printf("  View A[1,1,0] = %.0f\n", static_cast<float>(val_a));
         printf("  View B[4,0]   = %.0f (same value!)\n", static_cast<float>(val_b));
-        printf("  Both access offset %ld in memory\n\n",
-               static_cast<long>(coord_a.get_offset()));
+        printf("  Both access offset %ld in memory\n\n", static_cast<long>(coord_a.get_offset()));
 
         //==================================================================
         // PART 6: PRACTICAL EXAMPLE - Copy with Views
@@ -438,24 +437,26 @@ struct TensorFundamentalsKernel
 
         // Create output view
         auto output_view = make_naive_tensor_view<address_space_enum::global>(
-            p_output,
-            make_tuple(H, W, C),
-            make_tuple(W*C, C, 1)
-        );
+            p_output, make_tuple(H, W, C), make_tuple(W * C, C, 1));
         auto out_desc = output_view.get_tensor_descriptor();
 
         // Copy all elements using tensor_view API
         index_t count = 0;
-        for(index_t h = 0; h < H; h++) {
-            for(index_t w = 0; w < W; w++) {
-                for(index_t c = 0; c < C; c++) {
+        for(index_t h = 0; h < H; h++)
+        {
+            for(index_t w = 0; w < W; w++)
+            {
+                for(index_t c = 0; c < C; c++)
+                {
                     // Read from input
                     auto in_coord = make_tensor_coordinate(desc, make_tuple(h, w, c));
-                    auto in_buffer = view1.template get_vectorized_elements<
-                        thread_buffer<DataType, 1>>(in_coord, 0);
+                    auto in_buffer =
+                        view1.template get_vectorized_elements<thread_buffer<DataType, 1>>(in_coord,
+                                                                                           0);
 
                     // Write to output (except [0,0,1] which we already wrote as 99)
-                    if(!(h == 0 && w == 0 && c == 1)) {
+                    if(!(h == 0 && w == 0 && c == 1))
+                    {
                         auto out_coord = make_tensor_coordinate(out_desc, make_tuple(h, w, c));
                         output_view.set_vectorized_elements(out_coord, 0, in_buffer);
                     }
@@ -489,7 +490,8 @@ int main()
     // Initialize HIP
     int device_count;
     hip_check_error(hipGetDeviceCount(&device_count));
-    if(device_count == 0) {
+    if(device_count == 0)
+    {
         std::cerr << "No GPU devices found!\n";
         return 1;
     }
@@ -500,36 +502,42 @@ int main()
     std::cout << "Using GPU: " << props.name << "\n";
 
     // Small tensor for demonstration
-    constexpr index_t H = 2;
-    constexpr index_t W = 3;
-    constexpr index_t C = 2;
+    constexpr index_t H    = 2;
+    constexpr index_t W    = 3;
+    constexpr index_t C    = 2;
     constexpr index_t size = H * W * C;
 
     std::cout << "\nTensor configuration:\n";
     std::cout << "  Shape: [" << H << ", " << W << ", " << C << "]\n";
     std::cout << "  Total elements: " << size << "\n";
-    std::cout << "  Layout: Row-major (strides = [" << W*C << ", " << C << ", 1])\n\n";
+    std::cout << "  Layout: Row-major (strides = [" << W * C << ", " << C << ", 1])\n\n";
 
     // Create test data: 1, 2, 3, 4, ... 12
     std::vector<float> h_input(size);
     std::iota(h_input.begin(), h_input.end(), 1.0f);
 
     std::cout << "Input data (row-major memory order):\n";
-    for(index_t i = 0; i < size; ++i) {
-        if(i % C == 0 && i > 0) std::cout << " | ";
+    for(index_t i = 0; i < size; ++i)
+    {
+        if(i % C == 0 && i > 0)
+            std::cout << " | ";
         std::cout << std::setw(2) << h_input[i] << " ";
     }
     std::cout << "\n";
 
     std::cout << "\nLogical view [H,W,C]:\n";
-    for(index_t h = 0; h < H; h++) {
+    for(index_t h = 0; h < H; h++)
+    {
         std::cout << "  H=" << h << ": ";
-        for(index_t w = 0; w < W; w++) {
+        for(index_t w = 0; w < W; w++)
+        {
             std::cout << "[";
-            for(index_t c = 0; c < C; c++) {
+            for(index_t c = 0; c < C; c++)
+            {
                 index_t idx = h * W * C + w * C + c;
                 std::cout << std::setw(2) << h_input[idx];
-                if(c < C-1) std::cout << ",";
+                if(c < C - 1)
+                    std::cout << ",";
             }
             std::cout << "] ";
         }
@@ -555,14 +563,15 @@ int main()
     std::cout << "=====================================\n";
 
     launch_kernel(stream,
-                 make_kernel<block_size>(
-                     TensorFundamentalsKernel<float>{},
-                     dim3(1),          // 1 block
-                     dim3(block_size), // 64 threads
-                     0,                // no shared memory
-                     static_cast<const float*>(d_input.GetDeviceBuffer()),
-                     static_cast<float*>(d_output.GetDeviceBuffer()),
-                     H, W, C));
+                  make_kernel<block_size>(TensorFundamentalsKernel<float>{},
+                                          dim3(1),          // 1 block
+                                          dim3(block_size), // 64 threads
+                                          0,                // no shared memory
+                                          static_cast<const float*>(d_input.GetDeviceBuffer()),
+                                          static_cast<float*>(d_output.GetDeviceBuffer()),
+                                          H,
+                                          W,
+                                          C));
 
     hip_check_error(hipDeviceSynchronize());
     std::cout << "=====================================\n";
@@ -574,17 +583,19 @@ int main()
     // Verify results
     std::cout << "\nOutput verification:\n";
     bool passed = true;
-    for(index_t i = 0; i < size; ++i) {
-        float expected = (i == 1) ? 99.0f : h_input[i];  // We wrote 99 to position [0,0,1]
-        if(std::abs(h_output[i] - expected) > 1e-6f) {
+    for(index_t i = 0; i < size; ++i)
+    {
+        float expected = (i == 1) ? 99.0f : h_input[i]; // We wrote 99 to position [0,0,1]
+        if(std::abs(h_output[i] - expected) > 1e-6f)
+        {
             passed = false;
-            std::cout << "  ✗ Mismatch at index " << i
-                     << ": expected " << expected
-                     << ", got " << h_output[i] << "\n";
+            std::cout << "  ✗ Mismatch at index " << i << ": expected " << expected << ", got "
+                      << h_output[i] << "\n";
         }
     }
 
-    if(passed) {
+    if(passed)
+    {
         std::cout << "  ✓ All elements correct!\n";
         std::cout << "  ✓ output[0,0,1] = 99 (modified as expected)\n";
         std::cout << "  ✓ All other elements copied correctly\n";

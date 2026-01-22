@@ -21,7 +21,7 @@
 
 using namespace ck_tile;
 
-template<typename DataType>
+template <typename DataType>
 struct DescriptorVsAdaptorKernel
 {
     static constexpr index_t kBlockSize = 64;
@@ -38,24 +38,23 @@ struct DescriptorVsAdaptorKernel
         printf("Example 1.1: Matrix Tiling [M, K] -> [M0, M1, K]\n");
         printf("------------------------------------------------\n");
         {
-            constexpr index_t M = 128;
-            constexpr index_t K = 64;
+            constexpr index_t M  = 128;
+            constexpr index_t K  = 64;
             constexpr index_t M0 = 4;
             constexpr index_t M1 = 32;
 
             printf("Input: [M=%ld, K=%ld]\n", static_cast<long>(M), static_cast<long>(K));
-            printf("Output: [M0=%ld, M1=%ld, K=%ld]\n", 
-                   static_cast<long>(M0), static_cast<long>(M1), static_cast<long>(K));
+            printf("Output: [M0=%ld, M1=%ld, K=%ld]\n",
+                   static_cast<long>(M0),
+                   static_cast<long>(M1),
+                   static_cast<long>(K));
 
             // Create adaptor - only transformation logic
             auto adaptor = make_single_stage_tensor_adaptor(
-                make_tuple(
-                    make_unmerge_transform(make_tuple(number<M0>{}, number<M1>{})),
-                    make_pass_through_transform(number<K>{})
-                ),
+                make_tuple(make_unmerge_transform(make_tuple(number<M0>{}, number<M1>{})),
+                           make_pass_through_transform(number<K>{})),
                 make_tuple(sequence<0>{}, sequence<1>{}),
-                make_tuple(sequence<0, 1>{}, sequence<2>{})
-            );
+                make_tuple(sequence<0, 1>{}, sequence<2>{}));
 
             printf("\nAdaptor properties:\n");
             printf("  - Stores: Transformation logic only\n");
@@ -64,9 +63,9 @@ struct DescriptorVsAdaptorKernel
             printf("  - Cannot do: Calculate memory offsets\n\n");
 
             // Test coordinate mapping
-            auto top_idx = make_tuple(2, 16, 32);
+            auto top_idx    = make_tuple(2, 16, 32);
             auto bottom_idx = adaptor.calculate_bottom_index(top_idx);
-            
+
             printf("Coordinate mapping test:\n");
             printf("  Input:  [M0=%ld, M1=%ld, K=%ld]\n",
                    static_cast<long>(top_idx.template get<0>()),
@@ -90,23 +89,18 @@ struct DescriptorVsAdaptorKernel
             // Define a generic 2D tiling pattern
             auto create_tiling_adaptor = [](auto M0, auto M1, auto N0, auto N1) {
                 return make_single_stage_tensor_adaptor(
-                    make_tuple(
-                        make_unmerge_transform(make_tuple(M0, M1)),
-                        make_unmerge_transform(make_tuple(N0, N1))
-                    ),
+                    make_tuple(make_unmerge_transform(make_tuple(M0, M1)),
+                               make_unmerge_transform(make_tuple(N0, N1))),
                     make_tuple(sequence<0>{}, sequence<1>{}),
-                    make_tuple(sequence<0, 1>{}, sequence<2, 3>{})
-                );
+                    make_tuple(sequence<0, 1>{}, sequence<2, 3>{}));
             };
 
             // Use same pattern for different matrix sizes
-            [[maybe_unused]] auto adaptor_64x64 = create_tiling_adaptor(
-                number<4>{}, number<16>{}, number<4>{}, number<16>{}
-            );
-            
-            [[maybe_unused]] auto adaptor_128x128 = create_tiling_adaptor(
-                number<8>{}, number<16>{}, number<8>{}, number<16>{}
-            );
+            [[maybe_unused]] auto adaptor_64x64 =
+                create_tiling_adaptor(number<4>{}, number<16>{}, number<4>{}, number<16>{});
+
+            [[maybe_unused]] auto adaptor_128x128 =
+                create_tiling_adaptor(number<8>{}, number<16>{}, number<8>{}, number<16>{});
 
             printf("Created two adaptors with same pattern:\n");
             printf("  - 64x64 matrix:   [64, 64] -> [4, 16, 4, 16]\n");
@@ -133,12 +127,11 @@ struct DescriptorVsAdaptorKernel
             constexpr index_t K = 64;
 
             // Create descriptor - includes memory information
-            auto desc = make_naive_tensor_descriptor_packed(
-                make_tuple(number<M>{}, number<K>{})
-            );
+            auto desc = make_naive_tensor_descriptor_packed(make_tuple(number<M>{}, number<K>{}));
 
             printf("Created descriptor for [M=%ld, K=%ld] matrix\n",
-                   static_cast<long>(M), static_cast<long>(K));
+                   static_cast<long>(M),
+                   static_cast<long>(K));
 
             auto space_size = desc.get_element_space_size();
             printf("\nDescriptor properties:\n");
@@ -150,13 +143,15 @@ struct DescriptorVsAdaptorKernel
             // Calculate memory offset
             auto offset1 = desc.calculate_offset(make_tuple(10, 20));
             auto offset2 = desc.calculate_offset(make_tuple(0, 0));
-            auto offset3 = desc.calculate_offset(make_tuple(M-1, K-1));
+            auto offset3 = desc.calculate_offset(make_tuple(M - 1, K - 1));
 
             printf("Memory offset calculations:\n");
             printf("  [10, 20] -> offset %ld (10*64 + 20)\n", static_cast<long>(offset1));
             printf("  [0, 0]   -> offset %ld (first element)\n", static_cast<long>(offset2));
             printf("  [%ld, %ld] -> offset %ld (last element)\n",
-                   static_cast<long>(M-1), static_cast<long>(K-1), static_cast<long>(offset3));
+                   static_cast<long>(M - 1),
+                   static_cast<long>(K - 1),
+                   static_cast<long>(offset3));
         }
 
         printf("\n");
@@ -165,32 +160,30 @@ struct DescriptorVsAdaptorKernel
         printf("Example 2.2: Transforming a Descriptor\n");
         printf("---------------------------------------\n");
         {
-            constexpr index_t M = 256;
-            constexpr index_t K = 128;
+            constexpr index_t M  = 256;
+            constexpr index_t K  = 128;
             constexpr index_t M0 = 4;
             constexpr index_t M1 = 64;
 
             printf("Step 1: Create initial descriptor\n");
-            auto desc_initial = make_naive_tensor_descriptor_packed(
-                make_tuple(number<M>{}, number<K>{})
-            );
+            auto desc_initial =
+                make_naive_tensor_descriptor_packed(make_tuple(number<M>{}, number<K>{}));
             printf("  Initial: [M=%ld, K=%ld]\n", static_cast<long>(M), static_cast<long>(K));
-            printf("  Memory size: %ld elements\n\n", 
+            printf("  Memory size: %ld elements\n\n",
                    static_cast<long>(desc_initial.get_element_space_size()));
 
             printf("Step 2: Transform to add tiling\n");
             auto desc_tiled = transform_tensor_descriptor(
                 desc_initial,
-                make_tuple(
-                    make_unmerge_transform(make_tuple(number<M0>{}, number<M1>{})),
-                    make_pass_through_transform(number<K>{})
-                ),
+                make_tuple(make_unmerge_transform(make_tuple(number<M0>{}, number<M1>{})),
+                           make_pass_through_transform(number<K>{})),
                 make_tuple(sequence<0>{}, sequence<1>{}),
-                make_tuple(sequence<0, 1>{}, sequence<2>{})
-            );
+                make_tuple(sequence<0, 1>{}, sequence<2>{}));
 
             printf("  Transformed: [M, K] -> [M0=%ld, M1=%ld, K=%ld]\n",
-                   static_cast<long>(M0), static_cast<long>(M1), static_cast<long>(K));
+                   static_cast<long>(M0),
+                   static_cast<long>(M1),
+                   static_cast<long>(K));
             printf("  Memory size preserved: %ld elements\n\n",
                    static_cast<long>(desc_tiled.get_element_space_size()));
 
@@ -217,9 +210,7 @@ struct DescriptorVsAdaptorKernel
             constexpr index_t M = 64;
             constexpr index_t K = 32;
 
-            auto desc = make_naive_tensor_descriptor_packed(
-                make_tuple(number<M>{}, number<K>{})
-            );
+            auto desc = make_naive_tensor_descriptor_packed(make_tuple(number<M>{}, number<K>{}));
 
             printf("Descriptor: [M=%ld, K=%ld]\n\n", static_cast<long>(M), static_cast<long>(K));
 
@@ -243,9 +234,7 @@ struct DescriptorVsAdaptorKernel
             constexpr index_t M = 64;
             constexpr index_t K = 32;
 
-            auto desc = make_naive_tensor_descriptor_packed(
-                make_tuple(number<M>{}, number<K>{})
-            );
+            auto desc = make_naive_tensor_descriptor_packed(make_tuple(number<M>{}, number<K>{}));
 
             printf("Scenario: Iterate through a row of tiles\n");
             printf("Descriptor: [M=%ld, K=%ld]\n\n", static_cast<long>(M), static_cast<long>(K));
@@ -286,28 +275,25 @@ struct DescriptorVsAdaptorKernel
         printf("Example 3.3: Moving Coordinates with Transformations\n");
         printf("----------------------------------------------------\n");
         {
-            constexpr index_t M = 128;
-            constexpr index_t K = 64;
+            constexpr index_t M  = 128;
+            constexpr index_t K  = 64;
             constexpr index_t M0 = 4;
             constexpr index_t M1 = 32;
 
             // Create tiled descriptor
-            auto desc = make_naive_tensor_descriptor_packed(
-                make_tuple(number<M>{}, number<K>{})
-            );
+            auto desc = make_naive_tensor_descriptor_packed(make_tuple(number<M>{}, number<K>{}));
 
             auto desc_tiled = transform_tensor_descriptor(
                 desc,
-                make_tuple(
-                    make_unmerge_transform(make_tuple(number<M0>{}, number<M1>{})),
-                    make_pass_through_transform(number<K>{})
-                ),
+                make_tuple(make_unmerge_transform(make_tuple(number<M0>{}, number<M1>{})),
+                           make_pass_through_transform(number<K>{})),
                 make_tuple(sequence<0>{}, sequence<1>{}),
-                make_tuple(sequence<0, 1>{}, sequence<2>{})
-            );
+                make_tuple(sequence<0, 1>{}, sequence<2>{}));
 
             printf("Tiled descriptor: [M, K] -> [M0=%ld, M1=%ld, K=%ld]\n\n",
-                   static_cast<long>(M0), static_cast<long>(M1), static_cast<long>(K));
+                   static_cast<long>(M0),
+                   static_cast<long>(M1),
+                   static_cast<long>(K));
 
             // Create coordinate
             auto coord = make_tensor_coordinate(desc_tiled, make_tuple(1, 8, 16));
@@ -360,7 +346,8 @@ struct DescriptorVsAdaptorKernel
 
     CK_TILE_DEVICE void operator()() const
     {
-        if(get_thread_id() != 0) return;
+        if(get_thread_id() != 0)
+            return;
 
         printf("\n=== TENSOR DESCRIPTOR VS TENSOR ADAPTOR ===\n\n");
 
@@ -400,7 +387,8 @@ int main()
 
     int device_count;
     hip_check_error(hipGetDeviceCount(&device_count));
-    if(device_count == 0) {
+    if(device_count == 0)
+    {
         std::cerr << "No GPU devices found!\n";
         return 1;
     }
@@ -416,12 +404,9 @@ int main()
     std::cout << "\nLaunching kernel...\n";
     std::cout << "=====================================\n";
 
-    launch_kernel(stream,
-                 make_kernel<block_size>(
-                     DescriptorVsAdaptorKernel<float>{},
-                     dim3(1),
-                     dim3(block_size),
-                     0));
+    launch_kernel(
+        stream,
+        make_kernel<block_size>(DescriptorVsAdaptorKernel<float>{}, dim3(1), dim3(block_size), 0));
 
     hip_check_error(hipDeviceSynchronize());
     std::cout << "=====================================\n";

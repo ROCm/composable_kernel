@@ -9,10 +9,10 @@ include_directories(AFTER
 # Each stage builds on the previous one
 
 # Stage 00: Hello ck_tile - First program
-add_subdirectory(stage_00_hello_ck_tile)
+#add_subdirectory(stage_00_hello_ck_tile)
 
 # Stage 01: Tile Distribution - Understanding thread-to-data mapping
-add_subdirectory(stage_01_tile_distribution)
+#add_subdirectory(stage_01_tile_distribution)
 
 # Stage 02: 2D Tensors and Windows
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/stage_02_2d_tensors/CMakeLists.txt)

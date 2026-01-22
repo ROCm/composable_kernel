@@ -16,25 +16,23 @@
 
 using namespace ck_tile;
 
-template<typename DataType>
+template <typename DataType>
 struct TestADistributionYRepetitionKernel
 {
-    static constexpr index_t kBlockSize = 256;
-    static constexpr index_t MWarp = 2;
-    static constexpr index_t NWarp = 2;
+    static constexpr index_t kBlockSize   = 256;
+    static constexpr index_t MWarp        = 2;
+    static constexpr index_t NWarp        = 2;
     static constexpr index_t MIterPerWarp = 2;
     static constexpr index_t KIterPerWarp = 1;
-    static constexpr index_t kM = 64;  // 2 warps × 2 iters × 16
-    static constexpr index_t kK = 64;
+    static constexpr index_t kM           = 64; // 2 warps × 2 iters × 16
+    static constexpr index_t kK           = 64;
 
-    CK_TILE_DEVICE void operator()(const DataType* a,
-                                   DataType* debug_output,
-                                   index_t lda) const
+    CK_TILE_DEVICE void operator()(const DataType* a, DataType* debug_output, index_t lda) const
     {
         if(get_block_id() != 0)
             return;
 
-        const index_t tid = threadIdx.x;
+        const index_t tid     = threadIdx.x;
         const index_t warp_id = tid / 64;
         const index_t lane_id = tid % 64;
 
@@ -52,56 +50,56 @@ struct TestADistributionYRepetitionKernel
         //     sequence<>,                       // Ys_to_Hs: Y maps to both M and K
         //     sequence<>>{};                    // Ys_in_Hs
 
-
         // A distribution with Y-repetition (from tutorial_07)
-        constexpr auto a_warp_dstr_encode = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<16>, sequence<4, 4>>,
-            tuple<sequence<2, 1>>,
-            tuple<sequence<0, 0>>,
-            sequence<2>,
-            sequence<1>>{};
+        constexpr auto a_warp_dstr_encode =
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<16>, sequence<4, 4>>,
+                                       tuple<sequence<2, 1>>,
+                                       tuple<sequence<0, 0>>,
+                                       sequence<2>,
+                                       sequence<1>>{};
 
-        constexpr auto a_block_outer_dstr_encode = tile_distribution_encoding<
-            sequence<NWarp>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
-            tuple<sequence<0, 1>>,
-            tuple<sequence<0, 1>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
+        constexpr auto a_block_outer_dstr_encode =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                                       tuple<sequence<0, 1>>,
+                                       tuple<sequence<0, 1>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 0>>{};
 
-        constexpr auto a_block_dstr_encode = 
-            detail::make_embed_tile_distribution_encoding(
-                a_block_outer_dstr_encode, a_warp_dstr_encode);
+        constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            a_block_outer_dstr_encode, a_warp_dstr_encode);
 
         constexpr auto a_distribution = make_static_tile_distribution(a_block_dstr_encode);
 
         auto a_window = make_tile_window(
-            a_tensor, make_tuple(number<kM>{}, number<kK>{}),
-            {0, 0}, a_distribution);
+            a_tensor, make_tuple(number<kM>{}, number<kK>{}), {0, 0}, a_distribution);
 
-        const auto a_tile = load_tile(a_window);
+        const auto a_tile         = load_tile(a_window);
         const auto& thread_buffer = a_tile.get_thread_buffer();
 
         // Print from all warps sequentially
         __syncthreads();
-        
-        if(tid == 0) {
+
+        if(tid == 0)
+        {
             printf("\n=== A Distribution with Y-Repetition Test ===\n");
             printf("Matrix: 64×16 (MWarp=2, MIterPerWarp=2, each warp loads 2×16 tiles)\n");
             printf("Input: A[m,k] = m + k*100 (unique values)\n\n");
         }
-        
+
         __syncthreads();
-        
-        for(int w = 0; w < 4; ++w) {
+
+        for(int w = 0; w < 4; ++w)
+        {
             __syncthreads();
-            if(warp_id == w && lane_id == 0) {
-                printf("Warp %d (M-warp %d, N-warp %d):\n", 
-                       w, w/NWarp, w%NWarp);
+            if(warp_id == w && lane_id == 0)
+            {
+                printf("Warp %d (M-warp %d, N-warp %d):\n", w, w / NWarp, w % NWarp);
                 printf("  Thread buffer size: %d\n", static_cast<int>(thread_buffer.size()));
                 printf("  Values: ");
-                for(int i = 0; i < thread_buffer.size(); ++i) {
+                for(int i = 0; i < thread_buffer.size(); ++i)
+                {
                     printf("%.0f ", static_cast<float>(thread_buffer[i]));
                 }
                 printf("\n");
@@ -110,7 +108,8 @@ struct TestADistributionYRepetitionKernel
 
         __syncthreads();
 
-        if(tid == 0) {
+        if(tid == 0)
+        {
             printf("\n=== Expected Pattern ===\n");
             printf("Each warp should load 8 elements (2 M-iters × 1 K-iter × 4 warp elements)\n");
             printf("Warp 0 (M-warp 0): Should have M-rows [0-15] and [16-31]\n");
@@ -120,7 +119,8 @@ struct TestADistributionYRepetitionKernel
         }
 
         // Store for verification
-        for(int i = 0; i < thread_buffer.size(); ++i) {
+        for(int i = 0; i < thread_buffer.size(); ++i)
+        {
             debug_output[tid * 8 + i] = thread_buffer[i];
         }
     }
@@ -132,8 +132,8 @@ int main()
     std::cout << "Test A Distribution with Y-Dimension Repetition\n";
     std::cout << "==================================================\n\n";
 
-    constexpr index_t M = 64;
-    constexpr index_t K = 64;
+    constexpr index_t M   = 64;
+    constexpr index_t K   = 64;
     constexpr index_t lda = M;
 
     using DataType = half_t;
@@ -142,8 +142,10 @@ int main()
     std::vector<DataType> h_debug(256 * 8, -1);
 
     // Initialize A[m,k] = m + k*100 (unique for each position)
-    for(index_t k = 0; k < K; ++k) {
-        for(index_t m = 0; m < M; ++m) {
+    for(index_t k = 0; k < K; ++k)
+    {
+        for(index_t m = 0; m < M; ++m)
+        {
             h_a[m + k * lda] = static_cast<DataType>(m + k * 100);
         }
     }
@@ -156,12 +158,13 @@ int main()
 
     stream_config stream;
     launch_kernel(stream,
-                 make_kernel<256>(
-                     TestADistributionYRepetitionKernel<DataType>{},
-                     dim3(1), dim3(256), 0,
-                     static_cast<const DataType*>(d_a.GetDeviceBuffer()),
-                     static_cast<DataType*>(d_debug.GetDeviceBuffer()),
-                     lda));
+                  make_kernel<256>(TestADistributionYRepetitionKernel<DataType>{},
+                                   dim3(1),
+                                   dim3(256),
+                                   0,
+                                   static_cast<const DataType*>(d_a.GetDeviceBuffer()),
+                                   static_cast<DataType*>(d_debug.GetDeviceBuffer()),
+                                   lda));
 
     hip_check_error(hipDeviceSynchronize());
 

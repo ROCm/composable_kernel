@@ -30,23 +30,23 @@
 using namespace ck_tile;
 
 // Tile Sweeping HGEMM kernel with Y-dimension repetition
-template<typename ADataType, typename BDataType, typename CDataType, typename AccDataType>
+template <typename ADataType, typename BDataType, typename CDataType, typename AccDataType>
 struct TileSweepingYRepetitionHgemmKernel
 {
-    static constexpr index_t kWaveSize = 64;   // AMD wave size
-    static constexpr index_t kWarpM = 16;      // MFMA M dimension per warp
-    static constexpr index_t kWarpN = 16;      // MFMA N dimension per warp
-    static constexpr index_t kWarpK = 16;      // MFMA K dimension per instruction
+    static constexpr index_t kWaveSize = 64; // AMD wave size
+    static constexpr index_t kWarpM    = 16; // MFMA M dimension per warp
+    static constexpr index_t kWarpN    = 16; // MFMA N dimension per warp
+    static constexpr index_t kWarpK    = 16; // MFMA K dimension per instruction
 
     // Warp configuration: 2×2 warps per block (SAME as Tutorial 06)
-    static constexpr index_t MWarp = 2;        // 2 warps in M dimension
-    static constexpr index_t NWarp = 2;        // 2 warps in N dimension
-    static constexpr index_t kBlockSize = MWarp * NWarp * kWaveSize;  // 256 threads
+    static constexpr index_t MWarp      = 2;                         // 2 warps in M dimension
+    static constexpr index_t NWarp      = 2;                         // 2 warps in N dimension
+    static constexpr index_t kBlockSize = MWarp * NWarp * kWaveSize; // 256 threads
 
     // NEW: Tile iterations per warp (Y-dimension repetition)
-    static constexpr index_t MIterPerWarp = 2;  // Each warp sweeps 2 tiles in M
-    static constexpr index_t NIterPerWarp = 2;  // Each warp sweeps 2 tiles in N
-    static constexpr index_t KIterPerWarp = 1;  // K handled in main loop
+    static constexpr index_t MIterPerWarp = 2; // Each warp sweeps 2 tiles in M
+    static constexpr index_t NIterPerWarp = 2; // Each warp sweeps 2 tiles in N
+    static constexpr index_t KIterPerWarp = 1; // K handled in main loop
 
     // Use ck_tile's WarpGemm for MFMA
     using WarpGemm = WarpGemmMfmaF16F16F32M16N16K16;
@@ -58,28 +58,28 @@ struct TileSweepingYRepetitionHgemmKernel
                                    index_t M,
                                    index_t N,
                                    index_t K,
-                                   index_t lda,  // Leading dimension of A (column-major)
-                                   index_t ldb,  // Leading dimension of B (row-major)
-                                   index_t ldc,  // Leading dimension of C (column-major)
-                                   index_t ldd,  // Leading dimension of D (column-major)
+                                   index_t lda, // Leading dimension of A (column-major)
+                                   index_t ldb, // Leading dimension of B (row-major)
+                                   index_t ldc, // Leading dimension of C (column-major)
+                                   index_t ldd, // Leading dimension of D (column-major)
                                    AccDataType alpha,
                                    AccDataType beta) const
     {
         // Calculate which warp this thread belongs to within the block
         [[maybe_unused]] const index_t warp_id = get_warp_id();
-        [[maybe_unused]] const index_t iMWarp = warp_id / NWarp;  // M-warp index (0 or 1)
-        [[maybe_unused]] const index_t iNWarp = warp_id % NWarp;  // N-warp index (0 or 1)
+        [[maybe_unused]] const index_t iMWarp  = warp_id / NWarp; // M-warp index (0 or 1)
+        [[maybe_unused]] const index_t iNWarp  = warp_id % NWarp; // N-warp index (0 or 1)
 
         // Calculate base offset for this block
         // Each block now computes (MWarp × MIterPerWarp × kWarpM) × (NWarp × NIterPerWarp × kWarpN)
-        const index_t kMPerBlock = MWarp * MIterPerWarp * kWarpM;  // 2×2×16 = 64
-        const index_t kNPerBlock = NWarp * NIterPerWarp * kWarpN;  // 2×2×16 = 64
-        
+        const index_t kMPerBlock = MWarp * MIterPerWarp * kWarpM; // 2×2×16 = 64
+        const index_t kNPerBlock = NWarp * NIterPerWarp * kWarpN; // 2×2×16 = 64
+
         // Calculate block position in 2D grid
         const index_t num_blocks_n = N / kNPerBlock;
-        const index_t block_m = get_block_id() / num_blocks_n;
-        const index_t block_n = get_block_id() % num_blocks_n;
-        
+        const index_t block_m      = get_block_id() / num_blocks_n;
+        const index_t block_n      = get_block_id() % num_blocks_n;
+
         const index_t m_block_base = block_m * kMPerBlock;
         const index_t n_block_base = block_n * kNPerBlock;
 
@@ -89,111 +89,89 @@ struct TileSweepingYRepetitionHgemmKernel
 
         // Create tensor views for matrices
         const auto a_tensor = make_naive_tensor_view<address_space_enum::global>(
-            a,
-            make_tuple(M, K),
-            make_tuple(1, lda),
-            number<1>{},
-            number<1>{}
-        );
+            a, make_tuple(M, K), make_tuple(1, lda), number<1>{}, number<1>{});
 
         const auto b_tensor = make_naive_tensor_view<address_space_enum::global>(
-            b,
-            make_tuple(K, N),
-            make_tuple(ldb, 1),
-            number<4>{},
-            number<1>{}
-        );
+            b, make_tuple(K, N), make_tuple(ldb, 1), number<4>{}, number<1>{});
 
         const auto c_tensor = make_naive_tensor_view<address_space_enum::global>(
-            c,
-            make_tuple(M, N),
-            make_tuple(1, ldc),
-            number<1>{},
-            number<1>{}
-        );
+            c, make_tuple(M, N), make_tuple(1, ldc), number<1>{}, number<1>{});
 
         auto d_tensor = make_naive_tensor_view<address_space_enum::global>(
-            d,
-            make_tuple(M, N),
-            make_tuple(1, ldd),
-            number<1>{},
-            number<1>{}
-        );
+            d, make_tuple(M, N), make_tuple(1, ldd), number<1>{}, number<1>{});
 
         // ============================================================================
         // TILE DISTRIBUTIONS with Y-DIMENSION REPETITION (following 02_gemm pattern)
         // ============================================================================
-        
+
         // A Distribution: Block-level with Y-repetition
         // Warp-level distribution (same as Tutorial 06)
-        constexpr auto a_warp_dstr_encode = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<16>, sequence<4, 4>>,
-            tuple<sequence<2, 1>>,
-            tuple<sequence<0, 0>>,
-            sequence<2>,
-            sequence<1>>{};
+        constexpr auto a_warp_dstr_encode =
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<16>, sequence<4, 4>>,
+                                       tuple<sequence<2, 1>>,
+                                       tuple<sequence<0, 0>>,
+                                       sequence<2>,
+                                       sequence<1>>{};
 
         // constexpr auto a_block_outer_dstr_encoding =
         //     tile_distribution_encoding<sequence<NWarp>,
-        //                                tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
-        //                                tuple<sequence<1, 0>>,
+        //                                tuple<sequence<MIterPerWarp, MWarp>,
+        //                                sequence<KIterPerWarp>>, tuple<sequence<1, 0>>,
         //                                tuple<sequence<1, 0>>,
         //                                sequence<1, 2>,
         //                                sequence<0, 0>>{};
-        
+
         // Block-level outer distribution with Y-repetition
-        constexpr auto a_block_outer_dstr_encode = tile_distribution_encoding<
-            sequence<NWarp>,                                                        // Replicate across N-warps
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,               // H0: 2 iters × 2 warps in M
-            tuple<sequence<0, 1>>,                              // Ps_to_Hs
-            tuple<sequence<0, 1>>,                              // Ps_in_Hs
-            sequence<1, 2>,                                     // Ys_to_Hs: Y maps to BOTH M and K
-            sequence<0, 0>>{};                                  // Ys_in_Hs
+        constexpr auto a_block_outer_dstr_encode =
+            tile_distribution_encoding<sequence<NWarp>, // Replicate across N-warps
+                                       tuple<sequence<MIterPerWarp, MWarp>,
+                                             sequence<KIterPerWarp>>, // H0: 2 iters × 2 warps in M
+                                       tuple<sequence<0, 1>>,         // Ps_to_Hs
+                                       tuple<sequence<0, 1>>,         // Ps_in_Hs
+                                       sequence<1, 2>,    // Ys_to_Hs: Y maps to BOTH M and K
+                                       sequence<0, 0>>{}; // Ys_in_Hs
 
-        constexpr auto a_block_dstr_encode = 
-            detail::make_embed_tile_distribution_encoding(
-                a_block_outer_dstr_encode, a_warp_dstr_encode);
-
+        constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            a_block_outer_dstr_encode, a_warp_dstr_encode);
 
         // B Distribution: Block-level with Y-repetition
-        constexpr auto b_warp_dstr_encode = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<4, 4>, sequence<16>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<0, 0>>,
-            sequence<1>,
-            sequence<1>>{};
-        
+        constexpr auto b_warp_dstr_encode =
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<4, 4>, sequence<16>>,
+                                       tuple<sequence<1, 2>>,
+                                       tuple<sequence<0, 0>>,
+                                       sequence<1>,
+                                       sequence<1>>{};
+
         // constexpr auto b_block_outer_dstr_encode =
         //     tile_distribution_encoding<sequence<MWarp>,
-        //                                tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
-        //                                tuple<sequence<0, 1>>,
+        //                                tuple<sequence<NIterPerWarp, NWarp>,
+        //                                sequence<KIterPerWarp>>, tuple<sequence<0, 1>>,
         //                                tuple<sequence<0, 1>>,
         //                                sequence<1, 2>,
         //                                sequence<0, 0>>{};
 
-        constexpr auto b_block_outer_dstr_encode = tile_distribution_encoding<
-            sequence<MWarp>,                                    // Replicate across M-warps
-            tuple<sequence<KIterPerWarp>,                // H0: 2 iters × 2 warps in N
-                  sequence<NIterPerWarp, NWarp>>,                      // H1: 1 K-chunk
-            tuple<sequence<2, 0>>,                              // Ps_to_Hs
-            tuple<sequence<1, 0>>,                              // Ps_in_Hs
-            sequence<1, 2>,                                     // Ys_to_Hs: Y maps to BOTH N and K
-            sequence<0, 0>>{};                                  // Ys_in_Hs
+        constexpr auto b_block_outer_dstr_encode =
+            tile_distribution_encoding<sequence<MWarp>,              // Replicate across M-warps
+                                       tuple<sequence<KIterPerWarp>, // H0: 2 iters × 2 warps in N
+                                             sequence<NIterPerWarp, NWarp>>, // H1: 1 K-chunk
+                                       tuple<sequence<2, 0>>,                // Ps_to_Hs
+                                       tuple<sequence<1, 0>>,                // Ps_in_Hs
+                                       sequence<1, 2>,    // Ys_to_Hs: Y maps to BOTH N and K
+                                       sequence<0, 0>>{}; // Ys_in_Hs
 
-        constexpr auto b_block_dstr_encode = 
-            detail::make_embed_tile_distribution_encoding(
-                b_block_outer_dstr_encode, b_warp_dstr_encode);
+        constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            b_block_outer_dstr_encode, b_warp_dstr_encode);
 
         // // C Distribution: Block-level with Y-repetition for output
-        constexpr auto c_warp_dstr_encode = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<4, 4>, sequence<16>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<0, 0>>,
-            sequence<1>,
-            sequence<1>>{};
+        constexpr auto c_warp_dstr_encode =
+            tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<4, 4>, sequence<16>>,
+                                       tuple<sequence<1, 2>>,
+                                       tuple<sequence<0, 0>>,
+                                       sequence<1>,
+                                       sequence<1>>{};
 
         // constexpr auto c_block_outer_dstr_encode = tile_distribution_encoding<
         //     sequence<>,
@@ -203,18 +181,17 @@ struct TileSweepingYRepetitionHgemmKernel
         //     sequence<1, 2>,
         //     sequence<0, 0>>{};
 
-        constexpr auto c_block_outer_dstr_encode = tile_distribution_encoding<
-            sequence<>,                                         // No replication for output
-            tuple<sequence<MIterPerWarp, MWarp>,                // H0: M iterations
-                  sequence<NIterPerWarp, NWarp>>,               // H1: N iterations
-            tuple<sequence<2, 1>>,                              // Ps_to_Hs
-            tuple<sequence<1, 1>>,                              // Ps_in_Hs
-            sequence<1, 2>,                                     // Ys_to_Hs: Y maps to BOTH M and N
-            sequence<0, 0>>{};                                  // Ys_in_Hs
+        constexpr auto c_block_outer_dstr_encode =
+            tile_distribution_encoding<sequence<>, // No replication for output
+                                       tuple<sequence<MIterPerWarp, MWarp>,  // H0: M iterations
+                                             sequence<NIterPerWarp, NWarp>>, // H1: N iterations
+                                       tuple<sequence<2, 1>>,                // Ps_to_Hs
+                                       tuple<sequence<1, 1>>,                // Ps_in_Hs
+                                       sequence<1, 2>,    // Ys_to_Hs: Y maps to BOTH M and N
+                                       sequence<0, 0>>{}; // Ys_in_Hs
 
-        constexpr auto c_block_dstr_encode = 
-            detail::make_embed_tile_distribution_encoding(
-                c_block_outer_dstr_encode, c_warp_dstr_encode);
+        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
+            c_block_outer_dstr_encode, c_warp_dstr_encode);
 
         // Create distributions
         constexpr auto a_block_distribution = make_static_tile_distribution(a_block_dstr_encode);
@@ -226,72 +203,71 @@ struct TileSweepingYRepetitionHgemmKernel
         using BWarpDstr = decltype(make_static_tile_distribution(b_warp_dstr_encode));
         using CWarpDstr = decltype(make_static_tile_distribution(c_warp_dstr_encode));
 
-        constexpr auto a_warp_y_lengths = to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        constexpr auto b_warp_y_lengths = to_sequence(BWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        constexpr auto c_warp_y_lengths = to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto a_warp_y_lengths =
+            to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto b_warp_y_lengths =
+            to_sequence(BWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+        constexpr auto c_warp_y_lengths =
+            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
 
         constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
         constexpr auto b_warp_y_index_zeros = uniform_sequence_gen_t<BWarpDstr::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-    //     // Create block-level windows
-        auto a_block_window = make_tile_window(
-            a_tensor,
-            make_tuple(number<kMPerBlock>{}, number<kWarpK>{}),
-            {m_block_base, 0},
-            a_block_distribution
-        );
+        //     // Create block-level windows
+        auto a_block_window = make_tile_window(a_tensor,
+                                               make_tuple(number<kMPerBlock>{}, number<kWarpK>{}),
+                                               {m_block_base, 0},
+                                               a_block_distribution);
 
-        auto b_block_window = make_tile_window(
-            b_tensor,
-            make_tuple(number<kWarpK>{}, number<kNPerBlock>{}),
-            {0, n_block_base},
-            b_block_distribution
-        );
+        auto b_block_window = make_tile_window(b_tensor,
+                                               make_tuple(number<kWarpK>{}, number<kNPerBlock>{}),
+                                               {0, n_block_base},
+                                               b_block_distribution);
 
-    //     // Create block-level accumulator tile
+        //     // Create block-level accumulator tile
         auto c_block_tile = make_static_distributed_tensor<AccDataType>(c_block_distribution);
         set_tile(c_block_tile, AccDataType{0});
 
-    //     // Main K-loop
+        //     // Main K-loop
         const index_t num_k_loops = K / kWarpK;
         for(index_t k_iter = 0; k_iter < num_k_loops; ++k_iter)
         {
             // Load entire block tiles (all iterations at once)
             const auto a_block_tile = load_tile(a_block_window);
             const auto b_block_tile = load_tile(b_block_window);
-            
+
             // Nested loops over tile iterations using Y-slicing (like 02_gemm)
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     // Extract A warp tensor for this M-iteration using Y-slicing
                     auto a_warp_tensor = make_static_distributed_tensor<ADataType>(
                         make_static_tile_distribution(a_warp_dstr_encode));
-                    
+
                     a_warp_tensor.get_thread_buffer() = a_block_tile.get_y_sliced_thread_data(
                         merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
-                    
+
                     static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                         // Extract B warp tensor for this N-iteration using Y-slicing
                         auto b_warp_tensor = make_static_distributed_tensor<BDataType>(
                             make_static_tile_distribution(b_warp_dstr_encode));
-                        
+
                         b_warp_tensor.get_thread_buffer() = b_block_tile.get_y_sliced_thread_data(
                             merge_sequences(sequence<kIter, nIter>{}, b_warp_y_index_zeros),
                             merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
-                        
+
                         // Extract C warp tensor for this M,N iteration
                         auto c_warp_tensor = make_static_distributed_tensor<AccDataType>(
                             make_static_tile_distribution(c_warp_dstr_encode));
-                        
+
                         c_warp_tensor.get_thread_buffer() = c_block_tile.get_y_sliced_thread_data(
                             merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
                             merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
-                        
+
                         // Warp GEMM: C[mIter, nIter] += A[mIter, kIter] * B[nIter, kIter]
                         WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
-                        
+
                         // Write C warp tensor back to block tensor
                         c_block_tile.set_y_sliced_thread_data(
                             merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
@@ -302,7 +278,8 @@ struct TileSweepingYRepetitionHgemmKernel
             });
 
             // Move windows to next K chunk
-            if(k_iter < num_k_loops - 1) {
+            if(k_iter < num_k_loops - 1)
+            {
                 move_tile_window(a_block_window, {0, kWarpK});
                 move_tile_window(b_block_window, {kWarpK, 0});
             }
@@ -314,62 +291,67 @@ struct TileSweepingYRepetitionHgemmKernel
         // Add beta * C if needed
         if(std::abs(beta) > 1e-6f)
         {
-            auto c_block_window = make_tile_window(
-                c_tensor,
-                make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-                {m_block_base, n_block_base},
-                c_block_distribution
-            );
+            auto c_block_window =
+                make_tile_window(c_tensor,
+                                 make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+                                 {m_block_base, n_block_base},
+                                 c_block_distribution);
 
             const auto c_input_block_tile = load_tile(c_block_window);
 
             tile_elementwise_inout(
-                [beta](const auto& c_val, auto& acc_val) {
-                    acc_val += beta * c_val;
-                },
-                c_input_block_tile, c_block_tile);
+                [beta](const auto& c_val, auto& acc_val) { acc_val += beta * c_val; },
+                c_input_block_tile,
+                c_block_tile);
         }
 
         // Store final result to D
-        auto d_block_window = make_tile_window(
-            d_tensor,
-            make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-            {m_block_base, n_block_base},
-            c_block_distribution
-        );
+        auto d_block_window =
+            make_tile_window(d_tensor,
+                             make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+                             {m_block_base, n_block_base},
+                             c_block_distribution);
 
         store_tile(d_block_window, c_block_tile);
     }
 };
 
 // CPU reference for verification
-template<typename InType, typename AccType>
+template <typename InType, typename AccType>
 void reference_gemm_mixed(const std::vector<InType>& a,
                           const std::vector<InType>& b,
                           const std::vector<AccType>& c,
                           std::vector<AccType>& d,
-                          index_t M, index_t N, index_t K,
-                          index_t lda, index_t ldb, index_t ldc, index_t ldd,
-                          AccType alpha, AccType beta)
+                          index_t M,
+                          index_t N,
+                          index_t K,
+                          index_t lda,
+                          index_t ldb,
+                          index_t ldc,
+                          index_t ldd,
+                          AccType alpha,
+                          AccType beta)
 {
-    for(index_t n = 0; n < N; ++n) {
-        for(index_t m = 0; m < M; ++m) {
+    for(index_t n = 0; n < N; ++n)
+    {
+        for(index_t m = 0; m < M; ++m)
+        {
             AccType sum = 0;
-            for(index_t k = 0; k < K; ++k) {
-                sum += static_cast<AccType>(a[m + k * lda]) *
-                       static_cast<AccType>(b[k * ldb + n]);
+            for(index_t k = 0; k < K; ++k)
+            {
+                sum += static_cast<AccType>(a[m + k * lda]) * static_cast<AccType>(b[k * ldb + n]);
             }
             d[m + n * ldd] = alpha * sum + beta * c[m + n * ldc];
         }
     }
 }
 
-template<typename T>
+template <typename T>
 void fill_random(std::vector<T>& data, T min_val = -1, T max_val = 1)
 {
-    for(auto& val : data) {
-        val = static_cast<T>(min_val + (max_val - min_val) *
-                             static_cast<float>(rand()) / RAND_MAX);
+    for(auto& val : data)
+    {
+        val = static_cast<T>(min_val + (max_val - min_val) * static_cast<float>(rand()) / RAND_MAX);
     }
 }
 
@@ -390,7 +372,7 @@ int main()
     // constexpr index_t M = 128;
     // constexpr index_t N = 128;
     // constexpr index_t K = 64;
-    
+
     constexpr index_t M = 128;
     constexpr index_t N = 128;
     constexpr index_t K = 64;
@@ -404,13 +386,13 @@ int main()
     using AccumType = float;
 
     constexpr AccumType alpha = 2.0f;
-    constexpr AccumType beta = 1.5f;
+    constexpr AccumType beta  = 1.5f;
 
     std::cout << "Problem configuration:\n";
     std::cout << "  M×N×K: " << M << "×" << N << "×" << K << "\n";
     std::cout << "  Block output: 64×64 (2 warps × 2 iters × 16)\n";
     std::cout << "  Warp output: 32×32 (2 iters × 16 in each dim)\n";
-    std::cout << "  Total blocks: " << (M/64) << "×" << (N/64) << "\n\n";
+    std::cout << "  Total blocks: " << (M / 64) << "×" << (N / 64) << "\n\n";
 
     // Host memory
     std::vector<InputType> h_a(M * K);
@@ -427,7 +409,7 @@ int main()
     // CPU reference
     auto cpu_start = std::chrono::high_resolution_clock::now();
     reference_gemm_mixed(h_a, h_b, h_c, h_d_ref, M, N, K, lda, ldb, ldc, ldd, alpha, beta);
-    auto cpu_end = std::chrono::high_resolution_clock::now();
+    auto cpu_end       = std::chrono::high_resolution_clock::now();
     double cpu_time_ms = std::chrono::duration<double, std::milli>(cpu_end - cpu_start).count();
 
     // Device memory
@@ -443,7 +425,7 @@ int main()
 
     // Launch kernel
     constexpr index_t block_size = 256;
-    const index_t grid_size = (M / 64) * (N / 64);  // 64×64 per block
+    const index_t grid_size      = (M / 64) * (N / 64); // 64×64 per block
 
     std::cout << "Launching kernel:\n";
     std::cout << "  Grid: " << grid_size << " blocks\n";
@@ -454,59 +436,80 @@ int main()
     stream_config stream;
 
     // Warmup
-    for(int i = 0; i < 5; ++i) {
-        launch_kernel(stream,
-                     make_kernel<block_size>(
-                         TileSweepingYRepetitionHgemmKernel<InputType, InputType, AccumType, AccumType>{},
-                         dim3(grid_size),
-                         dim3(block_size),
-                         0,
-                         static_cast<const InputType*>(d_a.GetDeviceBuffer()),
-                         static_cast<const InputType*>(d_b.GetDeviceBuffer()),
-                         static_cast<const AccumType*>(d_c.GetDeviceBuffer()),
-                         static_cast<AccumType*>(d_d.GetDeviceBuffer()),
-                         M, N, K, lda, ldb, ldc, ldd, alpha, beta));
+    for(int i = 0; i < 5; ++i)
+    {
+        launch_kernel(
+            stream,
+            make_kernel<block_size>(
+                TileSweepingYRepetitionHgemmKernel<InputType, InputType, AccumType, AccumType>{},
+                dim3(grid_size),
+                dim3(block_size),
+                0,
+                static_cast<const InputType*>(d_a.GetDeviceBuffer()),
+                static_cast<const InputType*>(d_b.GetDeviceBuffer()),
+                static_cast<const AccumType*>(d_c.GetDeviceBuffer()),
+                static_cast<AccumType*>(d_d.GetDeviceBuffer()),
+                M,
+                N,
+                K,
+                lda,
+                ldb,
+                ldc,
+                ldd,
+                alpha,
+                beta));
     }
     hip_check_error(hipDeviceSynchronize());
 
     // Timed run
     auto gpu_start = std::chrono::high_resolution_clock::now();
 
-    launch_kernel(stream,
-                 make_kernel<block_size>(
-                     TileSweepingYRepetitionHgemmKernel<InputType, InputType, AccumType, AccumType>{},
-                     dim3(grid_size),
-                     dim3(block_size),
-                     0,
-                     static_cast<const InputType*>(d_a.GetDeviceBuffer()),
-                     static_cast<const InputType*>(d_b.GetDeviceBuffer()),
-                     static_cast<const AccumType*>(d_c.GetDeviceBuffer()),
-                     static_cast<AccumType*>(d_d.GetDeviceBuffer()),
-                     M, N, K, lda, ldb, ldc, ldd, alpha, beta));
+    launch_kernel(
+        stream,
+        make_kernel<block_size>(
+            TileSweepingYRepetitionHgemmKernel<InputType, InputType, AccumType, AccumType>{},
+            dim3(grid_size),
+            dim3(block_size),
+            0,
+            static_cast<const InputType*>(d_a.GetDeviceBuffer()),
+            static_cast<const InputType*>(d_b.GetDeviceBuffer()),
+            static_cast<const AccumType*>(d_c.GetDeviceBuffer()),
+            static_cast<AccumType*>(d_d.GetDeviceBuffer()),
+            M,
+            N,
+            K,
+            lda,
+            ldb,
+            ldc,
+            ldd,
+            alpha,
+            beta));
 
     hip_check_error(hipDeviceSynchronize());
 
-    auto gpu_end = std::chrono::high_resolution_clock::now();
+    auto gpu_end       = std::chrono::high_resolution_clock::now();
     double gpu_time_ms = std::chrono::duration<double, std::milli>(gpu_end - gpu_start).count();
 
     // Get result
     d_d.FromDevice(h_d.data(), M * N * sizeof(AccumType));
 
     // Verify
-    bool passed = true;
-    float max_error = 0;
+    bool passed         = true;
+    float max_error     = 0;
     index_t error_count = 0;
 
-    for(index_t i = 0; i < M * N; ++i) {
+    for(index_t i = 0; i < M * N; ++i)
+    {
         float error = std::abs(h_d[i] - h_d_ref[i]);
-        max_error = std::max(max_error, error);
-        if(error > 1e-2f) {
-            if(error_count < 5) {
+        max_error   = std::max(max_error, error);
+        if(error > 1e-2f)
+        {
+            if(error_count < 5)
+            {
                 index_t m = i % M;
                 index_t n = i / M;
-                std::cout << "Error at [" << m << "," << n << "]: "
-                          << h_d[i] << " vs " << h_d_ref[i]
-                          << " (diff=" << error << ")\n";
+                std::cout << "Error at [" << m << "," << n << "]: " << h_d[i] << " vs "
+                          << h_d_ref[i] << " (diff=" << error << ")\n";
             }
             error_count++;
         }
@@ -514,14 +517,15 @@ int main()
 
     passed = (error_count == 0);
 
-    double gflops = 2.0 * M * N * K / 1e9;
+    double gflops     = 2.0 * M * N * K / 1e9;
     double gpu_tflops = gflops / (gpu_time_ms / 1000);
     double cpu_gflops = gflops / (cpu_time_ms / 1000);
 
     std::cout << "Results:\n";
     std::cout << "  Correctness: " << (passed ? "✓ PASSED" : "✗ FAILED") << "\n";
     std::cout << "  Max error: " << max_error << "\n";
-    if(!passed) std::cout << "  Error count: " << error_count << "/" << M*N << "\n";
+    if(!passed)
+        std::cout << "  Error count: " << error_count << "/" << M * N << "\n";
     std::cout << "\n";
 
     std::cout << "Performance:\n";
