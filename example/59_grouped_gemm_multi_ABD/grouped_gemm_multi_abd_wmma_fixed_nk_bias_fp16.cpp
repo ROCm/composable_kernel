@@ -21,6 +21,8 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
+#include "ck/host_utility/hip_check_error.hpp"
+
 using ::ck::DeviceMem;
 using ::ck::hip_check_error;
 using ::ck::HostTensorDescriptor;
