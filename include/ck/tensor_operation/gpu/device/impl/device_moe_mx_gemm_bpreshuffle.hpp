@@ -74,7 +74,9 @@ template <typename ALayout,
           bool MulRoutedWeight                        = true,
           typename IndexType                          = index_t,
           typename ComputeTypeA                       = ADataType,
-          typename ComputeTypeB                       = BDataType>
+          typename ComputeTypeB                       = BDataType,
+          bool NonTemporalLoadB                       = false,
+          bool ReduceTopK                             = true>
 struct DeviceMoeGemmMXBPreShuffle : public DeviceMoEGemmMXBPreShuffle<ALayout,
                                                                       BLayout,
                                                                       DsLayout,
@@ -151,7 +153,9 @@ struct DeviceMoeGemmMXBPreShuffle : public DeviceMoEGemmMXBPreShuffle<ALayout,
         MulRoutedWeight,
         IndexType,
         ComputeTypeA,
-        ComputeTypeB>;
+        ComputeTypeB,
+        NonTemporalLoadB,
+        ReduceTopK>;
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
@@ -267,8 +271,9 @@ struct DeviceMoeGemmMXBPreShuffle : public DeviceMoEGemmMXBPreShuffle<ALayout,
                           : 1
                     : 2;
 
-            constexpr auto MemoryDataOp =
-                IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
+            constexpr auto MemoryDataOp = (IsInputGemm || !ReduceTopK)
+                                              ? InMemoryDataOperationEnum::Set
+                                              : InMemoryDataOperationEnum::AtomicAdd;
 
             if(has_main_k_block_loop)
             {

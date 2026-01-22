@@ -169,7 +169,9 @@ template <typename ALayout,
           bool MulRoutedWeight                        = true,
           typename IndexType                          = index_t,
           typename ComputeTypeA                       = ADataType,
-          typename ComputeTypeB                       = BDataType>
+          typename ComputeTypeB                       = BDataType,
+          bool NonTemporalLoadB                       = false,
+          bool ReduceTopK                             = true>
 struct GridwiseMoeGemmMX_BPreshuffle
 {
     using LDSTypeA = ADataType;
@@ -1293,6 +1295,14 @@ struct GridwiseMoeGemmMX_BPreshuffle
                                BElementwiseOperation b_element_op,
                                CElementwiseOperation c_element_op)
     {
+#if defined(__gfx942__) || defined(__gfx950__)
+        constexpr auto b_coherence_flag = NonTemporalLoadB
+                                              ? AmdBufferCoherenceEnum::WAVE_NT1
+                                              : AmdBufferCoherenceEnum::DefaultCoherence;
+#else
+        constexpr auto b_coherence_flag = AmdBufferCoherenceEnum::DefaultCoherence;
+#endif
+
         ignore                           = a_element_op;
         ignore                           = b_element_op;
         index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N);
@@ -1307,7 +1317,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
         const auto b_grid_desc_bpreshuffled =
             MakeBGridDescriptor_Preshuffled(BN0Shuffled, BK0Shuffled);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
-            IsInputGemm ? problem.NumTokens * problem.TopK : problem.NumTokens,
+            (IsInputGemm || !ReduceTopK) ? problem.NumTokens * problem.TopK : problem.NumTokens,
             problem.MPadded,
             problem.N,
             problem.NPadded,
@@ -1408,15 +1418,16 @@ struct GridwiseMoeGemmMX_BPreshuffle
         // Gride buffer creation
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global, b_coherence_flag>(
             p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
 
         // A, B scale buffer
         const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
-        const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_scale_grid + (expert_id * expert_scale_stride) / sizeof(BScaleDataType),
-            b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+        const auto b_scale_grid_buf =
+            make_dynamic_buffer<AddressSpaceEnum::Global, b_coherence_flag>(
+                p_b_scale_grid + (expert_id * expert_scale_stride) / sizeof(BScaleDataType),
+                b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
@@ -1551,9 +1562,10 @@ struct GridwiseMoeGemmMX_BPreshuffle
         if constexpr(IsInputGemm)
         {
             const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2;
-            const auto b_grid_buf_up     = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_grid_up + expert_id * expert_stride,
-                b_grid_desc_bpreshuffled.GetElementSpaceSize());
+            const auto b_grid_buf_up =
+                make_dynamic_buffer<AddressSpaceEnum::Global, b_coherence_flag>(
+                    p_b_grid_up + expert_id * expert_stride,
+                    b_grid_desc_bpreshuffled.GetElementSpaceSize());
             auto b_blockwise_copy_up =
                 ThreadwiseTensorSliceTransfer_v2<BDataType,
                                                  BDataType,
@@ -1577,9 +1589,10 @@ struct GridwiseMoeGemmMX_BPreshuffle
                                      KPack * (get_thread_local_1d_id() % WarpSize)));
             const BScaleDataType* p_b_scale_grid_up =
                 p_b_scale_grid + expert_scale_stride / 2 / sizeof(BScaleDataType);
-            const auto b_scale_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_scale_grid_up + expert_id * expert_scale_stride / sizeof(BScaleDataType),
-                b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+            const auto b_scale_grid_buf_up =
+                make_dynamic_buffer<AddressSpaceEnum::Global, b_coherence_flag>(
+                    p_b_scale_grid_up + expert_id * expert_scale_stride / sizeof(BScaleDataType),
+                    b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
             auto b_scale_thread_copy_up = ThreadwiseTensorSliceTransfer_v2<
                 BScaleDataType,
@@ -1992,7 +2005,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     IndexType token_offset    = fused_token & 0xffffff;
-                    if constexpr(IsInputGemm)
+                    if constexpr(IsInputGemm || !ReduceTopK)
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
@@ -2059,6 +2072,13 @@ struct GridwiseMoeGemmMX_BPreshuffle
                                     BElementwiseOperation b_element_op,
                                     CElementwiseOperation c_element_op)
     {
+#if defined(__gfx942__) || defined(__gfx950__)
+        constexpr auto b_coherence_flag = NonTemporalLoadB
+                                              ? AmdBufferCoherenceEnum::WAVE_NT1
+                                              : AmdBufferCoherenceEnum::DefaultCoherence;
+#else
+        constexpr auto b_coherence_flag = AmdBufferCoherenceEnum::DefaultCoherence;
+#endif
         ignore                           = a_element_op;
         ignore                           = b_element_op;
         index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N);
@@ -2073,7 +2093,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
         const auto b_grid_desc_bpreshuffled =
             MakeBGridDescriptor_Preshuffled(BN0Shuffled, BK0Shuffled);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N<CLayout>(
-            IsInputGemm ? problem.NumTokens * problem.TopK : problem.NumTokens,
+            (IsInputGemm || !ReduceTopK) ? problem.NumTokens * problem.TopK : problem.NumTokens,
             problem.MPadded,
             problem.N,
             problem.NPadded,
@@ -2174,15 +2194,16 @@ struct GridwiseMoeGemmMX_BPreshuffle
         // Gride buffer creation
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global, b_coherence_flag>(
             p_b_grid + expert_id * expert_stride, b_grid_desc_bpreshuffled.GetElementSpaceSize());
 
         // A, B scale buffer
         const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
-        const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_scale_grid + (expert_id * expert_scale_stride) / sizeof(BScaleDataType),
-            b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+        const auto b_scale_grid_buf =
+            make_dynamic_buffer<AddressSpaceEnum::Global, b_coherence_flag>(
+                p_b_scale_grid + (expert_id * expert_scale_stride) / sizeof(BScaleDataType),
+                b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
         // A matrix in LDS memory, dst of blockwise copy
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
@@ -2320,9 +2341,10 @@ struct GridwiseMoeGemmMX_BPreshuffle
         if constexpr(IsInputGemm)
         {
             const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2;
-            const auto b_grid_buf_up     = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_grid_up + expert_id * expert_stride,
-                b_grid_desc_bpreshuffled.GetElementSpaceSize());
+            const auto b_grid_buf_up =
+                make_dynamic_buffer<AddressSpaceEnum::Global, b_coherence_flag>(
+                    p_b_grid_up + expert_id * expert_stride,
+                    b_grid_desc_bpreshuffled.GetElementSpaceSize());
             auto b_blockwise_copy_up =
                 ThreadwiseTensorSliceTransfer_v2<BDataType,
                                                  BDataType,
@@ -2346,9 +2368,10 @@ struct GridwiseMoeGemmMX_BPreshuffle
                                      KPack * (get_thread_local_1d_id() % WarpSize)));
             const BScaleDataType* p_b_scale_grid_up =
                 p_b_scale_grid + expert_scale_stride / 2 / sizeof(BScaleDataType);
-            const auto b_scale_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_scale_grid_up + expert_id * expert_scale_stride / sizeof(BScaleDataType),
-                b_scale_grid_desc_bn_ak.GetElementSpaceSize());
+            const auto b_scale_grid_buf_up =
+                make_dynamic_buffer<AddressSpaceEnum::Global, b_coherence_flag>(
+                    p_b_scale_grid_up + expert_id * expert_scale_stride / sizeof(BScaleDataType),
+                    b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
             auto b_scale_thread_copy_up = ThreadwiseTensorSliceTransfer_v2<
                 BScaleDataType,
@@ -2761,7 +2784,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
                 static_for<0, EMRepeats, 1>{}([&](auto m0) {
                     const index_t fused_token = p_sorted_token_ids[c_token_pos + m0];
                     IndexType token_offset    = fused_token & 0xffffff;
-                    if constexpr(IsInputGemm)
+                    if constexpr(IsInputGemm || !ReduceTopK)
                     {
                         token_offset = token_offset * problem.TopK + (fused_token >> 24);
                     }
