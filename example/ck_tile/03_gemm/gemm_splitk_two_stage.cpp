@@ -27,6 +27,17 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
                                           Invoker,
                                           ck_tile::bf16_t>(a_layout, b_layout, arg_parser);
     }
+#ifdef CK_GFX950_SUPPORT
+    else if(data_type == "tf32")
+    {
+        return run_gemm_example_prec_type<GemmConfig<float, float>,
+                                          Invoker,
+                                          float,
+                                          float,
+                                          float,
+                                          ck_tile::tf32_t>(a_layout, b_layout, arg_parser);
+    }
+#endif
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");
