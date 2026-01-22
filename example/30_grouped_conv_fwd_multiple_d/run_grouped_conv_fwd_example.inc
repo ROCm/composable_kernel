@@ -22,33 +22,37 @@ using DeviceConvFwdInstance =
         GemmSpec,    // GemmSpecialization
         1,           //
         256,         // BlockSize
-        128,         // MPerBlock
-        256,         // NPerBlock
-        16,          // KPerBlock
-        4,           // AK1
-        4,           // BK1
+        64,         // MPerBlock
+        64,         // NPerBlock
+        32,          // KPerBlock
+        8,           // AK1
+        8,           // BK1
         16,          // MPerXdl
         16,          // NPerXdl
-        4,           // MXdlPerWave
-        8,           // NXdlPerWave
+        2,           // MXdlPerWave
+        2,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
         2,           // ABlockTransferSrcVectorDim
         4,           // ABlockTransferSrcScalarPerVector
-        4,           // ABlockTransferDstScalarPerVector_AK1
+        8,           // ABlockTransferDstScalarPerVector_AK1
         1,           // ABlockLdsExtraM
         S<4, 64, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
         S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
         2,           // BBlockTransferSrcVectorDim
         4,           // BBlockTransferSrcScalarPerVector
-        4,           // BBlockTransferDstScalarPerVector_BK1
+        8,           // BBlockTransferDstScalarPerVector_BK1
         1,           // BBlockLdsExtraN
         1,
         1,
-        S<1, 32, 1, 8>,
-        4>;
+        S<1, 32, 1, 4>,
+        4,          // Vector load/store size for output tensor 
+        InKernelDataType, 
+        WeiKernelDataType, 
+        ck::LoopScheduler::Default, 
+        2>;  // Number of merged groups
 
 template <ck::index_t NDimSpatial>
 using HostConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,

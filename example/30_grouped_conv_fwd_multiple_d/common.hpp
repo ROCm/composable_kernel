@@ -69,7 +69,7 @@ struct CommonLayoutSettingSelector<1> final
 
 template <>
 struct CommonLayoutSettingSelector<2> final
-    : CommonLayoutSetting<ctl::G_NHW_C, ctl::G_K_YX_C, ctl::G_NHW_K>
+    : CommonLayoutSetting<ctl::NHWGC, ctl::GKYXC, ctl::NHWGK>
 {
 };
 
@@ -143,6 +143,12 @@ inline bool parse_cmd_args(int argc,
         const ck::index_t num_dim_spatial = std::stoi(argv[4]);
         conv_param                        = ck::utils::conv::parse_conv_param(
             num_dim_spatial, threshold_to_catch_partial_args + 1, argv);
+        std::cout << "parsed conv_param: " << std::endl;
+        std::cout << conv_param.num_dim_spatial_ << std::endl;
+        std::cout << conv_param.G_ << std::endl;
+        std::cout << conv_param.N_ << std::endl;
+        std::cout << conv_param.K_ << std::endl;
+        std::cout << conv_param.C_ << std::endl;
     }
     else
     {
@@ -183,7 +189,7 @@ inline HostTensorDescriptor make_input_descriptor(const ck::utils::conv::ConvPar
                 conv_param.input_spatial_lengths_[1] * conv_param.G_ * conv_param.C_, // hi
                 conv_param.G_ * conv_param.C_                                         // wi
             },
-            ck::tensor_layout::convolution::GNCHW{});
+            ck::tensor_layout::convolution::NHWGC{});
 
     case 3:
         return HostTensorDescriptor(
@@ -239,7 +245,7 @@ inline HostTensorDescriptor make_weight_descriptor(const ck::utils::conv::ConvPa
                 conv_param.filter_spatial_lengths_[1] * conv_param.C_, // y
                 conv_param.C_                                          // x
             },
-            ck::tensor_layout::convolution::GKCYX{});
+            ck::tensor_layout::convolution::GKYXC{});
     case 3:
         return HostTensorDescriptor(
             {conv_param.G_,
@@ -345,7 +351,7 @@ inline HostTensorDescriptor make_output_descriptor(const ck::utils::conv::ConvPa
                 conv_param.output_spatial_lengths_[1] * conv_param.G_ * conv_param.K_, // ho
                 conv_param.G_ * conv_param.K_                                          // wo
             },
-            ck::tensor_layout::convolution::GNKHW{});
+            ck::tensor_layout::convolution::NHWGK{});
 
     case 3:
         return HostTensorDescriptor(
