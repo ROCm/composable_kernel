@@ -34,9 +34,17 @@ using f4_t    = unsigned _BitInt(4);
 using f6_t    = _BitInt(6);          // e2m3 format
 using bf6_t   = unsigned _BitInt(6); // e3m2 format
 
-// scalar_type
-template <typename TV>
-struct scalar_type;
+/**
+ * @brief Mapping of incoming type to local native storage type and vector size
+ * @tparam T Incoming data type
+ */
+template <typename T>
+struct scalar_type
+{
+    // Basic data type mapping to unsigned _BitInt of appropriate size
+    using type                           = unsigned _BitInt(8 * sizeof(T));
+    static constexpr index_t vector_size = 1;
+};
 
 struct f4x2_pk_t
 {
@@ -191,12 +199,6 @@ struct pk_i4_t
     __host__ __device__ constexpr pk_i4_t(type init) : data{init} {}
 };
 
-inline constexpr auto next_pow2(uint32_t x)
-{
-    // Precondition: x > 1.
-    return x > 1u ? (1u << (32u - __builtin_clz(x - 1u))) : x;
-}
-
 // native types: double, float, _Float16, ushort, int32_t, int8_t, uint8_t, f8_fnuz_t, bf8_fnuz_t,
 // native types: bool
 template <typename T>
@@ -207,10 +209,6 @@ inline constexpr bool is_native_type()
            is_same<T, uint32_t>::value || is_same<T, int8_t>::value || is_same<T, uint8_t>::value ||
            is_same_v<T, _BitInt(8)> || is_same_v<T, unsigned _BitInt(8)> || is_same<T, bool>::value;
 }
-
-// scalar_type
-template <typename TV>
-struct scalar_type;
 
 // is_scalar_type
 template <typename TV>
@@ -224,14 +222,13 @@ template <typename X, typename Y>
 using has_same_scalar_type = is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                      typename scalar_type<remove_cvref_t<Y>>::type>;
 
-template <typename T, index_t N>
-struct scalar_type<T __attribute__((ext_vector_type(N)))>
+template <>
+struct scalar_type<bool>
 {
-    using type                           = T;
-    static constexpr index_t vector_size = N;
+    using type                           = bool;
+    static constexpr index_t vector_size = 1;
 };
 
-//
 template <>
 struct scalar_type<double>
 {
@@ -293,35 +290,35 @@ struct scalar_type<int4_t>
 template <>
 struct scalar_type<pk_i4_t>
 {
-    using type                           = pk_i4_t;
+    using type                           = typename pk_i4_t::type;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
 struct scalar_type<f8_fnuz_t>
 {
-    using type                           = f8_fnuz_t::data_type;
+    using type                           = typename f8_fnuz_t::data_type;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
 struct scalar_type<bf8_fnuz_t>
 {
-    using type                           = bf8_fnuz_t::data_type;
+    using type                           = typename bf8_fnuz_t::data_type;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
 struct scalar_type<f8_ocp_t>
 {
-    using type                           = f8_ocp_t::data_type;
+    using type                           = typename f8_ocp_t::data_type;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
 struct scalar_type<bf8_ocp_t>
 {
-    using type                           = bf8_ocp_t::data_type;
+    using type                           = typename bf8_ocp_t::data_type;
     static constexpr index_t vector_size = 1;
 };
 
@@ -329,7 +326,7 @@ struct scalar_type<bf8_ocp_t>
 template <>
 struct scalar_type<e8m0_bexp_t>
 {
-    using type                           = e8m0_bexp_t::type;
+    using type                           = typename e8m0_bexp_t::type;
     static constexpr index_t vector_size = 1;
 };
 #endif
@@ -337,42 +334,35 @@ struct scalar_type<e8m0_bexp_t>
 template <>
 struct scalar_type<f4x2_pk_t>
 {
-    using type                           = f4x2_pk_t::type;
+    using type                           = typename f4x2_pk_t::type;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
 struct scalar_type<f6x32_pk_t>
 {
-    using type                           = f6x32_pk_t::storage_type;
+    using type                           = typename f6x32_pk_t::storage_type;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
 struct scalar_type<bf6x32_pk_t>
 {
-    using type                           = bf6x32_pk_t::storage_type;
+    using type                           = typename bf6x32_pk_t::storage_type;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
 struct scalar_type<f6x16_pk_t>
 {
-    using type                           = f6x16_pk_t::storage_type;
+    using type                           = typename f6x16_pk_t::storage_type;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
 struct scalar_type<bf6x16_pk_t>
 {
-    using type                           = bf6x16_pk_t::storage_type;
-    static constexpr index_t vector_size = 1;
-};
-
-template <>
-struct scalar_type<bool>
-{
-    using type                           = bool;
+    using type                           = typename bf6x16_pk_t::storage_type;
     static constexpr index_t vector_size = 1;
 };
 
