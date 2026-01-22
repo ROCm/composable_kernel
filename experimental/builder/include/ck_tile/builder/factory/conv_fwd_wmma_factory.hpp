@@ -26,7 +26,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdWmmaFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
+    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE>;
     using Types                         = internal::ConvTensorDataTypes<SIGNATURE>;
     using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
@@ -48,14 +48,56 @@ struct ConvFwdWmmaFactory
     static constexpr auto C_BLOCK_TRANSFER = internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
 
     // Check limits for the algorithm parameters.
-    // TODO: Add more limits checks as needed.
-    static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
-    static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
-    static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
-    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.src_access_order>);
-    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>);
+    static_assert(ValidABlockTransfer<A_BLOCK_TRANSFER,
+                                      typename Types::InDataType,
+                                      BLOCK.block_size,
+                                      BLOCK.per_block>);
+    static_assert(ValidBBlockTransfer<B_BLOCK_TRANSFER,
+                                      typename Types::WeiDataType,
+                                      BLOCK.block_size,
+                                      BLOCK.per_block>);
+    static_assert(ValidCBlockTransfer<C_BLOCK_TRANSFER,
+                                      typename Types::OutDataType,
+                                      BLOCK.block_size,
+                                      BLOCK.per_block>);
+    // TODO: verify Ds transfer as well
+
+    // Layout validations (same as DeviceGroupedConvFwdMultipleD_Wmma_CShuffle)
+    using enum TensorLayout;
+    static_assert(IsValidLayout<SIGNATURE.input.config.layout,
+                                G_NW_C_strided,
+                                G_NHW_C_strided,
+                                G_NDHW_C_strided,
+                                GNWC,
+                                GNHWC,
+                                GNDHWC,
+                                NWGC,
+                                NHWGC,
+                                NDHWGC> &&
+                  A_BLOCK_TRANSFER.src_vector_dim == 2);
+
+    static_assert(IsValidLayout<SIGNATURE.weight.config.layout,
+                                G_K_X_C_strided,
+                                G_K_YX_C_strided,
+                                G_K_ZYX_C_strided,
+                                GKXC,
+                                GKYXC,
+                                GKZYXC,
+                                KXGC,
+                                KYXGC,
+                                KZYXGC> &&
+                  B_BLOCK_TRANSFER.src_vector_dim == 2);
+
+    static_assert(IsValidLayout<SIGNATURE.output.config.layout,
+                                G_NW_K_strided,
+                                G_NHW_K_strided,
+                                G_NDHW_K_strided,
+                                GNWK,
+                                GNHWK,
+                                GNDHWK,
+                                NWGK,
+                                NHWGK,
+                                NDHWGK>);
 
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Wmma_CShuffle<

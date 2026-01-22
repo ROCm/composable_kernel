@@ -499,8 +499,10 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         }
     }
 
+    template <typename BaseDescriptors_M_K>
     __host__ __device__ static auto
-    MakeAsGridDescriptor_AK0_M_AK1(const index_t M,
+    MakeAsGridDescriptor_AK0_M_AK1(const BaseDescriptors_M_K& base_descs,
+                                   const index_t M,
                                    const index_t MPad,
                                    const index_t K,
                                    const index_t KPad,
@@ -518,10 +520,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                               GemmSpec == GemmSpecialization::NKPadding;
         return generate_tuple(
             [&](auto i) {
-                const auto base_desc = MakeAGridDescriptor_M_K(M, K, StrideAs[i]);
-
                 return ATransfer::template MakeGridDescriptor<padM, padK>(
-                    base_desc, M, MPad, K, KPad, StrideAs[i], AK0);
+                    base_descs[i], M, MPad, K, KPad, StrideAs[i], AK0);
             },
             Number<NumATensor>{});
     }
@@ -539,8 +539,39 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         return ATransfer::template MakeGridDescriptor<padM, padK>(base_desc, M, M, K, K, 0, AK0);
     }
 
+    template <typename BaseDescriptors_M_K>
     __host__ __device__ static auto
-    MakeBsGridDescriptor_BK0_N_BK1(const index_t K,
+    MakeAsGridDescriptor_AK0_M_AK1(const BaseDescriptors_M_K& base_descs, const index_t KBatch = 1)
+    {
+        const index_t M = base_descs.At(I0).GetLength(I0);
+        const index_t K = base_descs.At(I0).GetLength(I1);
+
+        const index_t MPad = CalculateMPadded(M);
+        const index_t KPad = CalculateKPadded(K, KBatch);
+
+        const index_t AK0 = CalculateAK0Padded(K, KBatch);
+
+        return MakeAsGridDescriptor_AK0_M_AK1(base_descs, M, MPad, K, KPad, {}, AK0);
+    }
+
+    __host__ __device__ static auto
+    MakeAsGridDescriptor_AK0_M_AK1(const index_t M,
+                                   const index_t MPad,
+                                   const index_t K,
+                                   const index_t KPad,
+                                   const std::array<index_t, NumATensor>& StrideAs,
+                                   const index_t AK0)
+    {
+        const auto base_descs =
+            generate_tuple([&](auto i) { return MakeAGridDescriptor_M_K(M, K, StrideAs[i]); },
+                           Number<NumATensor>{});
+        return MakeAsGridDescriptor_AK0_M_AK1(base_descs, M, MPad, K, KPad, StrideAs, AK0);
+    }
+
+    template <typename BaseDescriptors_N_K>
+    __host__ __device__ static auto
+    MakeBsGridDescriptor_BK0_N_BK1(const BaseDescriptors_N_K& base_descs,
+                                   const index_t K,
                                    const index_t KPad,
                                    const index_t N,
                                    const index_t NPad,
@@ -558,9 +589,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                               GemmSpec == GemmSpecialization::MKPadding;
         return generate_tuple(
             [&](auto i) {
-                const auto base_desc = MakeBGridDescriptor_N_K(N, K, StrideBs[i]);
                 return BTransfer::template MakeGridDescriptor<padN, padK>(
-                    base_desc, N, NPad, K, KPad, StrideBs[i], BK0);
+                    base_descs[i], N, NPad, K, KPad, StrideBs[i], BK0);
             },
             Number<NumBTensor>{});
     }
@@ -576,6 +606,36 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         constexpr bool padN = false;
         constexpr bool padK = false;
         return BTransfer::template MakeGridDescriptor<padN, padK>(base_desc, N, N, K, K, 0, BK0);
+    }
+
+    template <typename BaseDescriptors_N_K>
+    __host__ __device__ static auto
+    MakeBsGridDescriptor_BK0_N_BK1(const BaseDescriptors_N_K& base_descs, const index_t KBatch = 1)
+    {
+        const index_t N = base_descs.At(I0).GetLength(I0);
+        const index_t K = base_descs.At(I0).GetLength(I1);
+
+        const index_t NPad = CalculateNPadded(N);
+        const index_t KPad = CalculateKPadded(K, KBatch);
+
+        const index_t BK0 = CalculateBK0Padded(K, KBatch);
+
+        return MakeBsGridDescriptor_BK0_N_BK1(base_descs, K, KPad, N, NPad, {}, BK0);
+    }
+
+    __host__ __device__ static auto
+    MakeBsGridDescriptor_BK0_N_BK1(const index_t K,
+                                   const index_t KPad,
+                                   const index_t N,
+                                   const index_t NPad,
+                                   const std::array<index_t, NumBTensor>& StrideBs,
+                                   const index_t BK0)
+    {
+
+        const auto base_descs =
+            generate_tuple([&](auto i) { return MakeBGridDescriptor_N_K(N, K, StrideBs[i]); },
+                           Number<NumBTensor>{});
+        return MakeBsGridDescriptor_BK0_N_BK1(base_descs, K, KPad, N, NPad, StrideBs, BK0);
     }
 
     __host__ __device__ static constexpr auto MakeAWmmaTileDescriptor()
@@ -681,7 +741,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
     }
 
     template <typename DsGridDesc>
-    __device__ __host__ static constexpr auto
+    __host__ __device__ static constexpr auto
     MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const DsGridDesc& ds_grid_desc_m_n,
                                                            index_t MBlock,
                                                            index_t NBlock)

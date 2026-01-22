@@ -20,6 +20,7 @@
 #include "ck/tensor_operation/operator_transform/transform_contraction_to_gemm_arraybase.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/utility/tuple.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -51,12 +52,16 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     GridwiseOp::template Run<HasMainKBlockLoop, TailNum>(
         arg.p_a_grid + a_batch_offset,
         arg.p_b0_grid + b0_batch_offset,
+        Tuple<>{}, // p_d0s_grid
         arg.p_b1_grid + b1_batch_offset,
+        Tuple<>{}, // p_d1s_grid
         arg.p_c_grid + c_batch_offset,
         p_shared,
         arg.a_grid_desc,
         arg.b0_grid_desc,
+        Tuple<>{}, // D0sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
         arg.b1_grid_desc,
+        Tuple<>{}, // D1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
         arg.c_grid_desc_mblock_mperblock_nblock_nperblock,
         arg.a_element_op,
         arg.b0_element_op,
@@ -240,8 +245,10 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         // DataType Family
         ADataType,
         B0DataType,
+        Tuple<>,     // Ds0DataType
         AccDataType, // Acc0DataType
         B1DataType,
+        Tuple<>,     // Ds1DataType
         AccDataType, // Acc1DataType
         CShuffleDataType,
         CDataType,
@@ -255,7 +262,9 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         // InMemory Data Descriptor
         AGridDesc,
         B0GridDesc,
+        Tuple<>, // Ds0GridDesc
         B1GridDesc,
+        Tuple<>, // Ds1GridDesc
         CGridDesc_M_N,
         // Tiling Family
         MPerBlock,
@@ -290,6 +299,7 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         B0BlockTransferDstScalarPerVector_K1,
         true,
         B0BlockLdsAddExtraL,
+        1, // CDE0BlockTransferSrcScalarPerVector
         B1BlockTransferThreadClusterLengths_L0_N_L1,
         B1BlockTransferThreadClusterArrangeOrder,
         B1BlockTransferSrcAccessOrder,
@@ -369,8 +379,8 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
             b1_grid_desc    = MakeB1GridDescriptor(b1_g_o_n_lengths, b1_g_o_n_strides);
             c_grid_desc_m_n = Transform::MakeCGridDescriptor_M_N(c_g_m_o_lengths, c_g_m_o_strides);
             c_grid_desc_mblock_mperblock_nblock_nperblock =
-                GridwiseOp::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
-            block_2_ctile_map = GridwiseOp::MakeDefaultBlock2CTileMap(c_grid_desc_m_n, 1, 1);
+                GridwiseOp::MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(c_grid_desc_m_n);
+            block_2_ctile_map = GridwiseOp::MakeDefaultBlock2ETileMap(c_grid_desc_m_n, 1, 1);
         }
         // Pointers
         const ADataType* p_a_grid;
@@ -405,10 +415,10 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
         B0GridDesc b0_grid_desc;
         B1GridDesc b1_grid_desc;
         CGridDesc_M_N c_grid_desc_m_n;
-        typename GridwiseOp::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        typename GridwiseOp::E1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock;
 
-        typename GridwiseOp::DefaultBlock2CTileMap block_2_ctile_map;
+        typename GridwiseOp::DefaultBlock2ETileMap block_2_ctile_map;
 
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch;
     };
@@ -500,7 +510,9 @@ struct DeviceBatchedGemmGemm_Wmma_CShuffleV3 : public DeviceBatchedGemmGemm<ALay
 
         if(!GridwiseOp::CheckValidity(arg.a_grid_desc,
                                       arg.b0_grid_desc,
+                                      Tuple<>{},
                                       arg.b1_grid_desc,
+                                      Tuple<>{},
                                       arg.c_grid_desc_m_n,
                                       arg.block_2_ctile_map))
         {
