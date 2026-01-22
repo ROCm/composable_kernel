@@ -256,8 +256,8 @@ struct DeviceMoeGemmBlockScale
                         if(arg_.KBatch > 1)
                             hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
                                                              0,
-                                                             arg_.M * arg_.N * sizeof(CDataType)
-                                                             * (IsInputGemm && IsSplitK ? 2 : 1),
+                                                             arg_.M * arg_.N * sizeof(CDataType) *
+                                                                 (IsInputGemm && IsSplitK ? 2 : 1),
                                                              stream_config.stream_id_));
                     };
 
@@ -276,7 +276,7 @@ struct DeviceMoeGemmBlockScale
                         hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
                                                          0,
                                                          arg.M * arg.N * sizeof(CDataType) *
-                                                         (IsInputGemm && IsSplitK ? 2 : 1),
+                                                             (IsInputGemm && IsSplitK ? 2 : 1),
                                                          stream_config.stream_id_));
 
                     ave_time = launch_and_time_kernel(
