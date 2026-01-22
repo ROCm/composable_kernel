@@ -62,8 +62,6 @@ TEST(ReferenceInstanceTraits, Forward_2D_FP16)
     // Verify instance_string() - now includes data type and layouts!
     std::string instance_str = Traits::instance_string();
     EXPECT_EQ(instance_str, "GPU_Reference_Forward_2D_fp16_NHWGC_GKYXC_NHWGK");
-
-    std::cout << "✓ Forward InstanceTraits validated: " << instance_str << std::endl;
 }
 
 TEST(ReferenceInstanceTraits, BackwardData_2D_FP16)
@@ -86,8 +84,6 @@ TEST(ReferenceInstanceTraits, BackwardData_2D_FP16)
 
     std::string instance_str = Traits::instance_string();
     EXPECT_EQ(instance_str, "GPU_Reference_BackwardData_2D_fp16_NHWGC_GKYXC_NHWGK");
-
-    std::cout << "✓ Backward Data InstanceTraits validated: " << instance_str << std::endl;
 }
 
 TEST(ReferenceInstanceTraits, BackwardWeight_2D_FP16)
@@ -110,8 +106,6 @@ TEST(ReferenceInstanceTraits, BackwardWeight_2D_FP16)
 
     std::string instance_str = Traits::instance_string();
     EXPECT_EQ(instance_str, "GPU_Reference_BackwardWeight_2D_fp16_NHWGC_GKYXC_NHWGK");
-
-    std::cout << "✓ Backward Weight InstanceTraits validated: " << instance_str << std::endl;
 }
 
 } // namespace

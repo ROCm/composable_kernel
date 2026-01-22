@@ -11,6 +11,7 @@
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/host/fill.hpp"
 #include "ck_tile/host/flush_icache.hpp"
+#include "ck_tile/host/high_res_cpu_clock.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
 #include "ck_tile/host/host_tensor.hpp"
 #include "ck_tile/host/joinable_thread.hpp"
