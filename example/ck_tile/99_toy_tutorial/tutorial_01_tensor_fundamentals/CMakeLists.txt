@@ -15,6 +15,7 @@ target_compile_options(aa_tutorial_01_fundamentals PRIVATE
     -O0
     -g
     --save-temps
+    -Wno-gnu-line-marker
 )
 
 # Message for build output
