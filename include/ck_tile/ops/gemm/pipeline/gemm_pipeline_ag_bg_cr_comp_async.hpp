@@ -283,24 +283,18 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                           "B block window has incorrect lengths for defined BLayout!");
 
             ////////////// global window & register /////////////////
-            // A DRAM tile window(s) for load
+            // A DRAM tile window(s) for async byte-based load
             auto a_tile_windows = generate_tuple(
                 [&](auto idx) {
-                    return make_tile_window(
-                        a_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
-                        make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                        a_dram_block_window_tmp[number<idx>{}].get_window_origin(),
-                        Policy::template MakeADramTileDistribution<Problem>());
+                    return Policy::template MakeAAsyncLoadBytesDramWindow<Problem>(
+                        a_dram_block_window_tmp[number<idx>{}]);
                 },
                 number<AsLayout::size()>{});
-            // B DRAM window(s) for load
+            // B DRAM tile window(s) for async byte-based load
             auto b_tile_windows = generate_tuple(
                 [&](auto idx) {
-                    return make_tile_window(
-                        b_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
-                        make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                        b_dram_block_window_tmp[number<idx>{}].get_window_origin(),
-                        Policy::template MakeBDramTileDistribution<Problem>());
+                    return Policy::template MakeBAsyncLoadBytesDramWindow<Problem>(
+                        b_dram_block_window_tmp[number<idx>{}]);
                 },
                 number<BsLayout::size()>{});
 
@@ -334,21 +328,24 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
             auto b_copy_lds_window1 = make_tile_window(b_lds_block1, b_lds_shape, {0, 0});
 
-            // initialize DRAM window steps, used to advance the DRAM windows
-            using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
-            using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
+            // initialize DRAM window steps for byte-based windows
+            // Note: byte-based windows already account for data type packing
+            const auto a_dram_tile_window_step =
+                make_tuple(number<0>{}, number<KPerBlock / APackedSize>{});
+            const auto b_dram_tile_window_step =
+                make_tuple(number<0>{}, number<KPerBlock / BPackedSize>{});
 
-            constexpr ADramTileWindowStep a_dram_tile_window_step =
-                is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
-            constexpr BDramTileWindowStep b_dram_tile_window_step =
-                is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+            // Define async load tile lambda
+            auto async_load_tile_ = [](auto lds, auto dram) {
+                async_load_tile(lds, dram, number<-1>{}, true_type{}, true_type{});
+            };
 
             // read A(0), B(0) from DRAM to LDS window(0)
             // and advance the DRAM windows
-            Base::GlobalPrefetchAsync(
-                a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
-            Base::GlobalPrefetchAsync(
-                b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
+            async_load_tile_(a_copy_lds_window0, a_tile_windows[number<0>{}]);
+            move_tile_window(a_tile_windows[number<0>{}], a_dram_tile_window_step);
+            async_load_tile_(b_copy_lds_window0, b_tile_windows[number<0>{}]);
+            move_tile_window(b_tile_windows[number<0>{}], b_dram_tile_window_step);
 
             // initialize block gemm
             auto block_gemm = BlockGemm();
@@ -359,10 +356,10 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
             // read A(1), B(1) from DRAM to LDS window(1)
             // and advance the DRAM windows
-            Base::GlobalPrefetchAsync(
-                a_copy_lds_window1, a_tile_windows[number<0>{}], a_dram_tile_window_step);
-            Base::GlobalPrefetchAsync(
-                b_copy_lds_window1, b_tile_windows[number<0>{}], b_dram_tile_window_step);
+            async_load_tile_(a_copy_lds_window1, a_tile_windows[number<0>{}]);
+            move_tile_window(a_tile_windows[number<0>{}], a_dram_tile_window_step);
+            async_load_tile_(b_copy_lds_window1, b_tile_windows[number<0>{}]);
+            move_tile_window(b_tile_windows[number<0>{}], b_dram_tile_window_step);
 
             // tile distribution for the register tiles
             constexpr auto ALdsTileDistr =
@@ -423,10 +420,10 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             block_sync_lds();
             // read A(2), B(2) from DRAM to LDS window(0)
             // and advance the DRAM windows
-            Base::GlobalPrefetchAsync(
-                a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
-            Base::GlobalPrefetchAsync(
-                b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
+            async_load_tile_(a_copy_lds_window0, a_tile_windows[number<0>{}]);
+            move_tile_window(a_tile_windows[number<0>{}], a_dram_tile_window_step);
+            async_load_tile_(b_copy_lds_window0, b_tile_windows[number<0>{}]);
+            move_tile_window(b_tile_windows[number<0>{}], b_dram_tile_window_step);
 
             if(HasHotLoop)
             {
@@ -445,12 +442,10 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         block_sync_lds();
                         // read A(i), B(i) from DRAM to LDS window(1)
                         // and advance the DRAM windows
-                        Base::GlobalPrefetchAsync(a_copy_lds_window1,
-                                                  a_tile_windows[number<0>{}],
-                                                  a_dram_tile_window_step);
-                        Base::GlobalPrefetchAsync(b_copy_lds_window1,
-                                                  b_tile_windows[number<0>{}],
-                                                  b_dram_tile_window_step);
+                        async_load_tile_(a_copy_lds_window1, a_tile_windows[number<0>{}]);
+                        move_tile_window(a_tile_windows[number<0>{}], a_dram_tile_window_step);
+                        async_load_tile_(b_copy_lds_window1, b_tile_windows[number<0>{}]);
+                        move_tile_window(b_tile_windows[number<0>{}], b_dram_tile_window_step);
                         // C(i-3) = A(i-3) @ B(i-3)
                         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                         HotLoopScheduler();
@@ -466,12 +461,10 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         block_sync_lds();
                         // read A(i+1), B(i+1) from DRAM to LDS window(0)
                         // and advance the DRAM windows
-                        Base::GlobalPrefetchAsync(a_copy_lds_window0,
-                                                  a_tile_windows[number<0>{}],
-                                                  a_dram_tile_window_step);
-                        Base::GlobalPrefetchAsync(b_copy_lds_window0,
-                                                  b_tile_windows[number<0>{}],
-                                                  b_dram_tile_window_step);
+                        async_load_tile_(a_copy_lds_window0, a_tile_windows[number<0>{}]);
+                        move_tile_window(a_tile_windows[number<0>{}], a_dram_tile_window_step);
+                        async_load_tile_(b_copy_lds_window0, b_tile_windows[number<0>{}]);
+                        move_tile_window(b_tile_windows[number<0>{}], b_dram_tile_window_step);
                         // C(i-2) = A(i-2) @ B(i-2)
                         block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
                         HotLoopScheduler();
