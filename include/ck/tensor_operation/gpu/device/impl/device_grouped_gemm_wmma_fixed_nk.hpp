@@ -364,7 +364,7 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        Sequence<CDEBlockTransferScalarPerVector_NPerBlock>,
+        Sequence<CDEBlockTransferScalarPerVector_NPerBlock, CDEBlockTransferScalarPerVector_NPerBlock, CDEBlockTransferScalarPerVector_NPerBlock>,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
