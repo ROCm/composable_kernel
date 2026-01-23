@@ -44,6 +44,7 @@ def testLog() {
         echo "Testing docker login failed"
         echo "docker login failed Testing"
     """
+    error("Forcing failure to test notifications")
 }
 
 // Scan the build logs for failures and send notifications.
