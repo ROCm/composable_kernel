@@ -39,10 +39,8 @@ def testLog() {
     sh """
         echo "GPU not found"
         echo "Testing GPU not found"
-        echo "GPU not found Testing"
         echo "docker login failed"
         echo "Testing docker login failed"
-        echo "docker login failed Testing"
     """
     error("Forcing failure to test notifications")
 }
