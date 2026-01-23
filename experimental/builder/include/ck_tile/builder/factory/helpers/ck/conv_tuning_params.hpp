@@ -58,8 +58,7 @@ consteval BlockGemmSpec SetBlockGemm()
     case PipelineVersion::V3: version = ck::BlockGemmPipelineVersion::v3; break;
     case PipelineVersion::V4: version = ck::BlockGemmPipelineVersion::v4; break;
     case PipelineVersion::V5: version = ck::BlockGemmPipelineVersion::v5; break;
-    case PipelineVersion::V6:
-        throw "PipelineVersion::V6 is supported only for CK Tile.";
+    case PipelineVersion::V6: throw "PipelineVersion::V6 is supported only for CK Tile.";
     case PipelineVersion::WEIGHT_ONLY:
         throw "PipelineVersion::WEIGHT_ONLY is not supported for block GEMM.";
     default: throw "Unknown PipelineVersion";
@@ -140,8 +139,7 @@ consteval ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
     case PipelineVersion::V3: return ck_pipeline::v3;
     case PipelineVersion::V4: return ck_pipeline::v4;
     case PipelineVersion::V5: return ck_pipeline::v5;
-    case PipelineVersion::V6:
-        throw "PipelineVersion::V6 is supported only for CK Tile.";
+    case PipelineVersion::V6: throw "PipelineVersion::V6 is supported only for CK Tile.";
     case PipelineVersion::WEIGHT_ONLY:
         throw "PipelineVersion::WEIGHT_ONLY is not supported for block GEMM pipeline version.";
     default: throw "Unknown block GEMM PipelineVersion";
