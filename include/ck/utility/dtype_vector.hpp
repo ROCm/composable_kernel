@@ -324,8 +324,8 @@ template <typename T, index_t Rank>
 using vector_type_storage_t = typename vector_type_storage<T, Rank>::type;
 
 /**
- * @brief Trait to check whether one storage class is the same as another (e.g., same scalar, or
- * same vector class).
+ * @brief Trait to check whether one vector storage class is the same as another (e.g., same scalar,
+ * or same vector class).
  * @tparam Lhs The source storage type
  * @tparam Rhs The comparator storage type
  *
@@ -335,39 +335,35 @@ using vector_type_storage_t = typename vector_type_storage<T, Rank>::type;
  * - C-style arrays of same base type (may have different ranks)
  */
 template <typename Lhs, typename Rhs>
-struct is_same_storage_class : public false_type
+struct is_same_vector_storage_class : public false_type
 {
 };
 
 /**
- * @brief Same type storage class
- * @tparam T The storage type
- */
-template <typename T>
-struct is_same_storage_class<T, T> : public true_type
-{
-};
-
-/**
- * @brief Template vector types of same base type with different ranks
- * @tparam VecT The <T, N> vector template class type (e.g., vector_type, NativeVectorT,
- * non_native_vector_base)
+ * @brief Template native vector types of same base type with different ranks
  * @tparam T The base element type
  * @tparam LhsRank The rank of the source type
  * @tparam RhsRank The rank of the comparator type
  */
-template <template <typename, index_t> class VecT, typename T, index_t LhsRank, index_t RhsRank>
-struct is_same_storage_class<VecT<T, LhsRank>, VecT<T, RhsRank>> : true_type
+template <typename T, index_t LhsRank, index_t RhsRank>
+struct is_same_vector_storage_class<NativeVectorT<T, LhsRank>, NativeVectorT<T, RhsRank>>
+    : true_type
 {
 };
 
-// Explicit specialization for non_native_vector_base, which has three template parameters
+/**
+ * @brief Template non-native vector types of same base type with different ranks
+ * @tparam T The base element type
+ * @tparam LhsRank The rank of the source type
+ * @tparam RhsRank The rank of the comparator type
+ * @tparam Enable SFINAE helper
+ */
 template <typename T, index_t LhsRank, index_t RhsRank, typename Enable>
-struct is_same_storage_class<
-    non_native_vector_base<T, LhsRank, Enable>,
-    non_native_vector_base<T, RhsRank, Enable>> : true_type
+struct is_same_vector_storage_class<non_native_vector_base<T, LhsRank, Enable>,
+                                    non_native_vector_base<T, RhsRank, Enable>> : true_type
 {
 };
+
 /**
  * @brief C-style arrays of same base type with different ranks
  * @tparam T The base element type
@@ -375,17 +371,18 @@ struct is_same_storage_class<
  * @tparam RhsRank The rank of the comparator type
  */
 template <typename T, index_t LhsRank, index_t RhsRank>
-struct is_same_storage_class<T[LhsRank], T[RhsRank]> : true_type
+struct is_same_vector_storage_class<T[LhsRank], T[RhsRank]> : true_type
 {
 };
 
 /**
- * @brief Convenience evaluator for is_same_storage_class
+ * @brief Convenience evaluator for is_same_vector_storage_class
  * @tparam Lhs The source storage type
  * @tparam Rhs The comparator storage type
  */
 template <typename Lhs, typename Rhs>
-static constexpr bool is_same_storage_class_v = is_same_storage_class<Lhs, Rhs>::value;
+static constexpr bool is_same_vector_storage_class_v =
+    is_same_vector_storage_class<Lhs, Rhs>::value;
 
 /**
  * @brief Vector type wrapper
@@ -445,7 +442,9 @@ struct vector_type
         using TraitsX = scalar_type<X>;
 
         // Checks storage classes match, with same base type (may have different ranks)
-        constexpr bool is_valid_cast = is_same_storage_class_v<StorageT, X>;
+        constexpr bool is_valid_cast =
+            is_same_vector_storage_class_v<StorageT, X> || // Matching vector storage
+            is_same_v<X, T>;                               // Matching scalar type
 
         // Validate vector ranks
         constexpr bool is_valid_rank =

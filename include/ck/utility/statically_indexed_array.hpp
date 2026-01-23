@@ -8,7 +8,6 @@
 #include "sequence.hpp"
 #include "tuple.hpp"
 
-
 namespace ck {
 
 namespace detail {
