@@ -40,7 +40,7 @@ struct BlockSoftmax2D
 #endif
 
         // compute row max
-        auto reduce_row_max = BlockReduce2D{x, -numeric<DataType>::infinity()};
+        auto reduce_row_max = BlockReduce2D<decltype(x)>{x, -numeric<DataType>::infinity()};
 #if _BLOCK_SOFTMAX_USE_UNPACK2
         auto row_max = reduce_row_max(f_max3, f_max, sequence<1, 2>{});
 #else
