@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 namespace ck_tile {
@@ -42,7 +43,7 @@ template <typename SrcDataType,
           typename WarpWindow>
 CK_TILE_DEVICE void load_int4_tile(WarpTile& dst, const WarpWindow& src)
 {
-    if constexpr(numeric_traits<SrcDataType>::PackedSize > 1)
+    if constexpr(is_packed_type_v<SrcDataType>)
     {
         static_assert(!LoadTranspose, "LoadTranspose not supported with pk_int4_t or pk_fp4_t");
         InterleavedPKTypeLoader<SrcDataType, DstDataType, UnaryOpSize>::load_interleaved_pk_type(
