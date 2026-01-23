@@ -299,7 +299,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 [&](auto idx) {
                     return make_tile_window(
                         a_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
-                        make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                        make_tuple(number<MPerBlock>{}, number<KPerBlock / APackedSize>{}),
                         a_dram_block_window_tmp[number<idx>{}].get_window_origin(),
                         Policy::template MakeADramTileDistribution<Problem>());
                 },
@@ -309,7 +309,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 [&](auto idx) {
                     return make_tile_window(
                         b_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
-                        make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                        make_tuple(number<NPerBlock>{}, number<KPerBlock / BPackedSize>{}),
                         b_dram_block_window_tmp[number<idx>{}].get_window_origin(),
                         Policy::template MakeBDramTileDistribution<Problem>());
                 },
@@ -364,6 +364,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 scale_b_dram_window.get_load_offset(tuple<number<0>, number<NWarp * NPerXdl>>{}));
 
             // this pipeline has a pair of LDS buffers per logical tile
+            // TODO: check for packed size - are these blocks too big?
             auto&& [a_lds_block0, b_lds_block0] = Base::GetABLdsTensorViews(p_smem_0);
             auto&& [a_lds_block1, b_lds_block1] = Base::GetABLdsTensorViews(p_smem_1);
 
@@ -372,14 +373,14 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 if constexpr(is_a_load_tr_v)
                     return make_tuple(number<KPerBlock>{}, number<MPerBlock>{});
                 else
-                    return make_tuple(number<MPerBlock>{}, number<KPerBlock>{});
+                    return make_tuple(number<MPerBlock>{}, number<KPerBlock / APackedSize>{});
             }();
 
             constexpr auto b_lds_shape = []() {
                 if constexpr(is_b_load_tr_v)
                     return make_tuple(number<KPerBlock>{}, number<NPerBlock>{});
                 else
-                    return make_tuple(number<NPerBlock>{}, number<KPerBlock>{});
+                    return make_tuple(number<NPerBlock>{}, number<KPerBlock / BPackedSize>{});
             }();
 
             // LDS tile windows for storing, one per LDS buffer
@@ -439,6 +440,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             constexpr index_t MIterPerWarp = MPerBlock / (MWarp * MPerXdl);
             constexpr index_t NIterPerWarp = NPerBlock / (NWarp * NPerXdl);
             constexpr index_t ScaleKPackedPerIter = (KIterPerWarp * KPerXdl) / (ScaleBlockSize * KXdlPack);
+            static_assert(ScaleKPackedPerIter > 0, "ScaleKPackedPerIter is wrong!");
             
             // Load a sample scale tile to get the type
             auto scale_a_sample = load_tile_with_offset(scale_a_dram_window, tuple<number<0>, number<0>>{});
@@ -520,7 +522,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             });
             
             // Warp GEMM loop with MX scaling
-            auto warp_gemm_loop = [&](auto& a_block_tile, auto& b_block_tile, auto& scale_a, auto& scale_b) {
+            auto warp_gemm_loop = [&](const auto& a_block_tile, const auto& b_block_tile, const auto& scale_a, const auto& scale_b) {
                 // Extract A/B values from block tiles to warp iteration structure
                 constexpr auto a_warp_y_lengths =
                     to_sequence(typename WarpGemm::AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
@@ -537,25 +539,22 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                     static_for<0, MIterPerWarp, 1>{}([&](auto m_iter) {
                         constexpr auto OpSelA = kScaleInPack;
 
+                        // read A warp tensor from A block tensor
+                        typename WarpGemm::AWarpTensor a_warp_tensor;
+
+                        a_warp_tensor.get_thread_buffer() = a_block_tile.get_y_sliced_thread_data(
+                            merge_sequences(sequence<m_iter, k_iter>{}, a_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+
                         static_for<0, NIterPerWarp, 1>{}([&](auto n_iter) {
                             constexpr auto OpSelB = kScaleInPack;
 
-                            // Extract A/B values for this iteration - create warp tensors
-                            typename WarpGemm::AWarpTensor a_warp_tensor{};
-                            const auto a_thread_data = a_block_tile.get_y_sliced_thread_data(
-                                merge_sequences(sequence<m_iter, k_iter>{}, a_warp_y_index_zeros),
-                                merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
-                            static_for<0, a_warp_tensor.get_thread_buffer_size(), 1>{}([&](auto i) {
-                                a_warp_tensor.get_thread_buffer()(i) = a_thread_data[i];
-                            });
-                            
-                            typename WarpGemm::BWarpTensor b_warp_tensor{};
-                            const auto b_thread_data = b_block_tile.get_y_sliced_thread_data(
+                            // read B warp tensor from B block tensor
+                            typename WarpGemm::BWarpTensor b_warp_tensor;
+
+                            b_warp_tensor.get_thread_buffer() = b_block_tile.get_y_sliced_thread_data(
                                 merge_sequences(sequence<n_iter, k_iter>{}, b_warp_y_index_zeros),
                                 merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
-                            static_for<0, b_warp_tensor.get_thread_buffer_size(), 1>{}([&](auto i) {
-                                b_warp_tensor.get_thread_buffer()(i) = b_thread_data[i];
-                            });
 
                             WarpGemm{}.template operator()<OpSelA, OpSelB>(
                                 c_warp_tensors(m_iter)(n_iter),

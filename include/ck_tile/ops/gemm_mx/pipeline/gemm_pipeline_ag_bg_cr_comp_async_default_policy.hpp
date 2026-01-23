@@ -29,9 +29,9 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
     template <typename Problem, bool IsWave32Host = false>
     CK_TILE_HOST_DEVICE static constexpr index_t GetVectorSizeA()
     {
+        // Get packed sizes for A/B
         using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
-        using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
-        
+        using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
         // Force 16-byte vector loads for optimal async buffer performance
         // For fp4 (1 byte): 16 elements = 16 bytes
         // For fp8 (1 byte): 16 elements = 16 bytes
@@ -53,9 +53,9 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
     template <typename Problem, bool IsWave32Host = false>
     CK_TILE_HOST_DEVICE static constexpr index_t GetVectorSizeB()
     {
+        // Get packed sizes for A/B
         using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
-        using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
-        
+        using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
         // Force 16-byte vector loads for optimal async buffer performance
         // For fp4 (1 byte): 16 elements = 16 bytes
         // For fp8 (1 byte): 16 elements = 16 bytes
@@ -86,13 +86,17 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
 
         using ALayout = remove_cvref_t<
             std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::AsLayoutTuple>>>;
+        // Get packed sizes for A/B
+        using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+        using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+        constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
         
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             using TileEncodingPattern =
                 tile_distribution_encoding_pattern_2d<BlockSize,
                                                       MPerBlock,
-                                                      KPerBlock,
+                                                      KPerBlock / APackedSize,
                                                       VecLoadSize,
                                                       getATileAccessPattern(),
                                                       NumWaveGroups>;
@@ -123,6 +127,11 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         
         using BLayout = remove_cvref_t<
             std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayoutTuple>>>;
+
+        // Get packed sizes for A/B
+        using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+        using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+        constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
         
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
@@ -141,7 +150,7 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
             using TileEncodingPattern =
                 tile_distribution_encoding_pattern_2d<BlockSize,
                                                       NPerBlock,
-                                                      KPerBlock,
+                                                      KPerBlock / BPackedSize,
                                                       VecLoadSize,
                                                       getBTileAccessPattern(),
                                                       NumWaveGroups>;
@@ -153,8 +162,13 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
               typename OverrideADataType = remove_cvref_t<typename Problem::ADataType>>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
+        // Get packed sizes for A/B
+        using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+        using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+        constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / APackedSize;
         if constexpr(is_a_load_tr<Problem>)
         {
             // TODO: better LDS descriptor for performance
@@ -191,8 +205,13 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
+        // Get packed sizes for A/B
+        using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+        using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+        constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / BPackedSize;
         if constexpr(is_b_load_tr<Problem>)
         {
             // TODO: better LDS descriptor for performance
@@ -300,10 +319,6 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t NWarp = BlockWarps::at(number<1>{});
         constexpr index_t NPerXdl = WarpTile::at(number<1>{});
         constexpr index_t K_Lane = get_warp_size() / NPerXdl;  // 4 for 16x16 mfma
-
-        static_assert(K_Lane == 4, "K_Lane must be 4 for 16x16 mfma");
-        static_assert(NPerXdl == 16, "NPerXdl must be 16 for 16x16 mfma");
-        static_assert(MWarp == 1, "MWarp must be 1 for 16x16 mfma");
         
         // Scale B: [K/32/KXdlPack, NWarp * NPerXdl] for warp-level tile
         // Layout is [K, N] where K is packed int32
