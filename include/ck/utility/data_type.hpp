@@ -35,16 +35,19 @@ using f6_t    = _BitInt(6);          // e2m3 format
 using bf6_t   = unsigned _BitInt(6); // e3m2 format
 
 /**
+ * @brief Wrapper for native vector type
+ * @tparam T The element type of the vector
+ * @tparam Rank The number of elements in the vector
+ */
+template <typename T, index_t Rank>
+using NativeVectorT = T __attribute__((ext_vector_type(Rank)));
+
+/**
  * @brief Mapping of incoming type to local native storage type and vector size
  * @tparam T Incoming data type
  */
 template <typename T>
-struct scalar_type
-{
-    // Basic data type mapping to unsigned _BitInt of appropriate size
-    using type                           = unsigned _BitInt(8 * sizeof(T));
-    static constexpr index_t vector_size = 1;
-};
+struct scalar_type;
 
 struct f4x2_pk_t
 {
@@ -97,7 +100,7 @@ struct f6_pk_t
     static constexpr index_t vector_size =
         (packed_size * num_bits_elem) / num_bits_vec_elem; // 3 or 6 element_type units
 
-    using storage_type = element_type __attribute__((ext_vector_type(vector_size)));
+    using storage_type = NativeVectorT<element_type, vector_size>;
     storage_type data_{storage_type(0)}; // packed data
 
     using type = f6_pk_t<BitType, packed_size>;
@@ -118,7 +121,7 @@ struct f6_pk_t
 
     // Broadcast single initialization value to all packed elements
     __host__ __device__ f6_pk_t(const int8_t v)
-        : f6_pk_t(static_cast<int8_t __attribute__((ext_vector_type(packed_size)))>(v))
+        : f6_pk_t(static_cast<NativeVectorT<int8_t, packed_size>>(v))
     {
         // TODO: consider removing initialization similar to vector_type<T, 256>
     }
@@ -364,6 +367,18 @@ struct scalar_type<bf6x16_pk_t>
 {
     using type                           = typename bf6x16_pk_t::storage_type;
     static constexpr index_t vector_size = 1;
+};
+
+/**
+ * @brief scalar_type trait override for NativeVectorT
+ * @tparam T The vector type
+ * @tparam Rank The number of elements in the vector
+ */
+template <typename T, index_t Rank>
+struct scalar_type<NativeVectorT<T, Rank>>
+{
+    using type                           = T;
+    static constexpr index_t vector_size = Rank;
 };
 
 template <typename T>

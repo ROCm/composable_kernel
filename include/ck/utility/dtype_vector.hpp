@@ -9,26 +9,6 @@
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 
-/**
- * @brief Wrapper for native vector type
- * @tparam T The element type of the vector
- * @tparam Rank The number of elements in the vector
- */
-template <typename T, index_t Rank>
-using NativeVectorT = T __attribute__((ext_vector_type(Rank)));
-
-/**
- * @brief scalar_type trait override for NativeVectorT
- * @tparam T The vector type
- * @tparam Rank The number of elements in the vector
- */
-template <typename T, index_t Rank>
-struct scalar_type<NativeVectorT<T, Rank>>
-{
-    using type                           = T;
-    static constexpr index_t vector_size = Rank;
-};
-
 __device__ int static err = 0;
 
 template <typename T, index_t N, typename Enable = void>
@@ -42,7 +22,7 @@ struct non_native_vector_base<
 {
     using data_t = typename scalar_type<T>::type; // select data_t based on the size of T
     static_assert(sizeof(T) == sizeof(data_t), "non_native_vector_base storage size mismatch");
-    using data_v = data_t __attribute__((ext_vector_type(N)));
+    using data_v = NativeVectorT<data_t, N>;
     using type   = non_native_vector_base<T, N>;
 
     union alignas(math::next_power_of_two<N * sizeof(T)>())
@@ -145,8 +125,8 @@ struct non_native_vector_base<
     using element_t = typename T::element_type; // select element_t based on declared element type
     static_assert(sizeof(T) == sizeof(data_t), "non_native_vector_base storage size mismatch");
     static constexpr size_t size_factor = sizeof(data_t) / sizeof(element_t);
-    using data_v = element_t __attribute__((ext_vector_type(N * size_factor)));
-    using type   = non_native_vector_base<T, N>;
+    using data_v                        = NativeVectorT<element_t, N * size_factor>;
+    using type                          = non_native_vector_base<T, N>;
 
     union alignas(math::next_power_of_two<N * sizeof(T)>())
     {

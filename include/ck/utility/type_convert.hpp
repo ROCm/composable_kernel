@@ -1841,7 +1841,7 @@ inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0
         float float_array[32];
     } in{x};
 
-    using array_type = uint8_t __attribute__((ext_vector_type(32)));
+    using array_type = NativeVectorT<uint8_t, 32>;
     array_type uint8_array;
 
     // collect the 6-bit values into an array
@@ -2178,7 +2178,7 @@ inline __host__ __device__ bf6x32_t bf6_convert_rne(float32_t x, float scale = 1
         float float_array[32];
     } in{x};
 
-    using array_type = uint8_t __attribute__((ext_vector_type(32)));
+    using array_type = NativeVectorT<uint8_t, 32>;
     array_type uint8_array;
 
     // collect the 6-bit values into an array
