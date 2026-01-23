@@ -288,37 +288,66 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                           "C block tensor data type!");
             constexpr auto warp_size = get_warp_size();
 
+            // Start from AQ block tensor and then scale it using BQ; this represents
+            // the combined A/B quantization scales for the block.
+            auto q_block_tensor = aq_block_tensor;
+            constexpr bool SimpleDequant =
+                Traits::NQPerBlock == 1 &&
+                CWarpTensor::get_distributed_spans()[I0{}].impl_.size() == 0; // c_transpose
+            if constexpr(SimpleDequant)
+            {
+                constexpr auto aq_spans = AQBlockTensor::get_distributed_spans();
+                sweep_tile_span(aq_spans[I0{}], [&](auto im) {
+                    sweep_tile_span(aq_spans[I1{}], [&](auto ik) {
+                        q_block_tensor(make_tuple(im, ik)) *=
+                            bq_block_tensor(make_tuple(tile_distributed_index<0>{}, ik));
+                    });
+                });
+            }
+
             // hot loop:
-            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+            static_for<0, Traits::QScalesPerBlockRow, 1>{}([&](auto kQScale) {
+                static_for_product<number<MIterPerWarp>, number<NIterPerWarp>>{}([&](auto mIter,
+                                                                                     auto nIter) {
                     CWarpTensor c_warp_tensor;
+                    static_for<0, Traits::KIterPerQScale, 1>{}([&](auto kIterInQScale) {
+                        constexpr auto kIter = kQScale * Traits::KIterPerQScale + kIterInQScale;
 
-                    static_for<0, Traits::QScalesPerBlockRow, 1>{}([&](auto kQScale) {
-                        static_for<0, Traits::KIterPerQScale, 1>{}([&](auto kIterInQScale) {
-                            constexpr auto kIter = kQScale * Traits::KIterPerQScale + kIterInQScale;
+                        AWarpTensor a_warp_tensor;
+                        a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
+                            merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+                        BWarpTensor b_warp_tensor;
+                        b_warp_tensor.get_thread_buffer() = b_warp_tile_.get_y_sliced_thread_data(
+                            merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 
-                            AWarpTensor a_warp_tensor;
-                            a_warp_tensor.get_thread_buffer() =
-                                a_warp_tile_.get_y_sliced_thread_data(
-                                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-                                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+                        if constexpr(kIterInQScale == 0)
+                        {
+                            c_warp_tensor = WarpGemm{}(a_warp_tensor, b_warp_tensor);
+                        }
+                        else
+                        {
+                            WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                        }
+                    });
 
-                            BWarpTensor b_warp_tensor;
-                            b_warp_tensor.get_thread_buffer() =
-                                b_warp_tile_.get_y_sliced_thread_data(
-                                    merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
-                                    merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
-
-                            if constexpr(kIterInQScale == 0)
-                            {
-                                c_warp_tensor = WarpGemm{}(a_warp_tensor, b_warp_tensor);
-                            }
-                            else
-                            {
-                                WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
-                            }
+                    if constexpr(SimpleDequant)
+                    {
+                        constexpr auto cw_spans = CWarpTensor::get_distributed_spans();
+                        sweep_tile_span(cw_spans[I1{}], [&](auto in) {
+                            constexpr auto block_idx_m = tile_distributed_index<mIter>{};
+                            constexpr auto block_idx_n = detail::make_tile_distributed_index(
+                                merge_sequences(sequence<nIter>{}, in.impl_));
+                            constexpr auto block_idx_kq = tile_distributed_index<kQScale>{};
+                            constexpr auto empty_idx    = tile_distributed_index<>{};
+                            c_block_tensor(make_tuple(block_idx_m, block_idx_n)) +=
+                                c_warp_tensor(make_tuple(empty_idx, in)) *
+                                q_block_tensor(make_tuple(block_idx_m, block_idx_kq));
                         });
-
+                    }
+                    else
+                    {
                         constexpr auto tbuf_offset =
                             number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
                                        merge_sequences(sequence<mIter, nIter>{},
@@ -390,7 +419,7 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                                          b_scale_reg_f);
                                 });
                         }
-                    });
+                    }
                 });
             });
         }

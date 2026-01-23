@@ -24,7 +24,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdDlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
+    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE>;
     using Types                         = internal::ConvTensorDataTypes<SIGNATURE>;
     using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
