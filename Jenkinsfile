@@ -37,10 +37,8 @@ def checkForPattern(pattern, log) {
 def testLog() {
     // Todo: Remove test examples
     sh """
-        echo "GPU not found"
         echo "Testing GPU not found"
         echo "GPU not found Testing"
-        echo "docker login failed"
         echo "Testing docker login failed"
         echo "docker login failed Testing"
     """
