@@ -13,7 +13,6 @@ enum class quant_scale_enum
 {
     no_scale  = 0,
     pertensor = 1,
-    blockscale,
 };
 
 struct quant_scale_info
@@ -26,8 +25,6 @@ struct quant_scale_info
             os << "n";
         else if(type == quant_scale_enum::pertensor)
             os << "pt";
-        else if(type == quant_scale_enum::blockscale)
-            os << "bs";
     }
 
     static quant_scale_info decode(std::string str)
@@ -40,10 +37,6 @@ struct quant_scale_info
         else if(str == "pt" || str == "1")
         {
             info.type = quant_scale_enum::pertensor;
-        }
-        else if(str == "bs" || str == "2")
-        {
-            info.type = quant_scale_enum::blockscale;
         }
         else
         {
