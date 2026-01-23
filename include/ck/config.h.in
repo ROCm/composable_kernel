@@ -130,8 +130,8 @@
 #cmakedefine CK_USE_GFX94 @CK_USE_GFX94@
 #endif
 
-#ifndef CK_USE_GFX95
-#cmakedefine CK_USE_GFX95 @CK_USE_GFX95@
+#ifndef CK_USE_GFX950
+#cmakedefine CK_USE_GFX950 @CK_USE_GFX950@
 #endif
 
 #ifndef CK_USE_OCP_FP8

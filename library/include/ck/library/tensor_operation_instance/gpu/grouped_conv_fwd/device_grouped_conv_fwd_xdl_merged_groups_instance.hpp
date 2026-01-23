@@ -143,7 +143,7 @@ using device_grouped_conv_fwd_xdl_merged_groups_f32_instances = std::tuple<
     // clang-format on
     >;
 
-#if defined(CK_USE_GFX95)
+#if defined(CK_USE_GFX950)
 constexpr auto _k_per_block = 32;
 #else
 constexpr auto _k_per_block = 16;
