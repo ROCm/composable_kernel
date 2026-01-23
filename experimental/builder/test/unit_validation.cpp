@@ -143,9 +143,9 @@ TEST(ValidationReportTests, MultipleSomeIncorrect)
         auto b = ckt::alloc_tensor_buffer(desc);
 
         ckt::fill_tensor_buffer(
-            desc, a.get(), [](size_t i) { return ck::type_convert<ck::bhalf_t>(i % 100); });
+            desc, a.get(), [](size_t i) { return ck::type_convert<ck::bhalf_t>(float(i % 100)); });
         ckt::fill_tensor_buffer(
-            desc, b.get(), [](size_t i) { return ck::type_convert<ck::bhalf_t>(i % 101); });
+            desc, b.get(), [](size_t i) { return ck::type_convert<ck::bhalf_t>(float(i % 101)); });
 
         report.check("incorrect 1", desc, b.get(), a.get());
     }
