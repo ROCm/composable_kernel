@@ -100,11 +100,13 @@ struct GemmWPABQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipel
                                typename Problem::ADataType,
                                typename Problem::BDataType>;
 
-        using BDataType = typename Problem::BDataType;
-        constexpr auto NumAccess =
-            16 / sizeof(BDataType) * numeric_traits<BDataType>::PackedSize == 16
-                ? WGAttrNumAccessEnum::Double
-                : WGAttrNumAccessEnum::Single;
+        constexpr index_t WaveSize = get_warp_size();
+        constexpr index_t KLane    = WarpTile::at(I2) * WarpTile::at(I0) / WaveSize;
+        using BDataType            = typename Problem::BDataType;
+        constexpr index_t KLaneBytes =
+            KLane / numeric_traits<BDataType>::PackedSize * sizeof(BDataType);
+        constexpr auto NumAccess = static_cast<WGAttrNumAccessEnum>(max(1, KLaneBytes / 16));
+
         using WarpGemm = WarpGemmDispatcher<typename Problem::ADataType,
                                             BTypeToUse,
                                             typename Problem::CDataType,
