@@ -21,7 +21,7 @@ endif()
 
 if(GPU_TARGETS MATCHES "gfx9")
   if(CK_EXPERIMENTAL_BUILDER)
-    add_executable(test_grouped_convnd_fwd_tile test_grouped_convnd_fwd_tile.cpp)
+    add_gtest_executable(test_grouped_convnd_fwd_tile test_grouped_convnd_fwd_tile.cpp)
     target_compile_options(test_grouped_convnd_fwd_tile PRIVATE -Wno-global-constructors -Wno-undef -Wno-c++20-compat)
     target_link_libraries(test_grouped_convnd_fwd_tile PRIVATE gtest_main getopt::getopt utility)
     if(TARGET device_grouped_conv_fwd_tile_instances)
