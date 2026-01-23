@@ -27,6 +27,9 @@ struct auto_compute_type
         using LargestInputType = largest_type_t<ADataType, BDataType>;
         if constexpr(is_packed_type_v<LargestInputType>)
         {
+            // Sanity check: there are no packed types larger than 1 byte yet, but if we add them
+            // this logic should change
+            static_assert(sizeof(LargestInputType) == sizeof(fp8_t));
             return t<fp8_t>{};
         }
         else
