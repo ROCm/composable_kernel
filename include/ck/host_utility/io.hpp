@@ -13,7 +13,7 @@
 namespace ck {
 
 template <typename T>
-std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
+std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os, const std::vector<T>& v)
 {
     std::copy(std::begin(v), std::end(v), std::ostream_iterator<T>(os, " "));
     return os;

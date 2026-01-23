@@ -580,8 +580,9 @@ struct HostTensorDescriptor
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc);
-    friend std::ostream& operator<<(std::ostream& os, ChosenLayout tag);
+    friend std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                                    const HostTensorDescriptor& desc);
+    friend std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os, ChosenLayout tag);
 
     private:
     std::vector<std::size_t> mLens;

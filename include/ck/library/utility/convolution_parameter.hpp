@@ -110,4 +110,5 @@ ConvParam parse_conv_param(int num_dim_spatial, int arg_idx, char* const argv[])
 } // namespace utils
 } // namespace ck
 
-std::ostream& operator<<(std::ostream& os, const ck::utils::conv::ConvParam& p);
+std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                         const ck::utils::conv::ConvParam& p);
