@@ -308,6 +308,7 @@ if ((SUPPORTED_GPU_TARGETS MATCHES "gfx942" OR SUPPORTED_GPU_TARGETS MATCHES "gf
 else()
     message(STATUS "Disabling TF32 instances")
     remove_definitions(-DCK_ENABLE_TF32)
+    set(CK_ENABLE_TF32 "OFF")
 endif()
 
 option(CK_USE_FP8_ON_UNSUPPORTED_ARCH "Enable FP8 GEMM instances on older architectures" OFF)
@@ -389,7 +390,7 @@ if(USE_BITINT_EXTENSION_INT4)
 endif()
 
 if(ENABLE_ASM_DUMP)
-    add_compile_options(--save-temps)
+    add_compile_options(--save-temps) 
     add_compile_options(-Wno-gnu-line-marker)
     message("CK compiled with ENABLE_ASM_DUMP set to ${ENABLE_ASM_DUMP}")
 endif()
