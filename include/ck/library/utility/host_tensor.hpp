@@ -26,7 +26,7 @@
 namespace ck {
 
 template <typename Range>
-std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
+std::ostream& LogRange([[clang::lifetimebound]] std::ostream& os, Range&& range, std::string delim)
 {
     bool first = true;
     for(auto&& v : range)

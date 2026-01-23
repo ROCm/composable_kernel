@@ -51,7 +51,7 @@ get_tuple_element_data_reference(const TupleElementKeyData<Key, Data>& x)
 // for write access of tuple element
 template <typename Key, typename Data>
 __host__ __device__ constexpr Data&
-get_tuple_element_data_reference(TupleElementKeyData<Key, Data>& x)
+get_tuple_element_data_reference([[clang::lifetimebound]] TupleElementKeyData<Key, Data>& x)
 {
     return x.mData;
 }

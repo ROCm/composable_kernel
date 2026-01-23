@@ -27,7 +27,8 @@ std::ostream& operator<<(std::ostream& os, const std::array<T, N>& v)
 }
 
 template <typename... Ts>
-std::ostream& operator<<(std::ostream& os, const TensorDescriptor<Ts...>& desc)
+std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                         const TensorDescriptor<Ts...>& desc)
 {
     constexpr index_t nDim = remove_cvref_t<decltype(desc)>::GetNumOfDimension();
 
