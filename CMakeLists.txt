@@ -259,6 +259,11 @@ if ((SUPPORTED_GPU_TARGETS MATCHES "gfx94" OR SUPPORTED_GPU_TARGETS MATCHES "gfx
     add_definitions(-DCK_USE_GFX94)
     set(CK_USE_GFX94 "ON")
 endif()
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx95" AND NOT FORCE_DISABLE_XDL)
+    message(STATUS "Enabling XDL FP8 gemms on gfx95")
+    add_definitions(-DCK_USE_GFX95)
+    set(CK_USE_GFX95 "ON")
+endif()
 
 # new macro CK_TILE_USE_WMMA in order to separately compile examples for MFMA/WMMA
 set(CK_TILE_USE_WMMA 0)
@@ -303,7 +308,6 @@ if ((SUPPORTED_GPU_TARGETS MATCHES "gfx942" OR SUPPORTED_GPU_TARGETS MATCHES "gf
 else()
     message(STATUS "Disabling TF32 instances")
     remove_definitions(-DCK_ENABLE_TF32)
-    set(CK_ENABLE_TF32 "OFF")
 endif()
 
 option(CK_USE_FP8_ON_UNSUPPORTED_ARCH "Enable FP8 GEMM instances on older architectures" OFF)
@@ -385,7 +389,7 @@ if(USE_BITINT_EXTENSION_INT4)
 endif()
 
 if(ENABLE_ASM_DUMP)
-    add_compile_options(--save-temps) 
+    add_compile_options(--save-temps)
     add_compile_options(-Wno-gnu-line-marker)
     message("CK compiled with ENABLE_ASM_DUMP set to ${ENABLE_ASM_DUMP}")
 endif()
