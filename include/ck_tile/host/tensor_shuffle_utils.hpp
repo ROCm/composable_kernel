@@ -77,37 +77,35 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmConfig)
 
     if(ck_tile::is_gfx12_supported())
     {
-        constexpr int divisor      = 2;
-        constexpr int kABK1PerLane = 8;
-        int kABK0PerLane           = gemmConfig.K_Warp_Tile / divisor / kABK1PerLane;
+        constexpr int kKLanePerWarp = 2;
+        constexpr int kABK1PerLane  = 8;
+        int kABK0PerLane            = gemmConfig.K_Warp_Tile / kKLanePerWarp / kABK1PerLane;
         ck_tile::HostTensor<T> t_view({n_ / gemmConfig.N_Warp_Tile,
                                        gemmConfig.N_Warp_Tile,
                                        k_ / gemmConfig.K_Warp_Tile,
                                        kABK0PerLane,
-                                       divisor,
+                                       kKLanePerWarp,
                                        kABK1PerLane});
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 2, 4, 1, 3, 5});
     }
     else
     {
-        int divisor = 1;
+        int kKLanePerWarp = 1;
         if(ck_tile::is_gfx11_supported())
         {
-            divisor = 1;
+            kKLanePerWarp = 1;
         }
         else
         {
-            assert(is_wave32() == false);
-            divisor = get_warp_size() / gemmConfig.N_Warp_Tile;
+            kKLanePerWarp = get_warp_size() / gemmConfig.N_Warp_Tile;
         }
         ck_tile::HostTensor<T> t_view({n_ / gemmConfig.N_Warp_Tile,
                                        gemmConfig.N_Warp_Tile,
-                                       k_ / gemmConfig.K_Warp_Tile,
-                                       divisor,
-                                       gemmConfig.K_Warp_Tile / divisor});
+                                       k_ / (gemmConfig.K_Warp_Tile / kKLanePerWarp),
+                                       gemmConfig.K_Warp_Tile / kKLanePerWarp});
         std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+        return ck_tile::reference_permute(t_view, {0, 2, 1, 3});
     }
 }
 
@@ -144,39 +142,39 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmC
     int NRepeat = gemmConfig.N_Tile / gemmConfig.N_Warp_Tile / gemmConfig.N_Warp;
     if(ck_tile::is_gfx12_supported())
     {
-        constexpr int divisor      = 2;
-        constexpr int kABK1PerLane = 8;
-        int kABK0PerLane           = gemmConfig.K_Warp_Tile / divisor / kABK1PerLane;
+        constexpr int kKLanePerWarp = 2;
+        constexpr int kABK1PerLane  = 8;
+        int kABK0PerLane            = gemmConfig.K_Warp_Tile / kKLanePerWarp / kABK1PerLane;
         ck_tile::HostTensor<T> t_view({n_ / gemmConfig.N_Tile,
                                        gemmConfig.N_Warp,
                                        gemmConfig.N_Warp_Tile,
                                        NRepeat,
                                        k_ / gemmConfig.K_Warp_Tile,
                                        kABK0PerLane,
-                                       divisor,
+                                       kKLanePerWarp,
                                        kABK1PerLane});
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 6, 5, 2, 7});
     }
     else
     {
-        int divisor = 1;
+        int kKLanePerWarp = 1;
         if(ck_tile::is_gfx11_supported())
         {
-            divisor = 1;
+            kKLanePerWarp = 1;
         }
         else
         {
             assert(is_wave32() == false);
-            divisor = get_warp_size() / gemmConfig.N_Warp_Tile;
+            kKLanePerWarp = get_warp_size() / gemmConfig.N_Warp_Tile;
         }
         ck_tile::HostTensor<T> t_view({n_ / gemmConfig.N_Tile,
                                        gemmConfig.N_Warp,
                                        gemmConfig.N_Warp_Tile,
                                        NRepeat,
                                        k_ / gemmConfig.K_Warp_Tile,
-                                       divisor,
-                                       gemmConfig.K_Warp_Tile / divisor});
+                                       kKLanePerWarp,
+                                       gemmConfig.K_Warp_Tile / kKLanePerWarp});
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 5, 2, 6});
     }

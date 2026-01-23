@@ -6,16 +6,7 @@
 #include "test_gemm_quant_base.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
-
-template <bool is_8bit>
-constexpr ck_tile::index_t get_k_warp_tile()
-{
-#if CK_TILE_USE_WMMA
-    return 16;
-#else
-    return is_8bit ? 64 : 32;
-#endif
-}
+#include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
 
 struct GemmConfigBase
 {
@@ -50,23 +41,21 @@ struct GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<false>();
+    // K_Warp_Tile is derived from N_Warp_Tile and BDataType
 };
 
 struct GemmConfigDecode : public GemmConfigBase
 {
-    static constexpr ck_tile::index_t M_Tile      = 16;
-    static constexpr ck_tile::index_t N_Tile      = 64;
-    static constexpr ck_tile::index_t K_Tile      = 256;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256;
 };
 
 struct GemmConfigPrefill : public GemmConfigBase
 {
-    static constexpr ck_tile::index_t M_Tile      = 128;
-    static constexpr ck_tile::index_t N_Tile      = 128;
-    static constexpr ck_tile::index_t K_Tile      = 128;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128;
 };
 
 struct GemmConfigMxFp4 : public GemmConfigBase

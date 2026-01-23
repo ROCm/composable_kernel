@@ -145,7 +145,7 @@ struct GemmConfigPreshuffleB_BQuant_Decode : public GemmConfigBase
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile =
-        ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile, true>();
+        ck_tile::get_k_warp_tile_for_preshuffle_b<PrecType, N_Warp_Tile>();
 
     static constexpr bool PreshuffleB      = true;
     static constexpr bool DoubleSmemBuffer = true;
@@ -175,7 +175,7 @@ struct GemmConfigPreshuffleB_BQuant_Prefill : public GemmConfigBase
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile =
-        ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile, true>();
+        ck_tile::get_k_warp_tile_for_preshuffle_b<PrecType, N_Warp_Tile>();
 
     static constexpr bool PreshuffleB      = true;
     static constexpr bool DoubleSmemBuffer = true;

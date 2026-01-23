@@ -48,7 +48,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
     static const ck_tile::index_t M_Warp_Tile = 16;
     static const ck_tile::index_t N_Warp_Tile = 16;
     static const ck_tile::index_t K_Warp_Tile =
-        ck_tile::get_k_warp_tile<BDataType, M_Warp_Tile, true>();
+        ck_tile::get_k_warp_tile_for_preshuffle_b<PrecType, N_Warp_Tile>();
 
     static constexpr bool DoubleSmemBuffer = true;  // preshuffle v2 uses ping-pong smem
     static constexpr bool TransposeC       = false; // transpose c is not supported

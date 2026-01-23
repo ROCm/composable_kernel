@@ -12,6 +12,7 @@
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -86,7 +87,7 @@ struct config
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(Datatype) == 2 ? 16 : 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<Datatype, N_Warp_Tile>();
 };
 
 template <typename Datatype>
@@ -102,7 +103,7 @@ struct config_wmma
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<Datatype, M_Warp_Tile>();
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<Datatype, N_Warp_Tile>();
 };
 
 template <typename Tuple>
