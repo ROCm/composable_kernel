@@ -214,6 +214,30 @@ struct non_native_vector_base<
             return err;
         }
     }
+
+    template <typename X>
+    __host__ __device__ auto& AsType()
+    {
+        static_assert(is_same_v<X, data_t> || is_same_v<X, data_v> || is_same_v<X, T>,
+                      "Something went wrong, please check src and dst types.");
+
+        if constexpr(is_same_v<X, data_v>)
+        {
+            return data_.dNx1;
+        }
+        else if constexpr(is_same_v<X, data_t>)
+        {
+            return data_.dxN;
+        }
+        else if constexpr(is_same_v<X, T>)
+        {
+            return data_.dTxN;
+        }
+        else
+        {
+            return err;
+        }
+    }
 };
 
 template <typename T, index_t N>
@@ -277,7 +301,6 @@ template <typename T, index_t Rank>
 struct vector_type_storage<T, Rank, enable_if_t<is_native_type<T>() && (Rank > 1)>>
 {
     using type = std::conditional_t<std::is_same_v<bool, T>, T[Rank], NativeVectorT<T, Rank>>;
-    ;
 };
 
 /**
@@ -338,6 +361,13 @@ struct is_same_storage_class<VecT<T, LhsRank>, VecT<T, RhsRank>> : true_type
 {
 };
 
+// Explicit specialization for non_native_vector_base, which has three template parameters
+template <typename T, index_t LhsRank, index_t RhsRank, typename Enable>
+struct is_same_storage_class<
+    non_native_vector_base<T, LhsRank, Enable>,
+    non_native_vector_base<T, RhsRank, Enable>> : true_type
+{
+};
 /**
  * @brief C-style arrays of same base type with different ranks
  * @tparam T The base element type
@@ -423,7 +453,7 @@ struct vector_type
              (TraitsX::vector_size == Rank)) &&
             (TraitsX::vector_size <= Rank);
 
-        return is_valid_cast || is_valid_rank;
+        return is_valid_cast && is_valid_rank;
     }
 
     /**
