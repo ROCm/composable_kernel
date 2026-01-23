@@ -10,11 +10,9 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "ck_tile/ops/reduce.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
-#include "ck_tile/ops/elementwise.hpp"
 
-#include "test_multi_reduce2d_multiblock_impl.hpp"
+#include "test_mhc_impl.hpp"
 
 // Shape parameters for different test configurations
 using Shape1_BlockWarps = ck_tile::sequence<4, 1>;
