@@ -39,10 +39,10 @@ def sendFailureNotifications() {
     // Error patterns to scan build logs for specific failure types and send detailed notifications.
     def failurePatterns = [
         [pattern: /login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
-        [pattern: /docker login failed/, description: "Docker login failed"],
+        [pattern: /.docker login failed./, description: "Docker login failed"],
         [pattern: /HTTP request sent .* 404 Not Found/, description: "HTTP request failed with 404"],
         [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
-        [pattern: /GPU not found/, description: "GPU not found"],
+        [pattern: /.GPU not found./, description: "GPU not found"],
         [pattern: /Could not connect to Redis at .* Connection timed out/, description: "Redis connection timed out"]
     ]
     
@@ -1290,6 +1290,13 @@ pipeline {
                 script {
                     env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || shouldRunCICheck())
                     echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                    // Todo: Remove test examples
+                    echo "GPU not found"
+                    echo "Testing GPU not found"
+                    echo "GPU not found Testing"
+                    echo "docker login failed"
+                    echo "Testing docker login failed"
+                    echo "docker login failed Testing"
                 }
             }
         }
