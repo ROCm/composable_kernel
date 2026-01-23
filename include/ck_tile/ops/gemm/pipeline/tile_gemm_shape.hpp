@@ -69,21 +69,26 @@ constexpr index_t get_k_warp_tile()
 template <typename PrecType, index_t N_Warp_Tile>
 constexpr index_t get_k_warp_tile_for_preshuffle_b()
 {
-#if defined(CK_GFX950_SUPPORT)
-    constexpr bool is_8bit_float =
-        std::is_same_v<PrecType, fp8_t> || std::is_same_v<PrecType, bf8_t>;
-    if constexpr(N_Warp_Tile == 32)
-        return is_8bit_float ? 64 : 16;
-    else
-        return is_8bit_float ? 128 : 32;
-#else
-    // K value is determined by the maximum bytes that can be loaded in a single instruction
-    // This K value is sufficient for MFMA/WMMA shapes: 16x16x16, 16x16x32, 32x32x16
     const int kMaxBytesPerLoad    = 16; // buffer load max 16 bytes
     const int kMaxElementsPerLoad = kMaxBytesPerLoad / sizeof(PrecType);
-    const int KLanePerWarp        = ck_tile::get_warp_size() / N_Warp_Tile;
-    return kMaxElementsPerLoad * KLanePerWarp;
+    const int kKLanePerWarp        = ck_tile::get_warp_size() / N_Warp_Tile;
+    const int kKPerWarp = kMaxElementsPerLoad * kKLanePerWarp;
+
+    const index_t kMfmaN16Index = 0;
+    const index_t kMfmaN32Index = 1;
+#if defined(CK_GFX950_SUPPORT)
+    const index_t kF8MfmaMaxK[2] = {128, 64};
+    const index_t kF16MfmaMaxK[2] = {32, 16};
+#else
+    const index_t kF8MfmaMaxK[2] = {32, 16};
+    const index_t kF16MfmaMaxK[2] = {16, 8};
 #endif
+    const bool kIsF8 =
+        std::is_same_v<PrecType, fp8_t> || std::is_same_v<PrecType, bf8_t>; 
+    const index_t kMfmaIndex =  N_Warp_Tile == 16 ? kMfmaN16Index : kMfmaN32Index;
+    const index_t kMfmaMaxK = kIsF8 ? kF8MfmaMaxK[kMfmaIndex] : kF16MfmaMaxK[kMfmaIndex];
+
+    return max(kKPerWarp, kMfmaMaxK);
 }
 
 } // namespace ck_tile
