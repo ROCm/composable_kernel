@@ -654,7 +654,9 @@ endif()
 
 
 
-file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/*/device_*_instance.cpp")
+# Optimization: Search only in library/src where all instance files actually live
+# (was searching entire source tree, taking ~40s instead of <1s)
+file(GLOB_RECURSE INSTANCE_FILES "${PROJECT_SOURCE_DIR}/library/src/*/device_*_instance.cpp")
 file(GLOB dir_list RELATIVE ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu ${PROJECT_SOURCE_DIR}/library/src/tensor_operation_instance/gpu/*)
 set(CK_DEVICE_INSTANCES)
 FOREACH(subdir_path ${dir_list})
