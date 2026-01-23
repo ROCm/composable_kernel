@@ -137,9 +137,14 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
                                          const BElementOp& b_element_op     = {},
                                          const ACCElementOp& acc_element_op = {})
 {
-    const std::size_t M = a_m_k.get_length(0);
-    const std::size_t N = b_k_n.get_length(1);
-    const std::size_t K = a_m_k.get_length(1);
+    constexpr auto A_TENSOR_M_DIM = 0;
+    constexpr auto A_TENSOR_K_DIM = 1;
+    constexpr auto B_TENSOR_K_DIM = 0;
+    constexpr auto B_TENSOR_N_DIM = 1;
+
+    const std::size_t M = a_m_k.get_length(A_TENSOR_M_DIM);
+    const std::size_t N = b_k_n.get_length(B_TENSOR_N_DIM);
+    const std::size_t K = a_m_k.get_length(A_TENSOR_K_DIM);
 
     // Pre-convert A/B tensors to AccData type
     // This prevents doing slow reconversions for each row/column
@@ -151,7 +156,7 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
         {
             const ADataType pk_val  = a_element_op(a_m_k(index));
             const fp32x2_t fp32_val = pk_val.to_fp32x2();
-            self(index)             = (index[1] & 1) ? fp32_val.hi : fp32_val.lo;
+            self(index)             = (index[A_TENSOR_K_DIM] & 1) ? fp32_val.hi : fp32_val.lo;
         }
         else
         {
@@ -164,7 +169,7 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
         {
             const BDataType pk_val  = b_element_op(b_k_n(index));
             const fp32x2_t fp32_val = pk_val.to_fp32x2();
-            self(index)             = (index[0] & 1) ? fp32_val.hi : fp32_val.lo;
+            self(index)             = (index[B_TENSOR_K_DIM] & 1) ? fp32_val.hi : fp32_val.lo;
         }
         else if constexpr(std::is_same_v<BDataType, fp8_t>)
         {
