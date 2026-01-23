@@ -96,6 +96,7 @@ function(build_multi_reduce_for_datatype datatype variant)
 
         add_test(NAME ${test_target} COMMAND ${test_target})
         set_tests_properties(${test_target} PROPERTIES LABELS "multi_reduce")
+        add_dependencies(check ${test_target})
     endforeach()
     add_custom_target(test_reduce_${variant}_${datatype} DEPENDS ${codegen_blobs})
 
