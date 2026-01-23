@@ -8,6 +8,7 @@
 #include "ck_tile/builder/testing/tensor_foreach.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
 #include "ck/utility/type_convert.hpp"
+#include "ck/library/utility/gpu_verification.hpp"
 #include <string_view>
 #include <vector>
 #include <algorithm>
@@ -111,8 +112,8 @@ struct ValidationReport
                const TensorDescriptor<DT, RANK>& descriptor,
                const void* actual,
                const void* expected,
-               double rtol = 1e-3,
-               double atol = 1e-3);
+               float rtol = 1e-3f,
+               float atol = 1e-3f);
 
     private:
     std::vector<Case> reports_;
@@ -123,8 +124,8 @@ bool ValidationReport::check(std::string_view tensor_name,
                              const TensorDescriptor<DT, RANK>& descriptor,
                              const void* actual_data,
                              const void* expected_data,
-                             double rtol,
-                             double atol)
+                             float rtol,
+                             float atol)
 {
     const auto strides = descriptor.get_strides();
 
@@ -154,39 +155,19 @@ bool ValidationReport::check(std::string_view tensor_name,
 
         const auto offset = calculate_offset(index, strides);
 
-        const auto a = actual[offset];
-        const auto b = expected[offset];
+        const auto [diff, inequal, bitwise_zero] =
+            ck::profiler::compare_elements(actual[offset], expected[offset], rtol, atol);
 
-        const auto o   = static_cast<double>(type_convert<float>(a));
-        const auto r   = static_cast<double>(type_convert<float>(b));
-        const auto err = std::abs(o - r);
+        // We expect the number of errors to be very low, so just use an atomic
+        // for now.
 
-        atomicMax(d_max_error, err);
-        if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
-        {
-            // We expect the number of errors to be very low, so just use an atomic
-            // for now.
+        atomicMax(d_max_error, diff);
+
+        if(inequal)
             atomicAdd(d_error_count, 1);
-        }
 
-        // Now compare the numbers as bitwise too.
-        // Update the counter if they're both zero.
-        using Bytes   = std::array<std::byte, sizeof(CKType)>;
-        bool all_zero = true;
-        for(auto x : std::bit_cast<Bytes>(a))
-        {
-            if(x != std::byte{0})
-                all_zero = false;
-        }
-        for(auto x : std::bit_cast<Bytes>(b))
-        {
-            if(x != std::byte{0})
-                all_zero = false;
-        }
-        if(all_zero)
-        {
+        if(bitwise_zero)
             atomicAdd(d_zero_count, 1);
-        }
     });
 
     uint64_t error_count = 0;

@@ -5,6 +5,10 @@
 
 #include <iomanip>
 #include <iostream>
+#include <tuple>
+#include <type_traits>
+#include <cmath>
+#include <array>
 
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
@@ -115,6 +119,47 @@ struct GpuVerifyDeviceResult
     int all_zero;                   // 1 = device result is all zeros, 0 = has non-zero values
 };
 
+/// @brief Compare individual tensor elements.
+///
+/// This function is what actually does the comparison between two tensor
+/// elements. The function returns a tuple of three elements.
+/// - The absolute maximum difference.
+/// - If the second value is set to false, it indicates either that the elements are not
+///   equal according to the tresholds `rtol` and `atol`, or that either value is not
+///   finite (NaN/Infinity). If set to true, the values are considered equal.
+/// - If the third value is set to ture, it indicates that both elements are bitwise
+///   equal to zero.
+template <typename T>
+__device__ std::tuple<float, bool, bool>
+compare_elements(const T& actual, const T& expected, const float rtol, const float atol)
+{
+    static_assert(!std::is_same_v<T, double>, "TODO: implement compare_elements() for double");
+
+    const auto o = type_convert<float>(actual);
+    const auto r = type_convert<float>(expected);
+    const auto e = std::abs(o - r);
+
+    const auto inequal = e > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r);
+
+    using Bytes        = std::array<std::byte, sizeof(T)>;
+    const auto o_bytes = *reinterpret_cast<const Bytes*>(&actual);
+    const auto r_bytes = *reinterpret_cast<const Bytes*>(&expected);
+    bool all_zero      = true;
+    for(const auto x : o_bytes)
+    {
+        if(x != std::byte{0})
+            all_zero = false;
+    }
+
+    for(const auto x : r_bytes)
+    {
+        if(x != std::byte{0})
+            all_zero = false;
+    }
+
+    return std::make_tuple(e, inequal, all_zero);
+}
+
 // GPU verification kernel - compares device result against reference using relative and absolute
 // tolerance. Tracks all errors (no early exit) to provide detailed error reporting.
 //
@@ -151,21 +196,12 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
 
     for(long long i = idx; i < size; i += stride)
     {
-        // Convert to float for comparison
-        float dev_val = type_convert<float>(device_result[i]);
-        float ref_val = type_convert<float>(reference_result[i]);
+        const auto [abs_diff, inequal, bitwise_zero] =
+            compare_elements<T>(device_result[i], reference_result[i], rtol, atol);
 
-        // Check if device value is non-zero
-        if(dev_val != 0.0f)
-        {
-            local_has_nonzero = 1;
-        }
+        local_has_nonzero |= !bitwise_zero;
 
-        // Compute absolute difference
-        float abs_diff = fabsf(dev_val - ref_val);
-
-        // Check tolerance (matches CPU check_err logic: err > atol + rtol * abs(ref))
-        if(abs_diff > atol + rtol * fabsf(ref_val))
+        if(inequal)
         {
             local_has_error = 1;
             local_error_count++;
