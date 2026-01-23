@@ -258,6 +258,27 @@ struct GemmConfigComputeV3_256x128 : public GemmConfigBase
     static constexpr int kBlockPerCu = 1;
 };
 
+// 256x256x32, warp 1x4x1, warp tile 16x16x32
+template <typename PrecType>
+struct GemmConfigComputeV3_256x256x32_1x4x1_16x16x32 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType); // 32 for fp16/bf16
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 32;
+
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+    static constexpr int kBlockPerCu                = 1;
+};
+
 // 128x128x64, warp 2x2x1, warp tile 32x32x16
 template <typename PrecType>
 struct GemmConfigComputeV3_128x128x64_2x2x1_32x32x16 : public GemmConfigBase
@@ -370,6 +391,28 @@ struct GemmConfigComputeV4 : public GemmConfigBase
     static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V4;
 
     static constexpr int kBlockPerCu = 2;
+};
+
+// 128x128x64, warp 2x2x1, warp tile 32x32x16 (V4)
+template <typename PrecType>
+struct GemmConfigComputeV4_128x128x64_2x2x1_32x32x16 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType); // 64 for fp16/bf16
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer          = true;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V4;
+
+    static constexpr int kBlockPerCu = 1;
 };
 
 template <typename PrecType>

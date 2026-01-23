@@ -326,6 +326,12 @@ int run_grouped_gemm_example_with_n_check(int argc, char* argv[])
             return run_gemm_example_prec_type<GemmConfigComputeV3_256x256_w16_k1<ck_tile::bf16_t>,
                                               ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
         }
+        else if(config == "compute_v3_256x256x32_1x4x1_16x16x32")
+        {
+            return run_gemm_example_prec_type<
+                GemmConfigComputeV3_256x256x32_1x4x1_16x16x32<ck_tile::bf16_t>,
+                ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
+        }
         else if(config == "compute_v3_128x128x64_2x2x1_32x32x16")
         {
             return run_gemm_example_prec_type<
@@ -344,14 +350,27 @@ int run_grouped_gemm_example_with_n_check(int argc, char* argv[])
                 GemmConfigComputeV3_128x256x64_1x4x1_32x32x16<ck_tile::bf16_t>,
                 ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
         }
+        else if(config == "compute_v4")
+        {
+            return run_gemm_example_prec_type<GemmConfigComputeV4<ck_tile::bf16_t>, ck_tile::bf16_t>(
+                a_layout, b_layout, argc, argv);
+        }
+        else if(config == "compute_v4_128x128x64_2x2x1_32x32x16")
+        {
+            return run_gemm_example_prec_type<
+                GemmConfigComputeV4_128x128x64_2x2x1_32x32x16<ck_tile::bf16_t>,
+                ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
+        }
         else
         {
             throw std::runtime_error(
                 "Unknown config: " + config +
                 ". Use: compute_v3, compute_v3_128x128, compute_v3_256x256_w16_k1, "
+                "compute_v3_256x256x32_1x4x1_16x16x32, "
                 "compute_v3_128x128x64_2x2x1_32x32x16, "
                 "compute_v3_128x128x128_2x2x1_32x32x16, "
-                "compute_v3_128x256x64_1x4x1_32x32x16");
+                "compute_v3_128x256x64_1x4x1_32x32x16, "
+                "compute_v4, compute_v4_128x128x64_2x2x1_32x32x16");
         }
     }
     else
