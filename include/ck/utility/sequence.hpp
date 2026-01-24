@@ -375,6 +375,19 @@ struct sequence_reverse_inclusive_scan_impl;
 template <index_t... Is, typename Reduce, index_t Init>
 struct sequence_reverse_inclusive_scan_impl<Sequence<Is...>, Reduce, Init>
 {
+    template <index_t Size>
+    static constexpr Array<index_t, Size> compute_array()
+    {
+        Array<index_t, Size> values = {Is...};
+        Array<index_t, Size> result = {0};
+        result.At(Size - 1)         = Reduce{}(values[Size - 1], Init);
+        for(index_t i = Size - 1; i > 0; --i)
+        {
+            result.At(i - 1) = Reduce{}(values[i - 1], result[i]);
+        }
+        return result;
+    }
+
     template <index_t... Indices>
     static constexpr auto compute(Sequence<Indices...>)
     {
@@ -384,18 +397,21 @@ struct sequence_reverse_inclusive_scan_impl<Sequence<Is...>, Reduce, Init>
         {
             return Sequence<>{};
         }
+        else if constexpr(size == 1)
+        {
+            constexpr index_t values[1] = {Is...};
+            return Sequence<Reduce{}(values[0], Init)>{};
+        }
+        else if constexpr(size == 2)
+        {
+            constexpr index_t values[2] = {Is...};
+            constexpr index_t r1        = Reduce{}(values[1], Init);
+            constexpr index_t r0        = Reduce{}(values[0], r1);
+            return Sequence<r0, r1>{};
+        }
         else
         {
-            constexpr Array<index_t, size> arr = []() {
-                Array<index_t, size> values = {Is...};
-                Array<index_t, size> result = {0};
-                result.At(size - 1)         = Reduce{}(values[size - 1], Init);
-                for(index_t i = size - 1; i > 0; --i)
-                {
-                    result.At(i - 1) = Reduce{}(values[i - 1], result[i]);
-                }
-                return result;
-            }();
+            constexpr Array<index_t, size> arr = compute_array<size>();
             return Sequence<arr[Indices]...>{};
         }
     }

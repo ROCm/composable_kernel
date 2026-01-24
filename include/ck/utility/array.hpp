@@ -4,8 +4,6 @@
 #ifndef CK_ARRAY_HPP
 #define CK_ARRAY_HPP
 
-#include "functional2.hpp"
-#include "sequence.hpp"
 #include <type_traits>
 #include <cassert>
 #include "type.hpp"
@@ -44,8 +42,7 @@ struct Array
     {
         static_assert(T::Size() == Size(), "wrong! size not the same");
 
-#pragma unroll
-        for(int i = 0; i < NSize; i++)
+        for(index_t i = 0; i < NSize; i++)
         {
             mData[i] = a[i];
         }

@@ -6,7 +6,7 @@
 
 using namespace ck;
 
-// Test basic Sequence construction and properties
+// Test basic Array construction and properties
 TEST(Array, BasicConstruction)
 {
     using Arr = Array<index_t, 5>;
