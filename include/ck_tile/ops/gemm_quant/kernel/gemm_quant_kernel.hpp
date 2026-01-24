@@ -410,10 +410,46 @@ struct QuantGemmKernel
             {
                 splitted_k = amd_wave_read_first_lane(kargs.K - KRead * (kargs.k_batch - 1));
             }
+
+            // Compute BQ offset for BQuantGrouped mode (non-preshuffle only)
+            // Note: With the alignment validation in IsSupportedArgument, KRead is always
+            // a multiple of QuantGroupSize::kK, so bq_k_split_offset will be correctly aligned.
+            if constexpr(kQuantType == QuantType::BQuantGrouped && !PreshuffleQuant)
+            {
+                using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
+                // Compute the K offset for this batch (in terms of K elements)
+                const index_t k_offset = amd_wave_read_first_lane(k_id * KRead);
+                // Convert K offset to BQ group offset
+                const index_t bq_group_offset =
+                    amd_wave_read_first_lane(k_offset / QuantGroupSize::kK);
+
+                // BQ tensor layout:
+                // RowMajor: [K/kK, N/kN] with stride [N/kN, 1]
+                // ColumnMajor: [N/kN, K/kK] with stride [K/kK, 1]
+                if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BQLayout>)
+                {
+                    // For RowMajor BQ, K is the row dimension
+                    // offset = bq_group_offset * stride_BQ
+                    const index_t stride_bq =
+                        amd_wave_read_first_lane(integer_divide_ceil(kargs.N, QuantGroupSize::kN));
+                    bq_k_split_offset = amd_wave_read_first_lane(bq_group_offset * stride_bq);
+                }
+                else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BQLayout>)
+                {
+                    // For ColumnMajor BQ, K is the column dimension
+                    // offset = bq_group_offset
+                    bq_k_split_offset = amd_wave_read_first_lane(bq_group_offset);
+                }
+            }
+            else
+            {
+                bq_k_split_offset = 0;
+            }
         }
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
+        index_t bq_k_split_offset;
         index_t splitted_k;
     };
 
@@ -809,6 +845,9 @@ struct QuantGemmKernel
                                                  const index_t i_n)
     {
         // Step 1: Create tensor view for BQ
+        // Note: For split-K, the bq_ptr is already offset by bq_k_split_offset.
+        // The tensor view should use kargs.QK_B (full K-groups) as the dimension
+        // because the view needs to see all remaining K-groups from the offset position.
         const auto& bq_tensor_view = [&]() {
             if constexpr(kQuantType == QuantType::RowColQuant)
             {
@@ -854,7 +893,7 @@ struct QuantGemmKernel
                     {
                         return make_naive_tensor_view<address_space_enum::global>(
                             bq_ptr,
-                            make_tuple(integer_divide_ceil(kargs.K, BQuantGroupSize::kK),
+                            make_tuple(kargs.QK_B,
                                        integer_divide_ceil(kargs.N, BQuantGroupSize::kN)),
                             make_tuple(integer_divide_ceil(kargs.N, BQuantGroupSize::kN), 1),
                             number<GemmPipeline::GetVectorSizeBQ()>{},
@@ -865,8 +904,8 @@ struct QuantGemmKernel
                         return make_naive_tensor_view<address_space_enum::global>(
                             bq_ptr,
                             make_tuple(integer_divide_ceil(kargs.N, BQuantGroupSize::kN),
-                                       integer_divide_ceil(kargs.K, BQuantGroupSize::kK)),
-                            make_tuple(integer_divide_ceil(kargs.K, BQuantGroupSize::kK), 1),
+                                       kargs.QK_B),
+                            make_tuple(kargs.QK_B, 1),
                             number<GemmPipeline::GetVectorSizeBQ()>{},
                             number<1>{});
                     }
@@ -1047,13 +1086,49 @@ struct QuantGemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const QuantGemmKernelArgs& kargs)
     {
+        // Split-K is supported for BQuantGrouped mode without preshuffle
         if(kargs.k_batch != 1)
         {
-            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            constexpr bool is_bquant_non_preshuffle =
+                (kQuantType == QuantType::BQuantGrouped) && !PreshuffleQuant;
+            if constexpr(!is_bquant_non_preshuffle)
             {
-                CK_TILE_ERROR("Conditions not met for Kbatch >1 !");
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("Conditions not met for Kbatch >1 ! "
+                                  "Split-K only supported for BQuantGrouped without preshuffle.");
+                }
+                return false;
             }
-            return false;
+            else
+            {
+                // For BQuantGrouped split-K, the K split must be aligned with quantization groups.
+                // This is because the pipeline applies BQ scales based on the relative K index
+                // within each batch, not the absolute K index. When a batch starts in the middle
+                // of a quantization group, the scale selection would be incorrect.
+                //
+                // To support misaligned splits, the pipeline would need to be modified to accept
+                // a K offset parameter and use (k_offset + local_k) / QuantGroupSize::kK for
+                // scale selection instead of local_k / QuantGroupSize::kK.
+                using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
+                constexpr auto K1    = GemmPipeline::BlockGemmShape::WarpTile::at(I2);
+                const index_t K_t    = kargs.k_batch * K1;
+                const index_t KRead  = (kargs.K + K_t - 1) / K_t * K1;
+
+                // KRead must be a multiple of QuantGroupSize::kK to ensure proper BQ alignment
+                if(KRead % QuantGroupSize::kK != 0)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("Split-K batch size must be aligned with quantization group "
+                                      "size! KRead=" +
+                                      std::to_string(KRead) +
+                                      " is not divisible by QuantGroupSize::kK=" +
+                                      std::to_string(QuantGroupSize::kK));
+                    }
+                    return false;
+                }
+            }
         }
 
         if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -1215,6 +1290,9 @@ struct QuantGemmKernel
         const auto& b_block_window =
             MakeBBlockWindow(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
         const auto& aq_block_window = MakeAQBlockWindow(aq_ptr, kargs, block_idx_m, block_idx_n);
+        // Note: BQ tensor view uses full dimensions (not splitted_qk_b) because
+        // the split-K offset is already applied to bq_ptr. The tensor view needs
+        // to see the full remaining K-groups from the offset position.
         const auto& bq_block_window = MakeBQBlockWindow(bq_ptr, kargs, block_idx_m, block_idx_n);
 
         const index_t num_loop =
@@ -1343,8 +1421,9 @@ struct QuantGemmKernel
         const BDataType* b_ptr =
             static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
         const AQDataType* aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
-        const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
-        CDataType* c_ptr         = static_cast<CDataType*>(kargs.c_ptr);
+        const BQDataType* bq_ptr =
+            static_cast<const BQDataType*>(kargs.bq_ptr) + splitk_batch_offset.bq_k_split_offset;
+        CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
