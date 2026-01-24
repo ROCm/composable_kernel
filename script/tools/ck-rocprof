@@ -224,7 +224,8 @@ cmd_run() {
     echo "==========================================="
 
     # Build command for container execution
-    local cmd="${wrapper} profile --name ${name} -- ${executable}"
+    # --no-roof skips roofline analysis to speed up profiling
+    local cmd="${wrapper} profile --no-roof --name ${name} -- ${executable}"
     for arg in "${exe_args[@]}"; do
         cmd="${cmd} $(printf '%q' "$arg")"
     done
