@@ -144,27 +144,42 @@ TEST_P(StreamKGemmTileEngineTest, BasicFunctionality)
         ck_tile::host_tensor_descriptor(k_, n_, stride_b_calc, is_row_major(layout_b)));
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(m_, n_, stride_c_calc, is_row_major(layout_c)));
-    ck_tile::HostTensor<CDataType> c_m_n_host_result(
+    ck_tile::HostTensor<CDataType> c_m_n_dev_ref(
         ck_tile::host_tensor_descriptor(m_, n_, stride_c_calc, is_row_major(layout_c)));
 
     // Initialize input tensors with uniform random distribution [-1.0, 1.0] (matches tile_engine)
     ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
     ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+    c_m_n_dev_ref.SetZero();
 
     // Allocate GPU device memory
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem ref_c_m_n_dev_buf(c_m_n_dev_ref.get_element_space_size_in_bytes());
 
     // Copy data to device and zero output buffer
     a_m_k_dev_buf.ToDevice(a_m_k.data());
     b_k_n_dev_buf.ToDevice(b_k_n.data());
     c_m_n_dev_buf.SetZero();
-    c_m_n_dev_result.SetZero();
+    ref_c_m_n_dev_buf.SetZero();
 
-    // Calculate reference result on host for verification
-    ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-        a_m_k, b_k_n, c_m_n_host_result);
+    // Calculate reference result on device for verification
+    ADataType* a_m_k_dev_ref_ptr = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
+    BDataType* b_k_n_dev_ref_ptr = static_cast<BDataType*>(b_k_n_dev_buf.GetDeviceBuffer());
+    CDataType* c_m_n_dev_ref_ptr = static_cast<CDataType*>(ref_c_m_n_dev_buf.GetDeviceBuffer());
+    ck_tile::
+        reference_gemm_gpu<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+            a_m_k_dev_ref_ptr,
+            b_k_n_dev_ref_ptr,
+            c_m_n_dev_ref_ptr,
+            m_,
+            n_,
+            k_,
+            stride_a_calc,
+            stride_b_calc,
+            stride_c_calc);
+    ref_c_m_n_dev_buf.FromDevice(c_m_n_dev_ref.data());
 
     // Create GEMM kernel arguments
     ck_tile::StreamKHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
@@ -212,7 +227,7 @@ TEST_P(StreamKGemmTileEngineTest, BasicFunctionality)
 
     // Verify results using tile_engine's adaptive error thresholds
     bool verification_passed = compare_results<ADataType, BDataType, AccDataType, CDataType>(
-        KERNEL_NAME, k_, split_k, c_m_n_dev_result, c_m_n_host_result);
+        KERNEL_NAME, k_, split_k, c_m_n_dev_result, c_m_n_dev_ref);
 
     EXPECT_TRUE(verification_passed) << "GEMM result verification failed";
 }
