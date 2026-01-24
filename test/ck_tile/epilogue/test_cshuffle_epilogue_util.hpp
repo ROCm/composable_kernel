@@ -46,9 +46,13 @@ __global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __res
     auto acc_tile =
         make_static_distributed_tensor<typename Epilogue::AccDataType>(lds_distribution_encode);
 
-    // Fill acc_tile with a simple pattern
+    // Fill acc_tile with a simple pattern - fill entire buffer to ensure correct
+    // output regardless of tile distribution
     auto& acc_buffer = acc_tile.get_thread_buffer();
-    acc_buffer[0]    = 2.0F;
+    for(index_t i = 0; i < acc_buffer.size(); i++)
+    {
+        acc_buffer[i] = 2.0F;
+    }
 
     // Create output tensor view
     auto output_tensor_view =

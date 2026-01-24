@@ -296,19 +296,86 @@ struct CShuffleEpilogue
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
     {
+        // XOR swizzle to eliminate LDS bank conflicts
+        // AMD LDS architecture:
+        // - MI300 (gfx942): 32 banks, bank = (address_in_bytes / 4) % 32
+        // - MI350 (gfx950): 64 banks, bank = (address_in_bytes / 4) % 64
+        //
+        // Problem: With 2-byte FP16 elements and 4-byte banks, adjacent columns
+        // (N, N+1) share the same bank. When MFMA warp distribution has adjacent
+        // threads accessing adjacent columns, this causes 2-way bank conflicts.
+        //
+        // Solution: XOR on N1 (low bit of N) to interleave even/odd columns
+        // into different physical rows. This spreads adjacent columns to
+        // different bank regions, eliminating conflicts.
+        //
+        // Strategy: M' = M ^ (N & 1)
+        // - Even columns (N=0,2,4...) stay in physical rows M
+        // - Odd columns (N=1,3,5...) go to physical rows M^1
+
         // N is contiguous dimension
         if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
-            return make_naive_tensor_descriptor(
-                make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                make_tuple(number<NPerIterationShuffle>{}, number<1>{}));
+            constexpr index_t N1_size = 2; // Split N into even/odd
+            constexpr index_t N0_size = NPerIterationShuffle / N1_size;
+
+            // Step 1: Create 3D descriptor [M, N0, N1]
+            constexpr auto lds_desc_3d = make_naive_tensor_descriptor(
+                make_tuple(number<MPerIterationShuffle>{}, number<N0_size>{}, number<N1_size>{}),
+                make_tuple(number<NPerIterationShuffle>{}, number<N1_size>{}, number<1>{}),
+                number<N1_size>{},
+                number<1>{});
+
+            // Step 2: Apply XOR between M and N1 (the low bit of N)
+            // This interleaves even/odd columns into different physical rows
+            constexpr auto lds_desc_xor = transform_tensor_descriptor(
+                lds_desc_3d,
+                make_tuple(make_xor_transform(
+                               make_tuple(number<MPerIterationShuffle>{}, number<N1_size>{})),
+                           make_pass_through_transform(number<N0_size>{})),
+                make_tuple(sequence<0, 2>{}, sequence<1>{}),
+                make_tuple(sequence<0, 2>{}, sequence<1>{}));
+
+            // Step 3: Merge N0 and N1 back to N
+            return transform_tensor_descriptor(
+                lds_desc_xor,
+                make_tuple(make_pass_through_transform(number<MPerIterationShuffle>{}),
+                           make_merge_transform_v3_division_mod(
+                               make_tuple(number<N0_size>{}, number<N1_size>{}))),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
         }
         // M is contiguous dimension
         else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
         {
-            return make_naive_tensor_descriptor(
-                make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                make_tuple(number<1>{}, number<MPerIterationShuffle>{}));
+            constexpr index_t M1_size = 2; // Split M into even/odd
+            constexpr index_t M0_size = MPerIterationShuffle / M1_size;
+
+            // Step 1: Create 3D descriptor [M0, M1, N]
+            constexpr auto lds_desc_3d = make_naive_tensor_descriptor(
+                make_tuple(number<M0_size>{}, number<M1_size>{}, number<NPerIterationShuffle>{}),
+                make_tuple(number<M1_size>{}, number<1>{}, number<MPerIterationShuffle>{}),
+                number<M1_size>{},
+                number<1>{});
+
+            // Step 2: Apply XOR between M1 and N (the low bit of M with N)
+            // This interleaves even/odd rows into different physical columns
+            constexpr auto lds_desc_xor = transform_tensor_descriptor(
+                lds_desc_3d,
+                make_tuple(make_pass_through_transform(number<M0_size>{}),
+                           make_xor_transform(
+                               make_tuple(number<M1_size>{}, number<NPerIterationShuffle>{}))),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}));
+
+            // Step 3: Merge M0 and M1 back to M
+            return transform_tensor_descriptor(
+                lds_desc_xor,
+                make_tuple(make_merge_transform_v3_division_mod(
+                               make_tuple(number<M0_size>{}, number<M1_size>{})),
+                           make_pass_through_transform(number<NPerIterationShuffle>{})),
+                make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
         }
         else
         {

@@ -262,6 +262,9 @@
 #else
 #define CK_TILE_USE_OCP_FP8 0
 #endif
+#elif defined(CK_USE_OCP_FP8)
+// Host code: respect the build-time CK_USE_OCP_FP8 flag
+#define CK_TILE_USE_OCP_FP8 1
 #else
 #define CK_TILE_USE_OCP_FP8 0
 #endif
