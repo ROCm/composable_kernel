@@ -333,14 +333,14 @@ struct uniform_sequence_gen
     using type = typename sequence_gen<NSize, F>::type;
 };
 
-// reverse inclusive scan (with init) sequence
+// inclusive scan (with init) sequence
 namespace impl {
 
-template <typename Seq, typename Reduce, index_t Init>
-struct sequence_reverse_inclusive_scan_impl;
+template <typename Seq, typename Reduce, index_t Init, bool Reverse>
+struct sequence_inclusive_scan_impl;
 
-template <index_t... Is, typename Reduce, index_t Init>
-struct sequence_reverse_inclusive_scan_impl<sequence<Is...>, Reduce, Init>
+template <index_t... Is, typename Reduce, index_t Init, bool Reverse>
+struct sequence_inclusive_scan_impl<sequence<Is...>, Reduce, Init, Reverse>
 {
     template <index_t... Indices>
     static constexpr auto compute(sequence<Indices...>)
@@ -355,10 +355,23 @@ struct sequence_reverse_inclusive_scan_impl<sequence<Is...>, Reduce, Init>
             constexpr auto arr = []() {
                 trivial_array<index_t, size> values = {Is...};
                 trivial_array<index_t, size> result = {0};
-                result[size - 1]                    = Reduce{}(values[size - 1], Init);
-                for(index_t i = size - 1; i > 0; --i)
+                if constexpr(Reverse)
                 {
-                    result[i - 1] = Reduce{}(values[i - 1], result[i]);
+                    // Reverse scan: right to left
+                    result[size - 1] = Reduce{}(values[size - 1], Init);
+                    for(index_t i = size - 1; i > 0; --i)
+                    {
+                        result[i - 1] = Reduce{}(values[i - 1], result[i]);
+                    }
+                }
+                else
+                {
+                    // Forward scan: left to right
+                    result[0] = Reduce{}(values[0], Init);
+                    for(index_t i = 1; i < size; ++i)
+                    {
+                        result[i] = Reduce{}(values[i], result[i - 1]);
+                    }
                 }
                 return result;
             }();
@@ -373,7 +386,13 @@ struct sequence_reverse_inclusive_scan_impl<sequence<Is...>, Reduce, Init>
 template <typename Seq, typename Reduce, index_t Init>
 struct sequence_reverse_inclusive_scan
 {
-    using type = typename impl::sequence_reverse_inclusive_scan_impl<Seq, Reduce, Init>::type;
+    using type = typename impl::sequence_inclusive_scan_impl<Seq, Reduce, Init, true>::type;
+};
+
+template <typename Seq, typename Reduce, index_t Init>
+struct sequence_inclusive_scan
+{
+    using type = typename impl::sequence_inclusive_scan_impl<Seq, Reduce, Init, false>::type;
 };
 
 // split sequence
@@ -899,7 +918,7 @@ CK_TILE_HOST_DEVICE constexpr auto reverse_exclusive_scan_sequence(Seq, Reduce, 
 template <typename Seq, typename Reduce, index_t Init>
 CK_TILE_HOST_DEVICE constexpr auto inclusive_scan_sequence(Seq, Reduce, number<Init>)
 {
-    return reverse_inclusive_scan_sequence(Seq{}.reverse(), Reduce{}, number<Init>{}).reverse();
+    return typename sequence_inclusive_scan<Seq, Reduce, Init>::type{};
 }
 
 // e.g. Seq<2, 3, 4> --> Seq<0, 2, 5>, Init=0, Reduce=Add
