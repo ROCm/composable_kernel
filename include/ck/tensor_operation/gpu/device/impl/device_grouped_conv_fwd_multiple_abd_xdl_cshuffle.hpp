@@ -1513,7 +1513,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         if constexpr(NumGroupsToMerge > 1)
         {
-            if(!(C == 1))
+            if(!(C == 1) && CDEBlockTransferScalarPerVector_NPerBlock > 1)
             {
                 return false;
             }
