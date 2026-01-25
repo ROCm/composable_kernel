@@ -29,6 +29,7 @@ struct HstuBlockMaskWithLocal
     int max_k_uih_len;
     int max_row_id;
     int max_col_id;
+    int diff_q_kv_len;
 
     CK_TILE_HOST_DEVICE HstuBlockMaskWithLocal(bool is_tile_in_first_split_,
                                                int seqlen_q_,
@@ -63,6 +64,9 @@ struct HstuBlockMaskWithLocal
             max_row_id = max_q_uih_len;
             max_col_id = max_k_uih_len;
         }
+
+        diff_q_kv_len = max_k_uih_len - max_q_uih_len;
+        max_row_id += diff_q_kv_len;
     };
 
     // to get the loop length along X axis, return index:[start, end), end-start=length
@@ -77,7 +81,7 @@ struct HstuBlockMaskWithLocal
         {
             if constexpr(kUseCausal)
             {
-                index_t x_end = min(i_y + YTile, seqlen_k);
+                index_t x_end = min(i_y + YTile + diff_q_kv_len, seqlen_k);
                 return ck_tile::make_tuple(0, x_end);
             }
             else
@@ -90,7 +94,7 @@ struct HstuBlockMaskWithLocal
                 }
                 else // tile is completely inside [max_q_uih_len, seqlen_q)
                 {
-                    index_t x_end = min(i_y + YTile, seqlen_k);
+                    index_t x_end = min(i_y + YTile + diff_q_kv_len, seqlen_k);
                     return ck_tile::make_tuple(0, x_end);
                 };
             };
@@ -105,7 +109,7 @@ struct HstuBlockMaskWithLocal
                 // some row of the tile in [contextual_seqlen+max_attn_len, max_q_uih_len)
                 if(i_y < max_q_uih_len)
                 {
-                    index_t x_start         = i_y - max_attn_len;
+                    index_t x_start         = i_y + diff_q_kv_len - max_attn_len;
                     index_t x_start_aligned = x_start - x_start % XTile;
 
                     // some rows of the tile in [max_q_uih_len - max_attn_len, max_q_uih_len)
@@ -116,14 +120,14 @@ struct HstuBlockMaskWithLocal
                     else // whole tile in [contextual_seqlen+max_attn_len, max_q_uih_len
                          // -max_attn_len)
                     {
-                        index_t x_end = i_y + YTile + max_attn_len;
+                        index_t x_end = i_y + YTile + diff_q_kv_len + max_attn_len;
                         return ck_tile::make_tuple(x_start_aligned, x_end);
                     };
                 }
                 else // whole tile in [max_uih_len, seqlen)
                 {
                     index_t x_start = max_k_uih_len - max_attn_len;
-                    index_t x_end   = min(i_y + YTile, seqlen_k);
+                    index_t x_end   = min(i_y + YTile + diff_q_kv_len, seqlen_k);
 
                     return ck_tile::make_tuple(x_start - x_start % XTile, x_end);
                 }
@@ -132,12 +136,13 @@ struct HstuBlockMaskWithLocal
             {
                 if(i_y < contextual_seqlen) // some row of the tile in [0, contextual_seqlen)
                 {
-                    index_t x_end = min(max(i_y + YTile + max_attn_len, max_k_uih_len), seqlen_k);
+                    index_t x_end = min(
+                        max(i_y + YTile + diff_q_kv_len + max_attn_len, max_k_uih_len), seqlen_k);
                     return ck_tile::make_tuple(0, x_end);
                 }
                 else // whole tile in [contextual_seqlen, seqlen)
                 {
-                    index_t x_end = min(i_y + YTile + max_attn_len, seqlen_k);
+                    index_t x_end = min(i_y + YTile + diff_q_kv_len + max_attn_len, seqlen_k);
                     return ck_tile::make_tuple(0, x_end);
                 }
             }
@@ -146,15 +151,15 @@ struct HstuBlockMaskWithLocal
         {
             if(i_y >= min(contextual_seqlen, 1) + max_attn_len)
             {
-                index_t x_end = min(i_y + YTile, seqlen_k);
+                index_t x_end = min(i_y + YTile + diff_q_kv_len, seqlen_k);
 
                 // some row of the tile in [contextual_seqlen+max_attn_len, max_q_uih_len)
                 if(i_y < max_q_uih_len)
                 {
-                    index_t x_start = i_y - max_attn_len;
+                    index_t x_start = i_y + diff_q_kv_len - max_attn_len;
                     return ck_tile::make_tuple(x_start - x_start % XTile, x_end);
                 }
-                else // whole tile in [max_uih_len, seqlen)
+                else // whole tile in [max_q_uih_len, seqlen_q)
                 {
                     index_t x_start = max_k_uih_len - max_attn_len;
                     return ck_tile::make_tuple(x_start - x_start % XTile, x_end);
@@ -164,12 +169,12 @@ struct HstuBlockMaskWithLocal
             {
                 if(i_y < contextual_seqlen) // some row of the tile in [0, contextual_seqlen)
                 {
-                    index_t x_end = min(max(i_y + YTile, max_k_uih_len), seqlen_k);
+                    index_t x_end = min(max(i_y + YTile + diff_q_kv_len, max_k_uih_len), seqlen_k);
                     return ck_tile::make_tuple(0, x_end);
                 }
                 else // whole tile in [contextual_seqlen, seqlen)
                 {
-                    index_t x_end = min(i_y + YTile, seqlen_k);
+                    index_t x_end = min(i_y + YTile + diff_q_kv_len, seqlen_k);
                     return ck_tile::make_tuple(0, x_end);
                 }
             }
@@ -181,17 +186,19 @@ struct HstuBlockMaskWithLocal
         int row_id;
         int col_id;
 
+        row += diff_q_kv_len;
+
         if(contextual_seqlen > 0)
         {
             // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
             // max_uih_len
-            row_id = max(row - contextual_seqlen + 1, 0);
+            row_id = max(row - contextual_seqlen + 1, diff_q_kv_len);
             col_id = max(col - contextual_seqlen + 1, 0);
 
             row_id = min(row_id, max_row_id);
             col_id = min(col_id, max_col_id);
 
-            if(row_id == 0 && col_id < max_col_id)
+            if(row_id == diff_q_kv_len && col_id < max_col_id)
                 return true;
         }
         else
@@ -227,17 +234,19 @@ struct HstuBlockMaskWithLocal
         int row_id;
         int col_id;
 
+        row += diff_q_kv_len;
+
         if(contextual_seqlen > 0)
         {
             // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
             // max_uih_len
-            row_id = max(row - contextual_seqlen + 1, 0);
+            row_id = max(row - contextual_seqlen + 1, diff_q_kv_len);
             col_id = max(col - contextual_seqlen + 1, 0);
 
             row_id = min(row_id, max_row_id);
             col_id = min(col_id, max_col_id);
 
-            if(row_id == 0 && col_id < max_col_id)
+            if(row_id == diff_q_kv_len && col_id < max_col_id)
                 return true;
         }
         else
@@ -281,7 +290,8 @@ struct HstuBlockMaskWithLocal
         {
             index_t i_tile_right = i_tile_left + TileWidth;
 
-            if(!is_tile_in_first_split && i_tile_right <= min(i_tile_top + 1, max_k_uih_len))
+            if(!is_tile_in_first_split &&
+               i_tile_right <= min(i_tile_top + diff_q_kv_len + 1, max_k_uih_len))
                 return true;
         }
         else
@@ -315,6 +325,7 @@ struct HstuBlockMaskNoLocal
     int max_k_uih_len;
     int max_row_id;
     int max_col_id;
+    int diff_q_kv_len;
 
     CK_TILE_HOST_DEVICE
     HstuBlockMaskNoLocal(int seqlen_q_, int seqlen_k_, int contextual_seqlen_, int num_target_)
@@ -333,6 +344,9 @@ struct HstuBlockMaskNoLocal
             max_row_id = max_q_uih_len;
             max_col_id = max_k_uih_len;
         }
+
+        diff_q_kv_len = max_k_uih_len - max_q_uih_len;
+        max_row_id += diff_q_kv_len;
     };
 
     // to get the loop length along X axis, return index:[start, end), end-start=length
@@ -348,11 +362,11 @@ struct HstuBlockMaskNoLocal
         }
         else
         {
-            index_t x_end = min(i_y + YTile, seqlen_k);
+            index_t x_end = min(i_y + YTile + diff_q_kv_len, seqlen_k);
 
             if(i_y < contextual_seqlen)
             {
-                if(i_y + YTile > max_k_uih_len)
+                if(i_y + YTile + diff_q_kv_len > max_k_uih_len)
                 {
                     return ck_tile::make_tuple(0, x_end);
                 }
@@ -373,17 +387,19 @@ struct HstuBlockMaskNoLocal
         int row_id;
         int col_id;
 
+        row += diff_q_kv_len;
+
         if(contextual_seqlen > 0)
         {
             // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
             // max_uih_len
-            row_id = max(row - contextual_seqlen + 1, 0);
+            row_id = max(row - contextual_seqlen + 1, diff_q_kv_len);
             col_id = max(col - contextual_seqlen + 1, 0);
 
             row_id = min(row_id, max_row_id);
             col_id = min(col_id, max_col_id);
 
-            if(row_id == 0 && col_id < max_col_id)
+            if(row_id == diff_q_kv_len && col_id < max_col_id)
                 return true;
         }
         else
@@ -420,7 +436,7 @@ struct HstuBlockMaskNoLocal
 
             // assume num_target > 0 with high probability, don't check whether num_target is 0;
             // so if num_target is 0, IsTokenPairInsideMask() will be called for the bottom tile
-            if(i_tile_bottom >= max_q_uih_len || i_tile_right > i_tile_top)
+            if(i_tile_bottom >= max_q_uih_len || i_tile_right > i_tile_top + diff_q_kv_len)
                 return false;
 
             return true;
