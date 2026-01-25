@@ -99,6 +99,7 @@ auto create_args(int argc, char* argv[])
         .insert("seqlens", "400", "uih seqlen of single or all batches for query tensor, actually allocated seqlen will include the target of each batch and context_len")
         .insert("seqlens_kv", "", "uih seqlen of single or all batches for key/value tensor, actually allocated seqlen will include the target of each batch and context_len")
         .insert("max_seqlen", "0", "max uih_seqlen, can be ignored, or else must be equal or bigger than the maximum of all uih seqlens")
+        .insert("max_seqlen_kv", "0", "max uih_seqlen_kv, can be ignored, or else must be equal or bigger than the maximum of all uih seqlens")
         .insert("targets", "", "sequence length at the end of query/key token sequence that should be excluded from attention") 
         .insert("max_target", "0", "max target, can be ignored, or else must be equal of bigger than the maximum of all targets")
         .insert("softmax", "0", "use softmax or not")
@@ -253,11 +254,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     std::string str_of_lengths_kv   = arg_parser.get_str("seqlens_kv");
     std::vector<int> seq_lengths_kv = get_integers_from_string(str_of_lengths_kv);
 
-    int input_max_uih_seqlen = arg_parser.get_int("max_seqlen");
-    int input_max_target     = arg_parser.get_int("max_target");
+    int input_max_uih_seqlen_q  = arg_parser.get_int("max_seqlen");
+    int input_max_uih_seqlen_kv = arg_parser.get_int("max_seqlen_kv");
+    int input_max_target        = arg_parser.get_int("max_target");
 
-    int max_uih_seqlen = 0;
-    int max_target     = 0;
+    int max_uih_seqlen_q  = 0;
+    int max_uih_seqlen_kv = 0;
+
+    int max_target = 0;
 
     if(!num_targets.empty())
     {
@@ -275,6 +279,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(seq_lengths_kv.empty())
         seq_lengths_kv = seq_lengths_q;
 
+    // assume input_max_uih_seqlen_kv is same as input_max_uih_seqlen_q if not strictly defined
+    if(input_max_uih_seqlen_kv <= 0)
+        input_max_uih_seqlen_kv = input_max_uih_seqlen_q;
+
     if(is_jagged)
     {
         // supplement seq_lengths_q using the last input value if user-provided lengths not enough
@@ -286,19 +294,24 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // only consider num_batch values even if more values are provided by the user
         for(int i = 0; i < num_batch; i++)
         {
-            max_uih_seqlen = max(max_uih_seqlen, max(seq_lengths_q[i], seq_lengths_kv[i]));
+            max_uih_seqlen_q  = max(max_uih_seqlen_q, seq_lengths_q[i]);
+            max_uih_seqlen_kv = max(max_uih_seqlen_kv, seq_lengths_kv[i]);
         };
     }
     else
     {
         HSTU_CHECK(1 == seq_lengths_q.size() && 1 == seq_lengths_kv.size(),
                    "sequence lengths for batched mode shoud have single element!");
-        max_uih_seqlen = max(seq_lengths_q[0], seq_lengths_kv[0]);
+        max_uih_seqlen_q  = seq_lengths_q[0];
+        max_uih_seqlen_kv = seq_lengths_kv[0];
     };
 
     // the user input of max_uih_seqlen can either be ignored or be bigger than all uih_seqlens
     // the user input of max_target can either be ignored or be bigger than all targets
-    HSTU_CHECK(input_max_uih_seqlen <= 0 || input_max_uih_seqlen >= max_uih_seqlen,
+    HSTU_CHECK(input_max_uih_seqlen_q <= 0 || input_max_uih_seqlen_q >= max_uih_seqlen_q,
+               "the user input of max_uih_seqlen can either be ignored or be bigger than all "
+               "uih_seqlens!");
+    HSTU_CHECK(input_max_uih_seqlen_kv <= 0 || input_max_uih_seqlen_kv >= max_uih_seqlen_kv,
                "the user input of max_uih_seqlen can either be ignored or be bigger than all "
                "uih_seqlens!");
     HSTU_CHECK(input_max_target <= 0 || input_max_target >= max_target,
@@ -306,12 +319,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     HSTU_CHECK(contextual_seqlen >= 0, "contextual_seqlen should be non-negative!");
 
-    max_uih_seqlen = (input_max_uih_seqlen > 0) ? input_max_uih_seqlen : max_uih_seqlen;
-    max_target     = (input_max_target > 0) ? input_max_target : max_target;
+    max_uih_seqlen_q  = (input_max_uih_seqlen_q > 0) ? input_max_uih_seqlen_q : max_uih_seqlen_q;
+    max_uih_seqlen_kv = (input_max_uih_seqlen_kv > 0) ? input_max_uih_seqlen_kv : max_uih_seqlen_kv;
+    max_target        = (input_max_target > 0) ? input_max_target : max_target;
 
     int phy_seqlen_q  = 0;
     int phy_seqlen_kv = 0;
-    int max_seqlen    = max_uih_seqlen + max_target + contextual_seqlen;
+    int max_seqlen_q  = max_uih_seqlen_q + max_target + contextual_seqlen;
+    int max_seqlen_kv = max_uih_seqlen_kv + max_target + contextual_seqlen;
 
     std::vector<int> seq_offsets_q;
     std::vector<int> seq_offsets_kv;
@@ -344,8 +359,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
     else
     {
-        phy_seqlen_q  = max_seqlen;
-        phy_seqlen_kv = max_seqlen;
+        phy_seqlen_q  = max_seqlen_q;
+        phy_seqlen_kv = max_seqlen_kv;
     };
 
     long total_flops = 0;
@@ -384,8 +399,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::array<ck_tile::index_t, 4>{batches_for_alloc, phy_seqlen_q, num_head, hdim_v});
 
     ck_tile::HostTensor<int8_t> mask_host(
-        save_mask ? std::array<ck_tile::index_t, 4>{num_batch, num_head, max_seqlen, max_seqlen}
-                  : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
+        save_mask
+            ? std::array<ck_tile::index_t, 4>{num_batch, num_head, max_seqlen_q, max_seqlen_kv}
+            : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
 
     if(!initialize_qkv)
     {
@@ -440,7 +456,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         params.num_batch          = num_batch;
         params.seq_q_offsets_ptr  = seq_offsets_q_dev.GetDeviceBuffer();
         params.seq_kv_offsets_ptr = seq_offsets_kv_dev.GetDeviceBuffer();
-        params.max_seqlen         = max_seqlen;
+        params.max_seqlen         = max(max_seqlen_q, max_seqlen_kv);
         params.q_ptr              = q_dev.GetDeviceBuffer();
         params.k_ptr              = k_dev.GetDeviceBuffer();
         params.v_ptr              = v_dev.GetDeviceBuffer();
@@ -558,7 +574,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                                num_batch,
                                                                scale_s,
                                                                attn_scale,
-                                                               max_seqlen,
+                                                               max_seqlen_q,
+                                                               max_seqlen_kv,
                                                                seq_offsets_q,
                                                                seq_offsets_kv,
                                                                num_targets,
