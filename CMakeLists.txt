@@ -741,7 +741,7 @@ if (NOT MIOPEN_REQ_LIBS_ONLY)
 endif()
 
 if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
-  add_subdirectory(codegen)
+  #add_subdirectory(codegen)
 endif()
 
 #Create an interface target for the include only files and call it "composablekernels"

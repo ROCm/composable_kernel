@@ -187,6 +187,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                         CThreadBuffer& c_thread_buf,
                         index_t num_loop) const
     {
+        // if(threadIdx.x == 0) printf("v1 intra\n");
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataTypeBuf>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeDataTypeBuf>(
@@ -212,6 +213,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
             index_t i = 0;
             do
             {
+                // if(threadIdx.x == 0) printf("has Main loop %d\n", i);
                 // -------------------------------------------------------------------------------------------
                 a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
                 b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
@@ -280,6 +282,7 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
         // tail
         if constexpr(TailNum == TailNumber::Full)
         {
+            // if(threadIdx.x == 0) printf("Tail full\n");
             block_sync_lds();
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -313,6 +316,14 @@ struct BlockwiseGemmXdlops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                             b_thread_vec.template AsType<ComputeDataTypeBuf>()(ik) =
                                 b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                     make_tuple(n0, I0, k0, ik))>{}];
+
+                            // if(threadIdx.x == 0) {
+                            //     printf("a: %f b: %f\n",
+                            //         static_cast<float>(a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                            //         make_tuple(m0, I0, k0, ik))>{}]), 
+                            //         static_cast<float>(b_thread_buf[Number<b_thread_desc_.CalculateOffset(
+                            //         make_tuple(n0, I0, k0, ik))>{}]));
+                            // }
                         });
 
                         using mfma_input_type =

@@ -210,6 +210,7 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
         // workspace_sz will be equal to 0 for other layout than NGCHW
         const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
         DeviceMem workspace_dev(workspace_sz);
+        // printf("run impl\n");
         op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
@@ -224,8 +225,10 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
+            // printf("prerun\n");
             float avg_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+            // printf("post run\n");
 
             std::size_t flop      = conv_param.GetFlops();
             std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
