@@ -41,7 +41,8 @@ struct reference_hstu_attention
                     int num_batch,
                     float alpha,
                     float attn_scale,
-                    int max_seqlen,
+                    int max_seqlen_q,
+                    int max_seqlen_kv,
                     std::vector<int> seq_q_offsets,
                     std::vector<int> seq_kv_offsets,
                     std::vector<int> num_targets, // define masking length at the end of token
@@ -93,8 +94,8 @@ struct reference_hstu_attention
 
         if(static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[0]) == num_batch &&
            static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[1]) == num_head &&
-           static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[2]) == max_seqlen &&
-           static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[3]) == max_seqlen)
+           static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[2]) == max_seqlen_q &&
+           static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[3]) == max_seqlen_kv)
             save_mask = true;
 
         // check num_tagets
@@ -114,7 +115,9 @@ struct reference_hstu_attention
 
             int num_target = num_targets.empty() ? 0 : num_targets[i_batch];
 
-            float scale_p = attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen);
+            float scale_p = attn_scale
+                                ? attn_scale
+                                : 1.0f / static_cast<float>(max(max_seqlen_q, max_seqlen_kv));
 
             BOOL_SWITCH(window_size > 0, kHasLocal, [&] {
                 using HstuMaskType = typename HstuBlockMasking<kUseCausal, kHasLocal>::Type;
@@ -148,9 +151,8 @@ struct reference_hstu_attention
 
                 if(save_mask)
                 {
-                    // initialize the mask
-                    for(int sq = 0; sq < max_seqlen; sq++)
-                        for(int sk = 0; sk < max_seqlen; sk++)
+                    for(int sq = 0; sq < max_seqlen_q; sq++)
+                        for(int sk = 0; sk < max_seqlen_kv; sk++)
                             mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) =
                                 static_cast<int8_t>(mask.IsTokenPairInsideMask(sq, sk));
                 }
