@@ -200,9 +200,8 @@ class ConvDescription : public Description
                     "Vector access (GMEM write) instruction size: ",
                     traits_.c_tile_transfer.scalar_per_vector);
         if(traits_.num_gemm_k_prefetch_stage)
-            f.writeLine(2,
-                        "Max Transpose transfer scr scalar per vector: ",
-                        traits_.num_gemm_k_prefetch_stage.value_or(0));
+            f.writeLine(
+                2, "Num gemm k prefetch stage: ", traits_.num_gemm_k_prefetch_stage.value_or(0));
         else
             f.writeLine(2,
                         "Struct does not contain optional "

@@ -885,7 +885,7 @@ TEST_F(ConvTraitsTest, ConvBwdWeightXdlCshuffleV3TraitsExtraction)
 TEST_F(ConvTraitsTest, ConvBwdWeightXdlCshuffleTraitsExtraction)
 {
     // Define a concrete instance type with specific template parameters
-    using DeviceInstance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffle<
+    using Instance = ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffle<
         2,                                               // NDimSpatial
         ck::tensor_layout::convolution::GNHWC,           // InLayout
         ck::tensor_layout::convolution::GKYXC,           // WeiLayout
