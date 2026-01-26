@@ -185,6 +185,14 @@ def parse_file(filepath: Union[str, Path]) -> pd.DataFrame:
         data.get("beginningOfTime") if isinstance(data, dict) else None
     )
 
+    # Store the source file path derived from the trace filename
+    # The trace filename format is: <source_file>.json
+    # Remove the .json extension to get the source file path
+    source_file_path = filepath.stem  # Gets filename without .json extension
+    full_path = filepath.parent / source_file_path
+    df.attrs["sourceFile"] = _remove_cmake_artifacts(str(full_path))
+    df.attrs["traceFilePath"] = str(filepath)
+
     return df
 
 
@@ -201,14 +209,8 @@ def _flatten_args(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame with flattened args columns and original 'args' column removed
     """
-    # Extract args into separate DataFrame
-    args_data = []
-    for idx, row in df.iterrows():
-        args = row.get("args", {})
-        if isinstance(args, dict):
-            args_data.append(args)
-        else:
-            args_data.append({})
+    args_list = df["args"].tolist()
+    args_data = [arg if isinstance(arg, dict) else {} for arg in args_list]
 
     if args_data:
         args_df = pd.DataFrame(args_data)
@@ -220,6 +222,42 @@ def _flatten_args(df: pd.DataFrame) -> pd.DataFrame:
         df = pd.concat([df, args_df], axis=1)
 
     return df
+
+
+def _remove_cmake_artifacts(file_path: str) -> str:
+    """
+    Remove CMake build artifacts from a file path.
+
+    CMake creates build directories with the pattern:
+    <build-dir>/<source-path>/CMakeFiles/<target>.dir/<source-file>
+
+    This function removes the CMakeFiles and .dir segments to reconstruct
+    the logical source file path while preserving the build directory prefix.
+
+    Args:
+        file_path: Path potentially containing CMake artifacts
+
+    Returns:
+        Path with CMakeFiles and .dir segments removed
+
+    Examples:
+        >>> _remove_cmake_artifacts('build/library/src/foo/CMakeFiles/target.dir/bar.cpp')
+        'build/library/src/foo/bar.cpp'
+        >>> _remove_cmake_artifacts('library/src/foo/bar.cpp')
+        'library/src/foo/bar.cpp'
+    """
+    path = Path(file_path)
+    parts = path.parts
+
+    # Filter out CMakeFiles and any parts ending with .dir
+    filtered_parts = [
+        part for part in parts if part != "CMakeFiles" and not part.endswith(".dir")
+    ]
+
+    # Reconstruct the path
+    if filtered_parts:
+        return str(Path(*filtered_parts))
+    return file_path
 
 
 def _normalize_source_path(file_path: str) -> str:
@@ -287,13 +325,17 @@ def get_metadata(df: pd.DataFrame) -> FileMetadata:
         >>> print(f"Duration: {metadata.total_wall_time_s:.2f}s")
         >>> print(f"Started: {metadata.wall_start_datetime}")
     """
-    # Extract beginningOfTime from DataFrame attributes
+    # Extract beginningOfTime and source_file from DataFrame attributes
     beginning_of_time = None
+    source_file = None
     if hasattr(df, "attrs"):
         beginning_of_time = df.attrs.get("beginningOfTime")
+        source_file = df.attrs.get("source_file")
 
-    # Initialize metadata with beginningOfTime from JSON structure
-    metadata = FileMetadata(beginning_of_time=beginning_of_time)
+    # Initialize metadata with values from DataFrame attributes
+    metadata = FileMetadata(
+        beginning_of_time=beginning_of_time, source_file=source_file
+    )
 
     # Process events to extract ExecuteCompiler timing information
     if "name" in df.columns:
@@ -306,8 +348,13 @@ def get_metadata(df: pd.DataFrame) -> FileMetadata:
             if "dur" in event:
                 metadata.execute_compiler_dur = event["dur"]
 
-    # Process events to find the main source file being compiled
-    if "name" in df.columns and "arg_detail" in df.columns:
+    # Fallback: Try to find source file from ParseDeclarationOrFunctionDefinition events
+    # This is only used if source_file wasn't already set from the filename
+    if (
+        metadata.source_file is None
+        and "name" in df.columns
+        and "arg_detail" in df.columns
+    ):
         # Look for ParseDeclarationOrFunctionDefinition events with .cpp or .c files
         source_extensions = (".cpp", ".cc", ".cxx", ".c")
         parse_events = df[df["name"] == "ParseDeclarationOrFunctionDefinition"]
