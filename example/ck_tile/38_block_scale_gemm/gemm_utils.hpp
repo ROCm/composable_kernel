@@ -193,6 +193,28 @@ struct GemmConfigPreshuffleB_PreshuffleBQuant_Prefill
 };
 
 template <typename PrecType>
+struct GemmConfigPreshuffleB_ABQuant_Prefill : public GemmConfigPreshuffleB_BQuant_Prefill<PrecType>
+{
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr bool kPadK      = false;
+    static constexpr bool TransposeC = true;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshuffleB_ABQuant_Decode : public GemmConfigPreshuffleB_BQuant_Prefill<PrecType>
+{
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
+
+    static constexpr bool kPadK      = false;
+    static constexpr bool TransposeC = true;
+};
+
+template <typename PrecType>
 struct GemmConfigQuantPrefill : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
@@ -207,6 +229,13 @@ struct GemmConfigQuantPrefill : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile =
         ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile>();
+};
+
+template <typename PrecType>
+struct GemmConfigABQuantPrefill : public GemmConfigQuantPrefill<PrecType>
+{
+    static constexpr bool kPadK      = false;
+    static constexpr bool TransposeC = true;
 };
 
 template <typename PrecType>

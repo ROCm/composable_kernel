@@ -33,6 +33,7 @@ set(REGRESSION_TESTS
     test_convnd_fwd
     test_convnd_bwd_data
     test_grouped_convnd_fwd
+    test_grouped_convnd_fwd_bias_bnorm_clamp
     test_grouped_convnd_fwd_scaleadd_ab
     test_grouped_convnd_bwd_weight
     test_softmax_rank3
@@ -275,6 +276,7 @@ add_subdirectory(batched_contraction)
 add_subdirectory(batched_gemm)
 add_subdirectory(batched_gemm_reduce)
 add_subdirectory(batched_gemm_gemm)
+add_subdirectory(batched_gemm_multiple_d_gemm_multiple_d)
 add_subdirectory(batched_gemm_softmax_gemm)
 add_subdirectory(batched_gemm_softmax_gemm_permute)
 add_subdirectory(batched_gemm_b_scale)
