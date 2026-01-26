@@ -13,6 +13,7 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
 #include "ck/utility/type.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/library/utility/check_err.hpp"
@@ -108,6 +109,24 @@ inline float compute_relative_tolerance(const int number_of_accumulations = 1)
             return 1e-1f;
         }
     }
+}
+
+template <typename, typename Iterator>
+auto make_concrete_iterator(Iterator it)
+{
+    return it;
+}
+
+template <typename T>
+auto make_concrete_iterator(const void* it)
+{
+    return reinterpret_cast<const T*>(it);
+}
+
+template <typename T>
+auto make_concrete_iterator(void* it)
+{
+    return reinterpret_cast<const T*>(it);
 }
 
 // Device-side result structure for kernel output
@@ -261,7 +280,7 @@ __global__ void gpu_verify_kernel(IteratorA device_result,
 
 // Host-side wrapper for GPU verification with explicit tolerances
 // Returns GpuVerifyResult with detailed error information
-template <typename IteratorA, typename IteratorB>
+template <typename T, typename IteratorA, typename IteratorB>
 GpuVerifyResult gpu_verify(IteratorA device_result,
                            IteratorB reference_result,
                            float rtol,
@@ -269,6 +288,9 @@ GpuVerifyResult gpu_verify(IteratorA device_result,
                            std::size_t size,
                            hipStream_t stream = nullptr)
 {
+    auto actual_it   = make_concrete_iterator<T>(device_result);
+    auto expected_it = make_concrete_iterator<T>(reference_result);
+
     // Allocate result buffer on device
     GpuVerifyDeviceResult* result_dev;
     hip_check_error(hipMalloc(&result_dev, sizeof(GpuVerifyDeviceResult)));
@@ -288,7 +310,7 @@ GpuVerifyResult gpu_verify(IteratorA device_result,
     int grid_size            = std::min<int>(65535, (size + block_size - 1) / block_size);
 
     gpu_verify_kernel<<<grid_size, block_size, 0, stream>>>(
-        device_result, reference_result, rtol, atol, static_cast<long long>(size), result_dev);
+        actual_it, expected_it, rtol, atol, static_cast<long long>(size), result_dev);
 
     hip_check_error(hipGetLastError());
 
@@ -307,46 +329,35 @@ GpuVerifyResult gpu_verify(IteratorA device_result,
     result.error_count = result_host.error_count;
     result.max_error   = result_host.max_error;
     result.total       = size;
-    result.all_zero    = (result_host.all_zero == 1);
+    result.all_zero    = result_host.all_zero == 1;
 
     return result;
 }
 
-template <typename T>
-GpuVerifyResult gpu_verify(const void* device_result,
-                           const void* reference_result,
-                           float rtol,
-                           float atol,
-                           std::size_t size,
-                           hipStream_t stream = nullptr)
-{
-    return gpu_verify(reinterpret_cast<const T*>(device_result),
-                      reinterpret_cast<const T*>(reference_result),
-                      rtol,
-                      atol,
-                      size,
-                      stream);
-}
-
 // Forward declaration of gpu_reduce_max
-template <typename T>
-float gpu_reduce_max(const void* device_buffer, std::size_t size, hipStream_t stream = nullptr);
+template <typename T, typename Iterator>
+float gpu_reduce_max(Iterator device_buffer, std::size_t size, hipStream_t stream = nullptr);
 
 // Host-side wrapper for GPU verification with automatic tolerance computation
 // Computes max value on GPU, then computes tolerances and verifies
 // Returns GpuVerifyResult with detailed error information
 template <typename OutDataType,
           typename ComputeDataType = OutDataType,
-          typename AccDataType     = ComputeDataType>
-GpuVerifyResult gpu_verify(const void* device_result,
-                           const void* reference_result,
+          typename AccDataType     = ComputeDataType,
+          typename IteratorA,
+          typename IteratorB>
+GpuVerifyResult gpu_verify(IteratorA device_result,
+                           IteratorB reference_result,
                            int number_of_accumulations,
                            std::size_t size,
                            hipStream_t stream = nullptr)
 {
+    auto actual_it   = make_concrete_iterator<OutDataType>(device_result);
+    auto expected_it = make_concrete_iterator<OutDataType>(reference_result);
+
     // Compute max absolute value on GPU (only 4 bytes transferred!)
     double max_abs_value =
-        static_cast<double>(gpu_reduce_max<OutDataType>(reference_result, size, stream));
+        static_cast<double>(gpu_reduce_max<OutDataType>(expected_it, size, stream));
 
     // Compute tolerances based on data types and accumulation count
     float rtol = compute_relative_tolerance<ComputeDataType, OutDataType, AccDataType>(
@@ -370,17 +381,22 @@ GpuVerifyResult gpu_verify(const void* device_result,
                 max_abs_value, number_of_accumulations));
     }
 
+    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+    {
+        std::cout << "verify: accumulations=" << number_of_accumulations << " rtol = " << rtol
+                  << " atol=" << atol << std::endl;
+    }
+
     // Call the explicit tolerance version
-    return gpu_verify<OutDataType>(device_result, reference_result, rtol, atol, size, stream);
+    return gpu_verify<OutDataType>(actual_it, expected_it, rtol, atol, size, stream);
 }
 
 // GPU reduction kernel for computing max(abs(data))
 // This is an internal kernel called only by gpu_reduce_max() wrapper.
 //
 // Assumption: Block size is 256
-template <typename T>
-__global__ void
-gpu_reduce_max_kernel(const T* __restrict__ data, long long size, float* __restrict__ max_val)
+template <typename T, typename Iterator>
+__global__ void gpu_reduce_max_kernel(Iterator data, long long size, float* __restrict__ max_val)
 {
     constexpr int block_size = 256;
     __shared__ float shared_max[block_size];
@@ -425,13 +441,15 @@ gpu_reduce_max_kernel(const T* __restrict__ data, long long size, float* __restr
 // Host-side wrapper for GPU max reduction
 // Computes max(abs(data)) and returns as float
 // Only transfers 4 bytes (the final max value) instead of entire tensor
-template <typename T>
-float gpu_reduce_max(const void* device_buffer, std::size_t size, hipStream_t stream)
+template <typename T, typename Iterator>
+float gpu_reduce_max(Iterator device_buffer, std::size_t size, hipStream_t stream)
 {
     if(size == 0)
     {
         return 0.0f;
     }
+
+    auto it = make_concrete_iterator<T>(device_buffer);
 
     // Allocate device memory for result
     float* max_dev;
@@ -447,8 +465,8 @@ float gpu_reduce_max(const void* device_buffer, std::size_t size, hipStream_t st
     constexpr int block_size = 256;
     int grid_size            = std::min<int>(1024, (size + block_size - 1) / block_size);
 
-    gpu_reduce_max_kernel<T><<<grid_size, block_size, 0, stream>>>(
-        static_cast<const T*>(device_buffer), static_cast<long long>(size), max_dev);
+    gpu_reduce_max_kernel<T>
+        <<<grid_size, block_size, 0, stream>>>(it, static_cast<long long>(size), max_dev);
 
     hip_check_error(hipGetLastError());
 
