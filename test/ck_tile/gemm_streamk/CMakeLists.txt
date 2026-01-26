@@ -48,6 +48,28 @@ if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950")
                          test_gemm_streamk_util.cpp)
     target_compile_options(test_ck_tile_streamk_smoke PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
     target_compile_options(test_ck_tile_streamk_extended PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+
+    # Collect all test targets for umbrella label
+    set(CK_TILE_GEMM_STREAMK_TEST_TARGETS
+        test_ck_tile_streamk_tile_partitioner
+        test_ck_tile_streamk_reduction
+        test_ck_tile_streamk_smoke
+        test_ck_tile_streamk_extended
+    )
+
+    # Label all ck_tile gemm_streamk tests with CK_TILE_GEMM_STREAMK_TESTS for selective execution
+    foreach(test_target ${CK_TILE_GEMM_STREAMK_TEST_TARGETS})
+        set_tests_properties(${test_target} PROPERTIES LABELS "CK_TILE_GEMM_STREAMK_TESTS")
+    endforeach()
+
+    # Umbrella target to build and run all ck_tile gemm_streamk tests
+    # Usage: ninja ck_tile_gemm_streamk_tests
+    add_custom_target(ck_tile_gemm_streamk_tests
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "CK_TILE_GEMM_STREAMK_TESTS"
+        DEPENDS ${CK_TILE_GEMM_STREAMK_TEST_TARGETS}
+        USES_TERMINAL
+        COMMENT "Running all ck_tile gemm_streamk tests..."
+    )
 else()
     message(DEBUG "Skipping test_ck_tile_streamk unit tests for current target")
 endif()
