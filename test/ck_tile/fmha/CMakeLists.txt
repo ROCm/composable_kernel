@@ -30,7 +30,6 @@ function(add_gtest_fwd test_group)
     endforeach()
     message(STATUS "FMHA FWD tests: ${all_tests}")
     add_custom_target(${test_group} DEPENDS ${all_tests})
-    set(all_tests ${all_tests} PARENT_SCOPE)
 endfunction()
 
 function(add_gtest_bwd test_group)
@@ -51,7 +50,6 @@ function(add_gtest_bwd test_group)
     endforeach()
     message(STATUS "FMHA BWD tests: ${all_tests}")
     add_custom_target(${test_group} DEPENDS ${all_tests})
-    set(all_tests ${all_tests} PARENT_SCOPE)
 endfunction()
 
 
