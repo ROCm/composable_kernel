@@ -236,7 +236,8 @@ template <ck::index_t NDimSpatial,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
           typename ComputeTypeA                       = InDataType,
-          typename ComputeTypeB                       = ComputeTypeA>
+          typename ComputeTypeB                       = ComputeTypeA,
+          bool DirectLoad                             = false>
 struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
     : public DeviceGroupedConvBwdWeight<NDimSpatial,
                                         InLayout,
@@ -371,6 +372,15 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
+    static constexpr index_t ABlockTransferSrcScalarPerVectorAligned =
+        ABlockTransferSrcScalarPerVector * sizeof(ADataType) == 8
+            ? 4 / sizeof(ADataType)
+            : ABlockTransferSrcScalarPerVector;
+    static constexpr index_t BBlockTransferSrcScalarPerVectorAligned =
+        BBlockTransferSrcScalarPerVector * sizeof(BDataType) == 8
+            ? 4 / sizeof(BDataType)
+            : BBlockTransferSrcScalarPerVector;
+
     template <index_t NXdlPerWave_>
     using GridwiseGemmBase = GridwiseGemm_xdl_cshuffle_conv_v3<
         tensor_layout::gemm::RowMajor,
@@ -399,7 +409,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
         ABlockTransferSrcVectorDim,
-        ABlockTransferSrcScalarPerVector,
+        DirectLoad ? ABlockTransferSrcScalarPerVectorAligned : ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_K1,
         false,
         ABlockLdsAddExtraM,
@@ -407,7 +417,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
         BBlockTransferSrcVectorDim,
-        BBlockTransferSrcScalarPerVector,
+        DirectLoad ? BBlockTransferSrcScalarPerVectorAligned : BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_K1,
         false,
         BBlockLdsAddExtraN,
@@ -418,7 +428,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
-        ComputeTypeB>;
+        ComputeTypeB,
+        DirectLoad>;
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
@@ -1367,6 +1378,15 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         }
 #endif
 
+        // check device
+        if constexpr(DirectLoad)
+        {
+            if(get_device_name() != "gfx950")
+            {
+                return false;
+            }
+        }
+
         const index_t GemmM = arg.a_grid_desc_k0_m_k1_.GetLength(I1);
         const index_t GemmN = arg.b_grid_desc_k0_n_k1_.GetLength(I1);
         const index_t GemmK =
@@ -1617,8 +1637,13 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         auto str = std::stringstream();
 
         // clang-format off
-        str << "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3"
-            << "<"
+        str << "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3";
+
+        if constexpr(DirectLoad) {
+            str << "_DirectLoad";
+        }
+
+        str    << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
