@@ -235,14 +235,6 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
 
-        bool* block_relation_onehot = reinterpret_cast<bool*>(smem_ptr) + GetSmemSize();
-        amd_direct_load_global_to_lds<bool, 4>(block_relation_onehot_ptr,
-                                               4 * threadIdx.x,
-                                               block_relation_onehot,
-                                               4 * threadIdx.x,
-                                               threadIdx.x / 64 == 0,
-                                               256);
-
         auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
                                               q_dram_block_window_tmp.get_window_lengths(),
                                               q_dram_block_window_tmp.get_window_origin(),
@@ -287,10 +279,6 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
         const auto [seqlen_k_start, seqlen_k_end] =
             mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
         const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
-        // if (threadIdx.x==0 && blockIdx.y==0) {
-        //     printf("\nblockIdx.x : %d, seqlen_k_start: %d, seqlen_k_end: %d\n", blockIdx.x,
-        //     seqlen_k_start, seqlen_k_end);
-        // }
 
         // check early exit if no work to do
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
@@ -314,6 +302,16 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
             }
             __builtin_amdgcn_sched_barrier(0); // make sure sched_barrier(0) for this check
         }
+
+        const index_t num_block     = num_total_loop;
+        bool* block_relation_onehot = reinterpret_cast<bool*>(smem_ptr) + GetSmemSize();
+        const index_t thread_offset = static_cast<index_t>(4 * threadIdx.x);
+        amd_direct_load_global_to_lds<bool, 4>(block_relation_onehot_ptr,
+                                               4 * threadIdx.x,
+                                               block_relation_onehot,
+                                               4 * threadIdx.x,
+                                               thread_offset < num_block,
+                                               num_block);
 
         auto k_dram_block_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),

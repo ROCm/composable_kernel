@@ -359,7 +359,7 @@ class FmhaFwdPipeline:
     F_mask: str  # value from MASK_MAP
     F_skip: str  # true/false
     F_trload: str  # true/false
-    F_constraint: CppConstraint = field(default_factory=lambda: CppConstraint())
+    F_constraint: CppConstraint = field(default_factory=CppConstraint)
 
     @property
     def name(self) -> str:
@@ -532,7 +532,7 @@ class FmhaFwdTileSize:
     F_wn1: int  # gemm1 warp size along n
     F_wk1: int  # gemm1 warp size along k
     F_occupancy: int  # occupancy, -1 will let pipeline decide the occupancy, other value will overwrite occupancy
-    F_constraint: CppConstraint = field(default_factory=lambda: CppConstraint())
+    F_constraint: CppConstraint = field(default_factory=CppConstraint)
 
     @property
     def name(self) -> str:
@@ -843,102 +843,10 @@ class KernelComponentFactory:
                 if hdim == 256 and hdim_v == 256:
                     # print("vsa fmha only support dim=128 now.")
                     continue
-                    pipelines.append(
-                        FmhaFwdPipeline(
-                            "qr",
-                            "row",
-                            "f",
-                            "f",
-                            "f",
-                            "f",
-                            logits,
-                            bias,
-                            lse,
-                            dropout,
-                            squant,
-                            mask,
-                            skip,
-                            "f",
-                        )
-                    )
-                    # the below two is used for hdim vectorize load
-                    pipelines.append(
-                        FmhaFwdPipeline(
-                            "qr",
-                            "row",
-                            "t",
-                            "t",
-                            "f",
-                            "f",
-                            logits,
-                            bias,
-                            lse,
-                            dropout,
-                            squant,
-                            mask,
-                            skip,
-                            "f",
-                        )
-                    )
-                    pipelines.append(
-                        FmhaFwdPipeline(
-                            "qr",
-                            "row",
-                            "t",
-                            "t",
-                            "t",
-                            "t",
-                            logits,
-                            bias,
-                            lse,
-                            dropout,
-                            squant,
-                            mask,
-                            skip,
-                            "f",
-                        )
-                    )
                 else:
                     if bias == "bias":
-                        # print("vsa_fmha with bias is not implemented.")
+                        # vsa_fmha with bias is not implemented.
                         continue
-                        # TODO: rocm 6.2 compiler problem if using qr_async for bias case
-                        pipelines.append(
-                            FmhaFwdPipeline(
-                                "qr",
-                                "row",
-                                "f",
-                                "f",
-                                "f",
-                                "f",
-                                logits,
-                                bias,
-                                lse,
-                                dropout,
-                                squant,
-                                mask,
-                                skip,
-                                "f",
-                            )
-                        )
-                        pipelines.append(
-                            FmhaFwdPipeline(
-                                "qr",
-                                "row",
-                                "t",
-                                "t",
-                                "t",
-                                "t",
-                                logits,
-                                bias,
-                                lse,
-                                dropout,
-                                squant,
-                                mask,
-                                skip,
-                                "f",
-                            )
-                        )
                     else:
                         pipelines.append(
                             FmhaFwdPipeline(
@@ -976,36 +884,12 @@ class KernelComponentFactory:
                                 "f",
                             )
                         )
-                        # if (hdim, hdim_v) in [(64, 64), (128, 128)] and logits == "f" and bias == "no" and dropout == "f" and lse == "f" and skip == "f":
-                        #     pipelines.append(FmhaFwdPipeline('qr_async_trload', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip, 't'))
-                        #     pipelines.append(FmhaFwdPipeline('qr_async_trload', 'row', 'f', 'f', 't', 't', logits, bias, lse, dropout, squant, mask, skip, 't'))
-                    # if receipt == 1 and bias != "bias":
-                    #     pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip, 'f')) # TODO: cover arbitraty hdim
+                        # TODO: consider enabling extra qr_async_trload pipelines for select
+                        #       (hdim, hdim_v) when logits/bias/dropout/lse/skip allow.
+                    # TODO: consider enabling extra qr pipelines when receipt == 1 and bias != "bias".
         elif dtype in ["fp8", "bf8"]:
             # print("vsa fmha only support 16-bit compute.")
             return pipelines
-            # no need lse/dropout kernels
-            for logits, mask, bias in itertools.product(
-                ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()
-            ):
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr",
-                        "col",
-                        "f",
-                        "f",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "f",
-                        "f",
-                        squant,
-                        mask,
-                        "f",
-                        "f",
-                    )
-                )
         elif dtype in ["fp8fp16", "fp8bf16"]:
             # TODO
             None

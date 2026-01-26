@@ -55,6 +55,8 @@ struct FmhaFwdJengaKernel
     static constexpr bool kDoFp8StaticQuant =
         (FmhaPipeline::Problem::QScaleEnum != ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE);
     static constexpr bool kSkipMinSeqlenQ = FmhaPipeline::Problem::kSkipMinSeqlenQ;
+    static_assert(!kStoreLSE, "Jenga sparse attention does not support LSE output.");
+    static_assert(!kHasDropout, "Jenga sparse attention does not support dropout.");
 
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
@@ -90,7 +92,7 @@ struct FmhaFwdJengaKernel
             if (kPadHeadDimV) n += "dv";
             return n.empty() ? n : std::string("p") + n; }();
         return
-            _SS_("fmha_fwd_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
+            _SS_("fmha_jenga_fwd_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
             "_" + (kIsGroupMode ? "group" : "batch") + "_"
             "b" + _TS_(bfs::kM0) + "x" + _TS_(bfs::kN0) + "x" + _TS_(bfs::kK0) + "x" +
                     _TS_(bfs::kN1) + "x" + _TS_(bfs::kK1) + "x" + _TS_(bfs::kQKHeaddim) + "_" +
@@ -101,7 +103,7 @@ struct FmhaFwdJengaKernel
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) +
             (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) + (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
-            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) + (kHasDropout ? "_dropout" : "_ndropout" ) + (kDoFp8StaticQuant ? "_squant" : "_nsquant" );
+            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kDoFp8StaticQuant ? "_squant" : "_nsquant" );
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -200,67 +202,6 @@ struct FmhaFwdJengaKernel
         float scale_o;
     };
 
-    struct FmhaFwdCommonLSEKargs
-    {
-        void* lse_ptr                     = nullptr;
-        ck_tile::index_t nhead_stride_lse = 0;
-        ck_tile::index_t batch_stride_lse = 0;
-    };
-
-    struct FmhaFwdDropoutSeedOffset
-    {
-        template <typename T>
-        union ValueOrPointer
-        {
-            T val;
-            const T* ptr;
-        };
-
-        ValueOrPointer<uint64_t> drop_seed;
-        ValueOrPointer<uint64_t> drop_offset;
-        bool is_drop_seed_offset_from_host;
-    };
-
-    struct FmhaFwdCommonDropoutKargs : FmhaFwdDropoutSeedOffset
-    {
-        void init_dropout(float p_drop, uint64_t seed, uint64_t offset)
-        {
-            float p_undrop = 1.0 - p_drop;
-            p_undrop_in_uint8_t =
-                uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
-            rp_undrop = 1.0 / p_undrop;
-
-            this->drop_seed.val                 = seed;
-            this->drop_offset.val               = offset;
-            this->is_drop_seed_offset_from_host = true;
-        }
-
-        void init_dropout(float p_drop, const uint64_t* seed_ptr, const uint64_t* offset_ptr)
-        {
-            float p_undrop = 1.0 - p_drop;
-            p_undrop_in_uint8_t =
-                uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
-            rp_undrop = 1.0 / p_undrop;
-
-            this->drop_seed.ptr                 = seed_ptr;
-            this->drop_offset.ptr               = offset_ptr;
-            this->is_drop_seed_offset_from_host = false;
-        }
-
-        float rp_undrop             = 1;
-        uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
-        bool is_store_randval       = false;
-        void* rand_val_ptr          = nullptr;
-
-        ck_tile::index_t stride_randval       = 0;
-        ck_tile::index_t nhead_stride_randval = 0;
-    };
-
-    struct FmhaFwdBatchModeDropoutKargs : FmhaFwdCommonDropoutKargs
-    {
-        ck_tile::index_t batch_stride_randval = 0;
-    };
-
     struct FmhaFwdSkipMinSeqlenQKargs
     {
         ck_tile::index_t min_seqlen_q = 0;
@@ -274,9 +215,9 @@ struct FmhaFwdJengaKernel
                                                 FmhaFwdAlibiKargs,
                                                 FmhaFwdEmptyKargs<0>>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
-          std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
+          FmhaFwdEmptyKargs<2>,
           std::conditional_t<kDoFp8StaticQuant, FmhaFwdFp8StaticQuantKargs, FmhaFwdEmptyKargs<3>>,
-          std::conditional_t<kHasDropout, FmhaFwdBatchModeDropoutKargs, FmhaFwdEmptyKargs<4>>,
+          FmhaFwdEmptyKargs<4>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
     {
         ck_tile::index_t batch_stride_q;
@@ -293,9 +234,9 @@ struct FmhaFwdJengaKernel
                                                 FmhaFwdAlibiKargs,
                                                 FmhaFwdEmptyKargs<0>>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
-          std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
+          FmhaFwdEmptyKargs<2>,
           std::conditional_t<kDoFp8StaticQuant, FmhaFwdFp8StaticQuantKargs, FmhaFwdEmptyKargs<3>>,
-          std::conditional_t<kHasDropout, FmhaFwdCommonDropoutKargs, FmhaFwdEmptyKargs<4>>,
+          FmhaFwdEmptyKargs<4>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>,
           std::conditional_t<kSkipMinSeqlenQ, FmhaFwdSkipMinSeqlenQKargs, FmhaFwdEmptyKargs<6>>
     {
@@ -1050,6 +991,7 @@ struct FmhaFwdJengaKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         // allocate LDS
+        // Extra LDS for staging block_relation_onehot (256 bools); keep 4B alignment for LDS loads.
         __shared__ char smem_ptr[GetSmemSize() + 256 * sizeof(int)];
 
         // if (threadIdx.x==0 && blockIdx.x==0 && blockIdx.z ==0) printf("smem size: %d",
@@ -1251,21 +1193,6 @@ struct FmhaFwdJengaKernel
             }
         }();
 
-        // sparse mask
-        // const auto lut_dram = make_naive_tensor_view<address_space_enum::global>(
-        //         lut_ptr,
-        //         make_tuple(kargs.seqlen_k/number<FmhaPipeline::kN0>{}, 1),
-        //         make_tuple(1, 1),
-        //         number<1>{},
-        //         number<1>{});
-
-        // const auto valid_block_num_dram = make_naive_tensor_view<address_space_enum::global>(
-        //         valid_block_num_ptr,
-        //         make_tuple(kargs.seqlen_q/number<FmhaPipeline::kM0>{}),
-        //         make_tuple(1),
-        //         number<1>{},
-        //         number<1>{});
-
         auto q_dram_window = make_tile_window(
             q_dram,
             [&]() {
@@ -1284,11 +1211,6 @@ struct FmhaFwdJengaKernel
             make_tile_window(v_dram,
                              make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
                              {i_n1, 0});
-
-        // auto lut_dram_window = make_tile_window(
-        //     lut_dram, make_tuple(1,1), {0,0});
-        // auto valid_block_num_window = make_tile_window(
-        //     valid_block_num_dram, make_tuple(1), {i_tile_m});
 
         /// FIXME: Before C++20, capturing structured binding variables are not supported. Remove
         /// following copy capture of the 'i_nhead' if in C++20

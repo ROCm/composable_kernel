@@ -91,7 +91,7 @@ struct FmhaFwdVSAKernel
             if (kPadHeadDimV) n += "dv";
             return n.empty() ? n : std::string("p") + n; }();
         return
-            _SS_("fmha_fwd_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
+            _SS_("fmha_vsa_fwd_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
             "_" + (kIsGroupMode ? "group" : "batch") + "_"
             "b" + _TS_(bfs::kM0) + "x" + _TS_(bfs::kN0) + "x" + _TS_(bfs::kK0) + "x" +
                     _TS_(bfs::kN1) + "x" + _TS_(bfs::kK1) + "x" + _TS_(bfs::kQKHeaddim) + "_" +
@@ -102,7 +102,7 @@ struct FmhaFwdVSAKernel
             (kBlockPerCuInput == -1 ? "" : ("o" + _TS_(kBlockPerCu) + "_")) + _SS_(FmhaPipeline::name) + "_" +
             "v" + (std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> ? "r" : "c") + (pn.empty() ? "_npad" : "_" + pn) +
             (kHasLogitsSoftCap ? "_logits" : "_nlogits" ) + (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
-            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kStoreLSE ? "_lse" : "_nlse" ) + (kHasDropout ? "_dropout" : "_ndropout" ) + (kDoFp8StaticQuant ? "_squant" : "_nsquant" );
+            (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kDoFp8StaticQuant ? "_squant" : "_nsquant" );
         #undef _SS_
         #undef _TS_
         // clang-format on
@@ -1061,10 +1061,8 @@ struct FmhaFwdVSAKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         // allocate LDS
+        // Extra LDS for staging block_relation_onehot (256 bools); keep 4B alignment for LDS loads.
         __shared__ char smem_ptr[GetSmemSize() + 256 * sizeof(int)];
-
-        // if (threadIdx.x==0 && blockIdx.x==0 && blockIdx.z ==0) printf("smem size: %d",
-        // int(GetSmemSize()));
 
         // divide problem
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
@@ -1185,7 +1183,6 @@ struct FmhaFwdVSAKernel
             static_cast<long_index_t>(i_batch * kargs.num_head_q + i_nhead) *
                 ck_tile::integer_divide_ceil(kargs.seqlen_q, FmhaPipeline::kM0) +
             i_tile_m;
-        // int valid_block_num_value = __builtin_amdgcn_readfirstlane(valid_block_num_ptr[0]);
         const int valid_block_num_value = valid_block_num_ptr[0];
 
         ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr) +
@@ -1269,21 +1266,6 @@ struct FmhaFwdVSAKernel
             }
         }();
 
-        // sparse mask
-        // const auto lut_dram = make_naive_tensor_view<address_space_enum::global>(
-        //         lut_ptr,
-        //         make_tuple(kargs.seqlen_k/number<FmhaPipeline::kN0>{}, 1),
-        //         make_tuple(1, 1),
-        //         number<1>{},
-        //         number<1>{});
-
-        // const auto valid_block_num_dram = make_naive_tensor_view<address_space_enum::global>(
-        //         valid_block_num_ptr,
-        //         make_tuple(kargs.seqlen_q/number<FmhaPipeline::kM0>{}),
-        //         make_tuple(1),
-        //         number<1>{},
-        //         number<1>{});
-
         auto q_dram_window = make_tile_window(
             q_dram,
             [&]() {
@@ -1302,11 +1284,6 @@ struct FmhaFwdVSAKernel
             make_tile_window(v_dram,
                              make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
                              {i_n1, 0});
-
-        // auto lut_dram_window = make_tile_window(
-        //     lut_dram, make_tuple(1,1), {0,0});
-        // auto valid_block_num_window = make_tile_window(
-        //     valid_block_num_dram, make_tuple(1), {i_tile_m});
 
         /// FIXME: Before C++20, capturing structured binding variables are not supported. Remove
         /// following copy capture of the 'i_nhead' if in C++20

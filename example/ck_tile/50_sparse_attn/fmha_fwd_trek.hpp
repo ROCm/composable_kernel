@@ -4,6 +4,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/fmha.hpp"
 
@@ -13,6 +14,10 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+
+namespace ck_tile {
+inline bool is_load_tr_supported() { return is_gfx95_supported(); }
+} // namespace ck_tile
 
 struct FmhaFwdFp16
 {

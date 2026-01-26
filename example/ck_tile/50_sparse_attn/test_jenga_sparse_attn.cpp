@@ -13,6 +13,7 @@
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/reference/reference_blocked_attention.hpp"
 
 #include "jenga_sparse_attention.h"
 
@@ -20,114 +21,44 @@
 // Helper Functions
 // ============================================================================
 
-// Reference implementation: blocked attention
-template <typename T, typename AccT = float>
-void reference_blocked_attention(
-    const ck_tile::HostTensor<T>& q,              // [B, H, S_q, D]
-    const ck_tile::HostTensor<T>& k,              // [B, H, S_k, D]
-    const ck_tile::HostTensor<T>& v,              // [B, H, S_k, D_v]
-    const ck_tile::HostTensor<T>& block_relation, // [B, H, Q_blocks, K_blocks]
-    const ck_tile::HostTensor<T>& bias,           // [B, H, S_q, S_k]
-    ck_tile::HostTensor<T>& output,               // [B, H, S_q, D_v]
-    ck_tile::index_t BLKQ,
-    ck_tile::index_t BLKK,
-    AccT scale)
+template <typename T>
+ck_tile::HostTensor<T> make_qkv_tensor(ck_tile::index_t batch,
+                                       ck_tile::index_t nhead,
+                                       ck_tile::index_t seqlen,
+                                       ck_tile::index_t hdim,
+                                       bool i_perm)
 {
-    auto q_lengths            = q.get_lengths();
-    ck_tile::index_t batch    = q_lengths[0];
-    ck_tile::index_t nhead    = q_lengths[1];
-    ck_tile::index_t seqlen_q = q_lengths[2];
-    ck_tile::index_t hdim     = q_lengths[3];
+    if(i_perm)
+    {
+        return ck_tile::HostTensor<T>({batch, nhead, seqlen, hdim});
+    }
+    return ck_tile::HostTensor<T>({batch, seqlen, nhead, hdim});
+}
 
-    auto v_lengths            = v.get_lengths();
-    ck_tile::index_t seqlen_k = v_lengths[2];
-    ck_tile::index_t hdim_v   = v_lengths[3];
+template <typename T>
+ck_tile::HostTensor<T> to_bhsd(const ck_tile::HostTensor<T>& tensor, bool is_bhsd)
+{
+    auto lens               = tensor.get_lengths();
+    ck_tile::index_t batch  = lens[0];
+    ck_tile::index_t seqlen = is_bhsd ? lens[2] : lens[1];
+    ck_tile::index_t nhead  = is_bhsd ? lens[1] : lens[2];
+    ck_tile::index_t hdim   = lens[3];
 
-    ck_tile::index_t num_q_blocks = (seqlen_q + BLKQ - 1) / BLKQ;
-    ck_tile::index_t num_k_blocks = (seqlen_k + BLKK - 1) / BLKK;
-
+    ck_tile::HostTensor<T> out({batch, nhead, seqlen, hdim});
     for(ck_tile::index_t b = 0; b < batch; ++b)
     {
         for(ck_tile::index_t h = 0; h < nhead; ++h)
         {
-            for(ck_tile::index_t qb = 0; qb < num_q_blocks; ++qb)
+            for(ck_tile::index_t s = 0; s < seqlen; ++s)
             {
-                ck_tile::index_t q_start = qb * BLKQ;
-                ck_tile::index_t q_end   = q_start + BLKQ;
-
-                // Find relevant K blocks
-                std::vector<ck_tile::index_t> relevant_k_indices;
-                for(ck_tile::index_t kb = 0; kb < num_k_blocks; ++kb)
+                for(ck_tile::index_t d = 0; d < hdim; ++d)
                 {
-                    if(static_cast<float>(block_relation(b, h, qb, kb)) > 0.5f)
-                    {
-                        relevant_k_indices.push_back(kb);
-                    }
-                }
-
-                if(relevant_k_indices.empty())
-                    continue;
-
-                // For each query position in the block
-                for(ck_tile::index_t sq = q_start; sq < q_end; ++sq)
-                {
-                    std::vector<AccT> scores;
-                    AccT max_score = -std::numeric_limits<AccT>::infinity();
-
-                    for(auto kb : relevant_k_indices)
-                    {
-                        ck_tile::index_t k_start = kb * BLKK;
-                        ck_tile::index_t k_end   = k_start + BLKK;
-
-                        for(ck_tile::index_t sk = k_start; sk < k_end; ++sk)
-                        {
-                            AccT score = 0.0f;
-                            for(ck_tile::index_t d = 0; d < hdim; ++d)
-                            {
-                                score += static_cast<AccT>(q(b, h, sq, d)) *
-                                         static_cast<AccT>(k(b, h, sk, d));
-                            }
-                            score = score * scale + static_cast<AccT>(bias(b, h, sq, sk));
-                            scores.push_back(score);
-                            max_score = std::max(max_score, score);
-                        }
-                    }
-
-                    // Softmax
-                    AccT sum_exp = 0.0f;
-                    for(auto& s : scores)
-                    {
-                        s = std::exp(s - max_score);
-                        sum_exp += s;
-                    }
-                    for(auto& s : scores)
-                    {
-                        s /= sum_exp;
-                    }
-
-                    // Compute output: P @ V
-                    for(ck_tile::index_t dv = 0; dv < hdim_v; ++dv)
-                    {
-                        AccT out_val     = 0.0f;
-                        size_t score_idx = 0;
-
-                        for(auto kb : relevant_k_indices)
-                        {
-                            ck_tile::index_t k_start = kb * BLKK;
-                            ck_tile::index_t k_end   = k_start + BLKK;
-
-                            for(ck_tile::index_t sk = k_start; sk < k_end; ++sk)
-                            {
-                                out_val += scores[score_idx] * static_cast<AccT>(v(b, h, sk, dv));
-                                score_idx++;
-                            }
-                        }
-                        output(b, h, sq, dv) = static_cast<T>(out_val);
-                    }
+                    out(b, h, s, d) = is_bhsd ? tensor(b, h, s, d) : tensor(b, s, h, d);
                 }
             }
         }
     }
+    return out;
 }
 
 // Get error tolerance based on data type
@@ -146,7 +77,6 @@ auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("v", "1", "0:no validation, 1:cpu validation")
-        .insert("mode", "0", "kernel mode. 0:batch, 1:group")
         .insert("b", "1", "batch size")
         .insert("h", "4", "num of head for q")
         .insert("h_k", "-1", "num of head for k/v, -1 means equal to h")
@@ -177,7 +107,6 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
 {
     // Parse arguments
     int do_validation           = arg_parser.get_int("v");
-    int mode                    = arg_parser.get_int("mode");
     ck_tile::index_t batch      = arg_parser.get_int("b");
     ck_tile::index_t nhead      = arg_parser.get_int("h");
     ck_tile::index_t nhead_k    = arg_parser.get_int("h_k");
@@ -193,7 +122,7 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     uint32_t seed               = arg_parser.get_uint32("seed");
     int warmup                  = arg_parser.get_int("warmup");
     int repeat                  = arg_parser.get_int("repeat");
-    [[maybe_unused]] int kname  = arg_parser.get_int("kname");
+    int kname                   = arg_parser.get_int("kname");
 
     // Handle default values
     if(nhead_k < 0)
@@ -205,6 +134,23 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::index_t BLKQ = block_size;
     ck_tile::index_t BLKK = block_size;
+
+    if(block_size != 128 || hdim_q != 128 || hdim_v != 128)
+    {
+        std::cout << "\n>>> TEST SKIPPED <<<" << std::endl;
+        std::cout << "Jenga kernel instances are generated for block_size=128 and hdim=128 only."
+                  << std::endl;
+        std::cout << "TEST SKIPPED" << std::endl;
+        return true;
+    }
+
+    if(bias_type == 1)
+    {
+        std::cout << "\n>>> TEST SKIPPED <<<" << std::endl;
+        std::cout << "Elementwise bias is not supported by generated Jenga kernels." << std::endl;
+        std::cout << "TEST SKIPPED" << std::endl;
+        return true;
+    }
 
     // Calculate number of Q and K blocks
     ck_tile::index_t num_q_blocks = (seqlen_q + BLKQ - 1) / BLKQ;
@@ -225,17 +171,19 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     std::cout << "  i_perm: " << i_perm << ", o_perm: " << o_perm << std::endl;
 
     // Create host tensors (using BHSD layout when i_perm=true)
-    ck_tile::HostTensor<T> q_host({batch, nhead, seqlen_q, hdim_q});
-    ck_tile::HostTensor<T> k_host({batch, nhead_k, seqlen_k, hdim_q});
-    ck_tile::HostTensor<T> v_host({batch, nhead_k, seqlen_k, hdim_v});
-    ck_tile::HostTensor<T> output_host({batch, nhead, seqlen_q, hdim_v});
+    ck_tile::HostTensor<T> q_host = make_qkv_tensor<T>(batch, nhead, seqlen_q, hdim_q, i_perm);
+    ck_tile::HostTensor<T> k_host = make_qkv_tensor<T>(batch, nhead_k, seqlen_k, hdim_q, i_perm);
+    ck_tile::HostTensor<T> v_host = make_qkv_tensor<T>(batch, nhead_k, seqlen_k, hdim_v, i_perm);
+    ck_tile::HostTensor<T> output_host =
+        o_perm ? ck_tile::HostTensor<T>({batch, nhead, seqlen_q, hdim_v})
+               : ck_tile::HostTensor<T>({batch, seqlen_q, nhead, hdim_v});
     ck_tile::HostTensor<T> output_ref({batch, nhead, seqlen_q, hdim_v});
 
     // Bias tensor [B, H, S_q, S_k]
     ck_tile::HostTensor<T> bias_host({batch, nhead, seqlen_q, seqlen_k});
 
     // Block relation onehot: [B, H, Q_blocks, K_blocks]
-    ck_tile::HostTensor<T> block_relation_onehot({batch, nhead, num_q_blocks, num_k_blocks});
+    ck_tile::HostTensor<uint8_t> block_relation_onehot({batch, nhead, num_q_blocks, num_k_blocks});
 
     // Initialize tensors with random values
     std::cout << "\nInitializing tensors..." << std::endl;
@@ -266,12 +214,12 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
 
                     if(is_diagonal || random_active)
                     {
-                        block_relation_onehot(b, h, qb, kb) = static_cast<T>(1.0f);
+                        block_relation_onehot(b, h, qb, kb) = static_cast<uint8_t>(1);
                         active_blocks++;
                     }
                     else
                     {
-                        block_relation_onehot(b, h, qb, kb) = static_cast<T>(0.0f);
+                        block_relation_onehot(b, h, qb, kb) = static_cast<uint8_t>(0);
                     }
                 }
             }
@@ -284,9 +232,7 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
               << total_blocks << " blocks active)" << std::endl;
 
     // Optional tensors
-    std::optional<ck_tile::HostTensor<T>> bias_opt       = std::nullopt;
-    std::optional<ck_tile::HostTensor<T>> seqstart_q_opt = std::nullopt;
-    std::optional<ck_tile::HostTensor<T>> seqstart_k_opt = std::nullopt;
+    std::optional<ck_tile::HostTensor<T>> bias_opt = std::nullopt;
 
     if(bias_type != 0)
     {
@@ -298,6 +244,29 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
 
     try
     {
+        if(kname)
+        {
+            jenga_sparse_attention<T>(q_host,
+                                      k_host,
+                                      v_host,
+                                      block_relation_onehot,
+                                      output_host,
+                                      bias_opt,
+                                      bias_type,
+                                      batch,
+                                      nhead,
+                                      nhead_k,
+                                      seqlen_q,
+                                      seqlen_k,
+                                      hdim_q,
+                                      hdim_v,
+                                      i_perm,
+                                      o_perm,
+                                      seqlen_q,
+                                      seqlen_k,
+                                      1);
+        }
+
         // Warmup
         for(int i = 0; i < warmup; ++i)
         {
@@ -307,8 +276,6 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
                                       block_relation_onehot,
                                       output_host,
                                       bias_opt,
-                                      seqstart_q_opt,
-                                      seqstart_k_opt,
                                       bias_type,
                                       batch,
                                       nhead,
@@ -317,11 +284,11 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
                                       seqlen_k,
                                       hdim_q,
                                       hdim_v,
-                                      mode,
                                       i_perm,
                                       o_perm,
                                       seqlen_q,
-                                      seqlen_k);
+                                      seqlen_k,
+                                      0);
         }
 
         // Benchmark
@@ -336,8 +303,6 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
                                       block_relation_onehot,
                                       output_host,
                                       bias_opt,
-                                      seqstart_q_opt,
-                                      seqstart_k_opt,
                                       bias_type,
                                       batch,
                                       nhead,
@@ -346,11 +311,11 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
                                       seqlen_k,
                                       hdim_q,
                                       hdim_v,
-                                      mode,
                                       i_perm,
                                       o_perm,
                                       seqlen_q,
-                                      seqlen_k);
+                                      seqlen_k,
+                                      0);
         }
 
         [[maybe_unused]] auto sync_status2 = hipDeviceSynchronize();
@@ -376,15 +341,11 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         float scale = 1.0f / std::sqrt(static_cast<float>(hdim_q));
 
         std::cout << "Computing reference output..." << std::endl;
-        reference_blocked_attention(q_host,
-                                    k_host,
-                                    v_host,
-                                    block_relation_onehot,
-                                    bias_host,
-                                    output_ref,
-                                    BLKQ,
-                                    BLKK,
-                                    scale);
+        auto q_ref = to_bhsd(q_host, i_perm);
+        auto k_ref = to_bhsd(k_host, i_perm);
+        auto v_ref = to_bhsd(v_host, i_perm);
+        ck_tile::reference_blocked_attention<T, uint8_t>(
+            q_ref, k_ref, v_ref, block_relation_onehot, bias_host, output_ref, BLKQ, BLKK, scale);
 
         // Compare results
         auto [rtol, atol] = get_error_tolerance<T>();
@@ -393,9 +354,10 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         float max_rel_diff = 0.0f;
         size_t num_errors  = 0;
 
-        for(size_t i = 0; i < output_host.mData.size(); ++i)
+        auto output_host_bhsd = to_bhsd(output_host, o_perm);
+        for(size_t i = 0; i < output_host_bhsd.mData.size(); ++i)
         {
-            float gpu_val  = static_cast<float>(output_host.mData[i]);
+            float gpu_val  = static_cast<float>(output_host_bhsd.mData[i]);
             float ref_val  = static_cast<float>(output_ref.mData[i]);
             float diff     = std::abs(gpu_val - ref_val);
             float rel_diff = (std::abs(ref_val) > 1e-6f) ? diff / std::abs(ref_val) : diff;
@@ -417,8 +379,8 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         std::cout << "\nValidation results:" << std::endl;
         std::cout << "  Max absolute difference: " << max_diff << std::endl;
         std::cout << "  Max relative difference: " << max_rel_diff << std::endl;
-        std::cout << "  Number of mismatches: " << num_errors << " / " << output_host.mData.size()
-                  << std::endl;
+        std::cout << "  Number of mismatches: " << num_errors << " / "
+                  << output_host_bhsd.mData.size() << std::endl;
 
         if(num_errors == 0)
         {

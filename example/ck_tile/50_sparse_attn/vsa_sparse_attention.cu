@@ -16,8 +16,6 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
                      ck_tile::HostTensor<int32_t>& TKV_blocks,
                      ck_tile::HostTensor<DataType_>& Y,
                      std::optional<ck_tile::HostTensor<DataType_>> bias,
-                     std::optional<ck_tile::HostTensor<DataType_>> seqstart_q,
-                     std::optional<ck_tile::HostTensor<DataType_>> seqstart_k,
                      int bias_type,
                      int batch,
                      int nhead,
@@ -26,17 +24,27 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
                      int seqlen_k,
                      int hdim_q,
                      int hdim_v,
-                     int mode,
                      bool i_perm,
                      bool o_perm,
                      int max_seqlen_q,
-                     int max_seqlen_k)
+                     int max_seqlen_k,
+                     int log_level)
 {
     // Determine data type string based on template parameter
+    constexpr bool is_fp8 =
+        std::is_same_v<DataType_, ck_tile::fp8_t> || std::is_same_v<DataType_, ck_tile::bf8_t>;
     std::string data_type = "fp16";
     if constexpr(std::is_same_v<DataType_, ck_tile::bf16_t>)
     {
         data_type = "bf16";
+    }
+    else if constexpr(std::is_same_v<DataType_, ck_tile::fp8_t>)
+    {
+        data_type = "fp8";
+    }
+    else if constexpr(std::is_same_v<DataType_, ck_tile::bf8_t>)
+    {
+        data_type = "bf8";
     }
 
     if(max_seqlen_q == 0)
@@ -52,12 +60,12 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
     std::string msk_str = "0";
     mask_info mask      = mask_info::decode(msk_str, seqlen_q, seqlen_k);
 
-    const ck_tile::index_t shape_seqlen_q = (mode == 0 ? seqlen_q : max_seqlen_q);
-    const ck_tile::index_t shape_seqlen_k = (mode == 0 ? seqlen_k : max_seqlen_k);
+    const ck_tile::index_t shape_seqlen_q = seqlen_q;
+    const ck_tile::index_t shape_seqlen_k = seqlen_k;
 
     ck_tile::stream_config stream_config{nullptr,
                                          false, // time_kernel
-                                         0,     /* log_level = */
+                                         log_level,
                                          0,
                                          1,
                                          false};
@@ -78,18 +86,9 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
 
     // Optional buffers
     ck_tile::DeviceMem bias_buf(bias ? bias->get_element_space_size_in_bytes() : 0);
-    ck_tile::DeviceMem seqstart_q_buf(seqstart_q ? seqstart_q->get_element_space_size_in_bytes()
-                                                 : 0);
-    ck_tile::DeviceMem seqstart_k_buf(seqstart_k ? seqstart_k->get_element_space_size_in_bytes()
-                                                 : 0);
 
     if(bias)
         bias_buf.ToDevice(bias->data());
-    if(seqstart_q)
-        seqstart_q_buf.ToDevice(seqstart_q->data());
-    if(seqstart_k)
-        seqstart_k_buf.ToDevice(seqstart_k->data());
-
     const auto init_args = [&](auto& args) {
         assert(nhead % nhead_k == 0);
         const ck_tile::index_t stride_q = (i_perm ? hdim_q : nhead * hdim_q);
@@ -134,7 +133,7 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
         args.valid_block_num_ptr = valid_block_num_buf.GetDeviceBuffer();
 
         args.batch    = batch;
-        args.seqlen_q = shape_seqlen_q; // unused in group mode
+        args.seqlen_q = shape_seqlen_q; // batch mode only
         args.hdim_q   = hdim_q;
         args.hdim_v   = hdim_v;
         args.nhead_q  = nhead;
@@ -154,11 +153,11 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
         args.lse_ptr  = nullptr;
         args.o_ptr    = o_buf.GetDeviceBuffer();
 
-        args.seqstart_q_ptr = (mode == 1 ? seqstart_q_buf.GetDeviceBuffer() : nullptr);
-        args.seqstart_k_ptr = (mode == 1 ? seqstart_k_buf.GetDeviceBuffer() : nullptr);
+        args.seqstart_q_ptr = nullptr;
+        args.seqstart_k_ptr = nullptr;
         args.seqlen_k_ptr   = nullptr;
 
-        args.seqlen_k     = shape_seqlen_k; // unused in group mode (or kvcache enabled)
+        args.seqlen_k     = shape_seqlen_k; // batch mode only
         args.max_seqlen_q = max_seqlen_q;
 
         args.scale_s = scale_s;
@@ -196,12 +195,12 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
         traits.data_type     = data_type;
         traits.is_v_rowmajor = is_v_rowmajor;
 
-        traits.is_group_mode       = (mode == 1);
+        traits.is_group_mode       = false;
         traits.has_logits_soft_cap = 0.f < logits_soft_cap;
         traits.mask_type           = mask.type;
         traits.bias_type           = static_cast<bias_enum>(bias_type);
         traits.has_lse             = false;
-        traits.do_fp8_static_quant = false;
+        traits.do_fp8_static_quant = is_fp8;
 
         traits.has_dropout = false;
     };
@@ -214,8 +213,8 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
 
     fmha_vsa_fwd(fmha_traits, args, stream_config);
 
-    // Copy output back to host
-    Y = o_buf.ToHost<DataType_>();
+    // Copy output back to host without changing tensor shape
+    o_buf.FromDevice(Y.data(), Y.get_element_space_size_in_bytes());
 
     return Y;
 }
@@ -227,9 +226,7 @@ vsa_sparse_attention<ck_tile::half_t>(
     ck_tile::HostTensor<ck_tile::half_t>&, ck_tile::HostTensor<int32_t>&,
     ck_tile::HostTensor<int32_t>&, ck_tile::HostTensor<ck_tile::half_t>&,
     std::optional<ck_tile::HostTensor<ck_tile::half_t>>,
-    std::optional<ck_tile::HostTensor<ck_tile::half_t>>,
-    std::optional<ck_tile::HostTensor<ck_tile::half_t>>,
-    int, int, int, int, int, int, int, int, int, bool, bool, int, int);
+    int, int, int, int, int, int, int, int, bool, bool, int, int, int);
 
 template ck_tile::HostTensor<ck_tile::bf16_t>
 vsa_sparse_attention<ck_tile::bf16_t>(
@@ -237,6 +234,4 @@ vsa_sparse_attention<ck_tile::bf16_t>(
     ck_tile::HostTensor<ck_tile::bf16_t>&, ck_tile::HostTensor<int32_t>&,
     ck_tile::HostTensor<int32_t>&, ck_tile::HostTensor<ck_tile::bf16_t>&,
     std::optional<ck_tile::HostTensor<ck_tile::bf16_t>>,
-    std::optional<ck_tile::HostTensor<ck_tile::bf16_t>>,
-    std::optional<ck_tile::HostTensor<ck_tile::bf16_t>>,
-    int, int, int, int, int, int, int, int, int, bool, bool, int, int);
+    int, int, int, int, int, int, int, int, bool, bool, int, int, int);

@@ -11,11 +11,9 @@ ck_tile::HostTensor<DataType_>
 jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
                        ck_tile::HostTensor<DataType_>& TK,
                        ck_tile::HostTensor<DataType_>& TV,
-                       ck_tile::HostTensor<DataType_>& Tblock_relation_onehot,
+                       ck_tile::HostTensor<uint8_t>& Tblock_relation_onehot,
                        ck_tile::HostTensor<DataType_>& Y,
                        std::optional<ck_tile::HostTensor<DataType_>> bias,
-                       std::optional<ck_tile::HostTensor<DataType_>> seqstart_q,
-                       std::optional<ck_tile::HostTensor<DataType_>> seqstart_k,
                        int bias_type,
                        int batch,
                        int nhead,
@@ -24,11 +22,11 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
                        int seqlen_k,
                        int hdim_q,
                        int hdim_v,
-                       int mode,
                        bool i_perm,
                        bool o_perm,
                        int max_seqlen_q,
-                       int max_seqlen_k);
+                       int max_seqlen_k,
+                       int log_level = 0);
 
 template <typename DataType_>
 ck_tile::HostTensor<DataType_>
@@ -39,8 +37,6 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
                      ck_tile::HostTensor<int32_t>& TKV_blocks,    // valid_block_num must be int32_t
                      ck_tile::HostTensor<DataType_>& Y,
                      std::optional<ck_tile::HostTensor<DataType_>> bias,
-                     std::optional<ck_tile::HostTensor<DataType_>> seqstart_q,
-                     std::optional<ck_tile::HostTensor<DataType_>> seqstart_k,
                      int bias_type,
                      int batch,
                      int nhead,
@@ -49,8 +45,8 @@ vsa_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
                      int seqlen_k,
                      int hdim_q,
                      int hdim_v,
-                     int mode,
                      bool i_perm,
                      bool o_perm,
                      int max_seqlen_q,
-                     int max_seqlen_k);
+                     int max_seqlen_k,
+                     int log_level = 0);

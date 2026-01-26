@@ -10,13 +10,6 @@ FWD_DTYPE_MAP = {
     "fp8bf16": "FmhaFwdFp8Bf16",
 }
 
-BWD_DTYPE_MAP = {"fp16": "FmhaBwdFp16", "bf16": "FmhaBwdBf16"}
-
-MASK_IMPL = {
-    "generic": "ck_tile::GenericAttentionMask",
-    "simplified": "ck_tile::SimplifiedGenericAttentionMask",
-}
-
 _MASK_SIMPLIFIED_MAP = {
     "s_no": "ck_tile::SimplifiedGenericAttentionMask<false>",
     "s_mask": "ck_tile::SimplifiedGenericAttentionMask<true>",
@@ -74,17 +67,6 @@ BIAS_CHECK_MAP = {
     "alibi": "bias_enum::alibi",
 }
 
-ROPE_MAP = {
-    "no": "ck_tile::RotaryEmbeddingEnum::NONE",
-    "inter": "ck_tile::RotaryEmbeddingEnum::INTERLEAVED",
-    "half": "ck_tile::RotaryEmbeddingEnum::HALF_ROTATED",
-}
-
-ROPE_CHECK_MAP = {
-    "no": "rope_enum::none",
-    "inter": "rope_enum::interleaved",
-    "half": "rope_enum::half_rotated",
-}
 
 MODE_MAP = {"batch": "false", "group": "true"}
 
