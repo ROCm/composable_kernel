@@ -52,7 +52,7 @@ using AElementOp   = PassThrough;
 using BElementOp   = PassThrough;
 using CDEElementOp = PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MKPadding;
 
 using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemm_Wmma_Fixed_Nk
     // clang-format off
@@ -289,15 +289,15 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             
             pass &= ck::utils::check_err(c_device_tensors[i], c_host_tensors[i]);
         }
-        // // Copy device tensors back to host
-        // for(std::size_t i = 0; i < c_device_tensors.size(); i++)
-        // {
-        //     c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data(),
-        //                                     c_device_tensors[i].mDesc.GetElementSize() *
-        //                                         sizeof(EDataType));
+        // Copy device tensors back to host
+        for(std::size_t i = 0; i < c_device_tensors.size(); i++)
+        {
+            c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data(),
+                                            c_device_tensors[i].mDesc.GetElementSize() *
+                                                sizeof(EDataType));
 
 
-        // }
+        }
         // // Print out device and reference results for debugging
         // std::cout << "[CK GEMM RESULT TRACE]\n";
         // for(std::size_t i = 0; i < c_device_tensors.size(); i++)
@@ -368,9 +368,12 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < problem_size.group_count; i++)
     {
-        problem_size.Ms.push_back(256);
-        problem_size.Ns.push_back(256);
-        problem_size.Ks.push_back(256);
+        // problem_size.Ms.push_back(256);
+        // problem_size.Ns.push_back(256);
+        // problem_size.Ks.push_back(256);
+        problem_size.Ms.push_back(128 + rand() % 128);
+        problem_size.Ns.push_back(1024);
+        problem_size.Ks.push_back(1024);
 
         problem_size.stride_As.push_back(problem_size.Ks[i]);
         problem_size.stride_Bs.push_back(problem_size.Ks[i]);
