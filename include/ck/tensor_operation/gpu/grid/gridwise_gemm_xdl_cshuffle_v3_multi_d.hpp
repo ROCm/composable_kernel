@@ -933,11 +933,17 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 #endif
 
         // B matrix in LDS memory, dst of blockwise copy
-        if constexpr(DirectLoad)
+        if constexpr(DirectLoad && BBlockTransferSrcVectorDim == 2)
         {
             return make_naive_tensor_descriptor(
                 make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
                 make_tuple(BK1Number, Number<KPerBlock>{}, I1));
+        }
+        else if constexpr(DirectLoad && BBlockTransferSrcVectorDim == 1)
+        {
+            return make_naive_tensor_descriptor(
+                make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
+                make_tuple(Number<NPerBlock * BK1Number>{}, I1, Number<NPerBlock>{}));
         }
         else if constexpr(BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
@@ -1633,7 +1639,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                     decltype(b_block_desc_bk0_n_bk1),
                     BBlockTransferSrcAccessOrder,
                     BBlockTransferSrcVectorDim,
-                    2,
+                    BBlockTransferSrcVectorDim, // enforcer earlier
                     BBlockTransferSrcScalarPerVector>(
                     b_grid_desc_bk0_n_bk1,
                     make_multi_index(num_bk0_per_block * k_idx, n_block_data_idx_on_grid, 0),
