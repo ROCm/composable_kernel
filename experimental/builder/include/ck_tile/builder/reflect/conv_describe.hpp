@@ -29,35 +29,7 @@ conv::ConvDescription describe()
     const auto traits = conv::instance_to_conv_traits<Instance>();
 
     return conv::ConvDescription(
-        conv::ConvSignatureInfo{
-            .spatial_dim       = traits.spatial_dim,
-            .direction         = traits.direction,
-            .input_layout      = traits.layout[0],
-            .weight_layout     = traits.layout[1],
-            .output_layout     = traits.layout[2],
-            .data_type         = traits.data_type,
-            .input_element_op  = traits.input_element_op,
-            .weight_element_op = traits.weight_element_op,
-            .output_element_op = traits.output_element_op,
-        },
-        conv::GemmAlgorithmInfo{
-            .thread_block_size         = traits.thread_block_size,
-            .tile_dims                 = traits.tile_dims,
-            .warp_gemm                 = traits.warp_gemm,
-            .a_tile_transfer           = traits.a_tile_transfer,
-            .b_tile_transfer           = traits.b_tile_transfer,
-            .c_tile_transfer           = traits.c_tile_transfer,
-            .pipeline_version          = traits.pipeline_version,
-            .pipeline_scheduler        = traits.pipeline_scheduler,
-            .conv_specialization       = traits.conv_specialization,
-            .padding                   = traits.gemm_padding,
-            .num_gemm_k_prefetch_stage = traits.num_gemm_k_prefetch_stage,
-            .max_transpose_transfer_src_scalar_per_vector =
-                traits.max_transpose_transfer_src_scalar_per_vector,
-            .max_transpose_dst_scalar_per_vector = traits.max_transpose_dst_scalar_per_vector,
-            .num_groups_to_merge                 = traits.num_groups_to_merge,
-        },
-        []<typename T = Instance>() { return reflect::instance_string<T>(); });
+        traits, []<typename T = Instance>() { return reflect::instance_string<T>(); });
 }
 
 } // namespace ck_tile::reflect
