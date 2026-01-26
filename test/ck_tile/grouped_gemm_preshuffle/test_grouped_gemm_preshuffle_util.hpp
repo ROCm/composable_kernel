@@ -30,25 +30,25 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
     using PersistentType             = typename Tuple::Persistent;
     static constexpr bool Persistent = PersistentType::value;
 
-    static const bool kPadM = false;
-    static const bool kPadN = false;
-    static const bool kPadK = true; // preshuffle pipeline requires k padding
+    static constexpr bool kPadM = false;
+    static constexpr bool kPadN = false;
+    static constexpr bool kPadK = true; // preshuffle pipeline requires k padding
 
-    static const int kBlockPerCu = Tuple::BlockPerCu_;
+    static constexpr int kBlockPerCu = Tuple::BlockPerCu_;
 
     // Tile dimensions from tuple
-    static const ck_tile::index_t M_Tile = Tuple::M_Tile_;
-    static const ck_tile::index_t N_Tile = Tuple::N_Tile_;
-    static const ck_tile::index_t K_Tile = Tuple::K_Tile_;
+    static constexpr ck_tile::index_t M_Tile = Tuple::M_Tile_;
+    static constexpr ck_tile::index_t N_Tile = Tuple::N_Tile_;
+    static constexpr ck_tile::index_t K_Tile = Tuple::K_Tile_;
 
-    static const ck_tile::index_t M_Warp = 1;
-    static const ck_tile::index_t N_Warp = 4;
-    static const ck_tile::index_t K_Warp = 1;
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
 
-    static const ck_tile::index_t M_Warp_Tile = 16;
-    static const ck_tile::index_t N_Warp_Tile = 16;
-    static const ck_tile::index_t K_Warp_Tile =
-        ck_tile::get_k_warp_tile_for_preshuffle_b<PrecType, N_Warp_Tile>();
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile_for_preshuffle_b<BDataType, N_Warp_Tile>();
 
     static constexpr bool DoubleSmemBuffer = true;  // preshuffle v2 uses ping-pong smem
     static constexpr bool TransposeC       = false; // transpose c is not supported
