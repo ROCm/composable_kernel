@@ -190,7 +190,7 @@ check_err(const Range& out,
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
-            if(err_count < 5)
+            if(err_count < 50)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -244,7 +244,7 @@ check_err(const Range& out,
         if(err > atol + rtol * std::abs(r) || !std::isfinite(o) || !std::isfinite(r))
         {
             max_err = err > max_err ? err : max_err;
-            if(err_count < 5)
+            if(err_count < 50)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -298,7 +298,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 50)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -350,7 +350,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 50)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -409,7 +409,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 50)
             {
                 std::cerr << msg << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r
                           << std::endl;
@@ -462,7 +462,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 50)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -511,7 +511,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 50)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -560,7 +560,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < 50)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
