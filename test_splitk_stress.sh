@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: MIT
 
 # Stress test script for Split-K BQuant GEMM
-# Tests only valid configurations where KRead % 128 == 0
-# Tests both fp8 and bf8 precisions
+# Modified to test misaligned split-K configurations
+# Tests fp8, bf8, fp8i4, and bf8i4 precisions
 
 BINARY="./build/bin/tile_example_gemm_quant"
 QUANT_MODE="bquant"
@@ -18,42 +18,45 @@ declare -a FAILED_TESTS=()
 declare -a SKIPPED_TESTS=()
 
 echo "=============================================="
-echo "Split-K BQuant GEMM Stress Test"
+echo "Split-K BQuant GEMM Stress Test (Misaligned Support)"
 echo "=============================================="
 echo "Binary: $BINARY"
 echo "Quant Mode: $QUANT_MODE"
 echo "Init: $INIT (random)"
-echo "Testing precisions: fp8, bf8"
+echo "Testing precisions: fp8, bf8, fp8i4, bf8i4"
 echo "=============================================="
 echo ""
 
-# M values to test
+# More thorough set of values for edge-case coverage
 M_VALUES=(16 32 64 128 256)
-
-# N values to test  
 N_VALUES=(64 128 256)
 
-# Valid (K, split_k) combinations where KRead % 128 == 0
+# Layouts to test (A x B)
+# BQuant in 38_block_scale_gemm only supports A=R, B=C
+A_LAYOUT_VALUES=("R")
+B_LAYOUT_VALUES=("C")
+
+# Test cases including aligned and misaligned ones
 # Format: "K:split_k1,split_k2,..."
-declare -A VALID_K_SPLITS
-VALID_K_SPLITS[256]="1,2"
-VALID_K_SPLITS[384]="1,3"
-VALID_K_SPLITS[512]="1,2,4,5"
-VALID_K_SPLITS[640]="1,5,6"
-VALID_K_SPLITS[768]="1,2,3,6,7"
-VALID_K_SPLITS[896]="1,7,8"
-VALID_K_SPLITS[1024]="1,2,4,8"
-VALID_K_SPLITS[1152]="1,3,5"
-VALID_K_SPLITS[1280]="1,2,5"
-VALID_K_SPLITS[1536]="1,2,3,4,6"
-VALID_K_SPLITS[1792]="1,2,5,7"
-VALID_K_SPLITS[2048]="1,2,4,8"
-VALID_K_SPLITS[2560]="1,2,4,5,7"
-VALID_K_SPLITS[3072]="1,2,3,4,5,6,8"
-VALID_K_SPLITS[4096]="1,2,4,8"
+declare -A TEST_K_SPLITS
+# Aligned cases (KRead % 128 == 0)
+TEST_K_SPLITS[128]="1"
+TEST_K_SPLITS[256]="1,2"
+TEST_K_SPLITS[384]="1,3"
+TEST_K_SPLITS[512]="1,2,4"
+TEST_K_SPLITS[640]="1,5"
+TEST_K_SPLITS[768]="1,2,3,6"
+TEST_K_SPLITS[896]="1,7"
+TEST_K_SPLITS[1024]="1,2,4,8"
+TEST_K_SPLITS[1536]="1,2,3,4,6"
+TEST_K_SPLITS[2048]="1,2,4,8"
+# Misaligned cases (expected to be skipped by IsSupportedArgument)
+TEST_K_SPLITS[320]="2,5"
+TEST_K_SPLITS[448]="2,7"
+TEST_K_SPLITS[960]="3,5,6"
 
 # Precisions to test
-PREC_VALUES=("fp8" "bf8")
+PREC_VALUES=("fp8" "bf8" "fp8i4" "bf8i4")
 
 TOTAL_TESTS=0
 PASS_COUNT=0
@@ -67,48 +70,53 @@ for PREC in "${PREC_VALUES[@]}"; do
   echo "############################################"
   echo ""
   
-  for M in "${M_VALUES[@]}"; do
-    for N in "${N_VALUES[@]}"; do
-      for K in "${!VALID_K_SPLITS[@]}"; do
-        # Parse valid split_k values for this K
-        IFS=',' read -ra SPLIT_K_ARRAY <<< "${VALID_K_SPLITS[$K]}"
-        
-        for SPLIT_K in "${SPLIT_K_ARRAY[@]}"; do
-          ((TOTAL_TESTS++))
-          
-          echo "----------------------------------------------"
-          echo "Test #$TOTAL_TESTS: prec=$PREC M=$M N=$N K=$K split_k=$SPLIT_K"
-          echo "----------------------------------------------"
-          
-          OUTPUT=$($BINARY -quant_mode=$QUANT_MODE -repeat=$REPEAT -warmup=$WARMUP \
-                           -prec=$PREC -split_k=$SPLIT_K -m=$M -n=$N -init=$INIT -k=$K 2>&1)
-          
-          # Print kernel output (grid size and verification result)
-          echo "$OUTPUT" | grep -E "(grid:|verification)" | head -2
-          
-          # Check result
-          if echo "$OUTPUT" | grep -q "verification result is:correct"; then
-            echo "Result: PASS"
-            ((PASS_COUNT++))
-            PASSED_TESTS+=("prec=$PREC M=$M N=$N K=$K split_k=$SPLIT_K")
-          elif echo "$OUTPUT" | grep -q "verification result is:fail"; then
-            echo "Result: FAIL (numerical error)"
-            ((FAIL_COUNT++))
-            FAILED_TESTS+=("prec=$PREC M=$M N=$N K=$K split_k=$SPLIT_K")
-            # Show error details
-            echo "$OUTPUT" | grep -E "max err:|wrong values" | head -2
-          elif echo "$OUTPUT" | grep -q "not supported\|Skipping\|Arguments not supported"; then
-            echo "Result: SKIPPED (configuration not supported)"
-            ((SKIP_COUNT++))
-            SKIPPED_TESTS+=("prec=$PREC M=$M N=$N K=$K split_k=$SPLIT_K")
-            ((TOTAL_TESTS--))
-          else
-            echo "Result: FAIL (unknown error)"
-            ((FAIL_COUNT++))
-            FAILED_TESTS+=("prec=$PREC M=$M N=$N K=$K split_k=$SPLIT_K")
-            echo "$OUTPUT" | tail -5
-          fi
-          echo ""
+  for A_LAYOUT in "${A_LAYOUT_VALUES[@]}"; do
+    for B_LAYOUT in "${B_LAYOUT_VALUES[@]}"; do
+      for M in "${M_VALUES[@]}"; do
+        for N in "${N_VALUES[@]}"; do
+          for K in "${!TEST_K_SPLITS[@]}"; do
+            # Parse split_k values for this K
+            IFS=',' read -ra SPLIT_K_ARRAY <<< "${TEST_K_SPLITS[$K]}"
+
+            for SPLIT_K in "${SPLIT_K_ARRAY[@]}"; do
+              ((TOTAL_TESTS++))
+
+              echo "----------------------------------------------"
+              echo "Test #$TOTAL_TESTS: prec=$PREC A=$A_LAYOUT B=$B_LAYOUT M=$M N=$N K=$K split_k=$SPLIT_K"
+              echo "----------------------------------------------"
+
+              OUTPUT=$($BINARY -quant_mode=$QUANT_MODE -repeat=$REPEAT -warmup=$WARMUP \
+                               -prec=$PREC -split_k=$SPLIT_K -m=$M -n=$N -init=$INIT -k=$K \
+                               -a_layout=$A_LAYOUT -b_layout=$B_LAYOUT 2>&1)
+
+              # Print kernel output (grid size and verification result)
+              echo "$OUTPUT" | grep -E "(grid:|verification)" | head -2
+
+              # Check result
+              if echo "$OUTPUT" | grep -q "verification result is:correct"; then
+                echo "Result: PASS"
+                ((PASS_COUNT++))
+                PASSED_TESTS+=("prec=$PREC A=$A_LAYOUT B=$B_LAYOUT M=$M N=$N K=$K split_k=$SPLIT_K")
+              elif echo "$OUTPUT" | grep -q "verification result is:fail"; then
+                echo "Result: FAIL (numerical error)"
+                ((FAIL_COUNT++))
+                FAILED_TESTS+=("prec=$PREC A=$A_LAYOUT B=$B_LAYOUT M=$M N=$N K=$K split_k=$SPLIT_K")
+                # Show error details
+                echo "$OUTPUT" | grep -E "max err:|wrong values" | head -2
+              elif echo "$OUTPUT" | grep -q "not supported\|Skipping\|Arguments not supported"; then
+                echo "Result: SKIPPED (configuration not supported)"
+                ((SKIP_COUNT++))
+                SKIPPED_TESTS+=("prec=$PREC A=$A_LAYOUT B=$B_LAYOUT M=$M N=$N K=$K split_k=$SPLIT_K")
+                ((TOTAL_TESTS--))
+              else
+                echo "Result: FAIL (unknown error)"
+                ((FAIL_COUNT++))
+                FAILED_TESTS+=("prec=$PREC A=$A_LAYOUT B=$B_LAYOUT M=$M N=$N K=$K split_k=$SPLIT_K")
+                echo "$OUTPUT" | tail -5
+              fi
+              echo ""
+            done
+          done
         done
       done
     done

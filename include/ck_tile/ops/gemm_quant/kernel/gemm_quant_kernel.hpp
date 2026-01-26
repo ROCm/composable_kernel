@@ -380,9 +380,18 @@ struct QuantGemmKernel
         __device__ SplitKBatchOffset(const QuantGemmKernelArgs& kargs,
                                      const std::size_t k_id = blockIdx.z)
         {
-            constexpr auto K1   = GemmPipeline::BlockGemmShape::WarpTile::at(I2);
-            const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
-            const index_t KRead = amd_wave_read_first_lane((kargs.K + K_t - 1) / K_t * K1);
+            constexpr auto K1 =
+                GemmPipeline::BlockGemmShape::WarpTile::at(I2); // smallest unit of K work per block
+            const index_t K_t = amd_wave_read_first_lane(
+                kargs.k_batch * K1); // amount of K elements consumed if every split-K batch
+                                     // performs exactly one "unit" (K1)
+            const index_t KRead = amd_wave_read_first_lane(
+                (kargs.K + K_t - 1) / K_t * K1); // total k elements to be read in this batch
+            // offset not necessarily = KRead, because B can have packed elements (e.g. fp8i4)
+            constexpr index_t BPackedSize =
+                ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+            const index_t b_k_offset_elements =
+                amd_wave_read_first_lane(k_id * KRead / BPackedSize);
 
             if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
@@ -395,11 +404,11 @@ struct QuantGemmKernel
 
             if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                b_k_split_offset = amd_wave_read_first_lane(k_id * KRead * kargs.stride_B);
+                b_k_split_offset = amd_wave_read_first_lane(b_k_offset_elements * kargs.stride_B);
             }
             else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                b_k_split_offset = amd_wave_read_first_lane(k_id * KRead);
+                b_k_split_offset = amd_wave_read_first_lane(b_k_offset_elements);
             }
 
             if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
@@ -1102,20 +1111,32 @@ struct QuantGemmKernel
             }
             else
             {
-                // For BQuantGrouped split-K, the K split must be aligned with quantization groups.
-                // This is because the pipeline applies BQ scales based on the relative K index
-                // within each batch, not the absolute K index. When a batch starts in the middle
-                // of a quantization group, the scale selection would be incorrect.
-                //
-                // To support misaligned splits, the pipeline would need to be modified to accept
-                // a K offset parameter and use (k_offset + local_k) / QuantGroupSize::kK for
-                // scale selection instead of local_k / QuantGroupSize::kK.
                 using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
                 constexpr auto K1    = GemmPipeline::BlockGemmShape::WarpTile::at(I2);
                 const index_t K_t    = kargs.k_batch * K1;
                 const index_t KRead  = (kargs.K + K_t - 1) / K_t * K1;
+                constexpr index_t BPackedSize =
+                    ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
 
-                // KRead must be a multiple of QuantGroupSize::kK to ensure proper BQ alignment
+                // Constraint 1: KRead must align with B packing (pk_int4_t packs 2 elements/byte)
+                // For packed types like pk_int4_t, two K elements are stored in one byte.
+                // Split-K advances the B pointer by (KRead / BPackedSize) bytes per batch.
+                // If KRead is odd, this division produces a fractional byte offset, which is
+                // impossible - we cannot start reading from the middle of a packed byte.
+                if(KRead % BPackedSize != 0)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("KRead must be a multiple of B packed size for split-K!");
+                    }
+                    return false;
+                }
+
+                // Constraint 2: KRead must align with quantization group boundaries.
+                // Each split-K batch reads KRead consecutive K elements. If KRead is not
+                // a multiple of QuantGroupSize::kK, the batch will span partial quantization
+                // groups. Since the pipeline indexes BQ scales using (local_k / kK) without
+                // knowledge of the global K offset, it would apply scales from the wrong groups.
                 if(KRead % QuantGroupSize::kK != 0)
                 {
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
