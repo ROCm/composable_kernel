@@ -25,6 +25,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ## Composable Kernel 1.2.0 for ROCm 7.2.0
 
 ### Added
+* Added tests for f8 x bf8 on CompV3, and f8 x bf8 with K_BlockSize 32 on CompV4
 * Added CK-Tile dispatcher - a unified kernel dispatch, code generation and architecture-based kernel filtering system with with C++ and Python frontends starting with GEMM support.
 * Added support for bf16 data type to grouped_gemm and grouped_gemm_preshuffle.
 * Added Col-Col-Row-Col layout support for aquant mode in blockscale GEMM.
