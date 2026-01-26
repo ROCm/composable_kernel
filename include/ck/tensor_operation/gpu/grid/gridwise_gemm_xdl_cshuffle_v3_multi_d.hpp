@@ -1092,7 +1092,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
         return c_shuffle_block_desc_mblock_mperblock_nblock_nperblock;
     }
-
+    static constexpr bool LdsScalarLoad = DirectLoad;
     using BlockwiseGemmPipe =
         remove_cvref_t<decltype(BlockGemmPipeline_Selector<
                                 BlkGemmPipelineVer,
@@ -1118,7 +1118,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                                 MXdlPerWave,
                                 NXdlPerWave,
                                 KPack,
-                                DirectLoad>())>;
+                                DirectLoad,
+                                LdsScalarLoad>())>;
 
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
@@ -1639,7 +1640,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                     decltype(b_block_desc_bk0_n_bk1),
                     BBlockTransferSrcAccessOrder,
                     BBlockTransferSrcVectorDim,
-                    BBlockTransferSrcVectorDim, // enforcer earlier
+                    BBlockTransferSrcVectorDim, // enforced earlier
                     BBlockTransferSrcScalarPerVector>(
                     b_grid_desc_bk0_n_bk1,
                     make_multi_index(num_bk0_per_block * k_idx, n_block_data_idx_on_grid, 0),
