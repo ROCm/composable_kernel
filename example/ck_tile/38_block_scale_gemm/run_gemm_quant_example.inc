@@ -33,7 +33,11 @@ template <typename GemmConfig,
 float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-    constexpr bool transpose_c = QuantMode == ck_tile::QuantType::ABQuantGrouped;
+    constexpr bool transpose_c = QuantMode == ck_tile::QuantType::ABQuantGrouped && BQuantGroupSize::kN == 128;
+    constexpr bool eight_warps = BQuantGroupSize::kN == 128 && \
+                                    (GemmConfig::M_Warp * GemmConfig::N_Warp * GemmConfig::K_Warp == 8) && \
+                                    GemmConfig::K_Warp_Tile == 128;
+
     using ComputeDataType = std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped ||
                                                    QuantMode == ck_tile::QuantType::RowColQuant,
                                                typename TypeConfig::BDataType,
@@ -75,15 +79,15 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
         std::conditional_t<
             QuantMode == ck_tile::QuantType::AQuantGrouped && GemmConfig::PreshuffleQuant == true,
             ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
-            std::conditional_t<
-                QuantMode == ck_tile::QuantType::AQuantGrouped,
-                ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
-                ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>>>>;
+            std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
+                               ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
+							   std::conditional_t<eight_warps,
+                               ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+							   ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>>>>>;
 
-    const ck_tile::index_t K_split =
-        (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
-    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
+    const ck_tile::index_t K_split  = ck_tile::integer_least_multiple(args.K, GemmConfig::K_Tile);
+    const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
+    const bool has_hot_loop         = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
@@ -162,7 +166,9 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
         using ABQuantPipeline =
             std::conditional_t<GemmConfig::DoubleSmemBuffer && GemmConfig::PreshuffleB,
                                ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
-                               ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>;
+                std::conditional_t<eight_warps,
+				                   ck_tile::ABQuantGemmPipelineAgBgCrAsync<PipelineProblem>,
+								   ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
 
         using GemmPipeline = std::conditional_t<
             QuantMode == ck_tile::QuantType::RowColQuant ||
@@ -196,7 +202,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             TilePartitioner::MPerBlock,
             TilePartitioner::NPerBlock,
             GemmConfig::M_Warp,
-            GemmConfig::N_Warp,
+            GemmConfig::N_Warp * GemmConfig::K_Warp,
             GemmConfig::M_Warp_Tile,
             GemmConfig::N_Warp_Tile,
             GemmConfig::K_Warp_Tile,
@@ -932,6 +938,20 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
     {
         std::string a_layout = arg_parser.get_str("a_layout");
         std::string b_layout = arg_parser.get_str("b_layout");
+        if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped &&
+                     !GemmConfig::PreshuffleQuant && !GemmConfig::PreshuffleB &&
+					 BQuantGroupSize::kN == 128 && (GemmConfig::M_Warp * GemmConfig::N_Warp * GemmConfig::K_Warp == 8))
+        {
+		    if(a_layout == "R" && b_layout == "C")
+            {
+                return run_gemm_example_with_layouts<GemmConfig,
+                                                     TypeConfig,
+                                                     AQuantGroupSize,
+                                                     BQuantGroupSize,
+                                                     QuantMode>(
+                    arg_parser, Row{}, Col{}, Col{}, Col{}, Row{});
+            }
+        }
 
         if(a_layout == "R" && b_layout == "C")
         {
@@ -943,9 +963,7 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
                 arg_parser, Row{}, Row{}, Col{}, Col{}, Row{});
         }
 
-        if constexpr((QuantMode == ck_tile::QuantType::AQuantGrouped ||
-                      QuantMode == ck_tile::QuantType::ABQuantGrouped) &&
-                     !GemmConfig::PreshuffleQuant && !GemmConfig::PreshuffleB)
+        if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
         {
             if(a_layout == "R" && b_layout == "R")
             {

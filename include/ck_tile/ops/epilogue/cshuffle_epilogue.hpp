@@ -116,7 +116,8 @@ struct CShuffleEpilogue
     static constexpr index_t isCTransposed       = Problem::isCTransposed;
     static constexpr bool FixedVectorSize        = Problem::FixedVectorSize;
     static constexpr bool TiledMMAPermuteN       = Problem::TiledMMAPermuteN;
-    static constexpr index_t BlockedXDLN_PerWarp = Problem::BlockedXDLN_PerWarp;
+    static constexpr bool AsyncPipeline          = (MWave * NWave == 8);
+    static constexpr index_t BlockedXDLN_PerWarp = AsyncPipeline ? kNPerBlock / NWave / NPerXdl : Problem::BlockedXDLN_PerWarp;
     static constexpr bool DoubleSmemBuffer       = Problem::DoubleSmemBuffer;
     static constexpr index_t VectorSizeC         = Problem::VectorSizeC;
     static constexpr index_t MPerIteration       = MPerXdl * MWave;
@@ -342,14 +343,28 @@ struct CShuffleEpilogue
                 if constexpr(is_950 || is_any_of<ADataType, pk_int4_t, pk_fp4_t>::value ||
                              is_any_of<BDataType, pk_int4_t, pk_fp4_t>::value)
                 {
-                    return tile_distribution_encoding<
-                        sequence<>,
-                        tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                              sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
-                        tuple<sequence<1, 2>>,
-                        tuple<sequence<1, 1>>,
-                        sequence<1, 2, 2>,
-                        sequence<0, 0, 2>>{};
+					if constexpr(AsyncPipeline)
+					{
+	                    return tile_distribution_encoding<
+	                        sequence<>,
+	                        tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
+	                              sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
+	                        tuple<sequence<2, 1>>,
+	                        tuple<sequence<1, 1>>,
+	                        sequence<1, 2, 2>,
+	                        sequence<0, 0, 2>>{};
+					}
+					else
+					{
+	                    return tile_distribution_encoding<
+	                        sequence<>,
+	                        tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
+	                              sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
+	                        tuple<sequence<1, 2>>,
+	                        tuple<sequence<1, 1>>,
+	                        sequence<1, 2, 2>,
+	                        sequence<0, 0, 2>>{};
+					}
                 }
                 else
                 {

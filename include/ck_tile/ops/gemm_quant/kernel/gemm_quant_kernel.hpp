@@ -531,8 +531,7 @@ struct QuantGemmKernel
 
                 return make_tensor_view<address_space_enum::global>(aq_ptr, aq_merge_pad1_desc);
             }
-            else if constexpr((kQuantType == QuantType::AQuantGrouped ||
-                               kQuantType == QuantType::ABQuantGrouped) &&
+            else if constexpr(kQuantType == QuantType::AQuantGrouped &&
                               !PreshuffleQuant)
             {
                 if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
@@ -550,6 +549,30 @@ struct QuantGemmKernel
                         aq_ptr,
                         make_tuple(kargs.QK_A, kargs.M),
                         make_tuple(kargs.stride_AQ, 1),
+
+                        number<GemmPipeline::GetVectorSizeAQ()>{},
+                        number<1>{});
+                }
+            }
+            else if constexpr(kQuantType == QuantType::ABQuantGrouped &&
+                              !PreshuffleQuant)
+            {
+                if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    return make_naive_tensor_view<address_space_enum::global>(
+                        aq_ptr,
+                        make_tuple(kargs.M, kargs.QK_A),
+                        make_tuple(kargs.stride_AQ, 1),
+                        number<GemmPipeline::GetVectorSizeAQ()>{},
+                        number<1>{});
+                }
+                else // Column major AQ
+                {
+                    return make_naive_tensor_view<address_space_enum::global>(
+                        aq_ptr,
+                        make_tuple(kargs.M, kargs.QK_A),
+                        make_tuple(1, kargs.stride_AQ),
+
                         number<GemmPipeline::GetVectorSizeAQ()>{},
                         number<1>{});
                 }
@@ -607,7 +630,6 @@ struct QuantGemmKernel
             }
             else if constexpr(kQuantType == QuantType::ABQuantGrouped && !PreshuffleQuant)
             {
-                static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 using QuantGroupSize   = remove_cvref_t<typename GemmPipeline::AQuantGroupSize>;
                 constexpr auto block_m = TilePartitioner::MPerBlock;
                 constexpr auto block_k = TilePartitioner::KPerBlock;

@@ -1004,6 +1004,11 @@ CK_TILE_DEVICE void s_waitcnt()
                                waitcnt_arg::from_lgkmcnt<lgkmcnt>());
 #endif
 }
+template <index_t lgkmcnt = waitcnt_arg::kMaxLgkmCnt>
+CK_TILE_DEVICE void s_waitcnt_lgkm()
+{
+    s_waitcnt<waitcnt_arg::kMaxVmCnt, waitcnt_arg::kMaxExpCnt, lgkmcnt>();
+}
 
 template <index_t vmcnt   = waitcnt_arg::kMaxVmCnt,
           index_t expcnt  = waitcnt_arg::kMaxExpCnt,
@@ -1137,7 +1142,7 @@ CK_TILE_DEVICE static constexpr auto get_device_arch()
 #endif
 }
 
-CK_TILE_DEVICE static constexpr auto get_n_words_per_128b() { return 4; }
+CK_TILE_DEVICE static constexpr auto get_n_dwords_per_128b() { return 4; }
 
 namespace detail {
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx9_t) { return 32; }
