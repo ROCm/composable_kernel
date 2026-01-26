@@ -61,16 +61,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                       const AElementwiseOperation a_element_op,
                                       const BElementwiseOperation b_element_op,
                                       const CDEElementwiseOperation c_element_op)
+
 {
 #if(defined(__gfx11__) || defined(__gfx12__))
 
-    using EpilogueType = typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
-                                                       GridwiseGemm::UseDirectStore,
-                                                   typename GridwiseGemm::EpilogueDirectStore,
-                                                   typename GridwiseGemm::EpilogueCShuffle>::type;
-
-    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
-
+    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
+        typename GridwiseGemm::EpilogueCShuffle>();
     __shared__ char p_shared[LDS_size];
 
     const index_t block_id = get_block_1d_id();
@@ -83,15 +79,17 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         return;
     const index_t group_start = group_id * grid_size_grp;
 
-    const index_t M = gemm_desc_ptr[group_id].M;
-    const index_t N = gemm_desc_ptr[group_id].N;
-    const index_t K = gemm_desc_ptr[group_id].K;
+    auto karg = gemm_desc_ptr[group_id];
+
+    const index_t M = karg.M;
+    const index_t N = karg.N;
+    const index_t K = karg.K;
 
     if(M == 0 || N == 0 || K == 0)
         return;
 
 
-    const auto StrideE  = gemm_desc_ptr[group_id].StrideE;
+    const auto StrideE  = karg.StrideE;
     // const index_t m_padded = GridwiseGemm::CalculateMPadded(M);
     // const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
 
@@ -103,9 +101,21 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
     const auto local_grid_size = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
 
+    constexpr auto NumDTensor = DsDataType::Size();
+
+    using DsGridPointer = decltype(GridwiseGemm::MakeDsGridPointer());
+
+    DsGridPointer p_ds_grid_;
+
+    static_for<0, NumDTensor, 1>{}([&](auto i) {
+        using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+        // D pointer
+        p_ds_grid_(i) = static_cast<const DDataType*>(karg.p_ds_grid[i]);
+    });
+
 #if defined(__gfx11__)
     // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-    using c_data_type = remove_cvref_t<remove_pointer_t<decltype(gemm_desc_ptr[group_id].p_e_grid)>>;
+    using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
     if constexpr(!(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
                    (std::is_same_v<c_data_type, ck::half_t> ||
                     std::is_same_v<c_data_type, ck::bhalf_t>)))
@@ -113,42 +123,34 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
 
 
-        auto epilogue_args = EpilogueType{};
-
-
-
-        // constexpr auto NumDTensor = GridwiseGemm::DsGridPointer::Size();
-        const auto& desc = gemm_desc_ptr[group_id];
+        auto epilogue_args =
+            typename GridwiseGemm::EpilogueCShuffle{};
+        
+        const auto desc = gemm_desc_ptr[group_id];
         const typename GridwiseGemm::Problem problem{
             desc.M,
             desc.N,
             desc.K,
-            std::array<index_t, 1>{desc.StrideA},
-            std::array<index_t, 1>{desc.StrideB},
+            std::array<index_t, GridwiseGemm::NumATensor>{desc.StrideA},
+            std::array<index_t, GridwiseGemm::NumBTensor>{desc.StrideB},
             desc.StrideDs,
             desc.StrideE,
             k_batch_
         };
 
-    
-        typename GridwiseGemm::AsGridPointer p_as_grid_;
-        typename GridwiseGemm::BsGridPointer p_bs_grid_;
-        typename GridwiseGemm::DsGridPointer p_ds_grid_;
+        using AsGridPointer = typename GridwiseGemm::AsGridPointer;
+        using ADataType0    = remove_cvref_t<tuple_element_t<0, AsDataType>>;
 
-        static_for<0, 1, 1>{}([&](auto i) {
-            using ADataType = remove_cvref_t<decltype(p_as_grid_(i))>;
-            p_as_grid_(i)   = static_cast<ADataType>(desc.p_a_grid);
-        });
+        AsGridPointer p_as_grid_ = make_tuple(
+            static_cast<const ADataType0*>(karg.p_a_grid)
+        );
+        using BsGridPointer = typename GridwiseGemm::BsGridPointer;
+        using BDataType0    = remove_cvref_t<tuple_element_t<0, BsDataType>>;
 
-        static_for<0, 1, 1>{}([&](auto i) {
-            using BDataType = remove_cvref_t<decltype(p_bs_grid_(i))>;
-            p_bs_grid_(i)   = static_cast<BDataType>(desc.p_b_grid);
-        });
-        
-        static_for<0, 1, 1>{}([&](auto i) {
-            using DDataType = remove_cvref_t<decltype(p_ds_grid_(i))>;
-            p_ds_grid_(i)   = static_cast<DDataType>(desc.p_ds_grid[i]);
-        });
+        BsGridPointer p_bs_grid_ = make_tuple(
+            static_cast<const BDataType0*>(karg.p_b_grid)
+        );
+
 
         index_t id_off   = 0;
         index_t id_local = get_block_1d_id() - group_start;
@@ -160,16 +162,16 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
             GridwiseGemm::template Run<HasMainKBlockLoop,
                                        CGlobalMemoryDataOperation,
-                                       TailNumber::Full,
+                                       TailNum,
                                        remove_cvref_t<decltype(block_2_etile_map)>,
-                                       EpilogueType,
+                                       typename GridwiseGemm::EpilogueCShuffle,
                                        1,
                                        2>
             (p_as_grid_,
             p_bs_grid_,
             p_ds_grid_,
-            static_cast<EDataType*>(desc.p_e_grid),
-            p_shared,
+            static_cast<EDataType*>(karg.p_e_grid),
+            static_cast<void*>(p_shared),
             problem,
             block_2_etile_map,
             a_element_op,
@@ -195,6 +197,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     ignore = c_element_op;
 #endif
 }
+
 
 template <typename ALayout,
           typename BLayout,
@@ -427,32 +430,6 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
 
             const auto total_tiles_per_group = M0 * N0 * KBatch_;
 
-        // #if defined(__HIP_DEVICE_COMPILE__)
-        //     if(threadIdx.x == 0)
-        //     {
-        //         printf(
-        //             "\n[CK TILE MAP TRACE]\n"
-        //             " raw block_1d_id     = %d\n"
-        //             " M                  = %d\n"
-        //             " N                  = %d\n"
-        //             " MPerBlock          = %d\n"
-        //             " NPerBlock          = %d\n"
-        //             " M0 (tiles)         = %d\n"
-        //             " N0 (tiles)         = %d\n"
-        //             " KBatch             = %d\n"
-        //             " tiles/group        = %d\n",
-        //             int(block_1d_id),
-        //             int(M_),
-        //             int(N_),
-        //             int(MPerBlock_),
-        //             int(NPerBlock_),
-        //             int(M0),
-        //             int(N0),
-        //             int(KBatch_),
-        //             int(total_tiles_per_group));
-        //     }
-        // #endif
-
             // wrap block id into this group
             block_1d_id = block_1d_id % total_tiles_per_group;
 
@@ -468,38 +445,6 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
             index_t idx_M00          = idx_M0 / M01_;
             index_t idx_M01          = idx_M0 % M01_;
             index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
-
-        // #if defined(__HIP_DEVICE_COMPILE__)
-        //     if(threadIdx.x == 0)
-        //     {
-        //         printf(
-        //             " wrapped block_id   = %d\n"
-        //             " idx_ksplit         = %d\n"
-        //             " idx_M0             = %d\n"
-        //             " idx_N0             = %d\n"
-        //             " M01                = %d\n"
-        //             " M01_adapt          = %d\n"
-        //             " idx_M00            = %d\n"
-        //             " idx_M01            = %d\n"
-        //             " idx_N0_M01_local   = %d\n"
-        //             " --> m_tile         = %d\n"
-        //             " --> n_tile         = %d\n"
-        //             " --> k_tile         = %d\n"
-        //             "\n",
-        //             int(block_1d_id),
-        //             int(idx_ksplit),
-        //             int(idx_M0),
-        //             int(idx_N0),
-        //             int(M01_),
-        //             int(M01_adapt),
-        //             int(idx_M00),
-        //             int(idx_M01),
-        //             int(idx_N0_M01_local),
-        //             int(idx_N0_M01_local % M01_adapt + idx_M00 * M01_),
-        //             int(idx_N0_M01_local / M01_adapt),
-        //             int(idx_ksplit));
-        //     }
-        // #endif
 
             return make_tuple(idx_ksplit,
                             idx_N0_M01_local % M01_adapt + idx_M00 * M01_,
@@ -526,7 +471,6 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
     static constexpr index_t DefaultKBatch = 1;
     using KernelArgument                   = typename GridwiseGemm::Argument;
 
-    //TODO:: NumDTensor?
     using GemmTransKernelArg = GroupedGemmKernelArgument<NumDTensor>;
 
     static constexpr bool CalculateHasMainKBlockLoop(const KernelArgument& karg)
