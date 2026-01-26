@@ -455,7 +455,6 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_Common
             return false;
         }
 
-
         if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityAWaveTransfer(arg.M, arg.K))
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
