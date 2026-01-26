@@ -46,6 +46,9 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvSpec =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
 
+static constexpr auto ConvSpecOddC =
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC;
+
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 template <typename InputLay, typename WeightLay, typename OutputLay>
