@@ -1,6 +1,7 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// Best instance for most difficult fwd case
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance =
     ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
@@ -47,12 +48,129 @@ using DeviceConvFwdInstance =
         1,           // BBlockLdsExtraN
         1,
         1,
-        S<1, 32, 1, 4>,
-        4,          // Vector load/store size for output tensor 
+        S<1, 32, 1, 2, 2>, // CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        1,          // Vector load/store size for output tensor = CDEBlockTransferScalarPerVector_NPerBlock
         InKernelDataType, 
         WeiKernelDataType, 
         ck::LoopScheduler::Default, 
         2>;  // Number of merged groups
+
+// Best instance for 2nd most difficult fwd case, increase the B block src vector size?
+/*
+template <ck::index_t NDimSpatial>
+using DeviceConvFwdInstance =
+ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,
+        InputLayout<NDimSpatial>,
+        WeightLayout<NDimSpatial>,
+        ck::Tuple<>,
+        OutputLayout<NDimSpatial>,
+        InKernelDataType,
+        WeiKernelDataType,
+        AccDataType,
+        CShuffleDataType,
+        ck::Tuple<>,
+        OutKernelDataType,
+        InElementOp,
+        WeiElementOp,
+        OutElementOp,
+        ConvSpec,    // ConvForwardSpecialization
+        GemmSpec,    // GemmSpecialization        
+    1,   256,   128,    64,    32,   8,  8,  32,   32,    2,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              
+    2,              4,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,    S<1, 0, 2>,              2,              
+    4,              8,          1,          1,           1,               S<1, 32, 1, 4>,               1, 
+    InKernelDataType, 
+        WeiKernelDataType, 
+        ck::LoopScheduler::Default,
+        8>;
+*/
+
+// Third most difficult fwd case
+/*
+template <ck::index_t NDimSpatial>
+using DeviceConvFwdInstance =
+ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,
+        InputLayout<NDimSpatial>,
+        WeightLayout<NDimSpatial>,
+        ck::Tuple<>,
+        OutputLayout<NDimSpatial>,
+        InKernelDataType,
+        WeiKernelDataType,
+        AccDataType,
+        CShuffleDataType,
+        ck::Tuple<>,
+        OutKernelDataType,
+        InElementOp,
+        WeiElementOp,
+        OutElementOp,
+        ConvSpec,    // ConvForwardSpecialization
+        GemmSpec,    // GemmSpecialization        
+        1,   
+        256,   128,    64,    32,   // Block size
+        8,  8,  // AK1/BK1
+        32, 32, 4, 2,   // XDL instr 
+        S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,  2,              8,              8,         1,     // A Block transfer
+        S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,  2,              8,              8,         1,     // B Block transfer    
+        1,           1,               S<1, 32, 1, 4>,               1, // C Block transfer
+        InKernelDataType, 
+        WeiKernelDataType, 
+        ck::LoopScheduler::Default,
+        8>;
+*/
+
+/*
+template <ck::index_t NDimSpatial>
+using DeviceConvFwdInstance =
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
+        NDimSpatial,
+        InputLayout<NDimSpatial>,
+        WeightLayout<NDimSpatial>,
+        ck::Tuple<>,
+        OutputLayout<NDimSpatial>,
+        InKernelDataType,
+        WeiKernelDataType,
+        AccDataType,
+        CShuffleDataType,
+        ck::Tuple<>,
+        OutKernelDataType,
+        InElementOp,
+        WeiElementOp,
+        OutElementOp,
+        ConvSpec,    // ConvForwardSpecialization
+        GemmSpec,    // GemmSpecialization
+        1,           //
+        256,         // BlockSize
+        128,         // MPerBlock
+        256,         // NPerBlock
+        32,          // KPerBlock
+        8,           // AK1
+        8,           // BK1
+        32,          // MPerXdl
+        32,          // NPerXdl
+        2,           // MXdlPerWave
+        4,           // NXdlPerWave
+        S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
+        S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
+        2,           // ABlockTransferSrcVectorDim
+        4,           // ABlockTransferSrcScalarPerVector
+        8,           // ABlockTransferDstScalarPerVector_AK1
+        1,           // ABlockLdsExtraM
+        S<4, 64, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
+        S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
+        2,           // BBlockTransferSrcVectorDim
+        4,           // BBlockTransferSrcScalarPerVector
+        8,           // BBlockTransferDstScalarPerVector_BK1
+        1,           // BBlockLdsExtraN
+        1,
+        1,
+        S<1, 32, 1, 4>,
+        1,          // Vector load/store size for output tensor 
+        InKernelDataType, 
+        WeiKernelDataType, 
+        ck::LoopScheduler::Default, 
+        2>;  // Number of merged groups
+*/
 
 template <ck::index_t NDimSpatial>
 using HostConvFwdInstance = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
