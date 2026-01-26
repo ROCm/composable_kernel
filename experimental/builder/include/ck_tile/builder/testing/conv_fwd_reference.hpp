@@ -32,27 +32,8 @@ concept RefConvInstance = requires(Conv& conv,
                                    const void* input,
                                    const void* weight,
                                    void* output,
-                                   int G,
-                                   int N,
-                                   int K,
-                                   int C,
-                                   std::vector<long_index_t> dims) {
-    {
-        conv.Run(input,
-                 weight,
-                 output,
-                 G,
-                 N,
-                 K,
-                 C,
-                 dims, // input_spatial
-                 dims, // filter_spatial
-                 dims, // output_spatial
-                 dims, // strides
-                 dims, // dilations
-                 dims  // left_pads
-        )
-    };
+                                   ck::utils::conv::ConvParam param) {
+    { conv.Run(input, weight, output, param) };
 };
 
 /// @brief `run()` specialization for forward convolution and the reference
@@ -84,16 +65,6 @@ std::tuple<bool, float> run(RefConvInstance<SIGNATURE> auto& conv,
     // Just throw for now, but regard these as TODO items that should be resolved
     // eventually.
 
-    // Right pads are not supported right now for some reason.
-    for(auto right_pad : param.input_right_pads_)
-    {
-        if(right_pad != 0)
-        {
-            std::cout << "TODO: Support right pad in reference conv" << std::endl;
-            return std::make_tuple(false, 0.0f);
-        }
-    }
-
     if(!args.make_input_descriptor().is_packed())
     {
         std::cout << "TODO: Support non-packed input tensor in reference conv" << std::endl;
@@ -110,19 +81,7 @@ std::tuple<bool, float> run(RefConvInstance<SIGNATURE> auto& conv,
         return std::make_tuple(false, 0.0f);
     }
 
-    conv.Run(inputs.input,
-             inputs.weight,
-             outputs.output,
-             param.G_,
-             param.N_,
-             param.K_,
-             param.C_,
-             param.input_spatial_lengths_,
-             param.filter_spatial_lengths_,
-             param.output_spatial_lengths_,
-             param.conv_filter_strides_,
-             param.conv_filter_dilations_,
-             param.input_left_pads_);
+    conv.Run(inputs.input, inputs.weight, outputs.output, param);
     return std::make_tuple(true, 0.0f);
 }
 

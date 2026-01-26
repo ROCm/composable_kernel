@@ -29,7 +29,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvTileFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts                       = internal::TileConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
+    using Layouts                       = internal::TileConvTensorLayouts<SIGNATURE>;
     using Types                         = internal::TileConvTensorTypes<SIGNATURE.data_type>;
     using Ops                           = internal::TileElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);

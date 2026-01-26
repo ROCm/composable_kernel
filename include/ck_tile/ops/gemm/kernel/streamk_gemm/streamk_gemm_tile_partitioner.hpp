@@ -42,7 +42,8 @@ struct StreamKTilePartitionerBase
     CK_TILE_HOST_DEVICE index_t get_partials_buffer_size(index_t acc_element_bytes) const noexcept;
 
     /**
-     * @brief Calculates the total space needed for the flags buffer.
+     * @brief Calculates the total space needed for the flags buffer whose total byte size is
+     * 128B-aligned.
      *
      * @return index_t The number of bytes needed for the flags buffer.
      */
