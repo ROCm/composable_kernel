@@ -111,22 +111,69 @@ inline float compute_relative_tolerance(const int number_of_accumulations = 1)
     }
 }
 
-template <typename, typename Iterator>
-auto make_concrete_iterator(Iterator it)
+/// @brief Turn an iterator type into an iterator that can be dereferenced.
+///
+/// In gpu_verify and gpu_reduce_max, it is valid to pass a void pointer and
+/// have the function automatically derive the "concrete" pointer type to
+/// be used in the kernel. This function does that: depending on whether
+/// the `Iterator` is a void pointer or not, it returns either the iterator
+/// (assuming that it is already concrete), or returns the pointer casted
+/// to the concrete type.
+///
+/// @tparam T The value type of the pointer, when dereferenced.
+/// @tparam Iterator The abstract iterator, can be void* or an actual pointer.
+///
+/// @param it The iterator to make concrete.
+template <typename T, typename Iterator>
+__device__ Iterator make_concrete_iterator(Iterator it)
 {
     return it;
 }
 
 template <typename T>
-auto make_concrete_iterator(const void* it)
+__device__ const T* make_concrete_iterator(const void* it)
 {
     return reinterpret_cast<const T*>(it);
 }
 
 template <typename T>
-auto make_concrete_iterator(void* it)
+__device__ const T* make_concrete_iterator(void* it)
 {
     return reinterpret_cast<const T*>(it);
+}
+
+/// @brief Utility to launch persistent kernels.
+///
+/// This function launches a GPU kernel with a grid size derived from the kernel's
+/// occupancy and the total number of multiprocessors on the GPU.
+///
+/// @tparam Kernel The type of the kernel function.
+/// @tparam Args The types of the kernel arguments.
+///
+/// @param kernel An instance of the kernel function. This should be a __global__ function.
+/// @param block_size The kernel's (1D) block size.
+/// @param stream The stream to launch the kernel on.
+/// @param args The kernel launch arguments.
+template <typename Kernel, typename... Args>
+void launch_persistent_kernel(Kernel kernel,
+                              int block_size,
+                              hipStream_t stream,
+                              const Args&... args)
+{
+    int occupancy;
+    hip_check_error(
+        hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, block_size, 0));
+
+    int device;
+    hip_check_error(hipGetDevice(&device));
+
+    int multiprocessors;
+    hip_check_error(
+        hipDeviceGetAttribute(&multiprocessors, hipDeviceAttributeMultiprocessorCount, device));
+
+    kernel<<<occupancy * multiprocessors, block_size, 0, stream>>>(args...);
+
+    hip_check_error(hipGetLastError());
 }
 
 // Device-side result structure for kernel output
@@ -187,21 +234,23 @@ compare_elements(const T& actual, const T& expected, const float rtol, const flo
 // when there are many errors.
 //
 // Assumption: Block size is 256
-template <typename IteratorA, typename IteratorB>
-__global__ void gpu_verify_kernel(IteratorA device_result,
-                                  IteratorB reference_result,
-                                  float rtol,
-                                  float atol,
-                                  long long size,
-                                  GpuVerifyDeviceResult* result)
+template <int BlockSize, typename T, typename IteratorA, typename IteratorB>
+__global__ __launch_bounds__(BlockSize) //
+    void gpu_verify_kernel(IteratorA device_result_it,
+                           IteratorB reference_result_it,
+                           float rtol,
+                           float atol,
+                           long long size,
+                           GpuVerifyDeviceResult* result)
 {
-    constexpr int block_size = 256;
-
     // Shared memory for block-level reduction
-    __shared__ unsigned long long shared_error_count[block_size];
-    __shared__ float shared_max_error[block_size];
-    __shared__ int shared_has_error[block_size];
-    __shared__ int shared_has_nonzero[block_size];
+    __shared__ unsigned long long shared_error_count[BlockSize];
+    __shared__ float shared_max_error[BlockSize];
+    __shared__ int shared_has_error[BlockSize];
+    __shared__ int shared_has_nonzero[BlockSize];
+
+    auto device_result    = make_concrete_iterator<T>(device_result_it);
+    auto reference_result = make_concrete_iterator<T>(reference_result_it);
 
     // Thread-local accumulators (in registers)
     unsigned long long local_error_count = 0;
@@ -210,8 +259,8 @@ __global__ void gpu_verify_kernel(IteratorA device_result,
     int local_has_nonzero                = 0;
 
     // Grid-stride loop to handle any tensor size
-    long long idx    = blockIdx.x * blockDim.x + threadIdx.x;
-    long long stride = blockDim.x * gridDim.x;
+    long long idx    = blockIdx.x * BlockSize + threadIdx.x;
+    long long stride = BlockSize * gridDim.x;
 
     for(long long i = idx; i < size; i += stride)
     {
@@ -236,7 +285,7 @@ __global__ void gpu_verify_kernel(IteratorA device_result,
     __syncthreads();
 
     // Block-level reduction: 256 -> 128 -> 64 -> 32
-    for(unsigned int s = block_size / 2; s >= 32; s >>= 1)
+    for(unsigned int s = BlockSize / 2; s >= 32; s >>= 1)
     {
         if(threadIdx.x < s)
         {
@@ -288,9 +337,6 @@ GpuVerifyResult gpu_verify(IteratorA device_result,
                            std::size_t size,
                            hipStream_t stream = nullptr)
 {
-    auto actual_it   = make_concrete_iterator<T>(device_result);
-    auto expected_it = make_concrete_iterator<T>(reference_result);
-
     // Allocate result buffer on device
     GpuVerifyDeviceResult* result_dev;
     hip_check_error(hipMalloc(&result_dev, sizeof(GpuVerifyDeviceResult)));
@@ -303,19 +349,21 @@ GpuVerifyResult gpu_verify(IteratorA device_result,
     hip_check_error(
         hipMemcpy(result_dev, &result_host, sizeof(GpuVerifyDeviceResult), hipMemcpyHostToDevice));
 
-    // Launch kernel with grid-stride loop
-    // Use 65535 as max grid size (hardware limit for grid dimension in x)
-    // Grid-stride loop handles any tensor size regardless of grid dimensions
+    // Launch persistent kernel.
+    // automatically derive the optimal grid size from the kernel's occupancy and the
+    // number of multiprocessors.
     constexpr int block_size = 256;
-    int grid_size            = std::min<int>(65535, (size + block_size - 1) / block_size);
+    const auto kernel        = gpu_verify_kernel<block_size, T, IteratorA, IteratorB>;
 
-    gpu_verify_kernel<<<grid_size, block_size, 0, stream>>>(
-        actual_it, expected_it, rtol, atol, static_cast<long long>(size), result_dev);
-
-    hip_check_error(hipGetLastError());
-
-    // Synchronize the stream to ensure kernel completion before reading results
-    hip_check_error(hipStreamSynchronize(stream));
+    launch_persistent_kernel(kernel,
+                             block_size,
+                             stream,
+                             device_result,
+                             reference_result,
+                             rtol,
+                             atol,
+                             static_cast<long long>(size),
+                             result_dev);
 
     // Get result
     hip_check_error(
@@ -352,12 +400,9 @@ GpuVerifyResult gpu_verify(IteratorA device_result,
                            std::size_t size,
                            hipStream_t stream = nullptr)
 {
-    auto actual_it   = make_concrete_iterator<OutDataType>(device_result);
-    auto expected_it = make_concrete_iterator<OutDataType>(reference_result);
-
     // Compute max absolute value on GPU (only 4 bytes transferred!)
     double max_abs_value =
-        static_cast<double>(gpu_reduce_max<OutDataType>(expected_it, size, stream));
+        static_cast<double>(gpu_reduce_max<OutDataType>(reference_result, size, stream));
 
     // Compute tolerances based on data types and accumulation count
     float rtol = compute_relative_tolerance<ComputeDataType, OutDataType, AccDataType>(
@@ -388,21 +433,23 @@ GpuVerifyResult gpu_verify(IteratorA device_result,
     }
 
     // Call the explicit tolerance version
-    return gpu_verify<OutDataType>(actual_it, expected_it, rtol, atol, size, stream);
+    return gpu_verify<OutDataType>(device_result, reference_result, rtol, atol, size, stream);
 }
 
 // GPU reduction kernel for computing max(abs(data))
 // This is an internal kernel called only by gpu_reduce_max() wrapper.
 //
 // Assumption: Block size is 256
-template <typename T, typename Iterator>
-__global__ void gpu_reduce_max_kernel(Iterator data, long long size, float* __restrict__ max_val)
+template <int BlockSize, typename T, typename Iterator>
+__global__ __launch_bounds__((BlockSize)) //
+    void gpu_reduce_max_kernel(Iterator it, long long size, float* __restrict__ max_val)
 {
-    constexpr int block_size = 256;
-    __shared__ float shared_max[block_size];
+    __shared__ float shared_max[BlockSize];
 
-    long long idx    = blockIdx.x * blockDim.x + threadIdx.x;
-    long long stride = blockDim.x * gridDim.x;
+    auto data = make_concrete_iterator<T>(it);
+
+    long long idx    = blockIdx.x * BlockSize + threadIdx.x;
+    long long stride = BlockSize * gridDim.x;
 
     float local_max = 0.0f;
 
@@ -416,7 +463,7 @@ __global__ void gpu_reduce_max_kernel(Iterator data, long long size, float* __re
     __syncthreads();
 
     // Block-level reduction: 256 -> 128 -> 64 -> 32
-    for(unsigned int s = block_size / 2; s >= 32; s >>= 1)
+    for(unsigned int s = BlockSize / 2; s >= 32; s >>= 1)
     {
         if(threadIdx.x < s)
         {
@@ -449,8 +496,6 @@ float gpu_reduce_max(Iterator device_buffer, std::size_t size, hipStream_t strea
         return 0.0f;
     }
 
-    auto it = make_concrete_iterator<T>(device_buffer);
-
     // Allocate device memory for result
     float* max_dev;
     hip_check_error(hipMalloc(&max_dev, sizeof(float)));
@@ -459,22 +504,14 @@ float gpu_reduce_max(Iterator device_buffer, std::size_t size, hipStream_t strea
     float init_val = 0.0f;
     hip_check_error(hipMemcpy(max_dev, &init_val, sizeof(float), hipMemcpyHostToDevice));
 
-    // Launch reduction kernel
-    // Use 1024 blocks max for reduction to balance occupancy vs. grid-stride iterations
-    // For very large tensors (>256M elements), grid-stride loop handles the remainder
+    // Launch persistent kernel.
+    // automatically derive the optimal grid size from the kernel's occupancy and the
+    // number of multiprocessors.
     constexpr int block_size = 256;
-    int grid_size            = std::min<int>(1024, (size + block_size - 1) / block_size);
+    const auto kernel        = gpu_reduce_max_kernel<block_size, T, Iterator>;
 
-    gpu_reduce_max_kernel<T>
-        <<<grid_size, block_size, 0, stream>>>(it, static_cast<long long>(size), max_dev);
-
-    hip_check_error(hipGetLastError());
-
-    // Synchronize if using default stream
-    if(stream == nullptr)
-    {
-        hip_check_error(hipDeviceSynchronize());
-    }
+    launch_persistent_kernel(
+        kernel, block_size, stream, device_buffer, static_cast<long long>(size), max_dev);
 
     // Copy result to host (only 4 bytes!)
     float max_host;
