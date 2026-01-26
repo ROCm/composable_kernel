@@ -230,6 +230,8 @@ struct fmha_fwd_args
                                            // array [batch + 1]. (Used with padding)
     const void* cu_seqlen_k_ptr = nullptr; // Cumulative logical (excluding padding) sequence length
                                            // array [batch + 1]. (Used with padding)
+    const void* block_scale_seqstart_q_ptr;
+    const void* block_scale_seqstart_k_ptr;
     const void* sink_ptr;
 
     ck_tile::index_t seqlen_q;
@@ -257,6 +259,9 @@ struct fmha_fwd_args
     ck_tile::index_t nhead_stride_randval;
     ck_tile::index_t nhead_stride_lse;
     ck_tile::index_t nhead_stride_o;
+    ck_tile::index_t nhead_stride_q_descale;
+    ck_tile::index_t nhead_stride_k_descale;
+    ck_tile::index_t nhead_stride_v_descale;
     ck_tile::index_t batch_stride_q;
     ck_tile::index_t batch_stride_k;
     ck_tile::index_t batch_stride_v;
@@ -264,6 +269,9 @@ struct fmha_fwd_args
     ck_tile::index_t batch_stride_randval;
     ck_tile::index_t batch_stride_lse;
     ck_tile::index_t batch_stride_o;
+    ck_tile::index_t batch_stride_q_descale;
+    ck_tile::index_t batch_stride_k_descale;
+    ck_tile::index_t batch_stride_v_descale;
 
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
@@ -276,6 +284,9 @@ struct fmha_fwd_args
 
     std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
         drop_seed_offset;
+
+    ck_tile::index_t block_scale_size_q;
+    ck_tile::index_t block_scale_size_kv;
 };
 
 struct fmha_fwd_pagedkv_args
@@ -615,6 +626,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.seqstart_k_ptr,
                                              args.seqlen_q_ptr,
                                              args.seqlen_k_ptr,
+                                             args.block_scale_seqstart_q_ptr,
+                                             args.block_scale_seqstart_k_ptr,
                                              args.hdim_q,
                                              args.hdim_v,
                                              args.nhead_q,
@@ -634,6 +647,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.nhead_stride_randval,
                                              args.nhead_stride_lse,
                                              args.nhead_stride_o,
+                                             args.nhead_stride_q_descale,
+                                             args.nhead_stride_k_descale,
+                                             args.nhead_stride_v_descale,
                                              args.window_size_left,
                                              args.window_size_right,
                                              args.sink_size,
@@ -642,6 +658,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.p_drop,
                                              args.s_randval,
                                              args.drop_seed_offset,
+                                             args.block_scale_size_q,
+                                             args.block_scale_size_kv,
                                              args.cu_seqlen_q_ptr,
                                              args.cu_seqlen_k_ptr,
                                              args.sink_ptr);
@@ -679,6 +697,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.nhead_stride_randval,
                                              args.nhead_stride_lse,
                                              args.nhead_stride_o,
+                                             args.nhead_stride_q_descale,
+                                             args.nhead_stride_k_descale,
+                                             args.nhead_stride_v_descale,
                                              args.batch_stride_q,
                                              args.batch_stride_k,
                                              args.batch_stride_v,
@@ -686,6 +707,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.batch_stride_randval,
                                              args.batch_stride_lse,
                                              args.batch_stride_o,
+                                             args.batch_stride_q_descale,
+                                             args.batch_stride_k_descale,
+                                             args.batch_stride_v_descale,
                                              args.window_size_left,
                                              args.window_size_right,
                                              args.sink_size,
@@ -693,6 +717,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.p_drop,
                                              args.s_randval,
                                              args.drop_seed_offset,
+                                             args.block_scale_size_q,
+                                             args.block_scale_size_kv,
                                              args.cu_seqlen_q_ptr,
                                              args.cu_seqlen_k_ptr,
                                              args.sink_ptr);

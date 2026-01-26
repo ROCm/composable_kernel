@@ -119,6 +119,18 @@ struct identity
     }
 };
 
+// Similar to identity, but takes an additional index parameter as the first argument.
+// The index is ignored and only the second argument (value) is forwarded.
+// Useful for indexed element-wise operations where the functor signature requires an index.
+struct idx_identity
+{
+    template <typename I, typename T>
+    CK_TILE_HOST_DEVICE constexpr T&& operator()(I&& /*idx*/, T&& arg) const noexcept
+    {
+        return std::forward<T>(arg);
+    }
+};
+
 namespace detail {
 
 // RemainLengths: sequence<...>
