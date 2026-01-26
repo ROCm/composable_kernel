@@ -422,7 +422,7 @@ struct FlatTensorIterator
     /// @brief Return the value at a particular flat index.
     ///
     /// This function returns the value of the tensor at flat coordinate
-    /// `flat_index`. This index is the nunflattened into a multi-dimensional
+    /// `flat_index`. This index is then unflattened into a multi-dimensional
     /// index according to the way described in `NdIter`, and a tensor offset
     /// is computed from that according to `calculate_offset`. The value at
     /// that offset in the inner iterator is then the return value of this
@@ -445,7 +445,7 @@ struct FlatTensorIterator
         return inner_[offset];
     }
 
-    /// @brief Return the total numer of elements to iterate over.
+    /// @brief Return the total number of elements to iterate over.
     ///
     /// @see NdIter::numel()
     __host__ __device__ size_t numel() const { return iter_.numel(); }

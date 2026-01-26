@@ -115,7 +115,7 @@ struct ValidationReport
                float rtol = 1e-3f,
                float atol = 1e-3f);
 
-    /// @brief Compare tow tensors and record the results in the report, with automatic
+    /// @brief Compare two tensors and record the results in the report, with automatic
     /// computation of tolerances.
     ///
     /// This variant computes the tolerances automatically based on the compute

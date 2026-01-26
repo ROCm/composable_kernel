@@ -217,7 +217,7 @@ struct GpuVerifyDeviceResult
 
     /// @brief Return the neutral element of a GpuVerifyDeviceResult
     ///
-    /// This function returns the "neutral element", the elemnt which does nothing
+    /// This function returns the "neutral element", the element which does nothing
     /// when reduced with another with `reduce_results`. Good to be used as an
     /// initial value.
     __host__ __device__ static GpuVerifyDeviceResult identity()
@@ -251,9 +251,9 @@ __device__ GpuVerifyDeviceResult reduce_results(const GpuVerifyDeviceResult& a,
 /// elements. The function returns a tuple of three elements.
 /// - The absolute maximum difference.
 /// - If the second value is set to false, it indicates either that the elements are not
-///   equal according to the tresholds `rtol` and `atol`, or that either value is not
+///   equal according to the thresholds `rtol` and `atol`, or that either value is not
 ///   finite (NaN/Infinity). If set to true, the values are considered equal.
-/// - If the third value is set to ture, it indicates that both elements are bitwise
+/// - If the third value is set to true, it indicates that both elements are bitwise
 ///   equal to zero.
 template <typename T>
 __device__ std::tuple<float, bool, bool>
