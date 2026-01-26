@@ -176,6 +176,37 @@ void launch_persistent_kernel(Kernel kernel,
     hip_check_error(hipGetLastError());
 }
 
+/// @brief Simple block reduce kernel.
+///
+/// This function reduces all `value`s across a block according to `reduce`. This function
+/// is a relatively simple implementation as its primary purpose is to be correct and
+/// readable: No special cases are done for warp reductions, and the function allocates
+/// its own shared memory. The result is broadcasted to all threads.
+///
+/// @tparam BlockSize The number of threads in a block.
+/// @tparam T The value type to reduce over.
+/// @tparam F The reduction functor type.
+///
+/// @param value This thread's value to reduce over.
+/// @param reduce The reduction functor, used to combine two values. Should be associative.
+template <int BlockSize, typename T, typename F>
+__device__ T block_reduce(const T& value, F reduce)
+{
+    __shared__ T workspace[BlockSize];
+
+    workspace[threadIdx.x] = value;
+    __syncthreads();
+
+    for(unsigned int s = BlockSize / 2; s >= 1; s >>= 1)
+    {
+        if(threadIdx.x < s)
+            workspace[threadIdx.x] = reduce(workspace[threadIdx.x], workspace[threadIdx.x + s]);
+        __syncthreads();
+    }
+
+    return workspace[0];
+}
+
 // Device-side result structure for kernel output
 // Packed into a single struct to minimize device memory allocations
 struct GpuVerifyDeviceResult
@@ -183,7 +214,36 @@ struct GpuVerifyDeviceResult
     unsigned long long error_count; // Number of errors found
     float max_error;                // Maximum error value
     int all_zero;                   // 1 = device result is all zeros, 0 = has non-zero values
+
+    /// @brief Return the neutral element of a GpuVerifyDeviceResult
+    ///
+    /// This function returns the "neutral element", the elemnt which does nothing
+    /// when reduced with another with `reduce_results`. Good to be used as an
+    /// initial value.
+    __host__ __device__ static GpuVerifyDeviceResult identity()
+    {
+        GpuVerifyDeviceResult result;
+        result.error_count = 0;    // No errors yet
+        result.max_error   = 0.0f; // No error observed
+        result.all_zero    = 1;    // Start assuming all zeros (will be cleared if nonzero found)
+        return result;
+    }
 };
+
+/// @brief Combine two device verify results.
+///
+/// This function returns the "combined" version of two GpuVerifyDeviceResult values, which
+/// adds the total amount of errors, sets the correct max error, and records whether
+/// any of the values had any zeros.
+__device__ GpuVerifyDeviceResult reduce_results(const GpuVerifyDeviceResult& a,
+                                                const GpuVerifyDeviceResult& b)
+{
+    GpuVerifyDeviceResult result;
+    result.error_count = a.error_count + b.error_count;
+    result.max_error   = std::max(a.max_error, b.max_error);
+    result.all_zero    = a.all_zero & b.all_zero;
+    return result;
+}
 
 /// @brief Compare individual tensor elements.
 ///
@@ -243,20 +303,10 @@ __global__ __launch_bounds__(BlockSize) //
                            long long size,
                            GpuVerifyDeviceResult* result)
 {
-    // Shared memory for block-level reduction
-    __shared__ unsigned long long shared_error_count[BlockSize];
-    __shared__ float shared_max_error[BlockSize];
-    __shared__ int shared_has_error[BlockSize];
-    __shared__ int shared_has_nonzero[BlockSize];
-
     auto device_result    = make_concrete_iterator<T>(device_result_it);
     auto reference_result = make_concrete_iterator<T>(reference_result_it);
 
-    // Thread-local accumulators (in registers)
-    unsigned long long local_error_count = 0;
-    float local_max_error                = 0.0f;
-    int local_has_error                  = 0;
-    int local_has_nonzero                = 0;
+    auto local_result = GpuVerifyDeviceResult::identity();
 
     // Grid-stride loop to handle any tensor size
     long long idx    = blockIdx.x * BlockSize + threadIdx.x;
@@ -267,62 +317,32 @@ __global__ __launch_bounds__(BlockSize) //
         const auto [abs_diff, inequal, bitwise_zero] =
             compare_elements(device_result[i], reference_result[i], rtol, atol);
 
-        local_has_nonzero |= !bitwise_zero;
-
-        if(inequal)
-        {
-            local_has_error = 1;
-            local_error_count++;
-            local_max_error = fmaxf(local_max_error, abs_diff);
-        }
+        local_result = reduce_results(local_result,
+                                      GpuVerifyDeviceResult{
+                                          static_cast<uint64_t>(inequal), // error_count
+                                          abs_diff,                       // max_error
+                                          bitwise_zero                    // all_zero
+                                      });
     }
 
-    // Store thread-local results to shared memory
-    shared_error_count[threadIdx.x] = local_error_count;
-    shared_max_error[threadIdx.x]   = local_max_error;
-    shared_has_error[threadIdx.x]   = local_has_error;
-    shared_has_nonzero[threadIdx.x] = local_has_nonzero;
-    __syncthreads();
-
-    // Block-level reduction: 256 -> 128 -> 64 -> 32
-    for(unsigned int s = BlockSize / 2; s >= 32; s >>= 1)
-    {
-        if(threadIdx.x < s)
-        {
-            shared_error_count[threadIdx.x] += shared_error_count[threadIdx.x + s];
-            shared_max_error[threadIdx.x] =
-                fmaxf(shared_max_error[threadIdx.x], shared_max_error[threadIdx.x + s]);
-            shared_has_error[threadIdx.x] |= shared_has_error[threadIdx.x + s];
-            shared_has_nonzero[threadIdx.x] |= shared_has_nonzero[threadIdx.x + s];
-        }
-        __syncthreads();
-    }
+    const auto block_result = block_reduce<BlockSize>(local_result, reduce_results);
 
     // Final reduction of remaining 32 elements in thread 0
     if(threadIdx.x == 0)
     {
-        for(int i = 1; i < 32; ++i)
+        // Single atomic update per block (reduces contention from O(errors) to O(blocks))
+        if(block_result.error_count > 0)
         {
-            shared_error_count[0] += shared_error_count[i];
-            shared_max_error[0] = fmaxf(shared_max_error[0], shared_max_error[i]);
-            shared_has_error[0] |= shared_has_error[i];
-            shared_has_nonzero[0] |= shared_has_nonzero[i];
+            atomicAdd(&result->error_count, block_result.error_count);
+            atomicMax(&result->max_error, block_result.max_error);
         }
 
-        // Single atomic update per block (reduces contention from O(errors) to O(blocks))
-        if(shared_has_error[0])
+        if(!block_result.all_zero)
         {
-            atomicAdd(&result->error_count, shared_error_count[0]);
-            atomicMax(&result->max_error, shared_max_error[0]);
-        }
-        // Update all_zero flag: if no nonzero values found, mark as all zero
-        if(!shared_has_nonzero[0])
-        {
-            atomicMin(&result->all_zero, 1);
-        }
-        else
-        {
-            atomicMin(&result->all_zero, 0);
+            // A nonzero was found, so set the global value to false.
+            // Note: this is a benign race condition; technically a race condition but
+            // all blocks write the same value, so its fine.
+            result->all_zero = 0;
         }
     }
 }
@@ -342,10 +362,7 @@ GpuVerifyResult gpu_verify(IteratorA device_result,
     hip_check_error(hipMalloc(&result_dev, sizeof(GpuVerifyDeviceResult)));
 
     // Initialize result struct
-    GpuVerifyDeviceResult result_host;
-    result_host.error_count = 0;    // No errors yet
-    result_host.max_error   = 0.0f; // No error observed
-    result_host.all_zero    = 1;    // Start assuming all zeros (will be cleared if nonzero found)
+    auto result_host = GpuVerifyDeviceResult::identity();
     hip_check_error(
         hipMemcpy(result_dev, &result_host, sizeof(GpuVerifyDeviceResult), hipMemcpyHostToDevice));
 
@@ -444,8 +461,6 @@ template <int BlockSize, typename T, typename Iterator>
 __global__ __launch_bounds__((BlockSize)) //
     void gpu_reduce_max_kernel(Iterator it, long long size, float* __restrict__ max_val)
 {
-    __shared__ float shared_max[BlockSize];
-
     auto data = make_concrete_iterator<T>(it);
 
     long long idx    = blockIdx.x * BlockSize + threadIdx.x;
@@ -459,30 +474,11 @@ __global__ __launch_bounds__((BlockSize)) //
         local_max = fmaxf(local_max, val);
     }
 
-    shared_max[threadIdx.x] = local_max;
-    __syncthreads();
+    const auto block_max = block_reduce<BlockSize>(
+        local_max, [](const auto& a, const auto& b) { return std::max(a, b); });
 
-    // Block-level reduction: 256 -> 128 -> 64 -> 32
-    for(unsigned int s = BlockSize / 2; s >= 32; s >>= 1)
-    {
-        if(threadIdx.x < s)
-        {
-            shared_max[threadIdx.x] = fmaxf(shared_max[threadIdx.x], shared_max[threadIdx.x + s]);
-        }
-        __syncthreads();
-    }
-
-    // Final reduction of remaining 32 elements in thread 0
     if(threadIdx.x == 0)
-    {
-        for(int i = 1; i < 32; ++i)
-        {
-            shared_max[0] = fmaxf(shared_max[0], shared_max[i]);
-        }
-
-        // Single atomic update per block
-        atomicMax(max_val, shared_max[0]);
-    }
+        atomicMax(max_val, block_max);
 }
 
 // Host-side wrapper for GPU max reduction
