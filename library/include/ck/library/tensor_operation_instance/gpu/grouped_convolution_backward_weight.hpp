@@ -393,6 +393,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                     add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_instances(
                         op_ptrs);
 
+                    add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_direct_load_instances(
+                        op_ptrs);
+
                     add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_default_pipev2_instances(
                         op_ptrs);
                     add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f16_default_pipev5_instances(
@@ -451,6 +454,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                              is_same_v<ComputeTypeB, ck::bhalf_t>)
                 {
                     add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(
+                        op_ptrs);
+
+                    add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_bf16_direct_load_instances(
                         op_ptrs);
 
                     add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_bf16_default_pipev2_instances(
