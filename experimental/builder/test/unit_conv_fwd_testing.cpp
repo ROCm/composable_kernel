@@ -3,7 +3,7 @@
 
 #include "impl/conv_signature_types.hpp"
 #include "testing_utils.hpp"
-#include "ck_tile/builder/testing/conv_fwd.hpp"
+#include "ck_tile/builder/testing/conv/fwd.hpp"
 #include "ck_tile/builder/testing/tensor_foreach.hpp"
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
