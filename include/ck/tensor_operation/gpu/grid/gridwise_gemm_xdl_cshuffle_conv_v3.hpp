@@ -443,8 +443,8 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
         if constexpr(DirectLoad)
         {
             return make_naive_tensor_descriptor(
-                make_tuple(AK0Number, Number<NPerBlock>{}, AK1Number),
-                make_tuple(Number<NPerBlock * AK1Number>{}, I1, Number<NPerBlock>{}));
+                make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
+                make_tuple(Number<NPerBlock * BK1Number>{}, I1, Number<NPerBlock>{}));
         }
         else if constexpr(BBlockLdsExtraN)
         {
