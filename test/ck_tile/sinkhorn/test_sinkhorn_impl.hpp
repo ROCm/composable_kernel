@@ -74,7 +74,7 @@ class TestCkTileSinkHorn : public ::testing::Test
 
         // Reference computation
         ck_tile::HostTensor<YDataType> h_y_ref(input_shape, default_stride);
-        sinkhorn_knopp_ref(h_x, h_y_ref, max_iterations);
+        sinkhorn_knopp_ref<XDataType, ComputeDataType, YDataType>(h_x, h_y_ref, max_iterations);
 
         // TODO: Test whether or not output is actually doubly stochastic
 
