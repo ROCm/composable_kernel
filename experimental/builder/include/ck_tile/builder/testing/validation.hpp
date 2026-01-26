@@ -49,8 +49,8 @@ struct ValidationReport
         /// The total number of elements in each tensor.
         uint64_t total_elements;
 
-        /// The number of elements which were bitwise 0.
-        uint64_t zero_elements;
+        /// Set to true if both tensors have all their elements be 0.
+        bool both_all_zero;
 
         // Max error.
         double max_error;
@@ -60,7 +60,7 @@ struct ValidationReport
         /// If both tensors are all zero, it indicates either an incorrect testing setup
         /// or an issue with the testing framework. For that reason we also consider that
         /// a failure.
-        bool is_all_zero() const { return zero_elements == total_elements; }
+        bool is_all_zero() const { return both_all_zero; }
 
         /// @brief Return whether the check associated to this case was successful.
         ///
@@ -127,64 +127,22 @@ bool ValidationReport::check(std::string_view tensor_name,
                              float rtol,
                              float atol)
 {
-    const auto strides = descriptor.get_strides();
+    using CKType = detail::cpp_type_t<DT>;
 
-    // During development and CI, only the kernels that were changed would fail, and so we can
-    // assume that the average case does not have errors. Therefore, split out testing into a
-    // quick test which just counts the incorrect elements, and a more in-depth test that also
-    // returns the indices of the incorrect items.
+    const auto a_it  = FlatTensorIterator(descriptor, static_cast<const CKType*>(actual_data));
+    const auto e_it  = FlatTensorIterator(descriptor, static_cast<const CKType*>(expected_data));
+    const auto numel = a_it.numel();
 
-    // Initial pass: count errors
-
-    // Allocate and reset counter
-    auto d_counters = alloc_buffer(sizeof(uint64_t) * 3);
-    check_hip(hipMemset(d_counters.get(), 0, sizeof(uint64_t) * 3));
-
-    auto d_error_count = &reinterpret_cast<uint64_t*>(d_counters.get())[0];
-    auto d_zero_count  = &reinterpret_cast<uint64_t*>(d_counters.get())[1];
-    auto d_max_error   = &reinterpret_cast<double*>(d_counters.get())[2];
-
-    tensor_foreach(descriptor.get_lengths(), [=](auto index) {
-        using CKType = typename factory::internal::DataTypeToCK<DT>::type;
-
-        const auto* actual   = static_cast<const CKType*>(actual_data);
-        const auto* expected = static_cast<const CKType*>(expected_data);
-
-        static_assert(!std::is_same_v<CKType, double>,
-                      "TODO implement compare_kernel() for double");
-
-        const auto offset = calculate_offset(index, strides);
-
-        const auto [diff, inequal, bitwise_zero] =
-            ck::profiler::compare_elements(actual[offset], expected[offset], rtol, atol);
-
-        // We expect the number of errors to be very low, so just use an atomic
-        // for now.
-
-        atomicMax(d_max_error, diff);
-
-        if(inequal)
-            atomicAdd(d_error_count, 1);
-
-        if(bitwise_zero)
-            atomicAdd(d_zero_count, 1);
-    });
-
-    uint64_t error_count = 0;
-    check_hip(hipMemcpy(&error_count, d_error_count, sizeof(uint64_t), hipMemcpyDeviceToHost));
-    uint64_t zero_count = 0;
-    check_hip(hipMemcpy(&zero_count, d_zero_count, sizeof(uint64_t), hipMemcpyDeviceToHost));
-    double max_error = 0;
-    check_hip(hipMemcpy(&max_error, d_max_error, sizeof(double), hipMemcpyDeviceToHost));
+    const auto result = ck::profiler::gpu_verify(a_it, e_it, rtol, atol, numel);
 
     // TODO: Gather detailed coordinates.
 
     reports_.push_back(Case{
         .tensor_name    = std::string(tensor_name),
-        .wrong_elements = error_count,
+        .wrong_elements = result.error_count,
         .total_elements = descriptor.get_element_size(),
-        .zero_elements  = zero_count,
-        .max_error      = max_error,
+        .max_error      = result.max_error,
+        .both_all_zero  = result.all_zero,
     });
 
     return reports_.back().is_ok();

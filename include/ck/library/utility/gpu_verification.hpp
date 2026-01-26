@@ -168,9 +168,9 @@ compare_elements(const T& actual, const T& expected, const float rtol, const flo
 // when there are many errors.
 //
 // Assumption: Block size is 256
-template <typename T>
-__global__ void gpu_verify_kernel(const T* __restrict__ device_result,
-                                  const T* __restrict__ reference_result,
+template <typename IteratorA, typename IteratorB>
+__global__ void gpu_verify_kernel(IteratorA device_result,
+                                  IteratorB reference_result,
                                   float rtol,
                                   float atol,
                                   long long size,
@@ -197,7 +197,7 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
     for(long long i = idx; i < size; i += stride)
     {
         const auto [abs_diff, inequal, bitwise_zero] =
-            compare_elements<T>(device_result[i], reference_result[i], rtol, atol);
+            compare_elements(device_result[i], reference_result[i], rtol, atol);
 
         local_has_nonzero |= !bitwise_zero;
 
@@ -261,9 +261,9 @@ __global__ void gpu_verify_kernel(const T* __restrict__ device_result,
 
 // Host-side wrapper for GPU verification with explicit tolerances
 // Returns GpuVerifyResult with detailed error information
-template <typename T>
-GpuVerifyResult gpu_verify(const void* device_result,
-                           const void* reference_result,
+template <typename IteratorA, typename IteratorB>
+GpuVerifyResult gpu_verify(IteratorA device_result,
+                           IteratorB reference_result,
                            float rtol,
                            float atol,
                            std::size_t size,
@@ -287,13 +287,8 @@ GpuVerifyResult gpu_verify(const void* device_result,
     constexpr int block_size = 256;
     int grid_size            = std::min<int>(65535, (size + block_size - 1) / block_size);
 
-    gpu_verify_kernel<T>
-        <<<grid_size, block_size, 0, stream>>>(static_cast<const T*>(device_result),
-                                               static_cast<const T*>(reference_result),
-                                               rtol,
-                                               atol,
-                                               static_cast<long long>(size),
-                                               result_dev);
+    gpu_verify_kernel<<<grid_size, block_size, 0, stream>>>(
+        device_result, reference_result, rtol, atol, static_cast<long long>(size), result_dev);
 
     hip_check_error(hipGetLastError());
 
@@ -315,6 +310,22 @@ GpuVerifyResult gpu_verify(const void* device_result,
     result.all_zero    = (result_host.all_zero == 1);
 
     return result;
+}
+
+template <typename T>
+GpuVerifyResult gpu_verify(const void* device_result,
+                           const void* reference_result,
+                           float rtol,
+                           float atol,
+                           std::size_t size,
+                           hipStream_t stream = nullptr)
+{
+    return gpu_verify(reinterpret_cast<const T*>(device_result),
+                      reinterpret_cast<const T*>(reference_result),
+                      rtol,
+                      atol,
+                      size,
+                      stream);
 }
 
 // Forward declaration of gpu_reduce_max

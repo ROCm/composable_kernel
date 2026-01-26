@@ -128,7 +128,7 @@ TYPED_TEST(ValidationReportTests, ZeroIsIncorrect)
     EXPECT_THAT(errors[0].tensor_name, StrEq("zero_is_incorrect"));
     EXPECT_THAT(errors[0].wrong_elements, Eq(0));
     EXPECT_THAT(errors[0].total_elements, Eq(desc.get_element_size()));
-    EXPECT_THAT(errors[0].zero_elements, Eq(desc.get_element_size()));
+    EXPECT_THAT(errors[0].both_all_zero, Eq(true));
 }
 
 TEST(ValidationReportTests, MultipleSomeIncorrect)
