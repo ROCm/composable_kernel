@@ -39,19 +39,13 @@ struct ConverterLoader
     {
         if constexpr(LoadTranspose)
         {
-            static_assert(sizeof(SrcDataType) == sizeof(DstDataType),
-                          "SrcDataType and DstDataType must have the same sizes.");
             if constexpr(std::is_same_v<SrcDataType, DstDataType>)
             {
-                dst = load_tile_transpose(src_window);
+                load_tile_transpose(dst, src_window);
             }
             else
             {
-                auto tmp = load_tile_transpose(src_window);
-                sweep_tile<WarpTile>([&](auto i) {
-                    element_wise::PassThrough elementwise_op{};
-                    elementwise_op(dst(i), tmp(i));
-                });
+                load_tile_transpose_convert(dst, src_window);
             }
         }
         else
