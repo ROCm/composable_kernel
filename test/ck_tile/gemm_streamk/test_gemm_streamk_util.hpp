@@ -262,20 +262,40 @@ class TestCkTileStreamK : public ::testing::Test
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
-        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
+        // Calculate reference GEMM on the GPU
+        ck_tile::HostTensor<CDataType> c_m_n_dev_ref(
             f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
-        c_m_n_host_ref.SetZero();
+        ck_tile::DeviceMem ref_c_m_n_dev_buf(c_m_n_dev_ref.get_element_space_size_in_bytes());
+        ref_c_m_n_dev_buf.SetZero();
 
-        ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-            a_m_k, b_k_n, c_m_n_host_ref);
+        ADataType* a_m_k_dev_ref_ptr = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
+        BDataType* b_k_n_dev_ref_ptr = static_cast<BDataType*>(b_k_n_dev_buf.GetDeviceBuffer());
+        CDataType* c_m_n_dev_ref_ptr = static_cast<CDataType*>(ref_c_m_n_dev_buf.GetDeviceBuffer());
+        ck_tile::reference_gemm_gpu<ADataType,
+                                    BDataType,
+                                    AccDataType,
+                                    CDataType,
+                                    ALayout,
+                                    BLayout,
+                                    CLayout>(a_m_k_dev_ref_ptr,
+                                             b_k_n_dev_ref_ptr,
+                                             c_m_n_dev_ref_ptr,
+                                             M,
+                                             N,
+                                             K,
+                                             stride_A,
+                                             stride_B,
+                                             stride_C);
+        ref_c_m_n_dev_buf.FromDevice(c_m_n_dev_ref.data());
 
         const float max_accumulated_value =
-            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+            *std::max_element(c_m_n_dev_ref.mData.begin(), c_m_n_dev_ref.mData.end());
+
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
             K, num_accumulations_per_tile, max_accumulated_value);
 
         bool pass = ck_tile::check_err(c_m_n_dev_result,
-                                       c_m_n_host_ref,
+                                       c_m_n_dev_ref,
                                        "Error: Incorrect results!",
                                        rtol_atol.at(ck_tile::number<0>{}),
                                        rtol_atol.at(ck_tile::number<1>{}));
