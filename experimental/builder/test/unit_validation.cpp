@@ -296,5 +296,8 @@ TEST(MatchesReference, Incorrect)
     testing::StringMatchResultListener listener;
     EXPECT_TRUE(!ExplainMatchResult(MatchesReference(args, expected), actual, &listener));
 
-    EXPECT_THAT(listener.str(), StringEqWithDiff("1 tensors failed to validate"));
+    EXPECT_THAT(listener.str(),
+                StringEqWithDiff( //
+                    "1 tensors failed to validate\n"
+                    "    - a: 625/625 incorrect elements (~100%)"));
 }
