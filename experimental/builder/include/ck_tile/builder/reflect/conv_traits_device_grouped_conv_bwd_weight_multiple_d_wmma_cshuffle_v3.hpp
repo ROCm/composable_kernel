@@ -36,10 +36,11 @@ constexpr ConvTraits instance_to_conv_traits()
             conv_traits_a_transfer_params<InstTraits>(InstTraits::kK1, InstTraits::kKPerBlock),
         .b_tile_transfer =
             conv_traits_b_transfer_params<InstTraits>(InstTraits::kK1, InstTraits::kKPerBlock),
-        .warp_gemm          = conv_traits_wmma_warp_gemm_params<InstTraits>(),
-        .c_tile_transfer    = conv_traits_wmma_c_tile_transfer<InstTraits>(),
-        .pipeline_version   = get_pipeline_version<InstTraits>(),
-        .pipeline_scheduler = get_pipeline_scheduler<InstTraits>(),
+        .warp_gemm                 = conv_traits_wmma_warp_gemm_params<InstTraits>(),
+        .c_tile_transfer           = conv_traits_wmma_c_tile_transfer<InstTraits>(),
+        .num_gemm_k_prefetch_stage = InstTraits::kNumGemmKPrefetchStage,
+        .pipeline_version          = get_pipeline_version<InstTraits>(),
+        .pipeline_scheduler        = get_pipeline_scheduler<InstTraits>(),
     };
 }
 
