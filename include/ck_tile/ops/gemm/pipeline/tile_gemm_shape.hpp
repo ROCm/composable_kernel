@@ -80,10 +80,10 @@ constexpr index_t get_k_warp_tile_for_preshuffle_b()
 
     // To achieve optimal memory bandwidth, each thread loads a minimum of 16 bytes (dwordx4)
     // from global memory.
-    const int kMaxBytesPerLoad    = 16; // buffer load max 16 bytes
-    const int kMaxElementsPerLoad = kMaxBytesPerLoad / sizeof(PrecType);
-    const int kKLanePerWarp       = ck_tile::get_warp_size() / N_Warp_Tile;
-    const int kKPerWarp           = kMaxElementsPerLoad * kKLanePerWarp;
+    const index_t kMaxBytesPerLoad    = 16; // buffer load max 16 bytes
+    const index_t kMaxElementsPerLoad = kMaxBytesPerLoad / sizeof(PrecType);
+    const index_t kKLanePerWarp       = ck_tile::get_warp_size() / N_Warp_Tile;
+    const index_t kKPerWarp           = kMaxElementsPerLoad * kKLanePerWarp;
 
     // Minimum K_Warp_Tile required by MFMA instructions
     const index_t kMfmaN16Index = 0;
