@@ -281,6 +281,163 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         return BlockGemmARegBRegCRegV1<Problem, BlockGemmPolicy>{};
     }
 
+    // Custom warp distribution encodings that account for packed types
+    // For 16x16x128 MFMA with pk_fp4_t, the K dimension must use storage elements, not logical elements
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_AWarpDstrEncoding()
+    {
+        // For 16x16x128 MFMA with pk_fp4_t (PackedSize=2)
+        // Physical layout in registers: [16 M-lanes, 4 K-lanes, 16 bytes per lane]
+        // Each byte stores 2 fp4 values, so 16 bytes = 32 fp4 values
+        // But we need to use STORAGE size (16) not LOGICAL size (32) in the distribution
+        using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+        using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+        constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
+        
+        constexpr index_t kAMLane = 16;
+        constexpr index_t kABKLane = 4;
+        constexpr index_t kABKPerLane = 32 / APackedSize;  // Storage elements, not logical!
+        
+        return tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<kAMLane>, sequence<kABKLane, kABKPerLane>>,
+            tuple<sequence<2, 1>>,
+            tuple<sequence<0, 0>>,
+            sequence<2>,
+            sequence<1>>{};
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeMX_BWarpDstrEncoding()
+    {
+        using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+        using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+        constexpr index_t BPackedSize = numeric_traits<BDataType>::PackedSize;
+        
+        constexpr index_t kBNLane = 16;
+        constexpr index_t kABKLane = 4;
+        constexpr index_t kABKPerLane = 32 / BPackedSize;  // Storage elements!
+        
+        return tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<kBNLane>, sequence<kABKLane, kABKPerLane>>,
+            tuple<sequence<2, 1>>,
+            tuple<sequence<0, 0>>,
+            sequence<2>,
+            sequence<1>>{};
+    }
+
+    // Custom LDS block distributions that account for packed types
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDistributionEncode()
+    {
+        using BlockGemmShape = typename Problem::BlockGemmShape;
+        using BlockWarps = typename BlockGemmShape::BlockWarps;
+        using WarpTile = typename BlockGemmShape::WarpTile;
+        
+        constexpr index_t MWarp = BlockWarps::at(number<0>{});
+        constexpr index_t NWarp = BlockWarps::at(number<1>{});
+        constexpr index_t MPerXdl = WarpTile::at(number<0>{});
+        constexpr index_t KPerXdl = WarpTile::at(number<2>{});
+        
+        using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+        using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+        constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
+        
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        
+        // IMPORTANT: Use packed K for iteration count
+        // LDS shape is [MPerBlock, KPerBlock / APackedSize]
+        // WarpGemm expects [MPerXdl, KPerXdl / APackedSize] per warp per iteration
+        constexpr index_t KIterPerWarp = (KPerBlock / APackedSize) / (KPerXdl / APackedSize);
+        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * MPerXdl);
+        
+        constexpr bool UseDefaultScheduler = (Problem::NumWaveGroups != 1);
+        
+        if constexpr(UseDefaultScheduler)
+        {
+            constexpr auto a_block_outer_dstr_encoding =
+                tile_distribution_encoding<sequence<NWarp>,
+                                           tuple<sequence<MIterPerWarp>, sequence<KIterPerWarp>>,
+                                           tuple<>,
+                                           tuple<>,
+                                           sequence<1, 2>,
+                                           sequence<0, 0>>{};
+            // Use custom warp encoding that accounts for packed types
+            return detail::make_embed_tile_distribution_encoding(
+                a_block_outer_dstr_encoding, MakeMX_AWarpDstrEncoding<Problem>());
+        }
+        else
+        {
+            constexpr auto a_block_outer_dstr_encoding = tile_distribution_encoding<
+                sequence<NWarp>,
+                tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
+                tuple<sequence<1, 0>>,
+                tuple<sequence<1, 0>>,
+                sequence<1, 2>,
+                sequence<0, 0>>{};
+            // Use custom warp encoding that accounts for packed types
+            return detail::make_embed_tile_distribution_encoding(
+                a_block_outer_dstr_encoding, MakeMX_AWarpDstrEncoding<Problem>());
+        }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDistributionEncode()
+    {
+        using BlockGemmShape = typename Problem::BlockGemmShape;
+        using BlockWarps = typename BlockGemmShape::BlockWarps;
+        using WarpTile = typename BlockGemmShape::WarpTile;
+        
+        constexpr index_t MWarp = BlockWarps::at(number<0>{});
+        constexpr index_t NWarp = BlockWarps::at(number<1>{});
+        constexpr index_t NPerXdl = WarpTile::at(number<1>{});
+        constexpr index_t KPerXdl = WarpTile::at(number<2>{});
+        
+        using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+        using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+        constexpr index_t BPackedSize = numeric_traits<BDataType>::PackedSize;
+        
+        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        
+        // IMPORTANT: Use packed K for iteration count
+        // LDS shape is [NPerBlock, KPerBlock / BPackedSize]
+        // WarpGemm expects [NPerXdl, KPerXdl / BPackedSize] per warp per iteration
+        constexpr index_t KIterPerWarp = (KPerBlock / BPackedSize) / (KPerXdl / BPackedSize);
+        constexpr index_t NIterPerWarp = NPerBlock / (NWarp * NPerXdl);
+        
+        constexpr bool UseDefaultScheduler = (Problem::NumWaveGroups != 1);
+        
+        if constexpr(UseDefaultScheduler)
+        {
+            constexpr auto b_block_outer_dstr_encoding =
+                tile_distribution_encoding<sequence<MWarp>,
+                                           tuple<sequence<NIterPerWarp>, sequence<KIterPerWarp>>,
+                                           tuple<>,
+                                           tuple<>,
+                                           sequence<1, 2>,
+                                           sequence<0, 0>>{};
+            // Use custom warp encoding that accounts for packed types
+            return detail::make_embed_tile_distribution_encoding(
+                b_block_outer_dstr_encoding, MakeMX_BWarpDstrEncoding<Problem>());
+        }
+        else
+        {
+            constexpr auto b_block_outer_dstr_encoding = tile_distribution_encoding<
+                sequence<MWarp>,
+                tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
+                tuple<sequence<0, 1>>,
+                tuple<sequence<0, 1>>,
+                sequence<1, 2>,
+                sequence<0, 0>>{};
+            // Use custom warp encoding that accounts for packed types
+            return detail::make_embed_tile_distribution_encoding(
+                b_block_outer_dstr_encoding, MakeMX_BWarpDstrEncoding<Problem>());
+        }
+    }
+
     // MX Scale tile distributions for loading from global memory  
     // Using the proven "Flat" patterns from v1 policy
     template <typename Problem>

@@ -295,22 +295,46 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
 
             ////////////// global window & register /////////////////
             // A DRAM tile window(s) for load
+            
             auto a_tile_windows = generate_tuple(
                 [&](auto idx) {
+                    // Get bottom tensor view and window origin: need to divide by APackedSize
+                    auto&& bottom_tensor_view = a_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view();
+                    auto&& tensor_ptr = reinterpret_cast<const ADataType*>(&(bottom_tensor_view.get_buffer_view()(0)));
+                    auto&& tensor_view = make_naive_tensor_view<address_space_enum::global>(
+                        tensor_ptr,
+                        make_tuple(4096, 4096 / APackedSize),
+                        make_tuple(4096 / APackedSize, 1),
+                        number<32>{},
+                        number<1>{});
+                    const auto& origin = a_dram_block_window_tmp[number<idx>{}].get_window_origin();
                     return make_tile_window(
-                        a_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
+                        // a_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
+                        tensor_view,
                         make_tuple(number<MPerBlock>{}, number<KPerBlock / APackedSize>{}),
-                        a_dram_block_window_tmp[number<idx>{}].get_window_origin(),
+                        {origin[0], origin[1] / APackedSize},
                         Policy::template MakeADramTileDistribution<Problem>());
                 },
                 number<AsLayout::size()>{});
             // B DRAM window(s) for load
             auto b_tile_windows = generate_tuple(
                 [&](auto idx) {
+                    // Get bottom tensor view and window origin: need to divide by BPackedSize
+                    auto&& bottom_tensor_view = b_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view();
+                    auto&& tensor_ptr = reinterpret_cast<const BDataType*>(&(bottom_tensor_view.get_buffer_view()(0)));
+                    auto&& tensor_view = make_naive_tensor_view<address_space_enum::global>(
+                        tensor_ptr,
+                        make_tuple(4096, 4096 / BPackedSize),
+                        make_tuple(4096 / BPackedSize, 1),
+                        number<32>{},
+                        number<1>{});
+                    const auto& origin = b_dram_block_window_tmp[number<idx>{}].get_window_origin();
                     return make_tile_window(
-                        b_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
+                        // b_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
+                        tensor_view,
                         make_tuple(number<NPerBlock>{}, number<KPerBlock / BPackedSize>{}),
-                        b_dram_block_window_tmp[number<idx>{}].get_window_origin(),
+                        // b_dram_block_window_tmp[number<idx>{}].get_window_origin(),
+                        {origin[0], origin[1] / BPackedSize},
                         Policy::template MakeBDramTileDistribution<Problem>());
                 },
                 number<BsLayout::size()>{});
@@ -397,9 +421,9 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
 
             constexpr ADramTileWindowStep a_dram_tile_window_step =
-                is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+                is_a_col_major ? make_array(KPerBlock / APackedSize, 0) : make_array(0, KPerBlock / APackedSize);
             constexpr BDramTileWindowStep b_dram_tile_window_step =
-                is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
+                is_b_row_major ? make_array(KPerBlock / BPackedSize, 0) : make_array(0, KPerBlock / BPackedSize);
 
             // read A(0), B(0) from DRAM to LDS window(0)
             // and advance the DRAM windows
@@ -420,10 +444,11 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 b_copy_lds_window1, b_tile_windows[number<0>{}], b_dram_tile_window_step);
 
             // tile distribution for the register tiles
+            // Use custom distributions that account for packed types
             constexpr auto ALdsTileDistr =
-                make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
+                make_static_tile_distribution(Policy::template MakeALdsBlockDistributionEncode<Problem>());
             constexpr auto BLdsTileDistr =
-                make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode());
+                make_static_tile_distribution(Policy::template MakeBLdsBlockDistributionEncode<Problem>());
 
             using ALdsTile = decltype(make_static_distributed_tensor<ADataType>(ALdsTileDistr));
             using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
