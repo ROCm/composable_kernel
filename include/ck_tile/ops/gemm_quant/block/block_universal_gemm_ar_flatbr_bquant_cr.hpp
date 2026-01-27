@@ -53,7 +53,7 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
+    static constexpr bool BPreshuffleQuant = Problem::Traits::BPreshuffleQuant;
 
     static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
     static constexpr index_t NIterPerWarp =
@@ -173,7 +173,7 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                                                    c_warp_y_index_zeros)) /
                                CBlockTensor::PackedSize>{};
 
-                    if constexpr(PreshuffleQuant)
+                    if constexpr(BPreshuffleQuant)
                     {
                         constexpr index_t reg_offset = nIter;
                         auto pull_from_lane = (__lane_id() & (WG::kN - 1)) * KPerBlockBQ + kQScale;

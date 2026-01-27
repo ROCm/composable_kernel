@@ -67,15 +67,27 @@ struct get_bq_data_type_or<T, Default, std::void_t<typename T::BQDataType>>
 };
 
 template <typename, typename = void>
-struct is_quantpreshuffle_enabled
+struct is_Aquantpreshuffle_enabled
 {
     static constexpr bool value = false;
 };
 
 template <typename T>
-struct is_quantpreshuffle_enabled<T, std::void_t<decltype(T::PreshuffleQuant)>>
+struct is_Aquantpreshuffle_enabled<T, std::void_t<decltype(T::APreshuffleQuant)>>
 {
-    static constexpr bool value = T::PreshuffleQuant;
+    static constexpr bool value = T::APreshuffleQuant;
+};
+
+template <typename, typename = void>
+struct is_Bquantpreshuffle_enabled
+{
+    static constexpr bool value = false;
+};
+
+template <typename T>
+struct is_Bquantpreshuffle_enabled<T, std::void_t<decltype(T::BPreshuffleQuant)>>
+{
+    static constexpr bool value = T::BPreshuffleQuant;
 };
 
 template <typename, typename = void>
@@ -206,8 +218,10 @@ struct QuantGemmKernel
         typename detail::get_bq_layout_or<GemmPipeline, typename GemmPipeline::BLayout>::type>;
 
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
-    static constexpr bool PreshuffleQuant =
-        detail::is_quantpreshuffle_enabled<GemmPipeline_>::value;
+    static constexpr bool APreshuffleQuant =
+        detail::is_Aquantpreshuffle_enabled<GemmPipeline_>::value;
+    static constexpr bool BPreshuffleQuant =
+        detail::is_Bquantpreshuffle_enabled<GemmPipeline_>::value;
     static constexpr bool PreshuffleB = detail::is_preshuffleB_enabled<GemmPipeline_>::value;
 
     using ADataType   = remove_cvref_t<typename GemmPipeline::ADataType>;
@@ -476,9 +490,7 @@ struct QuantGemmKernel
     {
         // Step 1: Create tensor view for AQ
         const auto& aq_tensor_view = [&]() {
-            if constexpr((kQuantType == QuantType::AQuantGrouped ||
-                          kQuantType == QuantType::ABQuantGrouped) &&
-                         PreshuffleQuant)
+            if constexpr(kQuantType == QuantType::AQuantGrouped && APreshuffleQuant)
             {
                 static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 const auto aq_x = kargs.M * GemmPipeline::KPerBlockAQ;
@@ -535,7 +547,7 @@ struct QuantGemmKernel
             }
             else if constexpr((kQuantType == QuantType::AQuantGrouped ||
                                kQuantType == QuantType::ABQuantGrouped) &&
-                              !PreshuffleQuant)
+                              !APreshuffleQuant)
             {
                 if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
                 {
@@ -573,9 +585,7 @@ struct QuantGemmKernel
 
         // Step 2: Create tile window (no padding for AQ)
         const auto& aq_block_window = [&]() {
-            if constexpr((kQuantType == QuantType::AQuantGrouped ||
-                          kQuantType == QuantType::ABQuantGrouped) &&
-                         PreshuffleQuant)
+            if constexpr(kQuantType == QuantType::AQuantGrouped && APreshuffleQuant)
             {
                 static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 using AQuantGroupSize  = remove_cvref_t<typename GemmPipeline::AQuantGroupSize>;
@@ -593,7 +603,7 @@ struct QuantGemmKernel
             }
             else if constexpr((kQuantType == QuantType::AQuantGrouped ||
                                kQuantType == QuantType::ABQuantGrouped) &&
-                              !PreshuffleQuant)
+                              !APreshuffleQuant)
             {
 
                 using AQuantGroupSize = remove_cvref_t<typename GemmPipeline::AQuantGroupSize>;
@@ -812,7 +822,7 @@ struct QuantGemmKernel
             else if constexpr(kQuantType == QuantType::BQuantGrouped ||
                               kQuantType == QuantType::ABQuantGrouped)
             {
-                if constexpr(PreshuffleQuant)
+                if constexpr(BPreshuffleQuant)
                 {
                     static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>,
                                   "PreshuffleQuant with BQuantGrouped currently only supports "
@@ -881,7 +891,7 @@ struct QuantGemmKernel
                               kQuantType == QuantType::ABQuantGrouped)
             {
                 using BQuantGroupSize = remove_cvref_t<typename GemmPipeline::BQuantGroupSize>;
-                if constexpr(PreshuffleQuant)
+                if constexpr(BPreshuffleQuant)
                 {
                     static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
 
@@ -1215,7 +1225,7 @@ struct QuantGemmKernel
             if constexpr(kQuantType == QuantType::AQuantGrouped)
             {
                 index_t m = 0;
-                if constexpr(PreshuffleQuant)
+                if constexpr(APreshuffleQuant)
                 {
                     m = kargs.M;
                 }
@@ -1225,7 +1235,7 @@ struct QuantGemmKernel
             else if constexpr(kQuantType == QuantType::BQuantGrouped)
             {
                 index_t n = 0;
-                if constexpr(PreshuffleQuant)
+                if constexpr(BPreshuffleQuant)
                 {
                     n = kargs.N;
                 }
@@ -1236,9 +1246,9 @@ struct QuantGemmKernel
             {
                 index_t m = 0;
                 index_t n = 0;
-                if constexpr(PreshuffleQuant)
+                if constexpr(BPreshuffleQuant)
                 {
-                    m = kargs.M;
+                    // m = kargs.M;
                     n = kargs.N;
                 }
                 return GemmPipeline{}.template operator()(a_block_window,

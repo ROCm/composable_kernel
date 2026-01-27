@@ -72,7 +72,7 @@ struct BQuantBlockUniversalGemmAsBsCr
         static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
         static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
 
-        static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
+        static constexpr bool BPreshuffleQuant = Problem::Traits::BPreshuffleQuant;
 
         static constexpr index_t QScalesPerBlockRow =
             integer_divide_ceil(KPerBlock, BQuantGroupSize::kK);
@@ -153,7 +153,7 @@ struct BQuantBlockUniversalGemmAsBsCr
     using BWarpTensor = typename WarpGemm::BWarpTensor;
     using CWarpTensor = typename WarpGemm::CWarpTensor;
 
-    static constexpr bool PreshuffleQuant = Traits::PreshuffleQuant;
+    static constexpr bool BPreshuffleQuant = Traits::BPreshuffleQuant;
 
     static_assert(std::is_same_v<typename WarpGemm::CDataType, float>);
 
@@ -317,25 +317,21 @@ struct BQuantBlockUniversalGemmAsBsCr
                                                        c_warp_y_index_zeros)) /
                                    CBlockTensor::PackedSize>{};
 
-                        if constexpr(PreshuffleQuant)
+                        if constexpr(BPreshuffleQuant)
                         {
-                            // constexpr index_t reg_offset = nIter;
                             constexpr index_t reg_offset = [&]() {
                                 if constexpr(GemmTraits::BQuantGroupSize::kN >
-                                             (NWarp * WarpGemm::kN))
+                                                 (NWarp * WarpGemm::kN) &&
+                                             Traits::NPerBlock == GemmTraits::BQuantGroupSize::kN)
                                 {
-                                    if constexpr(Traits::NPerBlock ==
-                                                 GemmTraits::BQuantGroupSize::kN)
-                                        return kQScale;
-                                    else
-                                        return nIter; // for prefill needs kQscale, for decode needs
-                                                      // nIter
+                                    return kQScale; // prefill: one quant group per block
                                 }
                                 else
                                 {
-                                    return nIter;
+                                    return nIter; // decode or multiple groups per warp
                                 }
                             }();
+
                             auto pull_from_lane =
                                 (__lane_id() & (WarpGemm::kN - 1)) * Traits::KQPerBlock + kQScale;
 

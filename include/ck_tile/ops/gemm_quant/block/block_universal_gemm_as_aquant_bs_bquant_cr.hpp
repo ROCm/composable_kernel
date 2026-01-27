@@ -76,7 +76,8 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
         static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
         static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
 
-        static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
+        static constexpr bool APreshuffleQuant = Problem::Traits::APreshuffleQuant;
+        static constexpr bool BPreshuffleQuant = Problem::Traits::BPreshuffleQuant;
 
         static constexpr index_t QScalesPerBlockRow =
             integer_divide_ceil(KPerBlock, BQuantGroupSize::kK);
@@ -161,7 +162,8 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
     using BWarpTensor = typename WarpGemm::BWarpTensor;
     using CWarpTensor = typename WarpGemm::CWarpTensor;
 
-    static constexpr bool PreshuffleQuant = Traits::PreshuffleQuant;
+    static constexpr bool APreshuffleQuant = Traits::APreshuffleQuant;
+    static constexpr bool BPreshuffleQuant = Traits::BPreshuffleQuant;
 
     static_assert(std::is_same_v<typename WarpGemm::CDataType, float>);
 
@@ -359,24 +361,21 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                         AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(
                             aq_block_tensor);
 
-                        if constexpr(PreshuffleQuant)
+                        if constexpr(BPreshuffleQuant)
                         {
                             constexpr index_t reg_offset = [&]() {
                                 if constexpr(GemmTraits::BQuantGroupSize::kN >
-                                             (NWarp * WarpGemm::kN))
+                                                 (NWarp * WarpGemm::kN) &&
+                                             Traits::NPerBlock == GemmTraits::BQuantGroupSize::kN)
                                 {
-                                    if constexpr(Traits::NPerBlock ==
-                                                 GemmTraits::BQuantGroupSize::kN)
-                                        return kQScale;
-                                    else
-                                        return nIter; // for prefill needs kQscale, for decode needs
-                                                      // nIter
+                                    return kQScale;
                                 }
                                 else
                                 {
                                     return nIter;
                                 }
                             }();
+
                             auto pull_from_lane =
                                 (__lane_id() & (WarpGemm::kN - 1)) * Traits::KQPerBlock + kQScale;
 

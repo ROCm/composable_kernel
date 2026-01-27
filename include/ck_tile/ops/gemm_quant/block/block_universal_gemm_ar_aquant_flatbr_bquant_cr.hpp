@@ -69,7 +69,8 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
         static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
         static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
 
-        static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
+        static constexpr bool APreshuffleQuant = Problem::Traits::APreshuffleQuant;
+        static constexpr bool BPreshuffleQuant = Problem::Traits::BPreshuffleQuant;
 
         static constexpr index_t QScalesPerBlockRow =
             integer_divide_ceil(KPerBlock, BQuantGroupSize::kK);

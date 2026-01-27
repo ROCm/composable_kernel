@@ -110,8 +110,8 @@ struct AQuantBlockUniversalGemmAsBsCr
         static constexpr index_t KPack      = WarpGemm::kKPerThread;
         static constexpr index_t KPerThread = KIterPerWarp * WarpGemm::kKPerThread;
 
-        static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
-        static constexpr bool TransposeC      = Problem::TransposeC;
+        static constexpr bool APreshuffleQuant = Problem::Traits::APreshuffleQuant;
+        static constexpr bool TransposeC       = Problem::TransposeC;
     };
 
     public:

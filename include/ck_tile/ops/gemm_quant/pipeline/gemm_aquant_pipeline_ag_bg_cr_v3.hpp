@@ -75,7 +75,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     static constexpr bool kPadK = Problem::kPadK;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
-    static constexpr bool PreshuffleQuant  = Problem::Traits::PreshuffleQuant;
+    static constexpr bool APreshuffleQuant = Problem::Traits::APreshuffleQuant;
 
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
@@ -271,7 +271,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
             // only row_major for AQ
             const AQDramTileWindowStep aq_dram_tile_window_step =
-                PreshuffleQuant
+                APreshuffleQuant
                     ? make_array(ck_tile::integer_least_multiple(m, MPerBlock) /
                                      BlockGemm::WarpGemm::kM,
                                  0)

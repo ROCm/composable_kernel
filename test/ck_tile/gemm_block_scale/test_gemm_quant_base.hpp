@@ -75,7 +75,8 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     static constexpr ck_tile::index_t M_Warp_Tile = GemmConfig::M_Warp_Tile;
     static constexpr ck_tile::index_t N_Warp_Tile = GemmConfig::N_Warp_Tile;
     static constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
-    static constexpr bool PreshuffleQuant         = GemmConfig::PreshuffleQuant;
+    static constexpr bool APreshuffleQuant        = GemmConfig::APreshuffleQuant;
+    static constexpr bool BPreshuffleQuant        = GemmConfig::BPreshuffleQuant;
     static constexpr bool PreshuffleB             = GemmConfig::PreshuffleB;
     static constexpr bool TiledMMAPermuteN        = GemmConfig::TiledMMAPermuteN;
     static constexpr bool DoubleSmemBuffer        = GemmConfig::DoubleSmemBuffer;
@@ -111,7 +112,8 @@ class TestCkTileGemmQuantBase : public ::testing::Test
         using CodegenGemmTraits = ck_tile::TileGemmQuantTraits<kPadM,
                                                                kPadN,
                                                                kPadK,
-                                                               PreshuffleQuant,
+                                                               APreshuffleQuant,
+                                                               BPreshuffleQuant,
                                                                PreshuffleB,
                                                                ALayout,
                                                                BLayout,

@@ -88,7 +88,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     static constexpr bool kPadK = Problem::kPadK;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
-    static constexpr bool PreshuffleQuant  = Problem::Traits::PreshuffleQuant;
+    static constexpr bool BPreshuffleQuant = Problem::Traits::BPreshuffleQuant;
 
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
@@ -252,7 +252,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                                  KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                           "B block window has incorrect lengths for defined BLayout!");
             static_assert(
-                PreshuffleQuant ||
+                BPreshuffleQuant ||
                     (is_bq_row_major
                          ? (KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                             NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])
@@ -304,7 +304,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             const BQDramTileWindowStep bq_dram_tile_window_step =
-                (PreshuffleQuant)
+                (BPreshuffleQuant)
                     ? make_array(((NPerBlockBQ <= BlockGemmShape::BlockWarps::at(number<1>{}))
                                       ? ck_tile::integer_divide_ceil(n, BQuantGroupSize::kN)
                                       : ck_tile::integer_least_multiple(n, NPerBlock) /
