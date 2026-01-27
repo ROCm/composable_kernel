@@ -345,7 +345,7 @@ struct BlockReduce2D
         constexpr auto row_y_unpacks = [&]() {
             constexpr auto row_y_lengths = typename decltype(spans[number<1>{}])::Impl{};
             constexpr auto row_y_size =
-                reduce_on_sequence(row_y_lengths, multiplies{}, number<1>{});
+                reduce_on_sequence(row_y_lengths, multiplies<>{}, number<1>{});
             constexpr auto row_y_packs = ReducePacksPerXDim{}.at(number<1>{});
 
             static_assert(row_y_size % row_y_packs == 0);
@@ -391,9 +391,5 @@ struct BlockReduce2D
     InDistributedTensor t;
     InDataType reduce_init;
 };
-
-// deduction guide
-template <typename T>
-CK_TILE_HOST_DEVICE_EXTERN BlockReduce2D(const T&, const typename T::DataType&) -> BlockReduce2D<T>;
 
 } // namespace ck_tile

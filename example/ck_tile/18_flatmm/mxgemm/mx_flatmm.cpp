@@ -148,7 +148,7 @@ auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("m", "32", "m dimension")
-        .insert("n", "128", "n dimension")
+        .insert("n", "512", "n dimension")
         .insert("k", "256", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Row by default")
@@ -158,7 +158,7 @@ auto create_args(int argc, char* argv[])
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert(
-            "mx_prec", "fp4xfp4", "data type for activation and weight, support: fp6xfp6, fp8xfp8")
+            "mx_prec", "fp4xfp4", "data type for activation and weight, support: fp4xfp4, fp8xfp8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
@@ -304,6 +304,28 @@ int run_mx_flatmm_example(int argc, char* argv[])
                                                   ck_tile::fp8_t,
                                                   ck_tile::fp16_t,
                                                   MXfp8_FlatmmConfig16,
+                                                  false>(argc, argv, Row{}, Col{}, Row{});
+            else
+                throw std::runtime_error("Only support non-persistent kernel now!");
+        }
+        else if(mx_prec == "fp8xfp4")
+        {
+            if(persistent_opt == 0)
+                return run_mx_flatmm_with_layouts<ck_tile::fp8_t,
+                                                  ck_tile::pk_fp4_t,
+                                                  ck_tile::fp16_t,
+                                                  MXf8f4_FlatmmConfig16,
+                                                  false>(argc, argv, Row{}, Col{}, Row{});
+            else
+                throw std::runtime_error("Only support non-persistent kernel now!");
+        }
+        else if(mx_prec == "fp4xfp8")
+        {
+            if(persistent_opt == 0)
+                return run_mx_flatmm_with_layouts<ck_tile::pk_fp4_t,
+                                                  ck_tile::fp8_t,
+                                                  ck_tile::fp16_t,
+                                                  MXf4f8_FlatmmConfig16,
                                                   false>(argc, argv, Row{}, Col{}, Row{});
             else
                 throw std::runtime_error("Only support non-persistent kernel now!");

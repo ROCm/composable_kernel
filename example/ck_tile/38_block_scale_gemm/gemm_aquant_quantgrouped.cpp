@@ -4,7 +4,11 @@
 #include "run_gemm_quant_example.inc"
 
 template <typename T>
-using GemmConfig = GemmConfigQuantDecode<T>;
+using GemmConfig = GemmConfigQuantDecodeInterwave<T>;
+
+// GemmConfigQuantPrefill is also supported for aquant grouped quantization
+// template <typename T>
+// using GemmConfig = GemmConfigQuantPrefill<T>;
 
 void aquant_quantgrouped_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)

@@ -235,20 +235,20 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 {
     using DeviceOp = DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle;
 
-    static constexpr auto Gemm0MXdlPerWave64 = GetNXdlPerWave2<BlockSize,
-                                                               Gemm0NPerBlock,
-                                                               Gemm0MPerBlock,
-                                                               Gemm0NPerXdl,
-                                                               Gemm0MPerXdl,
-                                                               Gemm0NXdlPerWave,
-                                                               true>();
-    static constexpr auto Gemm0MXdlPerWave32 = GetNXdlPerWave2<BlockSize,
-                                                               Gemm0NPerBlock,
-                                                               Gemm0MPerBlock,
-                                                               Gemm0NPerXdl,
-                                                               Gemm0MPerXdl,
-                                                               Gemm0NXdlPerWave,
-                                                               false>();
+    static constexpr auto Gemm0MXdlPerWave64 = GetXdlPerWave2<BlockSize,
+                                                              Gemm0NPerBlock,
+                                                              Gemm0MPerBlock,
+                                                              Gemm0NPerXdl,
+                                                              Gemm0MPerXdl,
+                                                              Gemm0NXdlPerWave,
+                                                              true>();
+    static constexpr auto Gemm0MXdlPerWave32 = GetXdlPerWave2<BlockSize,
+                                                              Gemm0NPerBlock,
+                                                              Gemm0MPerBlock,
+                                                              Gemm0NPerXdl,
+                                                              Gemm0MPerXdl,
+                                                              Gemm0NXdlPerWave,
+                                                              false>();
 
     static constexpr index_t NumD0Tensor = D0sDataType::Size();
     static constexpr index_t NumD1Tensor = D1sDataType::Size();
@@ -825,6 +825,11 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     {
         if(!ck::is_xdl_wmma_supported<A0DataType, B0DataType, Gemm0MPerXdl, Gemm0NPerXdl>())
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "wrong! XDL/WMMA not supported for these datatypes or operation sizes."
+                          << std::endl;
+            }
             return false;
         }
 
@@ -843,6 +848,11 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
              CheckDLayout<tensor_layout::gemm::RowMajor, D1sLayout, NumD1Tensor>() &&
              is_same_v<tensor_layout::gemm::RowMajor, E1Layout>))
         {
+
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "wrong! Unsupported tensor layout combination." << std::endl;
+            }
             return false;
         }
 

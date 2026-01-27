@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -165,10 +165,13 @@ class GemmProfiler
         auto [name, avg_time] = kernel_run_result;
         auto dp_persistent =
             SelectedKernel::UsePersistentKernel ? "PersistentKernel" : "NonPersistentKernel";
+
         auto reduction_strategy =
             SelectedKernel::reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic
                 ? "Atomic"
-                : "Reduction";
+            : SelectedKernel::reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction
+                ? "Reduction"
+                : "TreeReduction";
 
         KernelInstance kernel_instance{
             name, dp_persistent, reduction_strategy, gemm_problem, {-1.0f, -1.0f, -1.0f}};

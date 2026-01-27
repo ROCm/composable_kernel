@@ -51,6 +51,39 @@ TEST(StreamKTilePartitionerBaseConstructor, EdgeCase)
     validate_streamk_base_constructor<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
+TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsLessThan128Bytes)
+{
+    using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
+                                        ck_tile::StreamKReductionStrategy::Reduction>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 128);
+}
+
+TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsEqual128Bytes)
+{
+    using Config = StreamKTilePartitionerBaseConfigFlagsSizeEqual128Bytes;
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
+                                        ck_tile::StreamKReductionStrategy::Reduction>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 128);
+}
+
+TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsGreaterThan128Bytes)
+{
+    using Config = StreamKTilePartitionerBaseConfigFlagsSizeGreaterThan128Bytes;
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
+                                        ck_tile::StreamKReductionStrategy::Reduction>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 256);
+}
+
 TEST(StreamKTilePartitionerBaseGetWorkSpaceSize, AtomicStrategy)
 {
     using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
@@ -71,7 +104,9 @@ TEST(StreamKTilePartitionerBaseGetWorkSpaceSize, ReductionStrategy)
 
     ck_tile::index_t expected_partials_size =
         sizeof(float) * Config::M_TILE * Config::N_TILE * Config::GRID;
-    ck_tile::index_t expected_flags_size = sizeof(ck_tile::index_t) * Config::GRID;
+    // Since GRID is 3, the final padded flags array must be 128B to ensure the total byte size of
+    // the flags array is 128B-aligned.
+    ck_tile::index_t expected_flags_size = 128;
 
     EXPECT_EQ(tile_partitioner.get_workspace_size(sizeof(float)),
               expected_partials_size + expected_flags_size);
@@ -369,6 +404,85 @@ TEST(StreamKTilePartitionerBaseGetOutputTileIndex, TestAllMappings)
             test_get_output_tile_index(tile_idx, ck_tile::make_tuple(row, col));
             ++tile_idx;
         }
+    }
+}
+
+TEST(StreamKTilePartitionerBaseGetTileLocalCtaIndex, SKOnlyLargeK)
+{
+    /*
+    The StreamKTilePartitionerBaseConfigSKOnlyLargeK has the following form:
+    - tiles in the C tensor: 2
+    - iters_per_tile: 5
+    - grid: 5
+    - dp_tiles: 0
+    - sk_tiles: 2
+    - iters_per_sk_cta: 2
+    - extra_iters: 0
+
+    The tiles with iters are as follows:
+
+    tile_idx: __________0_________|_________1_________|
+    tile_iter:| 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+              |   |   |   |   |   |   |   |   |   |   |
+              <---------------SK Tiles--------------->|
+
+    From the above configuration, we get the following:
+    - SK CTA 0: tile_iter_start is 0 with local CTA index of 0 in tile 0
+    - SK CTA 1: tile_iter_start is 0 with local CTA index of 1 in tile 0
+    - SK CTA 2: tile_iter_start is 0 with local CTA index of 2 in tile 0
+    - SK CTA 2: tile_iter_start is 5 with local CTA index of 0 in tile 1
+    - SK CTA 3: tile_iter_start is 5 with local CTA index of 1 in tile 1
+    - SK CTA 4: tile_iter_start is 5 with local CTA index of 2 in tile 1
+    */
+
+    // Now we create a vector of triplets (tile_iter_start, cta_idx, tile_local_cta_idx) to test
+    std::vector<std::array<ck_tile::index_t, 3>> sk_triplets{
+        {0, 0, 0}, {0, 1, 1}, {0, 2, 2}, {5, 2, 0}, {5, 3, 1}, {5, 4, 2}};
+
+    for(const auto& triplet : sk_triplets)
+    {
+        const auto& [tile_iter_start, cta_idx, tile_local_cta_idx] = triplet;
+        test_get_tile_local_cta_idx<StreamKTilePartitionerBaseConfigSKOnlyLargeK>(
+            tile_iter_start, cta_idx, tile_local_cta_idx);
+    }
+}
+
+TEST(StreamKTilePartitionerBaseGetTileLocalCtaIndex, DP2TileSK)
+{
+    /*
+    The StreamKTilePartitionerBaseConfigDP2TileSK has the following form:
+    - tiles in the C tensor: 7
+    - iters_per_tile: 3
+    - grid: 3
+    - dp_tiles: 3
+    - sk_tiles: 4
+    - iters_per_sk_cta: 2
+    - extra_iters: 2
+
+    The tiles with iters are as follows:
+
+    tile_idx: ____0___|___1___|___2___|___3___|___4___|____5____|____6____|
+    tile_iter:| 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 |
+              |   |   |   |   |   |   |   |   |   |   |    |    |    |    |
+              |<-------DP Tiles------>|<------------SK Tiles------------->|
+
+    From the above configuration, we get the following:
+    - SK CTA 0: tile_iter_start is 6 with local CTA index of 0 in tile 3
+    - SK CTA 0: tile_iter_start is 8 with local CTA index of 0 in tile 4
+    - SK CTA 1: tile_iter_start is 8 with local CTA index of 1 in tile 4
+    - SK CTA 1: tile_iter_start is 10 with local CTA index of 0 in tile 5
+    - SK CTA 2: tile_iter_start is 12 with local CTA index of 0 in tile 6
+    */
+
+    // Now we create a vector of triplets (tile_iter_start, cta_idx, tile_local_cta_idx) to test
+    std::vector<std::array<ck_tile::index_t, 3>> sk_triplets{
+        {6, 0, 0}, {8, 0, 0}, {8, 1, 1}, {10, 1, 0}, {12, 2, 0}};
+
+    for(const auto& triplet : sk_triplets)
+    {
+        const auto& [tile_iter_start, cta_idx, tile_local_cta_idx] = triplet;
+        test_get_tile_local_cta_idx<StreamKTilePartitionerBaseConfigDP2TileSK>(
+            tile_iter_start, cta_idx, tile_local_cta_idx);
     }
 }
 

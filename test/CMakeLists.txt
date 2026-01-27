@@ -33,12 +33,17 @@ set(REGRESSION_TESTS
     test_convnd_fwd
     test_convnd_bwd_data
     test_grouped_convnd_fwd
+    test_grouped_convnd_fwd_bias_bnorm_clamp
+    test_grouped_convnd_fwd_scaleadd_ab
     test_grouped_convnd_bwd_weight
     test_softmax_rank3
     test_softmax_rank4
     test_batchnorm_fwd_rank_4
     test_batchnorm_bwd_rank_4
     test_grouped_convnd_bwd_data_xdl
+    test_grouped_convnd_bwd_data_wmma
+    test_grouped_convnd_bwd_data_wmma_large_cases
+    test_grouped_conv_bwd_data_wmma_scale
     test_conv_tensor_rearrange
     test_gemm_mx
     test_ck_tile_batched_transpose
@@ -63,6 +68,9 @@ function(add_test_executable TEST_NAME)
                 set(test 1)
             endif()
             if((source_name MATCHES "_fp32|_f32") AND NOT "fp32" IN_LIST DTYPES)
+                set(test 1)
+            endif()
+            if((source_name MATCHES "_tf32|_tf32") AND NOT "tf32" IN_LIST DTYPES)
                 set(test 1)
             endif()
             if((source_name MATCHES "_fp64|_f64") AND NOT "fp64" IN_LIST DTYPES)
@@ -154,6 +162,9 @@ function(add_gtest_executable TEST_NAME)
                 set(test 1)
             endif()
             if((source_name MATCHES "_fp32|_f32") AND NOT "fp32" IN_LIST DTYPES)
+                set(test 1)
+            endif()
+            if((source_name MATCHES "_tf32|_tf32") AND NOT "tf32" IN_LIST DTYPES)
                 set(test 1)
             endif()
             if((source_name MATCHES "_fp64|_f64") AND NOT "fp64" IN_LIST DTYPES)
@@ -248,6 +259,7 @@ add_subdirectory(conv_util)
 add_subdirectory(reference_conv_fwd)
 add_subdirectory(gemm)
 add_subdirectory(gemm_add)
+add_subdirectory(gemm_bias_add_reduce)
 add_subdirectory(gemm_blockscale_wp)
 add_subdirectory(gemm_layernorm)
 add_subdirectory(gemm_multi_abd)
@@ -255,17 +267,21 @@ add_subdirectory(gemm_multiply_multiply_wp)
 add_subdirectory(gemm_split_k)
 add_subdirectory(gemm_universal)
 add_subdirectory(gemm_universal_preshuffle)
+add_subdirectory(gemm_ab_scale)
 add_subdirectory(gemm_b_scale)
 add_subdirectory(gemm_universal_streamk)
 add_subdirectory(gemm_reduce)
 add_subdirectory(gemm_universal_reduce)
+add_subdirectory(batched_contraction)
 add_subdirectory(batched_gemm)
 add_subdirectory(batched_gemm_reduce)
 add_subdirectory(batched_gemm_gemm)
+add_subdirectory(batched_gemm_multiple_d_gemm_multiple_d)
 add_subdirectory(batched_gemm_softmax_gemm)
 add_subdirectory(batched_gemm_softmax_gemm_permute)
 add_subdirectory(batched_gemm_b_scale)
 add_subdirectory(grouped_gemm)
+add_subdirectory(grouped_gemm_tile_loop)
 add_subdirectory(reduce)
 add_subdirectory(convnd_fwd)
 add_subdirectory(convnd_bwd_data)
@@ -289,6 +305,7 @@ add_subdirectory(transpose)
 add_subdirectory(permute_scale)
 add_subdirectory(wrapper)
 add_subdirectory(quantization)
+add_subdirectory(device_memory)
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx11")
     add_subdirectory(wmma_op)
 endif()
@@ -304,3 +321,6 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx12")
 endif()
 add_subdirectory(position_embedding)
 add_subdirectory(scatter_gather)
+add_subdirectory(gpu_reference)
+add_subdirectory(util)
+add_subdirectory(gpu_verification)
