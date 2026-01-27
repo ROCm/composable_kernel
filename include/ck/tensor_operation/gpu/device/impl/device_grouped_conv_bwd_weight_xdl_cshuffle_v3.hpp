@@ -398,6 +398,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
     using BGridDesc_K0_N_K1 = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
+    // Disable vector load = 4. It is not supported for Direct Load. Align to 2 in such case.
     static constexpr index_t ABlockTransferSrcScalarPerVectorAligned =
         ABlockTransferSrcScalarPerVector * sizeof(ADataType) == 8
             ? 4 / sizeof(ADataType)

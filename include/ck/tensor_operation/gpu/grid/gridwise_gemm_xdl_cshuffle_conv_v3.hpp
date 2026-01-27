@@ -594,7 +594,7 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
     IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType)
 
-    static constexpr bool LdsScalarLoad = DirectLoad;
+    static constexpr bool LdsScalarLoadToVgpr = DirectLoad;
     using BlockwiseGemmPipe =
         remove_cvref_t<decltype(BlockGemmPipeline_Selector<
                                 BlkGemmPipelineVer,
@@ -621,7 +621,7 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                                 NXdlPerWave,
                                 KPack,
                                 DirectLoad,
-                                LdsScalarLoad>())>;
+                                LdsScalarLoadToVgpr>())>;
 
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
