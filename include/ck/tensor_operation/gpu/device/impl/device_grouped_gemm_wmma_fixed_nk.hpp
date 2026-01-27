@@ -46,9 +46,6 @@ template <typename GridwiseGemm,
           typename CDEElementwiseOperation,
           index_t MinimumOccupancy,
           TailNumber TailNum,
-          index_t MPerBlock,
-          index_t NPerBlock,
-          index_t KPerBlock,
           GemmSpecialization GemmSpec>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
@@ -65,8 +62,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 {
 #if(defined(__gfx11__) || defined(__gfx12__))
 
-    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-        typename GridwiseGemm::EpilogueCShuffle>();
+    using EpilogueType = typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
+                                                       GridwiseGemm::UseDirectStore,
+                                                   typename GridwiseGemm::EpilogueDirectStore,
+                                                   typename GridwiseGemm::EpilogueCShuffle>::type;
+
+    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
     __shared__ char p_shared[LDS_size];
 
     const index_t block_id = get_block_1d_id();
@@ -79,20 +80,18 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         return;
     const index_t group_start = group_id * grid_size_grp;
 
-    auto karg = gemm_desc_ptr[group_id];
+    auto gemmTransKernelArg = gemm_desc_ptr[group_id];
 
-    const index_t M = karg.M;
-    const index_t N = karg.N;
-    const index_t K = karg.K;
+    const index_t M = gemmTransKernelArg.M;
+    const index_t N = gemmTransKernelArg.N;
+    const index_t K = gemmTransKernelArg.K;
 
     if(M == 0 || N == 0 || K == 0)
         return;
 
-
-    const auto StrideE  = karg.StrideE;
+    const auto StrideE  = gemmTransKernelArg.StrideE;
     // const index_t m_padded = GridwiseGemm::CalculateMPadded(M);
     // const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
-
     const auto e_grid_desc_m_n =
         GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
             M,  N,  StrideE);
@@ -101,55 +100,36 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
     const auto local_grid_size = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
 
-    constexpr auto NumDTensor = DsDataType::Size();
-
-    using DsGridPointer = decltype(GridwiseGemm::MakeDsGridPointer());
-
-    DsGridPointer p_ds_grid_;
-
-    static_for<0, NumDTensor, 1>{}([&](auto i) {
-        using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-        // D pointer
-        p_ds_grid_(i) = static_cast<const DDataType*>(karg.p_ds_grid[i]);
-    });
+    // constexpr auto NumDTensor = DsDataType::Size();
 
 #if defined(__gfx11__)
     // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-    using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
+    using c_data_type = remove_cvref_t<remove_pointer_t<decltype(gemmTransKernelArg.p_e_grid)>>;
     if constexpr(!(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
                    (std::is_same_v<c_data_type, ck::half_t> ||
                     std::is_same_v<c_data_type, ck::bhalf_t>)))
     {
 #endif
+        using KernelArgument = typename GridwiseGemm::Argument;
 
-
-        auto epilogue_args =
-            typename GridwiseGemm::EpilogueCShuffle{};
-        
-        const auto desc = gemm_desc_ptr[group_id];
-        const typename GridwiseGemm::Problem problem{
-            desc.M,
-            desc.N,
-            desc.K,
-            std::array<index_t, GridwiseGemm::NumATensor>{desc.StrideA},
-            std::array<index_t, GridwiseGemm::NumBTensor>{desc.StrideB},
-            desc.StrideDs,
-            desc.StrideE,
-            k_batch_
+        KernelArgument kernel_arg{
+            std::array<const void*, 1>{gemmTransKernelArg.p_a_grid},
+            std::array<const void*, 1>{gemmTransKernelArg.p_b_grid},
+            gemmTransKernelArg.p_ds_grid,
+            type_convert<EDataType*>(gemmTransKernelArg.p_e_grid),
+            gemmTransKernelArg.M,
+            gemmTransKernelArg.N,
+            gemmTransKernelArg.K,
+            std::array<index_t, 1>{gemmTransKernelArg.StrideA},
+            std::array<index_t, 1>{gemmTransKernelArg.StrideB},
+            gemmTransKernelArg.StrideDs,
+            gemmTransKernelArg.StrideE,
+            k_batch_,
+            a_element_op,
+            b_element_op,
+            c_element_op,
+            false
         };
-
-        using AsGridPointer = typename GridwiseGemm::AsGridPointer;
-        using ADataType0    = remove_cvref_t<tuple_element_t<0, AsDataType>>;
-
-        AsGridPointer p_as_grid_ = make_tuple(
-            static_cast<const ADataType0*>(karg.p_a_grid)
-        );
-        using BsGridPointer = typename GridwiseGemm::BsGridPointer;
-        using BDataType0    = remove_cvref_t<tuple_element_t<0, BsDataType>>;
-
-        BsGridPointer p_bs_grid_ = make_tuple(
-            static_cast<const BDataType0*>(karg.p_b_grid)
-        );
 
 
         index_t id_off   = 0;
@@ -160,24 +140,26 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             const auto block_2_etile_map =
                 GroupedGemmBlock2ETileMap(local_b2c_tile_map, group_start, id_off);
 
+            auto tile_index =
+            block_2_etile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+
+            auto splitk_batch_offset =
+                typename GridwiseGemm::SplitKBatchOffset(kernel_arg, tile_index[Number<0>{}]);
+
+            auto epilogue_args = EpilogueType{};
+
             GridwiseGemm::template Run<HasMainKBlockLoop,
-                                       CGlobalMemoryDataOperation,
-                                       TailNum,
-                                       remove_cvref_t<decltype(block_2_etile_map)>,
-                                       typename GridwiseGemm::EpilogueCShuffle,
-                                       1,
-                                       2>
-            (p_as_grid_,
-            p_bs_grid_,
-            p_ds_grid_,
-            static_cast<EDataType*>(karg.p_e_grid),
-            static_cast<void*>(p_shared),
-            problem,
-            block_2_etile_map,
-            a_element_op,
-            b_element_op,
-            c_element_op,
-            epilogue_args);
+                                   CGlobalMemoryDataOperation,
+                                   TailNum,
+                                   GroupedGemmBlock2ETileMap,
+                                   EpilogueType,
+                                   1, // Block2CTileMap MBlock index
+                                   2  // Block2CTileMap NBlock index
+                                   >(static_cast<void*>(p_shared),
+                                     splitk_batch_offset,
+                                     kernel_arg,
+                                     block_2_etile_map,
+                                     epilogue_args);
 
             id_off += grid_size_grp;
             id_local += grid_size_grp;
@@ -305,7 +287,7 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        Sequence<CDEBlockTransferScalarPerVector_NPerBlock>,
+        Sequence<CDEBlockTransferScalarPerVector_NPerBlock, CDEBlockTransferScalarPerVector_NPerBlock, CDEBlockTransferScalarPerVector_NPerBlock>,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
@@ -743,9 +725,6 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
                                                               CDEElementwiseOperation,
                                                               min_occupancy_,
                                                               tail_num_,
-                                                              MPerBlock,
-                                                              NPerBlock,
-                                                              KPerBlock,
                                                               GemmSpec>;
 
                     return launch_and_time_kernel(stream_config,
@@ -861,21 +840,23 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
         template <typename Lambda>
         void SelectTailNumber(TailNumber tail_num, Lambda&& lambda)
         {
-            switch(tail_num)
-            {
-                case TailNumber::Full:   lambda(std::integral_constant<TailNumber, TailNumber::Full>{}); break;
-                case TailNumber::Empty:  lambda(std::integral_constant<TailNumber, TailNumber::Empty>{}); break;
-                case TailNumber::One:    lambda(std::integral_constant<TailNumber, TailNumber::One>{}); break;
-                case TailNumber::Two:    lambda(std::integral_constant<TailNumber, TailNumber::Two>{}); break;
-                case TailNumber::Three:  lambda(std::integral_constant<TailNumber, TailNumber::Three>{}); break;
-                case TailNumber::Four:   lambda(std::integral_constant<TailNumber, TailNumber::Four>{}); break;
-                case TailNumber::Five:   lambda(std::integral_constant<TailNumber, TailNumber::Five>{}); break;
-                case TailNumber::Six:    lambda(std::integral_constant<TailNumber, TailNumber::Six>{}); break;
-                case TailNumber::Seven:  lambda(std::integral_constant<TailNumber, TailNumber::Seven>{}); break;
-                case TailNumber::Odd:    lambda(std::integral_constant<TailNumber, TailNumber::Odd>{}); break;
-                case TailNumber::Even:   lambda(std::integral_constant<TailNumber, TailNumber::Even>{}); break;
-                default:                 lambda(std::integral_constant<TailNumber, TailNumber::Full>{}); break;;
-            }
+            ignore = tail_num;
+            lambda(std::integral_constant<TailNumber, TailNumber::Full>{});
+            // switch(tail_num)
+            // {
+            //     case TailNumber::Full:   lambda(std::integral_constant<TailNumber, TailNumber::Full>{}); break;
+            //     case TailNumber::Empty:  lambda(std::integral_constant<TailNumber, TailNumber::Empty>{}); break;
+            //     case TailNumber::One:    lambda(std::integral_constant<TailNumber, TailNumber::One>{}); break;
+            //     case TailNumber::Two:    lambda(std::integral_constant<TailNumber, TailNumber::Two>{}); break;
+            //     case TailNumber::Three:  lambda(std::integral_constant<TailNumber, TailNumber::Three>{}); break;
+            //     case TailNumber::Four:   lambda(std::integral_constant<TailNumber, TailNumber::Four>{}); break;
+            //     case TailNumber::Five:   lambda(std::integral_constant<TailNumber, TailNumber::Five>{}); break;
+            //     case TailNumber::Six:    lambda(std::integral_constant<TailNumber, TailNumber::Six>{}); break;
+            //     case TailNumber::Seven:  lambda(std::integral_constant<TailNumber, TailNumber::Seven>{}); break;
+            //     case TailNumber::Odd:    lambda(std::integral_constant<TailNumber, TailNumber::Odd>{}); break;
+            //     case TailNumber::Even:   lambda(std::integral_constant<TailNumber, TailNumber::Even>{}); break;
+            //     default:                 lambda(std::integral_constant<TailNumber, TailNumber::Full>{}); break;;
+            // }
         }
 
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
