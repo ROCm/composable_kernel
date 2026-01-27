@@ -96,6 +96,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
     static constexpr auto AK0PerBlock = Number<KPerBlock / AK1Value>{};
     static constexpr auto BK0PerBlock = Number<KPerBlock / BK1Value>{};
 
+    static constexpr ck::index_t Gm = 2;
+
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     using GridwiseGemmPipe = remove_cvref_t<
@@ -143,24 +145,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                            Number<CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>{}));
 
         return c_shuffle_block_desc_mblock_mperblock_nblock_nperblock;
-    }
-
-    __host__ __device__ static constexpr auto
-    GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerGroup_Gm()
-    {
-        constexpr ck::index_t Gm = 2;
-        constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-        constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
-
-        constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_npergroup_gm =
-            make_naive_tensor_descriptor_packed(
-                make_tuple(I1,
-                           Number<CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl>{},
-                           I1,
-                           Number<CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl / Gm>{},
-                           Number<Gm>{}));
-
-        return c_shuffle_block_desc_mblock_mperblock_nblock_npergroup_gm;
     }
 
     // ck::Tuple<const D0DataType*, const D1DataType*, ...>
@@ -244,21 +228,22 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         const auto M = e_grid_desc_m_n.GetLength(I0);
         const auto N = e_grid_desc_m_n.GetLength(I1);
 
-        constexpr ck::index_t Gm = 2;
-
+        const auto MPerGroup = MPerBlock / Gm;
         const auto NPerGroup = NPerBlock / Gm;
+
         const auto MBlock = M / MPerBlock;
         const auto NBlock = N / NPerBlock;
 
         std::cout << "MBlock: " << MBlock << ", NBlock: " << NBlock << std::endl;
-        std::cout << "MPerBlock: " << MPerBlock << ", NPerBlock: " << NPerBlock << ", NPerGroup: " << NPerGroup << std::endl;
+        std::cout << "MPerBlock: " << MPerBlock << ", NPerBlock: " << NPerBlock << std::endl;
+        std::cout << "MPerGroup: " << MPerGroup << ", NPerGroup: " << NPerGroup << std::endl;
 
         const auto e_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             e_grid_desc_m_n,
             make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
-                       make_unmerge_transform(make_tuple(NBlock, Number<NPerGroup>{}, Number<Gm>{}))),
+                       make_unmerge_transform(make_tuple(NBlock, Number<NPerBlock>{}))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
-            make_tuple(Sequence<0, 1>{}, Sequence<2, 3, 4>{}));
+            make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
 
         return e_grid_desc_mblock_mperblock_nblock_nperblock;
     }
@@ -778,9 +763,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 
-            constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_npergroup_gm =
-                GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerGroup_Gm();
-
             auto c_shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
                 static_cast<CShuffleDataType*>(p_shared),
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
@@ -888,9 +870,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                       vpgr_to_lds_element_op()};
 
             // tuple of reference to C/Ds tensor descriptors
-            // This needs to be 5D, i.e., split NPerBlock into (NPerBlock/Gm, Gm)
             const auto c_ds_desc_refs = concat_tuple_of_reference(
-                tie(c_shuffle_block_desc_mblock_mperblock_nblock_npergroup_gm),
+                tie(c_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
                 generate_tie([&](auto i) -> const auto& // return type should be reference
                              { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
                              Number<NumDTensor>{}));
@@ -904,14 +885,12 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
             // tuple of starting index of C/Ds blockwise copy
             const auto idx_c_ds_block_begin = container_concat(
-                make_tuple(make_multi_index(0, 0, 0, 0, 0)),
+                make_tuple(make_multi_index(0, 0, 0, 0)),
                 generate_tuple(
                     [&](auto) {
-                        return make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0, 0);
+                        return make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0);
                     },
                     Number<NumDTensor>{}));
-
-            constexpr ck::index_t Gm = 2;
 
             // blockwise copy C/D/E between LDS and global
             auto cde_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7<
@@ -928,11 +907,10 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                 Sequence<1,
                          CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
                          1,
-                         CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl/Gm,
-                         Gm>, // BlockSliceLengths,
+                         CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
                 CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                Sequence<0, 1, 2, 3, 4>, // typename ThreadClusterArrangeOrder,
-                Sequence<0, 1, 2, 3, 4>, // typename DimAccessOrder,
+                Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
+                Sequence<0, 1, 2, 3>, // typename DimAccessOrder,
                 3,                    // index_t VectorDim,
                 CDEShuffleBlockTransferScalarPerVector_NPerBlock, // ScalarPerVector
                 sequence_merge_t<
@@ -943,7 +921,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                 {c_ds_desc_refs,
                  idx_c_ds_block_begin, // Src (LDS) slice origins
                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                 make_tuple(make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0, 0)), // Dst (global) slice origins
+                 make_tuple(make_multi_index(block_work_idx[I0], 0, block_work_idx[I1], 0)), // Dst (global) slice origins
                  lds_to_global_element_op()};
 
             // space filling curve for threadwise C in VGPR before shuffle
@@ -961,13 +939,12 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 
             // space filling curve for shuffled blockwise C/D/E
             constexpr auto sfc_cde_block =
-                SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock/Gm, Gm>,
-                                  Sequence<0, 2, 1, 3, 4>,
+                SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock>,
+                                  Sequence<0, 2, 1, 3>,
                                   Sequence<1,
                                            CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
                                            1,
-                                           CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl / Gm,
-                                           Gm>>{};
+                                           CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>>{};
 
             constexpr index_t num_access = sfc_c_vgpr.GetNumOfAccess();
 

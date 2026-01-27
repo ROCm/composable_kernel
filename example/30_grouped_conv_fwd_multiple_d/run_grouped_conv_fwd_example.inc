@@ -4,7 +4,7 @@
 // Best instance for most difficult fwd case
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance =
-    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
         NDimSpatial,
         InputLayout<NDimSpatial>,
         WeightLayout<NDimSpatial>,
@@ -21,7 +21,6 @@ using DeviceConvFwdInstance =
         OutElementOp,
         ConvSpec,    // ConvForwardSpecialization
         GemmSpec,    // GemmSpecialization
-        1,           //
         256,         // BlockSize
         64,         // MPerBlock
         64,         // NPerBlock
@@ -46,14 +45,16 @@ using DeviceConvFwdInstance =
         4,           // BBlockTransferSrcScalarPerVector
         8,           // BBlockTransferDstScalarPerVector_BK1
         1,           // BBlockLdsExtraN
-        1,
-        1,
-        S<1, 32, 1, 2, 2>, // CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        1,          // Vector load/store size for output tensor = CDEBlockTransferScalarPerVector_NPerBlock
+        1,           // CShuffleMXdlPerWavePerShuffle
+        1,           // CShuffleNXdlPerWavePerShuffle
+        S<1, 32, 1, 4>, // CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock, must match with num merged groups
+        2,          // Vector load/store size for output tensor = CDEBlockTransferScalarPerVector_NPerBlock
+        ck::BlockGemmPipelineScheduler::Intrawave,
+        ck::BlockGemmPipelineVersion::v1,
         InKernelDataType, 
-        WeiKernelDataType, 
-        ck::LoopScheduler::Default, 
-        2>;  // Number of merged groups
+        WeiKernelDataType,
+        false, // No direct load
+        2>; // Num groups to merge
 
 // Best instance for 2nd most difficult fwd case, increase the B block src vector size?
 /*

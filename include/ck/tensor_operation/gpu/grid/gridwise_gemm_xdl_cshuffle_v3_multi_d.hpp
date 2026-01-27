@@ -1850,12 +1850,12 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                 MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     ds_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
-            const auto ds_grid_buf = generate_tuple(
-                [&](auto i) {
-                    return make_dynamic_buffer<AddressSpaceEnum::Global>(
-                        p_ds_grid[i], ds_grid_desc_m_n[i].GetElementSpaceSize());
-                },
-                Number<NumDTensor>{});
+            // const auto ds_grid_buf = generate_tuple(
+            //     [&](auto i) {
+            //         return make_dynamic_buffer<AddressSpaceEnum::Global>(
+            //             p_ds_grid[i], ds_grid_desc_m_n[i].GetElementSpaceSize());
+            //     },
+            //     Number<NumDTensor>{});
 
             // tuple of reference to C/Ds tensor descriptors
             const auto c_ds_desc_refs = concat_tuple_of_reference(
@@ -1865,11 +1865,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                              Number<NumDTensor>{}));
 
             // tuple of reference to C/Ds tensor descriptors
-            const auto c_ds_buf_refs = concat_tuple_of_reference(
-                tie(c_shuffle_block_buf),
-                generate_tie([&](auto i) -> const auto& // return type should be reference
-                             { return ds_grid_buf[i]; },
-                             Number<NumDTensor>{}));
+            // const auto c_ds_buf_refs = concat_tuple_of_reference(
+            //     tie(c_shuffle_block_buf),
+            //     generate_tie([&](auto i) -> const auto& // return type should be reference
+            //                  { return ds_grid_buf[i]; },
+            //                  Number<NumDTensor>{}));
 
             // tuple of starting index of C/Ds blockwise copy
             const auto idx_c_ds_block_begin = container_concat(
@@ -1891,8 +1891,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                 ThisThreadBlock,
                 decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
                 Tuple<EDataType>,
-                decltype(c_ds_desc_refs),
-                decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
+                decltype(c_ds_desc_refs), // SrcDesc
+                decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)), // DstDesc
                 conditional_t<!DoElementwiseBeforeCShuffle,
                               CElementwiseOperation,
                               tensor_operation::element_wise::PassThrough>,
@@ -1903,9 +1903,9 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                          1,
                          CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
                 CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
-                Sequence<0, 1, 2, 3>, // typename SrcDimAccessOrder,
-                Sequence<0, 1, 2, 3>, // typename DstDimAccessOrder,
+                Sequence<0, 2, 1, 3>, // typename ThreadClusterArrangeOrder,
+                Sequence<0, 2, 1, 3>, // typename SrcDimAccessOrder,
+                Sequence<0, 2, 1, 3>, // typename DstDimAccessOrder // Sequence<0, 1, 2, 3>
                 3,                    // index_t SrcVectorDim,
                 3,                    // index_t DstVectorDim,
                 CDEShuffleBlockTransferScalarPerVectors,
@@ -1915,10 +1915,10 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                     uniform_sequence_gen_t<NumDTensor,
                                            false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
                 Sequence<false>>                    // ThreadTransferDstResetCoordinateAfterRunFlags
-                {c_ds_desc_refs,
-                 idx_c_ds_block_begin,
-                 tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                 make_tuple(make_multi_index(block_m_id, 0, block_n_id, 0)),
+                {c_ds_desc_refs, // SrcDesc
+                 idx_c_ds_block_begin, // SrcSliceBegin
+                 tie(e_grid_desc_mblock_mperblock_nblock_nperblock), // DstDesc
+                 make_tuple(make_multi_index(block_m_id, 0, block_n_id, 0)), // DstSliceBegin
                  lds_to_global_element_op()};
 
             // space filling curve for threadwise C in VGPR
@@ -1939,7 +1939,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             // space filling curve for shuffled blockwise C/D/E
             constexpr auto sfc_cde_block =
                 SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock>,
-                                  Sequence<0, 2, 1, 3>,
+                                Sequence<0, 2, 1, 3>,
                                   Sequence<1,
                                            CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl,
                                            1,
@@ -1962,11 +1962,80 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                 block_sync_lds();
 
                 // each block copy its data from LDS to global
-                cde_block_copy_lds_and_global.Run(
-                    c_ds_desc_refs,
-                    c_ds_buf_refs,
+                // cde_block_copy_lds_and_global.Run(
+                //     c_ds_desc_refs,
+                //     c_ds_buf_refs,
+                //     tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                //     tie(c_grid_buf));
+
+                const auto& lds_to_linear_index = [](ck::index_t lds_row, ck::index_t lds_col) {
+                    const auto nPerBlock = CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl;
+                    return lds_row * nPerBlock + lds_col;
+                };
+
+                const auto tid = threadIdx.x;
+                //const auto diagonal_block_id = tid % 32;
+                //const ck::index_t convK = 4;
+                const auto group_id = threadIdx.x % 2;
+                const ck::index_t row_offset = group_id;
+                const auto lds_col_idx = tid;
+                float2 buffer;
+                ck::half_t* buf_ptr = reinterpret_cast<ck::half_t*>(&buffer);
+                auto lds_ptr = static_cast<CShuffleDataType*>(p_shared);
+                buf_ptr[0] = lds_ptr[lds_to_linear_index(row_offset, lds_col_idx)];
+                buf_ptr[1] = lds_ptr[lds_to_linear_index(row_offset + 2, lds_col_idx)];
+                buf_ptr[2] = lds_ptr[lds_to_linear_index(row_offset + 4, lds_col_idx)];
+                buf_ptr[4] = lds_ptr[lds_to_linear_index(row_offset + 6, lds_col_idx)];
+                cde_block_copy_lds_and_global.RunWrite(
                     tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                    tie(c_grid_buf));
+                    tie(c_grid_buf),
+                    buffer);
+
+
+                // LDS Debugging Start
+                __syncthreads();
+                if (threadIdx.x == 0 && blockIdx.x == 0)
+                {
+                    // Print LDS content for MBlock, NBlock, MPerBlock, NPerBlock
+                    const auto mBlock = 1;
+                    const auto nBlock = 1;
+                    const auto mPerBlock = CShuffleMXdlPerWavePerShuffle * MWave * MPerXdl;
+                    const auto nPerBlock = CShuffleNXdlPerWavePerShuffle * NWave * NPerXdl;
+                    printf("LDS content for %d x %d block, %d x %d per block:\n", 
+                        static_cast<int>(mBlock), 
+                        static_cast<int>(nBlock), 
+                        static_cast<int>(mPerBlock), 
+                        static_cast<int>(nPerBlock));
+                    for (index_t mb = 0; mb < mBlock; ++mb)
+                    {
+                        for (index_t nb = 0; nb < nBlock; ++nb)
+                        {
+                            printf("Block (%d, %d):\n", static_cast<int>(mb), static_cast<int>(nb));
+                            for (index_t npb = 0; npb < nPerBlock; ++npb)
+                            {
+                                for (index_t mpb = 0; mpb < mPerBlock; ++mpb)
+                                {
+                                        // Calculate the linear index in LDS
+                                        index_t lds_index = 
+                                            mb * mPerBlock * nBlock * nPerBlock + 
+                                            nb * nPerBlock * mPerBlock + 
+                                            mpb * nPerBlock + 
+                                            npb;
+                                        // Assuming CShuffleDataType is int for printing
+                                        int value = static_cast<int>(static_cast<CShuffleDataType*>(
+                                            p_shared)[lds_index]);
+                                        printf("%4d ", value);
+                                    }
+                                    printf("\n");
+                                }
+                            printf("----\n");
+                            }
+                        printf("========\n");
+                    }
+
+                }
+                // LDS Debugging End
+
 
                 if constexpr(access_id < num_access - 1)
                 {
