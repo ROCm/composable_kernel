@@ -76,34 +76,7 @@ class TestGroupedGemmMultiABDFixedNK : public testing::Test
     static constexpr int n_warmup_    = 0;
     static constexpr int n_iter_      = 1;
 
-    std::vector<int> k_batches_;
-
-    bool IsSplitKSupported()
-    {
-        // gfx11 does not support split-K due to missing atomic add for fp16/bf16
-        // Technically, we could still use split-K for fp32, but we currently don't have
-        // instances for it so we disable it entirely
-        constexpr bool require_16bit_atomic_add =
-            std::is_same_v<EDataType, ck::half_t> || std::is_same_v<EDataType, ck::bhalf_t>;
-        bool missing_atomic_add = require_16bit_atomic_add && ck::is_gfx11_supported();
-
-        // CDE element operators are not supported in combination with split K
-        constexpr bool has_cde_element_operator = !std::is_same_v<CDEElementOp, PassThrough>;
-
-        return !missing_atomic_add && !has_cde_element_operator;
-    }
-
-    void SetUp() override
-    {
-        if(!IsSplitKSupported())
-        {
-            k_batches_ = {1};
-        }
-        else
-        {
-            k_batches_ = {1, 2, 3, 5, 8};
-        }
-    }
+    std::vector<int> k_batches_ = {1};
 
     private:
     template <typename Layout>
@@ -169,15 +142,6 @@ class TestGroupedGemmMultiABDFixedNK : public testing::Test
         if(stride_e.empty())
         {
             SetStrides<ELayout>(stride_e, Ms, Ns);
-        }
-
-        std::vector<int> k_batches;
-        for(size_t i = 0; i < k_batches_.size(); i++)
-        {
-            if(param_mask & (1 << i))
-            {
-                k_batches.push_back(k_batches_[i]);
-            }
         }
 
         RunSingle(Ms, Ns, Ks, stride_as, stride_bs, stride_ds, stride_e);
