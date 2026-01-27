@@ -66,16 +66,16 @@ struct MxGemmConfig
     static constexpr int TileParitionerM01          = 4;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr bool DoubleSmemBuffer          = true;  // comp_async uses double buffer
+    static constexpr bool DoubleSmemBuffer          = false;  // comp_async uses double buffer
 
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN = false;
 };
 struct MXfp4_GemmConfig16 : MxGemmConfig
 {
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 256;
+    static constexpr ck_tile::index_t M_Tile = 32;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 512;
 };
 
 // GEMM config with 16x16 warp tile

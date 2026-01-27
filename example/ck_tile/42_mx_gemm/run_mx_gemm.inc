@@ -69,6 +69,12 @@ int run_mx_gemm_with_layouts(int argc,
         ck_tile::FillConstant<ScaleType>{ScaleType(1.f)}(scale_a_host);
         ck_tile::FillConstant<ScaleType>{ScaleType(1.f)}(scale_b_host);
         break;
+    case 2:
+        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_host);
+        ck_tile::FillConstant<ScaleType>{ScaleType(1.f)}(scale_a_host);
+        ck_tile::FillConstant<ScaleType>{ScaleType(1.f)}(scale_b_host);
+        break;
     }
 
     ck_tile::DeviceMem a_dev_buf(a_host.get_element_space_size_in_bytes());
