@@ -307,6 +307,7 @@ class GemmKernelBuilder:
             "fp16": "ck_tile::fp16_t",
             "fp8": "ck_tile::fp8_t",
             "bf16": "ck_tile::bf16_t",
+            "bf8": "ck_tile::bf8_t",
             "fp32": "float",
             "fp64": "double",
         }
@@ -376,6 +377,7 @@ class GemmKernelBuilder:
         reduction_strategy_map = {
             "atomic": "ck_tile::StreamKReductionStrategy::Atomic",
             "reduction": "ck_tile::StreamKReductionStrategy::Reduction",
+            "tree": "ck_tile::StreamKReductionStrategy::TreeReduction",
         }
 
         # Determine accumulator type based on datatype
@@ -550,6 +552,11 @@ struct SelectedKernel {{
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
                 }}
                 else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction)
+                {{
+                    // Reset sk flags to zero before each repetition of the kernel
+                    workspace_data.SetZero();
+                }}
+                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::TreeReduction)
                 {{
                     // Reset sk flags to zero before each repetition of the kernel
                     workspace_data.SetZero();
@@ -776,7 +783,7 @@ def main():
     parser.add_argument(
         "--datatype",
         required=True,
-        choices=["fp16", "fp8", "bf16", "fp32", "fp64"],
+        choices=["fp16", "fp8", "bf16", "bf8", "fp32", "fp64"],
         help="Data type",
     )
     parser.add_argument(

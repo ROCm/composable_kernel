@@ -29,7 +29,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvTileFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts                       = internal::TileConvTensorLayouts<SIGNATURE, SPATIAL_DIM>;
+    using Layouts                       = internal::TileConvTensorLayouts<SIGNATURE>;
     using Types                         = internal::TileConvTensorTypes<SIGNATURE.data_type>;
     using Ops                           = internal::TileElementwiseOps<SIGNATURE>;
     using AlgorithmType                 = decltype(ALGORITHM);
@@ -98,27 +98,26 @@ struct ConvTileFactory
     using GemmPipeline = typename internal::TilePipelineType<
         BLOCK_GEMM.pipeline_version>::template GemmPipeline<UniversalGemmProblem>;
 
-    using ConvEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
-        typename Types::ADataType,
-        typename Types::BDataType,
-        typename Types::DsDataTypes,
-        typename Types::AccDataType,
-        typename Types::EDataType,
-        typename GroupedConvTraitsType::ImplicitGemmDsLayout,
-        typename GroupedConvTraitsType::FixedGemmParams::ELayout,
-        typename Ops::CDEElementwiseOp,
-        BLOCK.per_block.m,
-        BLOCK.per_block.n,
-        BLOCK_GEMM.warps.m,
-        BLOCK_GEMM.warps.n,
-        BLOCK_GEMM.warp_tile.m,
-        BLOCK_GEMM.warp_tile.n,
-        BLOCK_GEMM.warp_tile.k,
-        GroupedConvTraitsType::FixedGemmParams::TransposeC,
-        // TODO:: This template parameter will be moved inside the kernel
-        BLOCK_GEMM.num_wave_groups,
-        GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
-        SCALAR_PER_VECTOR.c>>;
+    using ConvEpilogue = ck_tile::CShuffleEpilogue<
+        ck_tile::CShuffleEpilogueProblem<typename Types::ADataType,
+                                         typename Types::BDataType,
+                                         typename Types::DsDataTypes,
+                                         typename Types::AccDataType,
+                                         typename Types::EDataType,
+                                         typename GroupedConvTraitsType::ImplicitGemmDsLayout,
+                                         typename GroupedConvTraitsType::FixedGemmParams::ELayout,
+                                         typename Ops::CDEElementwiseOp,
+                                         BLOCK.per_block.m,
+                                         BLOCK.per_block.n,
+                                         BLOCK_GEMM.warps.m,
+                                         BLOCK_GEMM.warps.n,
+                                         BLOCK_GEMM.warp_tile.m,
+                                         BLOCK_GEMM.warp_tile.n,
+                                         BLOCK_GEMM.warp_tile.k,
+                                         GroupedConvTraitsType::FixedGemmParams::TransposeC,
+                                         BLOCK_GEMM.num_wave_groups,
+                                         GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
+                                         SCALAR_PER_VECTOR.c>>;
 
     using Instance = typename internal::GroupedConvolutionTileKernel<SIGNATURE,
                                                                      GroupedConvTraitsType,

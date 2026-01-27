@@ -1,7 +1,7 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-# ONLY XDL_KERNELS
+# XDL_AND_WMMA_KERNELS
 set(GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP)
 include(ShardInstantiation)
 
@@ -69,15 +69,6 @@ generate_sharded_instantiations(
   OUTPUT_DIR ${GENERATED_DIR}/xdl
 )
 
-set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
-generate_sharded_instantiations(
-  INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_16x16_instances
-  TEMPLATE_FILE xdl/device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_16x16_instance.in
-  NUM_SHARDS 3
-  SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
-  OUTPUT_DIR ${GENERATED_DIR}/xdl
-)
-
    # large tensor
    # NHWGC, GKYXC, NHWGK
 
@@ -89,7 +80,6 @@ generate_sharded_instantiations(
   SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
   OUTPUT_DIR ${GENERATED_DIR}/xdl/large_tensor
 )
-
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_xdl_large_tensor_nhwgc_gkyxc_nhwgk_f16_instances
@@ -106,6 +96,15 @@ generate_sharded_instantiations(
   NUM_SHARDS 2
   SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
   OUTPUT_DIR ${GENERATED_DIR}/xdl/large_tensor
+)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_16x16_instances
+  TEMPLATE_FILE xdl/device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_16x16_instance.in
+  NUM_SHARDS 3
+  SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
+  OUTPUT_DIR ${GENERATED_DIR}/xdl
 )
 
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -193,7 +192,7 @@ generate_sharded_instantiations(
   SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
   OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
 )
-   
+
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_mem_intra_instances
@@ -325,4 +324,13 @@ generate_sharded_instantiations(
   OUTPUT_DIR ${GENERATED_DIR}/xdl/comp
 )
 
-add_instance_library(device_grouped_conv2d_fwd_bias_bnorm_clamp_instance ${GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP})
+#WMMA_Cshuffle_v3
+add_instance_library(device_grouped_conv2d_fwd_bias_bnorm_clamp_instance
+   wmma/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
+   wmma/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instance.cpp
+   wmma/large_tensor/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
+   wmma/large_tensor/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_large_tensor_nhwgc_gkyxc_nhwgk_f16_instance.cpp
+   ${GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP}
+)
+
+

@@ -59,8 +59,8 @@ A TensorAdaptor encapsulates a sequence of :ref:`coordinate transformations <ck_
 .. image:: diagrams/adaptors_1.svg
    :alt: Diagram
    :align: center
-Core Components
 
+Core Components
 ~~~~~~~~~~~~~~~
 
 Each TensorAdaptor contains:
@@ -115,7 +115,7 @@ Custom adaptors can be created by specifying which transforms to use and how the
        make_tuple(sequence<0>{})      // to single dim 0
    );
    
-   // The adaptor is embedded in the :ref:`descriptor <ck_tile_descriptors>`
+   // The adaptor is embedded in the descriptor
    // To use it:
    multi_index<1> top_coord{5};  // 1D coordinate
    // This internally calculates: row = 5/3 = 1, col = 5%3 = 2
@@ -309,7 +309,6 @@ A practical example showing how adaptors create efficient :ref:`GPU memory acces
    // - Dimension 0,1: Thread indices
    // - Dimension 2,3: Vector indices within thread
    // Enables coalesced memory access on GPU
-   // See :ref:`ck_tile_thread_mapping` for thread mapping details
 
 Common Transform Chains
 -----------------------

@@ -81,7 +81,23 @@ CMakeUserPresets.json
 # Python cache
 __pycache__/
 
+# Cache directories
 .cache/
+.ck_tile_cache/
+ck_tile_cache/
+**/kernel_cache/
+**/.kernel_cache/
+
+# Dispatcher kernel cache (user-generated, can be large)
+dispatcher/**/kernel_cache/
+dispatcher/**/.kernel_cache/
+dispatcher/**/cached_kernels/
+dispatcher/**/*.hsaco
+dispatcher/**/*.co
+
+# Dispatcher generated JSON exports
+dispatcher/**/*_kernels.json
+dispatcher/**/dispatcher_kernels.json
 
 # Generated test data
 test_data/*
@@ -92,3 +108,7 @@ test_data/*
 # The experimental/builder directory should be tracked despite matching build*
 !experimental/builder
 !experimental/builder/**
+experimental/grouped_convolution_tile_instances/instances/*
+!experimental/grouped_convolution_tile_instances/instances/*.in
+!experimental/grouped_convolution_tile_instances/instances/*.inc
+experimental/grouped_convolution_tile_instances/*.inc

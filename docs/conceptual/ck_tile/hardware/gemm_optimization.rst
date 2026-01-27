@@ -260,7 +260,6 @@ Here's how CK Tile implements an optimized GEMM kernel:
                                        index_t K)
     {
         // Define tile distribution encoding
-        // See :ref:`ck_tile_encoding_internals` and :ref:`ck_tile_tile_distribution`
         using Encoding = tile_distribution_encoding<
             sequence<>,                              // No replication
             tuple<sequence<4, 2, 8, 4>,             // M dimension hierarchy
@@ -274,7 +273,6 @@ Here's how CK Tile implements an optimized GEMM kernel:
         constexpr auto tile_dist = make_static_tile_distribution(Encoding{});
         
         // Create tensor views for global memory
-        // See :ref:`ck_tile_tensor_views` and :ref:`ck_tile_buffer_views`
         auto a_global_view = make_naive_tensor_view<address_space_enum::global>(
             a_global, make_tuple(M, K), make_tuple(K, 1));
         auto b_global_view = make_naive_tensor_view<address_space_enum::global>(
@@ -287,7 +285,6 @@ Here's how CK Tile implements an optimized GEMM kernel:
         const index_t block_n_id = blockIdx.x;
         
         // Create tile windows for loading
-        // See :ref:`ck_tile_tile_window` for tile window details
         auto a_window = make_tile_window(
             a_global_view,
             make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
@@ -301,7 +298,6 @@ Here's how CK Tile implements an optimized GEMM kernel:
             tile_dist);
         
         // Allocate LDS storage
-        // See :ref:`ck_tile_static_distributed_tensor` for distributed tensors
         auto a_lds = make_static_distributed_tensor<ADataType, 
                                                    decltype(tile_dist)>();
         auto b_lds = make_static_distributed_tensor<BDataType, 
@@ -310,7 +306,6 @@ Here's how CK Tile implements an optimized GEMM kernel:
         // Initialize accumulator
         auto c_reg = make_static_distributed_tensor<CDataType, 
                                                    decltype(tile_dist)>();
-        // See :ref:`ck_tile_sweep_tile` for sweep operations
         sweep_tile(c_reg, [](auto idx, auto& val) { val = 0; });
         
         // Main GEMM loop with pipelining
@@ -324,7 +319,6 @@ Here's how CK Tile implements an optimized GEMM kernel:
         // Pipeline loop
         for(index_t k_tile = 0; k_tile < num_k_tiles - 1; ++k_tile) {
             // Move windows for next iteration
-            // See :ref:`ck_tile_coordinate_movement` for window movement
             a_window.move_slice_window(make_tuple(0, KPerBlock));
             b_window.move_slice_window(make_tuple(0, KPerBlock));
             

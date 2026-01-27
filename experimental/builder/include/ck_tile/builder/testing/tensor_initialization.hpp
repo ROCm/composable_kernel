@@ -12,6 +12,7 @@
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
 #include "ck_tile/builder/testing/type_traits.hpp"
+#include "ck_tile/builder/testing/tensor_descriptor.hpp"
 #include "ck_tile/host/host_tensor.hpp"
 #include "ck/utility/data_type.hpp"
 
