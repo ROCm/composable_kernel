@@ -1143,13 +1143,16 @@ struct sorted_sequence_histogram<h_idx, sequence<x>, sequence<r, rs...>>
 };
 } // namespace detail
 
+template <typename, index_t>
+struct array; // declare for later use (array->seq utility)
+
 // SeqSortedSamples: <0, 2, 3, 5, 7>, SeqRange: <0, 3, 6, 9> -> SeqHistogram : <2, 2, 1>
 template <typename SeqSortedSamples, index_t r, index_t... rs>
 CK_TILE_HOST_DEVICE constexpr auto histogram_sorted_sequence(SeqSortedSamples, sequence<r, rs...>)
 {
     constexpr auto bins      = sizeof...(rs); // or categories
     constexpr auto histogram = [&]() {
-        trivial_array<index_t, bins> h{0}; // make sure this can clear all element to zero
+        array<index_t, bins> h{0}; // make sure this can clear all element to zero
         detail::sorted_sequence_histogram<0, SeqSortedSamples, sequence<rs...>>{}(h);
         return h;
     }();
@@ -1162,7 +1165,7 @@ CK_TILE_HOST_DEVICE constexpr auto generate_array(F&& f, number<N>)
 {
     using T = remove_cvref_t<decltype(f(number<0>{}))>;
 
-    return unpack([&f](auto&&... is) { return trivial_array<T, N>{f(is)...}; },
+    return unpack([&f](auto&&... is) { return array<T, N>{f(is)...}; },
                   typename arithmetic_sequence_gen<0, N, 1>::type{});
 }
 

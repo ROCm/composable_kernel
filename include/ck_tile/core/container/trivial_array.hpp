@@ -16,6 +16,6 @@ struct trivial_array
     constexpr const T& operator[](index_t i) const { return data[i]; }
     constexpr T& operator[](index_t i) { return data[i]; }
 
-    constexpr index_t size() const { return N; }
+    constexpr static index_t size() { return N; }
 };
 } // namespace ck_tile
