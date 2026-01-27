@@ -18,6 +18,8 @@ subtrees:
     title: Structure
   - file: conceptual/Composable-Kernel-math.rst
     title: Mathematical basis
+  - file: conceptual/CK-Tile-intra-inter-wave.rst
+    title: Intrawave and interwave scheduling  
   - file: conceptual/ck_tile/CK-tile-index.rst
     title: CK Tile conceptual documentation
 
