@@ -10,23 +10,13 @@
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/utility/functional4.hpp"
+#include "ck/utility/tuple_helper.hpp"
 
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
 namespace tensor_operation {
 namespace host {
-
-// this function is also defined in CK but because of the way we use it in
-// profile_gemm_multi_impl, it requires the arguments to not be const
-template <typename... X, typename... Y>
-auto concat_tuple_of_refs(ck::Tuple<X&...>& tx, ck::Tuple<Y&...>& ty)
-{
-    return ck::unpack2(
-        [&](auto&&... zs) { return ck::Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
-        tx,
-        ty);
-}
 
 template <typename AsTensorTuple,
           typename BsTensorTuple,
@@ -96,7 +86,7 @@ struct ReferenceGemmMultiABD : public device::BaseOperator
                     auto data_refs2 = generate_tie(
                         [&](auto i) -> auto& { return arg.as_m_k_[Number<i>{}](m, k); },
                         Number<NumATensor>{});
-                    auto data_refs = concat_tuple_of_refs(data_refs1, data_refs2);
+                    auto data_refs = concat_tuple_of_reference(data_refs1, data_refs2);
                     unpack(arg.a_element_op_, data_refs);
                 }
             }
@@ -112,7 +102,7 @@ struct ReferenceGemmMultiABD : public device::BaseOperator
                     auto data_refs2 = generate_tie(
                         [&](auto i) -> auto& { return arg.bs_k_n_[Number<i>{}](k, n); },
                         Number<NumBTensor>{});
-                    auto data_refs = concat_tuple_of_refs(data_refs1, data_refs2);
+                    auto data_refs = concat_tuple_of_reference(data_refs1, data_refs2);
                     unpack(arg.b_element_op_, data_refs);
                 }
             }
@@ -145,7 +135,7 @@ struct ReferenceGemmMultiABD : public device::BaseOperator
                     auto data_refs2 = generate_tie(
                         [&](auto i) -> auto& { return arg.ds_m_n_[Number<i>{}](m, n); },
                         Number<NumDTensor>{});
-                    auto data_refs = concat_tuple_of_refs(data_refs1, data_refs2);
+                    auto data_refs = concat_tuple_of_reference(data_refs1, data_refs2);
                     unpack(arg.cde_element_op_, data_refs);
                 }
             }

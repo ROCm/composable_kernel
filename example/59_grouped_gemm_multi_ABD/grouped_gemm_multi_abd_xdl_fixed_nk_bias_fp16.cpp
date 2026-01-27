@@ -212,11 +212,11 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     for(int i = 0; i < group_count; i++)
     {
-        a0_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(A0DataType) * sum_of_m * problem_size.Ks[i]));
+        a0_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(A0DataType) * problem_size.Ms[i] * problem_size.Ks[i]));
 
-        a1_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(A1DataType) * sum_of_m * problem_size.Ks[i]));
+        a1_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(A1DataType) * problem_size.Ms[i] * problem_size.Ks[i]));
 
         b_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(B0DataType) * problem_size.Ns[i] * problem_size.Ks[i]));
@@ -224,19 +224,12 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         d0_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(D0DataType) * problem_size.Ns[i]));
 
-        c_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(EDataType) * sum_of_m * problem_size.Ns[i]));
+        c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(EDataType) * problem_size.Ms[i] * problem_size.Ns[i]));
 
-        a0_tensors_device[i]->ToDevice(a0_tensors[i].mData.data(),
-                                       a0_tensors[i].mDesc.GetElementSpaceSize() *
-                                           sizeof(A0DataType));
-
-        a1_tensors_device[i]->ToDevice(a1_tensors[i].mData.data(),
-                                       a1_tensors[i].mDesc.GetElementSpaceSize() *
-                                           sizeof(A1DataType));
-        b_tensors_device[i]->ToDevice(b_tensors[i].mData.data(),
-                                      b_tensors[i].mDesc.GetElementSpaceSize() *
-                                          sizeof(B0DataType));
+        a0_tensors_device[i]->ToDevice(a0_tensors[i].mData.data());
+        a1_tensors_device[i]->ToDevice(a1_tensors[i].mData.data());
+        b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());
         d0_tensors_device[i]->ToDevice(d0_tensors[i].mData.data());
         c_tensors_device[i]->SetZero();
 

@@ -61,6 +61,8 @@ static constexpr auto GemmDefault    = ck::tensor_operation::device::GemmSpecial
 static constexpr auto GemmMNPadding  = ck::tensor_operation::device::GemmSpecialization::MNPadding;
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
+// NOTE: After adding unit tests for DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK it tuned out that
+// portion of the instances are failing. As a workaround these have been commented out.
 template <typename DsLayout,
           typename DsDataType,
           typename CDEElementOp,

@@ -22,17 +22,6 @@
 namespace ck {
 namespace profiler {
 
-// this function is also defined in CK but because of the way we use it in
-// profile_gemm_multi_impl, it requires the arguments to not be const
-template <typename... X, typename... Y>
-auto concat_tuple_of_refs(ck::Tuple<X&...>& tx, ck::Tuple<Y&...>& ty)
-{
-    return ck::unpack2(
-        [&](auto&&... zs) { return ck::Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
-        tx,
-        ty);
-}
-
 template <typename AsDataType,
           typename BsDataType,
           typename AccDataType,

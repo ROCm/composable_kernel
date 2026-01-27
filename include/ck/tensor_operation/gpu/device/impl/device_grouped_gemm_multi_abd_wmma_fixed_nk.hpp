@@ -55,7 +55,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                       const BElementwiseOperation b_element_op,
                                       const CDEElementwiseOperation cde_element_op)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__)
     __shared__ char p_shared[GridwiseGemm::template GetSharedMemoryNumberOfByte<
         typename GridwiseGemm::EpilogueCShuffle>()];
 
@@ -182,7 +182,6 @@ template <typename AsLayout,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
           GemmSpecialization GemmSpec,
-          ck::index_t NumGemmKPrefetchStage,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -442,16 +441,16 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
     using Block2ETileMap = BlockToCTileMap_KBatch_M00_N0_M01Adapt_MLoops<MPerBlock, NPerBlock>;
     using GroupedGemmBlock2ETileMap = OffsettedBlockToCTileMapMLoops<Block2ETileMap>;
 
-    static constexpr index_t DefaultKBatch = 1;
+    static constexpr index_t DefaultKBatch = 1; // implementation only supports KBatch == 1
     using KernelArgument                   = typename GridwiseGemm::Argument;
 
     using GemmTransKernelArg =
         GroupedGemmMultiABDKernelArgument<NumATensor, NumBTensor, NumDTensor>;
 
-    static constexpr bool CalculateHasMainKBlockLoop(const KernelArgument& karg)
+    static constexpr bool CalculateHasMainKBlockLoop(const GemmTransKernelArg& karg, index_t k_batch)
     {
-        index_t k_grain = karg.KBatch * KPerBlock;
-        index_t K_split = (karg.K + k_grain - 1) / karg.KBatch;
+        index_t k_grain = k_batch * KPerBlock;
+        index_t K_split = (karg.K + k_grain - 1) / k_batch;
         return GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
     }
 
@@ -607,16 +606,6 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
 
                 group_id++;
             }
-
-            const auto e_grid_desc_sum_m_n =
-                GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(sum_of_m,
-                                                                         sum_of_m,
-                                                                         gemm_descs[0].N_,
-                                                                         gemm_descs[0].N_,
-                                                                         gemm_descs[0].stride_C_);
-            const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_sum_m_n, k_batch_};
-
-            barrier_size_grp_ = local_b2c_tile_map.CalculateGridSize(e_grid_desc_sum_m_n);
         }
 
         void UpdateKBatch(index_t) {}
@@ -635,10 +624,9 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
         void* gemm_kernel_host_args_;
         index_t grid_size_;
         index_t grid_size_grp_;
-        index_t barrier_size_grp_;
         index_t sum_of_m;
 
-        index_t k_batch_ = 1;
+        index_t k_batch_;
     };
 
     // Invoker
@@ -651,6 +639,12 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
             if(arg.grouped_gemm_kernel_args_dev == nullptr)
             {
                 throw std::runtime_error("wrong! grouped_gemm_kernel_args_dev is nullptr");
+            }
+
+            if(arg.k_batch_ != 1)
+            {
+                throw std::runtime_error("Split K functionality is not supported for wmma multi "
+                                         "abd fixed nk implementation.");
             }
 
             float ave_time = 0;
@@ -685,17 +679,8 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
                     arg.c_element_op_);
             };
 
-            constexpr auto AtomicAdd = InMemoryDataOperationEnum::AtomicAdd;
             constexpr auto Set       = InMemoryDataOperationEnum::Set;
-
-            if(arg.k_batch_ > 1)
-            {
-                ave_time = launch_kernel(integral_constant<InMemoryDataOperationEnum, AtomicAdd>{});
-            }
-            else
-            {
-                ave_time = launch_kernel(integral_constant<InMemoryDataOperationEnum, Set>{});
-            }
+            ave_time = launch_kernel(integral_constant<InMemoryDataOperationEnum, Set>{});
 
             return ave_time;
         }
@@ -743,17 +728,10 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
 
         for(index_t i = 0; i < arg.group_count_; i++)
         {
-            if(GridwiseGemm::CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[i].K) != true)
+            if(CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[i], arg.k_batch_) != true)
             {
                 supported = false;
             }
-        }
-
-        // For bf16 datatype only kbatch = 1 is supported since there is no AtomicAdd
-        // instruction that supports bf16 and we cannot use splitk because of that
-        if constexpr(std::is_same<AsDataType, ck::bhalf_t>::value)
-        {
-            supported = supported & (arg.k_batch_ == 1);
         }
 
         return supported;
@@ -877,7 +855,7 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
         }
         else
             throw std::runtime_error("The argument pointer is not an object of "
-                                     "DeviceGroupedGemm_Wmma_CShuffleV3::Argument structure!");
+                                     "DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK::Argument structure!");
     }
 
     void SetWorkSpacePointer(BaseArgument* p_arg,
