@@ -315,18 +315,18 @@ Padding for Convolution
 
 .. code-block:: cpp
 
-// Add padding to spatial dimensions
-   auto padded = transform_tensor_descriptor(
-       input_tensor,
-       make_tuple(
-           make_pass_through_transform(N),    // Batch
-           make_pass_through_transform(C),    // Channel
-           make_pad_transform(H, pad_h, pad_h),  // Height
-           make_pad_transform(W, pad_w, pad_w)   // Width
-       ),
-       make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
-       make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{})
-   );
+    // Add padding to spatial dimensions
+    auto padded = transform_tensor_descriptor(
+        input_tensor,
+        make_tuple(
+            make_pass_through_transform(N),    // Batch
+            make_pass_through_transform(C),    // Channel
+            make_pad_transform(H, pad_h, pad_h),  // Height
+            make_pad_transform(W, pad_w, pad_w)   // Width
+            ),
+        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{})
+        );
 
 For a complete convolution example, see :ref:`ck_tile_convolution_example`.
 
