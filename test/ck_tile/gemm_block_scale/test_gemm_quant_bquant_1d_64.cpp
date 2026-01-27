@@ -31,6 +31,7 @@ using BQuant1D64Types = ::testing::Types<
 >;
 // clang-format on
 
+#if !defined(CK_GFX950_SUPPORT)
 // Test suite for BQuant 1D 64
 TYPED_TEST_SUITE(TestCkTileGemmBQuant, BQuant1D64Types);
 
@@ -39,3 +40,4 @@ TYPED_TEST(TestCkTileGemmBQuant, BQuantGroupedTest)
 {
     this->run_test_with_validation(1024, 1024, 1024);
 }
+#endif

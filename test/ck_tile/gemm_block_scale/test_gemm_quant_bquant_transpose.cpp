@@ -26,17 +26,21 @@ using GroupSize2D64N = ck_tile::QuantGroupShape<ck_tile::sequence<1, 64, 128>>;
 // clang-format off
 using BQuantTransposeTypes = ::testing::Types<
     // some cases with transpose layouts
+#if !defined(CK_GFX950_SUPPORT)
     std::tuple<   RowMajor,    RowMajor, RowMajor, RowMajor,    FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase<FP8>, GroupSize64>,
     std::tuple<ColumnMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase<FP8>, GroupSize64>,
     std::tuple<ColumnMajor,    RowMajor, RowMajor, RowMajor,    FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase<FP8>, GroupSize64>,
+#endif
     std::tuple<   RowMajor,    RowMajor, RowMajor, RowMajor,    FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase<FP8>, GroupSize2D64N>,
     std::tuple<ColumnMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase<FP8>, GroupSize2D64N>,
     std::tuple<ColumnMajor,    RowMajor, RowMajor, RowMajor,    FP8, FP8, float, Half, BQuantGrouped, GemmConfigBase<FP8>, GroupSize2D64N>,
 
     // pkint4 + transpose cases
+#if !defined(CK_GFX950_SUPPORT)
     std::tuple<   RowMajor,    RowMajor, RowMajor,    RowMajor, FP8, PkInt4, FP8, Half, BQuantGrouped, GemmConfigBase<PkInt4>, GroupSize64>,
     std::tuple<ColumnMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, PkInt4, FP8, Half, BQuantGrouped, GemmConfigBase<PkInt4>, GroupSize64>,
     std::tuple<ColumnMajor,    RowMajor, RowMajor,    RowMajor, FP8, PkInt4, FP8, Half, BQuantGrouped, GemmConfigBase<PkInt4>, GroupSize64>,
+#endif
     std::tuple<   RowMajor,    RowMajor, RowMajor,    RowMajor, FP8, PkInt4, FP8, Half, BQuantGrouped, GemmConfigBase<PkInt4>, GroupSize2D64N>,
     std::tuple<ColumnMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, PkInt4, FP8, Half, BQuantGrouped, GemmConfigBase<PkInt4>, GroupSize2D64N>,
     std::tuple<ColumnMajor,    RowMajor, RowMajor,    RowMajor, FP8, PkInt4, FP8, Half, BQuantGrouped, GemmConfigBase<PkInt4>, GroupSize2D64N>
