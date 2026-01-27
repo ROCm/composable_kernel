@@ -5,6 +5,8 @@
 
 #include <string_view>
 
+#include "ck_tile/builder/testing/testing.hpp"
+
 /// testing.hpp requires developers of a type of SIGNATURE to implement
 /// quite a lot of functionality for each SIGNATURE. For example, next
 /// to `Args`, `Inputs`, `Outputs`, `run`, they also have to define

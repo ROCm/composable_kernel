@@ -6,7 +6,7 @@
 #include <tuple>
 
 #include "../../experimental/builder/test/impl/conv_signature_types.hpp"
-#include "ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
+#include "ck_tile/builder/testing/conv/ck_tile.hpp"
 
 namespace ck_tile::builder::profiling {
 

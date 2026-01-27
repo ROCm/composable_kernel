@@ -4,8 +4,9 @@
 #include "utils/ckb_conv_test_configs.hpp"
 #include "utils/ckb_conv_test_utils.hpp"
 #include "utils/conv_algorithm_type_utils.hpp"
-#include "ck_tile/builder/testing/conv_fwd_ck.hpp"
-#include "ck_tile/builder/testing/conv_fwd_reference.hpp"
+#include "ck_tile/builder/testing/conv/fwd.hpp"
+#include "ck_tile/builder/testing/conv/fwd_ck.hpp"
+#include "ck_tile/builder/testing/conv/reference.hpp"
 #include "ck_tile/host/device_prop.hpp"
 #include "testing_utils.hpp"
 
@@ -14,6 +15,7 @@ namespace ckt = ck_tile::builder::test;
 namespace cku = ck_tile::builder::test_utils;
 
 using ck_tile::test::MatchesReference;
+using ck_tile::test::SuccessfulRun;
 
 constexpr auto SIGNATURE =
     ckt::ConvSignature{.spatial_dim            = 2,
@@ -50,10 +52,11 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, Create)
                             "MNKPadding"});
 }
 
-TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
+TEST(Fwd2DFp16_CShufV3_GNHWC, Execution)
 {
     if(!ck_tile::get_device_name().starts_with("gfx9"))
     {
+        // Note: XDL kernel
         GTEST_SKIP() << "unsupported architecture";
     }
 
@@ -91,10 +94,10 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
     ckt::init_inputs(args, inputs.get());
 
     auto conv = Instance{};
-    ckt::run(conv, args, inputs.get(), outputs.get());
+    EXPECT_THAT(ckt::run(conv, args, inputs.get(), outputs.get()), SuccessfulRun());
 
     auto ref_conv = Reference{};
-    ckt::run(ref_conv, args, inputs.get(), reference.get());
+    EXPECT_THAT(ckt::run(ref_conv, args, inputs.get(), reference.get()), SuccessfulRun());
 
     EXPECT_THAT(outputs.get(), MatchesReference(args, reference.get()));
 }
