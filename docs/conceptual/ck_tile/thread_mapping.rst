@@ -356,7 +356,6 @@ CK uses several techniques to optimize memory access:
                                                float>>>;
 
     // 2. Swizzling to avoid bank conflicts
-    // See :ref:`ck_tile_lds_index_swapping` and :ref:`ck_tile_swizzling_example`
     template <index_t BankSize = 32>
     __device__ index_t swizzle_offset(index_t tid, index_t offset)
     {
@@ -434,7 +433,6 @@ The following example shows how thread mapping works in a CK kernel:
         __shared__ ComputeType shared_sum[BlockSize];
         
         // 5. Create tensor view and tile window
-        // See :ref:`ck_tile_tensor_views` and :ref:`ck_tile_tile_window`
         auto x_view = make_naive_tensor_view<address_space_enum::global>(
             x + bid * hidden_size,
             make_tuple(hidden_size),
