@@ -32,22 +32,10 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         // Get packed sizes for A/B
         using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
         using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
-        // Force 16-byte vector loads for optimal async buffer performance
-        // For fp4 (1 byte): 16 elements = 16 bytes
-        // For fp8 (1 byte): 16 elements = 16 bytes
-        // For fp16 (2 bytes): 8 elements = 16 bytes
-        // constexpr index_t vector_size_for_16_bytes = 16 / sizeof(ADataType);
-        
-        // return vector_size_for_16_bytes;
-        static_assert(std::is_same_v<ADataType, pk_fp4_t>, "ADataType must be pk_fp4_t or pk_fp4_raw_t");
-        if constexpr(std::is_same_v<ADataType, pk_fp4_t> || std::is_same_v<ADataType, pk_fp4_raw_t>)
-        {
-            return 32;
-        }
-        else
-        {
-            return 16;
-        }
+        constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+        // Return number of STORAGE elements to load 16 bytes
+        constexpr index_t vector_size_for_16_bytes = 16 / sizeof(ADataType) * APackedSize;
+        return vector_size_for_16_bytes;
     }
 
     template <typename Problem, bool IsWave32Host = false>
@@ -56,47 +44,35 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         // Get packed sizes for A/B
         using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
         using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
-        // Force 16-byte vector loads for optimal async buffer performance
-        // For fp4 (1 byte): 16 elements = 16 bytes
-        // For fp8 (1 byte): 16 elements = 16 bytes
-        // For fp16 (2 bytes): 8 elements = 16 bytes
-        // constexpr index_t vector_size_for_16_bytes = 16 / sizeof(BDataType);
-        
-        // return vector_size_for_16_bytes;
-        static_assert(std::is_same_v<BDataType, pk_fp4_t>, "BDataType must be pk_fp4_t or pk_fp4_raw_t");
-        if constexpr(std::is_same_v<BDataType, pk_fp4_t> || std::is_same_v<BDataType, pk_fp4_raw_t>)
-        {
-            return 32;
-        }
-        else
-        {
-            return 16;
-        }
+        constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+        // Return number of STORAGE elements to load 16 bytes
+        constexpr index_t vector_size_for_16_bytes = 16 / sizeof(BDataType) * BPackedSize;
+        return vector_size_for_16_bytes;
     }
 
-    // Override DRAM tile distributions to use the constrained vector sizes
+    // DRAM tile distributions use STORAGE dimensions (for the storage tensor view)
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
     {
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+        using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+        constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / APackedSize; // Use STORAGE dimensions
         constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
         using ALayout = remove_cvref_t<
             std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::AsLayoutTuple>>>;
-        // Get packed sizes for A/B
-        using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
-        using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
-        constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+
         
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             using TileEncodingPattern =
                 tile_distribution_encoding_pattern_2d<BlockSize,
                                                       MPerBlock,
-                                                      KPerBlock / APackedSize,
+                                                      KPerBlock, // Use storage dimensions
                                                       VecLoadSize,
                                                       getATileAccessPattern(),
                                                       NumWaveGroups>;
@@ -121,36 +97,27 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
     {
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+        using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+        constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / BPackedSize; // Use STORAGE dimensions
         constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
         
         using BLayout = remove_cvref_t<
             std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayoutTuple>>>;
 
-        // Get packed sizes for A/B
-        using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
-        using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
-        constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
         
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             static_assert(false, "Not implemented");
-            // using TileEncodingPattern =
-            //     tile_distribution_encoding_pattern_2d<BlockSize,
-            //                                           KPerBlock,
-            //                                           NPerBlock,
-            //                                           VecLoadSize,
-            //                                           getBTileAccessPattern(),
-            //                                           NumWaveGroups>;
-            // return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         else
         {
             using TileEncodingPattern =
                 tile_distribution_encoding_pattern_2d<BlockSize,
                                                       NPerBlock,
-                                                      KPerBlock / BPackedSize,
+                                                      KPerBlock, // Use storage dimensions
                                                       VecLoadSize,
                                                       getBTileAccessPattern(),
                                                       NumWaveGroups>;
@@ -162,13 +129,12 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
               typename OverrideADataType = remove_cvref_t<typename Problem::ADataType>>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
-        // Get packed sizes for A/B
         using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
         using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
         constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
-
+        
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / APackedSize;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / APackedSize; // Use STORAGE dimensions
         if constexpr(is_a_load_tr<Problem>)
         {
             // TODO: better LDS descriptor for performance
@@ -183,8 +149,7 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         }
         else
         {
-            // constexpr index_t KPack = GetSmemPackA<Problem>();
-            constexpr index_t KPack = 16;
+            constexpr index_t KPack = GetSmemPackA<Problem>();
 
             constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
@@ -205,11 +170,10 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        // Get packed sizes for A/B
         using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
         using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
         constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
-
+        
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / BPackedSize;
         if constexpr(is_b_load_tr<Problem>)
@@ -226,8 +190,7 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         }
         else
         {
-            // constexpr index_t KPack = GetSmemPackB<Problem>();
-            constexpr index_t KPack = 16;
+            constexpr index_t KPack = GetSmemPackB<Problem>();
 
             constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<KPerBlock / KPack>{}, number<NPerBlock>{}, number<KPack>{}),
@@ -289,14 +252,11 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         // For 16x16x128 MFMA with pk_fp4_t (PackedSize=2)
         // Physical layout in registers: [16 M-lanes, 4 K-lanes, 16 bytes per lane]
         // Each byte stores 2 fp4 values, so 16 bytes = 32 fp4 values
-        // But we need to use STORAGE size (16) not LOGICAL size (32) in the distribution
-        using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
-        using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
-        constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
-        
+        // WarpGemm expects LOGICAL dimensions, so use 32 (logical fp4), not 16 (storage)
         constexpr index_t kAMLane = 16;
         constexpr index_t kABKLane = 4;
-        constexpr index_t kABKPerLane = 32 / APackedSize;  // Storage elements, not logical!
+        constexpr index_t kABKPerLane = 32;  // LOGICAL elements (not divided by PackedSize)!
+        // have also tried 16 here
         
         return tile_distribution_encoding<
             sequence<>,
@@ -310,13 +270,9 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeMX_BWarpDstrEncoding()
     {
-        using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
-        using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
-        constexpr index_t BPackedSize = numeric_traits<BDataType>::PackedSize;
-        
         constexpr index_t kBNLane = 16;
         constexpr index_t kABKLane = 4;
-        constexpr index_t kABKPerLane = 32 / BPackedSize;  // Storage elements!
+        constexpr index_t kABKPerLane = 32;  // LOGICAL elements (not divided by PackedSize)! have also tried 16
         
         return tile_distribution_encoding<
             sequence<>,
@@ -340,23 +296,19 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t MPerXdl = WarpTile::at(number<0>{});
         constexpr index_t KPerXdl = WarpTile::at(number<2>{});
         
-        using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
-        using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
-        constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
-        
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         
-        // IMPORTANT: Use packed K for iteration count
-        // LDS shape is [MPerBlock, KPerBlock / APackedSize]
-        // WarpGemm expects [MPerXdl, KPerXdl / APackedSize] per warp per iteration
-        constexpr index_t KIterPerWarp = (KPerBlock / APackedSize) / (KPerXdl / APackedSize);
+        // Use LOGICAL dimensions for iteration count (matches WarpGemm expectations)
+        // LDS shape is [MPerBlock, KPerBlock / APackedSize] in storage (bytes)
+        constexpr index_t KIterPerWarp = KPerBlock / KPerXdl;  // Logical K iterations
         constexpr index_t MIterPerWarp = MPerBlock / (MWarp * MPerXdl);
         
         constexpr bool UseDefaultScheduler = (Problem::NumWaveGroups != 1);
         
         if constexpr(UseDefaultScheduler)
         {
+            // here the iters don't get affected by PackedSize
             constexpr auto a_block_outer_dstr_encoding =
                 tile_distribution_encoding<sequence<NWarp>,
                                            tuple<sequence<MIterPerWarp>, sequence<KIterPerWarp>>,
@@ -395,17 +347,13 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t NPerXdl = WarpTile::at(number<1>{});
         constexpr index_t KPerXdl = WarpTile::at(number<2>{});
         
-        using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
-        using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
-        constexpr index_t BPackedSize = numeric_traits<BDataType>::PackedSize;
-        
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         
-        // IMPORTANT: Use packed K for iteration count
-        // LDS shape is [NPerBlock, KPerBlock / BPackedSize]
-        // WarpGemm expects [NPerXdl, KPerXdl / BPackedSize] per warp per iteration
-        constexpr index_t KIterPerWarp = (KPerBlock / BPackedSize) / (KPerXdl / BPackedSize);
+        // Use LOGICAL dimensions for iteration count (matches WarpGemm expectations)
+        // LDS shape is [NPerBlock, KPerBlock / BPackedSize] in storage
+        // But distributions work in logical space
+        constexpr index_t KIterPerWarp = KPerBlock / KPerXdl;  // Logical K iterations
         constexpr index_t NIterPerWarp = NPerBlock / (NWarp * NPerXdl);
         
         constexpr bool UseDefaultScheduler = (Problem::NumWaveGroups != 1);
@@ -454,6 +402,7 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         
         // Scale A: [MWarp * MPerXdl, K/32/KXdlPack] for warp-level tile  
         // Distribution: simple 2D for loading int32 packed scales
+        // TODO: check which layout to actually use (could use KxN)
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<NWarp>,                      // repeat over NWarps
                                        tuple<sequence<MWarp, MPerXdl>,       // M dimension
@@ -479,6 +428,7 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         
         // Scale B: [K/32/KXdlPack, NWarp * NPerXdl] for warp-level tile
         // Layout is [K, N] where K is packed int32
+        // TODO: check which layout to actually use (could use KxN)
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<MWarp>,                      // repeat over MWarps
                                        tuple<sequence<K_Lane, 1>,             // K dimension (int32 vec load)
