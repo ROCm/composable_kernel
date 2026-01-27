@@ -157,7 +157,8 @@ struct pk_float4_e2m1_t
         bit_cast<fp16_t>(static_cast<uint16_t>(0xC600))  // -6
     };
 
-    // FP8 = E4M3. Finite and normal values should be bit-compatible between FNUZ and OCP
+#if CK_TILE_USE_OCP_FP8
+    // FP8 EM4E3 (OCP) representation
     static constexpr fp8_t e2m1_to_fp8_table[16] = {
         fp8_t(static_cast<uint8_t>(0x00)), //  0
         fp8_t(static_cast<uint8_t>(0x30)), //  0.5
@@ -176,6 +177,28 @@ struct pk_float4_e2m1_t
         fp8_t(static_cast<uint8_t>(0xC8)), // -4
         fp8_t(static_cast<uint8_t>(0xCC))  // -6
     };
+#else // CK_TILE_USE_FNUZ_FP8
+    // FP8 E4M3 FNUZ
+    static constexpr fp8_t e2m1_to_fp8_table[16] = {
+        fp8_t(static_cast<uint8_t>(0x00)), //  0
+        fp8_t(static_cast<uint8_t>(0x38)), //  0.5
+        fp8_t(static_cast<uint8_t>(0x40)), //  1
+        fp8_t(static_cast<uint8_t>(0x44)), //  1.5
+        fp8_t(static_cast<uint8_t>(0x48)), //  2
+        fp8_t(static_cast<uint8_t>(0x4C)), //  3
+        fp8_t(static_cast<uint8_t>(0x50)), //  4
+        fp8_t(static_cast<uint8_t>(0x54)), //  6
+        fp8_t(static_cast<uint8_t>(0x00)), // -0
+        fp8_t(static_cast<uint8_t>(0xB8)), // -0.5
+        fp8_t(static_cast<uint8_t>(0xC0)), // -1
+        fp8_t(static_cast<uint8_t>(0xC4)), // -1.5
+        fp8_t(static_cast<uint8_t>(0xC4)), // -2
+        fp8_t(static_cast<uint8_t>(0xCC)), // -3
+        fp8_t(static_cast<uint8_t>(0xD0)), // -4
+        fp8_t(static_cast<uint8_t>(0xD4))  // -6
+    };
+#endif
+
 #endif
 };
 
