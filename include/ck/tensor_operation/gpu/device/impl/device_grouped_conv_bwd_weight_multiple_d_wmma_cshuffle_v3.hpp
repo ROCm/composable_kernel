@@ -585,7 +585,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
                       end(a_g_n_k_wos_lengths),
                       begin(output_spatial_lengths_));
 
-#if !DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
             if(split_k < 0)
             {
                 ck::index_t gemmM, gemmN, gemmK;
@@ -602,6 +601,9 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
                 const auto k_batch_max = math::integer_divide_ceil((gemmK - 1), KPerBlock);
                 k_batch_               = std::min(k_batch_, k_batch_max);
 
+                // Cap k_batch_ to 128 to avoid accuracy issues
+                k_batch_ = std::min(k_batch_, 128);
+
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "[SPLIT-K AUTODEDUCE] k_batch max value: " << k_batch_max
@@ -611,7 +613,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
                 }
             }
             else
-#endif
             {
                 k_batch_ = split_k;
             }
@@ -988,13 +989,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#if DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
-        if(arg.k_batch_ < 0)
-        {
-            return false;
-        }
-#endif
-
         const index_t GemmM = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
         const index_t GemmN = arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I1);
         const index_t GemmK = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0) *
