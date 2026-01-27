@@ -21,7 +21,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
-#include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_weight.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_weight_gpu.hpp"
 
 using ::ck::DeviceMem;
 using ::ck::Tensor;
@@ -56,35 +56,62 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                       Tensor<OutDataType>& out,
                       Tensor<WeiDataType>& d)
     {
-        std::array<Tensor<WeiDataType>, NumDs> d_tensors = {d};
-        auto ref_conv =
-            ck::tensor_operation::host::ReferenceConvBwdWeight<NDimSpatial,
-                                                               InDataType,
-                                                               WeiDataType,
-                                                               OutDataType,
-                                                               InElementOp,
-                                                               WeiElementOp,
-                                                               OutElementOp,
-                                                               0, /*Num A Elementwise Tensors*/
-                                                               0, /*Num B Elementwise Tensors*/
-                                                               NumDs>{};
+        const auto wei_g_k_c_xs_desc =
+            ck::utils::conv::make_weight_host_tensor_descriptor_g_k_c_xs_packed<WeiLayout>(
+                conv_param);
 
-        auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(in,
-                                                  wei_host,
-                                                  out,
-                                                  conv_param.conv_filter_strides_,
-                                                  conv_param.conv_filter_dilations_,
-                                                  conv_param.input_left_pads_,
-                                                  conv_param.input_right_pads_,
-                                                  InElementOp{},
-                                                  WeiElementOp{alpha, beta},
-                                                  OutElementOp{},
-                                                  {},
-                                                  {},
-                                                  d_tensors);
+        // Prepare D tensor with correct strides for GPU kernel
+        std::vector<ck::index_t> d_lengths;
+        std::vector<ck::index_t> d_strides;
+        auto copy_dims = [](const auto& desc, auto& lengths, auto& strides) {
+            const auto& l = desc.GetLengths();
+            const auto& s = desc.GetStrides();
+            lengths.assign(l.begin(), l.end());
+            strides.assign(s.begin(), s.end());
+        };
+        copy_dims(wei_g_k_c_xs_desc, d_lengths, d_strides);
 
-        ref_invoker.Run(ref_argument);
+        std::array<std::vector<ck::index_t>, NumDs> d_lengths_array = {d_lengths};
+        std::array<std::vector<ck::index_t>, NumDs> d_strides_array = {d_strides};
+
+        DeviceMem d_device_buf(sizeof(WeiDataType) * d.mDesc.GetElementSpaceSize());
+        d_device_buf.ToDevice(d.mData.data());
+
+        std::array<const WeiDataType*, NumDs> p_ds = {
+            static_cast<const WeiDataType*>(d_device_buf.GetDeviceBuffer())};
+
+        DeviceMem in_device_buf(sizeof(InDataType) * in.mDesc.GetElementSpaceSize());
+        DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_host.mDesc.GetElementSpaceSize());
+        DeviceMem out_device_buf(sizeof(OutDataType) * out.mDesc.GetElementSpaceSize());
+
+        in_device_buf.ToDevice(in.mData.data());
+        out_device_buf.ToDevice(out.mData.data());
+
+        ck::ref::naive_conv_bwd_weight_multi_abd<0,
+                                                 0,
+                                                 NumDs,
+                                                 InLayout,
+                                                 WeiLayout,
+                                                 OutLayout,
+                                                 InDataType,
+                                                 WeiDataType,
+                                                 OutDataType,
+                                                 InElementOp,
+                                                 WeiElementOp,
+                                                 OutElementOp,
+                                                 WeiDataType>(
+            {static_cast<const InDataType*>(in_device_buf.GetDeviceBuffer())},
+            static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+            {static_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer())},
+            p_ds,
+            conv_param,
+            d_lengths_array,
+            d_strides_array,
+            InElementOp{},
+            WeiElementOp{alpha, beta},
+            OutElementOp{});
+
+        wei_device_buf.FromDevice(wei_host.mData.data());
     }
 
     bool PerformConvWeightBilinear(ck::utils::conv::ConvParam& conv_param,
