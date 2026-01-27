@@ -3,7 +3,10 @@
 #pragma once
 
 #include "ck_tile/ops/mhc/kernel/mhc_kernel.hpp"
+#include "ck_tile/ops/mhc/kernel/mhc_kernel_tile.hpp"
+#include "ck_tile/ops/mhc/kernel/mhc_kernel_tile_v2.hpp"
 #include "ck_tile/ops/mhc/pipeline/mhc_problem.hpp"
+#include "ck_tile/ops/mhc/pipeline/mhc_default_policy.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
 #include "ck_tile/ops/common/streamk_common.hpp"

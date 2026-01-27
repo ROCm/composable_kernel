@@ -33,6 +33,5 @@ TYPED_TEST_SUITE(TestCkTileMHC, TestTypes);
 
 TYPED_TEST(TestCkTileMHC, TestBasic)
 {
-    // this->RunTest2D_KeepDim0_ReduceDim1(64, 32);
-    // TODO
+    this->RunExpansionParallelTest();
 }
