@@ -322,8 +322,8 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
                           || ScaleN::GranularityMN == -1,          // or ScaleB is disable
                       "ScaleM and ScaleN should have the same GranularityK");
 
-        const auto& c_block_tile = MXGemmPipeline{}(a_block_window,
-                                                      b_block_window,
+        const auto& c_block_tile = MXGemmPipeline{}(a_block_window[number<0>{}],
+                                                      b_block_window[number<0>{}],
                                                       scale_a_block_window,
                                                       scale_b_block_window,
                                                       num_loop,

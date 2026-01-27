@@ -75,7 +75,9 @@ struct static_distributed_tensor
         constexpr auto sliced_thread_tensor_desc =
             make_naive_tensor_descriptor_packed(make_tuple(YSliceLengths...));
 
-        thread_buffer<DataType, sliced_thread_tensor_desc.get_element_space_size()>
+        // divide element number by PackedSize to get the correct thread buffer size
+        /// TODO: check if this is correct
+        thread_buffer<DataType, sliced_thread_tensor_desc.get_element_space_size() / PackedSize>
             sliced_thread_data;
 
         static_ford<sequence<YSliceLengths...>>{}([&](auto idx) {
