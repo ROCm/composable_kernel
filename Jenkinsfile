@@ -34,16 +34,36 @@ def checkForPattern(pattern, log) {
     return [found: false, matchedLine: "", context: ""]
 }
 
+def testLog() {
+    sh """
+        echo "Error response from daemon: Head "https": unauthorized: your account must log in with a Personal Access Token (PAT) - learn more at docs.docker.com/go/access-tokens throwing error exception while building CK"
+        echo "test test sccache: error: Server startup failed: Address in use test test"
+        echo "sccache: error: Server startup failed: Address in use test test"
+        echo "sccache: error: Server startup failed: Address in use"
+        echo "GPU not found"
+        echo "test GPU not found test"
+        echo "test GPU not found"
+        echo "GPU not found test"
+        echo "docker login failed"
+        echo "test test docker login failed test test"
+        echo "docker login failed test test"
+        echo "test test docker login failed"
+    """
+    error("Forcing failure to test notifications")
+}
+
 // Scan the build logs for failures and send notifications.
 def sendFailureNotifications() {
     // Error patterns to scan build logs for specific failure types and send detailed notifications.
     def failurePatterns = [
         [pattern: /login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
-        [pattern: /(.*)docker login failed(.*)/, description: "Docker login failed"],
+        [pattern: /.*docker login failed.*/, description: "Docker login failed"],
         [pattern: /HTTP request sent .* 404 Not Found/, description: "HTTP request failed with 404"],
         [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
-        [pattern: /(.*)GPU not found(.*)/, description: "GPU not found"],
-        [pattern: /Could not connect to Redis at .* Connection timed out/, description: "Redis connection timed out"]
+        [pattern: /.*GPU not found.*/, description: "GPU not found"],
+        [pattern: /Could not connect to Redis at .* Connection timed out/, description: "Redis connection timed out"],
+        [pattern: /.*unauthorized: your account must log in with a Personal Access Token (PAT).*/, description: "Docker login failed"],
+        [pattern: /.*sccache: error: Server startup failed: Address in use.*/, description: "Sccache Error"]
     ]
     
     // Get the build log.
@@ -1290,6 +1310,7 @@ pipeline {
                 script {
                     env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || shouldRunCICheck())
                     echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                    testLog()
                 }
             }
         }
