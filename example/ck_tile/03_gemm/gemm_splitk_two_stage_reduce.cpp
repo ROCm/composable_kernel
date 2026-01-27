@@ -15,6 +15,7 @@
 #include "ck_tile/ops/gemm/kernel/gemm_tile_partitioner.hpp"
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
+#include "gemm_basic_invoker.hpp"
 
 /**
  * @brief Tile partitioner with output offset support.
@@ -785,8 +786,9 @@ int run_gemm_example_with_layouts_two_stage(ck_tile::ArgParser& arg_parser,
 
 template <typename GemmConfig,
           typename APrecType,
-          typename BPrecType = APrecType,
-          typename CPrecType = APrecType>
+          typename BPrecType       = APrecType,
+          typename CPrecType       = APrecType,
+          typename ComputeDataType = APrecType>
 int run_gemm_example_prec_type(std::string a_layout,
                                std::string b_layout,
                                ck_tile::ArgParser& arg_parser)
@@ -806,8 +808,65 @@ int run_gemm_example_prec_type(std::string a_layout,
             "Preshuffle is supported only for A(Row major), B(column major) input matrices!");
     }
 
+    // TF32 uses BasicInvoker with GemmConfigBase which has dynamic tile configuration
+    // for TF32 warp gemm compatibility (32x32x16 tiles)
+    if constexpr(std::is_same_v<ComputeDataType, ck_tile::tf32_t>)
+    {
+        if(a_layout == "R" && b_layout == "R")
+        {
+            return run_gemm_example_with_layouts<GemmConfigBase,
+                                                 BasicInvoker,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType,
+                                                 Row,
+                                                 Row,
+                                                 Row,
+                                                 ComputeDataType>(arg_parser, Row{}, Row{}, Row{});
+        }
+        else if(a_layout == "R" && b_layout == "C")
+        {
+            return run_gemm_example_with_layouts<GemmConfigBase,
+                                                 BasicInvoker,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType,
+                                                 Row,
+                                                 Col,
+                                                 Row,
+                                                 ComputeDataType>(arg_parser, Row{}, Col{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "R")
+        {
+            return run_gemm_example_with_layouts<GemmConfigBase,
+                                                 BasicInvoker,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType,
+                                                 Col,
+                                                 Row,
+                                                 Row,
+                                                 ComputeDataType>(arg_parser, Col{}, Row{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "C")
+        {
+            return run_gemm_example_with_layouts<GemmConfigBase,
+                                                 BasicInvoker,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType,
+                                                 Col,
+                                                 Col,
+                                                 Row,
+                                                 ComputeDataType>(arg_parser, Col{}, Col{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported memory layout for TF32!");
+        }
+    }
     // Use new two-stage approach for both int4 and other data types
-    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
+    else if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
     {
         if(a_layout == "R" && b_layout == "C")
         {

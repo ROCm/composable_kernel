@@ -12,6 +12,7 @@
 #include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
+#include "gemm_basic_invoker.hpp"
 #include "gemm_weight_preshuffle_invoker.hpp"
 
 template <typename GemmConfig,
@@ -64,8 +65,14 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
 #ifdef CK_GFX950_SUPPORT
     else if(data_type == "tf32")
     {
-        return run_gemm_example_prec_type<GemmConfig<float>, float, float, float, ck_tile::tf32_t>(
-            a_layout, b_layout, arg_parser);
+        // TF32 uses BasicInvoker with GemmConfigBase which has dynamic tile configuration
+        // for TF32 warp gemm compatibility (32x32x16 tiles)
+        // Note: preshuffle only supports A(Row), B(Col) layout
+        using Row = ck_tile::tensor_layout::gemm::RowMajor;
+        using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+        return run_gemm_example_with_layouts<GemmConfigBase, BasicInvoker, float, float, float,
+                                             Row, Col, Row, ck_tile::tf32_t>(
+            arg_parser, Row{}, Col{}, Row{});
     }
 #endif
     else if(data_type == "fp8")
