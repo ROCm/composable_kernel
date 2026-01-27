@@ -25,7 +25,7 @@ using GroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
 // QuantType, GemmConfig, AQuantGroupSize, BQuantGroupSize, BQLayout>
 // clang-format off
 using ABQuantPaddingTypes = ::testing::Types<
-    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigPadding, GroupSize, GroupSize, ColumnMajor>
+    std::tuple<RowMajor, RowMajor, RowMajor, RowMajor, BF8, BF8, float, Half, ABQuantGrouped, GemmConfigPadding<BF8>, GroupSize, GroupSize, ColumnMajor>
 >;
 // clang-format on
 

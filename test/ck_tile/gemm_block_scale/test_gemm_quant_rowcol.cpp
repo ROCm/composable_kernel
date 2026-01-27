@@ -23,8 +23,8 @@ using GroupSize   = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
 // QuantType, GemmConfig, QuantGroupSize>
 // clang-format off
 using RowColQuantTypes = ::testing::Types<
-    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8, float, Half, RowColQuant, GemmConfigBase, GroupSize>,
-    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF8, BF8, float, Half, RowColQuant, GemmConfigBase, GroupSize>
+    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8, float, Half, RowColQuant, GemmConfigBase<FP8>, GroupSize>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, BF8, BF8, float, Half, RowColQuant, GemmConfigBase<BF8>, GroupSize>
 >;
 // clang-format on
 

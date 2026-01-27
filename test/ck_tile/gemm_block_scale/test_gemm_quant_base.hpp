@@ -75,14 +75,11 @@ class TestCkTileGemmQuantBase : public ::testing::Test
 
     static constexpr ck_tile::index_t M_Warp_Tile = GemmConfig::M_Warp_Tile;
     static constexpr ck_tile::index_t N_Warp_Tile = GemmConfig::N_Warp_Tile;
-    static constexpr ck_tile::index_t K_Warp_Tile =
-        GemmConfig::PreshuffleB
-            ? ck_tile::get_k_warp_tile_for_preshuffle_b<BDataType, N_Warp_Tile>()
-            : ck_tile::get_k_warp_tile<BDataType, N_Warp_Tile>();
-    static constexpr bool PreshuffleQuant  = GemmConfig::PreshuffleQuant;
-    static constexpr bool PreshuffleB      = GemmConfig::PreshuffleB;
-    static constexpr bool TiledMMAPermuteN = GemmConfig::TiledMMAPermuteN;
-    static constexpr bool DoubleSmemBuffer = GemmConfig::DoubleSmemBuffer;
+    static constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
+    static constexpr bool PreshuffleQuant         = GemmConfig::PreshuffleQuant;
+    static constexpr bool PreshuffleB             = GemmConfig::PreshuffleB;
+    static constexpr bool TiledMMAPermuteN        = GemmConfig::TiledMMAPermuteN;
+    static constexpr bool DoubleSmemBuffer        = GemmConfig::DoubleSmemBuffer;
 
     static constexpr bool kPadM = GemmConfig::kPadM;
     static constexpr bool kPadN = GemmConfig::kPadN;

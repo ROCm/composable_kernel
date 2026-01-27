@@ -8,6 +8,7 @@
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
 
+template <typename DataType>
 struct GemmConfigBase
 {
     static constexpr bool kPadM = false;
@@ -41,83 +42,109 @@ struct GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    // K_Warp_Tile is derived from N_Warp_Tile and BDataType
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile<DataType, N_Warp_Tile>();
 };
 
-struct GemmConfigDecode : public GemmConfigBase
+template <typename DataType>
+struct GemmConfigDecode : public GemmConfigBase<DataType>
 {
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
     static constexpr ck_tile::index_t K_Tile = 256;
 };
 
-struct GemmConfigPrefill : public GemmConfigBase
+template <typename DataType>
+struct GemmConfigPrefill : public GemmConfigBase<DataType>
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 128;
 };
 
-struct GemmConfigMxFp4 : public GemmConfigBase
+template <typename DataType>
+struct GemmConfigMxFp4 : public GemmConfigBase<DataType>
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 128;
 };
 
-struct GemmConfigPreshuffleQuant : public GemmConfigBase
+template <typename DataType>
+struct GemmConfigPreshuffleQuant : public GemmConfigBase<DataType>
 {
     static constexpr bool PreshuffleQuant = true;
 };
 
-struct GemmConfigTransposeC : public GemmConfigBase
+template <typename DataType>
+struct GemmConfigTransposeC : public GemmConfigBase<DataType>
 {
     static constexpr bool TransposeC = true;
 };
 
-struct GemmConfigPreshuffleQuantTransposeC : public GemmConfigBase
+template <typename DataType>
+struct GemmConfigPreshuffleQuantTransposeC : public GemmConfigBase<DataType>
 {
     static constexpr bool PreshuffleQuant = true;
     static constexpr bool TransposeC      = true;
 };
 
-struct GemmConfigPadding : public GemmConfigBase
+template <typename DataType>
+struct GemmConfigPadding : public GemmConfigBase<DataType>
 {
     static constexpr bool kPadN = true;
     static constexpr bool kPadK = true;
 };
 
-struct GemmConfigPreshuffleBDecode : public GemmConfigDecode
+template <typename DataType>
+struct GemmConfigPreshuffleBDecode : public GemmConfigDecode<DataType>
 {
+    using Base                             = GemmConfigDecode<DataType>;
     static constexpr bool PreshuffleB      = true;
     static constexpr bool DoubleSmemBuffer = true;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile_for_preshuffle_b<DataType, Base::N_Warp_Tile>();
 };
 
-struct GemmConfigPreshuffleQuantDecode : public GemmConfigDecode
+template <typename DataType>
+struct GemmConfigPreshuffleQuantDecode : public GemmConfigDecode<DataType>
 {
     static constexpr bool PreshuffleQuant = true;
 };
 
-struct GemmConfigPreshuffleBPrefill : public GemmConfigPrefill
+template <typename DataType>
+struct GemmConfigPreshuffleBPrefill : public GemmConfigPrefill<DataType>
 {
+    using Base                             = GemmConfigPrefill<DataType>;
     static constexpr bool PreshuffleB      = true;
     static constexpr bool DoubleSmemBuffer = true;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile_for_preshuffle_b<DataType, Base::N_Warp_Tile>();
 };
 
-struct GemmConfigPreshuffleQuantPrefill : public GemmConfigPrefill
+template <typename DataType>
+struct GemmConfigPreshuffleQuantPrefill : public GemmConfigPrefill<DataType>
 {
     static constexpr bool PreshuffleQuant = true;
 };
 
-struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBPrefill
+template <typename DataType>
+struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBPrefill<DataType>
 {
-    static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
+    using Base                             = GemmConfigPreshuffleBPrefill<DataType>;
+    static constexpr int N_Repeat          = Base::N_Tile / Base::N_Warp_Tile / Base::N_Warp;
     static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile_for_preshuffle_b<DataType, Base::N_Warp_Tile>();
 };
 
-struct GemmConfigPreshuffleBPreshuffleQuantDecode : public GemmConfigPreshuffleBDecode
+template <typename DataType>
+struct GemmConfigPreshuffleBPreshuffleQuantDecode : public GemmConfigPreshuffleBDecode<DataType>
 {
+    using Base                            = GemmConfigPreshuffleBDecode<DataType>;
     static constexpr bool PreshuffleQuant = true;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile_for_preshuffle_b<DataType, Base::N_Warp_Tile>();
 };
 
 template <typename Tuple>
@@ -355,7 +382,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             }
 
             ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<GemmConfigBase::kBlockPerCu>(
+                                   ck_tile::make_kernel<GemmConfigBase<BDataType>::kBlockPerCu>(
                                        Kernel{}, grids, blocks, 0, kargs));
         };
 
@@ -642,7 +669,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             }
 
             ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<GemmConfigBase::kBlockPerCu>(
+                                   ck_tile::make_kernel<GemmConfigBase<BDataType>::kBlockPerCu>(
                                        Kernel{}, grids, blocks, 0, kargs));
         };
 
@@ -949,7 +976,7 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
             }
 
             ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<GemmConfigBase::kBlockPerCu>(
+                                   ck_tile::make_kernel<GemmConfigBase<BDataType>::kBlockPerCu>(
                                        Kernel{}, grids, blocks, 0, kargs));
         };
 
@@ -1170,7 +1197,7 @@ class TestCkTileGemmRowColQuant
             }
 
             ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<GemmConfigBase::kBlockPerCu>(
+                                   ck_tile::make_kernel<GemmConfigBase<BDataType>::kBlockPerCu>(
                                        Kernel{}, grids, blocks, 0, kargs));
         };
 
@@ -1384,7 +1411,7 @@ class TestCkTileGemmTensorQuant
             }
 
             ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<GemmConfigBase::kBlockPerCu>(
+                                   ck_tile::make_kernel<GemmConfigBase<BDataType>::kBlockPerCu>(
                                        Kernel{}, grids, blocks, 0, kargs));
         };
 
