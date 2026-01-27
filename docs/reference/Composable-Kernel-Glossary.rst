@@ -4,7 +4,6 @@
 
 ***************************************************
 Composable Kernel glossary
-
 ***************************************************
 
 .. glossary::
@@ -14,7 +13,7 @@ Composable Kernel glossary
         The arithmetic logic unit (ALU) is the GPU component responsible for arithmetic and logic operations.
 
     compute unit
-        The compute unit (CU) is the parallel vector processor in an AMD GPU with multiple :term:`ALUs<arithmetic logic unit>`. Each compute unit will run all the :term:`wavefronts<wavefront>` in a :term:`work group>`. A compute unit is equivalent to NVIDIA's streaming   multiprocessor.
+        The compute unit (CU) is the parallel vector processor in an AMD GPU with multiple :term:`ALUs<arithmetic logic unit>`. Each compute unit will run all the :term:`wavefronts<wavefront>` in a :term:`work group`. A compute unit is equivalent to NVIDIA's streaming   multiprocessor.
 
     matrix core
         A matrix core is a specialized GPU unit that accelerate matrix operations for AI and deep learning tasks. A GPU contains multiple matrix cores.
@@ -32,7 +31,7 @@ Composable Kernel glossary
         See :term:`scalar general purpose register`.
 
     scalar general purpose register
-        A scalar general purpose register (SGPR) is a :term:`register` shared by all the :term:`work items<work item>` in a :term:`wave<wavefront>`. SGPRs are used for constants, addresses, and control flow common across the entire wave.
+        A scalar general purpose register (SGPR) is a :term:`register` shared by all the :term:`work-items<work-item>` in a :term:`wave<wavefront>`. SGPRs are used for constants, addresses, and control flow common across the entire wave.
 
     LDS
         See :term:`local data share`.
@@ -101,7 +100,7 @@ Composable Kernel glossary
         A Composable Kernel pipeline schedules the sequence of operations for a :term:`kernel`, such as the data loading, computation, and storage phases. A pipeline consists of a :term:`problem` and a :term:`policy`. 
 
     tile partitioner
-        The tile partitioner defines the mapping between the :term:`problem` dimensions and GPU hierarchy. It specifies :term:`workgroup`-level :term:`tile` sizes and determines :term:`grid` dimensions by dividing the problem size by the tile sizes.
+        The tile partitioner defines the mapping between the :term:`problem` dimensions and GPU hierarchy. It specifies :term:`work group`-level :term:`tile` sizes and determines :term:`grid` dimensions by dividing the problem size by the tile sizes.
 
     problem
         The problem is the part of the :term:`pipeline` that defines input and output shapes, data types, and mathematical :term:`operations<operation>`.
@@ -186,10 +185,10 @@ Composable Kernel glossary
         Viewport into a larger tensor that defines the current tile's position and boundaries for computation.
 
     load tile
-        Load tile is an operation that transfers data from :term:`global memory` or the :term:`load data share` to :term:`vector general purpose registers<vector general purpose register>`.
+        Load tile is an operation that transfers data from :term:`global memory` or the :term:`local data share` to :term:`vector general purpose registers<vector general purpose register>`.
 
     store tile
-        Store tile is an operation that transfers data from  :term:`vector general purpose registers<vector general purpose register>` to :term:`global memory` or the :term:`load data share`.
+        Store tile is an operation that transfers data from  :term:`vector general purpose registers<vector general purpose register>` to :term:`global memory` or the :term:`local data share`.
 
     descriptor
         Metadata structure that defines :term:`tile` properties, memory layouts, and coordinate transformations for Composable Kernel :term:`operations<operation>`.
