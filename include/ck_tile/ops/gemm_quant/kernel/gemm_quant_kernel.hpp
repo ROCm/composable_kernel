@@ -428,9 +428,8 @@ struct QuantGemmKernel
                 using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
                 // Compute the K offset for this batch (in terms of K elements)
                 const index_t k_offset = amd_wave_read_first_lane(k_id * KRead);
-                // Convert K offset to BQ group offset
-                const index_t bq_group_offset =
-                    amd_wave_read_first_lane(k_offset / QuantGroupSize::kK);
+                // Convert K offset to BQ group offset (logical offset in K/kK dimension)
+                bq_group_offset = amd_wave_read_first_lane(k_offset / QuantGroupSize::kK);
 
                 // BQ tensor layout:
                 // RowMajor: [K/kK, N/kN] with stride [N/kN, 1]
@@ -452,13 +451,15 @@ struct QuantGemmKernel
             }
             else
             {
+                bq_group_offset   = 0;
                 bq_k_split_offset = 0;
             }
         }
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
-        index_t bq_k_split_offset;
+        index_t bq_group_offset;   // Logical offset in K-groups (K/kK dimension)
+        index_t bq_k_split_offset; // Memory pointer offset (accounting for layout/stride)
         index_t splitted_k;
     };
 
@@ -850,13 +851,13 @@ struct QuantGemmKernel
 
     CK_TILE_DEVICE static auto MakeBQBlockWindow(const BQDataType* bq_ptr,
                                                  const QuantGemmKernelArgs& kargs,
+                                                 const index_t bq_group_offset,
                                                  const index_t i_m,
                                                  const index_t i_n)
     {
         // Step 1: Create tensor view for BQ
-        // Note: For split-K, the bq_ptr is already offset by bq_k_split_offset.
-        // The tensor view should use kargs.QK_B (full K-groups) as the dimension
-        // because the view needs to see all remaining K-groups from the offset position.
+        // Note: For split-K, the bq_ptr is already offset by bq_k_split_offset (pointer offset).
+        // The dimension should use the remaining K-groups from this offset position.
         const auto& bq_tensor_view = [&]() {
             if constexpr(kQuantType == QuantType::RowColQuant)
             {
@@ -902,9 +903,9 @@ struct QuantGemmKernel
                     {
                         return make_naive_tensor_view<address_space_enum::global>(
                             bq_ptr,
-                            make_tuple(kargs.QK_B,
-                                       integer_divide_ceil(kargs.N, BQuantGroupSize::kN)),
-                            make_tuple(integer_divide_ceil(kargs.N, BQuantGroupSize::kN), 1),
+                            make_tuple(kargs.QK_B - bq_group_offset,
+                                       integer_divide_ceil(kargs.N, QuantGroupSize::kN)),
+                            make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN), 1),
                             number<GemmPipeline::GetVectorSizeBQ()>{},
                             number<1>{});
                     }
@@ -912,8 +913,8 @@ struct QuantGemmKernel
                     {
                         return make_naive_tensor_view<address_space_enum::global>(
                             bq_ptr,
-                            make_tuple(integer_divide_ceil(kargs.N, BQuantGroupSize::kN),
-                                       kargs.QK_B),
+                            make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN),
+                                       kargs.QK_B - bq_group_offset),
                             make_tuple(kargs.QK_B, 1),
                             number<GemmPipeline::GetVectorSizeBQ()>{},
                             number<1>{});
@@ -1311,10 +1312,10 @@ struct QuantGemmKernel
         const auto& b_block_window =
             MakeBBlockWindow(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
         const auto& aq_block_window = MakeAQBlockWindow(aq_ptr, kargs, block_idx_m, block_idx_n);
-        // Note: BQ tensor view uses full dimensions (not splitted_qk_b) because
-        // the split-K offset is already applied to bq_ptr. The tensor view needs
-        // to see the full remaining K-groups from the offset position.
-        const auto& bq_block_window = MakeBQBlockWindow(bq_ptr, kargs, block_idx_m, block_idx_n);
+        // Note: Pass bq_group_offset so the tensor view dimension reflects
+        // the remaining K-groups from the split-K offset position.
+        const auto& bq_block_window = MakeBQBlockWindow(
+            bq_ptr, kargs, splitk_batch_offset.bq_group_offset, block_idx_m, block_idx_n);
 
         const index_t num_loop =
             amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
