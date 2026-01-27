@@ -34,14 +34,6 @@ def checkForPattern(pattern, log) {
     return [found: false, matchedLine: "", context: ""]
 }
 
-def testLog() {
-    sh """
-        echo "GPU not found test"
-        echo "test test docker login failed"
-    """
-    error("Forcing failure to test notifications")
-}
-
 // Scan the build logs for failures and send notifications.
 def sendFailureNotifications() {
     // Error patterns to scan build logs for specific failure types and send detailed notifications.
@@ -1300,7 +1292,6 @@ pipeline {
                 script {
                     env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || shouldRunCICheck())
                     echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
-                    testLog()
                 }
             }
         }
