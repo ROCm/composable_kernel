@@ -64,7 +64,7 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
 
-    // A/B DataType gets converted from PkInt4/PkFp8 during loading
+    // A/B DataType gets converted from PkInt4/PkFp4 during loading
     using OverrideADataType = BlockGemm::OverrideADataType;
     using OverrideBDataType = BlockGemm::OverrideBDataType;
 

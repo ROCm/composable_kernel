@@ -26,8 +26,8 @@ struct InterleavedPKTypeLoader
         using RawSrcType          = typename SrcDataType::type;
         constexpr auto PackedSize = numeric_traits<SrcDataType>::PackedSize;
 
-        using SrcVectorType = RawSrcType __attribute__((ext_vector_type(UnaryOpSize / PackedSize)));
-        using DstVectorType = DstDataType __attribute__((ext_vector_type(UnaryOpSize)));
+        using SrcVectorType = ext_vector_t<RawSrcType, UnaryOpSize / PackedSize>;
+        using DstVectorType = ext_vector_t<DstDataType, UnaryOpSize>;
         static_for<0, thread_buffer_size, 1>{}([&](auto i) {
             elementwise_op(warp_tile.get_thread_buffer().template get_as<DstVectorType>()(i),
                            in_dstr_tensors.get_thread_buffer().template get_as<SrcVectorType>()[i]);

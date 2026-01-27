@@ -135,7 +135,7 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
     using ComputeDataType = remove_cvref_t<typename Traits::ComputeDataType>;
     using CDataType       = remove_cvref_t<typename Traits::CDataType>;
 
-    // A/B DataType get converted from PkInt4/PkFp8 during loading
+    // A/B DataType get converted from PkInt4/PkFp4 during loading
     using OverrideADataType = ComputeDataType;
     using OverrideBDataType = ComputeDataType;
 

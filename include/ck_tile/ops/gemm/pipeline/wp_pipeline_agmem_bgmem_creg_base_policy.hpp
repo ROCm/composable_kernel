@@ -259,12 +259,12 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
         // If both are packed, it falls back to the explicitly defined ComputeDataType in the
         // problem It might be a good idea to use ComputeDataType anyway, but that would break how
         // this behaviour used to work
-        using ATypeToUse = mfma_compute_type_from_input_t<typename Problem::ADataType,
-                                                          typename Problem::BDataType,
-                                                          typename Problem::ComputeDataType>;
-        using BTypeToUse = mfma_compute_type_from_input_t<typename Problem::BDataType,
-                                                          typename Problem::ADataType,
-                                                          typename Problem::ComputeDataType>;
+        using ATypeToUse = mixed_prec_compute_type_from_input_t<typename Problem::ADataType,
+                                                                typename Problem::BDataType,
+                                                                typename Problem::ComputeDataType>;
+        using BTypeToUse = mixed_prec_compute_type_from_input_t<typename Problem::BDataType,
+                                                                typename Problem::ADataType,
+                                                                typename Problem::ComputeDataType>;
 
         using WarpGemm = WarpGemmDispatcher<ATypeToUse,
                                             BTypeToUse,

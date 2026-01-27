@@ -26,21 +26,22 @@ template <typename ADataType_,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full>
 struct GemmQuantPipelineProblemBase
-    : public GemmPipelineProblemBase<ADataType_,
-                                     BDataType_,
-                                     CDataType_,
-                                     BlockGemmShape_,
-                                     Traits_,
-                                     mfma_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>
+    : public GemmPipelineProblemBase<
+          ADataType_,
+          BDataType_,
+          CDataType_,
+          BlockGemmShape_,
+          Traits_,
+          mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>
 {
 
-    using Base =
-        GemmPipelineProblemBase<ADataType_,
-                                BDataType_,
-                                CDataType_,
-                                BlockGemmShape_,
-                                Traits_,
-                                mfma_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>;
+    using Base = GemmPipelineProblemBase<
+        ADataType_,
+        BDataType_,
+        CDataType_,
+        BlockGemmShape_,
+        Traits_,
+        mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>;
 
     using Traits = typename Base::Traits;
 

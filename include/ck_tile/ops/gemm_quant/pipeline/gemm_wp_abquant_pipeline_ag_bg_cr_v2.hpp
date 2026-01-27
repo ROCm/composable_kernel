@@ -7,7 +7,6 @@
 #include <sstream>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/core/utility/mfma_compute_types.hpp"
 #include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
@@ -321,7 +320,8 @@ struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRe
                 b_flat_dram_block_window_tmp.get_window_origin(),
                 b_flat_distribution);
 
-        using BTypeToUse = mfma_compute_type_from_input_t<BDataType, ADataType, ComputeDataType>;
+        using BTypeToUse =
+            mixed_prec_compute_type_from_input_t<BDataType, ADataType, ComputeDataType>;
         using BTileType = decltype(make_static_distributed_tensor<BTypeToUse>(b_flat_distribution));
 
         // pingpong buffer for B
@@ -400,7 +400,8 @@ struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRe
         block_sync_lds();
 
         // preload A00,A10 from lds
-        using ATypeToUse = mfma_compute_type_from_input_t<ADataType, BDataType, ComputeDataType>;
+        using ATypeToUse =
+            mixed_prec_compute_type_from_input_t<ADataType, BDataType, ComputeDataType>;
         using ATileType =
             decltype(make_static_distributed_tensor<BTypeToUse>(a_warp_tile_distribution));
         statically_indexed_array<ATileType, m_preload> a_warp_tensor;
