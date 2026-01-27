@@ -37,14 +37,11 @@ def checkForPattern(pattern, log) {
 def testLog() {
     sh """
         echo "Error response from daemon: Head "https": unauthorized: your account must log in with a Personal Access Token (PAT) - learn more at docs.docker.com/go/access-tokens throwing error exception while building CK"
-        echo "test test sccache: error: Server startup failed: Address in use test test"
         echo "sccache: error: Server startup failed: Address in use test test"
         echo "sccache: error: Server startup failed: Address in use"
-        echo "GPU not found"
         echo "test GPU not found test"
         echo "test GPU not found"
         echo "GPU not found test"
-        echo "docker login failed"
         echo "test test docker login failed test test"
         echo "docker login failed test test"
         echo "test test docker login failed"
@@ -62,7 +59,7 @@ def sendFailureNotifications() {
         [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
         [pattern: /.*GPU not found.*/, description: "GPU not found"],
         [pattern: /Could not connect to Redis at .* Connection timed out/, description: "Redis connection timed out"],
-        [pattern: /.*unauthorized: your account must log in with a Personal Access Token (PAT).*/, description: "Docker login failed"],
+        [pattern: /(.*)unauthorized: your account must log in with a Personal Access Token (PAT)(.*)/, description: "Docker login failed"],
         [pattern: /.*sccache: error: Server startup failed: Address in use.*/, description: "Sccache Error"]
     ]
     
