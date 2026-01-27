@@ -116,7 +116,11 @@ struct CShuffleEpilogue
     static constexpr index_t isCTransposed = Problem::isCTransposed;
     static constexpr bool FixedVectorSize  = Problem::FixedVectorSize;
     static constexpr bool TiledMMAPermuteN = Problem::TiledMMAPermuteN;
-    static constexpr bool AsyncPipeline    = (MWave * NWave == 8);
+#ifdef __gfx9__
+    static constexpr bool AsyncPipeline = (MWave * NWave == 8);
+#else
+    static constexpr bool AsyncPipeline = false;
+#endif
     static constexpr index_t BlockedXDLN_PerWarp =
         AsyncPipeline ? kNPerBlock / NWave / NPerXdl : Problem::BlockedXDLN_PerWarp;
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
