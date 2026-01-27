@@ -47,7 +47,7 @@ class TestConvndFwd : public ::testing::Test
                                               ck::tensor_layout::convolution::NDHWK>>,
                 DataType,
                 DataType,
-                DataType>(true,  // do_verification
+                DataType>(2,     // do_verification: 2 = GPU reference
                           1,     // init_method integer value
                           false, // do_log
                           false, // time_kernel
