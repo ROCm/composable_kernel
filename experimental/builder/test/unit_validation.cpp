@@ -318,5 +318,5 @@ TEST(MatchesReference, Incorrect)
     EXPECT_THAT(listener.str(),
                 StringEqWithDiff( //
                     "1 tensors failed to validate\n"
-                    "    - a: 625/625 incorrect elements (~100%)"));
+                    "    - a: 625/625 incorrect elements (~100%), max error 1"));
 }

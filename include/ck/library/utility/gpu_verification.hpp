@@ -292,8 +292,6 @@ compare_elements(const T& actual, const T& expected, const float rtol, const flo
 // Uses LDS (shared memory) for block-level reduction to minimize atomic contention.
 // This reduces atomic operations from O(errors) to O(blocks), providing massive speedup
 // when there are many errors.
-//
-// Assumption: Block size is 256
 template <int BlockSize, typename T, typename IteratorA, typename IteratorB>
 __global__ __launch_bounds__(BlockSize) //
     void gpu_verify_kernel(IteratorA device_result_it,
@@ -455,8 +453,6 @@ GpuVerifyResult gpu_verify(IteratorA device_result,
 
 // GPU reduction kernel for computing max(abs(data))
 // This is an internal kernel called only by gpu_reduce_max() wrapper.
-//
-// Assumption: Block size is 256
 template <int BlockSize, typename T, typename Iterator>
 __global__ __launch_bounds__((BlockSize)) //
     void gpu_reduce_max_kernel(Iterator it, long long size, float* __restrict__ max_val)

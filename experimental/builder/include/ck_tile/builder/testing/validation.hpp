@@ -179,6 +179,7 @@ bool ValidationReport::check(std::string_view tensor_name,
         .wrong_elements = result.error_count,
         .total_elements = descriptor.get_element_size(),
         .both_all_zero  = result.all_zero,
+        .max_error      = result.max_error,
     });
 
     return reports_.back().is_ok();
@@ -208,8 +209,8 @@ bool ValidationReport::check_by_accumulations(std::string_view tensor_name,
         .tensor_name    = std::string(tensor_name),
         .wrong_elements = result.error_count,
         .total_elements = descriptor.get_element_size(),
-        .max_error      = result.max_error,
         .both_all_zero  = result.all_zero,
+        .max_error      = result.max_error,
     });
 
     return reports_.back().is_ok();
