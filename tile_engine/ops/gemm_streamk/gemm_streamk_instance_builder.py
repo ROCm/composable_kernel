@@ -377,6 +377,7 @@ class GemmKernelBuilder:
         reduction_strategy_map = {
             "atomic": "ck_tile::StreamKReductionStrategy::Atomic",
             "reduction": "ck_tile::StreamKReductionStrategy::Reduction",
+            "tree": "ck_tile::StreamKReductionStrategy::TreeReduction",
         }
 
         # Determine accumulator type based on datatype
@@ -551,6 +552,11 @@ struct SelectedKernel {{
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
                 }}
                 else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction)
+                {{
+                    // Reset sk flags to zero before each repetition of the kernel
+                    workspace_data.SetZero();
+                }}
+                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::TreeReduction)
                 {{
                     // Reset sk flags to zero before each repetition of the kernel
                     workspace_data.SetZero();

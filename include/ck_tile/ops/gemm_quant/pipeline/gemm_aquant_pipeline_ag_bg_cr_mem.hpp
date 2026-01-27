@@ -499,7 +499,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
         return PipelineImpl<GemmPipelineScheduler::Intrawave>{}
             .template operator()<HasHotLoop, TailNum>(
                 a_dram_block_window_tmp,
-                [](const OverrideADataType& a) { return a; },
+                [](const BDataType& a) { return a; },
                 b_dram_block_window_tmp,
                 [](const BDataType& b) { return b; },
                 aq_dram_block_window_tmp,

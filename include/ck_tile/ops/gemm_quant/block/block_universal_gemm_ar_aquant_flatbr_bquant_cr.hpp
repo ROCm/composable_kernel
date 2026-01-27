@@ -213,6 +213,22 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                 });
             });
         };
+
+        auto q_block_tensor = aq_block_tensor;
+        constexpr bool SimpleDequant =
+            Traits::NQPerBlock == 1 &&
+            AccTensor::get_distributed_spans()[I0].impl_.size() == 0; // c_transpose
+        if constexpr(SimpleDequant)
+        {
+            constexpr auto aq_spans = AQBlockTensor::get_distributed_spans();
+            sweep_tile_span(aq_spans[I0], [&](auto im) {
+                sweep_tile_span(aq_spans[I1], [&](auto ik) {
+                    q_block_tensor(make_tuple(im, ik)) *=
+                        bq_block_tensor(make_tuple(tile_distributed_index<0>{}, ik));
+                });
+            });
+        }
+        // hot loop:
         static_for<0, QScalesPerBlockRow, 1>{}([&](auto kQScale) {
             zero_accumulators();
             static_for<0, KIterPerQScale, 1>{}([&](auto kIterInQScale) {
@@ -243,9 +259,29 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                     }
                 });
             });
-            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(aq_block_tensor);
-                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+            static_for_product<number<MIterPerWarp>, number<NIterPerWarp>>{}([&](auto mIter,
+                                                                                 auto nIter) {
+                if constexpr(SimpleDequant)
+                {
+                    constexpr auto tbuf_offset =
+                        number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
+                                   merge_sequences(sequence<mIter, nIter>{},
+                                                   c_warp_y_index_zeros)) /
+                               CBlockTensor::PackedSize>{};
+
+                    constexpr auto block_idx_m  = tile_distributed_index<mIter>{};
+                    constexpr auto block_idx_kq = tile_distributed_index<kQScale>{};
+
+                    static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
+                        auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
+                        const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
+                        c_ref += acc_val * q_block_tensor(make_tuple(block_idx_m, block_idx_kq));
+                    });
+                }
+                else
+                {
+                    AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(
+                        aq_block_tensor);
                     constexpr auto tbuf_offset =
                         number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
                                    merge_sequences(sequence<mIter, nIter>{},
@@ -273,7 +309,7 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                         const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
                         c_ref              = c_ref + acc_val * b_scale_reg_f * a_scale_reg_f;
                     });
-                });
+                }
             });
         });
     }
