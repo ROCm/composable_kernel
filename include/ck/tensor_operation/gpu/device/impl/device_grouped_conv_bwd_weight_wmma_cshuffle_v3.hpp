@@ -307,6 +307,33 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
             batch);
     }
 
+        template <typename Desc_K0_M_K1>
+    static auto transform_k0_m_k1_to_m_k(const Desc_K0_M_K1& desc_k0_m_k1)
+    {
+        const auto grid_desc_m_k = transform_tensor_descriptor(
+            desc_k0_m_k1,
+            make_tuple(make_pass_through_transform(desc_k0_m_k1.GetLength(I1)),
+                       make_merge_transform(
+                           make_tuple(desc_k0_m_k1.GetLength(I0), desc_k0_m_k1.GetLength(I2)))),
+            make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        return grid_desc_m_k;
+    }
+            template <typename Desc_K0_N_K1>
+    static auto transform_k0_m_k1_to_n_k(const Desc_K0_N_K1& desc_k0_n_k1)
+    {
+        const auto grid_desc_n_k = transform_tensor_descriptor(
+            desc_k0_n_k1,
+            make_tuple(make_pass_through_transform(desc_k0_n_k1.GetLength(I1)),
+                       make_merge_transform(
+                           make_tuple(desc_k0_n_k1.GetLength(I0), desc_k0_n_k1.GetLength(I2)))),
+            make_tuple(Sequence<1>{}, Sequence<0, 2>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+        return grid_desc_n_k;
+    }
+
     using NGCHWTransposeDescType =
         remove_cvref_t<decltype(conv_ngchw_to_nhwgc_transformer
                                     .template MakeNGCHWTransposeDesc<NDimSpatial>({}, {}))>;
@@ -322,9 +349,14 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
 
     using ABCGridDescs = decltype(GetABCGridDesc<NDimSpatial>());
 
-    using AGridDesc_M_K = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
-    using BGridDesc_N_K = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
+    using AGridDesc_M_K_ = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
+    using BGridDesc_N_K_ = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
     using CGridDesc_M_N = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
+
+    
+    using AGridDesc_M_K = decltype(transform_k0_m_k1_to_m_k(AGridDesc_M_K_{}));
+    using BGridDesc_N_K =  decltype(transform_k0_m_k1_to_n_k(BGridDesc_N_K_{}));
+
 
     using Block2TileMapTranspose = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
 
@@ -586,8 +618,8 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
                         input_right_pads,
                         k_batch_);
 
-            a_grid_desc_kbatch_m_k_ = descs[I0];
-            b_grid_desc_kbatch_n_k_ = descs[I1];
+            a_grid_desc_kbatch_m_k_ = transform_k0_m_k1_to_m_k(descs[I0]);
+            b_grid_desc_kbatch_n_k_ =transform_k0_m_k1_to_n_k(descs[I1]);
             c_grid_desc_m_n_        = descs[I2];
 
             // A/B/C Batch Stride
@@ -852,7 +884,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
 
             std::cout << "K0 value is:" << (GridwiseGemm::CalculateAK0Padded( arg.a_grid_desc_kbatch_m_k_.GetLength(Number<1>{}),arg.k_batch_)) << std::endl;
 
-              const index_t num_k_per_block = (GridwiseGemm::CalculateAK0Padded( arg.a_grid_desc_kbatch_m_k_.GetLength(Number<1>{}),arg.k_batch_))/gemm_arg.KBatch;
+              const index_t num_k_per_block = (GridwiseGemm::CalculateAK0Padded( arg.a_grid_desc_kbatch_m_k_.GetLength(Number<1>{}),arg.k_batch_));
             const auto clear_workspace = [&]() {
                 hip_check_error(
                     hipMemsetAsync(p_e_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
