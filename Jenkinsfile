@@ -39,10 +39,10 @@ def sendFailureNotifications() {
     // Error patterns to scan build logs for specific failure types and send detailed notifications.
     def failurePatterns = [
         [pattern: /login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
-        [pattern: /docker login failed/, description: "Docker login failed"],
+        [pattern: /(.*)docker login failed(.*)/, description: "Docker login failed"],
         [pattern: /HTTP request sent .* 404 Not Found/, description: "HTTP request failed with 404"],
         [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
-        [pattern: /GPU not found/, description: "GPU not found"],
+        [pattern: /(.*)GPU not found(.*)/, description: "GPU not found"],
         [pattern: /Could not connect to Redis at .* Connection timed out/, description: "Redis connection timed out"]
     ]
     
@@ -115,7 +115,7 @@ def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
         // Run container to get snapshot
         def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules -e BUILD_TRACE_FILE=${buildTraceFileName}"
         // Create unique image name by sanitizing job name
-        def sanitizedJobName = env.JOB_NAME.replaceAll(/[\/\\:*?"<>| ]/, '_')
+        def sanitizedJobName = env.JOB_NAME.replaceAll(/[\/\\:*?"<>| ]/, '_').replaceAll('%2F', '_')
         def architectureName = (buildTraceFileName =~ /(gfx[0-9a-zA-Z]+)/)[0][1]
         def imageName = "perfetto_snapshot_${sanitizedJobName}_build_${env.BUILD_NUMBER}_${architectureName}.png"
         sh """
