@@ -82,23 +82,48 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-        DispatchSplitKHack<GridwiseGemm,
-                           AGridDesc_AK0_M_K1,
-                           BGridDesc_BK0_N_K1,
-                           CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                           HasMainKBlockLoop,
-                           CGlobalMemoryDataOperation,
-                           TailNum>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
-                                    karg.p_b_grid + b_batch_offset + split_k_offset_b,
-                                    karg.p_c_grid + e_batch_offset,
-                                    p_shared,
-                                    karg,
-                                    a_grid_desc_ak0_m_ak1,
-                                    b_grid_desc_bk0_n_bk1,
-                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    k_idx * num_k_per_block,
-                                    gridDim.y,
-                                    split_k_offset_hack);
+        if constexpr(GridwiseGemm::DirectLoadEnabled)
+        {
+#if defined(__gfx950__)
+            DispatchSplitKHack<GridwiseGemm,
+                               AGridDesc_AK0_M_K1,
+                               BGridDesc_BK0_N_K1,
+                               CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                               HasMainKBlockLoop,
+                               CGlobalMemoryDataOperation,
+                               TailNum>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
+                                        karg.p_b_grid + b_batch_offset + split_k_offset_b,
+                                        karg.p_c_grid + e_batch_offset,
+                                        p_shared,
+                                        karg,
+                                        a_grid_desc_ak0_m_ak1,
+                                        b_grid_desc_bk0_n_bk1,
+                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                        k_idx * num_k_per_block,
+                                        gridDim.y,
+                                        split_k_offset_hack);
+#endif
+        }
+        else
+        {
+            DispatchSplitKHack<GridwiseGemm,
+                               AGridDesc_AK0_M_K1,
+                               BGridDesc_BK0_N_K1,
+                               CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                               HasMainKBlockLoop,
+                               CGlobalMemoryDataOperation,
+                               TailNum>(karg.p_a_grid + a_batch_offset + split_k_offset_a,
+                                        karg.p_b_grid + b_batch_offset + split_k_offset_b,
+                                        karg.p_c_grid + e_batch_offset,
+                                        p_shared,
+                                        karg,
+                                        a_grid_desc_ak0_m_ak1,
+                                        b_grid_desc_bk0_n_bk1,
+                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                        k_idx * num_k_per_block,
+                                        gridDim.y,
+                                        split_k_offset_hack);
+        }
     }
 #else
     ignore = karg;
