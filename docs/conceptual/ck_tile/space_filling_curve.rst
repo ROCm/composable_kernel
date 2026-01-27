@@ -254,7 +254,6 @@ For :ref:`matrix multiplication <ck_tile_gemm_optimization>`, optimal access pat
 
    // GEMM tile: 16x32 with vector-8 loads
    // Column-major for coalesced access in GEMM
-   // See :ref:`ck_tile_gemm_optimization` for complete example
    using GemmTileCurve = space_filling_curve<
        2,
        sequence<16, 32>,    // Tile size
@@ -336,7 +335,7 @@ Optimizing for Hardware
 
 .. code-block:: cpp
 
-   // Optimize for GPU memory coalescing (see :ref:`ck_tile_gpu_basics`)
+   // Optimize for GPU memory coalescing
    template <typename DataType, index_t WarpSize = 32>
    struct coalesced_access_pattern
    {
@@ -411,7 +410,6 @@ LoadStoreTraits Integration
    struct load_store_traits
    {
        // Create optimized space-filling curve
-       // See :ref:`ck_tile_tile_distribution` for Distribution details
        using sfc_type = space_filling_curve<
            Distribution::ndim_y,
            typename Distribution::y_lengths,
@@ -461,7 +459,6 @@ Best Practices
    .. code-block:: cpp
 
       // Match vector size to cache line for optimal bandwidth
-      // See :ref:`ck_tile_lds_bank_conflicts` for cache optimization
       constexpr index_t optimal_vector = min(
           tensor_length_fast_dim,
           cache_line_size / sizeof(DataType)

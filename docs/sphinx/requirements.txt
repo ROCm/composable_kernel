@@ -33,12 +33,8 @@ charset-normalizer==3.4.4
     # via requests
 click==8.3.1
     # via
-    #   click-log
-    #   doxysphinx
     #   jupyter-cache
     #   sphinx-external-toc
-click-log==0.4.0
-    # via doxysphinx
 comm==0.2.3
     # via ipykernel
 cryptography==46.0.3
@@ -108,10 +104,6 @@ jupyter-core==5.9.1
     #   nbformat
 latexcodec==3.0.1
     # via pybtex
-libsass==0.22.0
-    # via doxysphinx
-lxml==5.2.1
-    # via doxysphinx
 markdown-it-py==3.0.0
     # via
     #   mdit-py-plugins
@@ -126,8 +118,6 @@ mdit-py-plugins==0.5.0
     # via myst-parser
 mdurl==0.1.2
     # via markdown-it-py
-mpire==2.10.2
-    # via doxysphinx
 myst-nb==1.3.0
     # via rocm-docs-core
 myst-parser==4.0.1
@@ -180,17 +170,12 @@ pygments==2.19.2
     # via
     #   accessible-pygments
     #   ipython
-    #   mpire
     #   pydata-sphinx-theme
     #   sphinx
-pyjson5==1.6.9
-    # via doxysphinx
 pyjwt[crypto]==2.10.1
     # via pygithub
 pynacl==1.6.2
     # via pygithub
-pyparsing==3.3.1
-    # via doxysphinx
 python-dateutil==2.9.0.post0
     # via jupyter-client
 pyyaml==6.0.3
@@ -279,8 +264,6 @@ tornado==6.5.4
     # via
     #   ipykernel
     #   jupyter-client
-tqdm==4.67.1
-    # via mpire
 traitlets==5.14.3
     # via
     #   ipykernel

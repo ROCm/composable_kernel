@@ -1,14 +1,15 @@
 .. _ck_tile_buffer_views:
 
+**********************************
 Buffer Views - Raw Memory Access
-================================
+**********************************
 
 Overview
 --------
 
 At the foundation of the CK Tile system lies BufferView, a compile-time abstraction that provides structured access to raw memory regions within GPU kernels. This serves as the bridge between the hardware's physical memory model and the higher-level abstractions that enable efficient GPU programming. BufferView encapsulates the complexity of GPU memory hierarchies while exposing a unified interface that works seamlessly across different memory address spaces including global memory shared across the entire device, local data share (LDS) memory shared within a workgroup, or the ultra-fast register files private to each thread.
 
-BufferView serves as the foundation for :ref:`ck_tile_tensor_views`, which add multi-dimensional structure on top of raw memory access. Understanding BufferView is essential before moving on to more complex abstractions like :ref:`ck_tile_distribution` and :ref:`ck_tile_window`.
+BufferView serves as the foundation for :ref:`ck_tile_tensor_views`, which add multi-dimensional structure on top of raw memory access. Understanding BufferView is essential before moving on to more complex abstractions like :ref:`ck_tile_distribution` and :ref:`ck_tile_tile_window`.
 
 By providing compile-time knowledge of buffer properties through template metaprogramming, BufferView enables the compiler to generate optimal machine code for each specific use case. This zero-overhead abstraction ensures that the convenience of a high-level interface comes with no runtime performance penalty.
 
@@ -69,6 +70,7 @@ Address Space Usage Patterns
 .. image:: diagrams/buffer_views_1.svg
    :alt: Diagram
    :align: center
+   
 C++ Implementation
 ------------------
 
