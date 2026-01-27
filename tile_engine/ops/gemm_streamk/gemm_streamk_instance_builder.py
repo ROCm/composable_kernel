@@ -572,7 +572,7 @@ struct SelectedKernel {{
                 reset_data_buffers,
                 ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
             
-            return std::tuple{{time, num_wgs_per_tile}};
+            return std::tuple<float, ck_tile::index_t>{{time, num_wgs_per_tile}};
     }}
 }};
 """

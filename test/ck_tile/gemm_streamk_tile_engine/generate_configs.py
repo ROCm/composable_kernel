@@ -15,15 +15,15 @@ from dataclasses import dataclass, field, asdict
 class TileConfig:
     """Represents the Tile Config section of a Tile Engine config"""
 
-    tile_m: list[int] = field(default_factory=list)
-    tile_n: list[int] = field(default_factory=list)
-    tile_k: list[int] = field(default_factory=list)
-    warp_m: list[int] = field(default_factory=lambda: [2])
-    warp_n: list[int] = field(default_factory=lambda: [2])
-    warp_k: list[int] = field(default_factory=lambda: [1])
-    warp_tile_m: list[int] = field(default_factory=lambda: [32])
-    warp_tile_n: list[int] = field(default_factory=lambda: [32])
-    warp_tile_k: list[int] = field(default_factory=lambda: [16])
+    tile_m: List[int] = field(default_factory=list)
+    tile_n: List[int] = field(default_factory=list)
+    tile_k: List[int] = field(default_factory=list)
+    warp_m: List[int] = field(default_factory=lambda: [2])
+    warp_n: List[int] = field(default_factory=lambda: [2])
+    warp_k: List[int] = field(default_factory=lambda: [1])
+    warp_tile_m: List[int] = field(default_factory=lambda: [32])
+    warp_tile_n: List[int] = field(default_factory=lambda: [32])
+    warp_tile_k: List[int] = field(default_factory=lambda: [16])
 
     def to_dict(self) -> Dict:
         return {k: {"values": v} for k, v in asdict(self).items()}
@@ -33,14 +33,14 @@ class TileConfig:
 class TraitConfig:
     """Represents the Trait Config section of a Tile Engine config"""
 
-    pipeline: list[str] = field(default_factory=lambda: ["compv3"])
-    epilogue: list[str] = field(default_factory=lambda: ["cshuffle"])
-    scheduler: list[str] = field(default_factory=lambda: ["intrawave"])
-    pad_m: list[bool] = field(default_factory=lambda: [False])
-    pad_n: list[bool] = field(default_factory=lambda: [False])
-    pad_k: list[bool] = field(default_factory=lambda: [False])
-    persistent: list[bool] = field(default_factory=lambda: [True, False])
-    reduction_strategy: list[str] = field(default_factory=list)
+    pipeline: List[str] = field(default_factory=lambda: ["compv3"])
+    epilogue: List[str] = field(default_factory=lambda: ["cshuffle"])
+    scheduler: List[str] = field(default_factory=lambda: ["intrawave"])
+    pad_m: List[bool] = field(default_factory=lambda: [False])
+    pad_n: List[bool] = field(default_factory=lambda: [False])
+    pad_k: List[bool] = field(default_factory=lambda: [False])
+    persistent: List[bool] = field(default_factory=lambda: [True, False])
+    reduction_strategy: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
         return {k: {"values": v} for k, v in asdict(self).items()}
@@ -174,7 +174,7 @@ def write_config_files(
     problem_sizes: List[ProblemSize],
     configs_dir_path: str,
     datatype: str,
-    tile_sizes: list[int, int, int],
+    tile_sizes: Tuple[int, int, int],
 ) -> str:
     """Writes the given problem_sizes to a config file and returns the names of the config files written to"""
     config_names = []
@@ -221,6 +221,23 @@ def create_config_files(
 
 def get_args() -> Tuple[int, str, Tuple[int, int, int], str]:
     """Returns user provided arguments"""
+
+    def tile_sizes_type(val: str):
+        sizes = None
+        parts = val.split(",")
+        if len(parts) != 3:
+            raise argparse.ArgumentTypeError(
+                "--tiles must contain exactly three comma-separated values (m,n,k), e.g. --tiles 256,256,32"
+            )
+        try:
+            sizes = tuple(int(size) for size in parts)
+        except ValueError:
+            raise argparse.ArgumentTypeError(
+                "--tiles must contain exactly three comma-separated integers (m,n,k), e.g. --tiles 256,256,32"
+            )
+
+        return sizes
+
     parser = argparse.ArgumentParser(description="Create Stream-K test configs")
     parser.add_argument(
         "--cu_count", required=True, help="Number of Compute Units on the device"
@@ -234,6 +251,7 @@ def get_args() -> Tuple[int, str, Tuple[int, int, int], str]:
     parser.add_argument(
         "--tiles",
         required=True,
+        type=tile_sizes_type,
         help="Block tile sizes for m, n, and k, respectively. Ex: --tiles 256,256,32",
     )
 
@@ -245,9 +263,8 @@ def get_args() -> Tuple[int, str, Tuple[int, int, int], str]:
     )
 
     args = parser.parse_args()
-    tile_sizes = [int(size) for size in args.tiles.split(",")]
 
-    return (int(args.cu_count), args.configs_dir_path, tile_sizes, args.datatype)
+    return (int(args.cu_count), args.configs_dir_path, args.tiles, args.datatype)
 
 
 def main():

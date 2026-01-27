@@ -17,12 +17,12 @@ set(CU_COUNT 0 CACHE STRING "Number of Compute Units on the device")
 function(get_cu_count cu_count_arg)
     message(STATUS "Starting query for CU count needed for Stream-K test config generation")
 
-    if(NOT ${${cu_count_arg}} MATCHES "^[0-9]+$")
+    if(NOT "${${cu_count_arg}}" MATCHES "^[0-9]+$")
         message(FATAL_ERROR "The CU count must be a non-negative integer. \
                 The given value of ${${cu_count_arg}} is invalid.")
     endif()
 
-    if(${cu_count_arg} STREQUAL "0")
+    if("${${cu_count_arg}}" STREQUAL "0")
 
         set(CPP_FILE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cu_count.cpp)
         set(CPP_EXE_PATH ${CMAKE_CURRENT_BINARY_DIR}/cu_count)
@@ -53,14 +53,8 @@ function(get_cu_count cu_count_arg)
             message(FATAL_ERROR "Error occurred when running ${CPP_FILE_PATH}")
         endif()
 
-        execute_process(
-            COMMAND rm ${CPP_EXE_PATH}
-            RESULT_VARIABLE rm_result
-        )
-
-        if (NOT rm_result EQUAL 0)
-            message(WARNING "Removal of ${CPP_EXE_PATH} failed")
-        endif()
+        # Delete the generated cu_count executable
+        file(REMOVE "${CPP_EXE_PATH}")
 
         if(queried_cu_count STREQUAL "0")
             message(WARNING "Unable to query the number of Compute Units. \

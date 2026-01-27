@@ -12,6 +12,7 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <tuple>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
