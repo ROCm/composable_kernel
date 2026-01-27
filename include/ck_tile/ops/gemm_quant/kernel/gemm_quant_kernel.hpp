@@ -1119,11 +1119,11 @@ struct QuantGemmKernel
                 constexpr index_t BPackedSize =
                     ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
 
-                // Constraint 1: KRead must align with B packing (pk_int4_t packs 2 elements/byte)
-                // For packed types like pk_int4_t, two K elements are stored in one byte.
-                // Split-K advances the B pointer by (KRead / BPackedSize) bytes per batch.
-                // If KRead is odd, this division produces a fractional byte offset, which is
-                // impossible - we cannot start reading from the middle of a packed byte.
+                // Constraint 1: KRead must align with B packing requirements.
+                // For packed data types, multiple K elements are stored in each storage unit.
+                // Split-K advances the B pointer by (KRead / BPackedSize) storage units per batch.
+                // If KRead is not divisible by BPackedSize, this division produces a fractional
+                // offset, making it impossible to start reading from a valid storage unit boundary.
                 if(KRead % BPackedSize != 0)
                 {
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
@@ -1136,8 +1136,8 @@ struct QuantGemmKernel
                 // Constraint 2: KRead must align with quantization group boundaries.
                 // Each split-K batch reads KRead consecutive K elements. If KRead is not
                 // a multiple of QuantGroupSize::kK, the batch will span partial quantization
-                // groups. Since the pipeline indexes BQ scales using (local_k / kK) without
-                // knowledge of the global K offset, it would apply scales from the wrong groups.
+                // groups, requiring split access to a quantization scale. This violates the
+                // atomic processing requirement where each batch must work with complete groups.
                 if(KRead % QuantGroupSize::kK != 0)
                 {
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
