@@ -163,13 +163,13 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
         constexpr index_t WaveSize  = get_warp_size();
         constexpr index_t WaveNum   = BlockSize / WaveSize;
 
-        constexpr index_t KBPerLoad =
-            min(GetKBPerLoad<Problem>(), 16 / static_cast<index_t>(sizeof(BDataType)));
 #if defined(__gfx11__)
         constexpr index_t KRepeatInWave = 2;
 #else
         constexpr index_t KRepeatInWave = 1;
 #endif
+        constexpr index_t KBPerLoad = min(
+            GetKBPerLoad<Problem>(), KRepeatInWave * 16 / static_cast<index_t>(sizeof(BDataType)));
         constexpr index_t KThdPerWave = WaveSize / KRepeatInWave; // threads cnt in K dim
         constexpr index_t KWavePerBlk = 1;
         constexpr index_t KRepeat     = KIterPerWarp;
