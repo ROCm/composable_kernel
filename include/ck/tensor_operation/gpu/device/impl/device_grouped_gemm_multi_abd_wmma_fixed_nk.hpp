@@ -447,7 +447,8 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
     using GemmTransKernelArg =
         GroupedGemmMultiABDKernelArgument<NumATensor, NumBTensor, NumDTensor>;
 
-    static constexpr bool CalculateHasMainKBlockLoop(const GemmTransKernelArg& karg, index_t k_batch)
+    static constexpr bool CalculateHasMainKBlockLoop(const GemmTransKernelArg& karg,
+                                                     index_t k_batch)
     {
         index_t k_grain = k_batch * KPerBlock;
         index_t K_split = (karg.K + k_grain - 1) / k_batch;
@@ -679,8 +680,8 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
                     arg.c_element_op_);
             };
 
-            constexpr auto Set       = InMemoryDataOperationEnum::Set;
-            ave_time = launch_kernel(integral_constant<InMemoryDataOperationEnum, Set>{});
+            constexpr auto Set = InMemoryDataOperationEnum::Set;
+            ave_time           = launch_kernel(integral_constant<InMemoryDataOperationEnum, Set>{});
 
             return ave_time;
         }
@@ -854,8 +855,9 @@ struct DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
             return p_arg_->gemm_desc_kernel_arg_.size() * sizeof(GemmTransKernelArg);
         }
         else
-            throw std::runtime_error("The argument pointer is not an object of "
-                                     "DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK::Argument structure!");
+            throw std::runtime_error(
+                "The argument pointer is not an object of "
+                "DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK::Argument structure!");
     }
 
     void SetWorkSpacePointer(BaseArgument* p_arg,
