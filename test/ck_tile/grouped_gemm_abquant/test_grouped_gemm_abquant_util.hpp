@@ -117,6 +117,7 @@ class TestCkTileGroupedGemmABQuant : public ::testing::Test
                                                                  Config::kPadN,
                                                                  Config::kPadK,
                                                                  false,
+                                                                 false,
                                                                  Config::PreshuffleB,
                                                                  ALayout,
                                                                  BLayout,
