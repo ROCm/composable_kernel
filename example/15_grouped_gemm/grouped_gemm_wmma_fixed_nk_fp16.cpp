@@ -167,19 +167,23 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         }
     }
 
-    std::vector<DeviceGemmInstance::Argument> grouped_gemm_kernel_args_;
+    std::cout << "Sum of M: " << sum_of_m << std::endl;
+
+    using GroupedGemmKernelArgument = ck::tensor_operation::device::GroupedGemmKernelArgument<>;
+
+    std::vector<GroupedGemmKernelArgument> grouped_gemm_kernel_args_;
     grouped_gemm_kernel_args_.reserve(group_count);
 
     for(int i = 0; i < group_count; i++)
     {
-        a_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(ADataType) * sum_of_m * problem_size.Ks[i]));
+        a_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(ADataType) * problem_size.Ms[i] * problem_size.Ks[i]));
 
         b_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(BDataType) * problem_size.Ns[i] * problem_size.Ks[i]));
 
-        c_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(EDataType) * sum_of_m * problem_size.Ns[i]));
+        c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(EDataType) * problem_size.Ms[i] * problem_size.Ns[i]));
 
         a_tensors_device[i]->ToDevice(a_tensors[i].mData.data(),
                                       a_tensors[i].mDesc.GetElementSpaceSize() * sizeof(ADataType));
@@ -284,7 +288,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                                       c_element_op);
 
             ref_invoker.Run(ref_argument);
-            
+
             pass &= ck::utils::check_err(c_device_tensors[i], c_host_tensors[i]);
         }
         // Copy device tensors back to host
@@ -293,8 +297,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             c_tensors_device[i]->FromDevice(c_device_tensors[i].mData.data(),
                                             c_device_tensors[i].mDesc.GetElementSize() *
                                                 sizeof(EDataType));
-
-
         }
         // // Print out device and reference results for debugging
         // std::cout << "[CK GEMM RESULT TRACE]\n";
@@ -325,10 +327,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         // }
     }
 
-
-
-        std::cout << "Verification: " << (pass ? "SUCCESS" : "FAILURE") << "!" << std::endl;
-        return pass;
+    std::cout << "Verification: " << (pass ? "SUCCESS" : "FAILURE") << "!" << std::endl;
+    return pass;
 }
 
 int main(int argc, char* argv[])
@@ -369,7 +369,7 @@ int main(int argc, char* argv[])
         // problem_size.Ms.push_back(256);
         // problem_size.Ns.push_back(256);
         // problem_size.Ks.push_back(256);
-        problem_size.Ms.push_back(128 + rand() % 128);
+        problem_size.Ms.push_back(128 + i * 128);
         problem_size.Ns.push_back(1024);
         problem_size.Ks.push_back(1024);
 
