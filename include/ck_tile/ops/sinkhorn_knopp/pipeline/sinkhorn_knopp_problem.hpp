@@ -58,15 +58,15 @@ struct SinkhornKnoppShape
     static constexpr index_t BlockSize = ck_tile::get_warp_size();
 };
 
-template <typename _XDataType,
-          typename _YDataType,
+template <typename _InDataType,
+          typename _OutDataType,
           typename _BlockShape,
-          typename _ComputeDataType = float>
+          typename _ComputeDataType = _OutDataType>
 struct SinkhornKnoppProblem
 {
-    using XDataType       = remove_cvref_t<_XDataType>;
+    using InDataType      = remove_cvref_t<_InDataType>;
     using ComputeDataType = remove_cvref_t<_ComputeDataType>;
-    using YDataType       = remove_cvref_t<_YDataType>;
+    using OutDataType     = remove_cvref_t<_OutDataType>;
 
     using BlockShape = remove_cvref_t<_BlockShape>;
 };
