@@ -283,7 +283,7 @@ Creating and Using TileWindow
 
    using namespace ck_tile;
    
-   // Create a tensor view for input data (see :ref:`ck_tile_tensor_views`)
+   // Create a tensor view for input data
    auto tensor_view = make_naive_tensor_view(
        data_ptr,
        make_tuple(256, 256),    // Shape
@@ -314,7 +314,7 @@ Creating and Using TileWindow
        distribution
    );
    
-   // Load data into distributed tensor (see :ref:`ck_tile_static_distributed_tensor`)
+   // Load data into distributed tensor 
    auto distributed_data = make_static_distributed_tensor<float>(distribution);
    window.load(distributed_data);
 
@@ -558,7 +558,6 @@ Complete Load-Compute-Store Pipeline
            c_dist);
        
        // Create distributed tensors for register storage
-       // See :ref:`ck_tile_static_distributed_tensor` for details
        auto a_reg = make_static_distributed_tensor<AType>(a_dist);
        auto b_reg = make_static_distributed_tensor<BType>(b_dist);
        auto c_reg = make_static_distributed_tensor<CType>(c_dist);
@@ -620,6 +619,8 @@ Performance Characteristics
 .. image:: diagrams/tile_window_5.svg
    :alt: Diagram
    :align: center
+
+
 Best Practices
 --------------
 

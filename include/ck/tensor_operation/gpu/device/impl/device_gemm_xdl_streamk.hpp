@@ -323,7 +323,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                         &occupancy_,
                         kernel,
                         BlockSize,
-                        GridwiseGemm64::GetSharedMemoryNumberOfByte());
+                        GridwiseGemm64::GetSharedMemoryNumberOfByteOnHost());
                     hip_check_error(rtn);
                 }
             }
@@ -336,7 +336,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                         &occupancy_,
                         kernel,
                         BlockSize,
-                        GridwiseGemm32::GetSharedMemoryNumberOfByte());
+                        GridwiseGemm32::GetSharedMemoryNumberOfByteOnHost());
                     hip_check_error(rtn);
                 }
             }
@@ -396,7 +396,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                         &occupancy_,
                         kernel,
                         BlockSize,
-                        GridwiseGemm64::GetSharedMemoryNumberOfByte());
+                        GridwiseGemm64::GetSharedMemoryNumberOfByteOnHost());
                     hip_check_error(rtn);
                 }
             }
@@ -409,7 +409,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                         &occupancy_,
                         kernel,
                         BlockSize,
-                        GridwiseGemm32::GetSharedMemoryNumberOfByte());
+                        GridwiseGemm32::GetSharedMemoryNumberOfByteOnHost());
                     hip_check_error(rtn);
                 }
             }
