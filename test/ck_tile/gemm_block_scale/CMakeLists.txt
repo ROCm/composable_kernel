@@ -11,7 +11,24 @@ list(APPEND TEST_GEMM_COMPILE_OPTIONS -mllvm -enable-noalias-to-md-conversion=0)
 if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     # Typed Test Suite for GEMM Quantization - split into multiple files to reduce compile time
     
-    # AQuant tests - split into 6 files
+    # AQuant tests - split into 10 files
+
+    # AQuant Memory Pipeline tests
+    add_gtest_executable(test_tile_gemm_quant_aquant_mem_prefill_interwave
+        test_gemm_quant_aquant_mem_prefill_interwave.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_aquant_mem_prefill_interwave PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_aquant_mem_decode_intrawave
+        test_gemm_quant_aquant_mem_decode_intrawave.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_aquant_mem_decode_intrawave PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_aquant_mem_decode_interwave
+        test_gemm_quant_aquant_mem_decode_interwave.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_aquant_mem_decode_interwave PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
     add_gtest_executable(test_tile_gemm_quant_aquant_base_rcr 
         test_gemm_quant_aquant_base_rcr.cpp
     )
@@ -117,6 +134,27 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_bquant_preshuffle_prefill_2d PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
+    # BQuant tests (with PreshuffleQuant) - split into 4 files
+    add_gtest_executable(test_tile_gemm_quant_bquant_preshuffleQuant_decode_1d 
+        test_gemm_quant_bquant_preshuffleQuant_decode_1d.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_preshuffleQuant_decode_1d PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_preshuffleQuant_prefill_1d 
+        test_gemm_quant_bquant_preshuffleQuant_prefill_1d.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_preshuffleQuant_prefill_1d PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_preshuffleQuant_decode_2d 
+        test_gemm_quant_bquant_preshuffleQuant_decode_2d.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_preshuffleQuant_decode_2d PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_preshuffleQuant_prefill_2d 
+        test_gemm_quant_bquant_preshuffleQuant_prefill_2d.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_preshuffleQuant_prefill_2d PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
     # RowColQuant tests
     add_gtest_executable(test_tile_gemm_quant_rowcol 
         test_gemm_quant_rowcol.cpp
@@ -129,10 +167,21 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_tensor PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
+    # Target to build only AQuant memory pipeline tests
+    add_custom_target(test_tile_gemm_aquant_mem_all)
+    add_dependencies(test_tile_gemm_aquant_mem_all
+        test_tile_gemm_quant_aquant_mem_prefill_interwave
+        test_tile_gemm_quant_aquant_mem_decode_intrawave
+        test_tile_gemm_quant_aquant_mem_decode_interwave
+    )
+
     # Umbrella target to build all gemm quant tests
     add_custom_target(test_tile_gemm_quant_all)
     add_dependencies(test_tile_gemm_quant_all
         # AQuant tests
+        test_tile_gemm_quant_aquant_mem_prefill_interwave
+        test_tile_gemm_quant_aquant_mem_decode_intrawave
+        test_tile_gemm_quant_aquant_mem_decode_interwave
         test_tile_gemm_quant_aquant_base_rcr
         test_tile_gemm_quant_aquant_base_rrr_crr
         test_tile_gemm_quant_aquant_base_ccr
@@ -152,6 +201,11 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         test_tile_gemm_quant_bquant_preshuffle_tiled_permute
         test_tile_gemm_quant_bquant_preshuffle_decode_2d
         test_tile_gemm_quant_bquant_preshuffle_prefill_2d
+        # BQuant preshuffleQuant tests
+        test_tile_gemm_quant_bquant_preshuffleQuant_decode_1d
+        test_tile_gemm_quant_bquant_preshuffleQuant_prefill_1d
+        test_tile_gemm_quant_bquant_preshuffleQuant_decode_2d
+        test_tile_gemm_quant_bquant_preshuffleQuant_prefill_2d
         # Other quant tests
         test_tile_gemm_quant_rowcol
         test_tile_gemm_quant_tensor

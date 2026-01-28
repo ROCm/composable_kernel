@@ -1242,7 +1242,7 @@ inline __host__ __device__ float2_t type_convert<float2_t, pk_i4_t>(pk_i4_t x)
 
 #ifdef CK_USE_PK4_LAYOUT_SHUFFLE
     float2_t res = {x_h, x_l};
-#elif
+#else
     float2_t res = {x_l, x_h};
 #endif
     return res;

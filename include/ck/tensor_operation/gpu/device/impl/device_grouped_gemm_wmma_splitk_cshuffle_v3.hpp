@@ -41,8 +41,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                     const index_t group_count)
 {
 #if(defined(__gfx11__) || defined(__gfx12__))
-    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-        typename GridwiseGemm::EpilogueCShuffle>();
+    using EpilogueType = typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
+                                                       GridwiseGemm::UseDirectStore,
+                                                   typename GridwiseGemm::EpilogueDirectStore,
+                                                   typename GridwiseGemm::EpilogueCShuffle>::type;
+
+    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
     __shared__ char p_shared[LDS_size];
 
     const index_t block_id = get_block_1d_id();
@@ -89,13 +93,13 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         auto splitk_batch_offset =
             typename GridwiseGemm::SplitKBatchOffset(karg, tile_index[Number<0>{}]);
-        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+        auto epilogue_args = EpilogueType{};
 
         GridwiseGemm::template Run<HasMainKBlockLoop,
                                    CGlobalMemoryDataOperation,
                                    TailNum,
                                    Block2CTileMap,
-                                   typename GridwiseGemm::EpilogueCShuffle,
+                                   EpilogueType,
                                    1, // Block2CTileMap MBlock index
                                    2  // Block2CTileMap NBlock index
                                    >(static_cast<void*>(p_shared),
@@ -700,7 +704,28 @@ struct DeviceGroupedGemm_Wmma_CShuffleV3 : public DeviceGroupedGemmSplitK<ALayou
         bool supported = true;
         for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); ++i)
         {
-            const auto& a        = arg.gemm_kernel_args_[i].karg_;
+            const auto& a = arg.gemm_kernel_args_[i].karg_;
+
+            if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityAWaveTransfer(a.M, a.K))
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Wave Transfer not applicable for matrix A" << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
+                return false;
+            }
+
+            if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityBWaveTransfer(a.N, a.K))
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Wave Transfer not applicable for matrix B" << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
+                return false;
+            }
+
             bool group_arg_valid = GridwiseGemm::CheckValidity(a);
 
             if(not group_arg_valid)

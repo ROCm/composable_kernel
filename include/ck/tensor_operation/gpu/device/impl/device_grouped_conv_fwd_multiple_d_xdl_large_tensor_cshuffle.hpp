@@ -59,7 +59,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         const index_t block_id_x = __builtin_amdgcn_readfirstlane(blockIdx.x);
         const index_t g_idx      = __builtin_amdgcn_readfirstlane(blockIdx.y);
@@ -1282,7 +1282,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
     std::unique_ptr<ck_tile::reflect::Description> describe() const override
     {
         static_assert(
-            ck_tile::reflect::conv::HasConvTraits<DeviceOp>,
+            ck_tile::reflect::HasConvTraits<DeviceOp>,
             "ConvTraits specialization not found for this device operation. "
             "If you modified the template parameters of this class, ensure that "
             "the corresponding ConvTraits specialization in "

@@ -8,12 +8,15 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added preshuffleB support for abquant mode in blockscale GEMM.
 * Added support for explicit GEMM in CK_TILE grouped convolution forward and backward weight.
 * Added TF32 convolution support on gfx942 and gfx950 in CK. It could be enabled/disabled via `DTYPES` of "tf32".
-* Added attention sink support for FMHA FWD, include qr_ks_vs, qr_async and splitkv pipelines.
+* Added streamingllm sink support for FMHA FWD, include qr_ks_vs, qr_async and splitkv pipelines.
 * Added support for microscaling (MX) FP8/FP4 mixed data types to Flatmm pipeline.
 * Added support for fp8 dynamic tensor-wise quantization of fp8 fmha fwd kernel.
 * Added FP8 KV cache support for FMHA batch prefill.
 * Added support for gfx1153 target.
 * Added FMHA batch prefill kernel support for several KV cache layouts, flexible page sizes, and different lookup table configurations.
+* Added gpt-oss sink support for FMHA FWD, include qr_ks_vs, qr_async, qr_async_trload and splitkv pipelines.
+* Added persistent async input scheduler for CK Tile universal GEMM kernels to support asynchronous input streaming.
+* Added FP8 block scale quantization for FMHA forward kernel.
 
 ### Changed
 
@@ -22,6 +25,8 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ## Composable Kernel 1.2.0 for ROCm 7.2.0
 
 ### Added
+* Added tests for f8 x bf8 on CompV3, and f8 x bf8 with K_BlockSize 32 on CompV4
+* Added CK-Tile dispatcher - a unified kernel dispatch, code generation and architecture-based kernel filtering system with with C++ and Python frontends starting with GEMM support.
 * Added support for bf16 data type to grouped_gemm and grouped_gemm_preshuffle.
 * Added Col-Col-Row-Col layout support for aquant mode in blockscale GEMM.
 * Added support for mixed precision fp8 x bf8 universal GEMM and weight preshuffle GEMM.

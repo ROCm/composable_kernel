@@ -187,7 +187,10 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        false,
+        false,
+        true>;
 
     using ReduceTrait = ReduceTrait_<ReduceAccDataType,
                                      ReducePtrsGlobal,
@@ -449,6 +452,28 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
             {
                 std::cout << "Without padding, K must be divisible by AK1 and BK1! " << __FILE__
                           << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+            }
+            return false;
+        }
+
+        if(ck::is_gfx12_supported() &&
+           !GridwiseGemm::CheckValidityAWaveTransfer(arg.MRaw_, arg.KRaw_))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Wave Transfer not applicable for matrix A" << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+            }
+            return false;
+        }
+
+        if(ck::is_gfx12_supported() &&
+           !GridwiseGemm::CheckValidityBWaveTransfer(arg.NRaw_, arg.KRaw_))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Wave Transfer not applicable for matrix B" << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
             }
             return false;
         }

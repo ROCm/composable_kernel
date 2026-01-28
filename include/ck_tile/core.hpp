@@ -91,6 +91,7 @@
 #include "ck_tile/core/utility/ignore.hpp"
 #include "ck_tile/core/utility/literals.hpp"
 #include "ck_tile/core/utility/magic_div.hpp"
+#include "ck_tile/core/utility/persistent_async_input_scheduler.hpp"
 #include "ck_tile/core/utility/philox_rand.hpp"
 #include "ck_tile/core/utility/print.hpp"
 #include "ck_tile/core/utility/random.hpp"

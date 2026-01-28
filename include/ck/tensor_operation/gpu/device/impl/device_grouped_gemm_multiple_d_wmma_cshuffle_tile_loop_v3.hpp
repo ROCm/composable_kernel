@@ -66,8 +66,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                         const CDEElementwiseOperation cde_element_op)
 {
 #if(defined(__gfx11__) || defined(__gfx12__))
-    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-        typename GridwiseGemm::EpilogueCShuffle>();
+    using EpilogueType = typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
+                                                       GridwiseGemm::UseDirectStore,
+                                                   typename GridwiseGemm::EpilogueDirectStore,
+                                                   typename GridwiseGemm::EpilogueCShuffle>::type;
+
+    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
     __shared__ uint8_t p_shared[LDS_size];
 
     const auto gemm_desc_ptr =
@@ -150,7 +154,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                gemm_desc_ptr[group_id].StrideE,
                                1);
 
-        auto epilogue_args           = typename GridwiseGemm::EpilogueCShuffle{};
+        auto epilogue_args           = EpilogueType{};
         constexpr TailNumber TailNum = TailNumber::Full;
 
         if(has_main_k_block_loop)
@@ -499,6 +503,29 @@ struct DeviceGroupedGemmMultipleD_Wmma_CShuffle_TileLoop_V3
         bool supported = true;
         for(index_t i = 0; i < arg.group_count_; ++i)
         {
+
+            if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityAWaveTransfer(
+                                               arg.gemm_descs_[i].M_, arg.gemm_descs_[i].K_))
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Wave Transfer not applicable for matrix A" << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
+                return false;
+            }
+
+            if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityBWaveTransfer(
+                                               arg.gemm_descs_[i].N_, arg.gemm_descs_[i].K_))
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Wave Transfer not applicable for matrix B" << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
+                return false;
+            }
+
             std::array<const void*, NumDTensor> placeholder_p_ds_grid{};
             std::array<index_t, NumDTensor> stride_Ds;
             std::copy_n(arg.gemm_descs_[i].stride_Ds_.begin(), NumDTensor, stride_Ds.begin());

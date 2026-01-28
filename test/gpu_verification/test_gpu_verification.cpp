@@ -13,8 +13,8 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/check_err.hpp"
+#include "ck/library/utility/gpu_verification.hpp"
 #include "ck/library/reference_tensor_operation/gpu/naive_conv_utils.hpp"
-#include "profiler/gpu_verification.hpp"
 
 using namespace ck::profiler;
 using ck::ref::SimpleDeviceMem;
@@ -83,7 +83,7 @@ class GPUVerificationTest : public ::testing::Test
 
         // Use test fixture's RNG (rng_) for reproducibility
         // RNG is seeded in SetUp() with fixed seed or CK_TEST_SEED environment variable
-        if constexpr(std::is_integral<T>::value)
+        if constexpr(std::is_integral_v<T> && !std::is_same_v<T, ck::bhalf_t>)
         {
             std::uniform_int_distribution<int> dis(static_cast<int>(min_val),
                                                    static_cast<int>(max_val));

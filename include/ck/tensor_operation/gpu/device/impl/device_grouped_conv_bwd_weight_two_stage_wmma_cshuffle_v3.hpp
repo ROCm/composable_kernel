@@ -466,6 +466,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
     {
         ActiveWorkgroupsPerCU()
         {
+            if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
+            {
+                return;
+            }
             constexpr int dynamic_smem_size = 0;
             constexpr index_t minimum_occupancy =
                 BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
