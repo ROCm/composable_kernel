@@ -612,13 +612,13 @@ struct WarpGemmAttributeMfmaImplBf16Bf16F32M32N32K8
         else
         {
 #if defined(__gfx90a__) || defined(__gfx94__)
-            c_vec =
-                __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(bit_cast<ext_vector_t<short, 4>>(a_vec),
-                                                         bit_cast<ext_vector_t<short, 4>>(b_vec),
-                                                         c_vec,
-                                                         0,
-                                                         0,
-                                                         0);
+            c_vec = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
+                bit_cast<ext_vector_t<short, kABKPerLane>>(a_vec),
+                bit_cast<ext_vector_t<short, kABKPerLane>>(b_vec),
+                c_vec,
+                0,
+                0,
+                0);
 #elif defined(__gfx908__)
             static_for<0, 2, 1>{}([&](auto k) {
                 c_vec = __builtin_amdgcn_mfma_f32_32x32x4bf16(
