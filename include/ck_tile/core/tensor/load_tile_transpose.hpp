@@ -575,8 +575,8 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
     constexpr auto y_in_desc  = input_distr.get_ys_to_d_descriptor();
     constexpr auto y_out_desc = output_distr.get_ys_to_d_descriptor();
 
-    constexpr index_t NDimYIn  = input_distr.get_num_of_dimension_y();
-    //constexpr index_t NDimYOut = output_distr.get_num_of_dimension_y();
+    constexpr index_t NDimYIn = input_distr.get_num_of_dimension_y();
+    // constexpr index_t NDimYOut = output_distr.get_num_of_dimension_y();
 
     constexpr auto y_in_lengths  = to_sequence(y_in_desc.get_lengths());
     constexpr auto y_out_lengths = to_sequence(y_out_desc.get_lengths());
@@ -590,9 +590,11 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
 
     // Allow different vector lengths (e.g., fp8 may vectorize 8 elems, fp16 may vectorize 4).
     // Ensure total element counts are consistent and divisible by the input vector length.
-    constexpr index_t vecLoadSize      = y_in_lengths[NDimYIn - 1];
-    constexpr index_t total_elems_in   = reduce_on_sequence(y_in_lengths, multiplies<>{}, number<1>{});
-    constexpr index_t total_elems_out  = reduce_on_sequence(y_out_lengths, multiplies<>{}, number<1>{});
+    constexpr index_t vecLoadSize = y_in_lengths[NDimYIn - 1];
+    constexpr index_t total_elems_in =
+        reduce_on_sequence(y_in_lengths, multiplies<>{}, number<1>{});
+    constexpr index_t total_elems_out =
+        reduce_on_sequence(y_out_lengths, multiplies<>{}, number<1>{});
     static_assert(total_elems_in == total_elems_out,
                   "For mixed precision transpose, input/output element counts must match!");
     static_assert(total_elems_in % vecLoadSize == 0,
@@ -603,15 +605,14 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
     // Read as input type, convert to output type
     using InputDataVec = array<InputDataType, vecLoadSize>;
     static_for<0, num_of_access, 1>{}([&](auto iAccess) {
-        auto input_vec = trans_tensor.get_thread_buffer().template get_as<InputDataVec>(
-            number<iAccess>{});
+        auto input_vec =
+            trans_tensor.get_thread_buffer().template get_as<InputDataVec>(number<iAccess>{});
 
         // Element-wise type conversion
         // This will be unrolled by the compiler for each element in the vector
         static_for<0, vecLoadSize, 1>{}([&](auto iElem) {
             auto output_elem = type_convert<OutputDataType>(input_vec[iElem]);
-            out_tensor.get_thread_buffer()[number<iAccess * vecLoadSize + iElem>{}] =
-                output_elem;
+            out_tensor.get_thread_buffer()[number<iAccess * vecLoadSize + iElem>{}] = output_elem;
         });
     });
 }
@@ -632,8 +633,7 @@ template <
                                                                  typename BottomTensorView_::DataType,
                                                                  Policy>::distr_encoding_valid,
                                        Policy>>
-CK_TILE_DEVICE void
-load_tile_transpose_convert(
+CK_TILE_DEVICE void load_tile_transpose_convert(
     DistributedTensor_& out_tensor,
     const tile_window_with_static_distribution<BottomTensorView_,
                                                WindowLengths_,

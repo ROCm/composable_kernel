@@ -167,7 +167,10 @@ struct WarpGemmAttributeMfmaIterateK
     static_assert(Impl::kAMBlock == 1 || Impl::kBNBlock == 1,
                   "Multi-block on both M & N directions is not supported");
 
-    template <index_t kMNLane, index_t kMNBlock, index_t kNMBlock, index_t NumAccess = AttrNumAccessV>
+    template <index_t kMNLane,
+              index_t kMNBlock,
+              index_t kNMBlock,
+              index_t NumAccess = AttrNumAccessV>
     CK_TILE_DEVICE static constexpr auto get_warp_dstr_encoding()
     {
         if constexpr(kMNBlock == 1 && kNMBlock == 1)
@@ -360,13 +363,15 @@ struct WarpGemmAttributeMfmaTransposedCDistribution
     template <index_t NumAccess = AttrNumAccessV>
     CK_TILE_DEVICE static constexpr auto get_awarp_dstr_encoding()
     {
-        return WarpGemmAttributeMfma<Impl, AttrNumAccess>::template get_bwarp_dstr_encoding<NumAccess>();
+        return WarpGemmAttributeMfma<Impl,
+                                     AttrNumAccess>::template get_bwarp_dstr_encoding<NumAccess>();
     }
 
     template <index_t NumAccess = AttrNumAccessV>
     CK_TILE_DEVICE static constexpr auto get_bwarp_dstr_encoding()
     {
-        return WarpGemmAttributeMfma<Impl, AttrNumAccess>::template get_awarp_dstr_encoding<NumAccess>();
+        return WarpGemmAttributeMfma<Impl,
+                                     AttrNumAccess>::template get_awarp_dstr_encoding<NumAccess>();
     }
 
     template <index_t NumAccess = AttrNumAccessV>
