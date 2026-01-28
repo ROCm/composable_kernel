@@ -2,10 +2,12 @@
 
 GPU performance profiling for Composable Kernel applications using AMD rocprof-compute.
 
+**Note:** This is a native-only tool. For Docker usage, run via `ck-docker exec ck-rocprof ...`
+
 ## Quick Start
 
 ```bash
-# One-time setup
+# One-time setup (requires rocprofiler-compute installed)
 ./script/tools/ck-rocprof setup
 
 # Profile executable
@@ -97,9 +99,10 @@ ck-rocprof compare baseline optimized
 
 ## Environment Variables
 
-- `CK_PROFILE_VENV`: Python venv path (default: `$PROJECT/.ck-rocprof-venv` native, `/opt/rocprof_venv` Docker)
+- `CK_PROFILE_VENV`: Python venv path (default: `$PROJECT/.ck-rocprof-venv`)
 - `CK_ROCPROF_BIN`: rocprof-compute binary path (auto-detected from PATH or /opt/rocm)
-- `CK_WORKLOAD_DIR`: Results directory (default: `$PROJECT/build/workloads` native, `/workspace/workloads` Docker)
+- `CK_ROCM_REQUIREMENTS`: Path to rocprofiler-compute requirements.txt (auto-detected)
+- `CK_WORKLOAD_DIR`: Results directory (default: `$PROJECT/build/workloads`)
 - `CK_GPU_TARGET`: Override GPU detection (e.g., `gfx950`, `MI300X`)
 
 ## Interpreting Results
