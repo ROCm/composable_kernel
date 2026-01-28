@@ -1,0 +1,143 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK Build - Build Composable Kernel targets in Docker
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(get_project_root "${SCRIPT_DIR}")
+CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
+
+# Help message
+show_help() {
+    cat << EOF
+CK Build - Build Composable Kernel targets in Docker
+
+Usage: ck-build [options] [target...]
+
+Options:
+  -h, --help              Show this help message
+  --name <name>           Specify container name
+  --reconfigure           Reconfigure CMake before building
+  -j <N>                  Parallel jobs (passed to ninja)
+  --clean                 Clean before building
+
+Arguments:
+  target                  Target(s) to build (default: all)
+
+Environment:
+  CK_CONTAINER_NAME - Override default container name
+  GPU_TARGET        - Override GPU target detection (e.g., gfx950, gfx942)
+
+Examples:
+  ck-build                                # Build all targets
+  ck-build test_amdgcn_mma                # Build specific target
+  ck-build test_amdgcn_mma test_gemm      # Build multiple targets
+  ck-build --reconfigure                  # Reconfigure CMake and build all
+  ck-build --clean test_amdgcn_mma        # Clean and build target
+  ck-build -j 8 test_amdgcn_mma           # Build with 8 parallel jobs
+
+EOF
+}
+
+# Parse arguments
+targets=()
+reconfigure=false
+clean=false
+parallel_jobs=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --name)
+            CONTAINER_NAME="$2"
+            shift 2
+            ;;
+        --reconfigure)
+            reconfigure=true
+            shift
+            ;;
+        --clean)
+            clean=true
+            shift
+            ;;
+        -j)
+            parallel_jobs="-j $2"
+            shift 2
+            ;;
+        *)
+            targets+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Ensure container is running
+if ! container_is_running "${CONTAINER_NAME}"; then
+    echo "Container '${CONTAINER_NAME}' not running. Starting..."
+    "${SCRIPT_DIR}/ck-start" "${CONTAINER_NAME}"
+    echo ""
+fi
+
+# Configure CMake if needed or requested
+if [ "$reconfigure" = true ] || ! docker exec "${CONTAINER_NAME}" test -f /workspace/build/build.ninja 2>/dev/null; then
+    echo "Detecting GPU target..."
+    GPU_TARGET_DETECTED=$(detect_gpu_target "${CONTAINER_NAME}")
+
+    if [ "$reconfigure" = true ]; then
+        echo "Reconfiguring CMake from scratch for GPU target: ${GPU_TARGET_DETECTED}"
+    else
+        echo "Configuring build with CMake for GPU target: ${GPU_TARGET_DETECTED}"
+    fi
+
+    docker exec "${CONTAINER_NAME}" bash -c "
+        cd /workspace || exit 1
+        rm -rf /workspace/build
+        mkdir /workspace/build
+        cd /workspace/build || exit 1
+        cmake .. -GNinja \
+            -DGPU_TARGETS=${GPU_TARGET_DETECTED} \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
+            -DBUILD_TESTING=ON 2>&1 | tail -30
+    "
+    echo ""
+fi
+
+# Clean if requested
+if [ "$clean" = true ]; then
+    echo "Cleaning build directory..."
+    docker exec "${CONTAINER_NAME}" bash -c "
+        cd /workspace/build || exit 1
+        ninja clean
+    "
+    echo ""
+fi
+
+# Build targets
+if [ ${#targets[@]} -eq 0 ]; then
+    echo "Building all configured targets..."
+    docker exec "${CONTAINER_NAME}" bash -c "
+        cd /workspace/build || exit 1
+        ninja ${parallel_jobs} 2>&1
+    "
+else
+    echo "Building targets: ${targets[*]}"
+    docker exec "${CONTAINER_NAME}" bash -c "
+        cd /workspace/build || exit 1
+        ninja ${parallel_jobs} ${targets[*]} 2>&1
+    "
+fi
+
+echo ""
+echo "Build complete ✓"

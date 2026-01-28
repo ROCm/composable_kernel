@@ -3,15 +3,15 @@
 
 #pragma once
 
-#include "ck_tile/ref/naive_grouped_conv_fwd_gpu.hpp"
-#include "ck_tile/ref/naive_grouped_conv_bwd_data_gpu.hpp"
-#include "ck_tile/ref/naive_grouped_conv_bwd_weight_gpu.hpp"
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/types.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
-#include "ck_tile/builder/factory/reference_common.hpp"
-#include "ck_tile/core.hpp"
+#include "ck_tile/builder/factory/helpers/ck/conv_tensor_layout.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_weight_gpu.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_data_gpu.hpp"
+#include "ck/library/utility/convolution_parameter.hpp"
 #include <memory>
 
 namespace ck_tile::builder::factory {
@@ -22,15 +22,22 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           StringLiteral VERSION>
 struct ReferenceFactory
 {
-    // Validate that only PassThrough elementwise operations are specified
-    static constexpr auto kValidation = (internal::ValidateReferenceSignature<SIGNATURE>(), 0);
-
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Types                         = internal::FwdConvTensorDataTypes<SIGNATURE>;
 
-    using InDataType  = typename Types::ADataType;
-    using WeiDataType = typename Types::BDataType;
-    using OutDataType = typename Types::EDataType;
+    using Types       = internal::ConvTensorDataTypes<SIGNATURE>;
+    using InDataType  = typename Types::InDataType;
+    using WeiDataType = typename Types::WeiDataType;
+    using OutDataType = typename Types::OutDataType;
+
+    using Layouts   = factory::internal::ConvTensorLayouts<SIGNATURE>;
+    using InLayout  = typename Layouts::InLayout;
+    using WeiLayout = typename Layouts::WeiLayout;
+    using OutLayout = typename Layouts::OutLayout;
+
+    using Ops              = factory::internal::ConvElementwiseOps<SIGNATURE>;
+    using InElementwiseOp  = typename Ops::InElementwiseOp;
+    using WeiElementwiseOp = typename Ops::WeiElementwiseOp;
+    using OutElementwiseOp = typename Ops::OutElementwiseOp;
 
     struct Instance
     {
@@ -39,91 +46,57 @@ struct ReferenceFactory
         static constexpr auto kAlgorithm = ALGORITHM;
         static constexpr auto kVersion   = VERSION;
 
-        // Argument and Invoker types depend on direction
-        // Forward: const input, const weight, mutable output
-        // Backward Data: mutable input, const weight, const output_grad
-        // Backward Weight: const input, mutable weight_grad, const output_grad
-
-        // Use appropriate Argument type based on direction
-        using Argument = std::conditional_t<
-            ConvDirectionIsForward<SIGNATURE>,
-            internal::ReferenceConvArgument<const InDataType*, const WeiDataType*, OutDataType*>,
-            std::conditional_t<
-                ConvDirectionIsBackwardData<SIGNATURE>,
-                internal::
-                    ReferenceConvArgument<InDataType*, const WeiDataType*, const OutDataType*>,
-                internal::
-                    ReferenceConvArgument<const InDataType*, WeiDataType*, const OutDataType*>>>;
-
-        // Invoker calls the appropriate reference implementation based on direction
-        struct Invoker
+        /// @brief Invoke reference convolution
+        ///
+        /// This is the primary overload to invoke reference convolution. As the underlying
+        /// function requires it, this function accepts ConvParam directly.
+        template <typename InPtrType, typename WeiPtrType, typename OutPtrType>
+        static void Run(InPtrType* input,
+                        WeiPtrType* weight,
+                        OutPtrType* output,
+                        const ck::utils::conv::ConvParam& param,
+                        InElementwiseOp in_op   = InElementwiseOp{},
+                        WeiElementwiseOp wei_op = WeiElementwiseOp{},
+                        OutElementwiseOp out_op = OutElementwiseOp{})
         {
-            float Run(const Argument* arg, const StreamConfig& stream_config = StreamConfig{})
+            if constexpr(ConvDirectionIsForward<SIGNATURE>)
             {
-                (void)stream_config; // Unused for reference implementation
-
-                if constexpr(ConvDirectionIsForward<SIGNATURE>)
-                {
-                    ck_tile::
-                        naive_grouped_conv_fwd<SPATIAL_DIM, InDataType, WeiDataType, OutDataType>(
-                            arg->input_,
-                            arg->weight_,
-                            arg->output_,
-                            arg->G_,
-                            arg->N_,
-                            arg->K_,
-                            arg->C_,
-                            arg->input_spatial_,
-                            arg->filter_spatial_,
-                            arg->output_spatial_,
-                            arg->strides_,
-                            arg->dilations_,
-                            arg->left_pads_);
-                }
-                else if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
-                {
-                    ck_tile::naive_grouped_conv_bwd_data<SPATIAL_DIM,
-                                                         InDataType,
-                                                         WeiDataType,
-                                                         OutDataType>(arg->input_,
-                                                                      arg->weight_,
-                                                                      arg->output_,
-                                                                      arg->G_,
-                                                                      arg->N_,
-                                                                      arg->K_,
-                                                                      arg->C_,
-                                                                      arg->input_spatial_,
-                                                                      arg->filter_spatial_,
-                                                                      arg->output_spatial_,
-                                                                      arg->strides_,
-                                                                      arg->dilations_,
-                                                                      arg->left_pads_);
-                }
-                else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
-                {
-                    ck_tile::naive_grouped_conv_bwd_weight<SPATIAL_DIM,
-                                                           InDataType,
-                                                           WeiDataType,
-                                                           OutDataType>(arg->input_,
-                                                                        arg->weight_,
-                                                                        arg->output_,
-                                                                        arg->G_,
-                                                                        arg->N_,
-                                                                        arg->K_,
-                                                                        arg->C_,
-                                                                        arg->input_spatial_,
-                                                                        arg->filter_spatial_,
-                                                                        arg->output_spatial_,
-                                                                        arg->strides_,
-                                                                        arg->dilations_,
-                                                                        arg->left_pads_);
-                }
-
-                return 0.0f; // Reference implementation doesn't track timing
+                ck::ref::naive_conv_fwd<InLayout, WeiLayout, OutLayout>(
+                    static_cast<const InDataType*>(input),
+                    static_cast<const WeiDataType*>(weight),
+                    static_cast<OutDataType*>(output),
+                    param,
+                    in_op,
+                    wei_op,
+                    out_op);
             }
-        };
+            else if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
+            {
+                ck::ref::naive_conv_bwd_data<InLayout, WeiLayout, OutLayout>(
+                    static_cast<InDataType*>(input),
+                    static_cast<const WeiDataType*>(weight),
+                    static_cast<const OutDataType*>(output),
+                    param,
+                    in_op,
+                    wei_op,
+                    out_op);
+            }
+            else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
+            {
+                ck::ref::naive_conv_bwd_weight<InLayout, WeiLayout, OutLayout>(
+                    static_cast<const InDataType*>(input),
+                    static_cast<WeiDataType*>(weight),
+                    static_cast<const OutDataType*>(output),
+                    param,
+                    in_op,
+                    wei_op,
+                    out_op);
+            }
+        }
 
-        // Direct Run method (simpler interface, direction-agnostic)
+        /// @brief Invoke reference convolution
+        ///
+        /// Convenience overload to avoid having to construct ConvParam manually.
         template <typename InPtrType, typename WeiPtrType, typename OutPtrType>
         static void Run(InPtrType* input,
                         WeiPtrType* weight,
@@ -132,68 +105,27 @@ struct ReferenceFactory
                         int N,
                         int K,
                         int C,
-                        const std::vector<ck_tile::long_index_t>& input_spatial,
-                        const std::vector<ck_tile::long_index_t>& filter_spatial,
-                        const std::vector<ck_tile::long_index_t>& output_spatial,
-                        const std::vector<ck_tile::long_index_t>& strides,
-                        const std::vector<ck_tile::long_index_t>& dilations,
-                        const std::vector<ck_tile::long_index_t>& left_pads)
+                        const std::vector<ck::long_index_t>& input_spatial,
+                        const std::vector<ck::long_index_t>& filter_spatial,
+                        const std::vector<ck::long_index_t>& strides,
+                        const std::vector<ck::long_index_t>& dilations,
+                        const std::vector<ck::long_index_t>& left_pads,
+                        const std::vector<ck::long_index_t>& right_pads)
         {
-            if constexpr(ConvDirectionIsForward<SIGNATURE>)
-            {
-                ck_tile::naive_grouped_conv_fwd<SPATIAL_DIM, InDataType, WeiDataType, OutDataType>(
-                    static_cast<const InDataType*>(input),
-                    static_cast<const WeiDataType*>(weight),
-                    static_cast<OutDataType*>(output),
-                    G,
-                    N,
-                    K,
-                    C,
-                    input_spatial,
-                    filter_spatial,
-                    output_spatial,
-                    strides,
-                    dilations,
-                    left_pads);
-            }
-            else if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
-            {
-                ck_tile::
-                    naive_grouped_conv_bwd_data<SPATIAL_DIM, InDataType, WeiDataType, OutDataType>(
-                        static_cast<InDataType*>(input),
-                        static_cast<const WeiDataType*>(weight),
-                        static_cast<const OutDataType*>(output),
-                        G,
-                        N,
-                        K,
-                        C,
-                        input_spatial,
-                        filter_spatial,
-                        output_spatial,
-                        strides,
-                        dilations,
-                        left_pads);
-            }
-            else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
-            {
-                ck_tile::naive_grouped_conv_bwd_weight<SPATIAL_DIM,
-                                                       InDataType,
-                                                       WeiDataType,
-                                                       OutDataType>(
-                    static_cast<const InDataType*>(input),
-                    static_cast<WeiDataType*>(weight),
-                    static_cast<const OutDataType*>(output),
-                    G,
-                    N,
-                    K,
-                    C,
-                    input_spatial,
-                    filter_spatial,
-                    output_spatial,
-                    strides,
-                    dilations,
-                    left_pads);
-            }
+            Run(input,
+                weight,
+                output,
+                ck::utils::conv::ConvParam(SPATIAL_DIM,
+                                           G,
+                                           N,
+                                           K,
+                                           C,
+                                           filter_spatial,
+                                           input_spatial,
+                                           strides,
+                                           dilations,
+                                           left_pads,
+                                           right_pads));
         }
 
         std::string GetTypeString() const
@@ -209,41 +141,6 @@ struct ReferenceFactory
             return std::string("GPU_Reference_") + dir_str + "_" + std::to_string(SPATIAL_DIM) +
                    "D";
         }
-
-        // Old CK interface: Create argument pointer
-        template <typename InPtrType, typename WeiPtrType, typename OutPtrType>
-        std::unique_ptr<Argument>
-        MakeArgumentPointer(InPtrType input,
-                            WeiPtrType weight,
-                            OutPtrType output,
-                            int G,
-                            int N,
-                            int K,
-                            int C,
-                            const std::vector<ck_tile::long_index_t>& input_spatial,
-                            const std::vector<ck_tile::long_index_t>& filter_spatial,
-                            const std::vector<ck_tile::long_index_t>& output_spatial,
-                            const std::vector<ck_tile::long_index_t>& strides,
-                            const std::vector<ck_tile::long_index_t>& dilations,
-                            const std::vector<ck_tile::long_index_t>& left_pads) const
-        {
-            return std::make_unique<Argument>(input,
-                                              weight,
-                                              output,
-                                              G,
-                                              N,
-                                              K,
-                                              C,
-                                              input_spatial,
-                                              filter_spatial,
-                                              output_spatial,
-                                              strides,
-                                              dilations,
-                                              left_pads);
-        }
-
-        // Old CK interface: Create invoker pointer
-        std::unique_ptr<Invoker> MakeInvokerPointer() const { return std::make_unique<Invoker>(); }
     };
 };
 

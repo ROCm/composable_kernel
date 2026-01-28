@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
@@ -37,7 +38,7 @@ struct BlockGemmSpec
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval BlockGemmSpec SetBlockGemm()
 {
-    constexpr auto& BG = ALGORITHM.block_gemm;
+    constexpr auto& BG = ALGORITHM.block_gemm_pipeline;
 
     ck::BlockGemmPipelineScheduler scheduler;
     ck::BlockGemmPipelineVersion version;
@@ -57,6 +58,7 @@ consteval BlockGemmSpec SetBlockGemm()
     case PipelineVersion::V3: version = ck::BlockGemmPipelineVersion::v3; break;
     case PipelineVersion::V4: version = ck::BlockGemmPipelineVersion::v4; break;
     case PipelineVersion::V5: version = ck::BlockGemmPipelineVersion::v5; break;
+    case PipelineVersion::V6: throw "PipelineVersion::V6 is supported only for CK Tile.";
     case PipelineVersion::WEIGHT_ONLY:
         throw "PipelineVersion::WEIGHT_ONLY is not supported for block GEMM.";
     default: throw "Unknown PipelineVersion";
@@ -82,7 +84,7 @@ consteval ck::LoopScheduler SetLoopScheduler()
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::PipelineVersion SetGridwiseGemmPipelineVersion()
 {
-    constexpr auto pipeline_version = ALGORITHM.gridwise_gemm.pipeline_version;
+    constexpr auto pipeline_version = ALGORITHM.pipeline_version;
     using ck_pipeline               = ck::PipelineVersion;
     switch(pipeline_version)
     {
@@ -91,6 +93,7 @@ consteval ck::PipelineVersion SetGridwiseGemmPipelineVersion()
     case PipelineVersion::V3: throw "PipelineVersion::V3 is used only for stream-K.";
     case PipelineVersion::V4: return ck_pipeline::v4;
     case PipelineVersion::V5: throw "PipelineVersion::V5 cannot be used for gridwise GEMM.";
+    case PipelineVersion::V6: throw "PipelineVersion::V6 can be used only for CK TILE.";
     case PipelineVersion::WEIGHT_ONLY: return ck_pipeline::weight_only;
     default: throw "Unknown GridwiseGemmPipelineVersion";
     }
@@ -136,6 +139,7 @@ consteval ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
     case PipelineVersion::V3: return ck_pipeline::v3;
     case PipelineVersion::V4: return ck_pipeline::v4;
     case PipelineVersion::V5: return ck_pipeline::v5;
+    case PipelineVersion::V6: throw "PipelineVersion::V6 is supported only for CK Tile.";
     case PipelineVersion::WEIGHT_ONLY:
         throw "PipelineVersion::WEIGHT_ONLY is not supported for block GEMM pipeline version.";
     default: throw "Unknown block GEMM PipelineVersion";
@@ -149,12 +153,30 @@ consteval ck::tensor_operation::device::ConvolutionForwardSpecialization SetFwdC
     using ck_conv_spec            = ck::tensor_operation::device::ConvolutionForwardSpecialization;
     switch(specialization)
     {
-    case ConvFwdSpecialization::DEFAULT: return ck_conv_spec::Default;
-    case ConvFwdSpecialization::FILTER_1X1_PAD0: return ck_conv_spec::Filter1x1Pad0;
-    case ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
-    case ConvFwdSpecialization::FILTER_3x3: return ck_conv_spec::Filter3x3;
-    case ConvFwdSpecialization::ODD_C: return ck_conv_spec::OddC;
-    default: throw "Unknown ConvFwdSpecialization";
+    case ConvSpecialization::DEFAULT: return ck_conv_spec::Default;
+    case ConvSpecialization::FILTER_1X1_PAD0: return ck_conv_spec::Filter1x1Pad0;
+    case ConvSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
+    case ConvSpecialization::FILTER_3x3: return ck_conv_spec::Filter3x3;
+    case ConvSpecialization::ODD_C: return ck_conv_spec::OddC;
+    default: throw "Unsupported ConvSpecialization";
+    }
+}
+
+template <ConvAlgorithmDescriptor auto ALGORITHM>
+consteval ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization
+SetBwdWeightConvSpecialization()
+{
+    constexpr auto specialization = ALGORITHM.bwd_weight_specialization;
+    using ck_conv_spec = ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization;
+    switch(specialization)
+    {
+    case ConvSpecialization::DEFAULT: return ck_conv_spec::Default;
+    case ConvSpecialization::FILTER_1X1_PAD0: return ck_conv_spec::Filter1x1Pad0;
+    case ConvSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
+    case ConvSpecialization::ODD_C: return ck_conv_spec::OddC;
+    case ConvSpecialization::FILTER_3x3:
+        throw "FILTER_3x3 is not supported for backward weight convolution.";
+    default: throw "Unsupported ConvSpecialization";
     }
 }
 

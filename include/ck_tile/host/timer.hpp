@@ -5,9 +5,9 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
+#include "ck_tile/host/high_res_cpu_clock.hpp"
 #include <hip/hip_runtime.h>
 #include <cstddef>
-#include <chrono>
 
 namespace ck_tile {
 
@@ -54,26 +54,24 @@ struct cpu_timer
     CK_TILE_HOST void start(const hipStream_t& s)
     {
         HIP_CHECK_ERROR(hipStreamSynchronize(s));
-        start_tick = std::chrono::high_resolution_clock::now();
+        start_tick = high_res_now();
     }
     // torch.utils.benchmark.Timer(), there is a sync inside each timer callback
     CK_TILE_HOST void stop(const hipStream_t& s)
     {
         HIP_CHECK_ERROR(hipStreamSynchronize(s));
-        stop_tick = std::chrono::high_resolution_clock::now();
+        stop_tick = high_res_now();
     }
     // return in ms
     CK_TILE_HOST float duration() const
     {
-        double sec =
-            std::chrono::duration_cast<std::chrono::duration<double>>(stop_tick - start_tick)
-                .count();
-        return static_cast<float>(sec * 1e3);
+        auto us = duration_us(start_tick, stop_tick);
+        return static_cast<float>(us) / 1e3;
     }
 
     private:
-    std::chrono::time_point<std::chrono::high_resolution_clock> start_tick;
-    std::chrono::time_point<std::chrono::high_resolution_clock> stop_tick;
+    timepoint_t start_tick;
+    timepoint_t stop_tick;
 };
 
 } // namespace ck_tile

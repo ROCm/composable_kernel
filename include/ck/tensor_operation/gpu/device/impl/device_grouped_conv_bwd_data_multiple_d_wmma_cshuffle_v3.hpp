@@ -63,11 +63,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
 #if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-    using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
-    if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
-                   (std::is_same_v<e_data_type, ck::half_t> ||
-                    std::is_same_v<e_data_type, ck::bhalf_t>)))
+    if constexpr(EGlobalMemoryDataOperation != InMemoryDataOperationEnum::AtomicAdd)
     {
 #endif
         __shared__ char p_shared[GridwiseGemm::template GetSharedMemoryNumberOfByte<
@@ -454,8 +450,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         BlkGemmPipelineVer,
         AComputeType,
         BComputeType,
-        false,
-        false>;
+        false, // PermuteA
+        false, // PermuteB
+        false, // IsBPreShuffled
+        true>; // ForceThreadTileTransfer
 
 #define GridwiseGemmCTransposeTemplateParameters                                                   \
     ALayout, BLayout, DsLayout, ELayout, Tuple<ADataType>, Tuple<BDataType>, AccDataType,          \
@@ -471,7 +469,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         ABlockLdsExtraM, CShuffleMRepeatPerShuffle, CShuffleNRepeatPerShuffle,                     \
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                     \
         CShuffleBlockTransferScalarPerVector, BlkGemmPipeSched, BlkGemmPipelineVer, BComputeType,  \
-        AComputeType, false, false
+        AComputeType, false, false, false, true
 
     using GridwiseGemmCTranspose =
         std::conditional_t<CTranspose,

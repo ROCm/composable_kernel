@@ -24,10 +24,10 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdDlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>;
-    using Types   = internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using Ops     = internal::ElementwiseOps<SIGNATURE>;
-    using AlgorithmType = decltype(ALGORITHM);
+    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE>;
+    using Types                         = internal::ConvTensorDataTypes<SIGNATURE>;
+    using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
+    using AlgorithmType                 = decltype(ALGORITHM);
 
     static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
     static constexpr auto GEMM_SPECIALIZATION     = internal::SetGemmSpecialization<ALGORITHM>();
@@ -48,7 +48,7 @@ struct ConvFwdDlFactory
     using M1N1ThreadClusterN1Xs      = to_sequence_v<DL_CLUSTER.n1_xs>;
 
     // A Block Transfer from descriptor - K0_M0_M1_K1 tensor format
-    static constexpr auto DL_A_TRANSFER = ALGORITHM.transfer.a.block_transfer;
+    static constexpr auto DL_A_TRANSFER = ALGORITHM.transfer.a;
     using ABlockTransferThreadSliceLengths_K0_M0_M1_K1 =
         to_sequence_v<DL_A_TRANSFER.thread_slice_lengths>;
     using ABlockTransferThreadClusterLengths_K0_M0_M1_K1 =
@@ -64,7 +64,7 @@ struct ConvFwdDlFactory
         to_sequence_v<DL_A_TRANSFER.dst_vector_tensor_lengths>;
 
     // B Block Transfer from descriptor - K0_N0_N1_K1 tensor format
-    static constexpr auto DL_B_TRANSFER = ALGORITHM.transfer.b.block_transfer;
+    static constexpr auto DL_B_TRANSFER = ALGORITHM.transfer.b;
     using BBlockTransferThreadSliceLengths_K0_N0_N1_K1 =
         to_sequence_v<DL_B_TRANSFER.thread_slice_lengths>;
     using BBlockTransferThreadClusterLengths_K0_N0_N1_K1 =
@@ -80,7 +80,7 @@ struct ConvFwdDlFactory
         to_sequence_v<DL_B_TRANSFER.dst_vector_tensor_lengths>;
 
     // C Thread Transfer from descriptor
-    static constexpr auto DL_C_TRANSFER    = ALGORITHM.transfer.c.epilogue;
+    static constexpr auto DL_C_TRANSFER    = ALGORITHM.transfer.c;
     using CThreadTransferSrcDstAccessOrder = to_sequence_v<DL_C_TRANSFER.src_dst_access_order>;
     static constexpr ck::index_t CThreadTransferSrcDstVectorDim = DL_C_TRANSFER.src_dst_vector_dim;
     static constexpr ck::index_t CThreadTransferDstScalarPerVector =
@@ -89,18 +89,18 @@ struct ConvFwdDlFactory
     // The DL forward convolution kernel class instance
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<
         SPATIAL_DIM,
-        typename Types::ADataType,
-        typename Types::BDataType,
-        typename Types::DsDataTypes,
-        typename Types::EDataType,
+        typename Types::InDataType,
+        typename Types::WeiDataType,
+        typename Types::DsDataType,
+        typename Types::OutDataType,
         typename Types::AccDataType,
-        typename Layouts::ALayout,
-        typename Layouts::BLayout,
+        typename Layouts::InLayout,
+        typename Layouts::WeiLayout,
         typename Layouts::DsLayout,
-        typename Layouts::ELayout,
-        typename Ops::AElementwiseOp,
-        typename Ops::BElementwiseOp,
-        typename Ops::CDEElementwiseOp,
+        typename Layouts::OutLayout,
+        typename Ops::InElementwiseOp,
+        typename Ops::WeiElementwiseOp,
+        typename Ops::OutElementwiseOp,
         FWD_CONV_SPECIALIZATION,
         GEMM_SPECIALIZATION,
         BLOCK.block_size,

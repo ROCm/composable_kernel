@@ -26,6 +26,36 @@ struct workgroup_barrier
         __syncthreads();
     }
 
+    // Reduces power consumption during polling by leveraging wave-level sleep instructions
+    CK_TILE_DEVICE void wait_eq_wave(uint32_t value, uint32_t offset = 0)
+    {
+        // Limit active polling to first wave to reduce memory traffic and power
+        const uint32_t wave_size = static_cast<uint32_t>(warpSize);
+        if(threadIdx.x < wave_size)
+        {
+            uint32_t loaded_value = 0;
+            if(threadIdx.x == 0)
+            {
+                loaded_value = ld(offset);
+            }
+            loaded_value = __shfl(loaded_value, 0 /*src_lane*/);
+
+            while(loaded_value != value)
+            {
+                // s_sleep reduces power draw while waiting, as scalar sleep is cheaper than
+                // busy-wait
+                __builtin_amdgcn_s_sleep(1);
+
+                if(threadIdx.x == 0)
+                {
+                    loaded_value = ld(offset);
+                }
+                loaded_value = __shfl(loaded_value, 0 /*src_lane*/);
+            }
+        }
+        __syncthreads();
+    }
+
     CK_TILE_DEVICE void wait_lt(uint32_t value, uint32_t offset = 0)
     {
         if(threadIdx.x == 0)

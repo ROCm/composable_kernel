@@ -151,7 +151,10 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
 
-    static bool BlockHasHotloop(index_t num_loop) { return num_loop > PrefetchStages; }
+    static bool __host__ __device__ BlockHasHotloop(index_t num_loop)
+    {
+        return num_loop > PrefetchStages;
+    }
 
     static TailNumber BlockLoopTailNum(index_t num_loop)
     {
@@ -707,7 +710,10 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
 
-    static bool BlockHasHotloop(index_t num_loop) { return num_loop > PrefetchStages; }
+    __host__ __device__ static bool BlockHasHotloop(index_t num_loop)
+    {
+        return num_loop > PrefetchStages;
+    }
 
     static TailNumber BlockLoopTailNum(index_t num_loop)
     {

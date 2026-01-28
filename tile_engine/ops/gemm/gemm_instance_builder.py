@@ -643,40 +643,31 @@ struct SelectedKernel {{
             
         using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;"""
 
-        # Runfunction body
-        instance_code += """
-
-        const auto Run = [&](const auto memory_operation_) {"""
-
         # Scheduler initialization
         if self.kernel_name_prefix in ["gemm_universal"]:
             instance_code += f"""
-            constexpr auto scheduler = {scheduler_type_map.get(scheduler)};"""
-
-        # Memory operation
-        instance_code += """
-            [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;"""
+        constexpr auto scheduler = {scheduler_type_map.get(scheduler)};"""
 
         # UniversalGemmProblem
         if self.kernel_name_prefix in ["gemm_universal"]:
             instance_code += """
 
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
-                ADataType,
-                BDataType,
-                AccDataType,
-                TileShape,
-                ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
-                                                ALayout, BLayout, CLayout, TransposeC,
-                                                UseStructuredSparsity, UsePersistentKernel,
-                                                NumWaveGroups, Preshuffle>,
-                scheduler>;"""
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
+            ADataType,
+            BDataType,
+            AccDataType,
+            TileShape,
+            ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                            ALayout, BLayout, CLayout, TransposeC,
+                                            UseStructuredSparsity, UsePersistentKernel,
+                                            NumWaveGroups, Preshuffle>,
+            scheduler>;"""
 
         # GemmPipeline
         if self.kernel_name_prefix in ["gemm_universal"]:
             instance_code += f"""
 
-            using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;"""
+        using GemmPipeline = {pipeline_impl_map.get(pipeline)}<UniversalGemmProblem>;"""
 
         # Epilogue
         instance_code += self.populate_epilogue(epilogue)
@@ -685,36 +676,38 @@ struct SelectedKernel {{
         if self.kernel_name_prefix == "gemm_multi_d":
             instance_code += """
             
-            // Kernel type
-            using GemmKernelMultiD = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            
-            // Kernel arguments
-            auto kargs = GemmKernelMultiD::MakeKernelArgs(args);
-            
-            if (!GemmKernelMultiD::IsSupportedArgument(kargs)) {
-                throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
-            }
+        // Kernel type
+        using GemmKernelMultiD = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        
+        // Kernel arguments
+        auto kargs = GemmKernelMultiD::MakeKernelArgs(args);
+        
+        if (!GemmKernelMultiD::IsSupportedArgument(kargs)) {
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
+        }
 
-            // Get grid and block sizes
-            const dim3 grids = GemmKernelMultiD::GridSize(args.M, args.N, args.k_batch);
-            const dim3 blocks = GemmKernelMultiD::BlockSize();
-            
-            if(stream.log_level_ > 0) {
-                std::cout << "Launching kernel with args: " << GemmKernelMultiD::GetName() << '\\n'
-                          << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                          << std::endl;
-            }"""
+        // Get grid and block sizes
+        const dim3 grids = GemmKernelMultiD::GridSize(args.M, args.N, args.k_batch);
+        const dim3 blocks = GemmKernelMultiD::BlockSize();
+        
+        if(stream.log_level_ > 0) {
+            std::cout << "Launching kernel with args: " << GemmKernelMultiD::GetName() << '\\n'
+                        << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                        << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                        << std::endl;
+        }"""
 
             instance_code += f"""    
-                // Launch kernel
-                constexpr int kBlockPerCu = {k_block_per_cu};
-                float ave_time = ck_tile::launch_kernel(
-                    stream,
-                    ck_tile::make_kernel<kBlockPerCu>(GemmKernelMultiD{{}}, grids, blocks, 0, kargs));
-                
-                return ave_time;
-            }};"""
+        // Launch kernel
+        constexpr int kBlockPerCu = {k_block_per_cu};
+        float ave_time = ck_tile::launch_kernel(
+            stream,
+            ck_tile::make_kernel<kBlockPerCu>(GemmKernelMultiD{{}}, grids, blocks, 0, kargs));
+        
+        return ave_time;
+    }}
+}};
+"""
 
         elif self.kernel_name_prefix in ["gemm_universal", "gemm_preshuffle"]:
             instance_code += f"""
@@ -722,57 +715,42 @@ struct SelectedKernel {{
         // Kernel type
         using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             
-            // Kernel arguments
-            auto kargs = GemmKernel::MakeKernelArgs(args);
-            
-            if (!GemmKernel::IsSupportedArgument(kargs)) {{
-                throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
-            }}
+        // Kernel arguments
+        auto kargs = GemmKernel::MakeKernelArgs(args);
+        
+        if (!GemmKernel::IsSupportedArgument(kargs)) {{
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
+        }}
 
-            // Get grid and block sizes
-            const dim3 grids = {"GemmKernel::MaxOccupancyGridSize(stream)" if persistent in [True, "true"] else "GemmKernel::GridSize(args.M, args.N, args.k_batch)"};
-            const dim3 blocks = GemmKernel::BlockSize();
-            
-            if(stream.log_level_ > 0) {{
-                std::cout << "Launching kernel with args: " << GemmKernel::GetName() << '\\n'
-                          << "grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
-                          << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
-                          << std::endl;
-            }}"""
+        // Get grid and block sizes
+        const dim3 grids = {"GemmKernel::MaxOccupancyGridSize(stream)" if persistent in [True, "true"] else "GemmKernel::GridSize(args.M, args.N, args.k_batch)"};
+        const dim3 blocks = GemmKernel::BlockSize();
+        
+        if(stream.log_level_ > 0) {{
+            std::cout << "Launching kernel with args: " << GemmKernel::GetName() << '\\n'
+                        << "grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
+                        << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
+                        << std::endl;
+        }}"""
 
             instance_code += f"""    
-                // Launch kernel
-                constexpr int kBlockPerCu = {k_block_per_cu};
-                float ave_time = ck_tile::launch_kernel(
-                    stream,
-                    ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
-                
-                return ave_time;
-            }};"""
-
-        # Run SplitK handler
-
-        instance_code += """
-
-        float ave_time = 0.f;
-        if(args.k_batch == 1) {
-            ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                        ck_tile::memory_operation_enum::set>{});
-        } else {
-            ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                        ck_tile::memory_operation_enum::atomic_add>{});
-        }
+        // Launch kernel
+        constexpr int kBlockPerCu = {k_block_per_cu};
+        float ave_time = ck_tile::launch_kernel(
+            stream,
+            ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
+        
         return ave_time;
-    }
-};
+    }}
+}};
 """
         return instance_code
 
     def populate_epilogue(self, epilogue):
         instance_code = """
 
-            // Epilogue
-            """
+        // Epilogue
+        """
 
         if epilogue == "cshuffle":
             if self.kernel_name_prefix == "gemm_universal":
@@ -793,148 +771,145 @@ struct SelectedKernel {{
 
     def populate_cshuffle_gemm_universal(self):
         instance_code = """            
-            using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
-                ADataType,
-                BDataType,
-                ck_tile::tuple<>,  // DsDataType
-                AccDataType,
-                CDataType,
-                ck_tile::tuple<>,  // DsLayout
-                CLayout,
-                ck_tile::element_wise::PassThrough,
-                TileM,  // kM_
-                TileN,  // kN_
-                WarpPerBlock_M,              // MWave_
-                WarpPerBlock_N,              // NWave_
-                WarpTileM,                   // MPerXdl_
-                WarpTileN,                   // NPerXdl_
-                WarpTileK,                   // KPerXdl_
-                TransposeC,                  // isCTransposed_
-                memory_operation,            // MemoryOperation_
-                NumWaveGroups>;              // kNumWaveGroups_
-            
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
+        using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
+            ADataType,
+            BDataType,
+            ck_tile::tuple<>,  // DsDataType
+            AccDataType,
+            CDataType,
+            ck_tile::tuple<>,  // DsLayout
+            CLayout,
+            ck_tile::element_wise::PassThrough,
+            TileM,  // kM_
+            TileN,  // kN_
+            WarpPerBlock_M,              // MWave_
+            WarpPerBlock_N,              // NWave_
+            WarpTileM,                   // MPerXdl_
+            WarpTileN,                   // NPerXdl_
+            WarpTileK,                   // KPerXdl_
+            TransposeC,                  // isCTransposed_
+            NumWaveGroups>;              // kNumWaveGroups_
+        
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
         return instance_code
 
     def populate_cshuffle_gemm_multi_d(self):
         instance_code = """            
-            using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
-                ADataType,
-                BDataType,
-                DsDataType,
-                AccDataType,
-                CDataType,
-                DsLayout,
-                CLayout,
-                ElementWiseFn,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
-                WarpPerBlock_M,              // MWave_
-                WarpPerBlock_N,              // NWave_
-                WarpTileM,                   // MPerXdl_
-                WarpTileN,                   // NPerXdl_
-                WarpTileK,                   // KPerXdl_
-                TransposeC,                  // isCTransposed_
-                memory_operation>;           // MemoryOperation_ 
-       
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
+        using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
+            ADataType,
+            BDataType,
+            DsDataType,
+            AccDataType,
+            CDataType,
+            DsLayout,
+            CLayout,
+            ElementWiseFn,
+            TileM,  // kM_
+            TileN,  // kN_
+            WarpPerBlock_M,              // MWave_
+            WarpPerBlock_N,              // NWave_
+            WarpTileM,                   // MPerXdl_
+            WarpTileN,                   // NPerXdl_
+            WarpTileK,                   // KPerXdl_
+            TransposeC>;                  // isCTransposed_
+    
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
         return instance_code
 
     def populate_cshuffle_gemm_preshuffle(self):
         instance_code = """            
-            using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
-                ADataType,
-                BDataType,
-                ck_tile::tuple<>,  // DsDataType
-                AccDataType,
-                CDataType,
-                ck_tile::tuple<>,  // DsLayout
-                CLayout,
-                ck_tile::element_wise::PassThrough,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
-                WarpPerBlock_M,              // MWave_
-                WarpPerBlock_N,              // NWave_
-                WarpTileM,                   // MPerXdl_
-                WarpTileN,                   // NPerXdl_
-                WarpTileK,                   // KPerXdl_
-                TransposeC,                  // isCTransposed_
-                memory_operation,            // MemoryOperation_
-                NumWaveGroups,               // kNumWaveGroups_
-                false,                       // FixedVectorSize_
-                1,                           // VectorSizeC_
-                PermuteN>;                   // isPermuteN_
-            
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
+        using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
+            ADataType,
+            BDataType,
+            ck_tile::tuple<>,  // DsDataType
+            AccDataType,
+            CDataType,
+            ck_tile::tuple<>,  // DsLayout
+            CLayout,
+            ck_tile::element_wise::PassThrough,
+            TileM,  // kM_
+            TileN,  // kN_
+            WarpPerBlock_M,              // MWave_
+            WarpPerBlock_N,              // NWave_
+            WarpTileM,                   // MPerXdl_
+            WarpTileN,                   // NPerXdl_
+            WarpTileK,                   // KPerXdl_
+            TransposeC,                  // isCTransposed_
+            NumWaveGroups,               // kNumWaveGroups_
+            false,                       // FixedVectorSize_
+            1,                           // VectorSizeC_
+            PermuteN>;                   // isPermuteN_
+        
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
         return instance_code
 
     def populate_default_gemm_universal(self):
         instance_code = """            
-            using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
-                ADataType,
-                BDataType,
-                ck_tile::tuple<>,  // DsDataType
-                AccDataType,
-                CDataType,
-                ck_tile::tuple<>,  // DsLayout
-                CLayout,
-                ck_tile::element_wise::PassThrough,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
-                kPadM,
-                kPadN,
-                WarpTileM,  // kMPerXdl_
-                WarpTileN,  // kNPerXdl_
-                WarpTileK,  // kKPerXdl_
-                TransposeC>;  // isCTransposed_
-            
-            using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;"""
+        using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
+            ADataType,
+            BDataType,
+            ck_tile::tuple<>,  // DsDataType
+            AccDataType,
+            CDataType,
+            ck_tile::tuple<>,  // DsLayout
+            CLayout,
+            ck_tile::element_wise::PassThrough,
+            TileM,  // kM_
+            TileN,  // kN_
+            kPadM,
+            kPadN,
+            WarpTileM,  // kMPerXdl_
+            WarpTileN,  // kNPerXdl_
+            WarpTileK,  // kKPerXdl_
+            TransposeC>;  // isCTransposed_
+        
+        using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;"""
         return instance_code
 
     def populate_default_gemm_multi_d(self):
         instance_code = """            
-            using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
-                ADataType,
-                BDataType,
-                DsDataType,
-                AccDataType,
-                CDataType,
-                DsLayout,
-                CLayout,
-                ElementWiseFn,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
-                kPadM,
-                kPadN,
-                WarpTileM,  // kMPerXdl_
-                WarpTileN,  // kNPerXdl_
-                WarpTileK,  // kKPerXdl_
-                TransposeC>;  // isCTransposed_
-            
-            using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;"""
+        using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
+            ADataType,
+            BDataType,
+            DsDataType,
+            AccDataType,
+            CDataType,
+            DsLayout,
+            CLayout,
+            ElementWiseFn,
+            TileM,  // kM_
+            TileN,  // kN_
+            kPadM,
+            kPadN,
+            WarpTileM,  // kMPerXdl_
+            WarpTileN,  // kNPerXdl_
+            WarpTileK,  // kKPerXdl_
+            TransposeC>;  // isCTransposed_
+        
+        using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;"""
         return instance_code
 
     def populate_default_gemm_preshuffle(self):
         instance_code = """            
-            using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
-                ADataType,
-                BDataType,
-                ck_tile::tuple<>,  // DsDataType
-                AccDataType,
-                CDataType,
-                ck_tile::tuple<>,  // DsLayout
-                CLayout,
-                ck_tile::element_wise::PassThrough,
-                TilePartitioner::MPerBlock,  // kM_
-                TilePartitioner::NPerBlock,  // kN_
-                kPadM,
-                kPadN,
-                WarpTileM,  // kMPerXdl_
-                WarpTileN,  // kNPerXdl_
-                WarpTileK,  // kKPerXdl_
-                TransposeC>;  // isCTransposed_
-            
-            using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;"""
+        using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
+            ADataType,
+            BDataType,
+            ck_tile::tuple<>,  // DsDataType
+            AccDataType,
+            CDataType,
+            ck_tile::tuple<>,  // DsLayout
+            CLayout,
+            ck_tile::element_wise::PassThrough,
+            TileM,  // kM_
+            TileN,  // kN_
+            kPadM,
+            kPadN,
+            WarpTileM,  // kMPerXdl_
+            WarpTileN,  // kNPerXdl_
+            WarpTileK,  // kKPerXdl_
+            TransposeC>;  // isCTransposed_
+        
+        using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;"""
         return instance_code
 
     def _generate_cmake_individual_targets(self, kernel_list):

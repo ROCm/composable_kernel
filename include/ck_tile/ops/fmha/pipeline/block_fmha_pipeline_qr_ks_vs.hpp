@@ -57,7 +57,12 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
+    static constexpr auto QScaleEnum        = Problem::QScaleEnum;
     static constexpr bool kHasSink          = Problem::kHasSink;
+
+    // For BLOCKSCALE: shift value for exp2(x + shift) to scale P to [0, 2^shift]
+    static constexpr float OCP_FP8_SHIFT  = 8.0f;
+    static constexpr float FNUZ_FP8_SHIFT = 7.0f;
 
     static constexpr uint32_t DS_READ = 0x100; // Barrier for DS (data share) read
     static constexpr uint32_t MFMA    = 0x008; // Barrier for MFMA (matrix multiply-accumulate)
@@ -166,7 +171,11 @@ struct BlockFmhaPipelineQRKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                void* smem_ptr,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const float* k_descale_ptr,
+               const float* v_descale_ptr,
+               const index_t block_scale_size_kv,
+               const float sink_v) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -230,9 +239,24 @@ struct BlockFmhaPipelineQRKSVS
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, -numeric<SMPLComputeDataType>::infinity());
-        clear_tile(l);
-
+        if(__builtin_isinf_sign(sink_v) >= 0)
+        {
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI ||
+                         BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
+                set_tile(m, sink_v * scale_s * C_LOG2E);
+            else
+                set_tile(m, sink_v * C_LOG2E);
+#else
+            set_tile(m, sink_v);
+#endif
+            set_tile(l, SMPLComputeDataType{1.0f});
+        }
+        else
+        {
+            set_tile(m, -numeric<SMPLComputeDataType>::infinity());
+            clear_tile(l);
+        }
         const auto q_origin = q_dram_window.get_window_origin();
 
         const auto tile_range_result = [&mask, &q_origin]() {
@@ -265,7 +289,14 @@ struct BlockFmhaPipelineQRKSVS
                     auto lse =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
+                    if(__builtin_isinf_sign(sink_v) >= 0)
+                    {
+                        set_tile(lse, SMPLComputeDataType{sink_v * scale_s});
+                    }
+                    else
+                    {
+                        set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
+                    }
 
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
@@ -335,6 +366,13 @@ struct BlockFmhaPipelineQRKSVS
         static_assert(1 <= k1_loops);
         do
         {
+            float k_descale = 1.0f;
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+            {
+                // K and V share the same seqlen_k position within a block
+                const index_t kv_idx = (kv_load_start + i_total_loops * kN0) / block_scale_size_kv;
+                k_descale            = k_descale_ptr[kv_idx];
+            }
             // STAGE 1, QK gemm
             auto k_dram_window = make_tile_window(
                 k_dram_block_window.get_bottom_tensor_view(),
@@ -404,11 +442,20 @@ struct BlockFmhaPipelineQRKSVS
                        k_lds_window);
                 schedule_gemm0();
             }
+            // dequant
+            auto s_acc_element_func_ = [&s_acc_element_func, k_descale]() {
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+                    return s_acc_element_func * k_descale;
+                }
+                else
+                    return s_acc_element_func;
+            }();
 
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
-                s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
+                s_acc = tile_elementwise_in(s_acc_element_func_, s_acc);
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
                 tile_elementwise_inout(
                     [&](auto& x, const auto& y) {
@@ -426,7 +473,7 @@ struct BlockFmhaPipelineQRKSVS
             {
                 const auto k_origin    = k_dram_block_window.get_window_origin();
                 constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
-                s_acc                  = tile_elementwise_in(s_acc_element_func, s_acc);
+                s_acc                  = tile_elementwise_in(s_acc_element_func_, s_acc);
                 sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
                         const auto tile_idx = get_x_indices_from_distributed_indices(
@@ -443,7 +490,7 @@ struct BlockFmhaPipelineQRKSVS
             }
             else
             {
-                s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
+                s_acc = tile_elementwise_in(s_acc_element_func_, s_acc);
                 if constexpr(kHasLogitsSoftCap)
                 {
                     auto apply_logits_transform =
@@ -548,7 +595,21 @@ struct BlockFmhaPipelineQRKSVS
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                auto row_max = scale_s * get_validated_m(m[i_idx]);
+                // For BLOCKSCALE: precompute (m - shift) once per row
+                // Bias/Alibi/SoftCap: exp2(s - m + shift) = exp2(s - (m - shift))
+                // else: exp2(scale_s*s - scale_s*m + shift) = exp2(scale_s*s - (scale_s*m - shift))
+                auto validated_m = get_validated_m(m[i_idx]);
+                auto row_max     = scale_s * validated_m;
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+#if CK_TILE_USE_OCP_FP8
+                    validated_m -= OCP_FP8_SHIFT; // for Bias/Alibi/SoftCap
+                    row_max -= OCP_FP8_SHIFT;     // for else branch
+#else
+                    validated_m -= FNUZ_FP8_SHIFT;
+                    row_max -= FNUZ_FP8_SHIFT;
+#endif
+                }
 #endif
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -556,13 +617,13 @@ struct BlockFmhaPipelineQRKSVS
                     if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
                                  BiasEnum == BlockAttentionBiasEnum::ALIBI)
                     {
-                        p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                        p_compute(i_j_idx) = exp2(s[i_j_idx] - validated_m);
                     }
                     else
                     {
                         if constexpr(kHasLogitsSoftCap)
                         {
-                            p_compute(i_j_idx) = exp2(s[i_j_idx] - get_validated_m(m[i_idx]));
+                            p_compute(i_j_idx) = exp2(s[i_j_idx] - validated_m);
                         }
                         else
                         {
@@ -653,18 +714,39 @@ struct BlockFmhaPipelineQRKSVS
                 store_tile(v_lds_window,
                            tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
             }
+
             move_tile_window(v_dram_window, {0, kK1});
 
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
+            float v_descale = 1.0f;
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+            {
+                // K and V share the same seqlen_k position within a block
+                const index_t kv_idx = (kv_load_start + i_total_loops * kN0) / block_scale_size_kv;
+                v_descale            = v_descale_ptr[kv_idx];
+            }
             // STAGE 3, KV gemm
+            auto o_acc0 = decltype(o_acc){};
+            clear_tile(o_acc0);
+
+            auto& o_acc_ = [&o_acc0, &o_acc]() -> auto& {
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+                    return o_acc0;
+                }
+                else
+                {
+                    return o_acc;
+                }
+            }();
             if constexpr(k1_loops > 1)
             {
                 static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
                     const auto v = load_tile(v_dram_window); // load next v
                     block_sync_lds();
-                    gemm_1(o_acc,
+                    gemm_1(o_acc_,
                            get_slice_tile(
                                p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
                            v_lds_window);
@@ -699,10 +781,15 @@ struct BlockFmhaPipelineQRKSVS
             // tail
             {
                 block_sync_lds();
-                gemm_1(o_acc,
+                gemm_1(o_acc_,
                        get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
                        v_lds_window);
                 block_sync_lds();
+            }
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+            {
+                tile_elementwise_inout(
+                    [&v_descale](auto& o, auto& o0) { o += o0 * v_descale; }, o_acc, o_acc0);
             }
         } while(++i_total_loops < num_total_loop);
 
@@ -714,26 +801,35 @@ struct BlockFmhaPipelineQRKSVS
             constexpr auto lse_spans = decltype(lse)::get_distributed_spans();
             sweep_tile_span(lse_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
-                             BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                // In the masked biased case, the entire row can be suppressed and the accumulated
+                // softmax denominator becomes zero; treat it as log(0) = -inf to avoid NaNs.
+                if(l_[i_idx] == 0.0f)
                 {
-                    lse(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
+                    lse(i_idx) = -numeric<LSEDataType>::infinity();
                 }
                 else
                 {
-                    if constexpr(kHasLogitsSoftCap)
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+                    if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                                 BiasEnum == BlockAttentionBiasEnum::ALIBI)
                     {
                         lse(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
                     }
                     else
                     {
-                        lse(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+                        if constexpr(kHasLogitsSoftCap)
+                        {
+                            lse(i_idx) = m_[i_idx] / C_LOG2E + log(l_[i_idx]);
+                        }
+                        else
+                        {
+                            lse(i_idx) = m_[i_idx] * scale_s / C_LOG2E + log(l_[i_idx]);
+                        }
                     }
-                }
 #else
-                lse(i_idx) = m_[i_idx] + log(l_[i_idx]);
+                    lse(i_idx) = m_[i_idx] + log(l_[i_idx]);
 #endif
+                }
             });
 
             store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
@@ -745,7 +841,10 @@ struct BlockFmhaPipelineQRKSVS
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
             constexpr auto i_idx = make_tuple(idx0);
             const auto tmp       = [&]() {
-                if constexpr(FmhaMask::IsMasking)
+                // When bias carries -inf masks the denominator can be zero; guard the normalization
+                // so we do not divide by zero after a fully masked row.
+                if constexpr(FmhaMask::IsMasking ||
+                             BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                 {
                     return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
                 }
@@ -786,7 +885,8 @@ struct BlockFmhaPipelineQRKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                void* smem_ptr,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const float sink_v) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -809,7 +909,11 @@ struct BlockFmhaPipelineQRKSVS
                           variant_params,
                           block_indices,
                           smem_ptr,
-                          dropout);
+                          dropout,
+                          nullptr,
+                          nullptr,
+                          1,
+                          sink_v);
     }
 };
 

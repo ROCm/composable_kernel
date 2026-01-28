@@ -1,0 +1,80 @@
+{
+  "registry": "export_demo",
+  "kernel_count": 3,
+  "kernels": [
+    {
+      "tile": "128x128x32",
+      "dtypes": {
+        "A": "fp16",
+        "B": "fp16",
+        "C": "fp16"
+      },
+      "layout": "rcr",
+      "pipeline": "compv4",
+      "target": "gfx942"
+    },
+    {
+      "tile": "256x256x64",
+      "dtypes": {
+        "A": "fp16",
+        "B": "fp16",
+        "C": "fp16"
+      },
+      "layout": "rcr",
+      "pipeline": "compv4",
+      "target": "gfx942"
+    },
+    {
+      "tile": "64x64x32",
+      "dtypes": {
+        "A": "fp16",
+        "B": "fp16",
+        "C": "fp16"
+      },
+      "layout": "rcr",
+      "pipeline": "compv4",
+      "target": "gfx942"
+    }
+  ],
+  "cpp_registry": {
+    "metadata": {
+      "timestamp": "Dec  4 2025 06:23:15",
+      "total_kernels": 1,
+      "export_version": "1.0",
+      "dispatcher_version": "1.0.0"
+    },
+    "statistics": {
+      "by_datatype": {},
+      "by_pipeline": {},
+      "by_scheduler": {}
+    },
+    "kernels": [
+      {
+        "identifier": "128x128x32_2x2x1_32x32x16_nopers",
+        "name": "gemm_fp16_rcrr_compv4_cshuffle_intrawave_False_False_False_False_128x128x32_2x2x1_32x32x16",
+        "algorithm": {
+          "tile_shape": {
+            "m": 128,
+            "n": 128,
+            "k": 32
+          },
+          "wave_shape": {
+            "m": 2,
+            "n": 2,
+            "k": 1
+          },
+          "warp_tile_shape": {
+            "m": 32,
+            "n": 32,
+            "k": 16
+          },
+          "block_size": 256,
+          "persistent": false,
+          "double_buffer": true,
+          "preshuffle": false,
+          "transpose_c": false
+        }
+      }
+    ]
+  }
+}

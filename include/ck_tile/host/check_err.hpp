@@ -19,7 +19,7 @@
 namespace ck_tile {
 
 /** @brief Maximum number of error values to display when checking errors */
-constexpr int ERROR_DETAIL_LIMIT = 128;
+constexpr int ERROR_DETAIL_LIMIT = 16;
 
 /** @brief 8-bit floating point type */
 using F8 = ck_tile::fp8_t;

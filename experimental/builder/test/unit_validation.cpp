@@ -173,8 +173,8 @@ TEST(ValidationReportTests, MultipleSomeIncorrect)
     }
 
     {
-        auto desc = ckt::make_descriptor<ckb::DataType::INT32, 3>({'G', 'P', 'U'},
-                                                                  ckt::PackedRightLayout{});
+        auto desc =
+            ckt::make_descriptor<ckb::DataType::I32, 3>({'G', 'P', 'U'}, ckt::PackedRightLayout{});
 
         auto a = ckt::alloc_tensor_buffer(desc);
         auto b = ckt::alloc_tensor_buffer(desc);
@@ -204,6 +204,7 @@ struct DummySignature
 constexpr DummySignature DUMMY_SIGNATURE = {};
 
 namespace ck_tile::builder::test {
+
 template <>
 struct Args<DUMMY_SIGNATURE>
 {
@@ -225,6 +226,7 @@ struct Outputs<DUMMY_SIGNATURE>
     void* b;
 };
 
+// Explicitly implement validate for this type to test that that works.
 template <>
 ValidationReport validate<DUMMY_SIGNATURE>(const Args<DUMMY_SIGNATURE>& args,
                                            Outputs<DUMMY_SIGNATURE> actual,
@@ -294,5 +296,8 @@ TEST(MatchesReference, Incorrect)
     testing::StringMatchResultListener listener;
     EXPECT_TRUE(!ExplainMatchResult(MatchesReference(args, expected), actual, &listener));
 
-    EXPECT_THAT(listener.str(), StringEqWithDiff("1 tensors failed to validate"));
+    EXPECT_THAT(listener.str(),
+                StringEqWithDiff( //
+                    "1 tensors failed to validate\n"
+                    "    - a: 625/625 incorrect elements (~100%)"));
 }
