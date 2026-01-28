@@ -67,8 +67,12 @@ __global__ void fill_tensor_uniform_rand_int_values(T* p,
         }
         else
         {
-            p[i] = ck::type_convert<T, int>(
-                static_cast<int>((ran_gen_round_u32(s)) % (max_value - min_value)) + min_value);
+            const auto value =
+                static_cast<int>((ran_gen_round_u32(s)) % (max_value - min_value)) + min_value;
+            if constexpr(std::is_integral_v<T> && !std::is_same_v<T, ck::bhalf_t>)
+                p[i] = ck::type_convert<T, int>(value);
+            else
+                p[i] = ck::type_convert<T, float>(value);
         }
     }
 }
