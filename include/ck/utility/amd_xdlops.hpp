@@ -315,8 +315,12 @@ struct intrin_mfma_f32_32x32x8bf16_1k<32, 32>
     {
         static_assert(std::is_same_v<bhalf4_t, typename vector_type<bhalf_t, 4>::type>);
         reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x8bf16_1k(
-            std::bit_cast<typename vector_type<short, 4>::type>(reg_a), 
-            std::bit_cast<typename vector_type<short, 4>::type>(reg_b), reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
+            std::bit_cast<typename vector_type<short, 4>::type>(reg_a),
+            std::bit_cast<typename vector_type<short, 4>::type>(reg_b),
+            reg_c.template AsType<float16_t>()[Number<0>{}],
+            0,
+            0,
+            0);
     }
 };
 

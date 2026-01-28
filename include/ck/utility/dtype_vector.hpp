@@ -585,11 +585,11 @@ struct vector_type<T, 8, typename ck::enable_if_t<is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        #if 0
+#if 0
         static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
                           is_same<X, d4_t>::value || is_same<X, d8_t>::value,
                       "Something went wrong, please check src and dst types.");
-        #endif
+#endif
         if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x8_;
@@ -757,12 +757,12 @@ struct vector_type<T, 16, typename ck::enable_if_t<is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-        #if 0
+#if 0
         static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
                           is_same<X, d4_t>::value || is_same<X, d8_t>::value ||
                           is_same<X, d16_t>::value,
                       "Something went wrong, please check src and dst types.");
-        #endif
+#endif
         if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x16_;
@@ -1380,7 +1380,7 @@ struct non_native_vector_base<
     __host__ __device__ constexpr non_native_vector_base() : non_native_vector_base(T{}){};
     __host__ __device__ constexpr non_native_vector_base(data_v v) : data_{v} {}
 
-    __host__ __device__ constexpr operator () const { return data_.dN; }
+    __host__ __device__ constexpr operator() const { return data_.dN; }
     __host__ __device__ constexpr operator data_t() const
     {
         if constexpr(N == 1)
@@ -2223,7 +2223,6 @@ using bf8x8_ocp_t  = typename vector_type<bf8_ocp_t, 8>::type;
 using bf8x16_ocp_t = typename vector_type<bf8_ocp_t, 16>::type;
 using bf8x32_ocp_t = typename vector_type<bf8_ocp_t, 32>::type;
 using bf8x64_ocp_t = typename vector_type<bf8_ocp_t, 64>::type;
-
 
 #if CK_FP8_TYPE_OCP
 // f8

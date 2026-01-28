@@ -145,26 +145,26 @@ amd_buffer_load_impl_raw(__amdgpu_buffer_rsrc_t src_wave_buffer_resource,
     else if constexpr(N == 8)
     {
         uint32x2_t tmp = __builtin_amdgcn_raw_buffer_load_b64(src_wave_buffer_resource,
-                                                             src_thread_addr_offset,
-                                                             src_wave_addr_offset,
-                                                             static_cast<index_t>(coherence));
+                                                              src_thread_addr_offset,
+                                                              src_wave_addr_offset,
+                                                              static_cast<index_t>(coherence));
 
         return bit_cast<int8x8_t>(tmp);
     }
     else if constexpr(N == 16)
     {
         uint32x4_t tmp = __builtin_amdgcn_raw_buffer_load_b128(src_wave_buffer_resource,
-                                                              src_thread_addr_offset,
-                                                              src_wave_addr_offset,
-                                                              static_cast<index_t>(coherence));
+                                                               src_thread_addr_offset,
+                                                               src_wave_addr_offset,
+                                                               static_cast<index_t>(coherence));
         return bit_cast<int8x16_t>(tmp);
     }
     else if constexpr(N == 32)
     {
         uint32x4_t tmp0 = __builtin_amdgcn_raw_buffer_load_b128(src_wave_buffer_resource,
-                                                               src_thread_addr_offset,
-                                                               src_wave_addr_offset,
-                                                               static_cast<index_t>(coherence));
+                                                                src_thread_addr_offset,
+                                                                src_wave_addr_offset,
+                                                                static_cast<index_t>(coherence));
         uint32x4_t tmp1 =
             __builtin_amdgcn_raw_buffer_load_b128(src_wave_buffer_resource,
                                                   src_thread_addr_offset,
@@ -180,9 +180,9 @@ amd_buffer_load_impl_raw(__amdgpu_buffer_rsrc_t src_wave_buffer_resource,
     else if constexpr(N == 64)
     {
         uint32x4_t tmp0 = __builtin_amdgcn_raw_buffer_load_b128(src_wave_buffer_resource,
-                                                               src_thread_addr_offset,
-                                                               src_wave_addr_offset,
-                                                               static_cast<index_t>(coherence));
+                                                                src_thread_addr_offset,
+                                                                src_wave_addr_offset,
+                                                                static_cast<index_t>(coherence));
         uint32x4_t tmp1 =
             __builtin_amdgcn_raw_buffer_load_b128(src_wave_buffer_resource,
                                                   src_thread_addr_offset,
