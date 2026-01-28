@@ -22,6 +22,7 @@
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/host_utility/device_prop.hpp"
@@ -524,6 +525,44 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
         decltype(GridwiseGemm::MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             CGridDesc_M_N{}, 1, 1));
 
+    struct ActiveWorkgroupsPerCU
+    {
+        ActiveWorkgroupsPerCU()
+        {
+            if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
+            {
+                return;
+            }
+            constexpr int dynamic_smem_size = 0;
+            constexpr index_t minimum_occupancy =
+                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
+            int max_occupancy = 0;
+
+            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+            {
+                // TODO: implement
+            }
+            else
+            {
+                hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                    &max_occupancy,
+                    kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3_multiple_d<
+                        GridwiseGemm,
+                        remove_reference_t<DeviceOp::AGridDesc_K0_M_K1>,
+                        remove_reference_t<DeviceOp::BGridDesc_K0_N_K1>,
+                        remove_reference_t<DeviceOp::CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>,
+                        ComputePtrOffsetOfStridedBatch<I1, I1, I0>,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
+                    BlockSize,
+                    dynamic_smem_size));
+            }
+            max_occupancy_ = std::max(1, max_occupancy);
+        }
+        int max_occupancy_;
+    };
+
     struct Argument : public BaseArgument, public ArgumentSplitK
     {
         Argument(
@@ -574,6 +613,8 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
               input_left_pads_{input_left_pads},
               input_right_pads_{input_right_pads}
         {
+            static ActiveWorkgroupsPerCU active_workgroups_per_cu;
+
             constexpr index_t spatial_offset = 3;
             std::copy(begin(b_g_n_c_wis_lengths) + spatial_offset,
                       end(b_g_n_c_wis_lengths),
