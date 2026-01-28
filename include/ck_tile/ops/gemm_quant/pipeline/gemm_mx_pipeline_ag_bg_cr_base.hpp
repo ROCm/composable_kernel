@@ -10,7 +10,7 @@
 namespace ck_tile {
 
 template <typename Problem, typename Policy>
-struct GemmMxFp4PipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Problem, Policy>
+struct GemmMxPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Problem, Policy>
 {
     using Base            = GemmPipelineAgBgCrImplBase<Problem, Policy>;
     using ADataType       = typename Base::ADataType;

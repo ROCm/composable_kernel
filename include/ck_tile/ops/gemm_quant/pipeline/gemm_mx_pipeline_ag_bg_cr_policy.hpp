@@ -9,7 +9,7 @@
 
 namespace ck_tile {
 
-struct GemmMxFp4PipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPolicy
+struct GemmMxPipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPolicy
 {
     using Base = UniversalGemmPipelineAgBgCrPolicy;
     using Base::I0;

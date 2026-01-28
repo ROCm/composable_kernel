@@ -9,7 +9,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
-#include "ck_tile/ops/gemm_quant/pipeline/gemm_mxfp4_pipeline_ag_bg_cr_base.hpp"
+#include "ck_tile/ops/gemm_quant/pipeline/gemm_mx_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
@@ -18,11 +18,11 @@ namespace ck_tile {
 //  B Tile Window: global memory
 //  C Distributed tensor: register
 
-template <typename Problem, typename Policy = GemmMxFp4PipelineAgBgCrPolicy>
-struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
+template <typename Problem, typename Policy = GemmMxPipelineAgBgCrPolicy>
+struct MxGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
-    using PipelineImplBase = GemmMxFp4PipelineAgBgCrImplBase<Problem, Policy>;
+    using PipelineImplBase = GemmMxPipelineAgBgCrImplBase<Problem, Policy>;
 
     using ADataType = remove_cvref_t<typename Problem::ADataType>;
     using BDataType = remove_cvref_t<typename Problem::BDataType>;

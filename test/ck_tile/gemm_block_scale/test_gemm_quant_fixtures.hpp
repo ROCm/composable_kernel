@@ -877,7 +877,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             using GemmPipeline = std::conditional_t<
                 PreshuffleB == false,
                 std::conditional_t<std::is_same_v<QDataType, ck_tile::e8m0_t>,
-                                   ck_tile::MxFp4GemmPipelineAgBgCrCompV3<PipelineProblem>,
+                                   ck_tile::MxGemmPipelineAgBgCrCompV3<PipelineProblem>,
                                    ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>,
                 ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>>;
 
