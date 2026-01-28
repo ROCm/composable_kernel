@@ -693,13 +693,13 @@ struct QuantGemmKernel
                 {
                     if constexpr(PreshuffleB)
                     {
-                        index_t kFlatK =
-                            GemmPipeline::flatKPerWarp *
-                            (k_size / GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{}));
-                        index_t kFlatN = kargs.N * kargs.K / kFlatK;
+                        constexpr auto warp_k = GemmPipeline::BlockGemmShape::WarpTile::at(I2);
+                        index_t kFlatKSplit   = GemmPipeline::flatKPerWarp * (k_size / warp_k);
+                        index_t kFlatK        = GemmPipeline::flatKPerWarp * (kargs.K / warp_k);
+                        index_t kFlatN        = kargs.N * kargs.K / kFlatK;
                         return make_naive_tensor_view<address_space_enum::global>(
                             b_ptr,
-                            make_tuple(kFlatN, kFlatK),
+                            make_tuple(kFlatN, kFlatKSplit),
                             make_tuple(kFlatK, 1),
                             number<GemmPipeline::GetVectorSizeB()>{},
                             number<1>{});

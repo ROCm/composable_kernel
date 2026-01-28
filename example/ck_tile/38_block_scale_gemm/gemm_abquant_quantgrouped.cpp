@@ -12,9 +12,8 @@ using GemmConfigPreshuffleB = GemmConfigPreshuffleB_ABQuant_Prefill<T>;
 // template <typename T>
 // using GemmConfigPreshuffleB = GemmConfigPreshuffleB_ABQuant_Decode<T>;
 
-void abquant_quantgrouped_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
-{
+static auto _ = []() {
+    auto& lut                               = get_kernel_lut();
     lut[hash_multiple_strings({"fp8",
                                "abquant",
                                "non-preshuffleb",
@@ -135,4 +134,5 @@ void abquant_quantgrouped_instance_factory(
                                           BQuantGroupSize,
                                           ck_tile::QuantType::ABQuantGrouped>(arg_parser);
     };
-}
+    return 0;
+}();
