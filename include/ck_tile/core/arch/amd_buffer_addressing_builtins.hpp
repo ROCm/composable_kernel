@@ -1141,14 +1141,16 @@ llvm_amdgcn_raw_buffer_store_i32x3_(int32x3_t vdata,
                                     index_t soffset,
                                     index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v3i32");
 
-CK_TILE_DEVICE_EXTERN void llvm_amdgcn_raw_buffer_store_i32x3(
-    dwordx3_union vdata, int32x4_t rsrc, index_t voffset, index_t soffset, index_t glc_slc)
+CK_TILE_DEVICE_EXTERN void llvm_amdgcn_raw_buffer_store_i32x3(dwordx3_union vdata,
+                                                              int32x4_t rsrc,
+                                                              index_t voffset,
+                                                              index_t soffset)
 {
     int32x3_t v_reg;
     v_reg[0] = vdata.as_i32[0];
     v_reg[1] = vdata.as_i32[1];
     v_reg[2] = vdata.as_i32[2];
-    llvm_amdgcn_raw_buffer_store_i32x3_(v_reg, rsrc, voffset, soffset, glc_slc);
+    llvm_amdgcn_raw_buffer_store_i32x3_(v_reg, rsrc, voffset, soffset, 0);
 };
 
 CK_TILE_DEVICE_EXTERN void
@@ -1824,8 +1826,7 @@ CK_TILE_DEVICE void amd_buffer_store_impl_with_bytes(const thread_buffer<int8_t,
         llvm_amdgcn_raw_buffer_store_i32x3(bit_cast<dwordx3_union>(src_thread_data),
                                            dst_wave_buffer_resource,
                                            dst_thread_addr_offset,
-                                           dst_wave_addr_offset,
-                                           static_cast<index_t>(coherence));
+                                           dst_wave_addr_offset);
     }
     else if constexpr(N == 16)
     {

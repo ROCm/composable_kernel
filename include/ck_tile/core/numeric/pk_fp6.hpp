@@ -22,15 +22,14 @@ struct pk_fp6_t
     static constexpr index_t vector_size = (packed_size * num_bits_elem) / num_bits_vec_elem;
     element_type data_[vector_size]; // packed data
     using type = pk_fp6_t<packed_size>;
-    CK_TILE_HOST_DEVICE constexpr pk_fp6_t(){};
-    CK_TILE_HOST_DEVICE constexpr explicit pk_fp6_t(int value)
+    CK_TILE_HOST_DEVICE constexpr explicit pk_fp6_t(int value = 0)
     {
         for(size_t i = 0; i < vector_size; ++i)
         {
             data_[i] = value;
         }
     }
-    void pack(const int32_t x, const index_t i)
+    CK_TILE_HOST_DEVICE void pack(const int32_t x, const index_t i)
     {
         int32_t bits         = static_cast<int32_t>(x) & 0x3F;
         const int bit_pos    = i * num_bits_elem;
@@ -53,7 +52,7 @@ struct pk_fp6_t
     }
 
     template <typename T>
-    static inline int32_t unpack(const T& pk, const index_t i)
+    CK_TILE_HOST_DEVICE static int32_t unpack(const T& pk, const index_t i)
     {
         const int bit_pos    = i * num_bits_elem;
         const int arr_idx    = bit_pos / num_bits_vec_elem;
@@ -69,11 +68,11 @@ struct pk_fp6_t
         return bits & 0x3F;
     }
 
-    inline int32_t unpack(const index_t i) const { return unpack(*this, i); }
+    CK_TILE_HOST_DEVICE int32_t unpack(const index_t i) const { return unpack(*this, i); }
 
     CK_TILE_HOST_DEVICE int32_t operator[](index_t i) const { return data_[i]; }
 
-    static float fp6_e2m3_to_float(int32_t fp6_bits)
+    CK_TILE_HOST_DEVICE static float fp6_e2m3_to_float(int32_t fp6_bits)
     {
         fp6_bits = fp6_bits & 0x3F;
 
@@ -88,7 +87,7 @@ struct pk_fp6_t
         }
         else if(exponent != 0)
         {
-            result               = std::pow(2, exponent - 1);
+            result               = std::exp2f(static_cast<int>(exponent) - 1);
             float mantissa_value = 1.0f + mantissa / 8.0f;
             result *= mantissa_value;
         }
