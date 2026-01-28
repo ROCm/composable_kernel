@@ -560,9 +560,8 @@ cmd_run() {
     echo "Analyze with: ck-rocprof analyze ${name}"
 }
 
-# Find actual GPU architecture directory for a given run name
-# rocprof-compute creates directories with various naming schemes (MI350, gfx950, etc.)
-# This function finds whatever directory actually exists
+# Find workload path for a given run name
+# rocprof-compute stores results directly in the workload directory (pmc_perf.csv)
 find_workload_path() {
     local name="$1"
     local run_dir="${WORKLOAD_DIR}/${name}"
@@ -571,16 +570,9 @@ find_workload_path() {
         return 1
     fi
 
-    # Find first subdirectory (should be GPU architecture)
-    local gpu_dir
-    if is_native_mode; then
-        gpu_dir=$(find "$run_dir" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1)
-    else
-        gpu_dir=$(docker exec "${CONTAINER_NAME}" bash -c "find '$run_dir' -maxdepth 1 -mindepth 1 -type d 2>/dev/null | head -1" 2>/dev/null)
-    fi
-
-    if [ -n "$gpu_dir" ]; then
-        echo "$gpu_dir"
+    # Check if profiling data exists directly in run directory (current rocprof-compute behavior)
+    if file_exists "${run_dir}/pmc_perf.csv"; then
+        echo "$run_dir"
         return 0
     fi
 
@@ -616,8 +608,7 @@ cmd_analyze() {
         return 1
     fi
 
-    local gpu_arch=$(basename "$workload_path")
-    echo "Analyzing: ${name} (GPU: ${gpu_arch}, Block ${block})"
+    echo "Analyzing: ${name} (Block ${block})"
     echo "==========================================="
     echo ""
 
@@ -660,12 +651,9 @@ cmd_compare() {
         return 1
     fi
 
-    local gpu1=$(basename "$path1")
-    local gpu2=$(basename "$path2")
-
     echo "Comparing profiling runs:"
-    echo "  Baseline:  ${name1} (${gpu1})"
-    echo "  Optimized: ${name2} (${gpu2})"
+    echo "  Baseline:  ${name1}"
+    echo "  Optimized: ${name2}"
     echo "==========================================="
     echo ""
 
@@ -709,10 +697,9 @@ cmd_list() {
         local path=$(find_workload_path "$run")
 
         if [ -n "$path" ]; then
-            local gpu_arch=$(basename "$path")
             local size=$(get_size "$path")
             local date=$(get_date "$path")
-            printf "  %-25s [%-8s, %s, %s]\n" "$run" "$gpu_arch" "$size" "$date"
+            printf "  %-25s [%s, %s]\n" "$run" "$size" "$date"
         else
             printf "  %-25s [no data]\n" "$run"
         fi
