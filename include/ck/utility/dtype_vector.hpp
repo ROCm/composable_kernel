@@ -1296,18 +1296,6 @@ struct nnvb_data_t_selector<bf8_ocp_t>
 
 #ifndef CK_CODE_GEN_RTC
 template <>
-struct nnvb_data_t_selector<f8_fnuz_t>
-{
-    using type = f8_fnuz_t::data_type;
-};
-
-template <>
-struct nnvb_data_t_selector<bf8_fnuz_t>
-{
-    using type = bf8_fnuz_t::data_type;
-};
-
-template <>
 struct nnvb_data_t_selector<e8m0_bexp_t>
 {
     using type = e8m0_bexp_t::type;
