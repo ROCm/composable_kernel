@@ -160,12 +160,11 @@ struct UniversalGemmBasePolicy
                 constexpr auto K0PerThreadRead  = (AK0 / KThreadRead) > 0 ? (AK0 / KThreadRead) : 1;
 
                 // check if we exceed all LDS banks
-                constexpr auto LdsBanksWidth = get_n_lds_banks() * get_n_dwords_per_128b();
-                constexpr auto kfold =
-                    (AK1 * M0 * sizeof(ADataType) > LdsBanksWidth ||
-                     (AK1 * M0 * sizeof(ADataType)) == 0)
-                        ? 1
-                        : LdsBanksWidth / (AK1 * M0 * sizeof(ADataType));
+                constexpr auto LdsBanksWidth  = get_n_lds_banks() * get_n_dwords_per_128b();
+                constexpr auto kfold          = (AK1 * M0 * sizeof(ADataType) > LdsBanksWidth ||
+                                        (AK1 * M0 * sizeof(ADataType)) == 0)
+                                                    ? 1
+                                                    : LdsBanksWidth / (AK1 * M0 * sizeof(ADataType));
                 constexpr auto divisor        = (kfold * K0PerThreadWrite / K0PerThreadRead);
                 constexpr auto divisor_to_use = divisor > 0 ? divisor : 1;
                 constexpr auto KThreadReadPerm =
@@ -359,12 +358,11 @@ struct UniversalGemmBasePolicy
                 constexpr auto K0PerThreadRead  = (BK0 / KThreadRead) > 0 ? (BK0 / KThreadRead) : 1;
 
                 // check if we exceed all LDS banks
-                constexpr auto LdsBanksWidth = get_n_lds_banks() * get_n_dwords_per_128b();
-                constexpr auto kfold =
-                    (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth ||
-                     (BK1 * N0 * sizeof(BDataType)) == 0)
-                        ? 1
-                        : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
+                constexpr auto LdsBanksWidth  = get_n_lds_banks() * get_n_dwords_per_128b();
+                constexpr auto kfold          = (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth ||
+                                        (BK1 * N0 * sizeof(BDataType)) == 0)
+                                                    ? 1
+                                                    : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
                 constexpr auto divisor        = (kfold * K0PerThreadWrite / K0PerThreadRead);
                 constexpr auto divisor_to_use = divisor > 0 ? divisor : 1;
                 constexpr auto KThreadReadPerm =

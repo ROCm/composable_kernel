@@ -15,8 +15,8 @@
 // Universal GEMM-specific wrapper that handles test_async flag
 template <typename GemmConfig,
           typename ADataType,
-          typename BDataType       = ADataType,
-          typename CDataType       = ADataType,
+          typename BDataType = ADataType,
+          typename CDataType = ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -123,8 +123,7 @@ int run_gemm_example_with_layouts_universal(ck_tile::ArgParser& arg_parser,
                                          ALayout,
                                          BLayout,
                                          CLayout,
-                                         ComputeDataType>(
-        arg_parser, a_layout, b_layout, c_layout);
+                                         ComputeDataType>(arg_parser, a_layout, b_layout, c_layout);
 }
 
 // Universal GEMM-specific prec_type dispatcher that uses the wrapper
