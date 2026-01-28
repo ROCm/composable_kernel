@@ -368,7 +368,7 @@ struct GemmConfigPreshufflePrefill<ck_tile::tf32_t> : public GemmConfigBase
     static constexpr bool Preshuffle                = true;
     static constexpr bool DoubleSmemBuffer          = true;
     static constexpr int N_Repeat                   = N_Tile / N_Warp_Tile / N_Warp;
-    static constexpr bool TiledMMAPermuteN          = N_Repeat % 2 == 0;
+    static constexpr bool TiledMMAPermuteN          = false;
 };
 #endif
 
