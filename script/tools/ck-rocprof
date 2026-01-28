@@ -192,6 +192,93 @@ is_setup_complete() {
 }
 
 # ============================================================================
+# Source installation
+# ============================================================================
+
+# rocprofiler-compute source installation location
+ROCPROF_SOURCE_VERSION="3.4.0"
+ROCPROF_SOURCE_DIR="${HOME}/.local/rocprofiler-compute/${ROCPROF_SOURCE_VERSION}"
+ROCPROF_SOURCE_BIN="${ROCPROF_SOURCE_DIR}/bin/rocprof-compute"
+ROCPROF_REPO_URL="https://github.com/ROCm/rocprofiler-compute.git"
+ROCPROF_REPO_BRANCH="release/rocprofiler-compute-v${ROCPROF_SOURCE_VERSION}"
+
+# Install rocprofiler-compute from source
+install_from_source() {
+    local install_dir="${ROCPROF_SOURCE_DIR}"
+    local src_dir="${install_dir}/src"
+
+    info "Installing rocprofiler-compute ${ROCPROF_SOURCE_VERSION} from source..."
+    echo "Install location: ${install_dir}"
+    echo ""
+
+    # Ensure uv is available
+    if ! command -v uv &>/dev/null; then
+        info "Installing uv package manager via pip..."
+        if ! python3 -m pip install --user uv; then
+            error "Failed to install uv package manager"
+            return 1
+        fi
+        export PATH="${HOME}/.local/bin:${PATH}"
+        if ! command -v uv &>/dev/null; then
+            error "uv installed but not found in PATH"
+            return 1
+        fi
+    fi
+
+    # Create installation directory
+    mkdir -p "${install_dir}"
+
+    # Clone repository
+    if [ -d "${src_dir}" ]; then
+        info "Source already exists, updating..."
+        git -C "${src_dir}" fetch --quiet
+        git -C "${src_dir}" checkout --quiet "${ROCPROF_REPO_BRANCH}" 2>/dev/null || \
+            git -C "${src_dir}" checkout --quiet "amd-mainline"
+    else
+        info "Cloning rocprofiler-compute repository..."
+        if ! git clone --quiet --branch "${ROCPROF_REPO_BRANCH}" --depth 1 "${ROCPROF_REPO_URL}" "${src_dir}" 2>/dev/null; then
+            # Fall back to amd-mainline if release branch doesn't exist
+            info "Release branch not found, using amd-mainline..."
+            git clone --quiet --branch "amd-mainline" --depth 1 "${ROCPROF_REPO_URL}" "${src_dir}"
+        fi
+    fi
+
+    # Create venv for source installation
+    local venv_dir="${install_dir}/venv"
+    if [ ! -d "${venv_dir}" ]; then
+        info "Creating Python virtual environment..."
+        uv venv "${venv_dir}"
+    fi
+
+    # Install dependencies from requirements.txt
+    info "Installing dependencies (this may take a minute)..."
+    uv pip install --python "${venv_dir}/bin/python" -r "${src_dir}/requirements.txt" --quiet
+    # Pin pandas to avoid CSV conversion bug
+    uv pip install --python "${venv_dir}/bin/python" 'pandas<3.0' --quiet
+
+    # Create bin directory and wrapper script
+    mkdir -p "${install_dir}/bin"
+    cat > "${ROCPROF_SOURCE_BIN}" << 'WRAPPER_EOF'
+#!/bin/bash
+# rocprof-compute wrapper for source installation
+INSTALL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SRC_DIR="${INSTALL_DIR}/src/src"
+VENV_DIR="${INSTALL_DIR}/venv"
+
+# Set PYTHONPATH to source directory for module imports
+export PYTHONPATH="${SRC_DIR}:${PYTHONPATH}"
+
+# Execute rocprof-compute script with venv Python
+exec "${VENV_DIR}/bin/python3" "${SRC_DIR}/rocprof-compute" "$@"
+WRAPPER_EOF
+    chmod +x "${ROCPROF_SOURCE_BIN}"
+
+    info "rocprofiler-compute installed successfully!"
+    echo "  Binary: ${ROCPROF_SOURCE_BIN}"
+    echo ""
+}
+
+# ============================================================================
 # Commands
 # ============================================================================
 
@@ -200,32 +287,53 @@ cmd_setup() {
     echo "Setting up rocprof-compute profiling environment..."
     echo "==========================================="
 
-    # Check rocprof-compute exists
+    # Check if rocprof-compute exists, install from source if not
     if [ -z "${ROCPROF_BIN}" ] || [ ! -f "${ROCPROF_BIN}" ]; then
-        error "rocprof-compute not found"
-        echo ""
-        echo "Install rocprofiler-compute using one of these methods:"
-        echo "  1. System package: sudo apt install rocprofiler-compute"
-        echo "  2. Set CK_ROCPROF_BIN to point to an existing installation"
+        warn "rocprof-compute not found in standard locations"
         echo ""
         echo "Searched locations:"
         for bin in "${ROCPROF_CANDIDATES[@]}"; do
             echo "  - $bin"
         done
-        return 1
-    fi
-    info "Found rocprof-compute: ${ROCPROF_BIN}"
+        echo ""
 
-    # Check requirements file
-    if [ -z "${ROCM_REQUIREMENTS}" ] || [ ! -f "${ROCM_REQUIREMENTS}" ]; then
-        error "ROCm requirements file not found"
-        local expected_path
-        expected_path="$(dirname "$(dirname "${ROCPROF_BIN}")")/libexec/rocprofiler-compute/requirements.txt"
-        echo "Expected at: ${expected_path}"
-        echo "Set CK_ROCM_REQUIREMENTS to override"
-        return 1
+        # Check if we can install from source
+        if ! command -v git &>/dev/null; then
+            error "git is required to install from source"
+            return 1
+        fi
+        if ! command -v python3 &>/dev/null; then
+            error "python3 is required to install from source"
+            return 1
+        fi
+
+        echo "Installing rocprofiler-compute from source..."
+        echo ""
+        if ! install_from_source; then
+            error "Failed to install rocprofiler-compute from source"
+            return 1
+        fi
+
+        # Update configuration with source installation
+        ROCPROF_BIN="${ROCPROF_SOURCE_BIN}"
+        ROCM_REQUIREMENTS="${ROCPROF_SOURCE_DIR}/libexec/rocprofiler-compute/requirements.txt"
     fi
-    info "Found requirements: ${ROCM_REQUIREMENTS}"
+    info "Using rocprof-compute: ${ROCPROF_BIN}"
+
+    # Check requirements file (only needed for non-source installs that use separate venv)
+    if [ -z "${ROCM_REQUIREMENTS}" ] || [ ! -f "${ROCM_REQUIREMENTS}" ]; then
+        # For source installs, requirements are bundled
+        if [[ "${ROCPROF_BIN}" == "${ROCPROF_SOURCE_BIN}" ]]; then
+            ROCM_REQUIREMENTS="${ROCPROF_SOURCE_DIR}/libexec/rocprofiler-compute/requirements.txt"
+        else
+            error "ROCm requirements file not found"
+            local expected_path
+            expected_path="$(dirname "$(dirname "${ROCPROF_BIN}")")/libexec/rocprofiler-compute/requirements.txt"
+            echo "Expected at: ${expected_path}"
+            echo "Set CK_ROCM_REQUIREMENTS to override"
+            return 1
+        fi
+    fi
 
     # Check GPU access
     if [ ! -r /dev/kfd ]; then
@@ -233,48 +341,68 @@ cmd_setup() {
         warn "Add user to video/render group: sudo usermod -a -G video,render \$USER"
     fi
 
-    # Install uv if needed
-    if ! command -v uv &>/dev/null; then
-        info "Installing uv package manager via pip..."
-        if ! python3 -m pip install --user uv; then
-            error "Failed to install uv package manager"
-            return 1
-        fi
-        # Add user bin to PATH if not already there
-        export PATH="${HOME}/.local/bin:${PATH}"
-        # Verify installation
-        if ! command -v uv &>/dev/null; then
-            error "uv installed but not found in PATH"
-            echo "Try adding ~/.local/bin to your PATH"
-            return 1
-        fi
-    fi
+    # For source installations, the venv is already set up - just create wrapper
+    if [[ "${ROCPROF_BIN}" == "${ROCPROF_SOURCE_BIN}" ]]; then
+        # Source install already has everything set up
+        local wrapper
+        wrapper=$(get_rocprof_wrapper)
+        mkdir -p "$(dirname "${wrapper}")"
 
-    # Create venv
-    if [ -d "${VENV_PATH}" ]; then
-        info "Python venv already exists at ${VENV_PATH}"
+        # For source install, wrapper just calls the source binary
+        cat > "${wrapper}" << WRAPPER_EOF
+#!/bin/bash
+# rocprof-compute wrapper (using source installation)
+exec "${ROCPROF_BIN}" "\$@"
+WRAPPER_EOF
+        chmod +x "${wrapper}"
+        info "Wrapper created at ${wrapper}"
+
+        # Create marker file for venv directory
+        mkdir -p "${VENV_PATH}/bin"
+        touch "${VENV_PATH}/.source-install"
     else
-        info "Creating Python venv at ${VENV_PATH}..."
-        uv venv "${VENV_PATH}"
-    fi
+        # System install - need to set up venv with dependencies
+        # Install uv if needed
+        if ! command -v uv &>/dev/null; then
+            info "Installing uv package manager via pip..."
+            if ! python3 -m pip install --user uv; then
+                error "Failed to install uv package manager"
+                return 1
+            fi
+            export PATH="${HOME}/.local/bin:${PATH}"
+            if ! command -v uv &>/dev/null; then
+                error "uv installed but not found in PATH"
+                echo "Try adding ~/.local/bin to your PATH"
+                return 1
+            fi
+        fi
 
-    # Install dependencies
-    info "Installing dependencies..."
-    uv pip install --python "${VENV_PATH}/bin/python" -r "${ROCM_REQUIREMENTS}"
-    uv pip install --python "${VENV_PATH}/bin/python" 'pandas<3.0'
+        # Create venv
+        if [ -d "${VENV_PATH}" ]; then
+            info "Python venv already exists at ${VENV_PATH}"
+        else
+            info "Creating Python venv at ${VENV_PATH}..."
+            uv venv "${VENV_PATH}"
+        fi
 
-    # Create wrapper script
-    local wrapper
-    wrapper=$(get_rocprof_wrapper)
-    mkdir -p "$(dirname "${wrapper}")"
-    cat > "${wrapper}" << WRAPPER_EOF
+        # Install dependencies
+        info "Installing dependencies..."
+        uv pip install --python "${VENV_PATH}/bin/python" -r "${ROCM_REQUIREMENTS}"
+        uv pip install --python "${VENV_PATH}/bin/python" 'pandas<3.0'
+
+        # Create wrapper script
+        local wrapper
+        wrapper=$(get_rocprof_wrapper)
+        mkdir -p "$(dirname "${wrapper}")"
+        cat > "${wrapper}" << WRAPPER_EOF
 #!/bin/bash
 # rocprof-compute wrapper using venv Python
 VENV_DIR="\$(cd "\$(dirname "\$0")/.." && pwd)"
 exec "\${VENV_DIR}/bin/python" "${ROCPROF_BIN}" "\$@"
 WRAPPER_EOF
-    chmod +x "${wrapper}"
-    info "Wrapper created at ${wrapper}"
+        chmod +x "${wrapper}"
+        info "Wrapper created at ${wrapper}"
+    fi
 
     # Create workload directory
     mkdir -p "${WORKLOAD_DIR}"
