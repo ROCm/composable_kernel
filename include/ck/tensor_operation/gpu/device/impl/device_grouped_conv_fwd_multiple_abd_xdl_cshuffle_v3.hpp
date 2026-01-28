@@ -116,7 +116,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const long_index_t e_n_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
 
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         using Block2CTileMap         = typename GridwiseGemm::Block2CTileMapDefault;
         const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N, 4};
@@ -238,8 +238,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         // Pass two lds pointer is the key to tell compiler that ds_read/write
         // operate on different lds chunk at same time without order dependecy
-        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
+        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         using Block2CTileMap         = typename GridwiseGemm::Block2CTileMapDefault;
         const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N, 4};

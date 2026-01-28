@@ -157,6 +157,7 @@ enum class PipelineVersion
     V3,
     V4,
     V5,
+    V6,
     WEIGHT_ONLY
 };
 
@@ -328,6 +329,7 @@ inline std::string_view to_string(PipelineVersion ver)
     case V3: return "V3";
     case V4: return "V4";
     case V5: return "V5";
+    case V6: return "V6";
     case WEIGHT_ONLY: return "WEIGHT_ONLY";
     default: return "Unknown";
     }

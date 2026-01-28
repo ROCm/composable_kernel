@@ -302,7 +302,7 @@ EmbedTransform expands linear indices from the lower coordinate space into multi
    using namespace ck_tile;
    
    // Create embed transform for 2x3 tensor with strides [12, 1]
-   // This is commonly used in :ref:`descriptors <ck_tile_descriptors>`
+   // This is commonly used in descriptors
    auto transform = make_embed_transform(make_tuple(2, 3), make_tuple(12, 1));
    
    // Forward: Linear → 2D (Manual calculation)
