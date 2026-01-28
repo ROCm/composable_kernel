@@ -272,7 +272,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     }
 
     template <typename GridDesc_K0_MN_K1_T, index_t K0Number, index_t K1Value>
-    __host__ __device__ static auto TransformGrid(GridDesc_K0_MN_K1_T& desc)
+    __host__ __device__ static auto TransformGrid(const GridDesc_K0_MN_K1_T& desc)
     {
 
         if constexpr(!DirectLoad)
