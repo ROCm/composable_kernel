@@ -28,7 +28,6 @@ using GroupSize2D128N = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>
 // QuantType, GemmConfig, AQuantGroupSize, BQuantGroupSize, BQLayout>
 // clang-format off
 using ABQuantPreshuffleQuantTypes = ::testing::Types<
-    // PreshuffleQuant = false && TransposeC = false (RCR layout with RowMajor AQ)
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigPreshuffleQuantPrefill, GroupSize, GroupSize, ColumnMajor>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, RowMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigPreshuffleQuantPrefill, GroupSize, GroupSize2D128N, ColumnMajor>
 >;
