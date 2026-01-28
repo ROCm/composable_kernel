@@ -437,11 +437,10 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 b_copy_lds_window1, b_tile_windows[number<0>{}], b_dram_tile_window_step);
 
             // tile distribution for the register tiles
-            // Use custom distributions that account for packed types
             constexpr auto ALdsTileDistr =
-                make_static_tile_distribution(Policy::template MakeALdsBlockDistributionEncode<Problem>());
+                make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
             constexpr auto BLdsTileDistr =
-                make_static_tile_distribution(Policy::template MakeBLdsBlockDistributionEncode<Problem>());
+                make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode());
 
             using ALdsTile = decltype(make_static_distributed_tensor<ADataType>(ALdsTileDistr));
             using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
@@ -449,6 +448,11 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             // register tiles; double buffering -> a register tile corresponds to a LDS tile window
             ALdsTile a_block_tile0, a_block_tile1;
             BLdsTile b_block_tile0, b_block_tile1;
+
+            static_assert(sizeof(ALdsTile) == MPerBlock * (KPerBlock * sizeof(ADataType) / APackedSize) * NWarp / BlockSize, "ALdsTile size is wrong!");
+            static_assert(sizeof(BLdsTile) == NPerBlock * (KPerBlock * sizeof(BDataType) / BPackedSize) * MWarp / BlockSize, "BLdsTile size is wrong!");
+            static_assert(Policy::template GetSmemSizeA<Problem>() == MPerBlock * (KPerBlock * sizeof(ADataType) / APackedSize), "SmemSizeA size is wrong!");
+            static_assert(Policy::template GetSmemSizeB<Problem>() == (KPerBlock * sizeof(BDataType) / BPackedSize) * NPerBlock, "SmemSizeB size is wrong!");
 
             ////////////// MX Scale register tiles (ping-pong buffers) /////////////////
             // Calculate scale iterations: each scale covers 32 elements in K
