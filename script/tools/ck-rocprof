@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 # Initialize configuration
-PROJECT_ROOT=$(get_project_root "${SCRIPT_DIR}")
+PROJECT_ROOT=$(find_project_root "${SCRIPT_DIR}" || get_project_root "${SCRIPT_DIR}")
 CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
 
 # ============================================================================
@@ -112,10 +112,12 @@ if is_native_mode; then
     ROCM_REQUIREMENTS="${CK_ROCM_REQUIREMENTS:-$(find_rocm_requirements "${ROCPROF_BIN}")}"
 else
     # Docker mode configuration
-    ROCPROF_BIN="${CK_ROCPROF_BIN:-/opt/rocm-7.0.1/bin/rocprof-compute}"
+    # Use /opt/rocm (symlink to current version) as default, can be overridden
+    ROCPROF_BIN="${CK_ROCPROF_BIN:-/opt/rocm/bin/rocprof-compute}"
     VENV_PATH="${CK_PROFILE_VENV:-/opt/rocprof_venv}"
     WORKLOAD_DIR="${CK_WORKLOAD_DIR:-/workspace/workloads}"
-    ROCM_REQUIREMENTS="/opt/rocm-7.0.1/libexec/rocprofiler-compute/requirements.txt"
+    # Requirements path derived from ROCPROF_BIN location
+    ROCM_REQUIREMENTS="${CK_ROCM_REQUIREMENTS:-$(dirname "$(dirname "${ROCPROF_BIN}")")/libexec/rocprofiler-compute/requirements.txt}"
 fi
 
 # ============================================================================
@@ -321,9 +323,18 @@ cmd_setup() {
         # Install uv if needed
         if ! command -v uv &>/dev/null; then
             info "Installing uv package manager via pip..."
-            python3 -m pip install --user uv
+            if ! python3 -m pip install --user uv; then
+                error "Failed to install uv package manager"
+                return 1
+            fi
             # Add user bin to PATH if not already there
             export PATH="${HOME}/.local/bin:${PATH}"
+            # Verify installation
+            if ! command -v uv &>/dev/null; then
+                error "uv installed but not found in PATH"
+                echo "Try adding ~/.local/bin to your PATH"
+                return 1
+            fi
         fi
 
         # Create venv
@@ -394,7 +405,15 @@ WRAPPER_EOF
         echo "Checking for uv package manager..."
         if ! docker exec "${CONTAINER_NAME}" command -v uv &>/dev/null; then
             echo "Installing uv package manager via pip..."
-            docker exec "${CONTAINER_NAME}" bash -c "python3 -m pip install --user uv && export PATH=\${HOME}/.local/bin:\${PATH}" 2>&1 | tail -3
+            if ! docker exec "${CONTAINER_NAME}" bash -c "python3 -m pip install --user uv" 2>&1 | tail -3; then
+                error "Failed to install uv package manager in container"
+                return 1
+            fi
+            # Verify installation
+            if ! docker exec "${CONTAINER_NAME}" bash -c "export PATH=\${HOME}/.local/bin:\${PATH} && command -v uv" &>/dev/null; then
+                error "uv installed but not found in container PATH"
+                return 1
+            fi
             echo "* uv installed"
         else
             echo "* uv already installed"
@@ -493,8 +512,8 @@ detect_gpu_arch() {
         fi
     fi
 
-    # Final fallback
-    echo "MI350"
+    # Final fallback - use gfx950 consistent with common.sh
+    echo "gfx950"
 }
 
 # Run profiling
@@ -542,10 +561,15 @@ cmd_run() {
     fi
     echo "==========================================="
 
-    # Build command
+    # Build command with proper escaping to prevent shell injection
     # --no-roof skips roofline analysis to speed up profiling
     # --path sets the full output path for profiling results (includes name)
-    local cmd="${wrapper} profile --no-roof --path ${WORKLOAD_DIR}/${name} --name ${name} -- ${executable}"
+    local escaped_executable
+    escaped_executable=$(printf '%q' "$executable")
+    local escaped_workload_dir
+    escaped_workload_dir=$(printf '%q' "${WORKLOAD_DIR}/${name}")
+
+    local cmd="${wrapper} profile --no-roof --path ${escaped_workload_dir} --name ${name} -- ${escaped_executable}"
     for arg in "${exe_args[@]}"; do
         cmd="${cmd} $(printf '%q' "$arg")"
     done
@@ -590,6 +614,11 @@ cmd_analyze() {
         return 1
     fi
 
+    # Validate workload name (prevents path traversal)
+    if ! validate_workload_name "$name"; then
+        return 1
+    fi
+
     # Check setup
     if ! is_setup_complete; then
         error "Profiling environment not set up"
@@ -627,6 +656,14 @@ cmd_compare() {
     if [ -z "$name1" ] || [ -z "$name2" ]; then
         error "two run names required"
         echo "Usage: ck-rocprof compare <name1> <name2>"
+        return 1
+    fi
+
+    # Validate workload names (prevents path traversal)
+    if ! validate_workload_name "$name1"; then
+        return 1
+    fi
+    if ! validate_workload_name "$name2"; then
         return 1
     fi
 

@@ -54,6 +54,12 @@ Side-by-side comparison of two runs.
 ### `list`
 List all profiling runs with size and date.
 
+### `clean <name>` / `clean --all`
+Remove profiling runs. Use `--all` to remove all runs.
+
+### `status`
+Show current configuration: mode (native/Docker), paths, setup status.
+
 ## Key LDS Metrics (Block 12)
 
 **Target Values:**
@@ -91,10 +97,10 @@ ck-rocprof compare baseline optimized
 
 ## Environment Variables
 
-- `CK_PROFILE_VENV`: Python venv path (default: `/opt/rocprof_venv`)
-- `CK_ROCPROF_BIN`: rocprof-compute binary path
-- `CK_WORKLOAD_DIR`: Results directory (default: `/workspace/build/workloads`)
-- `GPU_TARGET`: Override GPU detection (e.g., `gfx950`, `gfx942`)
+- `CK_PROFILE_VENV`: Python venv path (default: `$PROJECT/.ck-rocprof-venv` native, `/opt/rocprof_venv` Docker)
+- `CK_ROCPROF_BIN`: rocprof-compute binary path (auto-detected from PATH or /opt/rocm)
+- `CK_WORKLOAD_DIR`: Results directory (default: `$PROJECT/build/workloads` native, `/workspace/workloads` Docker)
+- `CK_GPU_TARGET`: Override GPU detection (e.g., `gfx950`, `MI300X`)
 
 ## Interpreting Results
 
@@ -129,15 +135,16 @@ ck-rocprof setup
 ```bash
 ck-rocprof list                    # Check available runs
 rocminfo | grep gfx               # Verify GPU arch
-export GPU_TARGET=gfx950          # Override if needed
+export CK_GPU_TARGET=gfx950       # Override if needed
 ```
 
 ## Storage Layout
 
-Results stored in `/workspace/build/workloads/<name>/<gpu_arch>/`:
-- `SQ_INST_LEVEL_LDS.csv`: LDS metrics
-- `pmc_perf.csv`: Performance counters
-- `counter_collection.csv`: All metrics
+Results stored in `workloads/<name>/`:
+- `pmc_perf.csv`: Performance counters (primary data file)
+- `perfmon/`: Input metric files
+- `out/`: Raw output data from profiler runs
+- `log.txt`: Profiling log
 
 ## Technical Details
 
