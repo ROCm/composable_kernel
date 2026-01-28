@@ -1640,7 +1640,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
                     decltype(b_block_desc_bk0_n_bk1),
                     BBlockTransferSrcAccessOrder,
                     BBlockTransferSrcVectorDim,
-                    BBlockTransferSrcVectorDim, // enforced earlier
+                    1, // enforced earlier
                     BBlockTransferSrcScalarPerVector>(
                     b_grid_desc_bk0_n_bk1,
                     make_multi_index(num_bk0_per_block * k_idx, n_block_data_idx_on_grid, 0),
@@ -2296,6 +2296,10 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             KPerBlock);
+
+        if(threadIdx.x == 0) {
+            printf("num_k block main loop: %d\n m_block_data_idx_on_grid: %d\n n_block_data_idx_on_grid: %d\n", num_k_block_main_loop, m_block_data_idx_on_grid, n_block_data_idx_on_grid);
+        }
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(a_grid_desc_ak0_m_ak1,
                                                                          a_block_desc_ak0_m_ak1,

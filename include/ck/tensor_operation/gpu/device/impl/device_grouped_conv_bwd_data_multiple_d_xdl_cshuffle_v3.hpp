@@ -909,6 +909,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
                         const bool HasMainKBlockLoop =
                             GridwiseGemmCTranspose::CalculateHasMainKBlockLoop(K_split);
 
+printf("GemmK: %d split_k: %d, KPerBlock: %d, k_grain: %d, k_split: %d", GemmK, split_k, KPerBlock, k_grain, K_split);
+
                         gemm_kernel_args_[gemms_count_ /
                                           MaxGroupedGemmGroupsNum][gemms_count_ %
                                                                    MaxGroupedGemmGroupsNum] =
