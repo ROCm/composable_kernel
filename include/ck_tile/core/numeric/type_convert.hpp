@@ -69,12 +69,6 @@ CK_TILE_TYPE_CONVERT(fp16x2_t, fp16x2, fp32x2_t, fp32x2)
 CK_TILE_TYPE_CONVERT(bf16x2_t, bf16x2, fp32x2_t, fp32x2)
 #undef CK_TILE_TYPE_CONVERT
 
-template <>
-CK_TILE_HOST_DEVICE constexpr bf16_t type_convert<bf16_t, bf8_t>(bf8_t x)
-{
-    return float_to_bf16(bf8_to_float(x));
-}
-
 } // namespace ck_tile
 
 #include "ck_tile/core/numeric/pk_fp4.hpp"

@@ -239,7 +239,7 @@ struct BQuantBlockUniversalGemmAsBsCr
                   bool BLoadTranspose = false>
         CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
                                           const BSmemBlockWindow& b_block_window,
-                                          BQRegBlockTile& bq_block_tensor,
+                                          const BQRegBlockTile& bq_block_tensor,
                                           bool_constant<ALoadTranspose> = {},
                                           bool_constant<BLoadTranspose> = {})
         {
