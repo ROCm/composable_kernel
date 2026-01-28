@@ -34,12 +34,15 @@ struct GemmPipelineAgBgCrImplBase
     // that only work for certain K warp tile sizes based on data type size:
     // - For 1-byte types (fp8/bf8): K warp tile <= 64
     // - For 2-byte types (fp16/bf16): K warp tile <= 32
+    // - For 4-byte types (float/tf32): transpose load not supported
     static constexpr bool is_a_load_tr = []() {
         using WarpTile                  = typename BlockGemmShape::WarpTile;
         constexpr index_t kKWarpTile    = WarpTile::at(number<2>{});
         constexpr index_t kMaxKWarpTile = (sizeof(ADataType) == 1) ? 64 : 32;
         if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             return false;
+        else if constexpr(sizeof(ADataType) >= 4)
+            return false; // 4-byte types (float/tf32) don't support transpose load
         else if constexpr(kKWarpTile > kMaxKWarpTile)
             return false;
         else
@@ -52,6 +55,8 @@ struct GemmPipelineAgBgCrImplBase
         constexpr index_t kMaxKWarpTile = (sizeof(BDataType) == 1) ? 64 : 32;
         if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             return false;
+        else if constexpr(sizeof(BDataType) >= 4)
+            return false; // 4-byte types (float/tf32) don't support transpose load
         else if constexpr(kKWarpTile > kMaxKWarpTile)
             return false;
         else

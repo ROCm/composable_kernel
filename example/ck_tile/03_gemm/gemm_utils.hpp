@@ -95,6 +95,32 @@ struct GemmConfigComputeV3 : public GemmConfigBase
     static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
 };
 
+#ifdef CK_GFX950_SUPPORT
+// Template specialization for TF32 on gfx950
+// TF32 warp gemm uses 32x32x16 tiles (3x bf16 32x32x16 MFMA emulation)
+template <>
+struct GemmConfigComputeV3<ck_tile::tf32_t> : public GemmConfigBase
+{
+    // Compute V3 only support Intrawave scheduler
+    // Use larger tile sizes for TF32 (32x32 warp tile)
+    static constexpr ck_tile::index_t M_Tile = 64;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 64; // 256 / sizeof(float)
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    // TF32 warp gemm requires 32x32x16 tiles
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+};
+#endif
+
 template <typename PrecType>
 struct GemmConfigComputeV3_1 : public GemmConfigBase
 {
@@ -136,6 +162,32 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
 
     static constexpr int kBlockPerCu = 2;
 };
+
+#ifdef CK_GFX950_SUPPORT
+// Template specialization for TF32 on gfx950
+// TF32 warp gemm uses 32x32x16 tiles (3x bf16 32x32x16 MFMA emulation)
+template <>
+struct GemmConfigComputeV3_2<ck_tile::tf32_t> : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 32; // 128 / sizeof(float)
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    // TF32 warp gemm requires 32x32x16 tiles
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
+
+    static constexpr int kBlockPerCu = 2;
+};
+#endif
 
 template <typename PrecType>
 struct GemmConfigComputeV3_WMMA : public GemmConfigBase
@@ -290,6 +342,35 @@ struct GemmConfigPreshufflePrefill : public GemmConfigBase
     static constexpr int N_Repeat                   = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN          = N_Repeat % 2 == 0;
 };
+
+#ifdef CK_GFX950_SUPPORT
+// Template specialization for TF32 on gfx950
+// TF32 warp gemm uses 32x32x16 tiles (3x bf16 32x32x16 MFMA emulation)
+template <>
+struct GemmConfigPreshufflePrefill<ck_tile::tf32_t> : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 32; // 128 / sizeof(float)
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    // TF32 warp gemm requires 32x32x16 tiles
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr int kBlockPerCu                = 2;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::PRESHUFFLE_V2;
+    static constexpr bool Preshuffle                = true;
+    static constexpr bool DoubleSmemBuffer          = true;
+    static constexpr int N_Repeat                   = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr bool TiledMMAPermuteN          = N_Repeat % 2 == 0;
+};
+#endif
 
 template <typename PrecType>
 struct GemmConfigPreshufflePrefill_Wmma : public GemmConfigPreshufflePrefill<PrecType>

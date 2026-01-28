@@ -20,7 +20,6 @@ struct UniversalInvoker
               typename CDEElementWise,
               typename ComputeDataType = ADataType>
     static float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
-
     {
         using GemmShape = ck_tile::TileGemmShape<
             ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,

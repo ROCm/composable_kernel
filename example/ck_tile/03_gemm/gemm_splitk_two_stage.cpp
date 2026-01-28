@@ -4,7 +4,6 @@
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
 #include "run_gemm_example_common.hpp"
-#include "gemm_basic_invoker.hpp"
 #include "gemm_splitk_two_stage_invoker.hpp"
 
 template <template <typename PreType, typename WorkspaceType> typename GemmConfig>
@@ -31,10 +30,9 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
 #ifdef CK_GFX950_SUPPORT
     else if(data_type == "tf32")
     {
-        // TF32 uses BasicInvoker with GemmConfigBase which has dynamic tile configuration
-        // for TF32 warp gemm compatibility (32x32x16 tiles)
-        return run_gemm_example_prec_type<GemmConfigBase,
-                                          BasicInvoker,
+        // TF32 uses template-specialized GemmConfigTwoStage with correct tile config
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::tf32_t, float>,
+                                          Invoker,
                                           float,
                                           float,
                                           float,
