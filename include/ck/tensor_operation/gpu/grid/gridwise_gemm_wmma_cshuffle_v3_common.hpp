@@ -774,30 +774,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         return BTransfer::template MakeWmmaTileDescriptor<NRepeat, NWaves>();
     }
 
-
-    template <typename DELayout, GemmSpecialization GemmSpec_>
-    __host__ __device__ static auto
-    MakeEGridDescriptor_M_N(index_t MRaw, index_t NRaw, index_t StrideE)
-    {
-        constexpr auto matrix_padder =
-            ck::tensor_operation::device::MatrixPadder<GemmSpec_, index_t, index_t, index_t>{
-                MPerBlock, NPerBlock, KPerBlock};
-        const auto e_grid_desc_mraw_nraw = [&]() {
-            if constexpr(is_same<tensor_layout::gemm::RowMajor, DELayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
-                                                    make_tuple(StrideE, I1));
-            }
-            else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, DELayout>::value)
-            {
-                return make_naive_tensor_descriptor(make_tuple(MRaw, NRaw),
-                                                    make_tuple(I1, StrideE));
-            }
-        }();
-
-        return matrix_padder.PadCDescriptor_M_N(e_grid_desc_mraw_nraw);
-    }
-
     template <typename DELayout>
     __host__ __device__ static auto
     MakeDEGridDescriptor_M_N(index_t M, index_t MPad, index_t N, index_t NPad, index_t StrideDE)

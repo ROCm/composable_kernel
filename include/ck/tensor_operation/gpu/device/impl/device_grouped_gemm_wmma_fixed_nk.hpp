@@ -89,16 +89,14 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         return;
 
     const auto StrideE = gemmTransKernelArg.StrideE;
-    // const index_t m_padded = GridwiseGemm::CalculateMPadded(M);
-    // const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
+    const index_t m_padded = GridwiseGemm::CalculateMPadded(M);
+    const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
     const auto e_grid_desc_m_n =
-        GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(M, N, StrideE);
+        GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(M, m_padded, N, n_padded, StrideE);
 
     const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n, k_batch_};
 
     const auto local_grid_size = local_b2c_tile_map.CalculateGridSize(e_grid_desc_m_n);
-
-    // constexpr auto NumDTensor = DsDataType::Size();
 
 #if defined(__gfx11__)
     // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
@@ -292,8 +290,8 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
         false>;
 
     using CGridDesc_M_N =
-        remove_cvref_t<decltype(GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
-            1, 1, 1))>;
+        remove_cvref_t<decltype(GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
+            1, 1, 1, 1, 1))>;
 
     template <typename UnderlyingBlockToCTileMap>
     struct OffsettedBlockToCTileMapMLoops
@@ -536,11 +534,11 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
                     StrideDs[j]  = gemm_descs[i].stride_Ds_[j];
                 });
 
-                // const index_t m_padded = GridwiseGemm::CalculateMPadded(AverM);
-                // const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
+                const index_t m_padded = GridwiseGemm::CalculateMPadded(AverM);
+                const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
                 const auto e_grid_desc_m_n =
-                    GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
-                        AverM, N, StrideE);
+                    GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
+                        AverM, m_padded, N, n_padded, StrideE);
 
                 // block-to-e-tile map
                 const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n, k_batch_};
@@ -586,11 +584,11 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
 
                 group_id++;
             }
-            // const index_t sum_of_m_padded = GridwiseGemm::CalculateMPadded(sum_of_m);
-            // const index_t n_padded = GridwiseGemm::CalculateNPadded(gemm_desc_kernel_arg_[0].N);
+            const index_t sum_of_m_padded = GridwiseGemm::CalculateMPadded(sum_of_m);
+            const index_t n_padded = GridwiseGemm::CalculateNPadded(gemm_desc_kernel_arg_[0].N);
             const auto e_grid_desc_sum_m_n =
-                GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
-                    sum_of_m, gemm_desc_kernel_arg_[0].N, gemm_desc_kernel_arg_[0].StrideE);
+                GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
+                    sum_of_m, sum_of_m_padded, gemm_desc_kernel_arg_[0].N, n_padded, gemm_desc_kernel_arg_[0].StrideE);
 
             const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_sum_m_n, k_batch_};
 
@@ -611,11 +609,11 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
             const index_t StrideE = gemm_desc_kernel_arg_[0].StrideE;
             const index_t N       = gemm_desc_kernel_arg_[0].N;
 
-            // const index_t m_padded = GridwiseGemm::CalculateMPadded(AverM);
-            // const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
+            const index_t m_padded = GridwiseGemm::CalculateMPadded(AverM);
+            const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
             const auto e_grid_desc_m_n =
-                GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
-                    AverM, N, StrideE);
+                GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
+                    AverM, m_padded, N, n_padded, StrideE);
 
             const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n, k_batch_};
 

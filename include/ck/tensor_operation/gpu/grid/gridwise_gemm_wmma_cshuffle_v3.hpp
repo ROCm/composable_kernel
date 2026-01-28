@@ -318,7 +318,6 @@ struct GridwiseGemm_wmma_cshuffle_v3
     using Base::MakeAsGridDescriptor_AK0_M_AK1;
     using Base::MakeBsGridDescriptor_BK0_N_BK1;
     using Base::MakeDEGridDescriptor_M_N;
-    using Base::MakeEGridDescriptor_M_N;
     using Base::MakeDsGridDescriptor_M_N;
     using Base::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock;
 
