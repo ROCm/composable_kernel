@@ -563,8 +563,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             ck_tile::host_tensor_descriptor(1, 1, stride_BQ, is_row_major(bq_layout)));
     }
 
-    std::random_device rd;
-    std::mt19937 gen(rd());
+    std::mt19937 gen(42);
     std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
 
     if(init_method == 0)
@@ -640,7 +639,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     else if(init_method == 1)
     {
         std::cout << "Monotonic initialization is not supported." << std::endl;
-        return 0;
+        return -1;
     }
     else if(init_method == 2)
     {
@@ -1088,10 +1087,10 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     else if(arg_parser.get_int("v") == 2)
     {
         std::cout << "GPU verification is not implemented yet. Re-run with -v=1" << std::endl;
-        return false;
+        return -1;
     }
 
-    return pass;
+    return pass ? 0 : -1;
 }
 // Usage of Two-Matrix Quantization (AB-Quant)
 template <typename GemmConfig,
