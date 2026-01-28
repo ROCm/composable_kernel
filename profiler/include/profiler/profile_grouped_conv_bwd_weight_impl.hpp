@@ -366,6 +366,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
                     const index_t num_accums         = output.GetElementSize() / conv_param.K_;
                     const index_t num_accums_split_k = split_k_value;
+                    // Get maximum accumulated value from reference
+                    const std::size_t tensor_size =
+                        weight_device_result.mDesc.GetElementSpaceSize();
+                    max_accumulated_value =
+                        gpu_reduce_max<WeiDataType>(gpu_ref_wei_buf.GetDeviceBuffer(), tensor_size);
                     // Calculate thresholds
                     auto rtol =
                         ck::utils::get_relative_threshold<ComputeType, WeiDataType, AccDataType>(
@@ -385,9 +390,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     rtol = std::max(rtol, rtol_split_k);
                     atol = std::max(atol, atol_split_k);
 
-                    // Perform GPU verification (max value computed internally on GPU)
-                    const std::size_t tensor_size =
-                        weight_device_result.mDesc.GetElementSpaceSize();
+                    // Perform GPU verification
                     auto gpu_result =
                         ck::profiler::gpu_verify<WeiDataType>(wei_device_buf.GetDeviceBuffer(),
                                                               gpu_ref_wei_buf.GetDeviceBuffer(),
