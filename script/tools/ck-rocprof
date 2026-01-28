@@ -19,6 +19,17 @@ CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
 # Execution mode detection
 # ============================================================================
 
+# Common rocprof-compute binary locations (shared between detection functions)
+# Order: user installs first, then system ROCm versions (newest first)
+ROCPROF_CANDIDATES=(
+    "${HOME}/.local/rocprofiler-compute/3.4.0/bin/rocprof-compute"
+    "/opt/rocm/bin/rocprof-compute"
+    "/opt/rocm-7.2.0/bin/rocprof-compute"
+    "/opt/rocm-7.0.1/bin/rocprof-compute"
+    "/opt/rocm-6.2.0/bin/rocprof-compute"
+    "/opt/rocm-6.1.0/bin/rocprof-compute"
+)
+
 # Determine if running in native mode (no Docker)
 # Native mode is used when:
 #   1. CK_FORCE_DOCKER is not set to 1
@@ -35,16 +46,7 @@ is_native_mode() {
     fi
 
     # Check common ROCm locations and user installations
-    local candidates=(
-        "${HOME}/.local/rocprofiler-compute/3.4.0/bin/rocprof-compute"
-        "/opt/rocm/bin/rocprof-compute"
-        "/opt/rocm-7.2.0/bin/rocprof-compute"
-        "/opt/rocm-7.0.1/bin/rocprof-compute"
-        "/opt/rocm-6.2.0/bin/rocprof-compute"
-        "/opt/rocm-6.1.0/bin/rocprof-compute"
-    )
-
-    for bin in "${candidates[@]}"; do
+    for bin in "${ROCPROF_CANDIDATES[@]}"; do
         if [ -f "$bin" ]; then
             return 0
         fi
@@ -69,16 +71,7 @@ find_rocprof_bin() {
     fi
 
     # Check common ROCm locations and user installations
-    local candidates=(
-        "${HOME}/.local/rocprofiler-compute/3.4.0/bin/rocprof-compute"
-        "/opt/rocm/bin/rocprof-compute"
-        "/opt/rocm-7.2.0/bin/rocprof-compute"
-        "/opt/rocm-7.0.1/bin/rocprof-compute"
-        "/opt/rocm-6.2.0/bin/rocprof-compute"
-        "/opt/rocm-6.1.0/bin/rocprof-compute"
-    )
-
-    for bin in "${candidates[@]}"; do
+    for bin in "${ROCPROF_CANDIDATES[@]}"; do
         if [ -f "$bin" ]; then
             echo "$bin"
             return 0
@@ -158,16 +151,6 @@ dir_exists() {
     fi
 }
 
-# Check if command exists in execution environment
-cmd_exists() {
-    local cmd="$1"
-    if is_native_mode; then
-        command -v "$cmd" &>/dev/null
-    else
-        docker exec "${CONTAINER_NAME}" command -v "$cmd" &>/dev/null
-    fi
-}
-
 # Get file/directory size
 get_size() {
     local path="$1"
@@ -178,12 +161,18 @@ get_size() {
     fi
 }
 
-# Get file modification date
+# Get file modification date (cross-platform: Linux and macOS)
 get_date() {
     local path="$1"
     if is_native_mode; then
-        stat -c %y "$path" 2>/dev/null | cut -d' ' -f1
+        # Try GNU stat first (Linux), fall back to BSD stat (macOS)
+        if stat --version &>/dev/null 2>&1; then
+            stat -c %y "$path" 2>/dev/null | cut -d' ' -f1
+        else
+            stat -f %Sm -t %Y-%m-%d "$path" 2>/dev/null
+        fi
     else
+        # Docker containers typically run Linux
         docker exec "${CONTAINER_NAME}" bash -c "stat -c %y '$path' 2>/dev/null | cut -d' ' -f1" 2>/dev/null
     fi
 }
@@ -210,6 +199,8 @@ Commands:
   analyze <name> [block]          Analyze profiling results (default: block 12 - LDS metrics)
   compare <name1> <name2>         Compare two profiling runs
   list                            List available profiling runs
+  clean <name>                    Remove a profiling run (use --all for all runs)
+  status                          Show current configuration and status
   help                            Show this help message
 
 Examples:
@@ -219,6 +210,8 @@ Examples:
   ck-rocprof analyze baseline 12
   ck-rocprof compare baseline optimized
   ck-rocprof list
+  ck-rocprof clean baseline
+  ck-rocprof status
 
 Execution Modes:
   NATIVE: Runs directly on ROCm host (auto-detected if rocprof-compute in PATH)
@@ -233,15 +226,25 @@ Environment Variables:
   CK_WORKLOAD_DIR      - Workload storage directory
   CK_CONTAINER_NAME    - Docker container name (Docker mode only)
 
-Profiling Metrics:
-  Block 12 (LDS - Local Data Share):
-    - 12.1.3: Bank Conflict Rate (% of peak)
-    - 12.2.9: Bank Conflicts/Access (conflicts/access)
-    - 12.2.12: Bank Conflict (cycles per kernel)
-    - 12.2.17: LDS Data FIFO Full Rate (cycles)
+Profiling Blocks (use with 'analyze <name> <block>'):
+  Block 2:  System Speed-of-Light (SOL)
+  Block 6:  Shader Engine (SE) utilization
+  Block 7:  L2 Cache metrics
+  Block 11: Vector L1D Cache metrics
+  Block 12: LDS (Local Data Share) - DEFAULT
+  Block 16: Instruction mix statistics
+  Block 17: Compute Unit (CU) metrics
+
+LDS Metrics (Block 12):
+  - 12.1.3: Bank Conflict Rate (% of peak)
+  - 12.2.9: Bank Conflicts/Access (conflicts/access)
+  - 12.2.12: Bank Conflict (cycles per kernel)
+  - 12.2.17: LDS Data FIFO Full Rate (cycles)
 
 Notes:
-  - Results stored in workloads/<name>/<gpu_arch>/
+  - Workload names must be alphanumeric with hyphens/underscores only
+  - Profiling skips roofline analysis (--no-roof) for faster execution
+  - Results stored in workloads/<name>/
   - Use 'analyze' to view detailed metrics for specific blocks
   - Use 'compare' to see side-by-side metrics from two runs
 EOF
@@ -250,6 +253,23 @@ EOF
 # Get rocprof-compute wrapper path
 get_rocprof_wrapper() {
     echo "${VENV_PATH}/bin/rocprof-compute"
+}
+
+# Validate workload name to prevent path traversal and shell injection
+# Allowed: alphanumeric, hyphens, underscores
+validate_workload_name() {
+    local name="$1"
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        error "Invalid workload name: '$name'"
+        echo "Names must contain only letters, numbers, hyphens, and underscores"
+        return 1
+    fi
+    # Prevent reserved names
+    if [[ "$name" == "." || "$name" == ".." ]]; then
+        error "Invalid workload name: '$name'"
+        return 1
+    fi
+    return 0
 }
 
 # Check if setup is complete
@@ -300,10 +320,10 @@ cmd_setup() {
 
         # Install uv if needed
         if ! command -v uv &>/dev/null; then
-            info "Installing uv package manager..."
-            curl -LsSf https://astral.sh/uv/install.sh | sh
-            # shellcheck disable=SC1090
-            source ~/.local/bin/env 2>/dev/null || true
+            info "Installing uv package manager via pip..."
+            python3 -m pip install --user uv
+            # Add user bin to PATH if not already there
+            export PATH="${HOME}/.local/bin:${PATH}"
         fi
 
         # Create venv
@@ -373,8 +393,8 @@ WRAPPER_EOF
         # Install uv if not present
         echo "Checking for uv package manager..."
         if ! docker exec "${CONTAINER_NAME}" command -v uv &>/dev/null; then
-            echo "Installing uv package manager..."
-            docker exec "${CONTAINER_NAME}" bash -c "curl -LsSf https://astral.sh/uv/install.sh | sh" 2>&1 | tail -3
+            echo "Installing uv package manager via pip..."
+            docker exec "${CONTAINER_NAME}" bash -c "python3 -m pip install --user uv && export PATH=\${HOME}/.local/bin:\${PATH}" 2>&1 | tail -3
             echo "* uv installed"
         else
             echo "* uv already installed"
@@ -385,24 +405,24 @@ WRAPPER_EOF
             echo "Python venv already exists at ${VENV_PATH}"
         else
             echo "Creating Python virtual environment at ${VENV_PATH}..."
-            docker exec "${CONTAINER_NAME}" bash -c "source ~/.local/bin/env && uv venv '${VENV_PATH}'"
+            docker exec "${CONTAINER_NAME}" bash -c "export PATH=\${HOME}/.local/bin:\${PATH} && uv venv '${VENV_PATH}'"
             echo "* Virtual environment created"
         fi
 
         # Install dependencies in container using uv
         echo "Installing rocprofiler-compute dependencies..."
-        docker exec "${CONTAINER_NAME}" bash -c "source ~/.local/bin/env && uv pip install --python '${VENV_PATH}/bin/python' -r '${ROCM_REQUIREMENTS}'"
+        docker exec "${CONTAINER_NAME}" bash -c "export PATH=\${HOME}/.local/bin:\${PATH} && uv pip install --python '${VENV_PATH}/bin/python' -r '${ROCM_REQUIREMENTS}'"
         # Pin pandas to <3.0 to avoid CSV conversion bug in rocprof-compute
-        docker exec "${CONTAINER_NAME}" bash -c "source ~/.local/bin/env && uv pip install --python '${VENV_PATH}/bin/python' 'pandas<3.0'"
+        docker exec "${CONTAINER_NAME}" bash -c "export PATH=\${HOME}/.local/bin:\${PATH} && uv pip install --python '${VENV_PATH}/bin/python' 'pandas<3.0'"
         echo "* Dependencies installed"
 
         # Create wrapper script in container
         local wrapper=$(get_rocprof_wrapper)
-        docker exec "${CONTAINER_NAME}" bash -c "cat > '${wrapper}' << 'WRAPPER_EOF'
+        docker exec "${CONTAINER_NAME}" bash -c "cat > '${wrapper}' << WRAPPER_EOF
 #!/bin/bash
 # rocprof-compute wrapper using venv Python
-VENV_DIR=\"\$(cd \"\$(dirname \"\$0\")/..\" && pwd)\"
-exec \"\${VENV_DIR}/bin/python\" /opt/rocm-7.0.1/bin/rocprof-compute \"\$@\"
+VENV_DIR=\"\\\$(cd \"\\\$(dirname \"\\\$0\")/..\" && pwd)\"
+exec \"\\\${VENV_DIR}/bin/python\" \"${ROCPROF_BIN}\" \"\\\$@\"
 WRAPPER_EOF"
         docker exec "${CONTAINER_NAME}" chmod +x "${wrapper}"
         echo "* Wrapper script created at ${wrapper}"
@@ -479,14 +499,20 @@ detect_gpu_arch() {
 
 # Run profiling
 cmd_run() {
+    # Validate argument count before shifting
+    if [ $# -lt 2 ]; then
+        error "name and executable required"
+        echo "Usage: ck-rocprof run <name> <executable> [args]"
+        return 1
+    fi
+
     local name="$1"
     local executable="$2"
     shift 2
     local -a exe_args=("$@")
 
-    if [ -z "$name" ] || [ -z "$executable" ]; then
-        error "name and executable required"
-        echo "Usage: ck-rocprof run <name> <executable> [args]"
+    # Validate workload name (prevents path traversal)
+    if ! validate_workload_name "$name"; then
         return 1
     fi
 
@@ -529,7 +555,7 @@ cmd_run() {
 
     echo ""
     info "Profiling complete"
-    echo "Results saved to: ${WORKLOAD_DIR}/${name}/${gpu_arch}/"
+    echo "Results saved to: ${WORKLOAD_DIR}/${name}/"
     echo ""
     echo "Analyze with: ck-rocprof analyze ${name}"
 }
@@ -600,23 +626,6 @@ cmd_analyze() {
     else
         docker exec "${CONTAINER_NAME}" "${wrapper}" analyze --path "${workload_path}" --block "${block}"
     fi
-}
-
-# Extract key LDS metrics from profiling results
-extract_lds_metrics() {
-    local name="$1"
-    local gpu_arch=$(detect_gpu_arch)
-    local workload_path="${WORKLOAD_DIR}/${name}/${gpu_arch}"
-    local csv_file="${workload_path}/SQ_INST_LEVEL_LDS.csv"
-
-    if ! file_exists "$csv_file"; then
-        echo "N/A (CSV not found)"
-        return 1
-    fi
-
-    # Extract key metrics (simplified - would need proper CSV parsing)
-    # For now, just indicate that raw data is available
-    echo "Raw data available at: ${csv_file}"
 }
 
 # Compare two profiling runs
@@ -713,6 +722,108 @@ cmd_list() {
     echo "Analyze with: ck-rocprof analyze <name>"
 }
 
+# Clean (remove) profiling runs
+cmd_clean() {
+    local name="${1:-}"
+
+    if [ -z "$name" ]; then
+        error "name required (or use --all to remove all runs)"
+        echo "Usage: ck-rocprof clean <name>"
+        echo "       ck-rocprof clean --all"
+        return 1
+    fi
+
+    if [ "$name" = "--all" ]; then
+        # Remove all profiling runs
+        if ! dir_exists "${WORKLOAD_DIR}"; then
+            echo "No profiling runs to clean"
+            return 0
+        fi
+
+        echo "This will remove ALL profiling runs in ${WORKLOAD_DIR}"
+        read -r -p "Are you sure? [y/N] " confirm
+        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+            echo "Cancelled"
+            return 0
+        fi
+
+        if is_native_mode; then
+            rm -rf "${WORKLOAD_DIR:?}"/*
+        else
+            docker exec "${CONTAINER_NAME}" bash -c "rm -rf '${WORKLOAD_DIR:?}'/*"
+        fi
+        info "All profiling runs removed"
+    else
+        # Validate name
+        if ! validate_workload_name "$name"; then
+            return 1
+        fi
+
+        local run_dir="${WORKLOAD_DIR}/${name}"
+        if ! dir_exists "$run_dir"; then
+            error "Profiling run not found: ${name}"
+            return 1
+        fi
+
+        if is_native_mode; then
+            rm -rf "${run_dir}"
+        else
+            docker exec "${CONTAINER_NAME}" bash -c "rm -rf '${run_dir}'"
+        fi
+        info "Removed profiling run: ${name}"
+    fi
+}
+
+# Show status information
+cmd_status() {
+    echo "CK ROCProf Status"
+    echo "==========================================="
+    echo ""
+
+    # Mode
+    if is_native_mode; then
+        echo "Mode:           NATIVE"
+        echo "rocprof-compute: ${ROCPROF_BIN:-not found}"
+    else
+        echo "Mode:           DOCKER"
+        echo "Container:      ${CONTAINER_NAME}"
+        if container_is_running "${CONTAINER_NAME}"; then
+            echo "Container status: running"
+        else
+            echo "Container status: not running"
+        fi
+    fi
+    echo ""
+
+    # Paths
+    echo "Paths:"
+    echo "  Venv:      ${VENV_PATH}"
+    echo "  Workloads: ${WORKLOAD_DIR}"
+    echo ""
+
+    # Setup status
+    echo "Setup status:"
+    if is_setup_complete; then
+        echo "  Profiling environment: ready"
+    else
+        echo "  Profiling environment: not configured (run 'ck-rocprof setup')"
+    fi
+    echo ""
+
+    # Workload count
+    if dir_exists "${WORKLOAD_DIR}"; then
+        local count
+        if is_native_mode; then
+            count=$(find "${WORKLOAD_DIR}" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
+        else
+            count=$(docker exec "${CONTAINER_NAME}" bash -c "find '${WORKLOAD_DIR}' -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l" 2>/dev/null)
+        fi
+        echo "Profiling runs: ${count}"
+    else
+        echo "Profiling runs: 0"
+    fi
+}
+
 # Main command dispatcher
 case "${1:-}" in
     setup)
@@ -732,6 +843,13 @@ case "${1:-}" in
         ;;
     list)
         cmd_list
+        ;;
+    clean)
+        shift
+        cmd_clean "$@"
+        ;;
+    status)
+        cmd_status
         ;;
     help|--help|-h)
         show_help
