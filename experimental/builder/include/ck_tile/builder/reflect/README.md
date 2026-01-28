@@ -9,6 +9,7 @@ See the [main builder documentation](../README.md) for an overview.
 The reflection system works by extracting properties from a convolution kernel *type* and formatting them into a string. This is useful for debugging, performance tuning, and generating documentation.
 
 1. **Trait Extraction**: The `ConvTraits` template (in `conv_traits.hpp`) is specialized for each kernel instance. It extracts low-level details like tile sizes, data layouts, and pipeline versions from the kernel's type definition.
+This template is common for xld and wmma, fwd and backwards weight kernels. std::optional is used for parameters that are only used by some kernels
 
 2. **Description Generation**: The `describe<Instance>()` function (in `conv_description.hpp`) uses `ConvTraits` to populate a `ConvDescription` (`Description`) object.
 
@@ -48,6 +49,15 @@ The reflection system (`ckr::describe`) currently supports the following convolu
 - **Standard XDL Forward Convolution** (`DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle`)
 - **Large Tensor XDL Forward Convolution** (`DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor`)
 - **V3 XDL Forward Convolution** (`DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3`)
+- **V3 WMMA Forward Convolution** (`DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3`)
+- **XDL Backward Weight Convolution** (`DeviceGroupedConvBwdWeight_Xdl_CShuffle`)
+- **V3 XDL Backward Weight Convolution** (`DeviceGroupedConvBwdWeight_Xdl_CShuffleV3`)
+- **XDL Multiple D Backward Weight Convolution** (`DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle`)
+- **Two Stage XDL Backward Weight Convolution** (`DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle`)
+- **V3 Two Stage XDL Backward Weight Convolution** (`DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3`)
+- **Wmma Backward Weight Convolution** (`DeviceGroupedConvBwdWeight_Wmma_CShuffle`) 
+- **V3 Wmma Backward Weight Convolution** (`DeviceGroupedConvBwdWeight_Wmma_CShuffleV3`)
+- **V3 Wmma Multiple D Backward Weight Convolution** (`DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3`)
 
 These variants all share similar template parameter structures and are compatible with the current `ConvTraits` implementation.
 
@@ -58,15 +68,6 @@ The following instance types are **not yet supported** by the reflection system:
 - **DL (pre-XDL) Variants** (`DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK`)
   - Uses different internal structure with parameters like `K0PerBlock`, `K1`, `M1PerThread`, etc.
   - Missing standard members like `kKPerBlock`, `kMPerXDL`, `kAK1`
-
-- **WMMA Variants** (`DeviceGroupedConvFwdMultipleD_Wmma_CShuffle`)
-  - Uses WMMA-specific parameters like `MPerWmma`, `NPerWmma`, `MRepeat`, `NRepeat`
-  - Different tile transfer structure incompatible with current `ConvTraits`
-
-- **Backward Weight Convolution** (`DeviceGroupedConvBwdWeight_Xdl_CShuffle`)
-  - Uses different layout naming: `InLayout`, `WeiLayout`, `OutLayout` instead of `ALayout`, `BLayout`, `ELayout`
-  - Different specialization type: `ConvBackwardWeightSpecialization` vs `ConvForwardSpecialization`
-  - Missing several members expected by forward convolution traits
 
 ### Future Work
 

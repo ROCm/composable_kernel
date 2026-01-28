@@ -88,7 +88,7 @@ struct ConvTraits
     builder::ElementwiseOperation weight_element_op;
     builder::ElementwiseOperation output_element_op;
 
-    builder::GemmPadding gemm_padding;
+    std::optional<builder::GemmPadding> gemm_padding = std::nullopt;
     builder::ConvSpecialization conv_specialization;
 
     // --- Algorithm Information ---
@@ -102,8 +102,14 @@ struct ConvTraits
 
     OutputTileTransferInfo c_tile_transfer;
 
+    std::optional<int> num_gemm_k_prefetch_stage = std::nullopt;
+
     builder::PipelineVersion pipeline_version;
     builder::PipelineScheduler pipeline_scheduler;
+
+    std::optional<int> max_transpose_transfer_src_scalar_per_vector = std::nullopt;
+    std::optional<int> max_transpose_dst_scalar_per_vector          = std::nullopt;
+    std::optional<int> num_groups_to_merge                          = std::nullopt;
 };
 
 } // namespace ck_tile::reflect::conv
