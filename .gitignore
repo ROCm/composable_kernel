@@ -96,3 +96,6 @@ experimental/grouped_convolution_tile_instances/instances/*
 !experimental/grouped_convolution_tile_instances/instances/*.in
 !experimental/grouped_convolution_tile_instances/instances/*.inc
 experimental/grouped_convolution_tile_instances/*.inc
+
+# AI agent config
+.claude
