@@ -296,50 +296,27 @@ struct CShuffleEpilogue
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
     {
-        constexpr auto DataTypeSize    = sizeof(ODataType);
-        constexpr index_t VectorLen    = GetVectorSizeC();
+        constexpr auto DataTypeSize = sizeof(ODataType);
+        constexpr index_t VectorLen = GetVectorSizeC();
+        constexpr index_t Banks     = get_n_lds_banks();
+
+        // calculate how many elements to pad to avoid bank conflict
+#if defined(__gfx950__)
+        constexpr auto PaddingAmount = VectorLen;
+#else
+        constexpr auto PaddingAmount = 0;
+#endif
         constexpr index_t BytesPerBank = 4;
-        constexpr index_t Banks        = get_n_lds_banks();
-        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
-        {
-            static_assert(NPerIterationShuffle % VectorLen == 0,
-                          "NPerIterationShuffle must be divisible by VectorLen.");
-        }
-        else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
-        {
-            static_assert(MPerIterationShuffle % VectorLen == 0,
-                          "MPerIterationShuffle must be divisible by VectorLen.");
-        }
-        constexpr auto compute_padding = [](index_t stride_elems) constexpr -> index_t {
-            constexpr index_t elem_bytes   = sizeof(ODataType);
-            constexpr index_t banks        = get_n_lds_banks();
-            constexpr index_t bytes_per_bk = 4;
-
-            const index_t stride_bytes = stride_elems * elem_bytes;
-            const bool bad_stride      = (stride_bytes % (banks * bytes_per_bk) == 0);
-
-            return bad_stride ? GetVectorSizeC() : 0;
-        };
         // N is contiguous dimension
         if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
-            // Layering spreads row-start addresses across banks when N is small (or stride
-            // periodic).
             constexpr index_t MLdsLayerRequired =
-                Banks * BytesPerBank / (NPerIterationShuffle * DataTypeSize);
-
-            constexpr index_t MLdsLayer = max(index_t{1}, MLdsLayerRequired);
-
-            static_assert(MPerIterationShuffle % MLdsLayer == 0,
-                          "MPerIterationShuffle must be divisible by MLdsLayer.");
-
-            // Decide padding based on the row stride *without* padding (in elements).
-            // Here stride is NPerIterationShuffle * MLdsLayer.
-            constexpr index_t PaddingAmount = compute_padding(NPerIterationShuffle * MLdsLayer);
+                Banks * BytesPerBank / NPerIterationShuffle / DataTypeSize;
+            constexpr auto MLdsLayer = max(1, MLdsLayerRequired);
 
             constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<MPerIterationShuffle / MLdsLayer>{},
-                           number<(NPerIterationShuffle / VectorLen) * MLdsLayer>{},
+                           number<NPerIterationShuffle / VectorLen * MLdsLayer>{},
                            number<VectorLen>{}),
                 make_tuple(number<NPerIterationShuffle * MLdsLayer + PaddingAmount>{},
                            number<VectorLen>{},
@@ -347,7 +324,6 @@ struct CShuffleEpilogue
                 number<VectorLen>{},
                 number<1>{});
 
-            // Split the middle dim into (layer, N/VectorLen)
             constexpr auto lds_block_desc_1 = transform_tensor_descriptor(
                 lds_block_desc_0,
                 make_tuple(make_pass_through_transform(number<MPerIterationShuffle / MLdsLayer>{}),
@@ -357,7 +333,6 @@ struct CShuffleEpilogue
                 make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
 
-            // Merge back to logical (M,N) while preserving the physical bank-friendly layout
             constexpr auto lds_block_desc = transform_tensor_descriptor(
                 lds_block_desc_1,
                 make_tuple(make_merge_transform_v3_division_mod(make_tuple(
@@ -373,19 +348,12 @@ struct CShuffleEpilogue
         else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
         {
             constexpr index_t NLdsLayerRequired =
-                Banks * BytesPerBank / (MPerIterationShuffle * DataTypeSize);
-
-            constexpr index_t NLdsLayer = max(index_t{1}, NLdsLayerRequired);
-
-            static_assert(NPerIterationShuffle % NLdsLayer == 0,
-                          "NPerIterationShuffle must be divisible by NLdsLayer.");
-
-            // Decide padding based on the row stride (now MPerIterationShuffle * NLdsLayer).
-            constexpr index_t PaddingAmount = compute_padding(MPerIterationShuffle * NLdsLayer);
+                get_n_lds_banks() * BytesPerBank / MPerIterationShuffle / DataTypeSize;
+            constexpr auto NLdsLayer = max(1, NLdsLayerRequired);
 
             constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<NPerIterationShuffle / NLdsLayer>{},
-                           number<(MPerIterationShuffle / VectorLen) * NLdsLayer>{},
+                           number<MPerIterationShuffle / VectorLen * NLdsLayer>{},
                            number<VectorLen>{}),
                 make_tuple(number<MPerIterationShuffle * NLdsLayer + PaddingAmount>{},
                            number<VectorLen>{},
@@ -393,7 +361,6 @@ struct CShuffleEpilogue
                 number<VectorLen>{},
                 number<1>{});
 
-            // Split the middle dim into (layer, M/VectorLen)
             constexpr auto lds_block_desc_1 = transform_tensor_descriptor(
                 lds_block_desc_0,
                 make_tuple(make_pass_through_transform(number<NPerIterationShuffle / NLdsLayer>{}),
