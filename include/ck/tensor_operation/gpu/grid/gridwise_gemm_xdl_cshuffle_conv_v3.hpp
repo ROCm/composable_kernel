@@ -114,7 +114,7 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
     static_assert((is_same_v<AElementwiseOperation, tensor_operation::element_wise::PassThrough> &&
                    is_same_v<BElementwiseOperation, tensor_operation::element_wise::PassThrough>) ||
                   !DirectLoad);
-            
+
     using Base = GridwiseGemm_xdl_cshuffle_base<
         ALayout,
         BLayout,
@@ -366,7 +366,8 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
             return make_naive_tensor_descriptor(
                 make_tuple(AK0Number, Number<MPerBlock>{}, AK1Number),
                 make_tuple(Number<MPerBlock * AK1Number>{}, I1, Number<MPerBlock>{}));
-        } else if constexpr(is_same_v<DeviceArch, gfx950_t>)
+        }
+        else if constexpr(is_same_v<DeviceArch, gfx950_t>)
         {
             // Force use padded layout on gfx950 to reduce bank conflicts
             constexpr index_t ABlockLdsExtraM = 1;
@@ -388,7 +389,8 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
             return make_naive_tensor_descriptor(
                 make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
                 make_tuple(Number<NPerBlock * BK1Number>{}, I1, Number<NPerBlock>{}));
-        } else if constexpr(is_same_v<DeviceArch, gfx950_t>)
+        }
+        else if constexpr(is_same_v<DeviceArch, gfx950_t>)
         {
             constexpr index_t BBlockLdsExtraN = 1;
             return make_naive_tensor_descriptor(
@@ -403,33 +405,36 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
     IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType)
 
-    using BlockwiseGemmPipe = remove_cvref_t<
-        decltype(BlockGemmPipeline_Selector<
-                 BlkGemmPipelineVer,
-                 BlkGemmPipeSched,
-                 BlockSize,
-                 ADataType,
-                 BDataType,
-                 ComputeTypeA,
-                 AccDataType,
-                 decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch())),
-                 decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch())),
-                 decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
+    // Disable vector load from lds to vgpr for direct load (backward weight store with continous M
+    // or N dimension)
+    static constexpr bool LdsScalarLoadToVgpr = DirectLoad;
+    using BlockwiseGemmPipe                   = remove_cvref_t<
+                          decltype(BlockGemmPipeline_Selector<
+                                   BlkGemmPipelineVer,
+                                   BlkGemmPipeSched,
+                                   BlockSize,
+                                   ADataType,
+                                   BDataType,
+                                   ComputeTypeA,
+                                   AccDataType,
+                                   decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch())),
+                                   decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch())),
+                                   decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
                      GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch()))),
-                 decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
+                                   decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
                      GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch()))),
-                 ABlockTransferSrcScalarPerVector,
-                 BBlockTransferSrcScalarPerVector,
-                 MPerBlock,
-                 NPerBlock,
-                 KPerBlock,
-                 MPerXdl,
-                 NPerXdl,
-                 MXdlPerWave,
-                 NXdlPerWave,
-                 KPack,
-                 DirectLoad,
-                 LdsScalarLoadToVgpr>())>;
+                                   ABlockTransferSrcScalarPerVector,
+                                   BBlockTransferSrcScalarPerVector,
+                                   MPerBlock,
+                                   NPerBlock,
+                                   KPerBlock,
+                                   MPerXdl,
+                                   NPerXdl,
+                                   MXdlPerWave,
+                                   NXdlPerWave,
+                                   KPack,
+                                   DirectLoad,
+                                   LdsScalarLoadToVgpr>())>;
 
     template <typename DeviceArch>
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte(DeviceArch)
