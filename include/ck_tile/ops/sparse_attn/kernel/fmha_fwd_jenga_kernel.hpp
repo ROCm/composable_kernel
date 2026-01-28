@@ -55,8 +55,14 @@ struct FmhaFwdJengaKernel
     static constexpr bool kDoFp8StaticQuant =
         (FmhaPipeline::Problem::QScaleEnum != ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE);
     static constexpr bool kSkipMinSeqlenQ = FmhaPipeline::Problem::kSkipMinSeqlenQ;
+    static_assert(!kIsGroupMode, "Jenga sparse attention currently supports batch mode only.");
+    static_assert(BiasEnum == BlockAttentionBiasEnum::NO_BIAS,
+                  "Jenga sparse attention does not support bias.");
     static_assert(!kStoreLSE, "Jenga sparse attention does not support LSE output.");
     static_assert(!kHasDropout, "Jenga sparse attention does not support dropout.");
+    static_assert(!kHasLogitsSoftCap, "Jenga sparse attention does not support logits soft-cap.");
+    static_assert(!kDoFp8StaticQuant,
+                  "Jenga sparse attention does not support FP8 static quantization yet.");
 
     using AttentionVariant = ck_tile::remove_cvref_t<typename FmhaPipeline::AttentionVariant>;
     using FmhaMask         = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
@@ -148,47 +154,6 @@ struct FmhaFwdJengaKernel
         ck_tile::index_t nhead_stride_o;
     };
 
-    struct FmhaFwdLogitsSoftCapKargs
-    {
-        FmhaFwdLogitsSoftCapKargs() = default;
-
-        void init_logits_soft_cap(float logits_soft_cap_)
-        {
-            if(0 < logits_soft_cap_)
-            {
-                logits_soft_cap     = logits_soft_cap_;
-                logits_soft_cap_rcp = 1.f / logits_soft_cap;
-            }
-            else
-            {
-                logits_soft_cap     = 0.f;
-                logits_soft_cap_rcp = 0.f;
-            }
-        }
-
-        float logits_soft_cap;
-        float logits_soft_cap_rcp;
-    };
-
-    struct FmhaFwdCommonBiasKargs
-    {
-        const void* bias_ptr               = nullptr;
-        ck_tile::index_t stride_bias       = 0;
-        ck_tile::index_t nhead_stride_bias = 0;
-    };
-
-    struct FmhaFwdBatchModeBiasKargs : FmhaFwdCommonBiasKargs
-    {
-        ck_tile::index_t batch_stride_bias = 0;
-    };
-
-    struct FmhaFwdAlibiKargs
-    {
-        // alibi is batch*nhead*1, no matter in batch/group mode, they are the same
-        const void* alibi_slope_ptr;
-        ck_tile::index_t alibi_slope_stride; // stride in batch, or 0 for all batch share same slope
-    };
-
     struct FmhaFwdMaskKargs
     {
         // ck_tile::index_t window_size_left, window_size_right;
@@ -209,16 +174,9 @@ struct FmhaFwdJengaKernel
 
     struct FmhaFwdBatchModeKargs
         : FmhaFwdCommonKargs,
-          std::conditional_t<BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS,
-                             FmhaFwdBatchModeBiasKargs,
-                             std::conditional_t<BiasEnum == BlockAttentionBiasEnum::ALIBI,
-                                                FmhaFwdAlibiKargs,
-                                                FmhaFwdEmptyKargs<0>>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           FmhaFwdEmptyKargs<2>,
-          std::conditional_t<kDoFp8StaticQuant, FmhaFwdFp8StaticQuantKargs, FmhaFwdEmptyKargs<3>>,
-          FmhaFwdEmptyKargs<4>,
-          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
+          std::conditional_t<kDoFp8StaticQuant, FmhaFwdFp8StaticQuantKargs, FmhaFwdEmptyKargs<3>>
     {
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
@@ -228,17 +186,10 @@ struct FmhaFwdJengaKernel
 
     struct FmhaFwdGroupModeKargs
         : FmhaFwdCommonKargs,
-          std::conditional_t<BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS,
-                             FmhaFwdCommonBiasKargs,
-                             std::conditional_t<BiasEnum == BlockAttentionBiasEnum::ALIBI,
-                                                FmhaFwdAlibiKargs,
-                                                FmhaFwdEmptyKargs<0>>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           FmhaFwdEmptyKargs<2>,
           std::conditional_t<kDoFp8StaticQuant, FmhaFwdFp8StaticQuantKargs, FmhaFwdEmptyKargs<3>>,
-          FmhaFwdEmptyKargs<4>,
-          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>,
-          std::conditional_t<kSkipMinSeqlenQ, FmhaFwdSkipMinSeqlenQKargs, FmhaFwdEmptyKargs<6>>
+          std::conditional_t<kSkipMinSeqlenQ, FmhaFwdSkipMinSeqlenQKargs, FmhaFwdEmptyKargs<4>>
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
@@ -260,7 +211,6 @@ struct FmhaFwdJengaKernel
                   const void* k_ptr,
                   const void* v_ptr,
                   const void* block_relation_onehot_ptr,
-                  const void* bias_ptr,
                   void* rand_val_ptr,
                   void* lse_ptr,
                   void* o_ptr,
@@ -277,20 +227,17 @@ struct FmhaFwdJengaKernel
                   ck_tile::index_t stride_q,
                   ck_tile::index_t stride_k,
                   ck_tile::index_t stride_v,
-                  ck_tile::index_t stride_bias,
                   ck_tile::index_t stride_randval,
                   ck_tile::index_t stride_o,
                   ck_tile::index_t nhead_stride_q,
                   ck_tile::index_t nhead_stride_k,
                   ck_tile::index_t nhead_stride_v,
-                  ck_tile::index_t nhead_stride_bias,
                   ck_tile::index_t nhead_stride_randval,
                   ck_tile::index_t nhead_stride_lse,
                   ck_tile::index_t nhead_stride_o,
                   ck_tile::index_t batch_stride_q,
                   ck_tile::index_t batch_stride_k,
                   ck_tile::index_t batch_stride_v,
-                  ck_tile::index_t batch_stride_bias,
                   ck_tile::index_t batch_stride_randval,
                   ck_tile::index_t batch_stride_lse,
                   ck_tile::index_t batch_stride_o,
@@ -302,6 +249,17 @@ struct FmhaFwdJengaKernel
                   std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                       drop_seed_offset)
     {
+        (void)rand_val_ptr;
+        (void)lse_ptr;
+        (void)logits_soft_cap;
+        (void)stride_randval;
+        (void)nhead_stride_randval;
+        (void)nhead_stride_lse;
+        (void)batch_stride_randval;
+        (void)batch_stride_lse;
+        (void)p_drop;
+        (void)s_randval;
+        (void)drop_seed_offset;
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
@@ -326,70 +284,24 @@ struct FmhaFwdJengaKernel
                      nhead_stride_k,
                      nhead_stride_v,
                      nhead_stride_o}, // args for common karg
-                    {},               // placeholder for bias
                     {},               // placeholder for mask
-                    {},               // placeholder for lse
+                    {},               // placeholder for empty kargs
                     {},               // placeholder for fp8_static_quant args
-                    {},               // placeholder for dropout
-                    {},               // placeholder for logits_soft_cap
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
                     batch_stride_o};
 
-        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
-        {
-            kargs.bias_ptr          = bias_ptr;
-            kargs.stride_bias       = stride_bias;
-            kargs.nhead_stride_bias = nhead_stride_bias;
-            kargs.batch_stride_bias = batch_stride_bias;
-        }
-        else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
-        {
-            kargs.alibi_slope_ptr    = bias_ptr;
-            kargs.alibi_slope_stride = stride_bias;
-        }
         if constexpr(kHasMask)
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
-        if constexpr(kStoreLSE)
-        {
-            kargs.lse_ptr          = lse_ptr;
-            kargs.nhead_stride_lse = nhead_stride_lse;
-            kargs.batch_stride_lse = batch_stride_lse;
-        }
         if constexpr(kDoFp8StaticQuant)
         {
             kargs.scale_p = scale_p;
             kargs.scale_o = scale_o;
-        }
-        if constexpr(kHasDropout)
-        {
-            if(drop_seed_offset.index() == 0) // seed & offset come from host
-            {
-                const auto& [seed, offset] = std::get<0>(drop_seed_offset);
-                kargs.init_dropout(p_drop, seed, offset);
-            }
-            else // seed & offset come from device
-            {
-                const auto& [seed_ptr, offset_ptr] = std::get<1>(drop_seed_offset);
-                kargs.init_dropout(p_drop,
-                                   reinterpret_cast<const uint64_t*>(seed_ptr),
-                                   reinterpret_cast<const uint64_t*>(offset_ptr));
-            }
-
-            kargs.rand_val_ptr         = rand_val_ptr;
-            kargs.stride_randval       = stride_randval;
-            kargs.nhead_stride_randval = nhead_stride_randval;
-            kargs.batch_stride_randval = batch_stride_randval;
-            kargs.is_store_randval     = s_randval;
-        }
-        if constexpr(kHasLogitsSoftCap)
-        {
-            kargs.init_logits_soft_cap(logits_soft_cap);
         }
 
         return kargs;
@@ -402,7 +314,6 @@ struct FmhaFwdJengaKernel
               const void* k_ptr,
               const void* v_ptr,
               const void* block_relation_onehot_ptr,
-              const void* bias_ptr,
               void* rand_val_ptr,
               void* lse_ptr,
               void* o_ptr,
@@ -419,20 +330,17 @@ struct FmhaFwdJengaKernel
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_v,
-              ck_tile::index_t stride_bias,
               ck_tile::index_t stride_randval,
               ck_tile::index_t stride_o,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
               ck_tile::index_t nhead_stride_v,
-              ck_tile::index_t nhead_stride_bias,
               ck_tile::index_t nhead_stride_randval,
               ck_tile::index_t nhead_stride_lse,
               ck_tile::index_t nhead_stride_o,
               ck_tile::index_t batch_stride_q,
               ck_tile::index_t batch_stride_k,
               ck_tile::index_t batch_stride_v,
-              ck_tile::index_t batch_stride_bias,
               ck_tile::index_t batch_stride_randval,
               ck_tile::index_t batch_stride_lse,
               ck_tile::index_t batch_stride_o,
@@ -448,7 +356,6 @@ struct FmhaFwdJengaKernel
             k_ptr,
             v_ptr,
             block_relation_onehot_ptr,
-            bias_ptr,
             rand_val_ptr,
             lse_ptr,
             o_ptr,
@@ -465,20 +372,17 @@ struct FmhaFwdJengaKernel
             stride_q,
             stride_k,
             stride_v,
-            stride_bias,
             stride_randval,
             stride_o,
             nhead_stride_q,
             nhead_stride_k,
             nhead_stride_v,
-            nhead_stride_bias,
             nhead_stride_randval,
             nhead_stride_lse,
             nhead_stride_o,
             batch_stride_q,
             batch_stride_k,
             batch_stride_v,
-            batch_stride_bias,
             batch_stride_randval,
             batch_stride_lse,
             batch_stride_o,
@@ -497,7 +401,6 @@ struct FmhaFwdJengaKernel
               const void* k_ptr,
               const void* v_ptr,
               const void* block_relation_onehot_ptr,
-              const void* bias_ptr,
               void* rand_val_ptr,
               void* lse_ptr,
               void* o_ptr,
@@ -514,20 +417,17 @@ struct FmhaFwdJengaKernel
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_v,
-              ck_tile::index_t stride_bias,
               ck_tile::index_t stride_randval,
               ck_tile::index_t stride_o,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
               ck_tile::index_t nhead_stride_v,
-              ck_tile::index_t nhead_stride_bias,
               ck_tile::index_t nhead_stride_randval,
               ck_tile::index_t nhead_stride_lse,
               ck_tile::index_t nhead_stride_o,
               ck_tile::index_t batch_stride_q,
               ck_tile::index_t batch_stride_k,
               ck_tile::index_t batch_stride_v,
-              ck_tile::index_t batch_stride_bias,
               ck_tile::index_t batch_stride_randval,
               ck_tile::index_t batch_stride_lse,
               ck_tile::index_t batch_stride_o,
@@ -543,7 +443,6 @@ struct FmhaFwdJengaKernel
             k_ptr,
             v_ptr,
             block_relation_onehot_ptr,
-            bias_ptr,
             rand_val_ptr,
             lse_ptr,
             o_ptr,
@@ -560,20 +459,17 @@ struct FmhaFwdJengaKernel
             stride_q,
             stride_k,
             stride_v,
-            stride_bias,
             stride_randval,
             stride_o,
             nhead_stride_q,
             nhead_stride_k,
             nhead_stride_v,
-            nhead_stride_bias,
             nhead_stride_randval,
             nhead_stride_lse,
             nhead_stride_o,
             batch_stride_q,
             batch_stride_k,
             batch_stride_v,
-            batch_stride_bias,
             batch_stride_randval,
             batch_stride_lse,
             batch_stride_o,
@@ -591,7 +487,6 @@ struct FmhaFwdJengaKernel
                   const void* k_ptr,
                   const void* v_ptr,
                   const void* block_relation_onehot_ptr,
-                  const void* bias_ptr,
                   void* rand_val_ptr,
                   void* lse_ptr,
                   void* o_ptr,
@@ -609,13 +504,11 @@ struct FmhaFwdJengaKernel
                   ck_tile::index_t stride_q,
                   ck_tile::index_t stride_k,
                   ck_tile::index_t stride_v,
-                  ck_tile::index_t stride_bias,
                   ck_tile::index_t stride_randval,
                   ck_tile::index_t stride_o,
                   ck_tile::index_t nhead_stride_q,
                   ck_tile::index_t nhead_stride_k,
                   ck_tile::index_t nhead_stride_v,
-                  ck_tile::index_t nhead_stride_bias,
                   ck_tile::index_t nhead_stride_randval,
                   ck_tile::index_t nhead_stride_lse,
                   ck_tile::index_t nhead_stride_o,
@@ -628,6 +521,15 @@ struct FmhaFwdJengaKernel
                   std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                       drop_seed_offset)
     {
+        (void)rand_val_ptr;
+        (void)lse_ptr;
+        (void)logits_soft_cap;
+        (void)stride_randval;
+        (void)nhead_stride_randval;
+        (void)nhead_stride_lse;
+        (void)p_drop;
+        (void)s_randval;
+        (void)drop_seed_offset;
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
@@ -652,67 +554,24 @@ struct FmhaFwdJengaKernel
                      nhead_stride_k,
                      nhead_stride_v,
                      nhead_stride_o}, // args for common karg
-                    {},               // placeholder for bias
                     {},               // placeholder for mask
-                    {},               // placeholder for lse
+                    {},               // placeholder for empty kargs
                     {},               // placeholder for fp8_static_quant args
-                    {},               // placeholder for dropout
-                    {},               // placeholder for logits_soft_cap
                     {},               // placeholder for min_seqlen_q
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
                     reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
 
-        if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
-        {
-            kargs.bias_ptr          = bias_ptr;
-            kargs.stride_bias       = stride_bias;
-            kargs.nhead_stride_bias = nhead_stride_bias;
-        }
-        else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
-        {
-            kargs.alibi_slope_ptr    = bias_ptr;
-            kargs.alibi_slope_stride = stride_bias;
-        }
         if constexpr(kHasMask)
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
-        if constexpr(kStoreLSE)
-        {
-            kargs.lse_ptr          = lse_ptr;
-            kargs.nhead_stride_lse = nhead_stride_lse;
-        }
         if constexpr(kDoFp8StaticQuant)
         {
             kargs.scale_p = scale_p;
             kargs.scale_o = scale_o;
-        }
-        if constexpr(kHasDropout)
-        {
-            if(drop_seed_offset.index() == 0) // seed & offset come from host
-            {
-                const auto& [seed, offset] = std::get<0>(drop_seed_offset);
-                kargs.init_dropout(p_drop, seed, offset);
-            }
-            else // seed & offset come from device
-            {
-                const auto& [seed_ptr, offset_ptr] = std::get<1>(drop_seed_offset);
-                kargs.init_dropout(p_drop,
-                                   reinterpret_cast<const uint64_t*>(seed_ptr),
-                                   reinterpret_cast<const uint64_t*>(offset_ptr));
-            }
-
-            kargs.rand_val_ptr         = rand_val_ptr;
-            kargs.stride_randval       = stride_randval;
-            kargs.nhead_stride_randval = nhead_stride_randval;
-            kargs.is_store_randval     = s_randval;
-        }
-        if constexpr(kHasLogitsSoftCap)
-        {
-            kargs.init_logits_soft_cap(logits_soft_cap);
         }
         if constexpr(kSkipMinSeqlenQ)
         {
@@ -729,7 +588,6 @@ struct FmhaFwdJengaKernel
               const void* k_ptr,
               const void* v_ptr,
               const void* block_relation_onehot_ptr,
-              const void* bias_ptr,
               void* rand_val_ptr,
               void* lse_ptr,
               void* o_ptr,
@@ -747,13 +605,11 @@ struct FmhaFwdJengaKernel
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_v,
-              ck_tile::index_t stride_bias,
               ck_tile::index_t stride_randval,
               ck_tile::index_t stride_o,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
               ck_tile::index_t nhead_stride_v,
-              ck_tile::index_t nhead_stride_bias,
               ck_tile::index_t nhead_stride_randval,
               ck_tile::index_t nhead_stride_lse,
               ck_tile::index_t nhead_stride_o,
@@ -769,7 +625,6 @@ struct FmhaFwdJengaKernel
             k_ptr,
             v_ptr,
             block_relation_onehot_ptr,
-            bias_ptr,
             rand_val_ptr,
             lse_ptr,
             o_ptr,
@@ -787,13 +642,11 @@ struct FmhaFwdJengaKernel
             stride_q,
             stride_k,
             stride_v,
-            stride_bias,
             stride_randval,
             stride_o,
             nhead_stride_q,
             nhead_stride_k,
             nhead_stride_v,
-            nhead_stride_bias,
             nhead_stride_randval,
             nhead_stride_lse,
             nhead_stride_o,
@@ -812,7 +665,6 @@ struct FmhaFwdJengaKernel
               const void* k_ptr,
               const void* v_ptr,
               const void* block_relation_onehot_ptr,
-              const void* bias_ptr,
               void* rand_val_ptr,
               void* lse_ptr,
               void* o_ptr,
@@ -830,13 +682,11 @@ struct FmhaFwdJengaKernel
               ck_tile::index_t stride_q,
               ck_tile::index_t stride_k,
               ck_tile::index_t stride_v,
-              ck_tile::index_t stride_bias,
               ck_tile::index_t stride_randval,
               ck_tile::index_t stride_o,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
               ck_tile::index_t nhead_stride_v,
-              ck_tile::index_t nhead_stride_bias,
               ck_tile::index_t nhead_stride_randval,
               ck_tile::index_t nhead_stride_lse,
               ck_tile::index_t nhead_stride_o,
@@ -852,7 +702,6 @@ struct FmhaFwdJengaKernel
             k_ptr,
             v_ptr,
             block_relation_onehot_ptr,
-            bias_ptr,
             rand_val_ptr,
             lse_ptr,
             o_ptr,
@@ -870,13 +719,11 @@ struct FmhaFwdJengaKernel
             stride_q,
             stride_k,
             stride_v,
-            stride_bias,
             stride_randval,
             stride_o,
             nhead_stride_q,
             nhead_stride_k,
             nhead_stride_v,
-            nhead_stride_bias,
             nhead_stride_randval,
             nhead_stride_lse,
             nhead_stride_o,
@@ -1003,13 +850,10 @@ struct FmhaFwdJengaKernel
         const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
         const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
 
-        long_index_t batch_offset_q       = 0;
-        long_index_t batch_offset_k       = 0;
-        long_index_t batch_offset_v       = 0;
-        long_index_t batch_offset_bias    = 0;
-        long_index_t batch_offset_randval = 0;
-        long_index_t batch_offset_lse     = 0;
-        long_index_t batch_offset_o       = 0;
+        long_index_t batch_offset_q = 0;
+        long_index_t batch_offset_k = 0;
+        long_index_t batch_offset_v = 0;
+        long_index_t batch_offset_o = 0;
 
         if constexpr(kIsGroupMode)
         {
@@ -1026,18 +870,6 @@ struct FmhaFwdJengaKernel
             else
             {
                 batch_offset_v = key_start;
-            }
-            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
-            {
-                batch_offset_bias = query_start * kargs.stride_bias;
-            }
-            if constexpr(kStoreLSE)
-            {
-                batch_offset_lse = query_start;
-            }
-            if constexpr(kHasDropout)
-            {
-                batch_offset_randval = query_start * kargs.stride_randval;
             }
             batch_offset_o = query_start * kargs.stride_o;
 
@@ -1075,19 +907,6 @@ struct FmhaFwdJengaKernel
             batch_offset_q = static_cast<long_index_t>(i_batch) * kargs.batch_stride_q;
             batch_offset_k = static_cast<long_index_t>(i_batch) * kargs.batch_stride_k;
             batch_offset_v = static_cast<long_index_t>(i_batch) * kargs.batch_stride_v;
-            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
-            {
-                batch_offset_bias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
-            }
-            if constexpr(kStoreLSE)
-            {
-                batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
-            }
-            if constexpr(kHasDropout)
-            {
-                batch_offset_randval =
-                    static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
-            }
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
         }
 
@@ -1212,119 +1031,18 @@ struct FmhaFwdJengaKernel
                              make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
                              {i_n1, 0});
 
-        /// FIXME: Before C++20, capturing structured binding variables are not supported. Remove
-        /// following copy capture of the 'i_nhead' if in C++20
-        const auto bias_dram_window = [&, i_nhead_ = i_nhead]() {
-            constexpr auto bias_dram_window_lengths =
-                make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
-            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
-            {
-                const BiasDataType* bias_ptr =
-                    reinterpret_cast<const BiasDataType*>(kargs.bias_ptr) +
-                    static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_bias +
-                    batch_offset_bias;
+        constexpr auto bias_dram_window_lengths =
+            make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
+        const auto bias_dram_window = make_null_tile_window(bias_dram_window_lengths);
 
-                const auto bias_dram = [&]() {
-                    const auto bias_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                        bias_ptr,
-                        make_tuple(kargs.seqlen_q, kargs.seqlen_k),
-                        make_tuple(kargs.stride_bias, 1),
-                        number<FmhaPipeline::kAlignmentBias>{},
-                        number<1>{});
+        constexpr auto lse_dram_window_lengths = make_tuple(number<FmhaPipeline::kM0>{});
+        auto lse_dram_window                   = make_null_tile_window(lse_dram_window_lengths);
 
-                    return pad_tensor_view(bias_dram_naive,
-                                           bias_dram_window_lengths,
-                                           sequence<kPadSeqLenQ, kPadSeqLenK>{});
-                }();
+        auto dropout = NullBlockDropout{};
 
-                return make_tile_window(bias_dram, bias_dram_window_lengths, {i_m0, 0});
-            }
-            else
-            {
-                return make_null_tile_window(bias_dram_window_lengths);
-            }
-        }();
-
-        // lse
-        auto lse_dram_window = [&, i_nhead_ = i_nhead]() {
-            constexpr auto lse_dram_window_lengths = make_tuple(number<FmhaPipeline::kM0>{});
-            if constexpr(kStoreLSE)
-            {
-                LSEDataType* lse_ptr =
-                    reinterpret_cast<LSEDataType*>(kargs.lse_ptr) +
-                    static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_lse + batch_offset_lse;
-
-                const auto lse_dram = [&]() {
-                    const auto lse_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                        lse_ptr,
-                        make_tuple(kargs.seqlen_q),
-                        make_tuple(1),
-                        number<1>{},
-                        number<1>{});
-
-                    return pad_tensor_view(
-                        lse_dram_naive, lse_dram_window_lengths, sequence<kPadSeqLenQ>{});
-                }();
-
-                return make_tile_window(lse_dram, lse_dram_window_lengths, {i_m0});
-            }
-            else
-            {
-                return make_null_tile_window(lse_dram_window_lengths);
-            }
-        }();
-
-        auto dropout = [&, i_nhead_ = i_nhead, i_batch_ = i_batch]() {
-            if constexpr(kHasDropout)
-            {
-                return BlockDropout{i_batch_,
-                                    i_nhead_,
-                                    kargs.num_head_q,
-                                    kargs.is_drop_seed_offset_from_host ? kargs.drop_seed.val
-                                                                        : *kargs.drop_seed.ptr,
-                                    kargs.is_drop_seed_offset_from_host ? kargs.drop_offset.val
-                                                                        : *kargs.drop_offset.ptr,
-                                    kargs.rp_undrop,
-                                    kargs.p_undrop_in_uint8_t,
-                                    kargs.is_store_randval};
-            }
-            else
-            {
-                return NullBlockDropout{};
-            };
-        }();
-
-        auto randval_dram_window = [&, i_nhead_ = i_nhead]() {
-            constexpr auto randval_dram_window_lengths =
-                make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
-            if constexpr(kHasDropout)
-            {
-                RandValOutputDataType* rand_val_ptr =
-                    reinterpret_cast<RandValOutputDataType*>(kargs.rand_val_ptr) +
-                    static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_randval +
-                    batch_offset_randval;
-
-                const auto randval_dram = [&]() {
-                    const auto randval_dram_naive =
-                        make_naive_tensor_view<address_space_enum::global>(
-                            rand_val_ptr,
-                            make_tuple(kargs.seqlen_q, kargs.seqlen_k),
-                            make_tuple(kargs.stride_randval, 1),
-                            number<1>{},
-                            number<1>{});
-
-                    return pad_tensor_view(randval_dram_naive,
-                                           randval_dram_window_lengths,
-                                           sequence<kPadSeqLenQ, kPadSeqLenK>{});
-                }();
-
-                return make_tile_window(randval_dram, randval_dram_window_lengths, {i_m0, 0});
-            }
-            else
-            {
-                return make_null_tile_window(randval_dram_window_lengths);
-            }
-        }();
+        constexpr auto randval_dram_window_lengths =
+            make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
+        auto randval_dram_window = make_null_tile_window(randval_dram_window_lengths);
 
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
@@ -1339,50 +1057,10 @@ struct FmhaFwdJengaKernel
         }();
 
         // WA i_batch capture structure binding before c++20
-        auto position_encoding = [&, i_batch_ = i_batch, i_nhead_ = i_nhead]() {
-            if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
-            {
-                // data loading, shared by entire wg
-                // TODO: how to use s_read?
-                SaccDataType slope =
-                    *(reinterpret_cast<const SaccDataType*>(kargs.alibi_slope_ptr) +
-                      i_batch_ * kargs.alibi_slope_stride + i_nhead_);
-#if CK_TILE_FMHA_FWD_FAST_EXP2
-                slope *= ck_tile::log2e_v<>;
-#endif
-                if constexpr(kHasMask)
-                {
-                    return make_alibi_from_lr_mask<SaccDataType, true>(slope,
-                                                                       kargs.window_size_left,
-                                                                       kargs.window_size_right,
-                                                                       kargs.seqlen_q,
-                                                                       kargs.seqlen_k,
-                                                                       kargs.mask_type);
-                }
-                else
-                {
-                    return Alibi<SaccDataType, true>{
-                        slope, kargs.seqlen_q, kargs.seqlen_k, AlibiMode::FROM_BOTTOM_RIGHT};
-                }
-            }
-            else
-            {
-                return EmptyPositionEncoding<SaccDataType>{};
-            }
-        }();
+        auto position_encoding = EmptyPositionEncoding<SaccDataType>{};
 
         AttentionVariant variant;
-        const auto variant_params = [&] {
-            if constexpr(kHasLogitsSoftCap)
-            {
-                return ck_tile::LogitsSoftCapParams<FmhaMask, CK_TILE_FMHA_FWD_FAST_EXP2>{
-                    mask, kargs.scale_s, kargs.logits_soft_cap, kargs.logits_soft_cap_rcp};
-            }
-            else
-            {
-                return ck_tile::StandardAttentionParams<FmhaMask>{mask, kargs.scale_s};
-            }
-        }();
+        const auto variant_params = ck_tile::StandardAttentionParams<FmhaMask>{mask, kargs.scale_s};
 
         BlockIndices block_indices{i_batch, i_nhead, i_nhead / kargs.nhead_ratio_qk};
 

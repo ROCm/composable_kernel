@@ -60,14 +60,14 @@ set(SPARSE_ATTN_JENGA_INSTANCES "tile_sparse_attn_jenga_instances")
 
 add_library(${SPARSE_ATTN_JENGA_INSTANCES} OBJECT EXCLUDE_FROM_ALL
   ${SPARSE_ATTN_JENGA_GEN_BLOBS}
-  ${CMAKE_CURRENT_LIST_DIR}/jenga_sparse_attention.cu
+  ${CMAKE_CURRENT_LIST_DIR}/jenga_sparse_attention.cpp
 )
 target_include_directories(${SPARSE_ATTN_JENGA_INSTANCES} PRIVATE 
   ${CMAKE_CURRENT_LIST_DIR}
   ${PROJECT_SOURCE_DIR}/include/ck_tile/ops/sparse_attn
 )
 set_source_files_properties(${SPARSE_ATTN_JENGA_GEN_BLOBS} PROPERTIES LANGUAGE HIP)
-set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/jenga_sparse_attention.cu PROPERTIES LANGUAGE HIP)
+set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/jenga_sparse_attention.cpp PROPERTIES LANGUAGE HIP)
 set_property(TARGET ${SPARSE_ATTN_JENGA_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 
 target_compile_options(${SPARSE_ATTN_JENGA_INSTANCES} PRIVATE
@@ -125,14 +125,14 @@ set(SPARSE_ATTN_VSA_INSTANCES "tile_sparse_attn_vsa_instances")
 
 add_library(${SPARSE_ATTN_VSA_INSTANCES} OBJECT EXCLUDE_FROM_ALL
   ${SPARSE_ATTN_VSA_GEN_BLOBS}
-  ${CMAKE_CURRENT_LIST_DIR}/vsa_sparse_attention.cu
+  ${CMAKE_CURRENT_LIST_DIR}/vsa_sparse_attention.cpp
 )
 target_include_directories(${SPARSE_ATTN_VSA_INSTANCES} PRIVATE 
   ${CMAKE_CURRENT_LIST_DIR}
   ${PROJECT_SOURCE_DIR}/include/ck_tile/ops/sparse_attn
 )
 set_source_files_properties(${SPARSE_ATTN_VSA_GEN_BLOBS} PROPERTIES LANGUAGE HIP)
-set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/vsa_sparse_attention.cu PROPERTIES LANGUAGE HIP)
+set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/vsa_sparse_attention.cpp PROPERTIES LANGUAGE HIP)
 set_property(TARGET ${SPARSE_ATTN_VSA_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 
 target_compile_options(${SPARSE_ATTN_VSA_INSTANCES} PRIVATE

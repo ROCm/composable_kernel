@@ -44,7 +44,7 @@ def update_file(file_path, content):
         file.write(content)
 
 
-DTYPE_BITS = {"fp32": 32, "fp16": 16, "bf16": 16, "fp8": 8, "bf8": 8}
+DTYPE_BITS = {"fp32": 32, "fp16": 16, "bf16": 16}
 
 K0_MAX_SUBMAX_MAP = {32: 32, 64: 64, 96: 128, 128: 128, 192: 192, 256: 256}
 
@@ -88,17 +88,17 @@ using fmha_variant_{F_idx} = ck_tile::ComposedAttention<{F_logits} * ck_tile::LO
 using fmha_mask_{F_idx} = {F_mask};
 
 using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaPipelineProblem<
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::QDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::KDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::VDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::SaccDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::SMPLComputeDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::BiasDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::RandValOutputDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::LSEDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::PDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::OaccDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::ODataType,
+    typename FmhaSparseFwdTypeConfig<fmha_dtype_{F_idx}>::QDataType,
+    typename FmhaSparseFwdTypeConfig<fmha_dtype_{F_idx}>::KDataType,
+    typename FmhaSparseFwdTypeConfig<fmha_dtype_{F_idx}>::VDataType,
+    typename FmhaSparseFwdTypeConfig<fmha_dtype_{F_idx}>::SaccDataType,
+    typename FmhaSparseFwdTypeConfig<fmha_dtype_{F_idx}>::SMPLComputeDataType,
+    typename FmhaSparseFwdTypeConfig<fmha_dtype_{F_idx}>::BiasDataType,
+    typename FmhaSparseFwdTypeConfig<fmha_dtype_{F_idx}>::RandValOutputDataType,
+    typename FmhaSparseFwdTypeConfig<fmha_dtype_{F_idx}>::LSEDataType,
+    typename FmhaSparseFwdTypeConfig<fmha_dtype_{F_idx}>::PDataType,
+    typename FmhaSparseFwdTypeConfig<fmha_dtype_{F_idx}>::OaccDataType,
+    typename FmhaSparseFwdTypeConfig<fmha_dtype_{F_idx}>::ODataType,
     fmha_shape_{F_idx},
     {F_mode},
     fmha_variant_{F_idx},
@@ -110,8 +110,8 @@ using fmha_pipeline_{F_idx} = ck_tile::BlockFmhaPipelineQRKSVSAsyncVSA<
     fmha_pipeline_problem_{F_idx}>;
 
 using fmha_epilogue_{F_idx} =
-    ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
-                                           typename FmhaFwdTypeConfig<{F_dtype}>::ODataType,
+    ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaSparseFwdTypeConfig<{F_dtype}>::OaccDataType,
+                                           typename FmhaSparseFwdTypeConfig<{F_dtype}>::ODataType,
                                            {F_spad}, {F_dvpad}>>;
 
 using fmha_kernel_{F_idx} =
@@ -123,12 +123,12 @@ using trait_{F_idx} = fmha_jenga_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm
 #include <iostream>
 
 template<>
-float fmha_vsa_fwd_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_jenga_fwd_args a)
+float fmha_vsa_fwd_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_vsa_fwd_args a)
 {{
     using k_ = fmha_kernel_{F_idx};
     if(s.log_level_ > 0)
-        std::cout << ", " << k_::GetName() << std::flush;
-    auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_, true>(a);
+        std::cout << ", " << "{F_kernel_name}" << std::flush;
+    auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
     return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs));
@@ -169,7 +169,7 @@ unsigned get_num_thread_blocks(unsigned batch, unsigned nheads, unsigned max_seq
 }}
 }} // namespace
 
-float fmha_vsa_fwd(fmha_jenga_fwd_traits t, fmha_jenga_fwd_args a, const ck_tile::stream_config& s){{
+float fmha_vsa_fwd(fmha_jenga_fwd_traits t, fmha_vsa_fwd_args a, const ck_tile::stream_config& s){{
     float r = -1;
 
     [[maybe_unused]] const float min_cu_util_rate = 0.8; // minimum CU utilization rate
@@ -204,7 +204,7 @@ FMHA_FWD_API_PER_HDIM_CASE = """        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v
         }}
 """
 
-FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.do_fp8_static_quant == {F_squant}) && (t.skip_min_seqlen_q == {F_skip}) &&
+FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.do_fp8_static_quant == {F_squant}) && (t.skip_min_seqlen_q == {F_skip}) &&
                         ({F_scheck}) && ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
                 using trait_ = fmha_jenga_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
                 return fmha_vsa_fwd_<trait_>(s, a);
@@ -265,18 +265,9 @@ class FmhaFwdApiTrait:
     def scheck(self) -> str:
         if self.mode == "group":
             return "true/*group mode spad always true*/"  # group mode only generate spad/skpad == true
-        if self.pipeline_tag in ["qr_async_vsa", "qr_async_trload"]:
-            if self.spad == "t":
-                return "true"  # always support
-            else:
-                return "true"
-        elif self.pipeline_tag in ["qr", "qs"]:
-            if self.spad == "t":
-                return f"true /*a.seqlen_q % {self.bm0} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
-            else:
-                return f"a.seqlen_q % {self.bm0} == 0"
-        else:
-            assert False
+        if self.spad == "t":
+            return "true"  # always support
+        return "true"
 
     @property
     def seqtune(self) -> str:
@@ -289,57 +280,23 @@ class FmhaFwdApiTrait:
     def skcheck(self) -> str:
         if self.mode == "group":
             return "true/*group mode skpad always true*/"  # group mode only generate spad/skpad == true
-        if self.pipeline_tag == "qr_async_vsa":
-            if self.skpad == "t":
-                return f"a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0"
-            else:
-                return f"a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0"
-        elif self.pipeline_tag in ["qr", "qs"]:
-            if self.skpad == "t":
-                return f"true /*a.seqlen_k % {self.bn0} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
-            else:
-                return f"a.seqlen_k % {self.bn0} == 0"
-        elif self.pipeline_tag == "qr_async_trload":
-            if self.skpad == "t":
-                return "true"
-            else:
-                return "true"
-        else:
-            assert False
+        if self.skpad == "t":
+            return f"a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0"
+        return f"a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0"
 
     @property
     def dcheck(self) -> str:
-        if self.pipeline_tag == "qr_async_vsa":
-            vec = int((32 * 4) / DTYPE_BITS[self.dtype])
-            if self.dpad == "t":
-                return f"a.hdim_q % {vec} == 0"
-            else:
-                assert False
-        elif self.pipeline_tag in ["qr", "qs", "qr_async_trload"]:
-            bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
-            if self.dpad == "t":
-                return f"true /*a.hdim_q % {bk0submax} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
-            else:
-                return f"a.hdim_q % {bk0submax} == 0"
-        else:
-            assert False
+        vec = int((32 * 4) / DTYPE_BITS[self.dtype])
+        if self.dpad == "t":
+            return f"a.hdim_q % {vec} == 0"
+        assert False
 
     @property
     def dvcheck(self) -> str:
-        if self.pipeline_tag == "qr_async_vsa":
-            vec = int((32 * 4) / DTYPE_BITS[self.dtype])
-            if self.dvpad == "t":
-                return f"a.hdim_v % {vec} == 0"
-            else:
-                assert False
-        elif self.pipeline_tag in ["qr", "qs", "qr_async_trload"]:
-            bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
-            if self.dvpad == "t":
-                return f"true /*a.hdim_v % {bk0submax} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
-            else:
-                return f"a.hdim_v % {bk0submax} == 0"
-        else:
-            assert False
+        vec = int((32 * 4) / DTYPE_BITS[self.dtype])
+        if self.dvpad == "t":
+            return f"a.hdim_v % {vec} == 0"
+        assert False
 
 
 @dataclass
@@ -597,6 +554,7 @@ class FmhaFwdKernel:
             F_mode=MODE_MAP[self.F_mode],
             F_pipeline=PIPELINE_MAP[self.F_pipeline.tag],
             F_trload=BOOL_MAP[self.F_pipeline.F_trload],
+            F_kernel_name=self.name,
         )
 
     @property
@@ -745,78 +703,6 @@ class KernelComponentFactory:
                 # (192,192) : [FmhaFwdTileSize(128, 128, 32, 192, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
                 # (256,256) : [FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
             }
-        elif dtype == "fp8" or dtype == "bf8":
-            return {
-                (64, 64): [
-                    FmhaFwdTileSize(  # fmt: skip
-                        128,
-                        64,
-                        32,
-                        64,
-                        32,
-                        64,
-                        2,
-                        1,
-                        1,
-                        2,
-                        1,
-                        1,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        -1,
-                    )
-                ],
-                (128, 128): [
-                    FmhaFwdTileSize(  # fmt: skip
-                        128,
-                        128,
-                        32,
-                        128,
-                        32,
-                        128,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        -1,
-                    )
-                ],
-                (256, 256): [
-                    FmhaFwdTileSize(  # fmt: skip
-                        128,
-                        128,
-                        32,
-                        256,
-                        32,
-                        256,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        -1,
-                    )
-                ],
-            }
         else:
             return None
 
@@ -826,73 +712,58 @@ class KernelComponentFactory:
     def get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl) -> List[FmhaFwdPipeline]:
         # this function will populate a list possible pipelines
         # TODO: the order of List matters! the later in this list will be also be checked later
-        # TODO: currently for qr pipeline, let 't' padding to appear later!!
-        # TODO: how to design this more generic?
-        squant = "t" if dtype == "fp8" else "f"
+        # FP8 static quantization is not supported in sparse attention yet.
+        squant = "f"
         pipelines = []
         if dtype in ["fp16", "bf16"]:
             for logits, mask, bias, skip in itertools.product(
-                ["t", "f"],
+                ["f"],
                 get_mask_map(mask_impl).keys(),
-                BIAS_MAP.keys(),
+                ["no"],
                 ["t", "f"],
             ):
                 # Always use lse="f" and dropout="f" (not supported)
                 lse = "f"
                 dropout = "f"
                 if hdim == 256 and hdim_v == 256:
-                    # print("vsa fmha only support dim=128 now.")
+                    # vsa fmha only supports dim <= 192 for now.
                     continue
-                else:
-                    if bias == "bias":
-                        # vsa_fmha with bias is not implemented.
-                        continue
-                    else:
-                        pipelines.append(
-                            FmhaFwdPipeline(
-                                "qr_async_vsa",
-                                "row",
-                                "t",
-                                "f",
-                                "t",
-                                "t",
-                                logits,
-                                bias,
-                                lse,
-                                dropout,
-                                squant,
-                                mask,
-                                skip,
-                                "f",
-                            )
-                        )
-                        pipelines.append(
-                            FmhaFwdPipeline(
-                                "qr_async_vsa",
-                                "row",
-                                "t",
-                                "t",
-                                "t",
-                                "t",
-                                logits,
-                                bias,
-                                lse,
-                                dropout,
-                                squant,
-                                mask,
-                                skip,
-                                "f",
-                            )
-                        )
-                        # TODO: consider enabling extra qr_async_trload pipelines for select
-                        #       (hdim, hdim_v) when logits/bias/dropout/lse/skip allow.
-                    # TODO: consider enabling extra qr pipelines when receipt == 1 and bias != "bias".
-        elif dtype in ["fp8", "bf8"]:
-            # print("vsa fmha only support 16-bit compute.")
-            return pipelines
-        elif dtype in ["fp8fp16", "fp8bf16"]:
-            # TODO
-            None
+                pipelines.append(
+                    FmhaFwdPipeline(
+                        "qr_async_vsa",
+                        "row",
+                        "t",
+                        "f",
+                        "t",
+                        "t",
+                        logits,
+                        bias,
+                        lse,
+                        dropout,
+                        squant,
+                        mask,
+                        skip,
+                        "f",
+                    )
+                )
+                pipelines.append(
+                    FmhaFwdPipeline(
+                        "qr_async_vsa",
+                        "row",
+                        "t",
+                        "t",
+                        "t",
+                        "t",
+                        logits,
+                        bias,
+                        lse,
+                        dropout,
+                        squant,
+                        mask,
+                        skip,
+                        "f",
+                    )
+                )
         else:
             assert False
         return pipelines
@@ -946,17 +817,18 @@ def get_fwd_blobs(
         else KernelComponentFactory
     )
 
-    for dtype in FWD_DTYPE_MAP.keys():
+    # Only generate fp16/bf16 kernels for now.
+    for dtype in ["fp16", "bf16"]:
         d = factory.get_hdim_tile_size_dict(dtype)
         if d is None:
             continue
         # for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
-        for ((hdim, hdim_v), tiles), mode in itertools.product(
-            d.items(), MODE_MAP.keys()
-        ):
+        for ((hdim, hdim_v), tiles), mode in itertools.product(d.items(), ["batch"]):
             for tile, pipeline in itertools.product(
                 tiles, factory.get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl)
             ):
+                if tile.F_bm0 != 128 or tile.F_bn0 != 128:
+                    continue
                 if mode == "group":
                     if pipeline.F_spad != "t" or pipeline.F_skpad != "t":
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
@@ -965,19 +837,7 @@ def get_fwd_blobs(
                     # NOTE: this is used to speedup deepseek prefill case, we don't gen training
                     if pipeline.F_bias != "no":
                         continue
-                if pipeline.tag != "qr_async_trload" and (
-                    ((hdim, hdim_v) == (128, 128) and tile.F_bn0 != 128)
-                    or ((hdim, hdim_v) != (128, 128) and tile.F_bm0 != 128)
-                ):
-                    # non qr_async_trload only support km0=128 tile size when hdim is not 128
-                    # non qr_async only support kn0=128 tile size when hdim is 128
-                    continue
-                if pipeline.tag == "qr_async_trload" and (
-                    ((hdim, hdim_v) == (128, 128) and tile.F_bn0 == 128)
-                    or ((hdim, hdim_v) not in [(64, 64), (128, 128)])
-                ):
-                    continue
-                # logits_soft_cap is only allowed if no bias
+                # logits soft-cap is not generated for sparse attention
                 if not (
                     (pipeline.F_logits == "t" and pipeline.F_bias == "no")
                     or pipeline.F_logits == "f"

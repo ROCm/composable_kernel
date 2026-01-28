@@ -9,9 +9,28 @@
 #include <vector>
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/host/host_tensor.hpp"
 
 namespace ck_tile {
+
+template <typename AccT, typename T>
+CK_TILE_HOST_DEVICE constexpr AccT to_acc(T value)
+{
+    if constexpr(std::is_same_v<T, ck_tile::bf16_t>)
+    {
+#if CK_TILE_USE_CUSTOM_DATA_TYPE
+        return static_cast<AccT>(value);
+#else
+        return static_cast<AccT>(
+            ck_tile::bf16_to_float_raw(ck_tile::bit_cast<ck_tile::bf16_raw_t>(value)));
+#endif
+    }
+    else
+    {
+        return static_cast<AccT>(value);
+    }
+}
 
 // Reference implementation: blocked attention (for sparse attention tests).
 template <typename T, typename MaskT, typename AccT = float>
@@ -20,7 +39,6 @@ void reference_blocked_attention(
     const HostTensor<T>& k,                  // [B, H, S_k, D]
     const HostTensor<T>& v,                  // [B, H, S_k, D_v]
     const HostTensor<MaskT>& block_relation, // [B, H, Q_blocks, K_blocks]
-    const HostTensor<T>& bias,               // [B, H, S_q, S_k]
     HostTensor<T>& output,                   // [B, H, S_q, D_v]
     index_t BLKQ,
     index_t BLKK,
@@ -55,6 +73,7 @@ void reference_blocked_attention(
                 std::vector<index_t> relevant_k_indices;
                 for(index_t kb = 0; kb < num_k_blocks; ++kb)
                 {
+                    // Treat block_relation as boolean; >0.5 marks an active block.
                     if(static_cast<float>(block_relation(b, h, qb, kb)) > 0.5f)
                     {
                         relevant_k_indices.push_back(kb);
@@ -85,10 +104,10 @@ void reference_blocked_attention(
                             AccT score = 0.0f;
                             for(index_t d = 0; d < hdim; ++d)
                             {
-                                score += static_cast<AccT>(q(b, h, sq, d)) *
-                                         static_cast<AccT>(k(b, h, sk, d));
+                                score +=
+                                    to_acc<AccT>(q(b, h, sq, d)) * to_acc<AccT>(k(b, h, sk, d));
                             }
-                            score = score * scale + static_cast<AccT>(bias(b, h, sq, sk));
+                            score = score * scale;
                             scores.push_back(score);
                             max_score = std::max(max_score, score);
                         }
@@ -121,7 +140,7 @@ void reference_blocked_attention(
 
                             for(index_t sk = k_start; sk < k_end; ++sk)
                             {
-                                out_val += scores[score_idx] * static_cast<AccT>(v(b, h, sk, dv));
+                                out_val += scores[score_idx] * to_acc<AccT>(v(b, h, sk, dv));
                                 score_idx++;
                             }
                         }

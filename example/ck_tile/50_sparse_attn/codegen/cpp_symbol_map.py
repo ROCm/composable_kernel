@@ -3,11 +3,8 @@
 # generate kernel instances to speed up compilation
 
 FWD_DTYPE_MAP = {
-    "fp16": "FmhaFwdFp16",
-    "bf16": "FmhaFwdBf16",
-    "fp8": "FmhaFwdFp8",
-    "fp8fp16": "FmhaFwdFp8Fp16",
-    "fp8bf16": "FmhaFwdFp8Bf16",
+    "fp16": "FmhaSparseFwdFp16",
+    "bf16": "FmhaSparseFwdBf16",
 }
 
 _MASK_SIMPLIFIED_MAP = {
@@ -56,37 +53,26 @@ def get_mask_check_map(mask: str):
 
 BIAS_MAP = {
     "no": "ck_tile::BlockAttentionBiasEnum::NO_BIAS",
-    "bias": "ck_tile::BlockAttentionBiasEnum::ELEMENTWISE_BIAS",
-    "alibi": "ck_tile::BlockAttentionBiasEnum::ALIBI",
 }
 
 # TODO: this is ugly
 BIAS_CHECK_MAP = {
     "no": "bias_enum::no_bias",
-    "bias": "bias_enum::elementwise_bias",
-    "alibi": "bias_enum::alibi",
 }
 
 
-MODE_MAP = {"batch": "false", "group": "true"}
+MODE_MAP = {"batch": "false"}
 
 LAYOUT_MAP = {"row": "true", "col": "false"}
 
 PIPELINE_MAP = {
-    "qr": "ck_tile::BlockFmhaPipelineQRKSVS",
     "qr_async": "ck_tile::BlockFmhaPipelineQRKSVSAsyncJenga",
-    "qs": "ck_tile::BlockFmhaPipelineQSKSVS",
     "qr_async_vsa": "ck_tile::BlockFmhaPipelineQRKSVSAsyncVSA",
 }
 
 PIPELINE_ENUM_MAP = {
-    "qr": "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
     "qr_async": "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
     "qr_async_vsa": "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC",
-    "qr_nwarp_sshuffle": "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
-    "qs": "ck_tile::BlockFmhaPipelineEnum::QSKSVS",
-    "qr_pagedkv": "ck_tile::BlockFmhaPipelineEnum::QRKSVS",
-    "qr_async_trload": "ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC_TRLOAD",
 }
 
 BOOL_MAP = {
@@ -97,6 +83,5 @@ BOOL_MAP = {
 }
 
 SQUANT_MAP = {
-    "t": "ck_tile::BlockAttentionQuantScaleEnum::PERTENSOR",
     "f": "ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE",
 }

@@ -9,13 +9,11 @@
 
 template <typename DataType_>
 ck_tile::HostTensor<DataType_>
-jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
-                       ck_tile::HostTensor<DataType_>& TK,
-                       ck_tile::HostTensor<DataType_>& TV,
-                       ck_tile::HostTensor<uint8_t>& Tblock_relation_onehot,
+jenga_sparse_attention(const ck_tile::HostTensor<DataType_>& TQ,
+                       const ck_tile::HostTensor<DataType_>& TK,
+                       const ck_tile::HostTensor<DataType_>& TV,
+                       const ck_tile::HostTensor<uint8_t>& Tblock_relation_onehot,
                        ck_tile::HostTensor<DataType_>& Y,
-                       std::optional<ck_tile::HostTensor<DataType_>> bias,
-                       int bias_type,
                        int batch,
                        int nhead,
                        int nhead_k,
@@ -29,33 +27,24 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
                        int max_seqlen_k,
                        int log_level)
 {
+    static_assert(std::is_same_v<DataType_, ck_tile::half_t> ||
+                      std::is_same_v<DataType_, ck_tile::bf16_t>,
+                  "Jenga sparse attention supports fp16/bf16 only.");
     // Determine data type string based on template parameter
-    constexpr bool is_fp8 =
-        std::is_same_v<DataType_, ck_tile::fp8_t> || std::is_same_v<DataType_, ck_tile::bf8_t>;
     std::string data_type = "fp16";
     if constexpr(std::is_same_v<DataType_, ck_tile::bf16_t>)
     {
         data_type = "bf16";
-    }
-    else if constexpr(std::is_same_v<DataType_, ck_tile::fp8_t>)
-    {
-        data_type = "fp8";
-    }
-    else if constexpr(std::is_same_v<DataType_, ck_tile::bf8_t>)
-    {
-        data_type = "bf8";
     }
 
     if(max_seqlen_q == 0)
         max_seqlen_q = seqlen_q;
     if(max_seqlen_k == 0)
         max_seqlen_k = seqlen_k;
-    bool is_v_rowmajor          = true;
-    float scale_s               = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q));
-    float scale_p               = 1.f;
-    float scale_o               = 1.f;
-    const float logits_soft_cap = 0.0;
-
+    bool is_v_rowmajor  = true;
+    float scale_s       = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q));
+    float scale_p       = 1.f;
+    float scale_o       = 1.f;
     std::string msk_str = "0";
     mask_info mask      = mask_info::decode(msk_str, seqlen_q, seqlen_k);
 
@@ -81,11 +70,6 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
     v_buf.ToDevice(TV.data());
     block_relation_buf.ToDevice(Tblock_relation_onehot.data());
 
-    // Optional buffers
-    ck_tile::DeviceMem bias_buf(bias ? bias->get_element_space_size_in_bytes() : 0);
-
-    if(bias)
-        bias_buf.ToDevice(bias->data());
     const auto init_args = [&](auto& args) {
         assert(nhead % nhead_k == 0);
         const ck_tile::index_t stride_q = (i_perm ? hdim_q : nhead * hdim_q);
@@ -96,7 +80,6 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
             else
                 return (i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k);
         }();
-        const ck_tile::index_t stride_bias    = (i_perm ? max_seqlen_k : 1 * max_seqlen_k);
         const ck_tile::index_t stride_randval = (max_seqlen_k);
         const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
         // setup nhead_stride_* arguments
@@ -108,8 +91,6 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
             else
                 return i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k;
         }();
-        const ck_tile::index_t nhead_stride_bias =
-            (i_perm ? 0 * shape_seqlen_q * max_seqlen_k : 0 * max_seqlen_k);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
@@ -117,7 +98,6 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
         const ck_tile::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
         const ck_tile::index_t batch_stride_k       = nhead_k * shape_seqlen_k * hdim_q;
         const ck_tile::index_t batch_stride_v       = nhead_k * hdim_v * shape_seqlen_k;
-        const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q);
         const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
@@ -145,9 +125,8 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
         args.batch_stride_k = batch_stride_k;
         args.batch_stride_v = batch_stride_v;
 
-        args.bias_ptr = bias ? bias_buf.GetDeviceBuffer() : nullptr;
-        args.lse_ptr  = nullptr;
-        args.o_ptr    = o_buf.GetDeviceBuffer();
+        args.lse_ptr = nullptr;
+        args.o_ptr   = o_buf.GetDeviceBuffer();
 
         args.seqstart_q_ptr = nullptr;
         args.seqstart_k_ptr = nullptr;
@@ -160,16 +139,11 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
         args.scale_p = scale_p;
         args.scale_o = scale_o;
 
-        args.logits_soft_cap = logits_soft_cap;
-
-        args.stride_bias       = stride_bias;
-        args.stride_o          = stride_o;
-        args.nhead_stride_bias = nhead_stride_bias;
-        args.nhead_stride_lse  = nhead_stride_lse;
-        args.nhead_stride_o    = nhead_stride_o;
-        args.batch_stride_bias = batch_stride_bias;
-        args.batch_stride_lse  = batch_stride_lse;
-        args.batch_stride_o    = batch_stride_o;
+        args.stride_o         = stride_o;
+        args.nhead_stride_lse = nhead_stride_lse;
+        args.nhead_stride_o   = nhead_stride_o;
+        args.batch_stride_lse = batch_stride_lse;
+        args.batch_stride_o   = batch_stride_o;
 
         args.window_size_left  = mask.left;
         args.window_size_right = mask.right;
@@ -181,8 +155,7 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
         args.nhead_stride_randval = nhead_stride_randval;
         args.batch_stride_randval = batch_stride_randval;
 
-        args.p_drop    = 0.;
-        args.s_randval = false;
+        // Dropout not supported for sparse attention.
     };
 
     const auto init_traits = [&](auto& traits) {
@@ -192,11 +165,9 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
         traits.is_v_rowmajor = is_v_rowmajor;
 
         traits.is_group_mode       = false;
-        traits.has_logits_soft_cap = 0.f < logits_soft_cap;
         traits.mask_type           = mask.type;
-        traits.bias_type           = static_cast<bias_enum>(bias_type);
         traits.has_lse             = false;
-        traits.do_fp8_static_quant = is_fp8;
+        traits.do_fp8_static_quant = false;
 
         traits.has_dropout = false;
     };
@@ -217,17 +188,39 @@ jenga_sparse_attention(ck_tile::HostTensor<DataType_>& TQ,
 
 // Explicit template instantiations
 template ck_tile::HostTensor<ck_tile::half_t>
-jenga_sparse_attention<ck_tile::half_t>(
-    ck_tile::HostTensor<ck_tile::half_t>&, ck_tile::HostTensor<ck_tile::half_t>&,
-    ck_tile::HostTensor<ck_tile::half_t>&, ck_tile::HostTensor<uint8_t>&,
-    ck_tile::HostTensor<ck_tile::half_t>&,
-    std::optional<ck_tile::HostTensor<ck_tile::half_t>>,
-    int, int, int, int, int, int, int, int, bool, bool, int, int, int);
+jenga_sparse_attention<ck_tile::half_t>(const ck_tile::HostTensor<ck_tile::half_t>&,
+                                        const ck_tile::HostTensor<ck_tile::half_t>&,
+                                        const ck_tile::HostTensor<ck_tile::half_t>&,
+                                        const ck_tile::HostTensor<uint8_t>&,
+                                        ck_tile::HostTensor<ck_tile::half_t>&,
+                                        int,
+                                        int,
+                                        int,
+                                        int,
+                                        int,
+                                        int,
+                                        int,
+                                        bool,
+                                        bool,
+                                        int,
+                                        int,
+                                        int);
 
 template ck_tile::HostTensor<ck_tile::bf16_t>
-jenga_sparse_attention<ck_tile::bf16_t>(
-    ck_tile::HostTensor<ck_tile::bf16_t>&, ck_tile::HostTensor<ck_tile::bf16_t>&,
-    ck_tile::HostTensor<ck_tile::bf16_t>&, ck_tile::HostTensor<uint8_t>&,
-    ck_tile::HostTensor<ck_tile::bf16_t>&,
-    std::optional<ck_tile::HostTensor<ck_tile::bf16_t>>,
-    int, int, int, int, int, int, int, int, bool, bool, int, int, int);
+jenga_sparse_attention<ck_tile::bf16_t>(const ck_tile::HostTensor<ck_tile::bf16_t>&,
+                                        const ck_tile::HostTensor<ck_tile::bf16_t>&,
+                                        const ck_tile::HostTensor<ck_tile::bf16_t>&,
+                                        const ck_tile::HostTensor<uint8_t>&,
+                                        ck_tile::HostTensor<ck_tile::bf16_t>&,
+                                        int,
+                                        int,
+                                        int,
+                                        int,
+                                        int,
+                                        int,
+                                        int,
+                                        bool,
+                                        bool,
+                                        int,
+                                        int,
+                                        int);
