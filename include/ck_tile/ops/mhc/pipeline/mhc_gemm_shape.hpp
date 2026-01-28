@@ -15,10 +15,10 @@ struct MHCGemmShape
     static constexpr index_t kM = M_;
     static constexpr index_t kN = N_;
     static constexpr index_t kK = K_;
-    
+
     // For compatibility with BlockGemm
-    static constexpr index_t NumWarps = 1;  // Simple: 1 warp for now
-    static constexpr index_t kBlockSize = 256;  // Block size
+    static constexpr index_t NumWarps   = 1;   // Simple: 1 warp for now
+    static constexpr index_t kBlockSize = 256; // Block size
 };
 
 } // namespace ck_tile

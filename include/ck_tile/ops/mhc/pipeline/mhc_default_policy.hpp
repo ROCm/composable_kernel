@@ -24,11 +24,17 @@ struct MHCDefaultPolicy
         {
             // Use a simple warp gemm configuration for float
             // This is a basic configuration - can be optimized later
-            using WG = WarpGemmDispatcher<float, float, float,
-                                          16, 16, 16,  // M, N, K per warp
-                                          true, false, false,
+            using WG = WarpGemmDispatcher<float,
+                                          float,
+                                          float,
+                                          16,
+                                          16,
+                                          16, // M, N, K per warp
+                                          true,
+                                          false,
+                                          false,
                                           WGAttrNumAccessEnum::Single>;
-            return make_tuple(WG{}, 1, 1);  // 1 warp in M, 1 warp in N
+            return make_tuple(WG{}, 1, 1); // 1 warp in M, 1 warp in N
         }
         else
         {
@@ -36,7 +42,7 @@ struct MHCDefaultPolicy
             return BlockGemmASmemBSmemCRegV1DefaultPolicy::GetWarpGemmMWarpNWarp<Problem>();
         }
     }
-    
+
     // Get shared memory size needed for the kernel
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
