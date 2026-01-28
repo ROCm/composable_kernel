@@ -20,19 +20,19 @@ static auto _ = []() {
                                                     ck_tile::e8m0_t>{});
 
     lut[hash_multiple_strings(
-        {"bf16fp4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x32"})] =
+        {"mxbf16fp4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x32"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 32>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;
         };
     lut[hash_multiple_strings(
-        {"bf16fp4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x64"})] =
+        {"mxbf16fp4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x64"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 64>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;
         };
     lut[hash_multiple_strings(
-        {"bf16fp4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x128"})] =
+        {"mxbf16fp4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x128"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;

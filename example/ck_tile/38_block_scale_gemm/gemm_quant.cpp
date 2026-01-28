@@ -32,7 +32,7 @@ auto create_args(int argc, char* argv[])
         .insert("prec",
                 "fp8",
                 "Data type. For AQuant: fp8, bf8, i4fp8, or i4bf8;  for Bquant: fp8, bf8, fp8i4, "
-                "or bf8i4;  for ABQuant: fp8, bf8, fp4")
+                " mxbf16bf16, mxbf16bf8, mxbf16fp4 or bf8i4;  for ABQuant: fp8, bf8, fp4")
         .insert("warmup", "50", "Number of iterations before benchmarking the kernel")
         .insert("repeat", "1000", "Number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
