@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <tuple>
 
@@ -20,9 +20,19 @@ using BQuant = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::BQ
 
 // clang-format off
 using KernelTypes_BQuant = ::testing::Types<
-    //         ALayout, BLayout, CLayout, ADataType, AQDataType, BDataType, BQDataType, AccDataType, CDataType, QuantType, PreshuffleB
-    std::tuple<    Row,     Col,     Row,       FP8,        F32,       FP8,        F32,         F32,       F16, BQuant, False>,
-    std::tuple<    Row,     Col,     Row,       FP8,        F32,       FP8,        F32,         F32,       F16, BQuant, True>
+    //         ALayout, BLayout, CLayout, ADataType, AQDataType, BDataType, BQDataType, AccDataType, CDataType, QuantType, PreshuffleB, Persistent, TransposeC
+
+    // Base instances: RCR FP8/BF16 persistent
+    std::tuple<    Row,     Col,     Row,       FP8,        F32,       FP8,        F32,         F32,       F16,    BQuant,       False,       True,      False>,
+    std::tuple<    Row,     Col,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16,    BQuant,       False,       True,      False>,
+    
+    // Non-persistent variant
+    std::tuple<    Row,     Col,     Row,       FP8,        F32,       FP8,        F32,         F32,       F16,    BQuant,       False,      False,      False>,
+
+    // Alternative layouts: RRR, CRR, CCR
+    std::tuple<    Row,     Row,     Row,       FP8,        F32,       FP8,        F32,         F32,       F16,    BQuant,       False,       True,      False>,
+    std::tuple<    Col,     Row,     Row,       FP8,        F32,       FP8,        F32,         F32,       F16,    BQuant,       False,       True,      False>,
+    std::tuple<    Col,     Col,     Row,       FP8,        F32,       FP8,        F32,         F32,       F16,    BQuant,       False,       True,      False>
     >;
 // clang-format on
 

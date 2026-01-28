@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -47,7 +47,8 @@ static void print_helper_msg()
         << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
         << "arg6: print tensor value (0: no; 1: yes)\n"
         << "arg7: time kernel (0: no, 1: yes)\n"
-        << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
+        << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl
+        << "arg8: split-K (0: internally computed split-K value; 1, 2, 4, 8, 16, 32, 64, 128: set k batches explicitly)\n";
     // clang-format on
 }
 
@@ -84,9 +85,7 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
     using F32  = float;
     using F16  = ck::half_t;
     using BF16 = ck::bhalf_t;
-#if defined(__gfx942__)
     using TF32 = ck::tf32_t;
-#endif
 
     using namespace ck::tensor_layout::convolution;
 
@@ -143,9 +142,7 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
-#if defined(__gfx942__)
                 return profile(I2, GNHWK{}, GKYXC{}, GNHWC{}, F32{}, F32{}, F32{}, TF32{});
-#endif
             }
         }
         else if(layout == ConvLayout::NHWGC_GKYXC_NHWGK)
@@ -164,9 +161,7 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
-#if defined(__gfx942__)
                 return profile(I2, NHWGK{}, GKYXC{}, NHWGC{}, F32{}, F32{}, F32{}, TF32{});
-#endif
             }
         }
         else if(layout == ConvLayout::NGCHW_GKYXC_NGKHW)
@@ -185,9 +180,7 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
-#if defined(__gfx942__)
                 return profile(I2, NGKHW{}, GKYXC{}, NGCHW{}, F32{}, F32{}, F32{}, TF32{});
-#endif
             }
         }
         else if(layout == ConvLayout::NGCHW_GKCYX_NGKHW)
@@ -206,9 +199,7 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
-#if defined(__gfx942__)
                 return profile(I2, NGKHW{}, GKCYX{}, NGCHW{}, F32{}, F32{}, F32{}, TF32{});
-#endif
             }
         }
     }
@@ -230,9 +221,7 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
-#if defined(__gfx942__)
                 return profile(I3, GNDHWK{}, GKZYXC{}, GNDHWC{}, F32{}, F32{}, F32{}, TF32{});
-#endif
             }
         }
         else if(layout == ConvLayout::NHWGC_GKYXC_NHWGK)
@@ -251,9 +240,7 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
-#if defined(__gfx942__)
                 return profile(I3, NDHWGK{}, GKZYXC{}, NDHWGC{}, F32{}, F32{}, F32{}, TF32{});
-#endif
             }
         }
         else if(layout == ConvLayout::NGCHW_GKYXC_NGKHW)
@@ -272,9 +259,7 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
-#if defined(__gfx942__)
                 return profile(I3, NGKDHW{}, GKZYXC{}, NGCDHW{}, F32{}, F32{}, F32{}, TF32{});
-#endif
             }
         }
         else if(layout == ConvLayout::NGCHW_GKYXC_NGKHW)
@@ -293,9 +278,7 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
             }
             else if(data_type == ConvDataType::F32_F32_F32_TF32)
             {
-#if defined(__gfx942__)
                 return profile(I3, NGKDHW{}, GKCZYX{}, NGCDHW{}, F32{}, F32{}, F32{}, TF32{});
-#endif
             }
         }
     }

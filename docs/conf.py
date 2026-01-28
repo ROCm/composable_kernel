@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # Configuration file for the Sphinx documentation builder.
 #
 # This file only contains a selection of the most common options. For a full
@@ -27,8 +30,6 @@ release = version_number
 external_toc_path = "./sphinx/_toc.yml"
 
 docs_core = ROCmDocs(left_nav_title)
-docs_core.run_doxygen(doxygen_root="doxygen", doxygen_path="doxygen/xml")
-docs_core.enable_api_reference()
 docs_core.setup()
 
 external_projects_current_project = "composable_kernel"

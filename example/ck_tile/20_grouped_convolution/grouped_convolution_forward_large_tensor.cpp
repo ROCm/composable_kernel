@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // Large tensor grouped convolution example
 // This example demonstrates convolution for large tensors that exceed memory limits.
@@ -19,7 +19,7 @@
 #include "grouped_convolution_forward_large_tensor_invoker.hpp"
 #include "run_grouped_convolution_fwd_example.inc"
 
-template <template <typename PrecType> typename GemmConfig>
+template <template <typename PrecType> typename ConvConfig>
 int run_grouped_conv_fwd_example(int argc, char* argv[])
 {
     using Invoker = GroupedConvolutionForwardInvoker;
@@ -36,14 +36,14 @@ int run_grouped_conv_fwd_example(int argc, char* argv[])
     if(data_type == "fp16")
     {
         return run_grouped_conv_fwd_example_prec_type<Invoker,
-                                                      GemmConfig<ck_tile::half_t>,
+                                                      ConvConfig<ck_tile::half_t>,
                                                       ck_tile::half_t>(
             in_layout, wei_layout, out_layout, argc, argv);
     }
     else if(data_type == "bf16")
     {
         return run_grouped_conv_fwd_example_prec_type<Invoker,
-                                                      GemmConfig<ck_tile::bf16_t>,
+                                                      ConvConfig<ck_tile::bf16_t>,
                                                       ck_tile::bf16_t>(
             in_layout, wei_layout, out_layout, argc, argv);
     }

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <bitset>
 #include <cinttypes>
@@ -15,6 +15,8 @@
 #include "ck/library/utility/device_memory.hpp"
 
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
+
+using ::ck::DeviceMem;
 
 using ck::bhalf2_t;
 using ck::bhalf_t;

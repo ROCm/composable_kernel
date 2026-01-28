@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,13 +19,13 @@ template <typename TileDistributedSpan_, // tile_distributed_span<...>
           >
 CK_TILE_DEVICE void sweep_tile_span(TileDistributedSpan_, const F& f)
 {
-    using DstrSpan = remove_cvref_t<TileDistributedSpan_>;
+    using DstrSpanImpl = typename remove_cvref_t<TileDistributedSpan_>::Impl;
 
-    static_ford<typename DstrSpan::Impl>{}([&](auto dstr_idx_impl) {
-        constexpr auto dstr_idx = detail::make_tile_distributed_index(dstr_idx_impl);
-
-        f(dstr_idx);
-    });
+    if constexpr(DstrSpanImpl::size() == 0) // handle the 0-dim span case
+        f(detail::make_tile_distributed_index(sequence<>{}));
+    else
+        static_ford<DstrSpanImpl>{}(
+            [&](auto dstr_idx_impl) { f(detail::make_tile_distributed_index(dstr_idx_impl)); });
 }
 
 // unpacked span, this version support span with unpack(multi-arg) functor
@@ -297,12 +297,12 @@ struct tile_sweeper
 
 // partial deduction is not allowed
 // template <typename T, typename F, typename U>
-// CK_TILE_HOST_DEVICE_EXTERN tile_sweeper(const F&, U = {})->tile_sweeper<T, F, U>;
+// tile_sweeper(const F&, U = {})->tile_sweeper<T, F, U>;
 
 // deduction guide
 template <typename T,
           typename F,
           typename U = typename uniform_sequence_gen<T::get_num_of_dimension(), 1>::type>
-CK_TILE_HOST_DEVICE_EXTERN tile_sweeper(const T&, const F&, U = {}) -> tile_sweeper<T, F, U>;
+tile_sweeper(const T&, const F&, U = {}) -> tile_sweeper<T, F, U>;
 
 } // namespace ck_tile

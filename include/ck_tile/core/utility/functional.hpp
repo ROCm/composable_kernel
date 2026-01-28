@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -82,10 +82,50 @@ struct static_for<0, N, 1> : detail::make_applier<N>
     using detail::make_applier<N>::operator();
 };
 
+template <typename... Ts>
+struct static_for_product;
+template <index_t... Is>
+struct static_for_product<static_for<Is...>> : public static_for<Is...>
+{
+};
+template <index_t... Is>
+struct static_for_product<sequence<Is...>> : public static_for<Is...>
+{
+};
+template <index_t I>
+struct static_for_product<number<I>> : public static_for<0, I, 1>
+{
+};
+template <typename First, typename... Rest>
+struct static_for_product<First, Rest...>
+{
+    template <typename F>
+    CK_TILE_HOST_DEVICE constexpr void operator()(F f) const
+    {
+        static_for_product<First>{}([=](auto I) {
+            static_for_product<Rest...>{}([=](auto... Is) { //
+                f(I, Is...);
+            });
+        });
+    }
+};
+
 struct identity
 {
     template <typename T>
     CK_TILE_HOST_DEVICE constexpr T&& operator()(T&& arg) const noexcept
+    {
+        return std::forward<T>(arg);
+    }
+};
+
+// Similar to identity, but takes an additional index parameter as the first argument.
+// The index is ignored and only the second argument (value) is forwarded.
+// Useful for indexed element-wise operations where the functor signature requires an index.
+struct idx_identity
+{
+    template <typename I, typename T>
+    CK_TILE_HOST_DEVICE constexpr T&& operator()(I&& /*idx*/, T&& arg) const noexcept
     {
         return std::forward<T>(arg);
     }

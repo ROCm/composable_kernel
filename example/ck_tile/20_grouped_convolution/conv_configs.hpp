@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -14,28 +14,14 @@
 
 struct ConvConfigBase
 {
-    static constexpr bool kPadM = true;
-    static constexpr bool kPadN = true;
-    static constexpr bool kPadK = true;
-
-    static constexpr bool PermuteA = false;
-    static constexpr bool PermuteB = false;
-
-    static constexpr bool TransposeC            = false;
-    static constexpr bool UseStructuredSparsity = false;
-
     static constexpr ck_tile::index_t VectorSizeA = 4;
     static constexpr ck_tile::index_t VectorSizeB = 8;
     static constexpr ck_tile::index_t VectorSizeC = 8;
 
-    static constexpr int kBlockPerCu                         = 1;
-    static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
-    static constexpr ck_tile::index_t TileParitionerM01      = 4;
+    static constexpr int kBlockPerCu                = 1;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr bool Preshuffle                = false;
-    static constexpr bool TiledMMAPermuteN          = false;
 
     static constexpr ck_tile::index_t NumGroupsToMerge = 1;
 };
@@ -216,9 +202,9 @@ struct ConvConfigComputeV5 : public ConvConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr bool DoubleSmemBuffer               = false;
-    static constexpr ck_tile::GemmPipeline Pipeline      = ck_tile::GemmPipeline::COMPUTE_V5;
-    static constexpr ck_tile::index_t NumWaNumWaveGroups = 2;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V5;
+    static constexpr ck_tile::index_t NumWaveGroups = 2;
 };
 
 template <typename PrecType>
@@ -268,29 +254,26 @@ struct ConvTypeConfig<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t>
     using OutDataType = ck_tile::bf16_t;
 };
 
-template <typename T>
-struct DataTypeTraits;
-
-template <>
-struct DataTypeTraits<float>
-{
-    static constexpr const char* name = "fp32";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::half_t>
-{
-    static constexpr const char* name = "fp16";
-};
-
-template <>
-struct DataTypeTraits<ck_tile::bf16_t>
-{
-    static constexpr const char* name = "bf16";
-};
-
 template <ck_tile::GemmPipeline PipelineId>
 struct PipelineTypeTraits;
+
+template <>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::BASIC_V1>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAGmemBGmemCRegV1<PipelineProblem>;
+};
+
+template <>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::BASIC_V2>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV2<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAGmemBGmemCRegV2<PipelineProblem>;
+};
 
 template <>
 struct PipelineTypeTraits<ck_tile::GemmPipeline::MEMORY>

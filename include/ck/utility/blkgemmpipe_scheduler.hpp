@@ -1,53 +1,13 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
-#include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/scheduler_enum.hpp"
 
 namespace ck {
-
-enum struct BlockGemmPipelineVersion
-{
-    // For GEMM
-    v1, // Naive
-    v2, // Mem
-    v3, // Comp
-    v4, // Comp, double lds buffer
-    v5, // Comp, double global prefetch register buffer
-
-    // For GEMM with preshuffled weight
-    // v1, single lds buffer
-    // v2, double lds buffer
-};
-enum struct BlockGemmPipelineScheduler
-{
-    Intrawave,
-    Interwave,
-};
-
-enum struct TailNumber
-{
-    // Single / Double buffer pipeline
-    Odd,
-    Even,
-
-    // Long prefetch pipeline, up to 8
-    One,
-    Two,
-    Three,
-    Four,
-    Five,
-    Six,
-    Seven,
-
-    // Unroll stages > Prefetch stages, number of loop is multiple of unroll stages
-    Empty,
-    // Unroll stages <= Prefetch stages, number of loop is multiple of unroll stages add
-    // prefetchstages
-    Full,
-};
 
 enum SchedulerGroup : uint32_t
 {

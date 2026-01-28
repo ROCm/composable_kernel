@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -33,59 +33,74 @@ namespace ck_tile {
  * @example
  *
  *     // Direct usage without creating a separate variable:
- *     ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_host_tensor);
+ *     ck_tile::FillUniformDistribution<>{-1.f, 1.f}(a_host_tensor);
  */
-template <typename T>
+template <typename T = void>
 struct FillUniformDistribution
 {
     float a_{-5.f};
     float b_{5.f};
     std::optional<uint32_t> seed_{11939};
-    // ATTENTION: Whether to use multi-threading (note: not guaranteed to be perfectly distributed
-    // across threads).
-    bool threaded = false;
 
     template <typename ForwardIter>
     void operator()(ForwardIter first, ForwardIter last) const
     {
-        if(threaded)
-        {
-            uint32_t num_thread  = std::thread::hardware_concurrency();
-            auto total           = static_cast<std::size_t>(std::distance(first, last));
-            auto work_per_thread = static_cast<std::size_t>((total + num_thread - 1) / num_thread);
+        if(first == last)
+            return;
+        using T_iter = std::decay_t<decltype(*first)>;
+        static_assert(std::is_same_v<T, T_iter> || std::is_void_v<T>,
+                      "Iterator value type must match template type T");
+        constexpr auto PackedSize = numeric_traits<T_iter>::PackedSize;
+        const auto total          = static_cast<size_t>(std::distance(first, last));
+        const auto total_bytes    = total * sizeof(T_iter);
 
-            std::vector<joinable_thread> threads(num_thread);
-            for(std::size_t it = 0; it < num_thread; ++it)
-            {
-                std::size_t iw_begin = it * work_per_thread;
-                std::size_t iw_end   = std::min((it + 1) * work_per_thread, total);
-                auto thread_f        = [this, total, iw_begin, iw_end, &first] {
-                    if(iw_begin > total || iw_end > total)
-                        return;
-                    // need to make each thread unique, add an offset to current seed
-                    std::mt19937 gen(seed_.has_value() ? (*seed_ + iw_begin)
-                                                       : std::random_device{}());
-                    std::uniform_real_distribution<float> dis(a_, b_);
-                    std::generate(first + iw_begin, first + iw_end, [&dis, &gen]() {
-                        if constexpr(numeric_traits<T>::PackedSize == 2)
-                            return ck_tile::type_convert<T>(fp32x2_t{dis(gen), dis(gen)});
-                        else
-                            return ck_tile::type_convert<T>(dis(gen));
-                    });
-                };
-                threads[it] = joinable_thread(thread_f);
-            }
-        }
-        else
+        // max 80 threads; at least 2MB per thread
+        const size_t available_cpu_cores    = get_available_cpu_cores();
+        constexpr uint64_t MAX_THREAD_COUNT = 80;
+        const size_t num_thread             = min(
+            MAX_THREAD_COUNT, available_cpu_cores, integer_divide_ceil(total_bytes, 0x200000UL));
+        constexpr size_t BLOCK_BYTES   = 64;
+        constexpr size_t BLOCK_SIZE    = BLOCK_BYTES / sizeof(T_iter);
+        const size_t num_blocks        = integer_divide_ceil(total_bytes, BLOCK_BYTES);
+        const size_t blocks_per_thread = integer_divide_ceil(num_blocks, num_thread);
+
+        // use minstd_rand for better performance on discard()
+        std::minstd_rand gen(seed_.has_value() ? *seed_ : std::random_device{}());
+        std::uniform_real_distribution<float> dis(a_, b_);
+
+        std::vector<joinable_thread> threads;
+        threads.reserve(num_thread - 1); // last job run in the main thread
+        for(int it = num_thread - 1; it >= 0; --it)
         {
-            std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
-            std::uniform_real_distribution<float> dis(a_, b_);
-            std::generate(first, last, [&dis, &gen]() {
-                if constexpr(numeric_traits<T>::PackedSize == 2)
-                    return ck_tile::type_convert<T>(fp32x2_t{dis(gen), dis(gen)});
-                else
-                    return ck_tile::type_convert<T>(dis(gen));
-            });
+            const size_t ib_begin = it * blocks_per_thread;
+            const size_t ib_end   = min(ib_begin + blocks_per_thread, num_blocks);
+
+            auto job = [=]() {
+                auto g_ = gen; // copy
+                auto d_ = dis; // copy
+                g_.discard(ib_begin * BLOCK_SIZE * PackedSize);
+                auto t_fn = [&]() {
+                    if constexpr(PackedSize == 2)
+                        return type_convert<T_iter>(fp32x2_t{d_(g_), d_(g_)});
+                    else
+                        return type_convert<T_iter>(d_(g_));
+                };
+
+                size_t ib = ib_begin;
+                for(; ib < ib_end - 1; ++ib) // full blocks
+                    static_for<0, BLOCK_SIZE, 1>{}([&](auto iw_) {
+                        constexpr size_t iw             = iw_.value;
+                        *(first + ib * BLOCK_SIZE + iw) = t_fn();
+                    });
+                for(size_t iw = 0; iw < BLOCK_SIZE; ++iw) // last block
+                    if(ib * BLOCK_SIZE + iw < total)
+                        *(first + ib * BLOCK_SIZE + iw) = t_fn();
+            };
+
+            if(it > 0)
+                threads.emplace_back(std::move(job));
+            else
+                job(); // last job run in the main thread
         }
     }
 

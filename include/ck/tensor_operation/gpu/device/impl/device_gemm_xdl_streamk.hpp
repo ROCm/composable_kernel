@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -323,7 +323,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                         &occupancy_,
                         kernel,
                         BlockSize,
-                        GridwiseGemm64::GetSharedMemoryNumberOfByte());
+                        GridwiseGemm64::GetSharedMemoryNumberOfByteOnHost());
                     hip_check_error(rtn);
                 }
             }
@@ -336,7 +336,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                         &occupancy_,
                         kernel,
                         BlockSize,
-                        GridwiseGemm32::GetSharedMemoryNumberOfByte());
+                        GridwiseGemm32::GetSharedMemoryNumberOfByteOnHost());
                     hip_check_error(rtn);
                 }
             }
@@ -396,7 +396,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                         &occupancy_,
                         kernel,
                         BlockSize,
-                        GridwiseGemm64::GetSharedMemoryNumberOfByte());
+                        GridwiseGemm64::GetSharedMemoryNumberOfByteOnHost());
                     hip_check_error(rtn);
                 }
             }
@@ -409,7 +409,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                         &occupancy_,
                         kernel,
                         BlockSize,
-                        GridwiseGemm32::GetSharedMemoryNumberOfByte());
+                        GridwiseGemm32::GetSharedMemoryNumberOfByteOnHost());
                     hip_check_error(rtn);
                 }
             }

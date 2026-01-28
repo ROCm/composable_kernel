@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -40,7 +40,7 @@ struct BlockSoftmax2D
 #endif
 
         // compute row max
-        auto reduce_row_max = BlockReduce2D{x, -numeric<DataType>::infinity()};
+        auto reduce_row_max = BlockReduce2D<decltype(x)>{x, -numeric<DataType>::infinity()};
 #if _BLOCK_SOFTMAX_USE_UNPACK2
         auto row_max = reduce_row_max(f_max3, f_max, sequence<1, 2>{});
 #else

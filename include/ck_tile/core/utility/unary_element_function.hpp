@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -47,9 +47,11 @@ struct composes<F>
     F f_;
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-template <typename... Ts>
-__host__ __device__ composes(Ts&&...) -> composes<remove_cvref_t<Ts>...>;
+template <class... Ts>
+CK_TILE_HOST_DEVICE constexpr auto make_composes(Ts&&... ts)
+{
+    return composes<remove_cvref_t<Ts>...>{std::forward<Ts>(ts)...};
+}
 
 template <typename SaturateType>
 struct saturates

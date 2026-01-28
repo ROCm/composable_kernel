@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,6 +19,7 @@ namespace instance {
 
 #ifdef CK_ENABLE_FP16
 // fp16_output
+#ifdef CK_USE_XDL
 void add_device_grouped_gemm_xdl_tile_loop_f16_f16_f16_mk_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmTileLoop<Row,
                                                           Row,
@@ -44,6 +45,34 @@ void add_device_grouped_gemm_xdl_tile_loop_f16_f16_f16_mk_nk_mn_instances(
                                                           PassThrough,
                                                           PassThrough,
                                                           PassThrough>>>& instances);
+#endif
+#ifdef CK_USE_WMMA
+void add_device_grouped_gemm_wmma_tile_loop_f16_f16_f16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmTileLoop<Row,
+                                                          Row,
+                                                          Empty_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F16,
+                                                          Empty_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          PassThrough>>>& instances);
+
+void add_device_grouped_gemm_wmma_tile_loop_f16_f16_f16_mk_nk_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemmTileLoop<Row,
+                                                          Col,
+                                                          Empty_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F16,
+                                                          Empty_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          PassThrough>>>& instances);
+#endif
 #endif
 
 template <typename ALayout,
@@ -89,12 +118,22 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<ELayout, Row>)
             {
+#ifdef CK_USE_XDL
                 add_device_grouped_gemm_xdl_tile_loop_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
+#endif
+#ifdef CK_USE_WMMA
+                add_device_grouped_gemm_wmma_tile_loop_f16_f16_f16_mk_kn_mn_instances(op_ptrs);
+#endif
             }
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
                          is_same_v<ELayout, Row>)
             {
+#ifdef CK_USE_XDL
                 add_device_grouped_gemm_xdl_tile_loop_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
+#endif
+#ifdef CK_USE_WMMA
+                add_device_grouped_gemm_wmma_tile_loop_f16_f16_f16_mk_nk_mn_instances(op_ptrs);
+#endif
             }
         }
 #endif

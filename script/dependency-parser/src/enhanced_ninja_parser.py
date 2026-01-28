@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
 """
@@ -99,7 +99,7 @@ class EnhancedNinjaDependencyParser:
             print("No object files found - skipping dependency extraction")
             return
 
-        max_workers = min(16, len(object_files))  # Limit concurrent processes
+        max_workers = min(128, len(object_files))  # Limit concurrent processes
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all object files for processing

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // InstanceTraits specialization for DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 //
@@ -14,6 +14,7 @@
 #pragma once
 
 #include "instance_traits.hpp"
+#include "instance_traits_util.hpp"
 
 // Forward declaration to avoid circular dependency.
 namespace ck::tensor_operation::device {
@@ -71,6 +72,11 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor;
 } // namespace ck::tensor_operation::device
 
 namespace ck_tile::reflect {
+
+/// @brief Tag type for DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor device kernel
+struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor_Tag
+{
+};
 
 // Specialization for DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 template <ck::index_t NDimSpatial,
@@ -172,6 +178,9 @@ struct InstanceTraits<
         BComputeDataType_,
         LoopSched>>
 {
+    /// @brief Tag type identifying this device kernel variant
+    using device_kernel_tag = DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor_Tag;
+
     // Spatial dimension
     static constexpr int kSpatialDim = NDimSpatial;
 
@@ -310,7 +319,7 @@ struct InstanceTraits<
         oss << "," << kABlockTransferSrcScalarPerVector; // 32. ABlockTransferSrcScalarPerVector
         oss << ","
             << kABlockTransferDstScalarPerVectorK1; // 33. ABlockTransferDstScalarPerVector_AK1
-        oss << "," << kABlockLdsExtraM;             // 34. ABlockLdsExtraM
+        oss << "," << (kABlockLdsExtraM ? "true" : "false"); // 34. ABlockLdsExtraM
         oss << ","
             << detail::array_to_string(
                    kBThreadClusterLengths); // 35. BBlockTransferThreadClusterLengths
@@ -323,10 +332,10 @@ struct InstanceTraits<
         oss << "," << kBBlockTransferSrcVectorDim;       // 38. BBlockTransferSrcVectorDim
         oss << "," << kBBlockTransferSrcScalarPerVector; // 39. BBlockTransferSrcScalarPerVector
         oss << ","
-            << kBBlockTransferDstScalarPerVectorK1;   // 40. BBlockTransferDstScalarPerVector_BK1
-        oss << "," << kBBlockLdsExtraN;               // 41. BBlockLdsExtraN
-        oss << "," << kCShuffleMXdlPerWavePerShuffle; // 42. CShuffleMXdlPerWavePerShuffle
-        oss << "," << kCShuffleNXdlPerWavePerShuffle; // 43. CShuffleNXdlPerWavePerShuffle
+            << kBBlockTransferDstScalarPerVectorK1; // 40. BBlockTransferDstScalarPerVector_BK1
+        oss << "," << (kBBlockLdsExtraN ? "true" : "false"); // 41. BBlockLdsExtraN
+        oss << "," << kCShuffleMXdlPerWavePerShuffle;        // 42. CShuffleMXdlPerWavePerShuffle
+        oss << "," << kCShuffleNXdlPerWavePerShuffle;        // 43. CShuffleNXdlPerWavePerShuffle
         oss << ","
             << detail::array_to_string(
                    kCThreadClusterLengths); // 44. CDEBlockTransferClusterLengths

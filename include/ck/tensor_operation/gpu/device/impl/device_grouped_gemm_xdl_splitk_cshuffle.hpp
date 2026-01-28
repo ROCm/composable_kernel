@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -33,7 +33,7 @@ template <typename GridwiseGemm,
           typename CElementwiseOperation = ck::tensor_operation::element_wise::PassThrough>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
 #endif
     kernel_grouped_gemm_xdl_splitk(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    const index_t group_count,
@@ -44,7 +44,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
-        constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
+        constexpr index_t shared_size =
+            GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch());
         __shared__ uint8_t p_shared[shared_size];
 
         const index_t block_id   = get_block_1d_id();
@@ -620,7 +621,44 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         bool isWave64  = get_warp_size() == 64;
         for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); ++i)
         {
-            const auto& a        = arg.gemm_kernel_args_[i].karg_;
+            const auto& a = arg.gemm_kernel_args_[i].karg_;
+
+            // Validate stride requirements for SplitK (k_batch > 1)
+            // TODO: Enable splitK
+            if(a.k_batch > 1)
+            {
+                if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
+                {
+                    if(a.StrideC != a.N)
+                    {
+                        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                        {
+                            std::cout << "[" << __func__ << "] group id: " << i
+                                      << " SplitK (k_batch=" << a.k_batch
+                                      << ") requires contiguous output stride."
+                                      << " For RowMajor layout: StrideC must equal N."
+                                      << " Got StrideC=" << a.StrideC << ", N=" << a.N << std::endl;
+                        }
+                        return false;
+                    }
+                }
+                else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
+                {
+                    if(a.StrideC != a.M)
+                    {
+                        if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                        {
+                            std::cout << "[" << __func__ << "] group id: " << i
+                                      << " SplitK (k_batch=" << a.k_batch
+                                      << ") requires contiguous output stride."
+                                      << " For ColumnMajor layout: StrideC must equal M."
+                                      << " Got StrideC=" << a.StrideC << ", M=" << a.M << std::endl;
+                        }
+                        return false;
+                    }
+                }
+            }
+
             bool group_arg_valid = false;
             if(isWave64)
             {

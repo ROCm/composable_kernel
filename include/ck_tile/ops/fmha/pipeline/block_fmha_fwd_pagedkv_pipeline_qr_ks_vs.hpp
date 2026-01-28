@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -57,6 +57,7 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kIsPagedKV        = Problem::kIsPagedKV;
+    static constexpr bool kHasSink          = Problem::kHasSink;
 
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
@@ -80,6 +81,8 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
         kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
+    static constexpr index_t kAlignmentRandVal =
+        kPadSeqLenK ? 1 : Policy::template GetAlignmentRandVal<Problem>();
 
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Problem::kBlockPerCu != -1)
@@ -160,7 +163,8 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
-               void* smem_ptr) const
+               void* smem_ptr,
+               const float sink_v) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -224,12 +228,40 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
         auto l     = MLBlockTileType{};
 
         clear_tile(o_acc);
-        set_tile(m, -numeric<SMPLComputeDataType>::infinity());
-        clear_tile(l);
-
-        const auto q_origin = q_dram_window.get_window_origin();
-        const auto [logical_seqlen_k_start, logical_seqlen_k_end] =
-            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+        if(__builtin_isinf_sign(sink_v) >= 0)
+        {
+#if CK_TILE_FMHA_FWD_FAST_EXP2
+            if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS ||
+                         BiasEnum == BlockAttentionBiasEnum::ALIBI)
+                set_tile(m, sink_v * C_LOG2E * scale_s);
+            else
+                set_tile(m, sink_v * C_LOG2E);
+#else
+            set_tile(m, sink_v);
+#endif
+            set_tile(l, SMPLComputeDataType{1.0f});
+        }
+        else
+        {
+            set_tile(m, -numeric<SMPLComputeDataType>::infinity());
+            clear_tile(l);
+        }
+        const auto q_origin          = q_dram_window.get_window_origin();
+        const auto tile_range_result = [&mask, &q_origin]() {
+            if constexpr(kHasSink)
+                return mask.GetSinkTileRangeAlongX(
+                    q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+            else
+            {
+                auto [start, end] =
+                    mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+                return ck_tile::make_tuple(0, start, end);
+            }
+        }();
+        const auto sink_seq_end           = tile_range_result.get(ck_tile::number<0>{});
+        const auto logical_seqlen_k_start = tile_range_result.get(ck_tile::number<1>{});
+        const auto logical_seqlen_k_end   = tile_range_result.get(ck_tile::number<2>{});
+        const auto num_sink_loop          = integer_divide_ceil(sink_seq_end, kN0);
 
         // check early exit if no work to do
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
@@ -243,7 +275,14 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                     auto lse =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
-                    set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
+                    if(__builtin_isinf_sign(sink_v) >= 0)
+                    {
+                        set_tile(lse, SMPLComputeDataType{sink_v * scale_s});
+                    }
+                    else
+                    {
+                        set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
+                    }
 
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
@@ -253,7 +292,6 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                 return o_acc;
             }
         }
-
         // k_dram_block_window
         const index_t physical_seqlen_k_start = logical_seqlen_k_start + kv_l2p_offset;
         const index_t physical_seqlen_k_end   = logical_seqlen_k_end + kv_l2p_offset;
@@ -272,27 +310,36 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                     return physical_seqlen_k_start_;
                 }
             }();
+        const auto kv_load_start = (sink_seq_end == 0 && aligned_physical_seqlen_k_start > 0)
+                                       ? aligned_physical_seqlen_k_start
+                                       : 0;
         const index_t num_total_loop =
-            integer_divide_ceil(physical_seqlen_k_end - aligned_physical_seqlen_k_start, kN0);
+            integer_divide_ceil(physical_seqlen_k_end - aligned_physical_seqlen_k_start, kN0) +
+            num_sink_loop;
 
         auto [i_page_block_k, k_dram_block_window] = k_page_block_navigator.make_tile_window(
-            k_dram_block_window_lengths, {aligned_physical_seqlen_k_start, 0});
+            k_dram_block_window_lengths, {kv_load_start, 0});
 
-        const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
+        const auto bias_origin      = bias_dram_block_window_tmp.get_window_origin();
+        const index_t bias_n_offset = [&]() {
+            if constexpr(kHasSink)
+                return kv_load_start;
+            else
+                return logical_seqlen_k_start -
+                       (physical_seqlen_k_start - aligned_physical_seqlen_k_start);
+        }();
+
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
                              bias_dram_block_window_tmp.get_window_lengths(),
-                             {bias_origin.at(number<0>{}),
-                              logical_seqlen_k_start - (physical_seqlen_k_start -
-                                                        aligned_physical_seqlen_k_start)}, // M/N
+                             {bias_origin.at(number<0>{}), bias_n_offset},
                              Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         // v_dram_window
         auto [i_page_block_v, v_dram_window] = v_page_block_navigator.make_tile_window(
             v_dram_block_window_lengths,
-            {0, aligned_physical_seqlen_k_start}, // TODO: hdim split?
+            {0, kv_load_start}, // TODO: hdim split?
             Policy::template MakeVDramTileDistribution<Problem>());
-
         auto q_tile = tile_elementwise_in(q_element_func, q);
 
         // prefetch K tile
@@ -319,9 +366,16 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
                 k_block_tile = load_tile(k_dram_window);
             }
+            const bool is_sink_tile  = ((num_sink_loop - 1) == i_total_loops);
+            const auto k_move_offset = [&]() {
+                if constexpr(kHasSink)
+                    return is_sink_tile ? logical_seqlen_k_start - sink_seq_end + kN0 : kN0;
+                else
+                    return kN0;
+            }();
             auto physical_next_block_id_k =
                 amd_wave_read_first_lane(k_page_block_navigator.prefetch_table_id(
-                    i_page_block_k, k_dram_block_window, {kN0, 0}));
+                    i_page_block_k, k_dram_block_window, {k_move_offset, 0}));
             auto physical_next_block_id_v = amd_wave_read_first_lane(
                 v_page_block_navigator.prefetch_table_id(i_page_block_v, v_dram_window, {0, kK1}));
 
@@ -440,7 +494,7 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
 #endif
                 }
             }
-            move_tile_window(bias_dram_window, {0, kN0});
+            move_tile_window(bias_dram_window, {0, k_move_offset});
 
             {
                 const auto k_origin = k_page_block_navigator.to_global_window_origin(
@@ -472,14 +526,29 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                                         number<kN0>{});
                     if(need_perpixel_check)
                     {
-                        set_tile_if(
-                            s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                                const auto row =
-                                    q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                                const auto col =
-                                    k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                                return mask.IsOutOfBound(row, col - kv_l2p_offset);
+                        auto apply_mask = [&](auto&& mask_func) {
+                            set_tile_if(s_acc,
+                                        -numeric<SMPLComputeDataType>::infinity(),
+                                        [&](auto tile_idx) {
+                                            const auto row =
+                                                q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                                            const auto col =
+                                                k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                            return mask_func(row, col - kv_l2p_offset);
+                                        });
+                        };
+
+                        if constexpr(kHasSink)
+                        {
+                            apply_mask([&](auto row, auto col) {
+                                return mask.IsOutOfSinkBound(row, col);
                             });
+                        }
+                        else
+                        {
+                            apply_mask(
+                                [&](auto row, auto col) { return mask.IsOutOfBound(row, col); });
+                        }
                     }
                 }
             }
@@ -645,7 +714,12 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
             }
             // move K tile windows
             i_page_block_k = k_page_block_navigator.move_tile_window(
-                i_page_block_k, k_dram_block_window, {kN0, 0}, physical_next_block_id_k);
+                i_page_block_k, k_dram_block_window, {k_move_offset, 0}, physical_next_block_id_k);
+            physical_next_block_id_v =
+                amd_wave_read_first_lane(v_page_block_navigator.prefetch_table_id(
+                    i_page_block_v, v_dram_window, {0, k_move_offset - kN0}));
+            i_page_block_v = v_page_block_navigator.move_tile_window(
+                i_page_block_v, v_dram_window, {0, k_move_offset - kN0}, physical_next_block_id_v);
             // tail
             {
                 block_sync_lds();
@@ -738,7 +812,8 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                index_t kv_l2p_offset, // logical-to-physical offset of seqlen_k coordinate
-               void* smem_ptr) const
+               void* smem_ptr,
+               const float sink_v) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -762,7 +837,8 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                           variant_params,
                           block_indices,
                           kv_l2p_offset,
-                          smem_ptr);
+                          smem_ptr,
+                          sink_v);
     }
 };
 

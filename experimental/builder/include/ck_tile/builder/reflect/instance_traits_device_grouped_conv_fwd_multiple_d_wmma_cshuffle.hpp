@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // InstanceTraits specialization for DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 //
@@ -14,6 +14,7 @@
 #pragma once
 
 #include "instance_traits.hpp"
+#include "instance_traits_util.hpp"
 
 // Forward declaration to avoid circular dependency.
 // This file will be included by the device implementation header, so we cannot include
@@ -77,6 +78,11 @@ template <ck::index_t NDimSpatial,
 struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle;
 
 } // namespace ck::tensor_operation::device
+
+/// @brief Tag type for DeviceGroupedConvFwdMultipleD_Wmma_CShuffle device kernel
+struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_Tag
+{
+};
 
 namespace ck_tile::reflect {
 
@@ -175,6 +181,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
     LoopSched,
     PipelineVer>>
 {
+    /// @brief Tag type identifying this device kernel variant
+    using device_kernel_tag = DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_Tag;
     // Spatial dimension
     static constexpr int kSpatialDim = NDimSpatial;
 

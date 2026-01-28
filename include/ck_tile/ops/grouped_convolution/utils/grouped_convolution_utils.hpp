@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,13 @@
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 namespace ck_tile {
+
+enum class GroupedConvDirection
+{
+    FORWARD,
+    BACKWARD_DATA,
+    BACKWARD_WEIGHT
+};
 
 /// @brief The Grouped Conv kernel host arguments.
 ///
@@ -63,8 +70,8 @@ template <index_t NDimSpatial_,
           index_t VectorSizeB_      = 1,
           index_t VectorSizeC_      = 1,
           index_t NumGroupsToMerge_ = 1,
-          typename CDElementwise_   = PassThrough,
-          bool EnableSplitImage_    = false>
+          bool EnableSplitImage_    = false,
+          bool ExplicitGemm_        = false>
 struct GroupedConvTraits
 {
     private:
@@ -75,40 +82,97 @@ struct GroupedConvTraits
     }
 
     public:
-    static constexpr bool EnableSplitImage                        = EnableSplitImage_;
+    // Fixed values for Implicit GEMM
+    struct FixedGemmParams
+    {
+        static constexpr ck_tile::index_t TilePartitionerGroupNum = 8;
+        static constexpr ck_tile::index_t TilePartitionerM01      = 4;
+        static constexpr bool kPadM                               = true;
+        static constexpr bool kPadN                               = true;
+        static constexpr bool kPadK                               = true;
+        static constexpr bool TransposeC                          = false;
+        static constexpr bool FixedVectorSize                     = true;
+        static constexpr bool UseStructuredSparsity               = false;
+        static constexpr bool Persistent                          = false;
+        using ELayout = ck_tile::tensor_layout::gemm::RowMajor;
+    };
+    // Compile time parameters
     static constexpr index_t NumGroupsToMerge                     = NumGroupsToMerge_;
+    static constexpr bool EnableSplitImage                        = EnableSplitImage_;
+    static constexpr bool ExplicitGemm                            = ExplicitGemm_;
     static constexpr index_t NDimSpatial                          = NDimSpatial_;
     static constexpr ConvolutionSpecialization ConvSpecialization = ConvSpecialization_;
     using InLayout                                                = InLayout_;
     using WeiLayout                                               = WeiLayout_;
     using DsLayout                                                = DsLayout_;
     using OutLayout                                               = OutLayout_;
-    using CDElementwise                                           = CDElementwise_;
+
+    // Forward Gemm Layouts
+    using AsLayoutFwd = ck_tile::tensor_layout::gemm::RowMajor;
+    using BsLayoutFwd = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using CLayoutFwd  = ck_tile::tensor_layout::gemm::RowMajor;
+    // Backward Data Gemm Layouts
+    using AsLayoutBwdData = ck_tile::tensor_layout::gemm::RowMajor;
+    using BsLayoutBwdData = ck_tile::tensor_layout::gemm::RowMajor;
+    using CLayoutBwdData  = ck_tile::tensor_layout::gemm::RowMajor;
+    // Backward Weight Gemm Layouts
+    using AsLayoutBwdWeight = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using BsLayoutBwdWeight = ck_tile::tensor_layout::gemm::RowMajor;
+    using CLayoutBwdWeight  = ck_tile::tensor_layout::gemm::RowMajor;
+
+    template <GroupedConvDirection Direction>
+    struct GemmLayouts
+    {
+        static_assert(false, "Unsupported direction.");
+    };
+
+    template <>
+    struct GemmLayouts<GroupedConvDirection::FORWARD>
+    {
+        using AsLayout = AsLayoutFwd;
+        using BsLayout = BsLayoutFwd;
+        using CLayout  = CLayoutFwd;
+    };
+
+    template <>
+    struct GemmLayouts<GroupedConvDirection::BACKWARD_DATA>
+    {
+        using AsLayout = AsLayoutBwdData;
+        using BsLayout = BsLayoutBwdData;
+        using CLayout  = CLayoutBwdData;
+    };
+
+    template <>
+    struct GemmLayouts<GroupedConvDirection::BACKWARD_WEIGHT>
+    {
+        using AsLayout = AsLayoutBwdWeight;
+        using BsLayout = BsLayoutBwdWeight;
+        using CLayout  = CLayoutBwdWeight;
+    };
+
+    template <ck_tile::index_t NumWaveGroups = 1>
     using GroupedConvImplicitGemmTraitsFwd =
-        TileGemmTraits<true,
-                       true,
-                       true,
-                       ck_tile::tensor_layout::gemm::RowMajor,
-                       ck_tile::tensor_layout::gemm::ColumnMajor,
-                       ck_tile::tensor_layout::gemm::RowMajor>;
-    using GroupedConvImplicitGemmTraitsBwdData =
-        TileGemmTraits<true,
-                       true,
-                       true,
-                       ck_tile::tensor_layout::gemm::RowMajor,
-                       ck_tile::tensor_layout::gemm::RowMajor,
-                       ck_tile::tensor_layout::gemm::RowMajor>;
-    using GroupedConvImplicitGemmTraitsBwdWeight =
-        TileGemmTraits<true,
-                       true,
-                       true,
-                       ck_tile::tensor_layout::gemm::ColumnMajor,
-                       ck_tile::tensor_layout::gemm::RowMajor,
-                       ck_tile::tensor_layout::gemm::RowMajor>;
+        TileGemmTraits<true, true, true, AsLayoutFwd, BsLayoutFwd, CLayoutFwd, NumWaveGroups>;
+    template <ck_tile::index_t NumWaveGroups = 1>
+    using GroupedConvImplicitGemmTraitsBwdData = TileGemmTraits<true,
+                                                                true,
+                                                                true,
+                                                                AsLayoutBwdData,
+                                                                BsLayoutBwdData,
+                                                                CLayoutBwdData,
+                                                                NumWaveGroups>;
+    template <ck_tile::index_t NumWaveGroups = 1>
+    using GroupedConvImplicitGemmTraitsBwdWeight  = TileGemmTraits<true,
+                                                                   true,
+                                                                   true,
+                                                                   AsLayoutBwdWeight,
+                                                                   BsLayoutBwdWeight,
+                                                                   CLayoutBwdWeight,
+                                                                   NumWaveGroups>;
     static constexpr ck_tile::index_t VectorSizeA = VectorSizeA_;
     static constexpr ck_tile::index_t VectorSizeB = VectorSizeB_;
     static constexpr ck_tile::index_t VectorSizeC = VectorSizeC_;
-    static constexpr index_t NumDTensor           = DsLayout::size();
+    static constexpr ck_tile::index_t NumDTensor  = DsLayout::size();
     using ImplicitGemmDsLayout                    = decltype(generate_implicit_gemm_layout());
 };
 

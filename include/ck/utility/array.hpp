@@ -1,11 +1,13 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #ifndef CK_ARRAY_HPP
 #define CK_ARRAY_HPP
 
 #include "functional2.hpp"
 #include "sequence.hpp"
+#include <type_traits>
+#include <cassert>
 
 namespace ck {
 
@@ -26,6 +28,15 @@ struct Array
     __host__ __device__ constexpr const TData& operator[](index_t i) const { return At(i); }
 
     __host__ __device__ constexpr TData& operator()(index_t i) { return At(i); }
+
+    template <typename... Args>
+    __host__ constexpr auto Emplace(index_t i, Args&&... args)
+        -> std::enable_if_t<std::is_nothrow_constructible_v<TData, Args&&...>>
+    {
+        assert(i >= 0 && i < NSize);
+        mData[i].~TData();
+        new(mData + i) TData(ck::forward<Args>(args)...);
+    }
 
     template <typename T>
     __host__ __device__ constexpr auto operator=(const T& a)

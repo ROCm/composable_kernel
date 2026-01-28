@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "testing_utils.hpp"
 #include <gtest/gtest.h>
@@ -10,6 +10,11 @@
 #include <ostream>
 #include <vector>
 #include <algorithm>
+
+std::ostream& operator<<(std::ostream& os, hipError_t status)
+{
+    return os << hipGetErrorString(status);
+}
 
 namespace ck_tile::test {
 
@@ -295,6 +300,61 @@ void InstanceMatcher::DescribeTo(std::ostream* os) const { *os << expected_; }
 void InstanceMatcher::DescribeNegationTo(std::ostream* os) const
 {
     *os << "is not equal to " << expected_;
+}
+
+bool HipStatusMatcher::MatchAndExplain(hipError_t actual,
+                                       ::testing::MatchResultListener* listener) const
+{
+    (void)listener;
+
+    if(actual == expected_)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+void HipStatusMatcher::DescribeTo(std::ostream* os) const { *os << hipGetErrorString(expected_); }
+
+void HipStatusMatcher::DescribeNegationTo(std::ostream* os) const
+{
+    if(expected_ == hipSuccess)
+    {
+        *os << "any error";
+    }
+    else
+    {
+        *os << "isn't equal to " << hipGetErrorString(expected_);
+    }
+}
+
+::testing::Matcher<hipError_t> HipSuccess()
+{
+    return ::testing::MakeMatcher(new HipStatusMatcher(hipSuccess));
+}
+
+::testing::Matcher<hipError_t> HipError(hipError_t error)
+{
+    return ::testing::MakeMatcher(new HipStatusMatcher(error));
+}
+
+bool RunResultMatcher::MatchAndExplain(builder::test::RunResult actual,
+                                       ::testing::MatchResultListener* listener) const
+{
+    if(actual.error.has_value() && listener)
+        *listener << "run failed: " << actual.error.value();
+
+    return actual.is_supported();
+}
+
+void RunResultMatcher::DescribeTo(std::ostream* os) const { *os << "successful run"; }
+
+void RunResultMatcher::DescribeNegationTo(std::ostream* os) const { *os << "unsuccessful run"; }
+
+::testing::Matcher<builder::test::RunResult> SuccessfulRun()
+{
+    return ::testing::MakeMatcher(new RunResultMatcher());
 }
 
 } // namespace ck_tile::test

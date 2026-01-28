@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -39,23 +39,24 @@ class TestGroupedConvndFwd : public ::testing::Test
                 continue;
             }
             auto& param = conv_params[i];
-            pass = pass && ck::profiler::profile_grouped_conv_fwd_bias_clamp_impl<NDimSpatial,
-                                                                                  InLayout,
-                                                                                  WeiLayout,
-                                                                                  OutLayout,
-                                                                                  DataType,
-                                                                                  DataType,
-                                                                                  DataType,
-                                                                                  DataType,
-                                                                                  DataType,
-                                                                                  IndexType,
-                                                                                  false /*BiasGK*/>(
-                               true,  // do_verification
-                               1,     // init_method: integer value
-                               false, // do_log
-                               false, // time_kernel
-                               param,
-                               instance_index);
+            pass        = pass &&
+                   ck::profiler::profile_grouped_conv_fwd_bias_bnorm_clamp_impl<NDimSpatial,
+                                                                                InLayout,
+                                                                                WeiLayout,
+                                                                                OutLayout,
+                                                                                DataType,
+                                                                                DataType,
+                                                                                DataType,
+                                                                                DataType,
+                                                                                DataType,
+                                                                                IndexType,
+                                                                                false /*BiasGK*/>(
+                       true,  // do_verification
+                       1,     // init_method: integer value
+                       false, // do_log
+                       false, // time_kernel
+                       param,
+                       instance_index);
         }
         EXPECT_TRUE(pass);
     }

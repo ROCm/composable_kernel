@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -32,7 +32,7 @@ CK_TILE_DEVICE void block_tile_reduce_sync(AccDistributedTensor_& acc_tensor,
 
     constexpr index_t idim_p_lane = NDimP - 1;
 
-    const auto ps_idx = detail::get_partition_index(acc_tensor.get_tile_distribution());
+    const auto ps_idx = get_partition_index(acc_tensor.get_tile_distribution());
     const auto rs_idx = acc_tensor.get_tile_distribution().calculate_rs_index_from_ps_index(ps_idx);
 
     constexpr index_t thread_buf_size = AccDistributedTensor_::get_thread_buffer_size();
@@ -345,7 +345,7 @@ struct BlockReduce2D
         constexpr auto row_y_unpacks = [&]() {
             constexpr auto row_y_lengths = typename decltype(spans[number<1>{}])::Impl{};
             constexpr auto row_y_size =
-                reduce_on_sequence(row_y_lengths, multiplies{}, number<1>{});
+                reduce_on_sequence(row_y_lengths, multiplies<>{}, number<1>{});
             constexpr auto row_y_packs = ReducePacksPerXDim{}.at(number<1>{});
 
             static_assert(row_y_size % row_y_packs == 0);
@@ -391,9 +391,5 @@ struct BlockReduce2D
     InDistributedTensor t;
     InDataType reduce_init;
 };
-
-// deduction guide
-template <typename T>
-CK_TILE_HOST_DEVICE_EXTERN BlockReduce2D(const T&, const typename T::DataType&) -> BlockReduce2D<T>;
 
 } // namespace ck_tile

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,6 +22,8 @@
 #include "ck/library/utility/thread.hpp"
 
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+
+namespace ck {
 
 template <typename Range>
 std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
@@ -296,9 +298,12 @@ struct HostTensorDescriptor
             if constexpr(!(std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ||
                            std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>))
             {
-                std::cerr << "Only RowMajor and ColumnMajor layouts are supported for empty "
-                             "strides, got "
-                          << layout << ". Will calculate strides as RowMajor." << std::endl;
+                if(dbg)
+                {
+                    std::cerr << "Only RowMajor and ColumnMajor layouts are supported for empty "
+                                 "strides, got "
+                              << layout << ". Will calculate strides as RowMajor." << std::endl;
+                }
             }
 
             mStrides.clear();
@@ -441,9 +446,14 @@ struct HostTensorDescriptor
         {
             // TBD: implement verification for Conv layouts
             // For now, just print warning and return
-            std::cerr << "Warning: Tensor layout verification for ck::tensor_layout::convolution "
-                         "layouts is not supported yet. Skipping..."
-                      << std::endl;
+            if(dbg)
+            {
+
+                std::cerr
+                    << "Warning: Tensor layout verification for ck::tensor_layout::convolution "
+                       "layouts is not supported yet. Skipping..."
+                    << std::endl;
+            }
             return;
         }
         else
@@ -1159,3 +1169,5 @@ struct Tensor
     Descriptor mDesc;
     Data mData;
 };
+
+} // namespace ck

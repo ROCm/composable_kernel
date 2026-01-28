@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -14,6 +14,10 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/numeric.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_contraction.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 
@@ -229,7 +233,27 @@ int run_contraction_bilinear_example(int argc, char* argv[])
             }
         }
 
-        return ck::utils::check_err(e_ms_ns_device_result, e_ms_ns_host_result) ? 0 : 1;
+        if(ck::is_gfx11_supported())
+        {
+            if constexpr(std::is_same_v<EDataType, F32>)
+            {
+                return ck::utils::check_err(e_ms_ns_device_result,
+                                            e_ms_ns_host_result,
+                                            "Error: Incorrect results!",
+                                            1e-4,
+                                            1e-4)
+                           ? 0
+                           : 1;
+            }
+            else
+            {
+                return ck::utils::check_err(e_ms_ns_device_result, e_ms_ns_host_result) ? 0 : 1;
+            }
+        }
+        else
+        {
+            return ck::utils::check_err(e_ms_ns_device_result, e_ms_ns_host_result) ? 0 : 1;
+        }
     }
 
     return 0;

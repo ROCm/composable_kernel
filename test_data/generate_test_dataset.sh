@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
 # Generate Comprehensive Convolution Test Dataset for CK
@@ -7,6 +7,20 @@
 
 set -e  # Exit on error
 set +x  # Disable command echo (even if called with bash -x)
+
+# Trap to kill all background jobs on script exit/interruption
+cleanup() {
+    echo ""
+    echo "Cleaning up background processes..."
+    # Kill all jobs in the current process group
+    jobs -p | xargs -r kill 2>/dev/null || true
+    wait 2>/dev/null || true
+    echo "Cleanup complete."
+    exit 1
+}
+
+# Set up trap for common termination signals
+trap cleanup SIGINT SIGTERM EXIT
 
 echo "=========================================="
 echo "CK Convolution Test Dataset Generator"
@@ -18,7 +32,7 @@ if ! python3 -c "import torch" 2>/dev/null; then
     echo "PyTorch not found. Creating virtual environment..."
     
     # Create a virtual environment in the current directory
-    VENV_DIR="./pytorch_venv"
+    VENV_DIR="./.venv"
     if [ ! -d "$VENV_DIR" ]; then
         python3 -m venv $VENV_DIR || {
             echo "ERROR: Failed to create virtual environment."
@@ -36,10 +50,8 @@ if ! python3 -c "import torch" 2>/dev/null; then
     
     # Install PyTorch in virtual environment with ROCm support
     echo "Installing PyTorch and torchvision with ROCm support in virtual environment..."
-    # Since we're in a ROCm 6.4.1 environment, we need compatible PyTorch
-    # PyTorch doesn't have 6.4 wheels yet, so we use 6.2 which should be compatible
-    echo "Installing PyTorch with ROCm 6.2 support (compatible with ROCm 6.4)..."
-    pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/rocm6.2 || {
+    echo "Installing PyTorch with ROCm 7.1 support..."
+    pip install -r requirements.txt || {
         echo "ERROR: Failed to install PyTorch with ROCm support."
         echo "Creating empty CSV files as fallback..."
         echo "# 2D Convolution Test Cases" > conv_test_set_2d_dataset.csv
@@ -66,11 +78,71 @@ if ! $PYTHON_CMD -c "import torch; import sys; sys.exit(0 if torch.cuda.is_avail
     echo "Continuing anyway to generate placeholder data..."
 fi
 
+# Parse command line arguments
+CONFIG_MODE="full"  # Default configuration mode: 'small', 'half' or 'full'
+MAX_PARALLEL_JOBS=1  # Default number of parallel jobs
+NUM_GPUS=1  # Number of GPUs to use (0 means no GPU assignment)
+
+# Process arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -j)
+            MAX_PARALLEL_JOBS="$2"
+            shift 2
+            ;;
+        -j*)
+            MAX_PARALLEL_JOBS="${1#-j}"
+            shift
+            ;;
+        --gpus)
+            NUM_GPUS="$2"
+            shift 2
+            ;;
+        small|half|full)
+            CONFIG_MODE="$1"
+            shift
+            ;;
+        *)
+            echo "Usage: $0 [small|half|full] [-j <num_jobs>] [--gpus <num_gpus>]"
+            echo "  Configuration modes: small, half, full (default: full)"
+            echo "  -j <num_jobs>: Number of parallel jobs (default: 1)"
+            echo "  --gpus <num_gpus>: Number of GPUs to use (e.g., 8 for GPUs 0-7)"
+            exit 1
+            ;;
+    esac
+done
+
+# Setup GPU array if GPUs are requested
+if [ $NUM_GPUS -gt 0 ]; then
+    # Auto-detect available GPUs
+    AVAILABLE_GPUS_COUNT=$(rocm-smi --showid 2>/dev/null | grep -oP 'GPU\[\K[0-9]+' | wc -l)
+    if [ "$AVAILABLE_GPUS_COUNT" -gt 0 ]; then
+        MAX_AVAILABLE=$AVAILABLE_GPUS_COUNT
+    else
+        MAX_AVAILABLE=0
+    fi
+    
+    # Validate requested GPU count
+    if [ $NUM_GPUS -gt $MAX_AVAILABLE ]; then
+        echo "WARNING: Requested $NUM_GPUS GPUs but only $MAX_AVAILABLE available. Using $MAX_AVAILABLE GPUs."
+        NUM_GPUS=$MAX_AVAILABLE
+    fi
+    
+    # Build GPU array (0 to NUM_GPUS-1)
+    GPU_ARRAY=()
+    for ((i=0; i<NUM_GPUS; i++)); do
+        GPU_ARRAY+=($i)
+    done
+    
+    echo "Using $NUM_GPUS GPU(s): ${GPU_ARRAY[*]}"
+else
+    echo "No GPU assignment specified, using default GPU behavior"
+    GPU_ARRAY=()
+fi
+
 # Configuration
 OUTPUT_DIR="generated_datasets"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-# Get configuration mode from command line argument (default: full)
-CONFIG_MODE="${1:-full}"  # Configuration mode: 'small', 'half' or 'full'
 
 # Colors
 RED='\033[0;31m'
@@ -128,7 +200,8 @@ rocm-smi --showdriverversion || true
 echo ""
 echo "Step 2: Running 2D/3D models and capturing MIOpen commands"
 echo "-----------------------------------------"
-
+echo "Using up to $MAX_PARALLEL_JOBS parallel jobs"
+echo ""
 
 # Process 2D models from CSV configuration file
 echo "Processing 2D models from $OUTPUT_DIR/model_configs_2d.csv..."
@@ -140,6 +213,11 @@ CURRENT_CONFIG=0
 echo "Total configurations to process: $TOTAL_CONFIGS"
 echo ""
 
+# Array to track background job PIDs
+declare -a job_pids=()
+# Counter for round-robin GPU assignment
+GPU_COUNTER=0
+
 # Read 2D configurations from CSV (skip comments and header)
 while IFS=',' read -r config_name model batch_size channels height width precision; do
     # Skip comments and empty lines
@@ -150,20 +228,56 @@ while IFS=',' read -r config_name model batch_size channels height width precisi
     # Increment counter
     CURRENT_CONFIG=$((CURRENT_CONFIG + 1))
     
-    
     # Build configuration command
     CONFIG="--model $model --batch-size $batch_size --channels $channels --height $height --width $width --precision $precision"
     CONFIG_NAME="$config_name"
     
-    echo -e "${GREEN}[${CURRENT_CONFIG}/${TOTAL_CONFIGS}]${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC}"
+    # Assign GPU in round-robin fashion if GPUs are specified
+    if [ $NUM_GPUS -gt 0 ]; then
+        GPU_ID=${GPU_ARRAY[$((GPU_COUNTER % NUM_GPUS))]}
+        GPU_COUNTER=$((GPU_COUNTER + 1))
+        echo -e "${GREEN}[${CURRENT_CONFIG}/${TOTAL_CONFIGS}]${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC} ${PURPLE}[GPU ${GPU_ID}]${NC} - Starting in background"
+    else
+        GPU_ID=""
+        echo -e "${GREEN}[${CURRENT_CONFIG}/${TOTAL_CONFIGS}]${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC} - Starting in background"
+    fi
     
-    # Actual run with logging (suppress stdout, only capture stderr with MIOpen commands)
-    MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
-        --model $model --batch-size $batch_size --channels $channels --height $height --width $width --precision $precision \
-        > /dev/null 2>> $OUTPUT_DIR/${model}_miopen_log_2d.txt || true 
-
+    # Run in background
+    (
+        # Set HIP_VISIBLE_DEVICES if GPU was assigned
+        if [ -n "$GPU_ID" ]; then
+            export HIP_VISIBLE_DEVICES=$GPU_ID
+        fi
+        
+        MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
+            --model $model --batch-size $batch_size --channels $channels --height $height --width $width --precision $precision \
+            > /dev/null 2>> $OUTPUT_DIR/${model}_miopen_log_2d.txt || true
+        echo -e "${GREEN}[DONE]${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC}"
+    ) &
+    
+    job_pids+=($!)
+    
+    # Limit number of parallel jobs
+    if [ ${#job_pids[@]} -ge $MAX_PARALLEL_JOBS ]; then
+        # Wait for any job to complete
+        wait -n
+        # Remove completed jobs from array
+        for i in "${!job_pids[@]}"; do
+            if ! kill -0 "${job_pids[$i]}" 2>/dev/null; then
+                unset 'job_pids[$i]'
+            fi
+        done
+        job_pids=("${job_pids[@]}")  # Re-index array
+    fi
 
 done < $OUTPUT_DIR/model_configs_2d.csv
+
+# Wait for all remaining 2D jobs to complete
+echo "Waiting for remaining 2D jobs to complete..."
+wait
+
+echo "All 2D models processed!"
+echo ""
 
 # Process 3D models from CSV configuration file
 echo "Processing 3D models from $OUTPUT_DIR/model_configs_3d.csv..."
@@ -175,6 +289,10 @@ CURRENT_3D_CONFIG=0
 echo "Total 3D configurations to process: $TOTAL_3D_CONFIGS"
 echo ""
 
+# Reset job tracking array
+declare -a job_pids=()
+# GPU counter continues from 2D models for round-robin assignment
+
 # Read 3D configurations from CSV (skip comments and header)
 while IFS=',' read -r config_name model batch_size channels temporal_size height width precision; do
     # Skip comments and empty lines  
@@ -185,21 +303,59 @@ while IFS=',' read -r config_name model batch_size channels temporal_size height
     # Increment counter
     CURRENT_3D_CONFIG=$((CURRENT_3D_CONFIG + 1))
     
-
     # Build configuration command for 3D models
     CONFIG="--model $model --batch-size $batch_size --channels $channels --temporal-size $temporal_size --height $height --width $width --precision $precision"
     CONFIG_NAME="$config_name"
     
-    echo -e "${GREEN}[${CURRENT_3D_CONFIG}/${TOTAL_3D_CONFIGS}]${NC} ${CYAN}3D${NC} ${YELLOW}$CONFIG_NAME${NC}"
+    # Assign GPU in round-robin fashion if GPUs are specified
+    if [ $NUM_GPUS -gt 0 ]; then
+        GPU_ID=${GPU_ARRAY[$((GPU_COUNTER % NUM_GPUS))]}
+        GPU_COUNTER=$((GPU_COUNTER + 1))
+        echo -e "${GREEN}[${CURRENT_3D_CONFIG}/${TOTAL_3D_CONFIGS}]${NC} ${CYAN}3D${NC} ${YELLOW}$CONFIG_NAME${NC} ${PURPLE}[GPU ${GPU_ID}]${NC} - Starting in background"
+    else
+        GPU_ID=""
+        echo -e "${GREEN}[${CURRENT_3D_CONFIG}/${TOTAL_3D_CONFIGS}]${NC} ${CYAN}3D${NC} ${YELLOW}$CONFIG_NAME${NC} - Starting in background"
+    fi
     
+    # Run in background
+    (
+        # Set HIP_VISIBLE_DEVICES if GPU was assigned
+        if [ -n "$GPU_ID" ]; then
+            export HIP_VISIBLE_DEVICES=$GPU_ID
+        fi
+        
+        MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
+            --model $model --batch-size $batch_size --channels $channels --temporal-size $temporal_size --height $height --width $width --precision $precision \
+            > /dev/null 2>> $OUTPUT_DIR/${model}_miopen_log_3d.txt || true
+        echo -e "${GREEN}[DONE]${NC} ${CYAN}3D${NC} ${YELLOW}$CONFIG_NAME${NC}"
+    ) &
     
-    # Actual run with logging (suppress stdout, only capture stderr with MIOpen commands)
-    MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
-        --model $model --batch-size $batch_size --channels $channels --temporal-size $temporal_size --height $height --width $width --precision $precision \
-        > /dev/null 2>> $OUTPUT_DIR/${model}_miopen_log_3d.txt || true
+    job_pids+=($!)
+    
+    # Limit number of parallel jobs
+    if [ ${#job_pids[@]} -ge $MAX_PARALLEL_JOBS ]; then
+        # Wait for any job to complete
+        wait -n
+        # Remove completed jobs from array
+        for i in "${!job_pids[@]}"; do
+            if ! kill -0 "${job_pids[$i]}" 2>/dev/null; then
+                unset 'job_pids[$i]'
+            fi
+        done
+        job_pids=("${job_pids[@]}")  # Re-index array
+    fi
 
 done < $OUTPUT_DIR/model_configs_3d.csv
 
+# Wait for all remaining 3D jobs to complete
+echo "Waiting for remaining 3D jobs to complete..."
+wait
+
+echo "All 3D models processed!"
+echo ""
+
+# Disable trap on successful completion
+trap - SIGINT SIGTERM EXIT
 
 echo ""
 echo "Step 3: Converting MIOpen commands to CSV test cases"
@@ -311,7 +467,7 @@ if [ $COUNT_3D -gt 0 ]; then
 fi
 echo "  - Intermediate files in: $OUTPUT_DIR/"
 echo ""
-echo "To use these datasets:"
-echo "  1. Build the test: cd ../script && make -j64 test_grouped_convnd_fwd_dataset_xdl"
-echo "  2. Run the test: ./bin/test_grouped_convnd_fwd_dataset_xdl"
+echo "To use these datasets for direction (bwd_data, bwd_weight, or fwd):"
+echo "  1. Build the test: cd ../script && make -j64 test_grouped_convnd_<direction>_dataset_xdl"
+echo "  2. Run the test: ./bin/test_grouped_convnd_<direction>_dataset_xdl"
 echo ""

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <gtest/gtest.h>
@@ -61,7 +61,7 @@ class TestBatchedGemmMultiD : public ::testing::Test
                 true,  // do_verification
                 1,     // init_method
                 false, // do_log
-                1,     // time_kernel,
+                false, // time_kernel,
                 M,
                 N,
                 K,

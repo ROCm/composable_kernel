@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -37,13 +37,19 @@ struct scales
         return lhs_ * rhs;
     }
 
+    template <typename OtherScale>
+    CK_TILE_HOST_DEVICE constexpr auto operator*(OtherScale other) const
+    {
+        auto new_scale = lhs_ * other;
+        return scales<std::decay_t<decltype(new_scale)>>(new_scale);
+    }
+
     private:
     Scale lhs_;
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
 template <typename Scale>
-__host__ __device__ scales(Scale) -> scales<Scale>;
+scales(Scale) -> scales<Scale>;
 
 template <typename Left = void, typename Right = Left>
 struct plus
@@ -66,9 +72,6 @@ struct plus<void, void>
     }
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ plus() -> plus<void, void>;
-
 template <typename Left = void, typename Right = Left>
 struct minus
 {
@@ -90,9 +93,6 @@ struct minus<void, void>
     }
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ minus() -> minus<void, void>;
-
 template <typename Left = void, typename Right = Left>
 struct multiplies
 {
@@ -113,9 +113,6 @@ struct multiplies<void, void>
         return lhs * rhs;
     }
 };
-
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ multiplies() -> multiplies<void, void>;
 
 template <typename T>
 struct maximize
@@ -345,9 +342,6 @@ struct equal<void, void>
     }
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ equal() -> equal<void, void>;
-
 template <>
 struct equal<float, float>
 {
@@ -387,9 +381,6 @@ struct less<void, void>
     }
 };
 
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ less() -> less<void, void>;
-
 template <typename Left = void, typename Right = Left>
 struct less_equal
 {
@@ -410,9 +401,6 @@ struct less_equal<void, void>
         return lhs <= rhs;
     }
 };
-
-/// FIXME: create macro to replace '__host__ __device__' and nothing more
-__host__ __device__ less_equal() -> less_equal<void, void>;
 
 template <>
 struct less_equal<float, float>

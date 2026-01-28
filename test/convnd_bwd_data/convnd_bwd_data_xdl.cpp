@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -46,7 +46,7 @@ class TestConvndBwdData : public ::testing::Test
                                               ck::tensor_layout::convolution::NDHWK>>,
                 DataType,
                 DataType,
-                DataType>(true,  // do_verification
+                DataType>(2,     // do_verification: 2 = GPU reference
                           1,     // init_method integer value
                           false, // do_log
                           false, // time_kernel

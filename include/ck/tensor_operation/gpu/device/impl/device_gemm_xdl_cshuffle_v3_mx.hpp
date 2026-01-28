@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -403,14 +403,29 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                        KBatch_cond_choice.value == (arg.KBatch > 1) &&
                        tail_num_choice.value == tail_num)
                     {
-                        const auto kernel = kernel_gemm_xdl_cshuffle_v3_mx< //
-                            Use2LDS,
-                            GridwiseGemm,
-                            mainloop_choice.value,
-                            CGlobalMemoryDataOperation,
-                            minimum_occupancy,
-                            tail_num_choice.value>;
-                        Run(kernel);
+                        if constexpr(is_same_v<BLayout, tensor_layout::gemm::MFMA>)
+                        {
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_mx_bpreshuffle< //
+                                Use2LDS,
+                                GridwiseGemm,
+                                mainloop_choice.value,
+                                CGlobalMemoryDataOperation,
+                                minimum_occupancy,
+                                tail_num_choice.value>;
+                            Run(kernel);
+                            return;
+                        }
+                        else
+                        {
+                            const auto kernel = kernel_gemm_xdl_cshuffle_v3_mx< //
+                                Use2LDS,
+                                GridwiseGemm,
+                                mainloop_choice.value,
+                                CGlobalMemoryDataOperation,
+                                minimum_occupancy,
+                                tail_num_choice.value>;
+                            Run(kernel);
+                        }
                     }
                 });
             return ave_time;

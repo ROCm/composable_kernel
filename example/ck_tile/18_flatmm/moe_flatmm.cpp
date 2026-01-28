@@ -1,6 +1,5 @@
-
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <hip/hip_runtime.h>
 
@@ -29,7 +28,7 @@ static constexpr inline auto is_row_major(Layout layout_)
 }
 
 template <typename FlatmmConfig, typename T>
-auto moe_shuffle_b(const ck_tile::HostTensor<T>& t)
+auto flatmm_shuffle_b(const ck_tile::HostTensor<T>& t)
 {
     assert(t.get_lengths().size() == 2);
     int n_ = t.get_lengths()[1];
@@ -145,15 +144,11 @@ float moe_gemm(const ck_tile::MoeFlatmmHostArgs<ScaleM, ScaleN>& args,
     const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-    float ave_time{0};
 
-    const auto Run = [&](const auto has_hot_loop_,
-                         const auto tail_number_,
-                         const auto memory_operation_) {
-        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-        constexpr auto tail_number_v    = tail_number_.value;
-        constexpr auto scheduler        = FlatmmConfig::Scheduler;
-        constexpr auto memory_operation = memory_operation_.value;
+    const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
+        constexpr bool has_hot_loop_v = has_hot_loop_.value;
+        constexpr auto tail_number_v  = tail_number_.value;
+        constexpr auto scheduler      = FlatmmConfig::Scheduler;
 
         using CodegenPipelineProblem = ck_tile::FlatmmPipelineProblem<ADataType,
                                                                       BDataType,
@@ -185,7 +180,6 @@ float moe_gemm(const ck_tile::MoeFlatmmHostArgs<ScaleM, ScaleN>& args,
                                              FlatmmConfig::N_Warp_Tile,
                                              FlatmmConfig::K_Warp_Tile,
                                              CodegenPipelineProblem::TransposeC,
-                                             memory_operation,
                                              FlatmmConfig::NumWaveGroups,
                                              false,
                                              1,
@@ -262,37 +256,20 @@ float moe_gemm(const ck_tile::MoeFlatmmHostArgs<ScaleM, ScaleN>& args,
                                        args.NumTokens * args.TopK * outputN * sizeof(CDataType),
                                        s.stream_id_));
             };
-            ave_time = ck_tile::launch_kernel_time_mask(
+            return ck_tile::launch_kernel_time_mask(
                 s,
                 run_flush_cache,
                 ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time = ck_tile::launch_kernel(
+            return ck_tile::launch_kernel(
                 s,
                 ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
-        return ave_time;
     };
 
-    const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-        if(args.k_batch == 1)
-        {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
-        else
-        {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
-        }
-    };
-    BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+    float ave_time = BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
     return ave_time;
 }
 
@@ -318,94 +295,93 @@ int run_moe_flatmm_example(int argc, char* argv[])
     if(a_layout == "R" && b_layout == "C")
     {
         const std::string gemm_kind = arg_parser.get_str("gemm_kind");
-        // if(gemm_kind == "gemm1_gate_up")
-        // {
-        //     if(prec_type == "fp8")
-        //     {
-        //         return run_moe_gemm_example_with_layouts<
-        //             ck_tile::fp8_t,
-        //             FlatmmConfig<ck_tile::fp8_t>,
-        //             ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up>(argc, argv, Row{}, Col{}, Row{});
-        //     }
-        //     else if(prec_type == "bf8")
-        //     {
-        //         return run_moe_gemm_example_with_layouts<
-        //             ck_tile::bf8_t,
-        //             FlatmmConfig<ck_tile::bf8_t>,
-        //             ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up>(argc, argv, Row{}, Col{}, Row{});
-        //     }
-        //     else if(prec_type == "bf16")
-        //     {
-        //         return run_moe_gemm_example_with_layouts<
-        //             ck_tile::bfloat16_t,
-        //             FlatmmConfig<ck_tile::bfloat16_t>,
-        //             ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up>(argc, argv, Row{}, Col{}, Row{});
-        //     }
-        //     else if(prec_type == "fp16")
-        //     {
-        //         return run_moe_gemm_example_with_layouts<
-        //             ck_tile::half_t,
-        //             FlatmmConfig<ck_tile::half_t>,
-        //             ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up>(argc, argv, Row{}, Col{}, Row{});
-        //     }
-        //     else
-        //     {
-        //         throw std::runtime_error("Unsupported precision type for gemm1_gate_up!");
-        //     }
-        // }
-        // else if(gemm_kind == "gemm1_gate_only")
-        // {
-        //     if(prec_type == "fp8")
-        //     {
-        //         return run_moe_gemm_example_with_layouts<
-        //             ck_tile::fp8_t,
-        //             FlatmmConfig<ck_tile::fp8_t>,
-        //             ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_only>(argc, argv, Row{}, Col{}, Row{});
-        //     }
-        //     else if(prec_type == "bf8")
-        //     {
-        //         return run_moe_gemm_example_with_layouts<
-        //             ck_tile::bf8_t,
-        //             FlatmmConfig<ck_tile::bf8_t>,
-        //             ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_only>(argc, argv, Row{}, Col{}, Row{});
-        //     }
-        //     else if(prec_type == "bf16")
-        //     {
-        //         return run_moe_gemm_example_with_layouts<
-        //             ck_tile::bfloat16_t,
-        //             FlatmmConfig<ck_tile::bfloat16_t>,
-        //             ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_only>(argc, argv, Row{}, Col{}, Row{});
-        //     }
-        //     else if(prec_type == "fp16")
-        //     {
-        //         return run_moe_gemm_example_with_layouts<
-        //             ck_tile::half_t,
-        //             FlatmmConfig<ck_tile::half_t>,
-        //             ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_only>(argc, argv, Row{}, Col{}, Row{});
-        //     }
-        //     else
-        //     {
-        //         throw std::runtime_error("Unsupported precision type for gemm1_gate_up!");
-        //     }
-        // }
-        // else if(gemm_kind == "gemm2")
-        if(gemm_kind == "gemm2")
+        if(gemm_kind == "gemm1_gate_up")
         {
-            // if(prec_type == "fp8")
-            // {
-            //     return run_moe_gemm_example_with_layouts<ck_tile::fp8_t,
-            //                                              FlatmmConfig<ck_tile::fp8_t>,
-            //                                              ck_tile::MoeFlatmmKind::kFFN_gemm2>(
-            //         argc, argv, Row{}, Col{}, Row{});
-            // }
-            // else if(prec_type == "bf8")
-            // {
-            //     return run_moe_gemm_example_with_layouts<ck_tile::bf8_t,
-            //                                              FlatmmConfig<ck_tile::bf8_t>,
-            //                                              ck_tile::MoeFlatmmKind::kFFN_gemm2>(
-            //         argc, argv, Row{}, Col{}, Row{});
-            // }
-            if(prec_type == "bf16")
+            if(prec_type == "fp8")
+            {
+                return run_moe_gemm_example_with_layouts<
+                    ck_tile::fp8_t,
+                    FlatmmConfig<ck_tile::fp8_t>,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(prec_type == "bf8")
+            {
+                return run_moe_gemm_example_with_layouts<
+                    ck_tile::bf8_t,
+                    FlatmmConfig<ck_tile::bf8_t>,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(prec_type == "bf16")
+            {
+                return run_moe_gemm_example_with_layouts<
+                    ck_tile::bfloat16_t,
+                    FlatmmConfig<ck_tile::bfloat16_t>,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(prec_type == "fp16")
+            {
+                return run_moe_gemm_example_with_layouts<
+                    ck_tile::half_t,
+                    FlatmmConfig<ck_tile::half_t>,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported precision type for gemm1_gate_up!");
+            }
+        }
+        else if(gemm_kind == "gemm1_gate_only")
+        {
+            if(prec_type == "fp8")
+            {
+                return run_moe_gemm_example_with_layouts<
+                    ck_tile::fp8_t,
+                    FlatmmConfig<ck_tile::fp8_t>,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_only>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(prec_type == "bf8")
+            {
+                return run_moe_gemm_example_with_layouts<
+                    ck_tile::bf8_t,
+                    FlatmmConfig<ck_tile::bf8_t>,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_only>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(prec_type == "bf16")
+            {
+                return run_moe_gemm_example_with_layouts<
+                    ck_tile::bfloat16_t,
+                    FlatmmConfig<ck_tile::bfloat16_t>,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_only>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(prec_type == "fp16")
+            {
+                return run_moe_gemm_example_with_layouts<
+                    ck_tile::half_t,
+                    FlatmmConfig<ck_tile::half_t>,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_only>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported precision type for gemm1_gate_up!");
+            }
+        }
+        else if(gemm_kind == "gemm2")
+        {
+            if(prec_type == "fp8")
+            {
+                return run_moe_gemm_example_with_layouts<ck_tile::fp8_t,
+                                                         FlatmmConfig<ck_tile::fp8_t>,
+                                                         ck_tile::MoeFlatmmKind::kFFN_gemm2>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(prec_type == "bf8")
+            {
+                return run_moe_gemm_example_with_layouts<ck_tile::bf8_t,
+                                                         FlatmmConfig<ck_tile::bf8_t>,
+                                                         ck_tile::MoeFlatmmKind::kFFN_gemm2>(
+                    argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(prec_type == "bf16")
             {
                 return run_moe_gemm_example_with_layouts<ck_tile::bfloat16_t,
                                                          FlatmmConfig<ck_tile::bfloat16_t>,

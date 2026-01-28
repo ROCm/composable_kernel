@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -38,7 +38,8 @@ template <typename GridwiseGemm,
           BlockGemmPipelineScheduler BlkGemmPipeSched,
           BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename ComputeTypeA,
-          typename ComputeTypeB>
+          typename ComputeTypeB,
+          bool IsBPreShuffled = false>
 struct DeviceGemm_Wmma_CShuffleV3_Common
 {
 
@@ -189,61 +190,174 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
             if(has_main_k_block_loop)
             {
                 // Tail number always full
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
-                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                if constexpr(IsBPreShuffled)
                 {
-                    if(arg.KBatch > 1)
+                    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                     {
-                        if constexpr(AtomicsImplementationExists)
+                        if(arg.KBatch > 1)
                         {
-                            const auto kernel =
-                                kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
-                                                             true,
-                                                             InMemoryDataOperationEnum::AtomicAdd,
-                                                             minimum_occupancy>;
-                            Run(kernel);
+                            if constexpr(AtomicsImplementationExists)
+                            {
+                                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                                   TailNumber::Odd)
+                                {
+                                    const auto kernel = kernel_gemm_b_preshuffle_wmma_cshuffle_v3<
+                                        GridwiseGemm,
+                                        true,
+                                        InMemoryDataOperationEnum::AtomicAdd,
+                                        minimum_occupancy,
+                                        TailNumber::Odd>;
+                                    Run(kernel);
+                                }
+                                else
+                                {
+                                    const auto kernel = kernel_gemm_b_preshuffle_wmma_cshuffle_v3<
+                                        GridwiseGemm,
+                                        true,
+                                        InMemoryDataOperationEnum::AtomicAdd,
+                                        minimum_occupancy,
+                                        TailNumber::Even>;
+                                    Run(kernel);
+                                }
+                            }
                         }
-                    }
-                    else
-                    {
-                        const auto kernel =
-                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
-                                                         true,
-                                                         InMemoryDataOperationEnum::Set,
-                                                         minimum_occupancy>;
-                        Run(kernel);
+                        else
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                            {
+                                const auto kernel = kernel_gemm_b_preshuffle_wmma_cshuffle_v3<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::Set,
+                                    minimum_occupancy,
+                                    TailNumber::Odd>;
+                                Run(kernel);
+                            }
+                            else
+                            {
+                                const auto kernel = kernel_gemm_b_preshuffle_wmma_cshuffle_v3<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::Set,
+                                    minimum_occupancy,
+                                    TailNumber::Even>;
+                                Run(kernel);
+                            }
+                        }
                     }
                 }
                 else
                 {
-                    // TODO: Implement
-                }
-            }
-            else
-            {
-                // Tail number always 1
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
-                {
-                    if(arg.KBatch > 1)
+                    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
+                                 BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                     {
-                        if constexpr(AtomicsImplementationExists)
+                        if(arg.KBatch > 1)
+                        {
+                            if constexpr(AtomicsImplementationExists)
+                            {
+                                const auto kernel = kernel_gemm_wmma_cshuffle_v3<
+                                    GridwiseGemm,
+                                    true,
+                                    InMemoryDataOperationEnum::AtomicAdd,
+                                    minimum_occupancy>;
+                                Run(kernel);
+                            }
+                        }
+                        else
                         {
                             const auto kernel =
                                 kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
-                                                             false,
-                                                             InMemoryDataOperationEnum::AtomicAdd,
+                                                             true,
+                                                             InMemoryDataOperationEnum::Set,
                                                              minimum_occupancy>;
                             Run(kernel);
                         }
                     }
-                    else
+                }
+            }
+            else
+            {
+                if constexpr(IsBPreShuffled)
+                {
+                    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                     {
-                        const auto kernel =
-                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
-                                                         false,
-                                                         InMemoryDataOperationEnum::Set,
-                                                         minimum_occupancy>;
-                        Run(kernel);
+                        if(arg.KBatch > 1)
+                        {
+                            if constexpr(AtomicsImplementationExists)
+                            {
+                                if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) ==
+                                   TailNumber::Odd)
+                                {
+                                    const auto kernel = kernel_gemm_b_preshuffle_wmma_cshuffle_v3<
+                                        GridwiseGemm,
+                                        false,
+                                        InMemoryDataOperationEnum::AtomicAdd,
+                                        minimum_occupancy,
+                                        TailNumber::Odd>;
+                                    Run(kernel);
+                                }
+                                else
+                                {
+                                    const auto kernel = kernel_gemm_b_preshuffle_wmma_cshuffle_v3<
+                                        GridwiseGemm,
+                                        false,
+                                        InMemoryDataOperationEnum::AtomicAdd,
+                                        minimum_occupancy,
+                                        TailNumber::Even>;
+                                    Run(kernel);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
+                            {
+                                const auto kernel = kernel_gemm_b_preshuffle_wmma_cshuffle_v3<
+                                    GridwiseGemm,
+                                    false,
+                                    InMemoryDataOperationEnum::Set,
+                                    minimum_occupancy,
+                                    TailNumber::Odd>;
+                                Run(kernel);
+                            }
+                            else
+                            {
+                                const auto kernel = kernel_gemm_b_preshuffle_wmma_cshuffle_v3<
+                                    GridwiseGemm,
+                                    false,
+                                    InMemoryDataOperationEnum::Set,
+                                    minimum_occupancy,
+                                    TailNumber::Even>;
+                                Run(kernel);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                    {
+                        if(arg.KBatch > 1)
+                        {
+                            if constexpr(AtomicsImplementationExists)
+                            {
+                                const auto kernel = kernel_gemm_wmma_cshuffle_v3<
+                                    GridwiseGemm,
+                                    false,
+                                    InMemoryDataOperationEnum::AtomicAdd,
+                                    minimum_occupancy>;
+                                Run(kernel);
+                            }
+                        }
+                        else
+                        {
+                            const auto kernel =
+                                kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                                                             false,
+                                                             InMemoryDataOperationEnum::Set,
+                                                             minimum_occupancy>;
+                            Run(kernel);
+                        }
                     }
                 }
             }
@@ -296,6 +410,34 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
                                                        GemmSpec == GemmSpecialization::MNKPadding ||
                                                        GemmSpec == GemmSpecialization::KPadding))
         {
+            return false;
+        }
+
+        if constexpr(IsBPreShuffled)
+        {
+            if(arg.N % NPerBlock != 0 || arg.K % KPerBlock != 0)
+            {
+                return false;
+            }
+        }
+
+        if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityAWaveTransfer(arg.M, arg.K))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Wave Transfer not applicable for matrix A" << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+            }
+            return false;
+        }
+
+        if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityBWaveTransfer(arg.N, arg.K))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Wave Transfer not applicable for matrix B" << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+            }
             return false;
         }
 

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -15,17 +15,15 @@ template <typename AccDataType_,
           typename ODataType_,
           bool kPadM_,
           bool kPadN_,
-          bool UseRawStore_                      = true,
-          memory_operation_enum MemoryOperation_ = memory_operation_enum::set>
+          bool UseRawStore_ = true>
 struct Default2DEpilogueProblem
 {
-    using AccDataType                                      = remove_cvref_t<AccDataType_>;
-    using ODataType                                        = remove_cvref_t<ODataType_>;
-    static constexpr bool kPadM                            = kPadM_;
-    static constexpr bool kPadN                            = kPadN_;
-    static constexpr bool UseRawStore                      = UseRawStore_;
-    static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
-    static constexpr index_t NumDTensor                    = 0;
+    using AccDataType                   = remove_cvref_t<AccDataType_>;
+    using ODataType                     = remove_cvref_t<ODataType_>;
+    static constexpr bool kPadM         = kPadM_;
+    static constexpr bool kPadN         = kPadN_;
+    static constexpr bool UseRawStore   = UseRawStore_;
+    static constexpr index_t NumDTensor = 0;
 };
 
 template <typename AsDataType_,
@@ -44,14 +42,9 @@ template <typename AsDataType_,
           index_t kNPerXdl_,
           index_t kKPerXdl_,
           bool isCTransposed_,
-          bool UseRawStore_                      = true,
-          memory_operation_enum MemoryOperation_ = memory_operation_enum::set>
-struct DefaultGemm2DEpilogueProblem : public Default2DEpilogueProblem<AccDataType_,
-                                                                      ODataType_,
-                                                                      kPadM_,
-                                                                      kPadN_,
-                                                                      UseRawStore_,
-                                                                      MemoryOperation_>
+          bool UseRawStore_ = true>
+struct DefaultGemm2DEpilogueProblem
+    : public Default2DEpilogueProblem<AccDataType_, ODataType_, kPadM_, kPadN_, UseRawStore_>
 {
     using AsDataType                       = remove_cvref_t<AsDataType_>;
     using BsDataType                       = remove_cvref_t<BsDataType_>;
@@ -81,7 +74,6 @@ struct Default2DEpilogue
     static constexpr bool kPadM       = Problem::kPadM;
     static constexpr bool kPadN       = Problem::kPadN;
     static constexpr bool UseRawStore = Problem::UseRawStore;
-    static constexpr memory_operation_enum MemoryOperation = Problem::MemoryOperation;
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 0; }
 
@@ -93,13 +85,30 @@ struct Default2DEpilogue
                                    const DsDramWindows& ds_dram_windows,
                                    void* = nullptr) const
     {
+        constexpr bool is_partition_index =
+            std::is_convertible_v<decltype(ds_dram_windows),
+                                  decltype(get_partition_index(
+                                      o_acc_tile.get_tile_distribution()))>;
+
         const auto storeOrUpdateTile = [&](const auto& o_tile) {
             // TODO: this is ugly
             if constexpr(UseRawStore && (kPadM || kPadN))
             {
-                if constexpr(MemoryOperation == memory_operation_enum::set)
+                // FIXME?
+                // if constexpr(decltype(o_dram_window_tmp.get_bottom_tensor_view())::DstInMemOp ==
+                // memory_operation_enum::set)
+                if constexpr(true)
                 {
-                    store_tile_raw(o_dram_window_tmp, cast_tile<ODataType>(o_tile));
+                    if constexpr(is_partition_index)
+                    {
+                        store_tile_raw(o_dram_window_tmp,
+                                       cast_tile<ODataType>(o_tile),
+                                       /*partition_index=*/ds_dram_windows);
+                    }
+                    else
+                    {
+                        store_tile_raw(o_dram_window_tmp, cast_tile<ODataType>(o_tile));
+                    }
                 }
                 else
                 {
@@ -109,18 +118,40 @@ struct Default2DEpilogue
             }
             else
             {
-                if constexpr(MemoryOperation == memory_operation_enum::set)
+                // FIXME?
+                // if constexpr(decltype(o_dram_window_tmp.get_bottom_tensor_view())::DstInMemOp ==
+                // memory_operation_enum::set)
+                if constexpr(true)
                 {
-                    store_tile(o_dram_window_tmp, cast_tile<ODataType>(o_tile));
+                    if constexpr(is_partition_index)
+                    {
+                        store_tile(o_dram_window_tmp,
+                                   cast_tile<ODataType>(o_tile),
+                                   /*partition_index=*/ds_dram_windows);
+                    }
+                    else
+                    {
+                        store_tile(o_dram_window_tmp, cast_tile<ODataType>(o_tile));
+                    }
                 }
                 else
                 {
-                    update_tile(o_dram_window_tmp, cast_tile<ODataType>(o_tile));
+                    if constexpr(is_partition_index)
+                    {
+                        update_tile(o_dram_window_tmp,
+                                    cast_tile<ODataType>(o_tile),
+                                    /*partition_index=*/ds_dram_windows);
+                    }
+                    else
+                    {
+                        update_tile(o_dram_window_tmp, cast_tile<ODataType>(o_tile));
+                    }
                 }
             }
         };
 
-        if constexpr(!std::is_same_v<DsDramWindows, std::nullptr_t> && Problem::NumDTensor >= 1)
+        if constexpr(!std::is_same_v<DsDramWindows, std::nullptr_t> && !is_partition_index &&
+                     Problem::NumDTensor >= 1)
         {
             using elementwise_result_t = decltype(load_tile(
                 make_tile_window(ds_dram_windows[number<0>{}].get_bottom_tensor_view(),

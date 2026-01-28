@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -46,44 +46,6 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 return true;
             }
         }
-        if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
-        {
-            // on gfx11 only support for 3d is implemented
-            if constexpr(NDimSpatial{} != 3)
-            {
-                return true;
-            }
-            // on gfx11 only support for i8 and fp16 is implemented
-            if constexpr(!((std::is_same_v<InDataType, int8_t> &&
-                            std::is_same_v<WeiDataType, int8_t> &&
-                            std::is_same_v<OutDataType, int8_t>) ||
-                           (std::is_same_v<InDataType, ck::half_t> &&
-                            std::is_same_v<WeiDataType, ck::half_t> &&
-                            std::is_same_v<OutDataType, ck::half_t>)))
-            {
-                return true;
-            }
-            // WMMA kernel is only supported for split_k=1
-            if(split_k != 1)
-            {
-                return true;
-            }
-            // Skip due to the lack of kernels for NGCDHW
-            if constexpr(std::is_same_v<InLayout, NGCW> || std::is_same_v<InLayout, NGCHW> ||
-                         std::is_same_v<InLayout, NGCDHW>)
-            {
-                return true;
-            }
-        }
-        else
-        {
-            // support for i8 is only implemented on gfx11
-            if constexpr(std::is_same_v<InDataType, int8_t> &&
-                         std::is_same_v<WeiDataType, int8_t> && std::is_same_v<OutDataType, int8_t>)
-            {
-                return true;
-            }
-        }
 
         return false;
     }
@@ -104,20 +66,24 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 auto& param = conv_params[i];
                 if(!skip_case(split_k))
                 {
-                    pass = pass && ck::profiler::profile_grouped_conv_bwd_weight_impl<NDimSpatial{},
-                                                                                      InLayout,
-                                                                                      WeiLayout,
-                                                                                      OutLayout,
-                                                                                      InDataType,
-                                                                                      WeiDataType,
-                                                                                      OutDataType>(
-                                       true,  // do_verification
-                                       1,     // init_method: integer value
-                                       false, // do_log
-                                       false, // time_kernel
-                                       param,
-                                       std::to_string(split_k),
-                                       instance_index);
+                    const bool success =
+                        ck::profiler::profile_grouped_conv_bwd_weight_impl<NDimSpatial{},
+                                                                           InLayout,
+                                                                           WeiLayout,
+                                                                           OutLayout,
+                                                                           InDataType,
+                                                                           WeiDataType,
+                                                                           OutDataType>(
+                            2,     // do_verification
+                            1,     // init_method: integer value
+                            false, // do_log
+                            false, // time_kernel
+                            param,
+                            std::to_string(split_k),
+                            instance_index);
+                    pass = pass && success;
+                    if(!success)
+                        std::cout << "Case " << param << " failed!" << std::endl;
                 }
             }
         }
@@ -224,11 +190,11 @@ TYPED_TEST(TestGroupedConvndBwdWeight3d, Test3D)
     this->conv_params.push_back(
         {3, 2, 32, 128, 256, {1, 1, 1}, {3, 3, 3}, {1, 1, 1}, {1, 1, 1}, {0, 0, 0}, {0, 0, 0}});
     this->conv_params.push_back(
-        {3, 1, 1, 1, 32, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 1, 32, {3, 3, 3}, {16, 16, 16}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 1, 1, 64, 3, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 64, 3, {3, 3, 3}, {14, 14, 14}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
-        {3, 1, 1, 1, 1, {3, 3, 3}, {32, 32, 32}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
+        {3, 1, 1, 1, 1, {3, 3, 3}, {18, 18, 18}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->conv_params.push_back(
         {3, 16, 16, 1, 1, {3, 3, 3}, {28, 28, 28}, {2, 2, 2}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->Run();

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -17,6 +17,9 @@ template <typename ABLayout,
           index_t KPerBlock,
           index_t MNPerWmma,
           index_t ABK1Value,
+          index_t KPack,
+          index_t KInner,
+          index_t KPerWmmaBlk,
           bool UseBlockPaddingAB,
           bool PermuteAB,
           typename ABBlockTransferThreadClusterLengths_ABK0_MN_ABK1,
@@ -28,6 +31,8 @@ template <typename ABLayout,
           bool ABThreadTransferSrcResetCoordinateAfterRun>
 struct ABTransferThreadTiles
 {
+    __device__ static constexpr bool IsLDSNeeded() { return true; }
+
     static constexpr auto ABK0Number = Number<KPerBlock / ABK1Value>{};
     static constexpr auto ABK1Number = Number<ABK1Value>{};
 
@@ -289,7 +294,8 @@ struct ABTransferThreadTiles
     __device__ static auto GetBlockTransfer(GridDescriptor& grid_descriptor,
                                             BlockDescriptor& block_descriptor,
                                             ABElementwiseOperation& ab_element_op,
-                                            const index_t block_mn_id)
+                                            const index_t block_mn_id,
+                                            const index_t k_id)
     {
         constexpr index_t NumABTensor = ABsDataType::Size();
         const index_t mn_block_data_idx_on_grid =
@@ -298,7 +304,7 @@ struct ABTransferThreadTiles
         if constexpr(NumABTensor > 1)
         {
             const auto idx_as_block_begin = generate_tuple(
-                [&](auto) { return make_multi_index(0, mn_block_data_idx_on_grid, 0); },
+                [&](auto) { return make_multi_index(k_id, mn_block_data_idx_on_grid, 0); },
                 Number<NumABTensor>{});
 
             return ThreadGroupTensorSliceTransfer_v7r2<
@@ -351,7 +357,7 @@ struct ABTransferThreadTiles
                 ABThreadTransferSrcResetCoordinateAfterRun,
                 true,
                 GlobalBufferNum>(grid_descriptor[I0],
-                                 make_multi_index(0, mn_block_data_idx_on_grid, 0),
+                                 make_multi_index(k_id, mn_block_data_idx_on_grid, 0),
                                  ab_element_op,
                                  block_descriptor,
                                  make_multi_index(0, 0, 0),
@@ -374,14 +380,93 @@ struct ABTransferThreadTiles
 #else
         constexpr auto KRow = I1;
 #endif
-        return transform_tensor_descriptor(
-            BlockDesc{},
-            make_tuple(make_unmerge_transform(make_tuple(Number<ABK0 / KRow>{}, KRow)),
-                       make_unmerge_transform(
-                           make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
-                       make_pass_through_transform(Number<ABK1>{})),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-            make_tuple(Sequence<0, 3>{}, Sequence<1, 2, 4>{}, Sequence<5>{}));
+        if constexpr(KInner > 1)
+        {
+            // KPack = KInner * KPerWmma
+            // K1 = KInner * KPerWmmaBlk
+            // Each thread loads multiple tiles with one instruction
+            // 1 - MNRepeat - K0 / KRow - MNWaves - KRow - MNPerWmma - K1
+            return transform_tensor_descriptor(
+                BlockDesc{},
+                make_tuple(make_unmerge_transform(make_tuple(
+                               Number<ABK0 / KRow>{}, KRow, Number<KPack / KRow / ABK1>{})),
+                           make_unmerge_transform(make_tuple(
+                               Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                           make_pass_through_transform(Number<ABK1>{})),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<2, 4, 0>{}, Sequence<1, 3, 5>{}, Sequence<6>{}));
+        }
+        else
+        {
+            // KPack = KPerWmma (KInner == 1)
+            if constexpr(ABK1 <= KPerWmmaBlk)
+            {
+                // K1 <= single tile (KPerWmmaBlk)
+                // Each thread will load KPerWmmaBlk for the WMMA instruction
+                // Since K1 <= single tile, K0 is unmerged first over KPack / KRow / K1
+                // (rest of the single WMMA tile for single thread) and then over KRow
+                // (rest of the single WMMA tile for single wave)
+                // KPack / KRow / K1 - MNRepeat - K0 / KRow - MNWaves - KRow - MNPerWmma - K1
+                return transform_tensor_descriptor(
+                    BlockDesc{},
+                    make_tuple(
+                        make_unmerge_transform(make_tuple(
+                            Number<ABK0 / (KPack / ABK1)>{}, KRow, Number<KPack / KRow / ABK1>{})),
+                        make_unmerge_transform(
+                            make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                        make_pass_through_transform(Number<ABK1>{})),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                    make_tuple(Sequence<2, 4, 0>{}, Sequence<1, 3, 5>{}, Sequence<6>{}));
+            }
+            else
+            {
+                // K1 > single tile (KPerWmmaBlk)
+                // Each thread will load KPerWmmaBlk for the WMMA instruction
+                // Since K1 > single tile, each thread loads KPerWmmaBlk and the next
+                // KPerWmmaBlk chunk is loaded by a different thread in the same wave (WMMA layout).
+                // This layout is needed to support for example AK1 > single tile and
+                // BK1 <= single tile in the same gemm
+                // KPack / KPerWmmaBlk / KRow - MNRepeat - K0 / KRow - MNWaves - KRow - MNPerWmma -
+                // K1
+                constexpr auto desc1 = transform_tensor_descriptor(
+                    BlockDesc{},
+                    make_tuple(
+                        make_pass_through_transform(Number<ABK0>{}),
+                        make_unmerge_transform(
+                            make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                        make_unmerge_transform(make_tuple(Number<ABK1 / KPack>{},
+                                                          Number<KPack / KPerWmmaBlk / KRow>{},
+                                                          Number<KRow>{},
+                                                          Number<KPerWmmaBlk>{}))),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                    make_tuple(Sequence<2>{}, Sequence<1, 4, 6>{}, Sequence<3, 0, 5, 7>{}));
+
+                return transform_tensor_descriptor(
+                    desc1,
+                    make_tuple(
+                        make_pass_through_transform(Number<KPack / KPerWmmaBlk / KRow>{}),
+                        make_pass_through_transform(Number<MNRepeat>{}),
+                        make_merge_transform(make_tuple(Number<ABK0>{}, Number<ABK1 / KPack>{})),
+                        make_pass_through_transform(Number<MNWaves>{}),
+                        make_pass_through_transform(Number<KRow>{}),
+                        make_pass_through_transform(Number<MNPerWmma>{}),
+                        make_pass_through_transform(Number<KPerWmmaBlk>{})),
+                    make_tuple(Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<2, 3>{},
+                               Sequence<4>{},
+                               Sequence<5>{},
+                               Sequence<6>{},
+                               Sequence<7>{}),
+                    make_tuple(Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<2>{},
+                               Sequence<3>{},
+                               Sequence<4>{},
+                               Sequence<5>{},
+                               Sequence<6>{}));
+            }
+        }
     }
 
     __device__ static constexpr auto GetBlockStep()
@@ -396,6 +481,12 @@ struct ABTransferThreadTiles
         // K dimension size. This should always be called with the A matrix grid descriptor
         // because it doesn't work for B matrix when packed int4 is used
         return grid_desc.GetLength(I0) * grid_desc.GetLength(I2);
+    }
+
+    template <typename LDSType, typename IndexType>
+    __device__ static auto GetBuffer(LDSType* p_shared_AB, const IndexType& size)
+    {
+        return make_dynamic_buffer<AddressSpaceEnum::Lds>(p_shared_AB, size);
     }
 };
 

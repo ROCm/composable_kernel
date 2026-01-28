@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -110,6 +110,10 @@ CK_TILE_HOST double timing_loop_impl(TimerType timer,
 {
     for(int i = 0; i < s.cold_niters_; i++)
     {
+        if constexpr(!std::is_same_v<PreprocessFunc, std::nullptr_t>)
+        {
+            preprocess();
+        }
         callables_func();
     }
     // Only profile preprocess if it's provided
