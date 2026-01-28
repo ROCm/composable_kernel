@@ -585,11 +585,10 @@ struct vector_type<T, 8, typename ck::enable_if_t<is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-#if 0
         static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
                           is_same<X, d4_t>::value || is_same<X, d8_t>::value,
                       "Something went wrong, please check src and dst types.");
-#endif
+
         if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x8_;
@@ -757,12 +756,11 @@ struct vector_type<T, 16, typename ck::enable_if_t<is_native_type<T>()>>
     template <typename X>
     __host__ __device__ constexpr auto& AsType()
     {
-#if 0
         static_assert(is_same<X, d1_t>::value || is_same<X, d2_t>::value ||
                           is_same<X, d4_t>::value || is_same<X, d8_t>::value ||
                           is_same<X, d16_t>::value,
                       "Something went wrong, please check src and dst types.");
-#endif
+
         if constexpr(is_same<X, d1_t>::value)
         {
             return data_.d1x16_;
@@ -1380,7 +1378,7 @@ struct non_native_vector_base<
     __host__ __device__ constexpr non_native_vector_base() : non_native_vector_base(T{}){};
     __host__ __device__ constexpr non_native_vector_base(data_v v) : data_{v} {}
 
-    __host__ __device__ constexpr operator() const { return data_.dN; }
+    __host__ __device__ constexpr operator data_v() const { return data_.dN; }
     __host__ __device__ constexpr operator data_t() const
     {
         if constexpr(N == 1)
@@ -2174,15 +2172,6 @@ using int32x8_t  = typename vector_type<int32_t, 8>::type;
 using int32x16_t = typename vector_type<int32_t, 16>::type;
 using int32x32_t = typename vector_type<int32_t, 32>::type;
 using int32x64_t = typename vector_type<int32_t, 64>::type;
-
-// u32
-using uint32x2_t  = typename vector_type<uint32_t, 2>::type;
-using uint32x4_t  = typename vector_type<uint32_t, 4>::type;
-using uint32x6_t  = typename vector_type<uint32_t, 6>::type;
-using uint32x8_t  = typename vector_type<uint32_t, 8>::type;
-using uint32x16_t = typename vector_type<uint32_t, 16>::type;
-using uint32x32_t = typename vector_type<uint32_t, 32>::type;
-using uint32x64_t = typename vector_type<uint32_t, 64>::type;
 
 // i8
 using int8x2_t  = typename vector_type<int8_t, 2>::type;
