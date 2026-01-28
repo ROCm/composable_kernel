@@ -95,11 +95,6 @@ struct GemmWPABQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipel
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
 
-        using BTypeToUse =
-            std::conditional_t<std::is_same_v<typename Problem::BDataType, ck_tile::pk_int4_t>,
-                               typename Problem::ADataType,
-                               typename Problem::BDataType>;
-
         constexpr index_t WaveSize = get_warp_size();
         constexpr index_t KLane    = WarpTile::at(I2) * WarpTile::at(I0) / WaveSize;
         using BDataType            = typename Problem::BDataType;

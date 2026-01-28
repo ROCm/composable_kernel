@@ -14,10 +14,6 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     add_executable(${EXE_NAME}
         gemm_quant.cpp
         gemm_abquant_quantgrouped.cpp
-        gemm_abquant_quantgrouped_fp8.cpp
-        gemm_abquant_quantgrouped_bf8.cpp
-        gemm_abquant_quantgrouped_fp4.cpp
-        gemm_abquant_quantgrouped_preshuffleb_fp4.cpp
         gemm_aquant_quantgrouped.cpp
         gemm_aquant_quantgrouped_preshufflequant.cpp
         gemm_bquant_quantgrouped_bf8i4.cpp
