@@ -80,10 +80,9 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                 ck_tile::BaseGemmPipelineAgBgCrMem<GemmPipelineProblem>,
                 ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>>>>;
 
-    const ck_tile::index_t K_split =
-        (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
-    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
+    const ck_tile::index_t K_split  = ck_tile::integer_least_multiple(args.K, GemmConfig::K_Tile);
+    const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
+    const bool has_hot_loop         = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
@@ -553,8 +552,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             ck_tile::host_tensor_descriptor(1, 1, stride_BQ, is_row_major(bq_layout)));
     }
 
-    std::random_device rd;
-    std::mt19937 gen(rd());
+    std::mt19937 gen(42);
     std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
 
     if(init_method == 0)
@@ -630,7 +628,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     else if(init_method == 1)
     {
         std::cout << "Monotonic initialization is not supported." << std::endl;
-        return 0;
+        return -1;
     }
     else if(init_method == 2)
     {
@@ -1078,10 +1076,10 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     else if(arg_parser.get_int("v") == 2)
     {
         std::cout << "GPU verification is not implemented yet. Re-run with -v=1" << std::endl;
-        return false;
+        return -1;
     }
 
-    return pass;
+    return pass ? 0 : -1;
 }
 // Usage of Two-Matrix Quantization (AB-Quant)
 template <typename GemmConfig,
