@@ -11,59 +11,99 @@
 // the hardware matrix operations available. A typical use case is mixed precision GEMMs.
 
 namespace ck_tile {
-// For the most general case, we default to no conversion.
-template <typename PrecType, typename OtherPrecType>
+// For the most general case, default to no conversion.
+template <typename APrecType, typename BPrecType>
 struct DetermineWarpPrecType
 {
-    using prec_type = PrecType;
+    using a_prec_type = APrecType;
+    using b_prec_type = BPrecType;
 };
 
-// For pk_int4_t, we convert to the other precision type.
-template <typename OtherPrecType>
-struct DetermineWarpPrecType<ck_tile::pk_int4_t, OtherPrecType>
+// For pk_fp4_t x pk_fp4_t, keep pk_fp4_t
+template <>
+struct DetermineWarpPrecType<ck_tile::pk_fp4_t, ck_tile::pk_fp4_t>
 {
-    using prec_type = OtherPrecType;
+    using a_prec_type = ck_tile::pk_fp4_t;
+    using b_prec_type = ck_tile::pk_fp4_t;
 };
 
-// For pk_fp4_t, we convert to the other precision type.
-template <typename OtherPrecType>
-struct DetermineWarpPrecType<ck_tile::pk_fp4_t, OtherPrecType>
+// For pk_int4_t x B, use the B type.
+template <typename BPrecType>
+struct DetermineWarpPrecType<ck_tile::pk_int4_t, BPrecType>
 {
-    using prec_type = OtherPrecType;
+    using a_prec_type = BPrecType;
+    using b_prec_type = BPrecType;
 };
 
-// For pk_fp4_raw_t, we convert to the other precision type.
-template <typename OtherPrecType>
-struct DetermineWarpPrecType<ck_tile::pk_fp4_raw_t, OtherPrecType>
+// For A x pk_int4_t, use the A type.
+template <typename APrecType>
+struct DetermineWarpPrecType<APrecType, ck_tile::pk_int4_t>
 {
-    using prec_type = OtherPrecType;
+    using a_prec_type = APrecType;
+    using b_prec_type = APrecType;
 };
 
-// For fp8 x bf16 or bf16 x fp8, convert fp8 to float
+// For pk_fp4_t x B, use the B type.
+template <typename BPrecType>
+struct DetermineWarpPrecType<ck_tile::pk_fp4_t, BPrecType>
+{
+    using a_prec_type = BPrecType;
+    using b_prec_type = BPrecType;
+};
+
+// For A x pk_fp4_t, use the A type.
+template <typename APrecType>
+struct DetermineWarpPrecType<APrecType, ck_tile::pk_fp4_t>
+{
+    using a_prec_type = APrecType;
+    using b_prec_type = APrecType;
+};
+
+// For B x pk_fp4_raw_t, use the B type.
+template <typename BPrecType>
+struct DetermineWarpPrecType<ck_tile::pk_fp4_raw_t, BPrecType>
+{
+    using a_prec_type = BPrecType;
+    using b_prec_type = BPrecType;
+};
+
+// For A x pk_fp4_raw_t, use the A type.
+template <typename APrecType>
+struct DetermineWarpPrecType<APrecType, ck_tile::pk_fp4_raw_t>
+{
+    using a_prec_type = APrecType;
+    using b_prec_type = APrecType;
+};
+
+// For fp8 x bf16, use fp8
 template <>
 struct DetermineWarpPrecType<ck_tile::fp8_t, ck_tile::bf16_t>
 {
-    using prec_type = float;
+    using a_prec_type = ck_tile::fp8_t;
+    using b_prec_type = ck_tile::fp8_t;
 };
 
-// For fp8 x bf16 or bf16 x fp8, convert bf16 to float
+// For bf16 x fp8, use bf16
 template <>
 struct DetermineWarpPrecType<ck_tile::bf16_t, ck_tile::fp8_t>
 {
-    using prec_type = float;
+    using a_prec_type = ck_tile::bf16_t;
+    using b_prec_type = ck_tile::bf16_t;
 };
 
-// For fp8 x fp16 or fp16 x fp8, convert fp8 to float
+// For fp8 x fp16, use fp8
 template <>
 struct DetermineWarpPrecType<ck_tile::fp8_t, ck_tile::half_t>
 {
-    using prec_type = float;
+    using a_prec_type = ck_tile::fp8_t;
+    using b_prec_type = ck_tile::fp8_t;
 };
 
-// For fp8 x fp16 or fp16 x fp8, convert fp16 to float
+// For fp16 x fp8, use fp16
 template <>
 struct DetermineWarpPrecType<ck_tile::half_t, ck_tile::fp8_t>
 {
-    using prec_type = float;
+    using a_prec_type = ck_tile::half_t;
+    using b_prec_type = ck_tile::half_t;
 };
 }; // namespace ck_tile

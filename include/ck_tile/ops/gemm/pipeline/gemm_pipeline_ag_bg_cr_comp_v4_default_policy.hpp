@@ -24,9 +24,9 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
         using ATypeToUse = typename DetermineWarpPrecType<typename Problem::ADataType,
-                                                          typename Problem::BDataType>::prec_type;
-        using BTypeToUse = typename DetermineWarpPrecType<typename Problem::BDataType,
-                                                          typename Problem::ADataType>::prec_type;
+                                                          typename Problem::BDataType>::a_prec_type;
+        using BTypeToUse = typename DetermineWarpPrecType<typename Problem::ADataType,
+                                                          typename Problem::BDataType>::b_prec_type;
 
         constexpr index_t vector_size =
             DS_READ_TR_SIZE() / sizeof(typename Problem::ComputeDataType);

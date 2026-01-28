@@ -92,8 +92,8 @@ struct CShuffleEpilogue
     using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataTypeTuple>>;
     using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataTypeTuple>>;
 
-    using ATypeToUse = typename DetermineWarpPrecType<ADataType, BDataType>::prec_type;
-    using BTypeToUse = typename DetermineWarpPrecType<BDataType, ADataType>::prec_type;
+    using ATypeToUse = typename DetermineWarpPrecType<ADataType, BDataType>::a_prec_type;
+    using BTypeToUse = typename DetermineWarpPrecType<ADataType, BDataType>::b_prec_type;
 
     using ELayout                                = remove_cvref_t<typename Problem::ELayout>;
     using CDElementwise                          = remove_cvref_t<typename Problem::CDElementwise>;

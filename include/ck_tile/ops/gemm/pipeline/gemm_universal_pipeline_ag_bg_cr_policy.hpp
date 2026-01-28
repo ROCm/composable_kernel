@@ -894,8 +894,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
 
         using ADataType  = remove_cvref_t<typename Problem::ADataType>;
         using BDataType  = remove_cvref_t<typename Problem::BDataType>;
-        using ATypeToUse = typename DetermineWarpPrecType<ADataType, BDataType>::prec_type;
-        using BTypeToUse = typename DetermineWarpPrecType<BDataType, ADataType>::prec_type;
+        using ATypeToUse = typename DetermineWarpPrecType<ADataType, BDataType>::a_prec_type;
+        using BTypeToUse = typename DetermineWarpPrecType<ADataType, BDataType>::b_prec_type;
 
         using WarpGemm = WarpGemmDispatcher<ATypeToUse,
                                             BTypeToUse,
