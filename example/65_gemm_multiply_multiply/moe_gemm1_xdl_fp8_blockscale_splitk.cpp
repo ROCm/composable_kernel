@@ -119,7 +119,7 @@ static constexpr ck::index_t ActOP       = 0;     // 0: gelu_and_mul, 1: silu_an
 static constexpr bool MulRoutedWeight    = false; // splitk gemm1 does not do routedWeight.
 
 #if 1
-static constexpr ck::index_t MPerBlock           = 32;
+static constexpr ck::index_t MPerBlock           = 64;
 static constexpr ck::index_t NPerBlock           = 128;
 static constexpr ck::index_t MNPerXDL            = 16;
 static constexpr ck::index_t MXDLPerWave         = MPerBlock / (MNPerXDL * 1);
@@ -156,7 +156,8 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale
                //    MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
                 //  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
                 CShuffleMXDLPerWave,    CShuffleNXDLPerWave,   S<1, 32, 1, 8>, S<EVec, D0Vec, D1Vec, 1>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ActOP, Nswizzle, IsInputGemm, IsSplitK, MulRoutedWeight, int32_t, A0DataType>;
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, ActOP, Nswizzle, IsInputGemm, IsSplitK, MulRoutedWeight,
+               int32_t, A0DataType, A0DataType, A0DataType, A0DataType, true>;
 #else
 
 static constexpr ck::index_t MPerBlock = 64; using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmBlockScale<
@@ -171,7 +172,8 @@ static constexpr ck::index_t MPerBlock = 64; using DeviceOpInstance = ck::tensor
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
                S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
                4,    2,   S<1, 32, 1, 8>, S<2, 1, 1, 1>,
-               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ActOP, Nswizzle, IsInputGemm, IsSplitK, MulRoutedWeight, int32_t, A0DataType>;
+               ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ActOP, Nswizzle, IsInputGemm, IsSplitK, MulRoutedWeight,
+                int32_t, A0DataType, A0DataType, A0DataType, A0DataType, false>;
 #endif
 // clang-format on
 
@@ -182,12 +184,14 @@ int main(int argc, char* argv[])
     bool time_kernel     = true;
 #if 1
     // GEMM shape
-    ck::index_t N = 4096;
-    ck::index_t K = 6144;
+    ck::index_t N = 1536;
+    ck::index_t K = 4096;
+    // ck::index_t N = 4096;
+    // ck::index_t K = 6144;
     // ck::index_t N       = 128;
     // ck::index_t K       = 512;
-    ck::index_t experts = 8;
-    ck::index_t topk    = 2;
+    ck::index_t experts = 16;
+    ck::index_t topk    = 8;
     // ck::index_t sorted_tile_num = 515;
     // ck::index_t valid_tile_num  = 512;
     // ck::index_t tokens          = 208;
@@ -196,9 +200,9 @@ int main(int argc, char* argv[])
     // ck::index_t sorted_tile_num = 259;
     // ck::index_t valid_tile_num  = 256;
     // ck::index_t tokens          = 4096;
-    ck::index_t sorted_tile_num = 2;
-    ck::index_t valid_tile_num  = 2;
-    ck::index_t tokens          = 32;
+    ck::index_t sorted_tile_num = 16;
+    ck::index_t valid_tile_num  = 16;
+    ck::index_t tokens          = 4;
 #else
     // deepseek
     ck::index_t N               = 2048;
@@ -209,7 +213,7 @@ int main(int argc, char* argv[])
     ck::index_t sorted_tile_num = 261;
     ck::index_t valid_tile_num  = 256;
 #endif
-    ck::index_t KBatch = 6;
+    ck::index_t KBatch = 1;
     if(argc == 1)
     {
         // use default case

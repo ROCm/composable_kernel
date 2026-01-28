@@ -49,8 +49,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-        auto epilogue_args =
-            EpilogueType(p_reduces_grid, reduce_in_element_ops, reduce_out_element_ops, karg.M);
+        auto epilogue_args = EpilogueType(p_reduces_grid,
+                                          reduce_in_element_ops,
+                                          reduce_out_element_ops,
+                                          karg.M,
+                                          tensor_operation::element_wise::PassThrough{});
 
         GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
             p_shared, splitk_batch_offset, karg, epilogue_args);
@@ -184,10 +187,14 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        false,
+        false,
+        true>;
 
     using ReduceTrait = ReduceTrait_<ReduceAccDataType,
                                      ReducePtrsGlobal,
+                                     tensor_operation::element_wise::PassThrough,
                                      ReduceOperations,
                                      ReduceInElementwiseOperations,
                                      ReduceAccElementwiseOperations,
@@ -445,6 +452,28 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
             {
                 std::cout << "Without padding, K must be divisible by AK1 and BK1! " << __FILE__
                           << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+            }
+            return false;
+        }
+
+        if(ck::is_gfx12_supported() &&
+           !GridwiseGemm::CheckValidityAWaveTransfer(arg.MRaw_, arg.KRaw_))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Wave Transfer not applicable for matrix A" << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+            }
+            return false;
+        }
+
+        if(ck::is_gfx12_supported() &&
+           !GridwiseGemm::CheckValidityBWaveTransfer(arg.NRaw_, arg.KRaw_))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Wave Transfer not applicable for matrix B" << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
             }
             return false;
         }

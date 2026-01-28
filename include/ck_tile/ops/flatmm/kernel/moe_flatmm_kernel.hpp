@@ -132,6 +132,7 @@ enum class MoeFlatmmKind
     kFFN_gemm1_gate_only,
     kFFN_gemm1_gate_up,
     kFFN_gemm2,
+    kFFN_gemm1_split_k,
 };
 
 namespace moe {
@@ -222,8 +223,10 @@ struct MoeFlatmmKernel
     static_assert(DsLayout::size() == DsDataType::size(),
                   "The size of DsLayout and DsDataType should be the same");
 
-    static constexpr bool IsInputGemm = kind != MoeFlatmmKind::kFFN_gemm2;
-    static constexpr bool IsGateUp    = kind == MoeFlatmmKind::kFFN_gemm1_gate_up;
+    static constexpr bool IsInputGemm   = kind != MoeFlatmmKind::kFFN_gemm2;
+    static constexpr bool IsGateUp      = kind == MoeFlatmmKind::kFFN_gemm1_gate_up;
+    static constexpr bool IsGemm1SplitK = kind == MoeFlatmmKind::kFFN_gemm1_split_k;
+    static constexpr bool IsBShuffled   = true;
 
     // static constexpr index_t kBlockSize     = EpiloguePipeline::kBlockSize;
     static constexpr index_t kMPerBlock     = EpiloguePipeline::kMPerBlock;
@@ -395,15 +398,6 @@ struct MoeFlatmmKernel
                 a_k_split_offset = k_id * KRead * kargs.stride_A;
             }
 
-            if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
-            {
-                b_k_split_offset = k_id * KRead * kargs.stride_B;
-            }
-            else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
-            {
-                b_k_split_offset = k_id * KRead;
-            }
-
             if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
             {
                 splitted_k = KRead;
@@ -411,6 +405,22 @@ struct MoeFlatmmKernel
             else
             {
                 splitted_k = kargs.K - KRead * (kargs.k_batch - 1);
+            }
+
+            if constexpr(IsBShuffled)
+            {
+                b_k_split_offset = k_id * splitted_k * NPerXdl;
+            }
+            else
+            {
+                if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+                {
+                    b_k_split_offset = k_id * KRead * kargs.stride_B;
+                }
+                else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
+                {
+                    b_k_split_offset = k_id * KRead;
+                }
             }
         }
 
@@ -573,15 +583,16 @@ struct MoeFlatmmKernel
         return DTesnorIsValid;
     }
 
-    template <memory_operation_enum DstInMemOp = IsInputGemm ? memory_operation_enum::set
-                                                             : memory_operation_enum::atomic_add,
+    template <memory_operation_enum DstInMemOp = (IsInputGemm && !IsGemm1SplitK)
+                                                     ? memory_operation_enum::set
+                                                     : memory_operation_enum::atomic_add,
               typename KernelArgs>
     CK_TILE_DEVICE static auto
     MakeGemmTensorViews(const ADataType* a_ptr,
                         const BDataType* b_flat_ptr,
                         EDataType* e_ptr,
                         [[maybe_unused]] const AccDataType* exp_weight_ptr,
-                        const int expert_id,
+                        [[maybe_unused]] const int expert_id,
                         const KernelArgs& kargs,
                         const SplitKBatchOffset& splitk_batch_offset)
     {
@@ -742,13 +753,13 @@ struct MoeFlatmmKernel
             {
                 index_t scale_k =
                     BGranularityK == 0 ? 1 : (kargs.K + BGranularityK - 1) / BGranularityK;
+                const auto scale_k_offset =
+                    (splitk_batch_offset.b_k_split_offset / BGranularityK) * K_Pack;
                 index_t FlatScaleK = scale_k * N_Pack * BlockGemmShape::WarpTile::at(I1);
                 index_t FlatScaleN = kargs.N / N_Pack / BlockGemmShape::WarpTile::at(I1);
 
-                using ScaleType = e8m0_t;
-
                 return make_naive_tensor_view<address_space_enum::global>(
-                    reinterpret_cast<const ScaleType*>(scale_n.ptr) + expert_id * kargs.N * scale_k,
+                    scale_n.ptr + expert_id * kargs.N * scale_k + scale_k_offset,
                     make_tuple(FlatScaleN - kargs.n_padded_zeros / NPerXdl / N_Pack, FlatScaleK),
                     make_tuple(FlatScaleK, 1),
                     number<8>{},
@@ -1386,11 +1397,16 @@ struct MoeFlatmmKernel
                         if constexpr(!BMXFP4_Pipeline)
                             lds_tile[lds_stage].get_thread_buffer()[idx] *=
                                 epi_scale_m[idx] * epi_scale_n[idx];
-                        if constexpr(EnableBias)
-                            lds_tile[lds_stage].get_thread_buffer()[idx] += epi_exp_bias[idx];
-                        if constexpr(!IsInputGemm)
-                            lds_tile[lds_stage].get_thread_buffer()[idx] *= epi_exp_weight[idx];
-                        else // for mlp1 gate-only
+                        if(kind !=
+                           MoeFlatmmKind::kFFN_gemm1_split_k) // disable weight and bias for split-k
+                        {
+                            if constexpr(EnableBias)
+                                lds_tile[lds_stage].get_thread_buffer()[idx] += epi_exp_bias[idx];
+                            if constexpr(!IsInputGemm)
+                                lds_tile[lds_stage].get_thread_buffer()[idx] *= epi_exp_weight[idx];
+                        }
+                        if constexpr(kind ==
+                                     MoeFlatmmKind::kFFN_gemm1_gate_only) // for mlp1 gate-only
                             lds_tile[lds_stage].get_thread_buffer()[idx] =
                                 ActivationOp{}(lds_tile[lds_stage].get_thread_buffer()[idx]);
                     });
@@ -1460,7 +1476,8 @@ struct MoeFlatmmKernel
                                              c_scatter_valids[mIter]);
 
                 if constexpr(!IsInputGemm ||
-                             EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add)
+                             decltype(c_block_window.get_bottom_tensor_view())::DstInMemOp ==
+                                 memory_operation_enum::atomic_add)
                     c_scatter_tile_window.update(c_out_tensor);
                 else
                     c_scatter_tile_window.store(c_out_tensor);

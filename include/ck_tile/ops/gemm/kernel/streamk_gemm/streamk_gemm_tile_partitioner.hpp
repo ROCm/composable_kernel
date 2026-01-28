@@ -27,6 +27,9 @@ struct StreamKTilePartitionerBase
     static constexpr index_t NPerBlock                          = BlockGemmShapeType::kN;
     static constexpr index_t KPerBlock                          = BlockGemmShapeType::kK;
     static constexpr StreamKReductionStrategy ReductionStrategy = ReductionStrategyType;
+    static constexpr auto MemoryOperation = (ReductionStrategy == StreamKReductionStrategy::Atomic)
+                                                ? memory_operation_enum::atomic_add
+                                                : memory_operation_enum::set;
 
     StreamKTilePartitionerBase(index_t m, index_t n, index_t k, index_t grid);
 
@@ -39,7 +42,8 @@ struct StreamKTilePartitionerBase
     CK_TILE_HOST_DEVICE index_t get_partials_buffer_size(index_t acc_element_bytes) const noexcept;
 
     /**
-     * @brief Calculates the total space needed for the flags buffer.
+     * @brief Calculates the total space needed for the flags buffer whose total byte size is
+     * 128B-aligned.
      *
      * @return index_t The number of bytes needed for the flags buffer.
      */

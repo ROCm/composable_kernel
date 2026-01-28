@@ -4,12 +4,18 @@
 #include "utils/ckb_conv_test_configs.hpp"
 #include "utils/ckb_conv_test_utils.hpp"
 #include "utils/conv_algorithm_type_utils.hpp"
-#include "ck_tile/builder/testing/conv_fwd_ck.hpp"
+#include "ck_tile/builder/testing/conv/fwd.hpp"
+#include "ck_tile/builder/testing/conv/fwd_ck.hpp"
+#include "ck_tile/builder/testing/conv/reference.hpp"
 #include "ck_tile/host/device_prop.hpp"
+#include "testing_utils.hpp"
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
 namespace cku = ck_tile::builder::test_utils;
+
+using ck_tile::test::MatchesReference;
+using ck_tile::test::SuccessfulRun;
 
 constexpr auto SIGNATURE =
     ckt::ConvSignature{.spatial_dim            = 2,
@@ -21,15 +27,17 @@ constexpr auto SIGNATURE =
                        .output                 = {.config = {.layout = ckb::TensorLayout::GNHWK}}};
 
 constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
-                               .with_thread_block(cku::FwdThreadBlock_256_256x256x32)
+                               .with_thread_block(cku::ThreadBlock_256_256x256x32)
                                .with_gemm_config(cku::FwdGemmParams_Xdl_4x4_per_wave)
-                               .with_transfer(cku::FwdTransfer_4x64x1)
-                               .with_specializations(ckb::ConvFwdSpecialization::DEFAULT,
-                                                     ckb::GemmSpecialization::MNKPadding)
+                               .with_transfer(cku::Transfer_4x64x1)
+                               .with_fwd_specializations(ckb::ConvSpecialization::DEFAULT,
+                                                         ckb::GemmSpecialization::MNKPadding)
                                .with_block_gemm(cku::BlockGemmDesc_v3_intrawave);
 
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;
+
+using Reference = ckb::ConvBuilder<SIGNATURE, ckt::ConvAlgorithm_Reference{}>::Instance;
 
 TEST(Fwd2DFp16_CShufV3_GNHWC, Create)
 {
@@ -44,10 +52,11 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, Create)
                             "MNKPadding"});
 }
 
-TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
+TEST(Fwd2DFp16_CShufV3_GNHWC, Execution)
 {
     if(!ck_tile::get_device_name().starts_with("gfx9"))
     {
+        // Note: XDL kernel
         GTEST_SKIP() << "unsupported architecture";
     }
 
@@ -78,9 +87,17 @@ TEST(Fwd2DFp16_CShufV3_GNHWC, EndToEnd)
         .cde_elementwise_op = {},
     };
 
-    auto inputs  = alloc_inputs(args);
-    auto outputs = alloc_outputs(args);
+    auto inputs    = ckt::alloc_inputs(args);
+    auto outputs   = ckt::alloc_outputs(args);
+    auto reference = ckt::alloc_outputs(args);
+
+    ckt::init_inputs(args, inputs.get());
 
     auto conv = Instance{};
-    ckt::run(conv, args, inputs.get(), outputs.get());
+    EXPECT_THAT(ckt::run(conv, args, inputs.get(), outputs.get()), SuccessfulRun());
+
+    auto ref_conv = Reference{};
+    EXPECT_THAT(ckt::run(ref_conv, args, inputs.get(), reference.get()), SuccessfulRun());
+
+    EXPECT_THAT(outputs.get(), MatchesReference(args, reference.get()));
 }

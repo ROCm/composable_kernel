@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: MIT
 
 #include "ck_tile/builder/testing/tensor_buffer.hpp"
+#include "ck_tile/builder/testing/tensor_descriptor.hpp"
 #include "testing_utils.hpp"
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
-#include <vector>
+#include <array>
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
@@ -54,6 +55,11 @@ TEST(DeviceBuffer, AutoFree)
 
     // Trying to use a pointer after freeing should return en error in HIP.
     EXPECT_THAT(hipMemset(ptr, 0xFF, size), HipError(hipErrorInvalidValue));
+
+    // Reset internal HIP error state.
+    // Otherwise, the error may leak into other tests, triggering anything that
+    // checks the output of hipGetLastError();
+    (void)hipGetLastError();
 }
 
 TEST(DeviceBuffer, ThrowsOnOom)
@@ -62,13 +68,16 @@ TEST(DeviceBuffer, ThrowsOnOom)
 
     auto check = [] { auto buffer = ckt::alloc_buffer(size); };
     EXPECT_THAT(check, Throws<ckt::OutOfDeviceMemoryError>());
+
+    // Reset internal HIP error state.
+    // Otherwise, the error may leak into other tests, triggering anything that
+    // checks the output of hipGetLastError();
+    (void)hipGetLastError();
 }
 
 TEST(DeviceBuffer, AllocTensorBuffer)
 {
-    std::vector<size_t> lengths = {128, 128, 128};
-    std::vector<size_t> strides = {128 * 128, 128, 1};
-    ckt::TensorDescriptor<ckb::DataType::FP32> descriptor(lengths, strides);
+    ckt::TensorDescriptor<ckb::DataType::FP32, 3> descriptor({128, 128, 128}, {128 * 128, 128, 1});
 
     auto buffer = ckt::alloc_tensor_buffer(descriptor);
 
@@ -78,4 +87,12 @@ TEST(DeviceBuffer, AllocTensorBuffer)
     // Memory should be writable without error
     EXPECT_THAT(hipMemset(buffer.get(), 0xFF, descriptor.get_element_space_size_in_bytes()),
                 HipSuccess());
+}
+
+TEST(DeviceBuffer, AlignForward)
+{
+    EXPECT_THAT(ckt::align_fwd(24, 8), Eq(24));
+    EXPECT_THAT(ckt::align_fwd(25, 8), Eq(32));
+    EXPECT_THAT(ckt::align_fwd(0xd7c563, 0x1000), Eq(0xd7d000));
+    EXPECT_THAT(ckt::align_fwd(19561, 23), Eq(19573));
 }

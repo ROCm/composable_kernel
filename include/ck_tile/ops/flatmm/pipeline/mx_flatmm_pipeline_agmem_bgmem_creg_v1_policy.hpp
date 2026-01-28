@@ -113,11 +113,13 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
         const auto col_lens  = make_tuple(K0, number<K1>{}, number<K2>{});
 
         constexpr index_t M1 = 4; // so that we can use imm offset to load lds
-        const index_t M0     = rows / M1;
+        const index_t M0     = integer_divide_ceil(rows, M1);
         const auto row_lens  = make_tuple(M0, number<M1>{});
 
-        const auto desc_0 =
-            make_naive_tensor_descriptor_packed(container_concat(row_lens, col_lens));
+        const auto d0 = make_naive_tensor_descriptor_packed(container_concat(row_lens, col_lens));
+        const auto desc_0 = decltype(d0)( // set correct size (without padding)
+            d0.get_transforms(),
+            tensor_view_tmp.get_tensor_descriptor().get_element_space_size());
         const auto desc_1 = transform_tensor_descriptor(
             desc_0,
             make_tuple(make_pass_through_transform(M0),
@@ -225,7 +227,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                     sequence<1>>{});
         else
             return make_static_tile_distribution(
-                tile_distribution_encoding< //
+                tile_distribution_encoding<
                     sequence<NWarps>,
                     tuple<sequence<MWarps, MXdlPack, MPerXdl>,
                           sequence<K_Thread / AK1, K_Lane, AK1 / APackedSize>>,

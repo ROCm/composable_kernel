@@ -456,15 +456,10 @@ inline auto create_args()
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
         .insert("jsonfile", "gemm.json", "json file name to dump results")
         .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
-        .insert("rotating_count", "1000", "rotating count, defaults to 1000");
+        .insert("rotating_count", "1000", "rotating count, defaults to 1000")
+        .insert("test_async", "0", "0: normal gemm, 1: test async input scheduler");
     return arg_parser;
 }
-
-// Type aliases for memory operation integral constants
-using MemoryOpSet =
-    std::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::set>;
-using MemoryOpAtomicAdd = std::integral_constant<ck_tile::memory_operation_enum,
-                                                 ck_tile::memory_operation_enum::atomic_add>;
 
 // host API
 template <typename ADataType,

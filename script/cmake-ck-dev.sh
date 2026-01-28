@@ -38,14 +38,4 @@ else
     REST_ARGS=("$@")
 fi
 
-cmake                                                                                             \
--D CMAKE_PREFIX_PATH=/opt/rocm/                                                                   \
--D CMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++                                                  \
--D CMAKE_CXX_FLAGS="-ftemplate-backtrace-limit=0  -fPIE  -Wno-gnu-line-marker -fbracket-depth=512" \
--D CMAKE_BUILD_TYPE=Release                                                                       \
--D BUILD_DEV=ON                                                                                   \
--D GPU_TARGETS="$GPU_TARGETS"                                                                     \
--D CMAKE_VERBOSE_MAKEFILE:BOOL=ON                                                                 \
--D USE_BITINT_EXTENSION_INT4=OFF                                                                  \
-"${REST_ARGS[@]}"                                                                                 \
-"${MY_PROJECT_SOURCE}"
+cmake "${MY_PROJECT_SOURCE}" --preset dev -DGPU_TARGETS="$GPU_TARGETS" "${REST_ARGS[@]}"

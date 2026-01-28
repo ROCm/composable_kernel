@@ -51,4 +51,10 @@ void bquant_quantgrouped_bf8i4_instance_factory(
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 64, 128>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;
         };
+    lut[hash_multiple_strings(
+        {"bf8i4", "bquant", "non-preshuffleb", "non-preshufflequant", "1x128x128"})] =
+        [](const ck_tile::ArgParser& arg_parser) {
+            using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
+            return RUN_GEMM_EXAMPLE_PREC_TYPE;
+        };
 }

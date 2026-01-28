@@ -307,6 +307,7 @@ class GemmKernelBuilder:
             "fp16": "ck_tile::fp16_t",
             "fp8": "ck_tile::fp8_t",
             "bf16": "ck_tile::bf16_t",
+            "bf8": "ck_tile::bf8_t",
             "fp32": "float",
             "fp64": "double",
         }
@@ -376,6 +377,7 @@ class GemmKernelBuilder:
         reduction_strategy_map = {
             "atomic": "ck_tile::StreamKReductionStrategy::Atomic",
             "reduction": "ck_tile::StreamKReductionStrategy::Reduction",
+            "tree": "ck_tile::StreamKReductionStrategy::TreeReduction",
         }
 
         # Determine accumulator type based on datatype
@@ -481,8 +483,6 @@ struct SelectedKernel {{
         GemmUniversalTraits>;
     
     static float launch(const ck_tile::StreamKHostArgs& args, const ck_tile::stream_config& stream) {{
-        const auto Run = [&](const auto memory_operation_) {{
-            constexpr auto memory_operation = memory_operation_.value;
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
@@ -512,7 +512,6 @@ struct SelectedKernel {{
                 WarpTileN,                   // NPerXdl_
                 WarpTileK,                   // KPerXdl_
                 TransposeC,                  // isCTransposed_
-                memory_operation,            // MemoryOperation_
                 NumWaveGroups>;              // kNumWaveGroups_
         
             using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
@@ -557,31 +556,18 @@ struct SelectedKernel {{
                     // Reset sk flags to zero before each repetition of the kernel
                     workspace_data.SetZero();
                 }}
+                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::TreeReduction)
+                {{
+                    // Reset sk flags to zero before each repetition of the kernel
+                    workspace_data.SetZero();
+                }}
             }};
-
-            
+     
             // Launch kernel
-            float ave_time = ck_tile::launch_kernel_time_mask(
+            return ck_tile::launch_kernel_time_mask(
                 stream,
                 reset_data_buffers,
                 ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
-            return ave_time;
-            
-            // ck_tile::index_t num_wgs_per_tile = kargs.tile_partitioner.estimate_num_wgs_per_tile();
-            // return std::make_tuple(ave_time, num_wgs_per_tile);
-        }};
-
-
-        if constexpr(ck_tile::StreamKReductionStrategy::Atomic == reduction_strategy)
-        {{
-            return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                                  ck_tile::memory_operation_enum::atomic_add>{{}});
-        }}
-        else // We are using ck_tile::StreamKReductionStrategy::Reduction
-        {{
-            return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                                  ck_tile::memory_operation_enum::set>{{}});
-        }}
     }}
 }};
 """
@@ -797,7 +783,7 @@ def main():
     parser.add_argument(
         "--datatype",
         required=True,
-        choices=["fp16", "fp8", "bf16", "fp32", "fp64"],
+        choices=["fp16", "fp8", "bf16", "bf8", "fp32", "fp64"],
         help="Data type",
     )
     parser.add_argument(

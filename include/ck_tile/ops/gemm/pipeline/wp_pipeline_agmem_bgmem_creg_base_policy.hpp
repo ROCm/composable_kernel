@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/block/block_wp_asmem_breg_creg.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
 namespace ck_tile {
@@ -12,56 +13,6 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
     : public UniversalGemmBasePolicy<UniversalWeightPreshufflePipelineAgBgCrPolicy>
 {
     using BasePolicy = UniversalGemmBasePolicy<UniversalWeightPreshufflePipelineAgBgCrPolicy>;
-
-    // 3d + padding
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
-    {
-        using namespace ck_tile;
-        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t kKPack     = GetSmemPackA<Problem>();
-        using ADataType              = remove_cvref_t<typename Problem::ADataType>;
-
-        constexpr auto DataTypeSize = sizeof(ADataType);
-        constexpr auto MLdsLayer =
-            (32 * 4 / kKPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / kKPerBlock / DataTypeSize);
-
-        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / kKPack * MLdsLayer>{},
-                       number<kMPerBlock / MLdsLayer>{},
-                       number<kKPack>{}),
-            make_tuple(number<kKPack>{}, number<kKPerBlock * MLdsLayer>{}, number<1>{}),
-            number<kKPack>{},
-            number<1>{});
-
-        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
-            a_lds_block_desc_0,
-            make_tuple(make_xor_transform(make_tuple(number<kMPerBlock / MLdsLayer>{},
-                                                     number<kKPerBlock / kKPack * MLdsLayer>{})),
-                       make_pass_through_transform(number<kKPack>{})),
-            make_tuple(sequence<1, 0>{}, sequence<2>{}),
-            make_tuple(sequence<1, 0>{}, sequence<2>{}));
-
-        constexpr auto a_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
-            a_lds_block_desc_permuted,
-            make_tuple(make_unmerge_transform(
-                           make_tuple(number<MLdsLayer>{}, number<kKPerBlock / kKPack>{})),
-                       make_pass_through_transform(number<kMPerBlock / MLdsLayer>{}),
-                       make_pass_through_transform(number<kKPack>{})),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
-
-        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
-            a_lds_block_desc_xk0_mnldslayer_mn_xk1,
-            make_tuple(
-                make_merge_transform(
-                    make_tuple(number<kMPerBlock / MLdsLayer>{}, number<MLdsLayer>{})),
-                make_merge_transform(make_tuple(number<kKPerBlock / kKPack>{}, number<kKPack>{}))),
-            make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-        return a_lds_block_desc;
-    }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
@@ -201,6 +152,12 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
     {
         using TileShape = typename Problem::BlockGemmShape;
 
+        constexpr index_t kNPerBlock = TileShape::kN;
+        constexpr index_t kKPerBlock = TileShape::kK;
+        constexpr index_t NIterPerWarp =
+            kNPerBlock / TileShape::BlockWarps::at(I1) / TileShape::WarpTile::at(I1);
+        constexpr index_t KIterPerWarp = kKPerBlock / TileShape::WarpTile::at(I2);
+
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t WaveSize  = get_warp_size();
         constexpr index_t WaveNum   = BlockSize / WaveSize;
@@ -213,13 +170,13 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
 #endif
         constexpr index_t KThdPerWave = WaveSize / KRepeatInWave; // threads cnt in K dim
         constexpr index_t KWavePerBlk = 1;
-        constexpr index_t KRepeat     = 1;
+        constexpr index_t KRepeat     = KIterPerWarp;
         static_assert(TileShape::flatKPerWarp == KThdPerWave * KBPerLoad, "wrong");
 
         constexpr index_t NBPerLoad   = 1;
         constexpr index_t NThdPerWave = 1;
         constexpr index_t NWavePerBlk = TileShape::BlockWarps::at(number<1>{}); // N_Warp
-        constexpr index_t NRepeat     = 1;
+        constexpr index_t NRepeat     = NIterPerWarp;
 
         constexpr index_t WaveRepeat = WaveNum / TileShape::flatNPerWarp;
         return make_static_tile_distribution(
@@ -232,8 +189,8 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
                 tuple<sequence<0, 1, 2>, sequence<0, 1, 2>>, // which direction
                 tuple<sequence<0, 1, 1>, sequence<1, 2, 2>>, // which index
                 // <repeat, vec_load>
-                sequence<1, 1, 2, 2>,
-                sequence<0, 3, 0, 3>>{});
+                sequence<1, 2, 1, 2>,
+                sequence<0, 0, 3, 3>>{});
     }
 
     template <typename Problem>
@@ -285,6 +242,12 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
+    {
+        return GetBlockWeightPreshuffle<Problem>();
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockWeightPreshuffle()
     {
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
@@ -307,7 +270,7 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
                                                               typename Problem::CDataType,
                                                               BlockWarps,
                                                               WarpGemm>;
-        return BlockWeightPreshuffleASmemBSmemCRegV1<Problem, BlockWeightPreshufflePolicy>{};
+        return BlockWeightPreshuffleASmemBRegCReg<Problem, BlockWeightPreshufflePolicy>{};
     }
     /**
      * @brief Get the vector store size for C tensor.
@@ -325,7 +288,7 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeC()
     {
         using BlockGemm = remove_cvref_t<decltype(GetBlockWeightPreshuffle<Problem>())>;
-        using WG_       = typename BlockGemm::WG;
+        using WG_       = typename BlockGemm::WarpGemm;
 
         constexpr bool TransposeC = Problem::TransposeC;
         using CLayout             = typename Problem::CLayout;

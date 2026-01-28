@@ -26,10 +26,10 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdXdlV3Factory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts = internal::ConvTensorLayouts<SIGNATURE, SPATIAL_DIM, ConvDirection::FORWARD>;
-    using Types   = internal::FwdConvTensorDataTypes<SIGNATURE>;
-    using Ops     = internal::ElementwiseOps<SIGNATURE>;
-    using AlgorithmType = decltype(ALGORITHM);
+    using Layouts                       = internal::ConvTensorLayouts<SIGNATURE>;
+    using Types                         = internal::ConvTensorDataTypes<SIGNATURE>;
+    using Ops                           = internal::ConvElementwiseOps<SIGNATURE>;
+    using AlgorithmType                 = decltype(ALGORITHM);
 
     static_assert(ALGORITHM.transfer.a.lds_transfer.is_direct_load ==
                       ALGORITHM.transfer.b.lds_transfer.is_direct_load,
@@ -43,6 +43,7 @@ struct ConvFwdXdlV3Factory
 
     static constexpr auto BLOCK         = internal::SetThreadBlockInfo<ALGORITHM>();
     static constexpr auto GRIDWISE_GEMM = ALGORITHM.gridwise_gemm;
+    static constexpr auto XDL_PARAMS    = GRIDWISE_GEMM.xdl_params;
     static constexpr auto A_BLOCK_TRANSFER =
         internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
@@ -51,31 +52,81 @@ struct ConvFwdXdlV3Factory
     static constexpr auto BLOCK_GEMM       = internal::SetBlockGemm<ALGORITHM>();
 
     // Check limits for the algorithm parameters.
-    // TODO: Add more limits checks as needed.
-    static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
-    static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
-    static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
-    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order>);
-    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order>);
+    static_assert(ValidABlockTransfer<A_BLOCK_TRANSFER,
+                                      typename Types::InDataType,
+                                      BLOCK.block_size,
+                                      BLOCK.per_block>);
+    static_assert(ValidBBlockTransfer<B_BLOCK_TRANSFER,
+                                      typename Types::WeiDataType,
+                                      BLOCK.block_size,
+                                      BLOCK.per_block>);
+    static_assert(ValidCBlockTransfer<C_BLOCK_TRANSFER,
+                                      typename Types::OutDataType,
+                                      BLOCK.block_size,
+                                      BLOCK.per_block>);
+
+    // Layout validations
+    using enum TensorLayout;
+    static_assert(IsValidLayout<SIGNATURE.input.config.layout,
+                                G_NW_C_strided,
+                                G_NHW_C_strided,
+                                G_NDHW_C_strided,
+                                GNWC,
+                                GNHWC,
+                                GNDHWC,
+                                NWGC,
+                                NHWGC,
+                                NDHWGC,
+                                NGCW,
+                                NGCHW,
+                                NGCDHW> &&
+                  A_BLOCK_TRANSFER.src_vector_dim == 2);
+
+    static_assert(IsValidLayout<SIGNATURE.weight.config.layout,
+                                G_K_X_C_strided,
+                                G_K_YX_C_strided,
+                                G_K_ZYX_C_strided,
+                                GKXC,
+                                GKYXC,
+                                GKZYXC,
+                                KXGC,
+                                KYXGC,
+                                KZYXGC,
+                                GKCX,
+                                GKCYX,
+                                GKCZYX> &&
+                  B_BLOCK_TRANSFER.src_vector_dim == 2);
+
+    static_assert(IsValidLayout<SIGNATURE.output.config.layout,
+                                G_NW_K_strided,
+                                G_NHW_K_strided,
+                                G_NDHW_K_strided,
+                                GNWK,
+                                GNHWK,
+                                GNDHWK,
+                                NWGK,
+                                NHWGK,
+                                NDHWGK,
+                                NGKW,
+                                NGKHW,
+                                NGKDHW>);
 
     // The forward convolution kernel class instance.
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
         SPATIAL_DIM,
-        typename Layouts::ALayout,
-        typename Layouts::BLayout,
+        typename Layouts::InLayout,
+        typename Layouts::WeiLayout,
         typename Layouts::DsLayout,
-        typename Layouts::ELayout,
-        typename Types::ADataType,
-        typename Types::BDataType,
+        typename Layouts::OutLayout,
+        typename Types::InDataType,
+        typename Types::WeiDataType,
         typename Types::AccDataType,
-        typename Types::CShuffleDataType,
-        typename Types::DsDataTypes,
-        typename Types::EDataType,
-        typename Ops::AElementwiseOp,
-        typename Ops::BElementwiseOp,
-        typename Ops::CDEElementwiseOp,
+        typename Types::OutComputeType,
+        typename Types::DsDataType,
+        typename Types::OutDataType,
+        typename Ops::InElementwiseOp,
+        typename Ops::WeiElementwiseOp,
+        typename Ops::OutElementwiseOp,
         SPECIALIZATION.conv_spec,
         SPECIALIZATION.gemm_spec,
         BLOCK.block_size,
@@ -84,10 +135,10 @@ struct ConvFwdXdlV3Factory
         BLOCK.per_block.k,
         GRIDWISE_GEMM.ak1,
         GRIDWISE_GEMM.bk1,
-        GRIDWISE_GEMM.m_per_xdl,
-        GRIDWISE_GEMM.n_per_xdl,
-        GRIDWISE_GEMM.m_xdl_per_wave,
-        GRIDWISE_GEMM.n_xdl_per_wave,
+        XDL_PARAMS.m_per_xdl,
+        XDL_PARAMS.n_per_xdl,
+        XDL_PARAMS.m_xdl_per_wave,
+        XDL_PARAMS.n_xdl_per_wave,
         to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_dims>,
         to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_order>,
         to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,
@@ -108,8 +159,8 @@ struct ConvFwdXdlV3Factory
         C_BLOCK_TRANSFER.scalar_per_vector,
         BLOCK_GEMM.scheduler,
         BLOCK_GEMM.pipeline_version,
-        typename Types::AComputeType,
-        typename Types::BComputeType,
+        typename Types::InComputeType,
+        typename Types::WeiComputeType,
         IS_DIRECT_LOAD>;
 };
 
