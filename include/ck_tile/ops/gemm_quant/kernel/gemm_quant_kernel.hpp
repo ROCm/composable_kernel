@@ -422,14 +422,14 @@ struct QuantGemmKernel
 
             // Compute BQ offset for BQuantGrouped mode (non-preshuffle only)
             // Note: With the alignment validation in IsSupportedArgument, KRead is always
-            // a multiple of QuantGroupSize::kK, so bq_k_split_offset will be correctly aligned.
-            if constexpr(kQuantType == QuantType::BQuantGrouped && !PreshuffleQuant)
+            // a multiple of BQuantGroupSize::kK, so bq_k_split_offset will be correctly aligned.
+            if constexpr(kQuantType == QuantType::BQuantGrouped && !BPreshuffleQuant)
             {
-                using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
+                using BQuantGroupSize = remove_cvref_t<typename GemmPipeline::BQuantGroupSize>;
                 // Compute the K offset for this batch (in terms of K elements)
                 const index_t k_offset = amd_wave_read_first_lane(k_id * KRead);
                 // Convert K offset to BQ group offset (logical offset in K/kK dimension)
-                bq_group_offset = amd_wave_read_first_lane(k_offset / QuantGroupSize::kK);
+                bq_group_offset = amd_wave_read_first_lane(k_offset / BQuantGroupSize::kK);
 
                 // BQ tensor layout:
                 // RowMajor: [K/kK, N/kN] with stride [N/kN, 1]
@@ -439,7 +439,7 @@ struct QuantGemmKernel
                     // For RowMajor BQ, K is the row dimension
                     // offset = bq_group_offset * stride_BQ
                     const index_t stride_bq =
-                        amd_wave_read_first_lane(integer_divide_ceil(kargs.N, QuantGroupSize::kN));
+                        amd_wave_read_first_lane(integer_divide_ceil(kargs.N, BQuantGroupSize::kN));
                     bq_k_split_offset = amd_wave_read_first_lane(bq_group_offset * stride_bq);
                 }
                 else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BQLayout>)
@@ -899,13 +899,14 @@ struct QuantGemmKernel
                                       "ABQuantGrouped requires ColumnMajor BQ layout");
                     }
 
+                    using BQuantGroupSize = remove_cvref_t<typename GemmPipeline::BQuantGroupSize>;
                     if constexpr(std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>)
                     {
                         return make_naive_tensor_view<address_space_enum::global>(
                             bq_ptr,
                             make_tuple(kargs.QK_B - bq_group_offset,
-                                       integer_divide_ceil(kargs.N, QuantGroupSize::kN)),
-                            make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN), 1),
+                                       integer_divide_ceil(kargs.N, BQuantGroupSize::kN)),
+                            make_tuple(integer_divide_ceil(kargs.N, BQuantGroupSize::kN), 1),
                             number<GemmPipeline::GetVectorSizeBQ()>{},
                             number<1>{});
                     }
@@ -913,7 +914,7 @@ struct QuantGemmKernel
                     {
                         return make_naive_tensor_view<address_space_enum::global>(
                             bq_ptr,
-                            make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN),
+                            make_tuple(integer_divide_ceil(kargs.N, BQuantGroupSize::kN),
                                        kargs.QK_B - bq_group_offset),
                             make_tuple(kargs.QK_B, 1),
                             number<GemmPipeline::GetVectorSizeBQ()>{},
@@ -1100,7 +1101,7 @@ struct QuantGemmKernel
         if(kargs.k_batch != 1)
         {
             constexpr bool is_bquant_non_preshuffle =
-                (kQuantType == QuantType::BQuantGrouped) && !PreshuffleQuant;
+                (kQuantType == QuantType::BQuantGrouped) && !BPreshuffleQuant;
             if constexpr(!is_bquant_non_preshuffle)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
@@ -1112,10 +1113,10 @@ struct QuantGemmKernel
             }
             else
             {
-                using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
-                constexpr auto K1    = GemmPipeline::BlockGemmShape::WarpTile::at(I2);
-                const index_t K_t    = kargs.k_batch * K1;
-                const index_t KRead  = (kargs.K + K_t - 1) / K_t * K1;
+                using BQuantGroupSize = remove_cvref_t<typename GemmPipeline::BQuantGroupSize>;
+                constexpr auto K1     = GemmPipeline::BlockGemmShape::WarpTile::at(I2);
+                const index_t K_t     = kargs.k_batch * K1;
+                const index_t KRead   = (kargs.K + K_t - 1) / K_t * K1;
                 constexpr index_t BPackedSize =
                     ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
 
@@ -1135,18 +1136,18 @@ struct QuantGemmKernel
 
                 // Constraint 2: KRead must align with quantization group boundaries.
                 // Each split-K batch reads KRead consecutive K elements. If KRead is not
-                // a multiple of QuantGroupSize::kK, the batch will span partial quantization
+                // a multiple of BQuantGroupSize::kK, the batch will span partial quantization
                 // groups, requiring split access to a quantization scale. This violates the
                 // atomic processing requirement where each batch must work with complete groups.
-                if(KRead % QuantGroupSize::kK != 0)
+                if(KRead % BQuantGroupSize::kK != 0)
                 {
                     if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
                         CK_TILE_ERROR("Split-K batch size must be aligned with quantization group "
                                       "size! KRead=" +
                                       std::to_string(KRead) +
-                                      " is not divisible by QuantGroupSize::kK=" +
-                                      std::to_string(QuantGroupSize::kK));
+                                      " is not divisible by BQuantGroupSize::kK=" +
+                                      std::to_string(BQuantGroupSize::kK));
                     }
                     return false;
                 }
