@@ -192,6 +192,25 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         const void* v_descale_ptr = nullptr;
     };
 
+    struct FmhaFwdCommonQPerTensorKVBlockScaleKargs : public FmhaFwdCommonQScaleKargs
+    {
+        ck_tile::index_t nhead_stride_k_descale;
+        ck_tile::index_t nhead_stride_v_descale;
+
+        ck_tile::index_t block_scale_size_kv;
+    };
+
+    struct FmhaFwdBatchQPerTensorKVBlockScaleKargs : public FmhaFwdCommonQPerTensorKVBlockScaleKargs
+    {
+        ck_tile::index_t batch_stride_k_descale;
+        ck_tile::index_t batch_stride_v_descale;
+    };
+
+    struct FmhaFwdGroupQPerTensorKVBlockScaleKargs : public FmhaFwdCommonQPerTensorKVBlockScaleKargs
+    {
+        const int32_t* block_scale_seqstart_k_ptr;
+    };
+
     struct FmhaFwdDropoutSeedOffset
     {
         template <typename T>
@@ -255,9 +274,13 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                                 FmhaFwdEmptyKargs<0>>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
-          std::conditional_t<QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR,
-                             FmhaFwdCommonQScaleKargs,
-                             FmhaFwdEmptyKargs<3>>,
+          std::conditional_t<
+              QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR,
+              FmhaFwdCommonQScaleKargs,
+              std::conditional_t<QScaleEnum ==
+                                     BlockAttentionQuantScaleEnum::Q_PERTENSOR_KV_BLOCKSCALE,
+                                 FmhaFwdBatchQPerTensorKVBlockScaleKargs,
+                                 FmhaFwdEmptyKargs<3>>>,
           std::conditional_t<kHasDropout, FmhaFwdBatchModeDropoutKargs, FmhaFwdEmptyKargs<4>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
     {
@@ -276,9 +299,13 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                                 FmhaFwdEmptyKargs<0>>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
-          std::conditional_t<QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR,
-                             FmhaFwdCommonQScaleKargs,
-                             FmhaFwdEmptyKargs<3>>,
+          std::conditional_t<
+              QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR,
+              FmhaFwdCommonQScaleKargs,
+              std::conditional_t<QScaleEnum ==
+                                     BlockAttentionQuantScaleEnum::Q_PERTENSOR_KV_BLOCKSCALE,
+                                 FmhaFwdGroupQPerTensorKVBlockScaleKargs,
+                                 FmhaFwdEmptyKargs<3>>>,
           std::conditional_t<kHasDropout, FmhaFwdCommonDropoutKargs, FmhaFwdEmptyKargs<4>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
     {
@@ -348,7 +375,12 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               bool s_randval,
               std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                   drop_seed_offset,
-              const void* sink_ptr = nullptr)
+              const void* sink_ptr                    = nullptr,
+              ck_tile::index_t nhead_stride_k_descale = 0,
+              ck_tile::index_t nhead_stride_v_descale = 0,
+              ck_tile::index_t batch_stride_k_descale = 0,
+              ck_tile::index_t batch_stride_v_descale = 0,
+              ck_tile::index_t block_scale_size_kv    = 0)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -418,6 +450,20 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             kargs.q_descale_ptr = q_descale_ptr;
             kargs.k_descale_ptr = k_descale_ptr;
             kargs.v_descale_ptr = v_descale_ptr;
+        }
+        else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::Q_PERTENSOR_KV_BLOCKSCALE)
+        {
+            kargs.q_descale_ptr = q_descale_ptr;
+            kargs.k_descale_ptr = k_descale_ptr;
+            kargs.v_descale_ptr = v_descale_ptr;
+
+            kargs.nhead_stride_k_descale = nhead_stride_k_descale;
+            kargs.nhead_stride_v_descale = nhead_stride_v_descale;
+
+            kargs.batch_stride_k_descale = batch_stride_k_descale;
+            kargs.batch_stride_v_descale = batch_stride_v_descale;
+
+            kargs.block_scale_size_kv = block_scale_size_kv;
         }
         if constexpr(kHasDropout)
         {
@@ -495,7 +541,13 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               bool s_randval,
               std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                   drop_seed_offset,
-              const void* sink_ptr = nullptr)
+              const void* sink_ptr                      = nullptr,
+              ck_tile::index_t nhead_stride_k_descale   = 0,
+              ck_tile::index_t nhead_stride_v_descale   = 0,
+              ck_tile::index_t batch_stride_k_descale   = 0,
+              ck_tile::index_t batch_stride_v_descale   = 0,
+              ck_tile::index_t block_scale_size_kv      = 0,
+              const int32_t* block_scale_seqstart_k_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -562,6 +614,21 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             kargs.q_descale_ptr = q_descale_ptr;
             kargs.k_descale_ptr = k_descale_ptr;
             kargs.v_descale_ptr = v_descale_ptr;
+        }
+        else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::Q_PERTENSOR_KV_BLOCKSCALE)
+        {
+            kargs.q_descale_ptr = q_descale_ptr;
+            kargs.k_descale_ptr = k_descale_ptr;
+            kargs.v_descale_ptr = v_descale_ptr;
+
+            kargs.nhead_stride_k_descale = nhead_stride_k_descale;
+            kargs.nhead_stride_v_descale = nhead_stride_v_descale;
+
+            kargs.batch_stride_k_descale = batch_stride_k_descale;
+            kargs.batch_stride_v_descale = batch_stride_v_descale;
+
+            kargs.block_scale_size_kv        = block_scale_size_kv;
+            kargs.block_scale_seqstart_k_ptr = block_scale_seqstart_k_ptr;
         }
         if constexpr(kHasDropout)
         {
@@ -818,6 +885,46 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr) +
                            static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_o +
                            batch_offset_o;
+
+        // Prepare descale pointers (only used for Q_PERTENSOR_KV_BLOCKSCALE)
+        [[maybe_unused]] const float* k_descale_ptr  = nullptr;
+        [[maybe_unused]] const float* v_descale_ptr  = nullptr;
+        [[maybe_unused]] index_t block_scale_size_kv = 0;
+
+        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::Q_PERTENSOR_KV_BLOCKSCALE)
+        {
+            if constexpr(kIsGroupMode)
+            {
+                // For group mode, use seqstart_k_ptr to calculate offset
+                k_descale_ptr =
+                    reinterpret_cast<const float*>(kargs.k_descale_ptr) +
+                    static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) *
+                        kargs.nhead_stride_k_descale +
+                    kargs.batch_stride_k_descale * (kargs.block_scale_seqstart_k_ptr
+                                                        ? kargs.block_scale_seqstart_k_ptr[i_batch]
+                                                        : 0);
+                v_descale_ptr =
+                    reinterpret_cast<const float*>(kargs.v_descale_ptr) +
+                    static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) *
+                        kargs.nhead_stride_v_descale +
+                    kargs.batch_stride_v_descale * (kargs.block_scale_seqstart_k_ptr
+                                                        ? kargs.block_scale_seqstart_k_ptr[i_batch]
+                                                        : 0);
+            }
+            else
+            {
+                // For batch mode
+                k_descale_ptr = reinterpret_cast<const float*>(kargs.k_descale_ptr) +
+                                static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) *
+                                    kargs.nhead_stride_k_descale +
+                                static_cast<long_index_t>(i_batch) * kargs.batch_stride_k_descale;
+                v_descale_ptr = reinterpret_cast<const float*>(kargs.v_descale_ptr) +
+                                static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) *
+                                    kargs.nhead_stride_v_descale +
+                                static_cast<long_index_t>(i_batch) * kargs.batch_stride_v_descale;
+            }
+            block_scale_size_kv = kargs.block_scale_size_kv;
+        }
 
         // Q/K/V DRAM and DRAM window
         const auto q_dram = [&]() {
@@ -1162,6 +1269,13 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 
                     return kargs.scale_s * q_descale * k_descale;
                 }
+                else if constexpr(QScaleEnum ==
+                                  BlockAttentionQuantScaleEnum::Q_PERTENSOR_KV_BLOCKSCALE)
+                {
+                    // Q uses per-tensor scale, K uses block scale (handled in pipeline)
+                    float q_descale = *(reinterpret_cast<const float*>(kargs.q_descale_ptr));
+                    return kargs.scale_s * q_descale;
+                }
                 else
                 {
                     return kargs.scale_s;
@@ -1235,10 +1349,15 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     kargs.batch_stride_k,
                     kargs.batch_stride_v,
                     dropout,
+                    nullptr, // k_descale_ptr not used for PERTENSOR
+                    nullptr, // v_descale_ptr not used for PERTENSOR (handled via
+                             // o_acc_element_func)
+                    0,       // block_scale_size_kv not used for PERTENSOR
                     sink_value);
             }
-            else
+            else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::Q_PERTENSOR_KV_BLOCKSCALE)
             {
+                // Q: per-tensor (handled in scale_s), K/V: block scale (handled in pipeline)
                 return FmhaPipeline{}(q_dram_window,
                                       k_dram_window,
                                       v_dram_window,
@@ -1258,6 +1377,36 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       kargs.batch_stride_k,
                                       kargs.batch_stride_v,
                                       dropout,
+                                      k_descale_ptr,
+                                      v_descale_ptr,
+                                      block_scale_size_kv,
+                                      sink_value);
+            }
+            else
+            {
+                // NO_SCALE
+                return FmhaPipeline{}(q_dram_window,
+                                      k_dram_window,
+                                      v_dram_window,
+                                      bias_dram_window,
+                                      randval_dram_window,
+                                      lse_dram_window,
+                                      mask,
+                                      position_encoding,
+                                      variant_params.sm_scale,
+                                      variant,
+                                      variant_params,
+                                      block_indices,
+                                      smem_ptr,
+                                      page_idx,
+                                      stride_k_for_pipeline,
+                                      stride_v_for_pipeline,
+                                      kargs.batch_stride_k,
+                                      kargs.batch_stride_v,
+                                      dropout,
+                                      nullptr, // k_descale_ptr not used for NO_SCALE
+                                      nullptr, // v_descale_ptr not used for NO_SCALE
+                                      0,       // block_scale_size_kv not used for NO_SCALE
                                       sink_value);
             }
         }();
