@@ -458,10 +458,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
 
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemmMultiD_xdl_cshuffle_v3<
-        ALayout,
-        BLayout,
+        tensor_layout::gemm::RowMajor,
+        tensor_layout::gemm::RowMajor,
         DsLayout,
-        ELayout,
+        tensor_layout::gemm::RowMajor,
         ADataType,
         BDataType,
         AccDataType,

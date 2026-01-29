@@ -1046,6 +1046,10 @@ struct BlockwiseGemmXdlopsDirectLoad_pipeline_v1<BlockGemmPipelineScheduler::Int
                         vector_type<ComputeDataTypeBuf, KPack> a_thread_vec;
                         vector_type<ComputeDataTypeBuf, KPack> b_thread_vec;
 
+                        if(threadIdx.x == 0) {
+                            printf("Repeat: (M N K): (%d, %d, %d)\n", m0.value, n0.value, k0.value);
+                        }
+
                         static_for<0, KPack, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeDataTypeBuf>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
@@ -1055,11 +1059,14 @@ struct BlockwiseGemmXdlopsDirectLoad_pipeline_v1<BlockGemmPipelineScheduler::Int
                                     make_tuple(n0, I0, k0, ik))>{}];
 
                                 if(threadIdx.x == 0) {
-                                    printf("a: %f b: %f\n",
+                                    printf("a: %f b: %f a_off: %d b_off: %d\n",
                                         static_cast<float>(a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                         make_tuple(m0, I0, k0, ik))>{}]), 
                                         static_cast<float>(b_thread_buf[Number<b_thread_desc_.CalculateOffset(
-                                        make_tuple(n0, I0, k0, ik))>{}]));
+                                        make_tuple(n0, I0, k0, ik))>{}]),
+                                        a_thread_desc_.CalculateOffset(make_tuple(m0, I0, k0, ik)),
+                                        b_thread_desc_.CalculateOffset(make_tuple(n0, I0, k0, ik))
+                                    );
                                 }
                         });
 

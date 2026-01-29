@@ -121,6 +121,38 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
             out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
             wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
             break;
+        case 3:
+            out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
+            wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{2});
+            break;
+        case 4:
+            out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{2});
+            wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+            break;
+        case 5:
+            out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
+            wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+            break;
+        case 6:
+            out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
+            wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{0.0, 1.0});
+            break;
+        case 7:
+            out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
+            wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{0.0, 1.0});
+            break;
+        case 8:
+            out.GenerateTensorValue(GeneratorTensor_Sequential<OutDataType, 2>{});
+            wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+            break;
+        case 9:
+            out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
+            wei.GenerateTensorValue(GeneratorTensor_Sequential<WeiDataType, 1>{});
+            break;
+        case 10:
+            out.GenerateTensorValue(GeneratorTensor_Sequential<OutDataType, 2>{});
+            wei.GenerateTensorValue(GeneratorTensor_Sequential<WeiDataType, 1>{});
+            break;
         default:
             out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
             wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});

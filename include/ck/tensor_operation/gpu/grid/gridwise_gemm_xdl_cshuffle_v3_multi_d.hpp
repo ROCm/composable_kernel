@@ -651,6 +651,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
               MBlock{CalculateMBlock(M_)},
               NBlock{CalculateNBlock(N_)}
         {
+            Print();
         }
 
         __host__ void Print() const
@@ -931,6 +932,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 #else
         constexpr index_t BBlockLdsExtraN = BBlockLdsExtraNCustom;
 #endif
+
+        static_assert(BBlockTransferSrcVectorDim == 1, "should be 1 now!");
 
         // B matrix in LDS memory, dst of blockwise copy
         if constexpr(DirectLoad && BBlockTransferSrcVectorDim == 2)
@@ -1691,6 +1694,10 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         // Cast after lds
         auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<LDSTypeA*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+
+        if(threadIdx.x == 0) {
+            printf("a size aligned: %ld, a size: %ld b size: %ld\n", a_block_space_size_aligned.value, a_block_desc_ak0_m_ak1.GetElementSpaceSize().value, b_block_desc_bk0_n_bk1.GetElementSpaceSize().value);
+        }
 
         auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<LDSTypeB*>(p_shared) +
