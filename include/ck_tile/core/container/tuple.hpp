@@ -13,6 +13,9 @@
 #include <utility>
 #include <initializer_list>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 #ifndef CK_TILE_TUPLE_IMPL
 #define CK_TILE_TUPLE_IMPL 1
 #endif
@@ -865,3 +868,4 @@ struct tuple_element<I, const ck_tile::tuple<Ts...>>
         }                                                                                \
     }()
 #endif
+#pragma clang diagnostic pop

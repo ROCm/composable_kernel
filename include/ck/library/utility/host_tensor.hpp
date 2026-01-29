@@ -23,6 +23,10 @@
 
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#pragma clang diagnostic ignored "-Wlifetime-safety-cross-tu-suggestions"
+
 namespace ck {
 
 template <typename Range>
@@ -1172,3 +1176,4 @@ struct Tensor
 };
 
 } // namespace ck
+#pragma clang diagnostic pop

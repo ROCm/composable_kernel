@@ -68,6 +68,7 @@ set(GTEST_CXX_FLAGS
      -Wno-deprecated
      -Wno-unsafe-buffer-usage
      -Wno-float-equal
+     -Wno-lifetime-safety-intra-tu-suggestions
 )
 
 if(WIN32)
