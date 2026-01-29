@@ -32,5 +32,6 @@ void reference_basic_gemm(const ck_tile::HostTensor<ADataType>& a_m_k,
         }
     };
 
-    ck_tile::make_ParallelTensorFunctor(f, c_m_n.mDesc.get_lengths()[0])(1);
+    ck_tile::make_ParallelTensorFunctor(f, c_m_n.mDesc.get_lengths()[0])(
+        std::thread::hardware_concurrency());
 }
