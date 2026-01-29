@@ -30,7 +30,8 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
-          bool TransposeC = false>
+          bool TransposeC          = false,
+          bool LdsScalarLoadToVgpr = false>
 struct BlockwiseGemmXdlops_pipeline_base
 {
     static constexpr auto I0 = Number<0>{};
@@ -385,7 +386,7 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                          Sequence<1, 1, 1, KPack>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
-                                                         A_K1,
+                                                         LdsScalarLoadToVgpr ? 1 : A_K1,
                                                          A_K1>;
 
     using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<BDataType,
@@ -395,7 +396,7 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                          Sequence<1, 1, 1, KPack>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
-                                                         B_K1,
+                                                         LdsScalarLoadToVgpr ? 1 : B_K1,
                                                          B_K1>;
 
     AThreadCopy a_thread_copy_;

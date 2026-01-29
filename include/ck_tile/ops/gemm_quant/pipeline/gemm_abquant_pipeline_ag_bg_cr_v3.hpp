@@ -72,7 +72,10 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
     static constexpr index_t NPerBlock   = BlockGemmShape::kN;
     static constexpr index_t KPerBlock   = BlockGemmShape::kK;
     static constexpr index_t KPerBlockAQ = BlockGemmShape::kK / AQuantGroupSize::kK;
-    static constexpr index_t NPerBlockBQ = BlockGemmShape::kN / BQuantGroupSize::kN;
+    static constexpr index_t NPerBlockBQ =
+        (BQuantGroupSize::kN <= BlockGemmShape::kN)
+            ? integer_divide_ceil(BlockGemmShape::kN, BQuantGroupSize::kN)
+            : 1;
     static constexpr index_t KPerBlockBQ = BlockGemmShape::kK / BQuantGroupSize::kK;
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
@@ -95,7 +98,8 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
     static constexpr bool kPadK = Problem::kPadK;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
-    static constexpr bool PreshuffleQuant  = Problem::Traits::PreshuffleQuant;
+    static constexpr bool APreshuffleQuant = Problem::Traits::APreshuffleQuant;
+    static constexpr bool BPreshuffleQuant = Problem::Traits::BPreshuffleQuant;
 
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
@@ -264,7 +268,7 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
                                  KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                           "B block window has incorrect lengths for defined BLayout!");
             static_assert(
-                PreshuffleQuant ||
+                BPreshuffleQuant ||
                     (is_bq_row_major
                          ? (KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                             NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])
@@ -323,15 +327,18 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             // only row_major for AQ
             const AQDramTileWindowStep aq_dram_tile_window_step =
-                PreshuffleQuant
+                APreshuffleQuant
                     ? make_array(ck_tile::integer_least_multiple(m, MPerBlock) /
                                      BlockGemm::WarpGemm::kM,
                                  0)
                     : (is_aq_col_major ? make_array(KPerBlockAQ, 0) : make_array(0, KPerBlockAQ));
             const BQDramTileWindowStep bq_dram_tile_window_step =
-                (PreshuffleQuant) ? make_array(ck_tile::integer_least_multiple(n, NPerBlock) /
-                                                   BlockGemmShape::WarpTile::at(number<1>{}),
-                                               0)
+                (BPreshuffleQuant)
+                    ? make_array(((NPerBlockBQ <= BlockGemmShape::BlockWarps::at(number<1>{}))
+                                      ? ck_tile::integer_divide_ceil(n, BQuantGroupSize::kN)
+                                      : ck_tile::integer_least_multiple(n, NPerBlock) /
+                                            BlockGemmShape::WarpTile::at(number<1>{})),
+                                 0)
                 : is_bq_row_major ? make_array(KPerBlockBQ, 0)
                                   : make_array(0, KPerBlockBQ);
 
@@ -484,7 +491,7 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
 
                 currIdx = (currIdx + 1) % 2;
 
-                if constexpr(is_a_col_major)
+                if constexpr(is_a_col_major && !is_a_load_tr_v())
                 {
                     auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                         Policy::template MakeShuffledARegTileDistribution<Problem>());
@@ -495,7 +502,7 @@ struct ABQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Pro
                 {
                     Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
                 }
-                if constexpr(is_b_row_major)
+                if constexpr(is_b_row_major && !is_b_load_tr_v())
                 {
                     // Note: BDataType gets converted during loading from PkInt4
                     auto b_shuffle_tmp = make_static_distributed_tensor<OverrideBDataType>(
