@@ -44,7 +44,8 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
     using GemmUniversalTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
                                                              GemmConfig::kPadN,
                                                              GemmConfig::kPadK,
-                                                             false, // PreshuffleQuant
+                                                             false, // APreshuffleQuant
+                                                             false, // BPreshuffleQuant
                                                              GemmConfig::PreshuffleB,
                                                              ALayout,
                                                              BLayout,
@@ -210,7 +211,8 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
     using GemmUniversalTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
                                                              GemmConfig::kPadN,
                                                              GemmConfig::kPadK,
-                                                             false, // PreshuffleQuant
+                                                             false, // APreshuffleQuant
+                                                             false, // BPreshuffleQuant
                                                              GemmConfig::PreshuffleB,
                                                              ALayout,
                                                              BLayout,

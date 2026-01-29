@@ -12,7 +12,8 @@ The core components are:
 
 - **`Args`**: A struct template that holds runtime parameters for a specific test case.
 - **`Input`** and **`Output`**: Helper classes that groups operation inputs and outputs.
-- **`Validator`**: A utility that performs on-GPU validation and integrates with GoogleTest/GoogleMock.
+- **`run()`**: Invokes an algorithm on the GPU.
+- **`validate()`**: A utility that performs on-GPU validation and integrates with GoogleTest/GoogleMock.
 
 Together, these components enable a structured approach to kernel testing that mirrors the Given-When-Then pattern commonly used in behavior-driven development.
 
@@ -200,26 +201,27 @@ auto reference_outputs = ck_tile::builder::test::allocate_outputs(args);
 ck_tile::builder::test::run(conv, args, inputs.get(), reference_outputs.get());
 ```
 
-#### `Validator<SIGNATURE>`
+#### Validating Results
 
-The `Validator` class encapsulates the validation logic. It performs on-GPU correctness checks by comparing two instances of the `Outputs` structure.
-
-```cpp
-ck_tile::builder::test::Validator<SIGNATURE> validator(outputs.get(), reference_outputs.get());
-```
-
-The `Validator` provides methods that return GoogleMock matchers, enabling clean integration with GoogleTest:
+In order to actually verify that the results of the executed device operation are correct, they are compared against the reference output obtained in the previous step. This is done by calling `validate()` with the runtime arguments of the operation, as well as both the actual and reference output. This then yields a *`ValidationReport`*, a type which holds information about which tensors of the output are considered to be equivalent and which are considered to be different. Actually comparing the tensor elements is performed on the GPU to keep the tests fast.
 
 ```cpp
-EXPECT_THAT(validator.result(), validator.matches_reference_output());
+const auto report = ck_tile::builder::test::validate(args, outputs.get(), reference_outputs.get());
 ```
 
-The `matches_reference_output()` matcher checks that the output is numerically correct within acceptable tolerances. The `Validator` can also provide more detailed diagnostics, such as:
+`ValidationReport::get_errors()` returns a vector of tensors from both outputs which are considered to be incorrect, each error case exposes some information about what went wrong.
 
-- Maximum absolute error
-- Maximum relative error
-- Number of mismatched elements
-- Specific locations of errors
+```cpp
+for (const auto& e : report.get_errors()) {
+    std::cout << "error: " << e.tensor_name << " was incorrect!" << std::endl;
+}
+```
+
+GoogleTest/GoogleMock integration is provided using the `MatchesReference` matcher. This invokes `validate()` internally, and then turns the result into a GoogleMock-comparible value. Note that this function is closely tied to GoogleMock and the test setup that CK-Builder uses internally, and so is not exposed through the CK-Builder public interface.
+
+```cpp
+EXPECT_THAT(outputs.get(), MatchesReference(args, reference_outputs.get()));
+```
 
 ## Complete Example
 
@@ -232,6 +234,7 @@ Here's a complete test that demonstrates the Given-When-Then pattern:
 #include "ck_tile/builder/conv_builder.hpp"
 #include "ck_tile/testing/tensor_memory_manager.hpp"
 #include "ck_tile/testing/validator.hpp"
+#include "testing_utils.hpp"
 
 // Define the convolution signature
 struct ConvSignature {
@@ -318,8 +321,7 @@ TEST(ConvolutionTest, Forward2D_FP16) {
     ck_tile::builder::test::run(conv, args, inputs.get(), reference_outputs.get());
 
     // Check the results
-    ck_tile::builder::test::Validator<SIGNATURE> validator(outputs.get(), reference_outputs.get());
-    EXPECT_THAT(validator.result(), validator.is_ok());
+    EXPECT_THAT(outputs.get(), ck_tile::test::MatchesReference(args, reference_outputs.get()));
 }
 ```
 
@@ -333,7 +335,7 @@ TEST(ConvolutionTest, Forward2D_FP16) {
 
 4. **Flexibility**: The `Args` struct can be easily extended to support different test scenarios, `Inputs` and `Outputs` can be modified to support additional tensors where necessary, and alternatives to `init_inputs()` can be provided to support additional testing strategies.
 
-5. **Integration**: The `Validator` integrates seamlessly with GoogleTest/GoogleMock, providing familiar assertion syntax.
+5. **Integration**: `validate()` integrates seamlessly with GoogleTest/GoogleMock through `MatchesReference`, providing familiar assertion syntax.
 
 6. **Maintainability**: Changes to the testing infrastructure are localized to the utility classes, not scattered across individual tests.
 

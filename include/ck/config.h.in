@@ -55,9 +55,6 @@
 #ifndef CK_ENABLE_FP32
 #define CK_ENABLE_FP32 "ON"
 #endif
-#ifndef CK_ENABLE_TF32
-#define CK_ENABLE_TF32 "ON"
-#endif
 #ifndef CK_ENABLE_FP64
 #define CK_ENABLE_FP64 "ON"
 #endif
@@ -86,10 +83,6 @@
 
 #ifndef CK_ENABLE_FP32
 #cmakedefine CK_ENABLE_FP32 @CK_ENABLE_FP32@
-#endif
-
-#ifndef CK_ENABLE_TF32
-#cmakedefine CK_ENABLE_TF32 @CK_ENABLE_TF32@
 #endif
 
 #ifndef CK_ENABLE_FP64
