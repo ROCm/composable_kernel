@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/container/trivial_array.hpp"
+#include "ck_tile/core/container/static_array.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/numeric/math.hpp"
@@ -353,8 +353,8 @@ struct sequence_inclusive_scan_impl<sequence<Is...>, Reduce, Init, Reverse>
         else
         {
             constexpr auto arr = []() {
-                trivial_array<index_t, size> values = {Is...};
-                trivial_array<index_t, size> result = {0};
+                static_array<index_t, size> values = {Is...};
+                static_array<index_t, size> result = {0};
                 if constexpr(Reverse)
                 {
                     // Reverse scan: right to left
