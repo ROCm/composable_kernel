@@ -39,26 +39,6 @@ void add_device_grouped_conv3d_fwd_wmma_cshufflev3_combconvscale_relu_ndhwgc_gkz
             NDHWGK,
             ConvFwdDefault,
             CombConvScaleRelu>{});
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_outelementop_f8_f8_f32_instances<
-            3,
-            NDHWGC,
-            GKZYXC,
-            ck::Tuple<>,
-            NDHWGK,
-            ConvFwd1x1P0,
-            CombConvScaleRelu>{});
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_outelementop_f8_f8_f32_instances<
-            3,
-            NDHWGC,
-            GKZYXC,
-            ck::Tuple<>,
-            NDHWGK,
-            ConvFwd1x1S1P0,
-            CombConvScaleRelu>{});
 }
 
 } // namespace instance

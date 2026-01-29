@@ -31,22 +31,6 @@ void add_device_grouped_conv2d_fwd_wmma_cshufflev3_dynamic_op_nhwgc_gkyxc_nhwgk_
                                                                          Tuple<>,
                                                                          NHWGK,
                                                                          ConvFwdDefault>{});
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_dynamic_op_f16_instances<2,
-                                                                         NHWGC,
-                                                                         GKYXC,
-                                                                         Tuple<>,
-                                                                         NHWGK,
-                                                                         ConvFwd1x1P0>{});
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_fwd_wmma_cshufflev3_dynamic_op_f16_instances<2,
-                                                                         NHWGC,
-                                                                         GKYXC,
-                                                                         Tuple<>,
-                                                                         NHWGK,
-                                                                         ConvFwd1x1S1P0>{});
 }
 
 } // namespace instance
