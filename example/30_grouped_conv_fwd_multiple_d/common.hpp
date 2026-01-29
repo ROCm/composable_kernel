@@ -50,6 +50,9 @@ static constexpr auto ConvSpec =
 static constexpr auto ConvSpecOddC =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC;
 
+static constexpr auto ConvSpecFilter3x3 =
+    ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter3x3Stride1Pad1Dilation1_200x200_32_4x4;
+
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
 template <typename InputLay, typename WeightLay, typename OutputLay>

@@ -1611,6 +1611,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 }
             }
         }
+        else if constexpr (ConvForwardSpecialization ==
+                          ConvolutionForwardSpecialization::Filter3x3Stride1Pad1Dilation1_200x200_32_4x4)
+        {
+            
+        }
 
         // check vector access of A
         // FIXME: layout
