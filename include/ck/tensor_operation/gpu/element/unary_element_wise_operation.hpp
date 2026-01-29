@@ -803,7 +803,6 @@ struct UnaryAbs
     {
         y = ck::type_convert<half_t>(ck::math::abs(x));
     };
-
 };
 
 struct UnarySqrt
@@ -1511,14 +1510,14 @@ struct SoftRelu
     __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
     {
         constexpr float one = 1.f;
-        y = type_convert<int8_t>(math::log(one + math::exp(x * alpha_)) / alpha_);
+        y                   = type_convert<int8_t>(math::log(one + math::exp(x * alpha_)) / alpha_);
     };
 
     template <>
     __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
     {
         constexpr float one = 1.f;
-        y = type_convert<half_t>(math::log(one + math::exp(x * alpha_)) / alpha_);
+        y                   = type_convert<half_t>(math::log(one + math::exp(x * alpha_)) / alpha_);
     };
 
     const float alpha_;
