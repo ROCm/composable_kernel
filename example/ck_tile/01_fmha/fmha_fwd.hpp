@@ -1237,7 +1237,7 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.drop_seed_offset,
                                          args.sink_ptr,
                                          args.block_scale_size_kv,
-                                         args.block_scale_seqstart_k_ptr);
+                                         reinterpret_cast<const int32_t*>(args.block_scale_seqstart_k_ptr));
         }
         else
         { // create batch mode kernel arguments
