@@ -34,7 +34,8 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr bool PreshuffleQuant           = false;
+    static constexpr bool APreshuffleQuant          = false;
+    static constexpr bool BPreshuffleQuant          = false;
     static constexpr bool PreshuffleB               = false;
     static constexpr bool DoubleSmemBuffer          = false;
     static constexpr bool TiledMMAPermuteN          = false;
@@ -110,7 +111,7 @@ struct GemmConfigMxFp4 : public GemmConfigBase
 
 struct GemmConfigPreshuffleQuant : public GemmConfigBase
 {
-    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool APreshuffleQuant = true;
 };
 
 struct GemmConfigTransposeC : public GemmConfigBase
@@ -120,8 +121,8 @@ struct GemmConfigTransposeC : public GemmConfigBase
 
 struct GemmConfigPreshuffleQuantTransposeC : public GemmConfigBase
 {
-    static constexpr bool PreshuffleQuant = true;
-    static constexpr bool TransposeC      = true;
+    static constexpr bool APreshuffleQuant = true;
+    static constexpr bool TransposeC       = true;
 };
 
 struct GemmConfigPadding : public GemmConfigBase
@@ -138,7 +139,7 @@ struct GemmConfigPreshuffleBDecode : public GemmConfigDecode
 
 struct GemmConfigPreshuffleQuantDecode : public GemmConfigDecode
 {
-    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool BPreshuffleQuant = true;
 };
 
 struct GemmConfigPreshuffleBPrefill : public GemmConfigPrefill
@@ -149,7 +150,7 @@ struct GemmConfigPreshuffleBPrefill : public GemmConfigPrefill
 
 struct GemmConfigPreshuffleQuantPrefill : public GemmConfigPrefill
 {
-    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool BPreshuffleQuant = true;
 };
 
 struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBPrefill
@@ -160,7 +161,7 @@ struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBP
 
 struct GemmConfigPreshuffleBPreshuffleQuantDecode : public GemmConfigPreshuffleBDecode
 {
-    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool BPreshuffleQuant = true;
 };
 
 template <typename Tuple>
@@ -244,7 +245,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             a_m_k_dev_buf.ToDevice(a_m_k.data());
         }
         // aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
-        if constexpr(Base::GemmConfig::PreshuffleQuant)
+        if constexpr(Base::GemmConfig::APreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> aq_shuffle_host =
                 ck_tile::shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / QuantGroupSize::kK);
@@ -481,7 +482,7 @@ class TestCkTileGemmAQuantMem
             a_m_k_dev_buf.ToDevice(a_m_k.data());
         }
         // aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
-        if constexpr(Base::GemmConfig::PreshuffleQuant)
+        if constexpr(Base::GemmConfig::APreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> aq_shuffle_host =
                 ck_tile::shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / QuantGroupSize::kK);
@@ -727,7 +728,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                 ck_tile::bq_permuteN<GemmConfig>(bq_bqk_bqn, QuantGroupSize::kN);
             bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
         }
-        else if constexpr(GemmConfig::PreshuffleQuant)
+        else if constexpr(GemmConfig::BPreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> bq_shuffle_host =
                 ck_tile::shuffle_bq(&bq_bqk_bqn, GemmConfig::K_Tile / QuantGroupSize::kK);
@@ -1024,7 +1025,7 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
 
         b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
 
-        if constexpr(Base::GemmConfig::PreshuffleQuant)
+        if constexpr(Base::GemmConfig::APreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> aq_shuffle_host =
                 ck_tile::shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / AQuantGroupSize::kK);
@@ -1041,7 +1042,7 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                 ck_tile::bq_permuteN<GemmConfig>(bq_bqk_bqn, BQuantGroupSize::kN);
             bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
         }
-        else if constexpr(GemmConfig::PreshuffleQuant)
+        else if constexpr(GemmConfig::BPreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> bq_shuffle_host =
                 ck_tile::shuffle_bq(&bq_bqk_bqn, GemmConfig::K_Tile / BQuantGroupSize::kK);

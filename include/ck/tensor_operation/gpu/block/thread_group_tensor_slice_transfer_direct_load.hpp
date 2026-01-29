@@ -140,10 +140,6 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
                       "Direct load transfer does not support datatypes conversion. Source and "
                       "destination data types must be the same.");
 
-        static_assert(
-            DstVectorDim == nDim - 1,
-            "Direct load transfer requires the destination vector dimension to be the last one.");
-
         static_assert(ScalarPerVector == 1 || SrcVectorDim == DstVectorDim,
                       "When loading more than one element per thread at once, the contiguous "
                       "dimension must be the same between source and destination.");
