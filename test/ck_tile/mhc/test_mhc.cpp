@@ -63,6 +63,22 @@ TYPED_TEST(TestCkTileMHC, TestBatchSize2N4C1024) { this->template RunBatchSizeTe
 
 TYPED_TEST(TestCkTileMHC, TestBatchSize2N4C4096) { this->template RunBatchSizeTest<2, 4, 4096>(); }
 
+// Test with different activation functions
+TYPED_TEST(TestCkTileMHC, TestBatchSize16WithTanh)
+{
+    this->template RunBatchSizeTestWithActivation<16, 4, 64, ck_tile::element_wise::TanH>();
+}
+
+TYPED_TEST(TestCkTileMHC, TestBatchSize16WithRelu)
+{
+    this->template RunBatchSizeTestWithActivation<16, 4, 64, ck_tile::element_wise::Relu>();
+}
+
+TYPED_TEST(TestCkTileMHC, TestBatchSize16WithSilu)
+{
+    this->template RunBatchSizeTestWithActivation<16, 4, 64, ck_tile::element_wise::Silu>();
+}
+
 TYPED_TEST(TestCkTileMHC, TestBatchSize16N4C4096)
 {
     this->template RunBatchSizeTest<16, 4, 4096>();
