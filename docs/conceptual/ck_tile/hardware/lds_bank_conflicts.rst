@@ -172,7 +172,6 @@ Example usage in CK Tile:
         a_window.load(a_lds_tensor);
         
         // Subsequent reads from LDS are conflict-free
-        // See :ref:`ck_tile_sweep_tile` for sweep operations
         sweep_tile(a_lds_tensor, [](auto idx, auto& val) {
             // Process data...
         });

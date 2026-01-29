@@ -35,7 +35,7 @@ template <typename T>
 concept BwdXdlV3AlgorithmBase =
     ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters3D<T> &&
     SpecifiesGridwiseBwdXdlGemm<T> && SpecifiesBwdWeightConvSpecialization<T> &&
-    SpecifiesBlockGemm<T>;
+    SpecifiesBlockGemm<T> && SpecifiesNumGroupsToMerge<T>;
 
 template <typename T>
 concept BwdWmmaAlgorithmBase =

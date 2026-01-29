@@ -17,9 +17,9 @@ Each thread in a workgroup owns a portion of the overall tensor data, stored in 
 
 This design enables three critical optimizations:
 
-    * It maximizes register utilization by keeping frequently accessed data in the fastest memory hierarchy. 
-    * It eliminates redundant memory accesses since each thread maintains its own working set. 
-    * It provides a clean abstraction for complex algorithms like matrix multiplication where each thread accumulates partial results that eventually combine into the final output.
+* It maximizes register utilization by keeping frequently accessed data in the fastest memory hierarchy. 
+* It eliminates redundant memory accesses since each thread maintains its own working set. 
+* It provides a clean abstraction for complex algorithms like matrix multiplication where each thread accumulates partial results that eventually combine into the final output.
 
 Thread-Local Storage Model
 ==========================
@@ -384,8 +384,7 @@ Static distributed tensors integrate seamlessly with other CK Tile components:
         // Main GEMM loop
         for(index_t k_tile = 0; k_tile < K; k_tile += kTileK) {
         // Create tile windows for this iteration
-        // See :ref:`ck_tile_tile_window` for details
-        auto a_window = make_tile_window(
+            auto a_window = make_tile_window(
             a_ptr, ALayout{M, K}, 
             ATileDist{}, 
             {blockIdx.y * kTileM, k_tile}
@@ -398,7 +397,6 @@ Static distributed tensors integrate seamlessly with other CK Tile components:
             );
             
             // Load tiles to distributed tensors
-            // See :ref:`ck_tile_load_store_traits` for optimized loading
             auto a_tile = a_window.load();
             auto b_tile = b_window.load();
             

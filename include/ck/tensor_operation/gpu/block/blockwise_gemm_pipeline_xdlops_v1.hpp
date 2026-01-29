@@ -758,7 +758,8 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPacks>
+          index_t KPacks,
+          bool LdsScalarLoadToVgpr = false>
 struct BlockwiseGemmXdlopsDirectLoad_pipeline_v1
 {
 };
@@ -781,9 +782,9 @@ template <index_t BlockSize,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack
+          index_t KPack,
           // ,bool TransposeC //disable transposec right now...
-          >
+          bool LdsScalarLoadToVgpr>
 struct BlockwiseGemmXdlopsDirectLoad_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                                  BlockSize,
                                                  ADataType,
@@ -803,7 +804,8 @@ struct BlockwiseGemmXdlopsDirectLoad_pipeline_v1<BlockGemmPipelineScheduler::Int
                                                  NPerXDL,
                                                  MRepeat,
                                                  NRepeat,
-                                                 KPack>
+                                                 KPack,
+                                                 LdsScalarLoadToVgpr>
     : BlockwiseGemmXdlops_pipeline_base<BlockSize,
                                         ADataType,
                                         BDataType,
@@ -822,7 +824,9 @@ struct BlockwiseGemmXdlopsDirectLoad_pipeline_v1<BlockGemmPipelineScheduler::Int
                                         NPerXDL,
                                         MRepeat,
                                         NRepeat,
-                                        KPack>
+                                        KPack,
+                                        false /*TransposeC*/,
+                                        LdsScalarLoadToVgpr>
 
 {
     using Base = BlockwiseGemmXdlops_pipeline_base<BlockSize,
@@ -843,7 +847,9 @@ struct BlockwiseGemmXdlopsDirectLoad_pipeline_v1<BlockGemmPipelineScheduler::Int
                                                    NPerXDL,
                                                    MRepeat,
                                                    NRepeat,
-                                                   KPack>;
+                                                   KPack,
+                                                   false /*TransposeC*/,
+                                                   LdsScalarLoadToVgpr>;
     using Base::I0;
     using Base::KRepeat;
     using Base::xdlops_gemm;

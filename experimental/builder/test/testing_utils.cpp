@@ -339,4 +339,22 @@ void HipStatusMatcher::DescribeNegationTo(std::ostream* os) const
     return ::testing::MakeMatcher(new HipStatusMatcher(error));
 }
 
+bool RunResultMatcher::MatchAndExplain(builder::test::RunResult actual,
+                                       ::testing::MatchResultListener* listener) const
+{
+    if(actual.error.has_value() && listener)
+        *listener << "run failed: " << actual.error.value();
+
+    return actual.is_supported();
+}
+
+void RunResultMatcher::DescribeTo(std::ostream* os) const { *os << "successful run"; }
+
+void RunResultMatcher::DescribeNegationTo(std::ostream* os) const { *os << "unsuccessful run"; }
+
+::testing::Matcher<builder::test::RunResult> SuccessfulRun()
+{
+    return ::testing::MakeMatcher(new RunResultMatcher());
+}
+
 } // namespace ck_tile::test

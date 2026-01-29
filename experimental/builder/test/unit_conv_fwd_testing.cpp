@@ -3,7 +3,7 @@
 
 #include "impl/conv_signature_types.hpp"
 #include "testing_utils.hpp"
-#include "ck_tile/builder/testing/conv_fwd.hpp"
+#include "ck_tile/builder/testing/conv/fwd.hpp"
 #include "ck_tile/builder/testing/tensor_foreach.hpp"
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -98,8 +98,10 @@ TEST(ConvFwdTesting, Validate)
             [&]([[maybe_unused]] std::string_view name,
                 const auto& desc,
                 void* ckt::Outputs<SIGNATURE>::*ptr) {
-                ckt::clear_tensor_buffer(desc, a.get().*ptr, ck::bhalf_t{123});
-                ckt::clear_tensor_buffer(desc, b.get().*ptr, ck::bhalf_t{123});
+                ckt::clear_tensor_buffer(
+                    desc, a.get().*ptr, ck::type_convert<ck::bhalf_t, float>(123));
+                ckt::clear_tensor_buffer(
+                    desc, b.get().*ptr, ck::type_convert<ck::bhalf_t, float>(123));
             });
 
         const auto report = ckt::validate(ARGS, a.get(), b.get());
@@ -115,8 +117,10 @@ TEST(ConvFwdTesting, Validate)
                 const auto& desc,
                 void* ckt::Outputs<SIGNATURE>::*ptr) {
                 ++field_count;
-                ckt::clear_tensor_buffer(desc, a.get().*ptr, ck::bhalf_t{2});
-                ckt::clear_tensor_buffer(desc, b.get().*ptr, ck::bhalf_t{1});
+                ckt::clear_tensor_buffer(
+                    desc, a.get().*ptr, ck::type_convert<ck::bhalf_t, float>(2));
+                ckt::clear_tensor_buffer(
+                    desc, b.get().*ptr, ck::type_convert<ck::bhalf_t, float>(1));
             });
 
         const auto report = ckt::validate(ARGS, a.get(), b.get());

@@ -704,7 +704,28 @@ struct DeviceGroupedGemm_Wmma_CShuffleV3 : public DeviceGroupedGemmSplitK<ALayou
         bool supported = true;
         for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); ++i)
         {
-            const auto& a        = arg.gemm_kernel_args_[i].karg_;
+            const auto& a = arg.gemm_kernel_args_[i].karg_;
+
+            if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityAWaveTransfer(a.M, a.K))
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Wave Transfer not applicable for matrix A" << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
+                return false;
+            }
+
+            if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityBWaveTransfer(a.N, a.K))
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Wave Transfer not applicable for matrix B" << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
+                return false;
+            }
+
             bool group_arg_valid = GridwiseGemm::CheckValidity(a);
 
             if(not group_arg_valid)
