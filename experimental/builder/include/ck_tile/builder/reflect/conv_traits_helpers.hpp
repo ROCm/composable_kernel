@@ -80,6 +80,22 @@ namespace ck_tile::reflect::conv {
 // SECTION 1: ENUM CONVERSIONS
 // ============================================================================
 
+// Forward convolution layout concept - checks for A/B/E layout types
+template <typename T>
+concept HasFwdConvLayouts = requires {
+    typename T::ALayout;
+    typename T::BLayout;
+    typename T::ELayout;
+};
+
+// Backwards weight layout concept - checks for In, wei and out layouts
+template <typename T>
+concept HasBwdWeiLayouts = requires {
+    typename T::InLayout;
+    typename T::WeiLayout;
+    typename T::OutLayout;
+};
+
 /// @brief Converts a CK BlockGemmPipelineVersion enum to a builder PipelineVersion enum.
 /// @tparam ck_ver The CK BlockGemmPipelineVersion enum value to convert.
 /// @return The corresponding builder::PipelineVersion enum value.
@@ -322,12 +338,25 @@ constexpr builder::ConvSpecialization conv_spec()
 // Tensor Layouts
 // ----------------------------------------------------------------------------
 
+// Helper variable template to check if CK layout enums match
+template <typename A,
+          typename B,
+          typename E,
+          typename ExpectedA,
+          typename ExpectedB,
+          typename ExpectedE>
+inline constexpr bool layouts_are =
+    std::is_same_v<A, ExpectedA> && std::is_same_v<B, ExpectedB> && std::is_same_v<E, ExpectedE>;
+
 /// @brief Helper function to report unsupported layout combinations with a clear error message.
 /// @details This consteval function uses throw (not static_assert) to ensure the error is not
 /// silently ignored during SFINAE. The thrown string becomes part of the compiler error message.
+/// @details This consteval function is designed to fail at compile time with a descriptive
+/// error message when an unsupported layout combination is encountered.
 template <typename A, typename B, typename E, int SpatialDim>
 [[noreturn]] consteval void report_unsupported_layout_error()
 {
+    // This will produce a compile-time error with the exception message
     throw "Unsupported convolution layout combination detected!\n"
           "The combination of ALayout, BLayout, and ELayout template parameters\n"
           "is not recognized for the given spatial dimension.\n"
@@ -335,111 +364,99 @@ template <typename A, typename B, typename E, int SpatialDim>
           "Check the conv_layout() function for the list of supported layout combinations.";
 }
 
-/// @brief Derives the grouped convolution layout from a device kernel Instance type.
-/// @tparam Instance The device kernel instance type.
-/// @return An std::array<builder::TensorLayout, 3> containing the layouts for:
-///         - [0] Input tensor layout
-///         - [1] Weight tensor layout
-///         - [2] Output tensor layout
-/// @details This function examines the Instance's ALayout, BLayout, and ELayout types
-/// along with the spatial dimension to determine the appropriate layout configuration.
-///
-/// Supported layout combinations vary by spatial dimension (1D, 2D, 3D convolutions).
-/// Common patterns include GNHWC (grouped, batch, spatial, channels) and variants.
-///
-/// @note Compilation will fail with a clear error message if the layout combination
-/// is not supported for the given spatial dimension.
-///
-/// TODO: If we don't check for supported layouts, this function can be simplified.
-template <typename Instance>
-constexpr std::array<builder::TensorLayout, 3> conv_layout()
+template <typename A, typename B, typename E, int kSpatialDim>
+constexpr auto conv_layout()
 {
-    using InstTraits = InstanceTraits<Instance>;
-    using A          = typename InstTraits::ALayout;
-    using B          = typename InstTraits::BLayout;
-    using E          = typename InstTraits::ELayout;
-    namespace ctl    = ck::tensor_layout::convolution;
+
+    // Helper lambda to construct layout array
+    auto layouts = [](auto... Ls) { return std::array<builder::TensorLayout, 3>{Ls...}; };
+
+    namespace ctl = ck::tensor_layout::convolution;
     using enum builder::TensorLayout;
 
-    // Helper to check if layouts match expected types
-    constexpr auto layouts_match = []<typename ExpA, typename ExpB, typename ExpE>() {
-        return std::is_same_v<A, ExpA> && std::is_same_v<B, ExpB> && std::is_same_v<E, ExpE>;
-    };
+    switch(kSpatialDim)
+    {
+    case 1:
+        if constexpr(layouts_are<A, B, E, ctl::GNWC, ctl::GKXC, ctl::GNWK>)
+            return layouts(GNWC, GKXC, GNWK);
+        if constexpr(layouts_are<A, B, E, ctl::G_NW_C, ctl::G_K_X_C, ctl::G_NW_K>)
+            return layouts(GNWC, GKXC, GNWK);
+        if constexpr(layouts_are<A, B, E, ctl::NWGC, ctl::GKXC, ctl::NWGK>)
+            return layouts(NWGC, GKXC, NWGK);
+        if constexpr(layouts_are<A, B, E, ctl::NGCW, ctl::GKXC, ctl::NGKW>)
+            return layouts(NGCW, GKXC, NGKW);
+        if constexpr(layouts_are<A, B, E, ctl::NGCW, ctl::GKCX, ctl::NGKW>)
+            return layouts(NGCW, GKCX, NGKW);
+        break;
+    case 2:
+        if constexpr(layouts_are<A, B, E, ctl::GNHWC, ctl::GKYXC, ctl::GNHWK>)
+            return layouts(GNHWC, GKYXC, GNHWK);
+        if constexpr(layouts_are<A, B, E, ctl::G_NHW_C, ctl::G_K_YX_C, ctl::G_NHW_K>)
+            return layouts(GNHWC, GKYXC, GNHWK);
+        if constexpr(layouts_are<A, B, E, ctl::NHWGC, ctl::GKYXC, ctl::NHWGK>)
+            return layouts(NHWGC, GKYXC, NHWGK);
+        if constexpr(layouts_are<A, B, E, ctl::NHWGC, ctl::KYXGC, ctl::NHWGK>)
+            return layouts(NHWGC, GKYXC, NHWGK);
+        if constexpr(layouts_are<A, B, E, ctl::NGCHW, ctl::GKYXC, ctl::NGKHW>)
+            return layouts(NGCHW, GKYXC, NGKHW);
+        if constexpr(layouts_are<A, B, E, ctl::NGCHW, ctl::GKCYX, ctl::NGKHW>)
+            return layouts(NGCHW, GKCYX, NGKHW);
+        break;
+    case 3:
+        if constexpr(layouts_are<A, B, E, ctl::GNDHWC, ctl::GKZYXC, ctl::GNDHWK>)
+            return layouts(GNDHWC, GKZYXC, GNDHWK);
+        if constexpr(layouts_are<A, B, E, ctl::G_NDHW_C, ctl::G_K_ZYX_C, ctl::G_NDHW_K>)
+            return layouts(GNDHWC, GKZYXC, GNDHWK);
+        if constexpr(layouts_are<A, B, E, ctl::NDHWGC, ctl::GKZYXC, ctl::NDHWGK>)
+            return layouts(NDHWGC, GKZYXC, NDHWGK);
+        if constexpr(layouts_are<A, B, E, ctl::NGCDHW, ctl::GKZYXC, ctl::NGKDHW>)
+            return layouts(NGCDHW, GKZYXC, NGKDHW);
+        if constexpr(layouts_are<A, B, E, ctl::NGCDHW, ctl::GKCZYX, ctl::NGKDHW>)
+            return layouts(NGCDHW, GKCZYX, NGKDHW);
+        break;
+    }
 
-    // Helper to construct layout array
-    constexpr auto make_layouts = [](auto in, auto weight, auto out) {
-        return std::array<builder::TensorLayout, 3>{in, weight, out};
-    };
+    // If we reach here, the layout combination is not supported
+    // Call consteval function to trigger a compile-time error with a clear message
+    report_unsupported_layout_error<A, B, E, kSpatialDim>();
 
-    constexpr int spatial_dim = InstTraits::kSpatialDim;
+    // This return is unreachable but needed to satisfy the compiler
+    return layouts(GNHWC, GKYXC, GNHWK);
+}
 
-    if constexpr(spatial_dim == 1)
-    {
-        if constexpr(layouts_match.template operator()<ctl::GNWC, ctl::GKXC, ctl::GNWK>())
-            return make_layouts(GNWC, GKXC, GNWK);
-        else if constexpr(layouts_match
-                              .template operator()<ctl::G_NW_C, ctl::G_K_X_C, ctl::G_NW_K>())
-            return make_layouts(GNWC, GKXC, GNWK);
-        else if constexpr(layouts_match.template operator()<ctl::NWGC, ctl::GKXC, ctl::NWGK>())
-            return make_layouts(NWGC, GKXC, NWGK);
-        else if constexpr(layouts_match.template operator()<ctl::NGCW, ctl::GKXC, ctl::NGKW>())
-            return make_layouts(NGCW, GKXC, NGKW);
-        else if constexpr(layouts_match.template operator()<ctl::NGCW, ctl::GKCX, ctl::NGKW>())
-            return make_layouts(NGCW, GKCX, NGKW);
-        else
-        {
-            report_unsupported_layout_error<A, B, E, spatial_dim>();
-            return make_layouts(GNWC, GKXC, GNWK); // Unreachable
-        }
-    }
-    else if constexpr(spatial_dim == 2)
-    {
-        if constexpr(layouts_match.template operator()<ctl::GNHWC, ctl::GKYXC, ctl::GNHWK>())
-            return make_layouts(GNHWC, GKYXC, GNHWK);
-        else if constexpr(layouts_match
-                              .template operator()<ctl::G_NHW_C, ctl::G_K_YX_C, ctl::G_NHW_K>())
-            return make_layouts(GNHWC, GKYXC, GNHWK);
-        else if constexpr(layouts_match.template operator()<ctl::NHWGC, ctl::GKYXC, ctl::NHWGK>())
-            return make_layouts(NHWGC, GKYXC, NHWGK);
-        else if constexpr(layouts_match.template operator()<ctl::NHWGC, ctl::KYXGC, ctl::NHWGK>())
-            return make_layouts(NHWGC, GKYXC, NHWGK);
-        else if constexpr(layouts_match.template operator()<ctl::NGCHW, ctl::GKYXC, ctl::NGKHW>())
-            return make_layouts(NGCHW, GKYXC, NGKHW);
-        else if constexpr(layouts_match.template operator()<ctl::NGCHW, ctl::GKCYX, ctl::NGKHW>())
-            return make_layouts(NGCHW, GKCYX, NGKHW);
-        else
-        {
-            report_unsupported_layout_error<A, B, E, spatial_dim>();
-            return make_layouts(GNHWC, GKYXC, GNHWK); // Unreachable
-        }
-    }
-    else if constexpr(spatial_dim == 3)
-    {
-        if constexpr(layouts_match.template operator()<ctl::GNDHWC, ctl::GKZYXC, ctl::GNDHWK>())
-            return make_layouts(GNDHWC, GKZYXC, GNDHWK);
-        else if constexpr(layouts_match
-                              .template operator()<ctl::G_NDHW_C, ctl::G_K_ZYX_C, ctl::G_NDHW_K>())
-            return make_layouts(GNDHWC, GKZYXC, GNDHWK);
-        else if constexpr(layouts_match
-                              .template operator()<ctl::NDHWGC, ctl::GKZYXC, ctl::NDHWGK>())
-            return make_layouts(NDHWGC, GKZYXC, NDHWGK);
-        else if constexpr(layouts_match
-                              .template operator()<ctl::NGCDHW, ctl::GKZYXC, ctl::NGKDHW>())
-            return make_layouts(NGCDHW, GKZYXC, NGKDHW);
-        else if constexpr(layouts_match
-                              .template operator()<ctl::NGCDHW, ctl::GKCZYX, ctl::NGKDHW>())
-            return make_layouts(NGCDHW, GKCZYX, NGKDHW);
-        else
-        {
-            report_unsupported_layout_error<A, B, E, spatial_dim>();
-            return make_layouts(GNDHWC, GKZYXC, GNDHWK); // Unreachable
-        }
-    }
-    else
-    {
-        report_unsupported_layout_error<A, B, E, spatial_dim>();
-        return make_layouts(GNHWC, GKYXC, GNHWK); // Unreachable
-    }
+/// @brief Derives the grouped convolution layout from a device kernel `Instance` type.
+/// @tparam Instance The device kernel instance type.
+/// @return An std::array corresponding to the tensor layouts:
+///             index 0 -> Input layout
+///             index 1 -> Weight layout
+///             index 2 -> Output layout
+
+template <typename Instance>
+constexpr auto fwd_conv_layout()
+    requires HasFwdConvLayouts<InstanceTraits<Instance>>
+{
+
+    using A = typename InstanceTraits<Instance>::ALayout;
+    using B = typename InstanceTraits<Instance>::BLayout;
+    using E = typename InstanceTraits<Instance>::ELayout;
+    return conv_layout<A, B, E, InstanceTraits<Instance>::kSpatialDim>();
+}
+
+/// @brief Derives the grouped convolution layout from a device kernel `Instance` type.
+/// @tparam Instance The device kernel instance type.
+/// @return An std::array corresponding to the tensor layouts:
+///             index 0 -> Input layout
+///             index 1 -> Weight layout
+///             index 2 -> Output layout
+template <typename Instance>
+constexpr auto bwd_wei_conv_layout()
+    requires HasBwdWeiLayouts<InstanceTraits<Instance>>
+{
+
+    using A = typename InstanceTraits<Instance>::InLayout;
+    using B = typename InstanceTraits<Instance>::WeiLayout;
+    using E = typename InstanceTraits<Instance>::OutLayout;
+    return conv_layout<A, B, E, InstanceTraits<Instance>::kSpatialDim>();
 }
 
 // ----------------------------------------------------------------------------
@@ -447,13 +464,11 @@ constexpr std::array<builder::TensorLayout, 3> conv_layout()
 // ----------------------------------------------------------------------------
 
 /// @brief Helper function to report unsupported data type with a clear error message.
-/// @details This consteval function uses throw (not static_assert) to ensure the error is not
-/// silently ignored during SFINAE. The thrown string becomes part of the compiler error message.
-template <typename ADataType>
+template <typename DataTypeFromInstance>
 [[noreturn]] consteval void report_unsupported_data_type_error()
 {
     throw "Unsupported data type detected!\n"
-          "The ADataType is not recognized.\n"
+          "The DataTypeFromInstance is not recognized.\n"
           "Supported types are: ck::half_t (FP16), ck::Tuple<ck::half_t, ck::half_t> (FP16_FP16), "
           "ck::bhalf_t (BF16), ck::Tuple<ck::bhalf_t, ck::bhalf_t> (BF16_BF16), float (FP32), "
           "ck::Tuple<float, float> (FP32_FP32), double (FP64), ck::f8_t (FP8), ck::bf8_fnuz_t "
@@ -462,62 +477,44 @@ template <typename ADataType>
           "Please verify that your kernel instance uses a supported data type.";
 }
 
-/// @brief Derives the data type from a device kernel Instance type.
-/// @tparam Instance The device kernel instance type.
-/// @return A builder::DataType enum value representing the input data type.
-/// @details This function examines the Instance's ADataType to determine the data type
-/// used for the input tensor. The function supports various floating-point and integer
-/// types, including tuple types for mixed-precision operations.
-///
-/// Supported data types include:
-/// - FP16 (ck::half_t)
-/// - FP16_FP16 (ck::Tuple<ck::half_t, ck::half_t>)
-/// - BF16 (ck::bhalf_t)
-/// - BF16_BF16 (ck::Tuple<ck::bhalf_t, ck::bhalf_t>)
-/// - FP32 (float)
-/// - FP32_FP32 (ck::Tuple<float, float>)
-/// - FP64 (double)
-/// - FP8 (ck::f8_t)
-/// - BF8 (ck::bf8_fnuz_t, ck::bf8_ocp_t)
-/// - I8 (int8_t)
-/// - I8_I8 (ck::Tuple<int8_t, int8_t>)
-/// - U8 (uint8_t)
-template <typename Instance>
+/// @brief Derives the data type from a device kernel `Instance` type.
+/// Returns a `builder::DataType` enum value (e.g., FP16, BF16, FP32, BF8).
+// Note: maybe move to types.hpp?
+template <typename DataTypeFromInstance>
 constexpr builder::DataType conv_data_type()
+
 {
-    using InstTraits = InstanceTraits<Instance>;
-    using ADataType  = typename InstTraits::ADataType;
     using enum builder::DataType;
 
-    if constexpr(std::is_same_v<ADataType, ck::half_t>)
+    if constexpr(std::is_same_v<DataTypeFromInstance, ck::half_t>)
         return FP16;
-    else if constexpr(std::is_same_v<ADataType, ck::Tuple<ck::half_t, ck::half_t>>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::Tuple<ck::half_t, ck::half_t>>)
         return FP16_FP16;
-    else if constexpr(std::is_same_v<ADataType, ck::bhalf_t>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::bhalf_t>)
         return BF16;
-    else if constexpr(std::is_same_v<ADataType, ck::Tuple<ck::bhalf_t, ck::bhalf_t>>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::Tuple<ck::bhalf_t, ck::bhalf_t>>)
         return BF16_BF16;
-    else if constexpr(std::is_same_v<ADataType, float>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, float>)
         return FP32;
-    else if constexpr(std::is_same_v<ADataType, ck::Tuple<float, float>>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::Tuple<float, float>>)
         return FP32_FP32;
-    else if constexpr(std::is_same_v<ADataType, double>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, double>)
         return FP64;
-    else if constexpr(std::is_same_v<ADataType, ck::f8_t>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::f8_t>)
         return FP8;
-    else if constexpr(std::is_same_v<ADataType, ck::bf8_fnuz_t>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::bf8_fnuz_t>)
         return BF8;
-    else if constexpr(std::is_same_v<ADataType, ck::bf8_ocp_t>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::bf8_ocp_t>)
         return BF8;
-    else if constexpr(std::is_same_v<ADataType, int8_t>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, int8_t>)
         return I8;
-    else if constexpr(std::is_same_v<ADataType, ck::Tuple<int8_t, int8_t>>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, ck::Tuple<int8_t, int8_t>>)
         return I8_I8;
-    else if constexpr(std::is_same_v<ADataType, uint8_t>)
+    else if constexpr(std::is_same_v<DataTypeFromInstance, uint8_t>)
         return U8;
     else
     {
-        report_unsupported_data_type_error<ADataType>();
+        report_unsupported_data_type_error<DataTypeFromInstance>();
         return FP32; // Unreachable
     }
 }
@@ -734,6 +731,94 @@ constexpr builder::PipelineScheduler get_pipeline_scheduler()
     {
         return builder::PipelineScheduler::DEFAULT;
     }
+}
+
+// ============================================================================
+// SECTION 4: Helper functions for common structures often used in reflection
+// ============================================================================
+
+template <typename InstTraits>
+constexpr DataTileInfo conv_traits_data_tile(int k_or_k0 = InstTraits::kKPerBlock)
+{
+    return DataTileInfo{.m = InstTraits::kMPerBlock, .n = InstTraits::kNPerBlock, .k = k_or_k0};
+}
+
+template <typename InstTraits>
+constexpr InputTileTransferInfo
+conv_traits_a_transfer_params(int _k1, int kPerBlock = InstTraits::kKPerBlock)
+{
+    return InputTileTransferInfo{
+        .tile_dimensions = {.k0 = kPerBlock / _k1, .m_or_n = InstTraits::kMPerBlock, .k1 = _k1},
+        .transfer_params = {.k1                    = _k1,
+                            .thread_cluster_dims   = InstTraits::kAThreadClusterLengths,
+                            .thread_cluster_order  = InstTraits::kAThreadClusterArrangeOrder,
+                            .src_access_order      = InstTraits::kABlockTransferSrcAccessOrder,
+                            .src_vector_dim        = InstTraits::kABlockTransferSrcVectorDim,
+                            .src_scalar_per_vector = InstTraits::kABlockTransferSrcScalarPerVector,
+                            .dst_scalar_per_vector_k1 =
+                                InstTraits::kABlockTransferDstScalarPerVectorK1,
+                            .lds_padding = static_cast<bool>(InstTraits::kABlockLdsExtraM)}};
+}
+
+template <typename InstTraits>
+constexpr InputTileTransferInfo
+conv_traits_b_transfer_params(int _k1, int kPerBlock = InstTraits::kKPerBlock)
+{
+    return InputTileTransferInfo{
+        .tile_dimensions = {.k0 = kPerBlock / _k1, .m_or_n = InstTraits::kNPerBlock, .k1 = _k1},
+        .transfer_params = {.k1                    = _k1,
+                            .thread_cluster_dims   = InstTraits::kBThreadClusterLengths,
+                            .thread_cluster_order  = InstTraits::kBThreadClusterArrangeOrder,
+                            .src_access_order      = InstTraits::kBBlockTransferSrcAccessOrder,
+                            .src_vector_dim        = InstTraits::kBBlockTransferSrcVectorDim,
+                            .src_scalar_per_vector = InstTraits::kBBlockTransferSrcScalarPerVector,
+                            .dst_scalar_per_vector_k1 =
+                                InstTraits::kBBlockTransferDstScalarPerVectorK1,
+                            .lds_padding = static_cast<bool>(InstTraits::kBBlockLdsExtraN)}};
+}
+
+template <typename InstTraits>
+constexpr WarpGemmParams conv_traits_wmma_warp_gemm_params()
+{
+    return WarpGemmParams{.gemm_m = InstTraits::kMPerWmma,
+                          .gemm_n = InstTraits::kNPerWmma,
+                          .m_iter = InstTraits::kMRepeat,
+                          .n_iter = InstTraits::kNRepeat};
+}
+
+template <typename InstTraits>
+constexpr WarpGemmParams conv_traits_xdl_warp_gemm_params()
+{
+    return WarpGemmParams{.gemm_m = InstTraits::kMPerXDL,
+                          .gemm_n = InstTraits::kNPerXDL,
+                          .m_iter = InstTraits::kMXdlPerWave,
+                          .n_iter = InstTraits::kNXdlPerWave};
+}
+
+template <typename InstTraits>
+constexpr OutputTileTransferInfo conv_traits_wmma_c_tile_transfer()
+{
+    return OutputTileTransferInfo{
+        .shuffle_params      = {.m_gemms_per_shuffle = InstTraits::kCShuffleMRepeatPerShuffle,
+                                .n_gemms_per_shuffle = InstTraits::kCShuffleNRepeatPerShuffle},
+        .thread_cluster_dims = {InstTraits::kCDEThreadClusterLengths[0],
+                                InstTraits::kCDEThreadClusterLengths[1],
+                                InstTraits::kCDEThreadClusterLengths[2],
+                                InstTraits::kCDEThreadClusterLengths[3]},
+        .scalar_per_vector   = InstTraits::kCDEBlockTransferScalarPerVector};
+}
+
+template <typename InstTraits>
+constexpr OutputTileTransferInfo conv_traits_xdl_c_tile_transfer()
+{
+    return OutputTileTransferInfo{
+        .shuffle_params      = {.m_gemms_per_shuffle = InstTraits::kCShuffleMXdlPerWavePerShuffle,
+                                .n_gemms_per_shuffle = InstTraits::kCShuffleNXdlPerWavePerShuffle},
+        .thread_cluster_dims = {InstTraits::kCThreadClusterLengths[0],
+                                InstTraits::kCThreadClusterLengths[1],
+                                InstTraits::kCThreadClusterLengths[2],
+                                InstTraits::kCThreadClusterLengths[3]},
+        .scalar_per_vector   = InstTraits::kCBlockTransferScalarPerVector};
 }
 
 } // namespace ck_tile::reflect::conv

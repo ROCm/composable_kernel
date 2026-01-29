@@ -33,6 +33,7 @@
 #include "ck/utility/thread_group.hpp"
 #include "ck/utility/debug.hpp"
 
+#include "ck/utility/amd_arch.hpp"
 #if __clang_major__ >= 20
 #include "amd_buffer_addressing_builtins.hpp"
 #else
