@@ -1701,7 +1701,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             << BBlockTransferDstScalarPerVector_K1 << ", "
             << CShuffleMXdlPerWavePerShuffle << ", "
             << CShuffleNXdlPerWavePerShuffle << ", "
-            << CBlockTransferScalarPerVector_NWaveNPerXdl
+            << CBlockTransferScalarPerVector_NWaveNPerXdl << ", "
+            << NumGroupsToMerge
             << ">";
         // clang-format on
 
