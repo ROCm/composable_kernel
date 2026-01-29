@@ -182,7 +182,9 @@ struct TensorDescriptor
 
     // TODO make these private
     __host__ __device__ constexpr const auto& GetTransforms() const [[clang::lifetimebound]]
-    { return transforms_; }
+    {
+        return transforms_;
+    }
 
     __host__ __device__ static constexpr auto GetLowerDimensionIdss()
     {
@@ -257,7 +259,9 @@ struct TensorCoordinate
 
     // TODO make these private
     __host__ __device__ constexpr const auto& GetHiddenIndex() const [[clang::lifetimebound]]
-    { return idx_hidden_; }
+    {
+        return idx_hidden_;
+    }
 
     __host__ __device__ auto& GetHiddenIndex() [[clang::lifetimebound]] { return idx_hidden_; }
 
