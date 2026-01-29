@@ -812,7 +812,9 @@ TEST_F(ConvTraitsTest, ConvBwdWeightXdlCshuffleV3TraitsExtraction)
         ck::BlockGemmPipelineScheduler::Intrawave, // BlkGemmPipeSched
         ck::BlockGemmPipelineVersion::v1,          // BlkGemmPipelineVer
         ck::half_t,                                // AComputeDataType
-        ck::half_t>;                               // BComputeDataType
+        ck::half_t,                                // BComputeDataType
+        false,                                     // DirectLoad
+        1>;                                        // NumGroupsToMerge
 
     // Use ConvTraitsTmpl to extract compile-time information
     const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();
