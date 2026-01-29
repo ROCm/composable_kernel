@@ -128,19 +128,16 @@ bool profile_grouped_conv_fwd_convscale_add_impl(
 
     if(do_verification)
     {
-        // findme
-        using tmpType = float; // OutDataType;
-        // using tmpType = OutDataType; // OutDataType;
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<
             NDimSpatial,
             InDataType,
             WeiDataType,
-            tmpType,
+            float,
             InElementOp,
             WeiElementOp,
             ck::tensor_operation::element_wise::PassThrough>{};
 
-        Tensor<tmpType> c_tensor(e_host_tensor_descriptor);
+        Tensor<float> c_tensor(e_host_tensor_descriptor);
         auto ref_invoker = ref_conv.MakeInvoker();
         auto ref_argument_c =
             ref_conv.MakeArgument(input,

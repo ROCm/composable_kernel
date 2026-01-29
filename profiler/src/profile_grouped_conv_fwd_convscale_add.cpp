@@ -93,10 +93,6 @@ int profile_grouped_conv_fwd_convscale_add(int argc, char* argv[])
     using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
     using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
 
-    using GKZYXC = ck::tensor_layout::convolution::GKZYXC;
-    using NDHWGC = ck::tensor_layout::convolution::NDHWGC;
-    using NDHWGK = ck::tensor_layout::convolution::NDHWGK;
-
     constexpr auto I3 = ck::Number<3>{};
 
     auto profile = [&](auto num_dim_spatial_tmp,
