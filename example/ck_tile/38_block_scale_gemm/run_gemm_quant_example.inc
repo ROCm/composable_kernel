@@ -33,7 +33,8 @@ template <typename GemmConfig,
 float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-    constexpr bool transpose_c = QuantMode == ck_tile::QuantType::ABQuantGrouped;
+    constexpr bool transpose_c =
+        GemmConfig::TransposeC; // QuantMode == ck_tile::QuantType::ABQuantGrouped;
     using ComputeDataType = std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped ||
                                                    QuantMode == ck_tile::QuantType::RowColQuant,
                                                typename TypeConfig::BDataType,
@@ -50,14 +51,15 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
     using GemmTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
                                                     GemmConfig::kPadN,
                                                     GemmConfig::kPadK,
-                                                    GemmConfig::PreshuffleQuant,
+                                                    GemmConfig::APreshuffleQuant,
+                                                    GemmConfig::BPreshuffleQuant,
                                                     GemmConfig::PreshuffleB,
                                                     ALayout,
                                                     BLayout,
                                                     CLayout,
                                                     QuantMode,
-                                                    AQLayout, // for AQLayout
-                                                    BQLayout, // for BQLayout
+                                                    AQLayout,
+                                                    BQLayout,
                                                     transpose_c,
                                                     GemmConfig::DoubleSmemBuffer>;
 
@@ -73,7 +75,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
         GemmConfig::PreshuffleB == true,
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
         std::conditional_t<
-            QuantMode == ck_tile::QuantType::AQuantGrouped && GemmConfig::PreshuffleQuant == true,
+            QuantMode == ck_tile::QuantType::AQuantGrouped && GemmConfig::APreshuffleQuant == true,
             ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
             std::conditional_t<
                 QuantMode == ck_tile::QuantType::AQuantGrouped,
@@ -146,7 +148,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                         has_hot_loop_v,
                                                         tail_number_v>>>>;
         using AQuantPipeline =
-            std::conditional_t<GemmConfig::PreshuffleQuant,
+            std::conditional_t<GemmConfig::APreshuffleQuant,
                                ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
                                ck_tile::AQuantGemmPipelineAgBgCrMem<PipelineProblem>>;
 
@@ -390,8 +392,10 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     std::cout << " Acc_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::AccDataType>::name
               << " C_Type = " << ck_tile::DataTypeTraits<typename TypeConfig::CDataType>::name
               << " QuantMode = " << quant_type_to_string(QuantMode)
-              << " PreshuffleQuant = " << (GemmConfig::PreshuffleQuant ? "true" : "false") << " : "
-              << " PreshuffleB = " << (GemmConfig::PreshuffleB ? "true" : "false") << " : "
+              << " APreshuffleQuant = " << (GemmConfig::APreshuffleQuant ? "true" : "false")
+              << " : "
+              << " BPreshuffleQuant = " << (GemmConfig::BPreshuffleQuant ? "true" : "false")
+              << " : " << " PreshuffleB = " << (GemmConfig::PreshuffleB ? "true" : "false") << " : "
               << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
 
@@ -536,20 +540,12 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     // Create BQ tensor with appropriate shape
     std::unique_ptr<ck_tile::HostTensor<BQDataType>> bq_tensor_ptr = nullptr;
     if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped ||
-                 QuantMode == ck_tile::QuantType::RowColQuant)
+                 QuantMode == ck_tile::QuantType::ABQuantGrouped ||
+                 QuantMode == ck_tile::QuantType::RowColQuant ||
+                 QuantMode == ck_tile::QuantType::TensorQuant)
     {
         bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
             ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, is_row_major(bq_layout)));
-    }
-    else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
-    {
-        bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
-            ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, is_row_major(bq_layout)));
-    }
-    else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
-    {
-        bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
-            ck_tile::host_tensor_descriptor(1, 1, stride_BQ, is_row_major(bq_layout)));
     }
 
     std::mt19937 gen(42);
@@ -870,7 +866,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                  QuantMode == ck_tile::QuantType::RowColQuant ||
                  QuantMode == ck_tile::QuantType::TensorQuant)
     {
-        if constexpr(GemmConfig::PreshuffleQuant)
+        if constexpr(GemmConfig::APreshuffleQuant)
         {
             ck_tile::HostTensor<AQDataType> aq_shuffle_host =
                 ck_tile::shuffle_aq(aq_tensor_ptr.get(), GemmConfig::K_Tile / AQuantGroupSize::kK);
@@ -929,7 +925,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             ck_tile::HostTensor<BQDataType> bq_permuted_host =
                 ck_tile::bq_permuteN<GemmConfig>(*bq_tensor_ptr, BQuantGroupSize::kN);
 
-            if constexpr(GemmConfig::PreshuffleQuant)
+            if constexpr(GemmConfig::BPreshuffleQuant)
             {
                 ck_tile::HostTensor<BQDataType> bq_shuffle_host = ck_tile::shuffle_bq(
                     &bq_permuted_host, GemmConfig::K_Tile / BQuantGroupSize::kK);
@@ -940,7 +936,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                 bq_dev_buf_ptr->ToDevice(bq_permuted_host.data());
             }
         }
-        else if constexpr(GemmConfig::PreshuffleQuant)
+        else if constexpr(GemmConfig::BPreshuffleQuant)
         {
             ck_tile::HostTensor<BQDataType> bq_shuffle_host =
                 ck_tile::shuffle_bq(bq_tensor_ptr.get(), GemmConfig::K_Tile / BQuantGroupSize::kK);
@@ -1121,7 +1117,7 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
 
         if constexpr((QuantMode == ck_tile::QuantType::AQuantGrouped ||
                       QuantMode == ck_tile::QuantType::ABQuantGrouped) &&
-                     !GemmConfig::PreshuffleQuant && !GemmConfig::PreshuffleB)
+                     !GemmConfig::APreshuffleQuant && !GemmConfig::PreshuffleB)
         {
             if(a_layout == "R" && b_layout == "R")
             {
@@ -1142,7 +1138,8 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
                     arg_parser, Col{}, Row{}, Row{}, Col{}, Row{});
             }
         }
-        if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped && !GemmConfig::PreshuffleQuant)
+        if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped &&
+                     !GemmConfig::APreshuffleQuant)
         {
             if(a_layout == "C" && b_layout == "C")
             {

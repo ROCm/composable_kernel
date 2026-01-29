@@ -25,9 +25,9 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
-    using QuantGroupSize  = remove_cvref_t<typename Problem::BQuantGroupSize>;
+    using BQuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
-    static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant preshuffle kernel!");
+    static_assert(BQuantGroupSize::kM == 1, "only N/K blocks for BQuant preshuffle kernel!");
 
     static constexpr auto I0   = number<0>();
     static constexpr auto I1   = number<1>();
@@ -53,7 +53,7 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
+    static constexpr bool BPreshuffleQuant = Problem::Traits::BPreshuffleQuant;
 
     static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
     static constexpr index_t NIterPerWarp =
@@ -63,12 +63,12 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
     static constexpr auto MIter_2nd_last =
         (MIterPerWarp >= 2) ? MIterPerWarp - 2 : MIterPerWarp - 1;
 
-    static constexpr index_t KPerBlockBQ = KPerBlock / QuantGroupSize::kK;
+    static constexpr index_t KPerBlockBQ = KPerBlock / BQuantGroupSize::kK;
 
     static constexpr index_t QScalesPerBlockRow =
-        integer_divide_ceil(KPerBlock, QuantGroupSize::kK);
+        integer_divide_ceil(KPerBlock, BQuantGroupSize::kK);
     static constexpr index_t QScalesPerWarpGemmRow =
-        integer_divide_ceil(WG::kK, QuantGroupSize::kK);
+        integer_divide_ceil(WG::kK, BQuantGroupSize::kK);
 
     static constexpr index_t KIterPerQScale = KIterPerWarp / QScalesPerBlockRow;
     static constexpr index_t DsReadPreload  = 2; // default 2, preload 2 ds read
@@ -173,7 +173,7 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                                                    c_warp_y_index_zeros)) /
                                CBlockTensor::PackedSize>{};
 
-                    if constexpr(PreshuffleQuant)
+                    if constexpr(BPreshuffleQuant)
                     {
                         constexpr index_t reg_offset = nIter;
                         auto pull_from_lane = (__lane_id() & (WG::kN - 1)) * KPerBlockBQ + kQScale;
@@ -205,9 +205,10 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                     else
                     {
                         index_t reg_offset = [&]() {
-                            if constexpr(QuantGroupSize::kN >= (NWarp * WG::kN))
+                            if constexpr(BQuantGroupSize::kN >= (NWarp * WG::kN))
                             {
-                                return (nIter * NWarp * WG::kN) / QuantGroupSize::kN * KPerBlockBQ +
+                                return (nIter * NWarp * WG::kN) / BQuantGroupSize::kN *
+                                           KPerBlockBQ +
                                        kQScale;
                             }
                             else
