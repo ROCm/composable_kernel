@@ -36,7 +36,7 @@ void add_device_gemm_wmma_multi_abd_bf16_i8_bf16_mk_nk_mn_bias_gelu_v1_instances
                                                                         ck::Tuple<D0DataType>,
                                                                         AddFastGelu,
                                                                         GemmMNKPadding,
-                                                                        Interwave>{});
+                                                                        Intrawave>{});
 }
 
 void add_device_gemm_wmma_multi_abd_bf16_i8_bf16_mk_nk_mn_bias_v1_instances(
@@ -58,7 +58,7 @@ void add_device_gemm_wmma_multi_abd_bf16_i8_bf16_mk_nk_mn_bias_v1_instances(
                                                                         ck::Tuple<D0DataType>,
                                                                         Add,
                                                                         GemmMNKPadding,
-                                                                        Interwave>{});
+                                                                        Intrawave>{});
 }
 
 void add_device_gemm_wmma_multi_abd_bf16_i8_bf16_mk_nk_mn_v1_instances(
@@ -80,7 +80,7 @@ void add_device_gemm_wmma_multi_abd_bf16_i8_bf16_mk_nk_mn_v1_instances(
                                                                         ck::Tuple<>,
                                                                         PassThrough,
                                                                         GemmMNKPadding,
-                                                                        Interwave>{});
+                                                                        Intrawave>{});
 }
 
 void add_device_gemm_wmma_multi_abd_bf16_i8_bf16_mk_nk_mn_gelu_v1_instances(
@@ -102,7 +102,7 @@ void add_device_gemm_wmma_multi_abd_bf16_i8_bf16_mk_nk_mn_gelu_v1_instances(
                                                                         ck::Tuple<>,
                                                                         FastGelu,
                                                                         GemmMNKPadding,
-                                                                        Interwave>{});
+                                                                        Intrawave>{});
 }
 
 } // namespace instance

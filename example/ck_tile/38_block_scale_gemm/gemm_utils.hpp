@@ -11,6 +11,14 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm_quant.hpp"
 
+inline auto& get_kernel_lut()
+{
+    // In an inline function, function-local static objects in all function definitions are shared
+    // across all translation units.
+    static std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>> lut;
+    return lut;
+}
+
 inline size_t hash_multiple_strings(const std::vector<std::string>& inputs)
 {
     std::hash<std::string> hasher;
@@ -72,7 +80,8 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
 
-    static constexpr bool PreshuffleQuant  = false;
+    static constexpr bool APreshuffleQuant = false;
+    static constexpr bool BPreshuffleQuant = false;
     static constexpr bool PreshuffleB      = false;
     static constexpr bool DoubleSmemBuffer = false;
     static constexpr bool TiledMMAPermuteN = false;
@@ -149,7 +158,8 @@ struct GemmConfigPreshuffleQuantDecode : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile =
         ck_tile::get_k_warp_tile<PrecType, M_Warp_Tile, true>();
 
-    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool APreshuffleQuant = true;
+    static constexpr bool BPreshuffleQuant = true;
 };
 
 template <typename PrecType>
@@ -179,7 +189,7 @@ template <typename PrecType>
 struct GemmConfigPreshuffleB_PreshuffleBQuant_Decode
     : public GemmConfigPreshuffleB_BQuant_Decode<PrecType>
 {
-    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool BPreshuffleQuant = true;
 };
 
 template <typename PrecType>
@@ -210,7 +220,7 @@ template <typename PrecType>
 struct GemmConfigPreshuffleB_PreshuffleBQuant_Prefill
     : public GemmConfigPreshuffleB_BQuant_Prefill<PrecType>
 {
-    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool BPreshuffleQuant = true;
 };
 
 template <typename PrecType>
@@ -264,7 +274,7 @@ struct GemmConfigABQuantPrefill : public GemmConfigQuantPrefill<PrecType>
 template <typename PrecType>
 struct GemmConfigPreshuffleBQuantPrefill : public GemmConfigQuantPrefill<PrecType>
 {
-    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool BPreshuffleQuant = true;
 };
 
 template <typename PrecType>
