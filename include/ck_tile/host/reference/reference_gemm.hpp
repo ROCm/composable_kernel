@@ -451,7 +451,7 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
     const std::size_t N = b_k_n.get_length(1);
     const std::size_t K = a_m_k.get_length(1);
 
-    const std::string device_name = ck_tile::get_device_name();
+    static const std::string device_name = ck_tile::get_device_name();
 
     auto f_mn = [&](auto m, auto n) {
         AccDataType v_acc = 0;

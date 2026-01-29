@@ -157,18 +157,17 @@ struct UniversalGemmBasePolicy
                 constexpr auto KThreadWrite     = TileEncodingPattern::Y0 * TileEncodingPattern::Y1;
                 constexpr auto K0PerThreadWrite = AK0 / KThreadWrite;
                 constexpr auto KThreadRead      = get_warp_size() / MPerXdl;
-                constexpr auto K0PerThreadRead  = (AK0 / KThreadRead) > 0 ? (AK0 / KThreadRead) : 1;
+                constexpr auto K0PerThreadRead  = AK0 / KThreadRead;
 
                 // check if we exceed all LDS banks
-                constexpr auto LdsBanksWidth  = get_n_lds_banks() * get_n_dwords_per_128b();
-                constexpr auto kfold          = (AK1 * M0 * sizeof(ADataType) > LdsBanksWidth ||
-                                        (AK1 * M0 * sizeof(ADataType)) == 0)
-                                                    ? 1
-                                                    : LdsBanksWidth / (AK1 * M0 * sizeof(ADataType));
-                constexpr auto divisor        = (kfold * K0PerThreadWrite / K0PerThreadRead);
-                constexpr auto divisor_to_use = divisor > 0 ? divisor : 1;
+                constexpr auto LdsBanksWidth = get_n_lds_banks() * get_n_dwords_per_128b();
+                constexpr auto kfold         = (AK1 * M0 * sizeof(ADataType) > LdsBanksWidth)
+                                                   ? 1
+                                                   : LdsBanksWidth / (AK1 * M0 * sizeof(ADataType));
                 constexpr auto KThreadReadPerm =
-                    (divisor > 1) ? KThreadRead / divisor_to_use : KThreadRead;
+                    (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
+                        ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
+                        : KThreadRead;
 
                 // 1<=mpair<=n0
                 constexpr auto mpair =
@@ -355,18 +354,17 @@ struct UniversalGemmBasePolicy
                 constexpr auto KThreadWrite     = TileEncodingPattern::Y0 * TileEncodingPattern::Y1;
                 constexpr auto K0PerThreadWrite = BK0 / KThreadWrite;
                 constexpr auto KThreadRead      = get_warp_size() / NPerXdl;
-                constexpr auto K0PerThreadRead  = (BK0 / KThreadRead) > 0 ? (BK0 / KThreadRead) : 1;
+                constexpr auto K0PerThreadRead  = BK0 / KThreadRead;
 
                 // check if we exceed all LDS banks
-                constexpr auto LdsBanksWidth  = get_n_lds_banks() * get_n_dwords_per_128b();
-                constexpr auto kfold          = (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth ||
-                                        (BK1 * N0 * sizeof(BDataType)) == 0)
-                                                    ? 1
-                                                    : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
-                constexpr auto divisor        = (kfold * K0PerThreadWrite / K0PerThreadRead);
-                constexpr auto divisor_to_use = divisor > 0 ? divisor : 1;
+                constexpr auto LdsBanksWidth = get_n_lds_banks() * get_n_dwords_per_128b();
+                constexpr auto kfold         = (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth)
+                                                   ? 1
+                                                   : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
                 constexpr auto KThreadReadPerm =
-                    (divisor > 1) ? KThreadRead / divisor_to_use : KThreadRead;
+                    (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
+                        ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
+                        : KThreadRead;
 
                 // 1<=npair<=n0
                 constexpr auto npair =
