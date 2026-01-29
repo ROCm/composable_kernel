@@ -632,7 +632,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                    const index_t AK0)
     {
         // using GemmSpecialization = tensor_operation::device::GemmSpecialization;
-        constexpr bool padM      = GemmSpec == GemmSpecialization::MKPadding ||
+        constexpr bool padM = GemmSpec == GemmSpecialization::MKPadding ||
                               GemmSpec == GemmSpecialization::MNKPadding ||
                               GemmSpec == GemmSpecialization::MPadding ||
                               GemmSpec == GemmSpecialization::MNPadding;
@@ -701,7 +701,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                    const index_t BK0)
     {
         // using GemmSpecialization = tensor_operation::device::GemmSpecialization;
-        constexpr bool padN      = GemmSpec == GemmSpecialization::NKPadding ||
+        constexpr bool padN = GemmSpec == GemmSpecialization::NKPadding ||
                               GemmSpec == GemmSpecialization::MNKPadding ||
                               GemmSpec == GemmSpecialization::NPadding ||
                               GemmSpec == GemmSpecialization::MNPadding;
@@ -797,7 +797,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                            make_tuple(Sequence<0>{}, Sequence<1>{}));
         // TODO: Investigate why this path is not used in the original
         // gridwise_gemm_xdl_cshuffle_v3.hpp
- #if 0
+#if 0
         // using GemmSpecialization = tensor_operation::device::GemmSpecialization;
 
         if constexpr(GemmSpec == GemmSpecialization::MNPadding ||
@@ -835,7 +835,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             // not pad M or N
             return c_grid_desc_mraw_nraw;
         }
- #endif
+#endif
     }
 
     static constexpr auto MakeDsGridPointer()
@@ -1094,11 +1094,10 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
                     std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! "
-                              "K_Batch:" << karg.KBatch << " " <<
-                              "K0PerBlock:" << KPerBlock << " " <<
-                              "K1:" << AK1Number << " " << 
-                              "K:" << karg.K << " " << __FILE__ << ":" << __LINE__
-                              << ", in function: " << __func__ << std::endl;
+                                 "K_Batch:"
+                              << karg.KBatch << " " << "K0PerBlock:" << KPerBlock << " "
+                              << "K1:" << AK1Number << " " << "K:" << karg.K << " " << __FILE__
+                              << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
                 }
                 return false;
             }

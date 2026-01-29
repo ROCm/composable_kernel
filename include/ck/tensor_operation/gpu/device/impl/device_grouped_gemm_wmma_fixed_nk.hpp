@@ -88,7 +88,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     if(M == 0 || N == 0 || K == 0)
         return;
 
-    const auto StrideE = gemmTransKernelArg.StrideE;
+    const auto StrideE     = gemmTransKernelArg.StrideE;
     const index_t m_padded = GridwiseGemm::CalculateMPadded(M);
     const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
     const auto e_grid_desc_m_n =
@@ -589,7 +589,11 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
             const index_t n_padded = GridwiseGemm::CalculateNPadded(gemm_desc_kernel_arg_[0].N);
             const auto e_grid_desc_sum_m_n =
                 GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
-                    sum_of_m, sum_of_m_padded, gemm_desc_kernel_arg_[0].N, n_padded, gemm_desc_kernel_arg_[0].StrideE);
+                    sum_of_m,
+                    sum_of_m_padded,
+                    gemm_desc_kernel_arg_[0].N,
+                    n_padded,
+                    gemm_desc_kernel_arg_[0].StrideE);
 
             const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_sum_m_n, k_batch_};
 
@@ -610,11 +614,10 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
             const index_t StrideE = gemm_desc_kernel_arg_[0].StrideE;
             const index_t N       = gemm_desc_kernel_arg_[0].N;
 
-            const index_t m_padded = GridwiseGemm::CalculateMPadded(AverM);
-            const index_t n_padded = GridwiseGemm::CalculateNPadded(N);
-            const auto e_grid_desc_m_n =
-                GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
-                    AverM, m_padded, N, n_padded, StrideE);
+            const index_t m_padded     = GridwiseGemm::CalculateMPadded(AverM);
+            const index_t n_padded     = GridwiseGemm::CalculateNPadded(N);
+            const auto e_grid_desc_m_n = GridwiseGemm::template MakeDEGridDescriptor_M_N<ELayout>(
+                AverM, m_padded, N, n_padded, StrideE);
 
             const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n, k_batch_};
 

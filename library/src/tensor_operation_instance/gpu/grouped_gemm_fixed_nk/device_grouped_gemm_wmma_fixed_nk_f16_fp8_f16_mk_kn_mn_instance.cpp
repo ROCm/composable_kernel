@@ -11,19 +11,18 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-
 void add_device_grouped_gemm_wmma_fixed_nk_f16_fp8_f16_mk_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
-                                                  Row,
-                                                  DsLayout,
-                                                  Row,
-                                                  F16,
-                                                  F8,
-                                                  DsDataType,
-                                                  F16,
-                                                  PassThrough,
-                                                  PassThrough,
-                                                  PassThrough>>>& instances)
+                                                         Row,
+                                                         DsLayout,
+                                                         Row,
+                                                         F16,
+                                                         F8,
+                                                         DsDataType,
+                                                         F16,
+                                                         PassThrough,
+                                                         PassThrough,
+                                                         PassThrough>>>& instances)
 {
     add_device_grouped_gemm_wmma_fixed_nk_irregular_instances<
         F16,

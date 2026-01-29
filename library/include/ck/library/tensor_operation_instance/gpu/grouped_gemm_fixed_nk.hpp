@@ -69,7 +69,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_f16_f8_f16_mk_nk_mn_instances(
                                                          F16,
                                                          PassThrough,
                                                          PassThrough,
-                                                         PassThrough>>>& instances);                                                        
+                                                         PassThrough>>>& instances);
 
 // i8_inputB
 void add_device_grouped_gemm_xdl_fixed_nk_f16_i8_f16_mk_kn_mn_instances(
@@ -124,7 +124,7 @@ void add_device_grouped_gemm_wmma_fixed_nk_f16_f16_f16_mk_nk_mn_instances(
                                                          F16,
                                                          PassThrough,
                                                          PassThrough,
-                                                         PassThrough>>>& instances);  
+                                                         PassThrough>>>& instances);
 
 void add_device_grouped_gemm_wmma_fixed_nk_f16_fp8_f16_mk_kn_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
@@ -176,7 +176,7 @@ void add_device_grouped_gemm_wmma_fixed_nk_f16_i8_f16_mk_nk_mn_instances(
                                                          F16,
                                                          PassThrough,
                                                          PassThrough,
-                                                         PassThrough>>>& instances);                                                         
+                                                         PassThrough>>>& instances);
 #endif
 
 // bf16_inputA i8_inputB
@@ -193,7 +193,7 @@ void add_device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_kn_mn_instances(
                                                          BF16,
                                                          PassThrough,
                                                          PassThrough,
-                                                         PassThrough>>>& instances);                                           
+                                                         PassThrough>>>& instances);
 
 void add_device_grouped_gemm_xdl_fixed_nk_bf16_i8_bf16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
@@ -233,8 +233,8 @@ void add_device_grouped_gemm_wmma_fixed_nk_bf16_i8_bf16_mk_kn_mn_instances(
                                                          BF16,
                                                          PassThrough,
                                                          PassThrough,
-                                                         PassThrough>>>& instances); 
-#endif                                                        
+                                                         PassThrough>>>& instances);
+#endif
 #endif
 
 // bf16_inputA bf16_inputB
@@ -252,7 +252,6 @@ void add_device_grouped_gemm_xdl_fixed_nk_bf16_bf16_bf16_mk_kn_mn_instances(
                                                          PassThrough,
                                                          PassThrough,
                                                          PassThrough>>>& instances);
-
 
 void add_device_grouped_gemm_xdl_fixed_nk_bf16_bf16_bf16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
@@ -280,7 +279,6 @@ void add_device_grouped_gemm_wmma_fixed_nk_bf16_bf16_bf16_mk_kn_mn_instances(
                                                          PassThrough,
                                                          PassThrough,
                                                          PassThrough>>>& instances);
-
 
 void add_device_grouped_gemm_wmma_fixed_nk_bf16_bf16_bf16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemmFixedNK<Row,
@@ -416,8 +414,7 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif // CK_ENABLE_BF16
-#endif //CK_USE_XDL
-
+#endif // CK_USE_XDL
 
 #if defined(CK_USE_WMMA)
         // fp16_output
@@ -504,7 +501,6 @@ struct DeviceOperationInstanceFactory<
         }
 #endif // CK_ENABLE_BF16
 #endif // CK_USE_WMMA
-
 
         return op_ptrs;
     }

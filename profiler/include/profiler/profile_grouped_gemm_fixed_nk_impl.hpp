@@ -46,7 +46,7 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
                                         int n_warmup = 1,
                                         int n_iter   = 10)
 {
-    bool pass = true;
+    bool pass             = true;
     using ComputeDataType = ADataType;
 
     auto f_host_tensor_descriptor =
@@ -76,7 +76,7 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
     std::vector<Tensor<CDataType>> c_m_n_host_results;
     std::vector<Tensor<CDataType>> c_m_n_device_results;
     double max_abs_in_val = 0.f;
-    int sum_of_m = 0;
+    int sum_of_m          = 0;
     for(std::size_t i = 0; i < group_count; i++)
     {
         sum_of_m += Ms[i];
@@ -352,7 +352,7 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
             }
             else
             {
-                std::cout << "Instance: " << gemm_name 
+                std::cout << "Instance: " << gemm_name
                           << ", does not support this GEMM problem (KBatch: " << kbatch_curr << ")"
                           << std::endl;
             }

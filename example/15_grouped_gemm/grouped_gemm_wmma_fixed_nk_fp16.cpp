@@ -63,7 +63,6 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemm_Wmma_
         < ALayout, BLayout, DsLayout, ELayout, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   256,   128,   128,    64,   8,   8,   16,   16,       2,       4,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<8, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 64, 1, 4>,               8>;
 // clang-format on
 
-
 struct ProblemSize final
 {
     std::vector<ck::index_t> Ms;

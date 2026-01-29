@@ -23,12 +23,13 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 template <typename Tuple>
-class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple,false,ck::test::FixedNKGroupedGemmProfiler>
+class TestGroupedGemm
+    : public ck::test::TestGroupedGemm<Tuple, false, ck::test::FixedNKGroupedGemmProfiler>
 {
     public:
     void SetUp() override
     {
-        ck::test::TestGroupedGemm<Tuple,false,ck::test::FixedNKGroupedGemmProfiler>::SetUp();
+        ck::test::TestGroupedGemm<Tuple, false, ck::test::FixedNKGroupedGemmProfiler>::SetUp();
 
 #if defined(CK_USE_WMMA)
         // The old XDL tests didn't fail if instances were not supported, so we want to keep that
@@ -40,27 +41,24 @@ class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple,false,ck::test::F
     }
 };
 
-
 using KernelTypes = ::testing::Types<
-    
 
-#if (defined(CK_USE_XDL) && (defined(__gfx9__) || defined(__gfx12__))) || (defined(CK_USE_WMMA) && defined(__gfx12__))
-    ck::Tuple<     Row, Row, Row, F16, F8, F16>,
-    ck::Tuple<     Row, Col, Row, F16, F8, F16>,
+#if(defined(CK_USE_XDL) && (defined(__gfx9__) || defined(__gfx12__))) || \
+    (defined(CK_USE_WMMA) && defined(__gfx12__))
+    ck::Tuple<Row, Row, Row, F16, F8, F16>,
+    ck::Tuple<Row, Col, Row, F16, F8, F16>,
 #endif
 
-    ck::Tuple<     Row, Row, Row, F16, F16, F16>,
-    ck::Tuple<     Row, Col, Row, F16, F16, F16>,
+    ck::Tuple<Row, Row, Row, F16, F16, F16>,
+    ck::Tuple<Row, Col, Row, F16, F16, F16>,
 
+    ck::Tuple<Row, Row, Row, BF16, BF16, BF16>,
+    ck::Tuple<Row, Col, Row, BF16, BF16, BF16>,
+    ck::Tuple<Row, Row, Row, BF16, I8, BF16>,
+    ck::Tuple<Row, Col, Row, BF16, I8, BF16>,
 
-    ck::Tuple<     Row, Row, Row, BF16, BF16, BF16>,
-    ck::Tuple<     Row, Col, Row, BF16, BF16, BF16>,
-    ck::Tuple<     Row, Row, Row, BF16, I8, BF16>,
-    ck::Tuple<     Row, Col, Row, BF16, I8, BF16>,
-
-    ck::Tuple<     Row, Row, Row, F16, I8, F16>,
-    ck::Tuple<     Row, Col, Row, F16, I8, F16>
-    >;
+    ck::Tuple<Row, Row, Row, F16, I8, F16>,
+    ck::Tuple<Row, Col, Row, F16, I8, F16>>;
 // clang-format on
 
 TYPED_TEST_SUITE(TestGroupedGemm, KernelTypes);
