@@ -360,6 +360,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t nhead_stride_randval,
               ck_tile::index_t nhead_stride_lse,
               ck_tile::index_t nhead_stride_o,
+              ck_tile::index_t nhead_stride_k_descale,
+              ck_tile::index_t nhead_stride_v_descale,
               ck_tile::index_t batch_stride_q,
               ck_tile::index_t batch_stride_k,
               ck_tile::index_t batch_stride_v,
@@ -367,6 +369,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t batch_stride_randval,
               ck_tile::index_t batch_stride_lse,
               ck_tile::index_t batch_stride_o,
+              ck_tile::index_t batch_stride_k_descale,
+              ck_tile::index_t batch_stride_v_descale,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t sink_size,
@@ -375,12 +379,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               bool s_randval,
               std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                   drop_seed_offset,
-              const void* sink_ptr                    = nullptr,
-              ck_tile::index_t nhead_stride_k_descale = 0,
-              ck_tile::index_t nhead_stride_v_descale = 0,
-              ck_tile::index_t batch_stride_k_descale = 0,
-              ck_tile::index_t batch_stride_v_descale = 0,
-              ck_tile::index_t block_scale_size_kv    = 0)
+              const void* sink_ptr                 = nullptr,
+              ck_tile::index_t block_scale_size_kv = 0)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -531,8 +531,12 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t nhead_stride_randval,
               ck_tile::index_t nhead_stride_lse,
               ck_tile::index_t nhead_stride_o,
+              ck_tile::index_t nhead_stride_k_descale,
+              ck_tile::index_t nhead_stride_v_descale,
               ck_tile::index_t batch_stride_k,
               ck_tile::index_t batch_stride_v,
+              ck_tile::index_t batch_stride_k_descale,
+              ck_tile::index_t batch_stride_v_descale,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t sink_size,
@@ -542,10 +546,6 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                   drop_seed_offset,
               const void* sink_ptr                      = nullptr,
-              ck_tile::index_t nhead_stride_k_descale   = 0,
-              ck_tile::index_t nhead_stride_v_descale   = 0,
-              ck_tile::index_t batch_stride_k_descale   = 0,
-              ck_tile::index_t batch_stride_v_descale   = 0,
               ck_tile::index_t block_scale_size_kv      = 0,
               const int32_t* block_scale_seqstart_k_ptr = nullptr)
     {

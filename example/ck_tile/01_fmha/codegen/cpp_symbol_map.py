@@ -78,12 +78,14 @@ QSCALE_MAP = {
     "no": "ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE",
     "pertensor": "ck_tile::BlockAttentionQuantScaleEnum::PERTENSOR",
     "blockscale": "ck_tile::BlockAttentionQuantScaleEnum::BLOCKSCALE",
+    "q_pertensor_kv_blockscale": "ck_tile::BlockAttentionQuantScaleEnum::Q_PERTENSOR_KV_BLOCKSCALE",
 }
 
 QSCALE_CHECK_MAP = {
     "no": "quant_scale_enum::no_scale",
     "pertensor": "quant_scale_enum::pertensor",
     "blockscale": "quant_scale_enum::blockscale",
+    "q_pertensor_kv_blockscale": "quant_scale_enum::q_pertensor_kv_blockscale",
 }
 
 BIAS_MAP = {
