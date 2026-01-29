@@ -1018,6 +1018,12 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
 
         if constexpr(NXdlPerWave % CShuffleNXdlPerWavePerShuffle != 0)
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "NXdlPerWave is not multiple of CShuffleNXdlPerWavePerShuffle! "
+                          << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                          << std::endl;
+            }
             return false;
         }
 
@@ -1029,12 +1035,13 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         {
             if(!(karg.M % MPerBlock == 0))
             {
-#if DEBUG_LOG
-                std::cout << "Arg M value is not a multiple of MPerBlock! M: " << karg.M << " "
-                          << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                          << std::endl;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Arg M value is not a multiple of MPerBlock! M: " << karg.M << " "
+                            << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                            << std::endl;
+                }
 
-#endif // DEBUG_LOG
                 return false;
             }
         }
@@ -1047,12 +1054,13 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         {
             if(!(karg.N % NPerBlock == 0))
             {
-#if DEBUG_LOG
-                std::cout << "Arg N value is not a multiple of NPerBlock! N: " << karg.N << " "
-                          << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                          << std::endl;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Arg N value is not a multiple of NPerBlock! N: " << karg.N << " "
+                            << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                            << std::endl;
+                }
 
-#endif // DEBUG_LOG
                 return false;
             }
         }
@@ -1066,12 +1074,13 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             auto K_t = karg.KBatch * KPerBlock;
             if(!(karg.K % K_t == 0))
             {
-#if DEBUG_LOG
-                std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! K: "
-                          << karg.K << " " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! K: "
+                            << karg.K << " " << __FILE__ << ":" << __LINE__
+                            << ", in function: " << __func__ << std::endl;
+                }
 
-#endif // DEBUG_LOG
                 return false;
             }
         }
@@ -1090,13 +1099,14 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         {
             if(karg.K % ABlockTransferSrcScalarPerVector != 0)
             {
-#if DEBUG_LOG
-                std::cout << "Arg K (" << karg.K
-                          << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
-                          << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                          << __LINE__ << ", in function: " << __func__ << std::endl;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {   
+                    std::cout << "Arg K (" << karg.K
+                            << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
+                            << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                            << __LINE__ << ", in function: " << __func__ << std::endl;
 
-#endif // DEBUG_LOG
+                }
                 return false;
             }
         }
@@ -1104,13 +1114,13 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         {
             if(karg.M % ABlockTransferSrcScalarPerVector != 0)
             {
-#if DEBUG_LOG
-                std::cout << "Arg M (" << karg.M
-                          << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
-                          << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                          << __LINE__ << ", in function: " << __func__ << std::endl;
-
-#endif // DEBUG_LOG
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Arg M (" << karg.M
+                            << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
+                            << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                            << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
                 return false;
             }
         }
@@ -1119,13 +1129,14 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         {
             if(karg.N % BBlockTransferSrcScalarPerVector != 0)
             {
-#if DEBUG_LOG
-                std::cout << "Arg N (" << karg.N
-                          << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
-                          << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                          << __LINE__ << ", in function: " << __func__ << std::endl;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {   
+                    std::cout << "Arg N (" << karg.N
+                            << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
+                            << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                            << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
 
-#endif // DEBUG_LOG
                 return false;
             }
         }
@@ -1133,13 +1144,14 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         {
             if(karg.K % BBlockTransferSrcScalarPerVector != 0)
             {
-#if DEBUG_LOG
-                std::cout << "Arg K (" << karg.K
-                          << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
-                          << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                          << __LINE__ << ", in function: " << __func__ << std::endl;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Arg K (" << karg.K
+                            << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
+                            << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
+                            << __LINE__ << ", in function: " << __func__ << std::endl;
 
-#endif // DEBUG_LOG
+                }
                 return false;
             }
         }
@@ -1148,14 +1160,15 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         {
             if(karg.N % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-#if DEBUG_LOG
-                std::cout << "Arg N (" << karg.N
-                          << ") value is not a multiple of "
-                             "CShuffleBlockTransferScalarPerVector_NPerBlock ("
-                          << CShuffleBlockTransferScalarPerVector_NPerBlock << " )! " << __FILE__
-                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Arg N (" << karg.N
+                            << ") value is not a multiple of "
+                                "CShuffleBlockTransferScalarPerVector_NPerBlock ("
+                            << CShuffleBlockTransferScalarPerVector_NPerBlock << " )! " << __FILE__
+                            << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
 
-#endif // DEBUG_LOG
+                }
                 return false;
             }
         }
@@ -1163,14 +1176,15 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         {
             if(karg.M % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
-#if DEBUG_LOG
-                std::cout << "Arg M (" << karg.M
-                          << ") value is not a multiple of "
-                             "CShuffleBlockTransferScalarPerVector_NPerBlock ("
-                          << CShuffleBlockTransferScalarPerVector_NPerBlock << " )! " << __FILE__
-                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Arg M (" << karg.M
+                            << ") value is not a multiple of "
+                                "CShuffleBlockTransferScalarPerVector_NPerBlock ("
+                            << CShuffleBlockTransferScalarPerVector_NPerBlock << " )! " << __FILE__
+                            << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
 
-#endif // DEBUG_LOG
+                }
                 return false;
             }
         }
@@ -1182,6 +1196,16 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         {
             if(num_k_loop <= BlockwiseGemmPipe::PrefetchStages)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "karg.AK0: " << karg.AK0 << ", KPerBlock: " << KPerBlock
+                            << ", AK1Value: " << AK1Value << " (num_k_loop = karg.AK0 / (KPerBlock / AK1Value))" << std::endl;
+                    std::cout << "num_k_loop(" << num_k_loop
+                            << ") is less than or equal to PrefetchStages ("
+                            << BlockwiseGemmPipe::PrefetchStages << " )! " << __FILE__ << ":"
+                            << __LINE__ << ", in function: " << __func__ << std::endl;
+
+                }
                 return false;
             }
         }
@@ -1191,6 +1215,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
              karg.N * karg.K * sizeof(BDataType) <= TwoGB &&
              karg.M * karg.N * sizeof(CDataType) <= TwoGB))
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Matrix size exceeds 2GB limit! " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+            }
             return false;
         }
 

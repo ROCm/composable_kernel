@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 // Best instance for most difficult fwd case
+/*
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance =
     ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
@@ -22,15 +23,15 @@ using DeviceConvFwdInstance =
         ConvSpec,    // ConvForwardSpecialization
         GemmSpec,    // GemmSpecialization
         256,         // BlockSize
-        64,         // MPerBlock
-        64,         // NPerBlock
+        128,         // MPerBlock
+        32,         // NPerBlock
         32,          // KPerBlock
         8,           // AK1
         8,           // BK1
-        16,          // MPerXdl
-        16,          // NPerXdl
+        32,          // MPerXdl
+        32,          // NPerXdl
         2,           // MXdlPerWave
-        2,           // NXdlPerWave
+        1,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -38,7 +39,7 @@ using DeviceConvFwdInstance =
         4,           // ABlockTransferSrcScalarPerVector
         8,           // ABlockTransferDstScalarPerVector_AK1
         1,           // ABlockLdsExtraM
-        S<4, 64, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
+        S<4, 32, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
         S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
         2,           // BBlockTransferSrcVectorDim
@@ -48,13 +49,69 @@ using DeviceConvFwdInstance =
         1,           // CShuffleMXdlPerWavePerShuffle
         1,           // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 4>, // CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock, must match with num merged groups
-        2,          // Vector load/store size for output tensor = CDEBlockTransferScalarPerVector_NPerBlock
-        ck::BlockGemmPipelineScheduler::Intrawave,
+        1,          // Vector load/store size for output tensor = CDEBlockTransferScalarPerVector_NPerBlock
+        ck::BlockGemmPipelineScheduler::Interwave,
         ck::BlockGemmPipelineVersion::v1,
         InKernelDataType, 
         WeiKernelDataType,
         false, // No direct load
-        2>; // Num groups to merge
+        8>; // Num groups to merge
+*/
+
+// WIP
+template <ck::index_t NDimSpatial>
+using DeviceConvFwdInstance =
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
+        NDimSpatial,
+        InputLayout<NDimSpatial>,
+        WeightLayout<NDimSpatial>,
+        ck::Tuple<>,
+        OutputLayout<NDimSpatial>,
+        InKernelDataType,
+        WeiKernelDataType,
+        AccDataType,
+        CShuffleDataType,
+        ck::Tuple<>,
+        OutKernelDataType,
+        InElementOp,
+        WeiElementOp,
+        OutElementOp,
+        ConvSpec,    // ConvForwardSpecialization
+        GemmSpec,    // GemmSpecialization
+        256,         // BlockSize
+        128,         // MPerBlock
+        64,         // NPerBlock
+        32,          // KPerBlock
+        8,           // AK1
+        8,           // BK1
+        32,          // MPerXdl
+        32,          // NPerXdl
+        4,           // MXdlPerWave
+        2,           // NXdlPerWave
+        S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
+        S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
+        2,           // ABlockTransferSrcVectorDim
+        8,           // ABlockTransferSrcScalarPerVector
+        8,           // ABlockTransferDstScalarPerVector_AK1
+        1,           // ABlockLdsExtraM
+        S<4, 64, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
+        S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
+        S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
+        2,           // BBlockTransferSrcVectorDim
+        8,           // BBlockTransferSrcScalarPerVector
+        8,           // BBlockTransferDstScalarPerVector_BK1
+        1,           // BBlockLdsExtraN
+        1,           // CShuffleMXdlPerWavePerShuffle
+        1,           // CShuffleNXdlPerWavePerShuffle
+        S<1, 32, 1, 4>, // CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock, must match with num merged groups
+        1,          // Vector load/store size for output tensor = CDEBlockTransferScalarPerVector_NPerBlock
+        ck::BlockGemmPipelineScheduler::Interwave,
+        ck::BlockGemmPipelineVersion::v1,
+        InKernelDataType, 
+        WeiKernelDataType,
+        false, // No direct load
+        8>; // Num groups to merge
 
 // Best instance for 2nd most difficult fwd case, increase the B block src vector size?
 /*
@@ -153,14 +210,14 @@ using DeviceConvFwdInstance =
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
         2,           // ABlockTransferSrcVectorDim
-        4,           // ABlockTransferSrcScalarPerVector
+        8,           // ABlockTransferSrcScalarPerVector
         8,           // ABlockTransferDstScalarPerVector_AK1
         1,           // ABlockLdsExtraM
         S<4, 64, 1>, // BBlockTransferThreadClusterLengths_BK0_N_BK1
         S<1, 0, 2>,  // BBlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // BBlockTransferSrcAccessOrder
         2,           // BBlockTransferSrcVectorDim
-        4,           // BBlockTransferSrcScalarPerVector
+        8,           // BBlockTransferSrcScalarPerVector
         8,           // BBlockTransferDstScalarPerVector_BK1
         1,           // BBlockLdsExtraN
         1,

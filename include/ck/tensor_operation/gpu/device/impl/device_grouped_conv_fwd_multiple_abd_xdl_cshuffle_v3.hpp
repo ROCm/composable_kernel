@@ -1621,7 +1621,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                      is_same_v<ALayout, ctc::NDHWGC> || is_same_v<ALayout, ctc::NGCW> ||
                      is_same_v<ALayout, ctc::NGCHW> || is_same_v<ALayout, ctc::NGCDHW>)
         {
-            if(!(ABlockTransferSrcVectorDim == 2 && C % ABlockTransferSrcScalarPerVector == 0))
+            if(!(ABlockTransferSrcVectorDim == 2 && (NumGroupsToMerge * C) % ABlockTransferSrcScalarPerVector == 0))
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
@@ -1653,7 +1653,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                      is_same_v<BLayout, ctc::GKCYX> || is_same_v<BLayout, ctc::GKCZYX>)
 
         {
-            if(!(BBlockTransferSrcVectorDim == 2 && C % BBlockTransferSrcScalarPerVector == 0))
+            if(!(BBlockTransferSrcVectorDim == 2 && (NumGroupsToMerge * C) % BBlockTransferSrcScalarPerVector == 0))
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
@@ -1826,7 +1826,26 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                            arg.a_element_op_,
                                                            arg.b_element_op_,
                                                            arg.cde_element_op_};
-                return GridwiseGemm64::CheckValidity(gemm_arg);
+                const bool valid = GridwiseGemm64::CheckValidity(gemm_arg);
+
+                if(!valid && ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN
+                              << ", GemmK: " << GemmK << std::endl;
+                    std::cout << "GridwiseGemm64::CheckValidity failed!" << " In " << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
+
+                return valid;
+            }
+            else 
+            {
+                if (ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "MXdlPerWave64 == 0, unsupported configuration!" << " In "
+                              << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                              << std::endl;
+                }
             }
         }
         else

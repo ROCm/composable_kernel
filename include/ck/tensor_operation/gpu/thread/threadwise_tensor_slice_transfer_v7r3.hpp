@@ -570,56 +570,6 @@ struct ThreadwiseTensorSliceTransfer_v7r3
         });
     }
 
-    // DstDescs: Tuple<const DstDesc0&, const DstDesc1&, ...>
-    // DstBuffers: Tuple<const DstBuffer0&, const DstBuffer1&, ...>
-    template <typename DstBuffers, typename RegBufferType>
-    __device__ void RunWrite(const DstDescs& dst_descs,
-                             DstBuffers dst_bufs,
-                             RegBufferType reg_buf)
-    {
-        // loop over space-filling curve
-        static_for<0, dst_num_access, 1>{}([&](auto iAccess) {
-            auto dst_vectors = dst_vectors_tuple_[thread_scratch_id][iAccess];
-
-            // copy data from buf_vectors into dst_bufs
-            static_for<0, nDst, 1>{}([&](auto i) {
-                using dst_vector_t = typename remove_cvref_t<decltype(dst_vectors[i])>::type;
-
-                const bool is_dst_valid =
-                    coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_descs[i],
-                                                                                dst_coords_[i]);
-
-
-                dst_bufs(i).template Update<DstInMemOp, dst_vector_t>(
-                    dst_coords_[i].GetOffset(),
-                    is_dst_valid,
-                    static_cast<dst_vector_t>(reg_buf));
-            });
-
-            // move coordinate
-            if constexpr(iAccess.value != dst_num_access - 1)
-            {
-                constexpr auto forward_step = DstSpaceFillingCurve::GetForwardStep(iAccess);
-
-                static_for<0, nDst, 1>{}([&](auto i) {
-                    move_tensor_coordinate(dst_descs[i],
-                                           dst_coords_(i),
-                                           make_tensor_coordinate_step(dst_descs[i], forward_step));
-                });
-            }
-        });
-
-        static_for<0, nDst, 1>{}([&](auto i) {
-            if constexpr(DstResetCoordinateAfterRunFlags::At(i))
-            {
-                const auto dst_reset_step =
-                    make_tensor_coordinate_step(dst_descs[i], GetDstCoordinateResetStep());
-
-                move_tensor_coordinate(dst_descs[i], dst_coords_(i), dst_reset_step);
-            }
-        });
-    }
-
     // SrcDescs: Tuple<const SrcDesc0&, const SrcDesc1&, ...>
     // SrcBuffers: Tuple<const SrcBuffer0&, const SrcBuffer1&, ...>
     // DstDescs: Tuple<const DstDesc0&, const DstDesc1&, ...>

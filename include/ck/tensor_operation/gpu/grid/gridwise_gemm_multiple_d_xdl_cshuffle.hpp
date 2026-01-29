@@ -254,15 +254,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         const auto M = e_grid_desc_m_n.GetLength(I0);
         const auto N = e_grid_desc_m_n.GetLength(I1);
 
-        const auto MPerGroup = MPerBlock / Gm;
-        const auto NPerGroup = NPerBlock / Gm;
-
         const auto MBlock = M / MPerBlock;
         const auto NBlock = N / NPerBlock;
-
-        std::cout << "MBlock: " << MBlock << ", NBlock: " << NBlock << std::endl;
-        std::cout << "MPerBlock: " << MPerBlock << ", NPerBlock: " << NPerBlock << std::endl;
-        std::cout << "MPerGroup: " << MPerGroup << ", NPerGroup: " << NPerGroup << std::endl;
 
         const auto e_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             e_grid_desc_m_n,

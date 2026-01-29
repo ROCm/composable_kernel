@@ -357,11 +357,11 @@ check_err(const Range& out,
             }
             res = false;
         }
-        else 
-        {
-            std::cerr << "Success: Correct results!"  << std::setw(12) << std::setprecision(7) << " out[" << i
-                      << "] == ref[" << i << "]: " << o << " == " << r << std::endl;
-        }
+        // else 
+        // {
+        //     std::cerr << "Success: Correct results!"  << std::setw(12) << std::setprecision(7) << " out[" << i
+        //               << "] == ref[" << i << "]: " << o << " == " << r << std::endl;
+        // }
     }
     if(!res)
     {

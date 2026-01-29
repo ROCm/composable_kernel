@@ -20,6 +20,10 @@ namespace ck {
  * 3. ThreadwiseTensorSliceTransfer_v3::Run() does not construct new tensor coordinate
  *
  */
+
+template<typename T1, typename T2, typename T3>
+struct DebugSequenceTypes;
+
 template <typename ThreadGroup,
           typename SrcElementwiseOperation,
           typename DstElementwiseOperation,
@@ -72,9 +76,20 @@ struct ThreadGroupTensorSliceTransfer_v4r1
                           nDim == SrcDimAccessOrder::Size() && nDim == DstDimAccessOrder::Size(),
                       "wrong! nDim not consistent");
 
-        static_assert(
-            is_same<BlockSliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{},
-            "wrong! threads should be mapped to cover entire slicing window");
+        // static_assert(
+        //     is_same<BlockSliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{},
+        //     "wrong! threads should be mapped to cover entire slicing window");
+        if constexpr (!is_same<BlockSliceLengths, decltype(thread_slice_lengths * ThreadClusterLengths{})>{})
+        {
+            // Print the contents of BlockSliceLengths, thread_slice_lengths, and ThreadClusterLengths
+            //printf("wrong! threads should be mapped to cover entire slicing window\n");
+
+            typename DebugSequenceTypes<
+                BlockSliceLengths,
+                decltype(thread_slice_lengths),
+                ThreadClusterLengths>::error_showing_types debug_info;
+            static_assert(false, "wrong! threads should be mapped to cover entire slicing window");
+        }
 
         static_assert(ThreadGroup::GetNumOfThread() >= thread_cluster_desc_.GetElementSize(),
                       "wrong! ThreadGroup::GetNumOfThread() too small");
