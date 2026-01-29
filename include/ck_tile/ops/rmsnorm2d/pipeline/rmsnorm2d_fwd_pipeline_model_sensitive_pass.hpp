@@ -184,7 +184,7 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
                 const auto tmp      = acc[idx] * inv_rms_[i_idx];
                 const auto tmp_bf16 = float_to_bf16<bf16_rounding_mode::standard>(tmp);
                 const auto rmsn_    = type_convert<ComputeDataType>(tmp_bf16) * gamma_;
-                rmsn(idx)        = rmsn_;
+                rmsn(idx)           = rmsn_;
             }
             else
             {
