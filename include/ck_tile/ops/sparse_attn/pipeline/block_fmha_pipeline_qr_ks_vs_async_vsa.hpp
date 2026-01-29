@@ -270,11 +270,7 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
         clear_tile(l);
 
         __builtin_amdgcn_sched_barrier(0);
-        const auto q_origin = q_dram_window.get_window_origin();
-        // const auto [seqlen_k_start, seqlen_k_end] =
-        //    mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
-        // const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
-
+        const auto q_origin       = q_dram_window.get_window_origin();
         const auto num_total_loop = kv_blocks;
 
         // check early exit if no work to do
@@ -363,10 +359,6 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
                                           sequence<(LdsSeq.at(number<i_k0>{}) + 1) * kN0, kK0>{}));
                 });
             }
-            //__shared__ int printed_flag;
-            // if (blockIdx.x == 0 && threadIdx.x == 0 && i_total_loops==1000) {
-            //    printed_flag = 100;
-            //}
 
             // TODO: this to fix a bug when loop smaller than 2,
             // the following fence/barrier will be scheduled inside 1st loop
@@ -377,9 +369,7 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
             __builtin_amdgcn_s_barrier();
 
             int block_idx = kv_block_idx_ptr[i_total_loops + 1];
-            // if (threadIdx.x==0 && blockIdx.x==0 && blockIdx.z == 101) printf("%d %d %d\n",
-            // i_total_loops, num_total_loop, block_idx);
-            auto v_buf = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
+            auto v_buf    = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
             __builtin_amdgcn_sched_barrier(0);
             { // tail
                 gemm_0(
@@ -585,19 +575,8 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
             if(i_total_loops < num_total_loop)
             {
                 move_tile_window(v_dram_window, {0, kN0 * (block_idx - 1)});
-                // v_dram_window =
-                //    make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
-                //                    v_dram_block_window_tmp.get_window_lengths(),
-                //                    {0, kv_block_idx[i_total_loops]},
-                //                    Policy::template MakeVDramTileDistribution<Problem>());
-                // move K tile windows
                 move_tile_window(k_dram_block_window, {kN0 * block_idx, 0});
                 k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
-                // k_dram_block_window =
-                //     make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
-                //                     k_dram_block_window_tmp.get_window_lengths(),
-                //                     {kv_block_idx[i_total_loops], 0});
-                // k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
 
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))

@@ -149,7 +149,7 @@ vsa_sparse_attention(const ck_tile::HostTensor<DataType_>& TQ,
         traits.mask_type = mask.type;
     };
 
-    fmha_jenga_fwd_traits fmha_traits;
+    fmha_vsa_fwd_traits fmha_traits;
     init_traits(fmha_traits);
 
     fmha_vsa_fwd_args args;

@@ -114,7 +114,7 @@ using fmha_epilogue_{F_idx} =
 using fmha_kernel_{F_idx} =
     ck_tile::FmhaFwdVSAKernel<fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}>;
 
-using trait_{F_idx} = fmha_jenga_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
+using trait_{F_idx} = fmha_vsa_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
                         {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
 
 #include <iostream>
@@ -166,7 +166,7 @@ unsigned get_num_thread_blocks(unsigned batch, unsigned nheads, unsigned max_seq
 }}
 }} // namespace
 
-float fmha_vsa_fwd(fmha_jenga_fwd_traits t, fmha_vsa_fwd_args a, const ck_tile::stream_config& s){{
+float fmha_vsa_fwd(fmha_vsa_fwd_traits t, fmha_vsa_fwd_args a, const ck_tile::stream_config& s){{
     float r = -1;
 
     [[maybe_unused]] const float min_cu_util_rate = 0.8; // minimum CU utilization rate
@@ -203,7 +203,7 @@ FMHA_FWD_API_PER_HDIM_CASE = """        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v
 
 FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) &&
                         ({F_scheck}) && ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
-                using trait_ = fmha_jenga_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
+                using trait_ = fmha_vsa_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
                 return fmha_vsa_fwd_<trait_>(s, a);
             }}
 """

@@ -32,33 +32,37 @@ struct FmhaSparseFwdTypeConfig;
 template <>
 struct FmhaSparseFwdTypeConfig<FmhaSparseFwdFp16>
 {
-    using QDataType             = ck_tile::half_t;
-    using KDataType             = ck_tile::half_t;
-    using VDataType             = ck_tile::half_t;
+    using QDataType           = ck_tile::half_t;
+    using KDataType           = ck_tile::half_t;
+    using VDataType           = ck_tile::half_t;
+    using SaccDataType        = float; // data type for first gemm accumulation
+    using SMPLComputeDataType = float; // data type for reduction, softmax
+    using PDataType           = ck_tile::half_t; // data type for A matrix of second gemm
+    using OaccDataType        = float;           // data type for second gemm accumulation
+    using ODataType           = ck_tile::half_t;
+    // Note: The following types are required by BlockFmhaPipelineProblem but not used
+    // by sparse attention (bias, dropout, LSE are not supported).
     using BiasDataType          = ck_tile::half_t;
     using RandValOutputDataType = uint8_t;
-    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
-    using SaccDataType          = float; // data type for first gemm accumulation
-    using SMPLComputeDataType   = float; // data type for reduction, softmax
-    using PDataType             = ck_tile::half_t; // data type for A matrix of second gemm
-    using OaccDataType          = float;           // data type for second gemm accumulation
-    using ODataType             = ck_tile::half_t;
+    using LSEDataType           = float;
 };
 
 template <>
 struct FmhaSparseFwdTypeConfig<FmhaSparseFwdBf16>
 {
-    using QDataType             = ck_tile::bf16_t;
-    using KDataType             = ck_tile::bf16_t;
-    using VDataType             = ck_tile::bf16_t;
+    using QDataType           = ck_tile::bf16_t;
+    using KDataType           = ck_tile::bf16_t;
+    using VDataType           = ck_tile::bf16_t;
+    using SaccDataType        = float; // data type for first gemm accumulation
+    using SMPLComputeDataType = float; // data type for reduction, softmax
+    using PDataType           = ck_tile::bf16_t; // data type for A matrix of second gemm
+    using OaccDataType        = float;           // data type for second gemm accumulation
+    using ODataType           = ck_tile::bf16_t;
+    // Note: The following types are required by BlockFmhaPipelineProblem but not used
+    // by sparse attention (bias, dropout, LSE are not supported).
     using BiasDataType          = ck_tile::bf16_t;
     using RandValOutputDataType = uint8_t;
-    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
-    using SaccDataType          = float; // data type for first gemm accumulation
-    using SMPLComputeDataType   = float; // data type for reduction, softmax
-    using PDataType             = ck_tile::bf16_t; // data type for A matrix of second gemm
-    using OaccDataType          = float;           // data type for second gemm accumulation
-    using ODataType             = ck_tile::bf16_t;
+    using LSEDataType           = float;
 };
 
 struct FmhaMasks
@@ -278,7 +282,45 @@ float fmha_jenga_fwd_(const ck_tile::stream_config&, fmha_jenga_fwd_args);
 
 float fmha_jenga_fwd(fmha_jenga_fwd_args, const ck_tile::stream_config&);
 
-float fmha_vsa_fwd(fmha_jenga_fwd_traits, fmha_vsa_fwd_args, const ck_tile::stream_config&);
+// VSA uses the same traits structure as Jenga; aliases for clarity
+template <ck_tile::index_t HDim_,
+          typename DataType_,
+          ck_tile::index_t kM0_,
+          ck_tile::index_t kN0_,
+          ck_tile::index_t kK0_,
+          ck_tile::index_t kN1_,
+          ck_tile::index_t kK1_,
+          ck_tile::index_t kK0BlockLength_,
+          bool kIsVLayoutRowMajor_,
+          ck_tile::BlockFmhaPipelineEnum FmhaPipelineEnum_,
+          bool kHasLogitsSoftCap_,
+          typename FmhaMask_,
+          bool kPadS_,
+          bool kPadSK_,
+          bool kPadD_,
+          bool kPadDv_,
+          bool kUseTrLoad_>
+using fmha_vsa_fwd_traits_ = fmha_jenga_fwd_traits_<HDim_,
+                                                    DataType_,
+                                                    kM0_,
+                                                    kN0_,
+                                                    kK0_,
+                                                    kN1_,
+                                                    kK1_,
+                                                    kK0BlockLength_,
+                                                    kIsVLayoutRowMajor_,
+                                                    FmhaPipelineEnum_,
+                                                    kHasLogitsSoftCap_,
+                                                    FmhaMask_,
+                                                    kPadS_,
+                                                    kPadSK_,
+                                                    kPadD_,
+                                                    kPadDv_,
+                                                    kUseTrLoad_>;
+
+using fmha_vsa_fwd_traits = fmha_jenga_fwd_traits;
+
+float fmha_vsa_fwd(fmha_vsa_fwd_traits, fmha_vsa_fwd_args, const ck_tile::stream_config&);
 
 template <typename Traits_>
 float fmha_vsa_fwd_(const ck_tile::stream_config&, fmha_vsa_fwd_args);

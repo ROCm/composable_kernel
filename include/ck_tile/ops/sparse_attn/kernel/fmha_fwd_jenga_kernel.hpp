@@ -110,15 +110,13 @@ struct FmhaFwdJengaKernel
 
     struct FmhaFwdMaskKargs
     {
-        // ck_tile::index_t window_size_left, window_size_right;
         ck_tile::index_t window_size_left, window_size_right;
         ck_tile::GenericAttentionMaskEnum mask_type;
     };
 
     struct FmhaFwdBatchModeKargs
         : FmhaFwdCommonKargs,
-          std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
-          FmhaFwdEmptyKargs<2>
+          std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>
     {
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
@@ -186,9 +184,8 @@ struct FmhaFwdJengaKernel
                      nhead_stride_q,
                      nhead_stride_k,
                      nhead_stride_v,
-                     nhead_stride_o}, // args for common karg
-                    {},               // placeholder for mask
-                    {},               // placeholder for empty kargs
+                     nhead_stride_o}, // FmhaFwdCommonKargs
+                    {},               // FmhaFwdMaskKargs or FmhaFwdEmptyKargs<1>
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
