@@ -35,8 +35,8 @@ struct FmhaSparseFwdTypeConfig<FmhaSparseFwdFp16>
     using QDataType           = ck_tile::half_t;
     using KDataType           = ck_tile::half_t;
     using VDataType           = ck_tile::half_t;
-    using SaccDataType        = float; // data type for first gemm accumulation
-    using SMPLComputeDataType = float; // data type for reduction, softmax
+    using SaccDataType        = float;           // data type for first gemm accumulation
+    using SMPLComputeDataType = float;           // data type for reduction, softmax
     using PDataType           = ck_tile::half_t; // data type for A matrix of second gemm
     using OaccDataType        = float;           // data type for second gemm accumulation
     using ODataType           = ck_tile::half_t;
@@ -53,8 +53,8 @@ struct FmhaSparseFwdTypeConfig<FmhaSparseFwdBf16>
     using QDataType           = ck_tile::bf16_t;
     using KDataType           = ck_tile::bf16_t;
     using VDataType           = ck_tile::bf16_t;
-    using SaccDataType        = float; // data type for first gemm accumulation
-    using SMPLComputeDataType = float; // data type for reduction, softmax
+    using SaccDataType        = float;           // data type for first gemm accumulation
+    using SMPLComputeDataType = float;           // data type for reduction, softmax
     using PDataType           = ck_tile::bf16_t; // data type for A matrix of second gemm
     using OaccDataType        = float;           // data type for second gemm accumulation
     using ODataType           = ck_tile::bf16_t;
