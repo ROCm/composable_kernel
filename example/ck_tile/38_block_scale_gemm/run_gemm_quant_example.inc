@@ -594,14 +594,10 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         }
         else if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped)
         {
-            if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
+            if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t> ||
+                         std::is_same_v<ADataType, ck_tile::pk_fp4_t>)
             {
                 ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
-                    a_m_k);
-            }
-            else if constexpr(std::is_same_v<ADataType, ck_tile::pk_fp4_t>)
-            {
-                ck_tile::FillUniformDistribution<ck_tile::pk_fp4_t>{-6.0f, 6.0f, fill_seed(gen)}(
                     a_m_k);
             }
             else
@@ -609,14 +605,10 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                 ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
             }
 
-            if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+            if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t> ||
+                         std::is_same_v<BDataType, ck_tile::pk_fp4_t>)
             {
                 ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
-                    b_k_n);
-            }
-            else if constexpr(std::is_same_v<BDataType, ck_tile::pk_fp4_t>)
-            {
-                ck_tile::FillUniformDistribution<ck_tile::pk_fp4_t>{-6.0f, 6.0f, fill_seed(gen)}(
                     b_k_n);
             }
             else
