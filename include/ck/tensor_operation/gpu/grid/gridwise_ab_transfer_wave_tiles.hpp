@@ -132,10 +132,6 @@ struct ABTransferWaveTiles
                                                        index_t,
                                                        index_t)
     {
-        // Notes: padding is currently not supported with transpose
-        static_assert(!((PadMN || PadK) && ABDoTranspose),
-                      "padding is currently not supported with transpose");
-
         const index_t MN_grid = !PadMN ? sizeMN : MNPad;
         const index_t K_grid  = !PadK ? sizeK : KPad;
 

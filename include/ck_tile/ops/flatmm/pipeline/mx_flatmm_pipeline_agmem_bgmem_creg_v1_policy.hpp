@@ -227,7 +227,7 @@ struct MXFlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                     sequence<1>>{});
         else
             return make_static_tile_distribution(
-                tile_distribution_encoding< //
+                tile_distribution_encoding<
                     sequence<NWarps>,
                     tuple<sequence<MWarps, MXdlPack, MPerXdl>,
                           sequence<K_Thread / AK1, K_Lane, AK1 / APackedSize>>,

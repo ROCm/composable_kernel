@@ -160,7 +160,7 @@ struct UniversalGemmBasePolicy
                 constexpr auto K0PerThreadRead  = AK0 / KThreadRead;
 
                 // check if we exceed all LDS banks
-                constexpr auto LdsBanksWidth = get_n_lds_banks() * get_n_words_per_128b();
+                constexpr auto LdsBanksWidth = get_n_lds_banks() * get_n_dwords_per_128b();
                 constexpr auto kfold         = (AK1 * M0 * sizeof(ADataType) > LdsBanksWidth)
                                                    ? 1
                                                    : LdsBanksWidth / (AK1 * M0 * sizeof(ADataType));
@@ -250,7 +250,7 @@ struct UniversalGemmBasePolicy
                 constexpr uint64_t MinLdsLayer = 1ULL;
                 constexpr auto MLdsLayer =
                     max(MinLdsLayer,
-                        get_n_lds_banks() * get_n_words_per_128b() / KPerBlock / DataTypeSize);
+                        get_n_lds_banks() * get_n_dwords_per_128b() / KPerBlock / DataTypeSize);
 
                 constexpr index_t NBanks = get_n_lds_banks();
                 static_assert(NBanks == 32 || NBanks == 64, "Unexpected LDS bank count");
@@ -357,7 +357,7 @@ struct UniversalGemmBasePolicy
                 constexpr auto K0PerThreadRead  = BK0 / KThreadRead;
 
                 // check if we exceed all LDS banks
-                constexpr auto LdsBanksWidth = get_n_lds_banks() * get_n_words_per_128b();
+                constexpr auto LdsBanksWidth = get_n_lds_banks() * get_n_dwords_per_128b();
                 constexpr auto kfold         = (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth)
                                                    ? 1
                                                    : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
@@ -450,7 +450,7 @@ struct UniversalGemmBasePolicy
                 constexpr uint64_t MinLdsLayer = 1ULL;
                 constexpr auto NLdsLayer =
                     max(MinLdsLayer,
-                        get_n_lds_banks() * get_n_words_per_128b() / KPerBlock / DataTypeSize);
+                        get_n_lds_banks() * get_n_dwords_per_128b() / KPerBlock / DataTypeSize);
 
                 constexpr index_t NBanks = get_n_lds_banks();
                 static_assert(NBanks == 32 || NBanks == 64, "Unexpected LDS bank count");

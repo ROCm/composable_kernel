@@ -58,10 +58,10 @@ class TestGroupedConvndFwdScale : public ::testing::Test
                                OutDataType,
                                ck::tensor_operation::element_wise::Scale,
                                InDataType,
-                               InDataType>(true,  // do_verification
+                               InDataType>(2,     // do_verification: 2 = GPU reference
                                            1,     // init_method: integer value
                                            false, // do_log
-                                           true,  // time_kernel
+                                           false, // time_kernel
                                            param);
         }
         EXPECT_TRUE(pass);

@@ -87,7 +87,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     const long_index_t e_n_offset =
         amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
 
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
     static constexpr index_t NumDTensor = GridwiseGemm::NumDTensor;
     using DsGridPointer                 = typename GridwiseGemm::DsGridPointer;
@@ -301,6 +301,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
                                                AComputeType,
                                                BComputeType>
 {
+    static constexpr bool LdsScalarLoadToVgpr = DirectLoad;
+
     // TODO: Extend support for more spatial dimensions.
     static_assert(NDimSpatial == 2 || NDimSpatial == 3,
                   "wrong! only implemented for 2D and 3D now");
@@ -509,7 +511,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
         ADataType,
         BDataType,
         false,
-        DirectLoad>;
+        DirectLoad,
+        LdsScalarLoadToVgpr>;
 
 // #define GridwiseGemmCTransposeTemplateParameters                                                   \
 //     ALayout, BLayout, DsLayout, ELayout, Tuple<ADataType>, Tuple<BDataType>, AccDataType,          \

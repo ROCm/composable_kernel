@@ -71,7 +71,6 @@ The LoadStoreTraits class analyzes distribution patterns at compile time:
        static constexpr index_t scalars_per_access = scalar_per_vector;
        
        // Space-filling curve for optimal traversal
-       // See :ref:`ck_tile_space_filling_curve` for details
        using sfc_type = space_filling_curve<ndim_y>;
        static constexpr sfc_type sfc_ys = make_space_filling_curve<Distribution>();
        
@@ -274,7 +273,7 @@ LoadStoreTraits optimizes for several performance metrics:
            return Traits::num_access;
        }
        
-       // Check coalescing efficiency (see :ref:`ck_tile_gpu_basics`)
+       // Check coalescing efficiency 
        static constexpr bool is_perfectly_coalesced()
        {
            // Perfect coalescing when adjacent threads access adjacent memory
@@ -316,7 +315,6 @@ Comparing Different Configurations
    static_assert(OptimizedAnalyzer::bandwidth_utilization() == 50.0f);  // 8*4/64
    
    // Better bandwidth utilization leads to improved performance
-   // See :ref:`ck_tile_gemm_optimization` for real-world examples
 
 Integration with Space-Filling Curves
 -------------------------------------
