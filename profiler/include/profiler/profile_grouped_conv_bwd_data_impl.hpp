@@ -121,6 +121,38 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
             out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
             wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
             break;
+        case 3:
+            out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
+            wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{2});
+            break;
+        case 4:
+            out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{2});
+            wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+            break;
+        case 5:
+            out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
+            wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+            break;
+        case 6:
+            out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
+            wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{0.0, 1.0});
+            break;
+        case 7:
+            out.GenerateTensorValue(GeneratorTensor_3<OutDataType>{0.0, 1.0});
+            wei.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{0.0, 1.0});
+            break;
+        case 8:
+            out.GenerateTensorValue(GeneratorTensor_Sequential<OutDataType, 2>{});
+            wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+            break;
+        case 9:
+            out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
+            wei.GenerateTensorValue(GeneratorTensor_Sequential<WeiDataType, 1>{});
+            break;
+        case 10:
+            out.GenerateTensorValue(GeneratorTensor_Sequential<OutDataType, 2>{});
+            wei.GenerateTensorValue(GeneratorTensor_Sequential<WeiDataType, 1>{});
+            break;
         default:
             out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
             wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
@@ -210,6 +242,7 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
         // workspace_sz will be equal to 0 for other layout than NGCHW
         const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
         DeviceMem workspace_dev(workspace_sz);
+        // printf("run impl\n");
         op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
@@ -224,8 +257,10 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
+            // printf("prerun\n");
             float avg_time =
                 invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+            // printf("post run\n");
 
             std::size_t flop      = conv_param.GetFlops();
             std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
