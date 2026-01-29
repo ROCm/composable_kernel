@@ -32,22 +32,22 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using AQLayout       = remove_cvref_t<typename Problem::AQLayout>;
         using BlockGemmShape = typename Problem::BlockGemmShape;
 
-        constexpr index_t BlockSize    = Problem::kBlockSize;
-        constexpr index_t MPerBlock    = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock    = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockAQ  = KPerBlock / Problem::AQuantGroupSize::kK;
-        constexpr index_t VecLoadSize  = GetVectorSizeAQ<Problem>();
-        constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
-        using WarpTile                 = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm                 = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                                            typename Problem::ComputeDataType,
-                                                            typename Problem::CDataType,
-                                                            WarpTile::at(I0),
-                                                            WarpTile::at(I1),
-                                                            WarpTile::at(I2),
-                                                            Problem::TransposeC>;
+        constexpr index_t BlockSize     = Problem::kBlockSize;
+        constexpr index_t MPerBlock     = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock     = Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlockAQ   = KPerBlock / Problem::AQuantGroupSize::kK;
+        constexpr index_t VecLoadSize   = GetVectorSizeAQ<Problem>();
+        constexpr bool APreshuffleQuant = Problem::Traits::APreshuffleQuant;
+        using WarpTile                  = typename Problem::BlockGemmShape::WarpTile;
+        using WarpGemm                  = WarpGemmDispatcher<typename Problem::ComputeDataType,
+                                                             typename Problem::ComputeDataType,
+                                                             typename Problem::CDataType,
+                                                             WarpTile::at(I0),
+                                                             WarpTile::at(I1),
+                                                             WarpTile::at(I2),
+                                                             Problem::TransposeC>;
 
-        if constexpr(PreshuffleQuant)
+        if constexpr(APreshuffleQuant)
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_aq<
                 BlockGemmShape,
@@ -57,7 +57,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                 ck_tile::integer_least_multiple(WarpGemm::kM * KPerBlockAQ, get_warp_size()),
                 KPerBlockAQ,
                 VecLoadSize,
-                PreshuffleQuant>;
+                APreshuffleQuant>;
 
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
@@ -89,7 +89,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                               KPerBlockAQ,
                                                               KPerBlockAQ,
                                                               VecLoadSize,
-                                                              PreshuffleQuant>;
+                                                              APreshuffleQuant>;
 
                     return TileEncodingPattern::make_2d_static_tile_distribution();
                 }
@@ -103,7 +103,7 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                               MPerBlock,   // XPerTile
                                                               KPerBlockAQ,
                                                               VecLoadSize,
-                                                              PreshuffleQuant>;
+                                                              APreshuffleQuant>;
                     return TileEncodingPattern::make_2d_static_tile_distribution_transposed();
                 }
             }
