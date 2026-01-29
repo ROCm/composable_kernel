@@ -32,6 +32,7 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     using BlockWarps     = typename BlockGemmShape::BlockWarps;
     using WarpTile       = typename BlockGemmShape::WarpTile;
 
+    static constexpr bool PreshuffleB   = Problem::PreshuffleB;
     static constexpr index_t BlockSize  = Problem::kBlockSize;
     static constexpr index_t MPerBlock  = BlockGemmShape::kM;
     static constexpr index_t NPerBlock  = BlockGemmShape::kN;
@@ -158,24 +159,47 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     }
     CK_TILE_DEVICE static constexpr auto MakeBDramTileDistribution()
     {
-        constexpr index_t N2 = warp_size / K1;               // 8
-        constexpr index_t N1 = warp_num / NWarps;            // 4
-        constexpr index_t N0 = NPerBlock / N1 / N2 / NWarps; // 4
-        static_assert(NWarps * N0 * N1 * N2 == NPerBlock, "wrong!");
+        if constexpr(PreshuffleB)
+        {
+            constexpr index_t K1_ = warp_size;                        // 64
+            constexpr index_t K0_ = KPerBlock * WarpTileN / K1_ / K2; // 2
+            static_assert(K0_ * K1_ * K2 == KPerBlock * WarpTileN, "wrong!");
 
-        return make_static_tile_distribution(
-            ck_tile::tile_distribution_encoding<
-                ck_tile::sequence<>,
-                ck_tile::tuple<ck_tile::sequence<NWarps, N0, N1, N2>,             // 2 [4] 4 8
-                               ck_tile::sequence<K0, K1, K2>>,                    // 1 8 16
-                ck_tile::tuple<ck_tile::sequence<1, 1>, ck_tile::sequence<1, 2>>, // KWarps,N1 N2,K1
-                ck_tile::tuple<ck_tile::sequence<0, 2>, ck_tile::sequence<3, 1>>,
-                ck_tile::sequence<1, 2, 2>, // N0,K0,K2
-                ck_tile::sequence<1, 0, 2>>{});
+            constexpr index_t N1 = warp_num / NWarps / K0_;             // 2
+            constexpr index_t N0 = NPerBlock / WarpTileN / N1 / NWarps; // 4
+            static_assert(NWarps * N0 * N1 == NPerBlock / WarpTileN, "wrong!");
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding< //
+                    sequence<>,
+                    tuple<sequence<NWarps, N0, N1>,        // 2 [4] 2
+                          sequence<K0_, K1_, K2>>,         // 2 64 16
+                    tuple<sequence<1, 1, 2>, sequence<2>>, // NWarps,N1,K0 K1
+                    tuple<sequence<0, 2, 0>, sequence<1>>,
+                    sequence<1, 2>, // N0,K2
+                    sequence<1, 2>>{});
+        }
+        else
+        {
+            constexpr index_t N2 = warp_size / K1;               // 8
+            constexpr index_t N1 = warp_num / NWarps;            // 4
+            constexpr index_t N0 = NPerBlock / N1 / N2 / NWarps; // 4
+            static_assert(NWarps * N0 * N1 * N2 == NPerBlock, "wrong!");
+
+            return make_static_tile_distribution(
+                tile_distribution_encoding< //
+                    sequence<>,
+                    tuple<sequence<NWarps, N0, N1, N2>,    // 2 [4] 4 8
+                          sequence<K0, K1, K2>>,           // 1 8 16
+                    tuple<sequence<1, 1>, sequence<1, 2>>, // NWarps,N1 N2,K1
+                    tuple<sequence<0, 2>, sequence<3, 1>>,
+                    sequence<1, 2, 2>, // N0,K0,K2
+                    sequence<1, 0, 2>>{});
+        }
     }
 
     template <typename WindowTmp>
-    CK_TILE_DEVICE static constexpr auto MakeAsyncLoadDramWindow(const WindowTmp& window_tmp)
+    CK_TILE_DEVICE static constexpr auto MakeAsyncLoadADramWindow(const WindowTmp& window_tmp)
     {
         constexpr auto ndims = std::decay_t<decltype(window_tmp)>::get_num_of_dimension();
         static_assert(ndims == 2, "only support 2D tensor");
@@ -217,6 +241,17 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
                                 window_tmp.get_window_origin());
     }
 
+    template <typename WindowTmp>
+    CK_TILE_DEVICE static constexpr auto MakeAsyncLoadBDramWindow(const WindowTmp& window_tmp)
+    {
+        if constexpr(!PreshuffleB)
+            return MakeAsyncLoadADramWindow(window_tmp);
+        else
+            return make_tile_window(window_tmp.get_bottom_tensor_view(),
+                                    number_tuple<NPerBlock / WarpTileN, KPerBlock * WarpTileN>{},
+                                    window_tmp.get_window_origin());
+    }
+
     template <index_t MNPerBlock, index_t warp_groups_>
     CK_TILE_DEVICE static constexpr auto MakeABLdsBlockDescriptor_()
     {
@@ -243,7 +278,6 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
                          1>{},
             number<K2>{},
             number<1>{});
-        // CK_PRINT<decltype(desc_0)>();
 
         constexpr auto desc_1 = transform_tensor_descriptor(
             desc_0,
@@ -275,8 +309,58 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     }
     CK_TILE_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        return MakeABLdsBlockDescriptor_<NPerBlock, 2>();
+        if constexpr(!PreshuffleB)
+            return MakeABLdsBlockDescriptor_<NPerBlock, 2>();
+        else
+        {
+            constexpr index_t K1_ = warp_size;                        // 64
+            constexpr index_t K0_ = KPerBlock * WarpTileN / K1_ / K2; // 2
+            static_assert(K0_ * K1_ * K2 == KPerBlock * WarpTileN, "wrong!");
+
+            constexpr index_t N1 = warp_num / NWarps / K0_;             // 2
+            constexpr index_t N0 = NPerBlock / WarpTileN / N1 / NWarps; // 4
+            static_assert(NWarps * N0 * N1 == NPerBlock / WarpTileN, "wrong!");
+
+            constexpr auto desc_0 =
+                make_naive_tensor_descriptor_packed(number_tuple<NWarps, N1, K0_, N0, K1_, K2>{});
+            constexpr auto desc_1 = transform_tensor_descriptor(
+                desc_0,
+                make_tuple(make_merge_transform_v3_division_mod(number_tuple<NWarps, N0, N1>{}),
+                           make_merge_transform_v3_division_mod(number_tuple<K0_, K1_, K2>{})),
+                make_tuple(sequence<0, 3, 1>{}, sequence<2, 4, 5>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+            return desc_1;
+        }
     }
+    CK_TILE_DEVICE static constexpr auto MakeBLdsReadBlockDescriptor()
+    {
+        if constexpr(!PreshuffleB)
+            return MakeABLdsBlockDescriptor_<NPerBlock, 2>();
+        else
+        {
+            constexpr index_t K1_ = warp_size / WarpTileN; // 4
+            constexpr index_t K0_ = KPerWarp / K1_ / K2;   // 2
+            static_assert(K0_ * K1_ * K2 == KPerWarp, "wrong!");
+
+            constexpr index_t N2 = warp_size / K1_;              // 16
+            constexpr index_t N1 = warp_num / NWarps / K0_;      // 2
+            constexpr index_t N0 = NPerBlock / N1 / N2 / NWarps; // 4
+            static_assert(NWarps * N0 * N1 * N2 == NPerBlock, "wrong!");
+
+            constexpr auto desc_0 = make_naive_tensor_descriptor_packed(
+                number_tuple<NWarps, N1, K0_, N0, K1_, N2, K2>{});
+            constexpr auto desc_1 = transform_tensor_descriptor(
+                desc_0,
+                make_tuple(make_merge_transform_v3_division_mod(number_tuple<NWarps, N0, N1, N2>{}),
+                           make_merge_transform_v3_division_mod(number_tuple<K0_, K1_, K2>{})),
+                make_tuple(sequence<0, 3, 1, 5>{}, sequence<2, 4, 6>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+            return desc_1;
+        }
+    }
+    static_assert(MakeBLdsBlockDescriptor().get_element_space_size() ==
+                      MakeBLdsReadBlockDescriptor().get_element_space_size(),
+                  "Wrong!");
 
     CK_TILE_DEVICE static constexpr index_t GetSmemSizeA()
     {
@@ -291,11 +375,6 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
 
     CK_TILE_DEVICE static constexpr index_t GetSmemSize()
     {
-        // CK_PRINT<GetSmemSizeA(),
-        //          GetSmemSizeB(),
-        //          GetSmemSizeAQ(),
-        //          GetSmemSizeBQ()>();
-
         return max(2 * (GetSmemSizeA() + GetSmemSizeB()));
     }
 
@@ -324,9 +403,11 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     FORWARD_METHOD_(GetBlockGemm);
     FORWARD_METHOD_(MakeADramTileDistribution);
     FORWARD_METHOD_(MakeBDramTileDistribution);
-    FORWARD_METHOD_(MakeAsyncLoadDramWindow);
+    FORWARD_METHOD_(MakeAsyncLoadADramWindow);
+    FORWARD_METHOD_(MakeAsyncLoadBDramWindow);
     FORWARD_METHOD_(MakeALdsBlockDescriptor);
     FORWARD_METHOD_(MakeBLdsBlockDescriptor);
+    FORWARD_METHOD_(MakeBLdsReadBlockDescriptor);
     FORWARD_METHOD_(GetSmemSizeA);
     FORWARD_METHOD_(GetSmemSizeB);
     FORWARD_METHOD_(GetSmemSize);
