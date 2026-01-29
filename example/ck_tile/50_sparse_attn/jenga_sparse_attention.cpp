@@ -120,10 +120,6 @@ jenga_sparse_attention(const ck_tile::HostTensor<DataType_>& TQ,
 
         args.o_ptr = o_buf.GetDeviceBuffer();
 
-        args.seqstart_q_ptr = nullptr;
-        args.seqstart_k_ptr = nullptr;
-        args.seqlen_k_ptr   = nullptr;
-
         args.seqlen_k     = shape_seqlen_k; // batch mode only
         args.max_seqlen_q = max_seqlen_q;
 
@@ -146,8 +142,7 @@ jenga_sparse_attention(const ck_tile::HostTensor<DataType_>& TQ,
         traits.data_type     = data_type;
         traits.is_v_rowmajor = is_v_rowmajor;
 
-        traits.is_group_mode = false;
-        traits.mask_type     = mask.type;
+        traits.mask_type = mask.type;
     };
 
     fmha_jenga_fwd_traits fmha_traits;

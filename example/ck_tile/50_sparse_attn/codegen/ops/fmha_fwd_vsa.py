@@ -78,7 +78,7 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                     false,
                                                     ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE,
                                                     {F_occupancy},
-                                                    {F_skip}>;
+                                                    false>;
 
 using fmha_variant_{F_idx} = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
 
@@ -114,8 +114,8 @@ using fmha_epilogue_{F_idx} =
 using fmha_kernel_{F_idx} =
     ck_tile::FmhaFwdVSAKernel<fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}>;
 
-using trait_{F_idx} = fmha_jenga_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
-                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
+using trait_{F_idx} = fmha_jenga_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
+                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
 
 #include <iostream>
 
@@ -201,9 +201,9 @@ FMHA_FWD_API_PER_HDIM_CASE = """        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v
         }}
 """
 
-FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.skip_min_seqlen_q == {F_skip}) &&
+FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) &&
                         ({F_scheck}) && ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
-                using trait_ = fmha_jenga_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
+                using trait_ = fmha_jenga_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
                 return fmha_vsa_fwd_<trait_>(s, a);
             }}
 """
@@ -243,7 +243,6 @@ class FmhaFwdApiTrait:
     skpad: str
     dpad: str
     dvpad: str
-    skip: str
     tr_load: str
     constraint: CppConstraint
 
@@ -251,7 +250,7 @@ class FmhaFwdApiTrait:
     def name(self) -> str:
         return (
             f"{self.hdim}-{self.dtype}-{self.mode}-{self.bm0}-{self.bn0}-{self.bk0}-{self.bn0}-{self.bk1}-{self.bk0max}-"
-            + f"{self.vlayout}-{self.logits}-{self.mask}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.skip}"
+            + f"{self.vlayout}-{self.logits}-{self.mask}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}"
         )
 
     @property
@@ -303,7 +302,6 @@ class FmhaFwdPipeline:
     F_dvpad: str  #
     F_logits: str  # t/f
     F_mask: str  # value from MASK_MAP
-    F_skip: str  # true/false
     F_trload: str  # true/false
     F_constraint: CppConstraint = field(default_factory=CppConstraint)
 
@@ -348,10 +346,7 @@ class FmhaFwdPipeline:
             else:
                 n += "_nmask"
 
-        if self.F_skip == "t":
-            n += "_skip"
-        else:
-            n += "_nskip"
+        n += "_nskip"
 
         n += "_nsquant"
 
@@ -398,13 +393,11 @@ class FmhaFwdApiPool:
                         if_k = "if" if k == 0 else "else if"
                         inners = inners + FMHA_FWD_API_INNER_DISPATCH.format(
                             F_if=if_k,
-                            F_mode=MODE_MAP[trait.mode],
                             F_vlayout=LAYOUT_MAP[trait.vlayout],
                             F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag],
                             F_logits=BOOL_MAP[trait.logits],
                             F_mask=get_mask_map(self.mask_impl)[trait.mask],
                             F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask],
-                            F_skip=BOOL_MAP[trait.skip],
                             F_trload=BOOL_MAP[trait.tr_load],
                             F_scheck=trait.scheck,
                             F_seqtune=trait.seqtune,
@@ -518,7 +511,6 @@ class FmhaFwdKernel:
             F_dpad=BOOL_MAP[self.F_pipeline.F_dpad],
             F_dvpad=BOOL_MAP[self.F_pipeline.F_dvpad],
             F_logits=BOOL_MAP[self.F_pipeline.F_logits],
-            F_skip=BOOL_MAP[self.F_pipeline.F_skip],
             F_occupancy=self.F_tile.F_occupancy,
             F_pipeline_enum=PIPELINE_ENUM_MAP[self.F_pipeline.tag],
             F_mask=get_mask_map(self.mask_impl)[self.F_pipeline.F_mask],
@@ -561,7 +553,6 @@ class FmhaFwdKernel:
             skpad=self.F_pipeline.F_skpad,
             dpad=self.F_pipeline.F_dpad,
             dvpad=self.F_pipeline.F_dvpad,
-            skip=self.F_pipeline.F_skip,
             tr_load=self.F_pipeline.F_trload,
             constraint=self.F_tile.F_constraint & self.F_pipeline.F_constraint,
         )
@@ -681,10 +672,9 @@ class KernelComponentFactory:
         # TODO: the order of List matters! the later in this list will be also be checked later
         pipelines = []
         if dtype in ["fp16", "bf16"]:
-            for logits, mask, skip in itertools.product(
+            for logits, mask in itertools.product(
                 ["f"],
                 get_mask_map(mask_impl).keys(),
-                ["t", "f"],
             ):
                 if hdim == 256 and hdim_v == 256:
                     # vsa fmha only supports dim <= 192 for now.
@@ -699,7 +689,6 @@ class KernelComponentFactory:
                         "t",
                         logits,
                         mask,
-                        skip,
                         "f",
                     )
                 )
@@ -713,7 +702,6 @@ class KernelComponentFactory:
                         "t",
                         logits,
                         mask,
-                        skip,
                         "f",
                     )
                 )
@@ -810,7 +798,6 @@ def get_fwd_blobs(
                 if receipt in (2, 3):
                     cond = dtype in ["fp16", "bf16"]
                     cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_skip == "f"
                     if not cond:
                         continue
                 # PyTorch integration
@@ -818,7 +805,6 @@ def get_fwd_blobs(
                     cond = dtype in ["fp16", "bf16"]
                     cond &= pipeline.F_vlayout == "row"
                     cond &= mode == "batch"
-                    cond &= pipeline.F_skip == "f"
                     cond &= pipeline.F_logits == "f"
                     if not cond:
                         continue
