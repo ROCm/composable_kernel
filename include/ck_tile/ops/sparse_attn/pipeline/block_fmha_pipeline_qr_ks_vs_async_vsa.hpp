@@ -131,8 +131,6 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
 
     static constexpr const char* name = "qr_async";
 
-    using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
-
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
@@ -141,45 +139,20 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
-              typename BiasDramBlockWindowTmp,
-              typename RandValDramBlockWindowTmp,
-              typename LSEDramBlockWindowTmp,
-              typename QElementFunction,
-              typename KElementFunction,
-              typename VElementFunction,
-              typename BiasElementFunction,
-              typename LSEElementFunction,
-              typename SAccElementFunction,
-              typename PComputeElementFunction,
-              typename OAccElementFunction,
-              typename PositionEncoding,
               typename AttentionVariantParams,
               typename BlockIndices>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
-               const QElementFunction& q_element_func,
                const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
-               const KElementFunction& /*k_element_func*/,
                const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
-               const VElementFunction& v_element_func,
                const int* kv_block_idx_ptr,
                int kv_blocks,
-               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               const BiasElementFunction& bias_element_func,
-               RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
-               LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
-               const LSEElementFunction& lse_element_func,
-               const SAccElementFunction& s_acc_element_func,
-               const PComputeElementFunction& p_compute_element_func,
-               const OAccElementFunction& o_acc_element_func,
                FmhaMask mask,
-               PositionEncoding position_encoding,
                float scale_s,
                const AttentionVariant& variant,
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
-               void* smem_ptr,
-               DropoutType& dropout) const
+               void* smem_ptr) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -191,9 +164,7 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
                           kN0 == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kK0 == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
                           kN1 == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kK1 == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
-                          kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+                          kK1 == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
         constexpr auto LdsSeq = Policy::template GetLdsBufferSequence<Problem>();
@@ -301,14 +272,6 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
         k_dram_window.init_raw();
         constexpr auto k_oob_ck = bool_constant<true>{};
         constexpr auto k_pre_np = bool_constant<false>{};
-        (void)bias_dram_block_window_tmp;
-        (void)bias_element_func;
-        (void)randval_dram_block_window_tmp;
-        (void)lse_dram_window_tmp;
-        (void)lse_element_func;
-        (void)position_encoding;
-        (void)dropout;
-
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
                              v_dram_block_window_tmp.get_window_lengths(),
@@ -323,8 +286,6 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
 
         // buffer_load_fence(k_dram_window.get_num_of_access(), q.get_thread_buffer());
         buffer_load_fence(k_dram_window.get_num_of_access());
-        (void)q_element_func; // ??? rocm-6.x if use q element func will have scratch on hdim=64/32
-        // auto q_tile = q;      // tile_elementwise_in(q_element_func, q);
 
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
@@ -383,7 +344,6 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
             __builtin_amdgcn_sched_barrier(1);
 
             // STAGE 2, scale_s, mask, softmax (no bias/soft-cap)
-            s_acc = tile_elementwise_in(s_acc_element_func, s_acc);
 #if !CK_TILE_FMHA_FWD_FAST_EXP2
             tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, s_acc);
 #endif
@@ -439,9 +399,7 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
                                    sequence<(LdsSeq.at(number<k0_loops>{})) * kN1, 0>{},
                                    sequence<(LdsSeq.at(number<k0_loops>{}) + 1) * kN1, kK1>{});
 
-                store_tile(
-                    v_lds_window_tmp,
-                    tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
+                store_tile(v_lds_window_tmp, v_shuffle_tmp);
             }
             else
             {
@@ -449,8 +407,7 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
                     get_slice_tile(v_lds_window,
                                    sequence<(LdsSeq.at(number<k0_loops>{})) * kN1, 0>{},
                                    sequence<(LdsSeq.at(number<k0_loops>{}) + 1) * kN1, kK1>{});
-                store_tile(v_lds_window_tmp,
-                           tile_elementwise_in(v_element_func, v_buf)); // store the prefetch
+                store_tile(v_lds_window_tmp, v_buf);
             }
 
             if constexpr(k1_loops > 1)
@@ -520,11 +477,9 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
 
             const auto p = [&]() {
                 if constexpr(std::is_same_v<PDataType, fp16_t>)
-                    return impl::cast_tile_pkrtz_fp16_fp32<PDataType>(
-                        tile_elementwise_in(p_compute_element_func, p_compute));
+                    return impl::cast_tile_pkrtz_fp16_fp32<PDataType>(p_compute);
                 else
-                    return cast_tile<PDataType>(
-                        tile_elementwise_in(p_compute_element_func, p_compute));
+                    return cast_tile<PDataType>(p_compute);
             }();
 
             // STAGE 3, KV gemm
@@ -554,9 +509,7 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
                             v_lds_window,
                             sequence<(LdsSeq.at(number<k0_loops + i_k1 + 1>{})) * kN1, 0>{},
                             sequence<(LdsSeq.at(number<k0_loops + i_k1 + 1>{}) + 1) * kN1, kK1>{});
-                        store_tile(v_lds_window_tmp,
-                                   tile_elementwise_in(v_element_func,
-                                                       v_shuffle_tmp)); // store the prefetch
+                        store_tile(v_lds_window_tmp, v_shuffle_tmp);
                     }
                     else
                     {
@@ -564,8 +517,7 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
                             v_lds_window,
                             sequence<(LdsSeq.at(number<k0_loops + i_k1 + 1>{})) * kN1, 0>{},
                             sequence<(LdsSeq.at(number<k0_loops + i_k1 + 1>{}) + 1) * kN1, kK1>{});
-                        store_tile(v_lds_window_tmp,
-                                   tile_elementwise_in(v_element_func, v_buf)); // store next v_buf
+                        store_tile(v_lds_window_tmp, v_buf);
                     }
                     if constexpr(i_k1 < k1_loops - 1)
                         move_tile_window(v_dram_window, {0, kK1});
@@ -620,62 +572,7 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
             });
         });
 
-        o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
-
         return o_acc;
-    }
-
-    template <typename QDramBlockWindowTmp,
-              typename KDramBlockWindowTmp,
-              typename VDramBlockWindowTmp,
-              typename BiasDramBlockWindowTmp,
-              typename RandValDramBlockWindowTmp,
-              typename LSEDramBlockWindowTmp,
-              typename PositionEncoding,
-              typename AttentionVariantParams,
-              typename BlockIndices>
-    CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
-               const int* kv_block_idx_ptr,
-               int kv_blocks,
-               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               RandValDramBlockWindowTmp& randval_dram_block_window_tmp, // M0*N0 tile
-               LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile
-               FmhaMask mask,
-               PositionEncoding position_encoding,
-               float scale_s,
-               const AttentionVariant& variant,
-               const AttentionVariantParams& variant_params,
-               const BlockIndices& block_indices,
-               void* smem_ptr,
-               DropoutType& dropout) const
-    {
-        return operator()(q_dram_block_window_tmp,
-                          identity{},
-                          k_dram_block_window_tmp,
-                          identity{},
-                          v_dram_block_window_tmp,
-                          identity{},
-                          kv_block_idx_ptr,
-                          kv_blocks,
-                          bias_dram_block_window_tmp,
-                          identity{},
-                          randval_dram_block_window_tmp,
-                          lse_dram_block_window_tmp,
-                          identity{},
-                          identity{},
-                          identity{},
-                          identity{},
-                          mask,
-                          position_encoding,
-                          scale_s,
-                          variant,
-                          variant_params,
-                          block_indices,
-                          smem_ptr,
-                          dropout);
     }
 };
 

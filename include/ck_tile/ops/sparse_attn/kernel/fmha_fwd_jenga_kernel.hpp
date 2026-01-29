@@ -203,11 +203,8 @@ struct FmhaFwdJengaKernel
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_q_,
-                                                ck_tile::index_t hdim_v_,
-                                                bool has_padded_seqlen_k = false)
+                                                ck_tile::index_t hdim_v_)
     {
-        (void)has_padded_seqlen_k;
-        // TODO: this may need tuning
         return dim3(nhead_,
                     batch_size_,
                     ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
@@ -394,19 +391,6 @@ struct FmhaFwdJengaKernel
                              make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
                              {i_n1, 0});
 
-        constexpr auto bias_dram_window_lengths =
-            make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
-        const auto bias_dram_window = make_null_tile_window(bias_dram_window_lengths);
-
-        constexpr auto lse_dram_window_lengths = make_tuple(number<FmhaPipeline::kM0>{});
-        auto lse_dram_window                   = make_null_tile_window(lse_dram_window_lengths);
-
-        auto dropout = NullBlockDropout{};
-
-        constexpr auto randval_dram_window_lengths =
-            make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
-        auto randval_dram_window = make_null_tile_window(randval_dram_window_lengths);
-
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
@@ -419,32 +403,21 @@ struct FmhaFwdJengaKernel
                 return FmhaMask{kargs.seqlen_q, kargs.seqlen_k};
         }();
 
-        // WA i_batch capture structure binding before c++20
-        auto position_encoding = EmptyPositionEncoding<SaccDataType>{};
-
         AttentionVariant variant;
         const auto variant_params = ck_tile::StandardAttentionParams<FmhaMask>{mask, kargs.scale_s};
 
         BlockIndices block_indices{i_batch, i_nhead, i_nhead / kargs.nhead_ratio_qk};
 
-        auto o_acc_tile = [&]() {
-            // TODO: constexpr(kDoFp8StaticQuant)
-            return FmhaPipeline{}(q_dram_window,
-                                  k_dram_window,
-                                  v_dram_window,
-                                  block_relation_onehot_ptr,
-                                  bias_dram_window,
-                                  randval_dram_window,
-                                  lse_dram_window,
-                                  mask,
-                                  position_encoding,
-                                  kargs.scale_s,
-                                  variant,
-                                  variant_params,
-                                  block_indices,
-                                  smem_ptr,
-                                  dropout);
-        }();
+        auto o_acc_tile = FmhaPipeline{}(q_dram_window,
+                                         k_dram_window,
+                                         v_dram_window,
+                                         block_relation_onehot_ptr,
+                                         mask,
+                                         kargs.scale_s,
+                                         variant,
+                                         variant_params,
+                                         block_indices,
+                                         smem_ptr);
 
         // O DRAM and O DRAM window
         auto o_dram = [&]() {

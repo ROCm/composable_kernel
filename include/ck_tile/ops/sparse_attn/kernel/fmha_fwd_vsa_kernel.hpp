@@ -207,83 +207,37 @@ struct FmhaFwdVSAKernel
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_q_,
-                                                ck_tile::index_t hdim_v_,
-                                                bool has_padded_seqlen_k = false)
+                                                ck_tile::index_t hdim_v_)
     {
-        // has_padded_seqlen_k is determined by checking (seqlen_k_ptr != nullptr)
-        if(has_padded_seqlen_k)
-        {
-            // TODO: this may need tuning
-            return dim3(nhead_,
-                        batch_size_,
-                        ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
-                            ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1));
-        }
-        else
-        {
-            // TODO: this may need tuning
-            return dim3(ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
-                            ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1),
-                        nhead_,
-                        batch_size_);
-        }
+        return dim3(ck_tile::integer_divide_ceil(seqlen_q_, FmhaPipeline::kM0) *
+                        ck_tile::integer_divide_ceil(hdim_v_, FmhaPipeline::kN1),
+                    nhead_,
+                    batch_size_);
     }
 
     CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
     {
-        bool has_padded_seqlen_k = false;
+        const index_t num_tile_n1 = ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
 
-        if(has_padded_seqlen_k)
+        const index_t i_block = blockIdx.x;
+        const index_t i_nhead = blockIdx.y;
+        const index_t i_batch = blockIdx.z;
+
+        const auto f = [](index_t dividend, index_t divisor) {
+            index_t quotient = dividend / divisor;
+            index_t modulus  = dividend - quotient * divisor;
+            return ck_tile::make_tuple(quotient, modulus);
+        };
+
+        const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
+
+        if constexpr(kHasMask)
         {
-            const index_t num_tile_n1 =
-                ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
-
-            const index_t i_block = blockIdx.z;
-            const index_t i_nhead = blockIdx.x;
-            const index_t i_batch = blockIdx.y;
-
-            const auto f = [](index_t dividend, index_t divisor) {
-                index_t quotient = dividend / divisor;
-                index_t modulus  = dividend - quotient * divisor;
-                return ck_tile::make_tuple(quotient, modulus);
-            };
-
-            const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
-
-            if constexpr(kHasMask)
-            {
-                return ck_tile::make_tuple(gridDim.z - 1 - i_tile_m, i_tile_n, i_nhead, i_batch);
-            }
-            else
-            {
-                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
-            }
+            return ck_tile::make_tuple(gridDim.x - 1 - i_tile_m, i_tile_n, i_nhead, i_batch);
         }
         else
         {
-            const index_t num_tile_n1 =
-                ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
-
-            const index_t i_block = blockIdx.x;
-            const index_t i_nhead = blockIdx.y;
-            const index_t i_batch = blockIdx.z;
-
-            const auto f = [](index_t dividend, index_t divisor) {
-                index_t quotient = dividend / divisor;
-                index_t modulus  = dividend - quotient * divisor;
-                return ck_tile::make_tuple(quotient, modulus);
-            };
-
-            const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
-
-            if constexpr(kHasMask)
-            {
-                return ck_tile::make_tuple(gridDim.x - 1 - i_tile_m, i_tile_n, i_nhead, i_batch);
-            }
-            else
-            {
-                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
-            }
+            return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
         }
     }
 
@@ -428,19 +382,6 @@ struct FmhaFwdVSAKernel
                              make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
                              {i_n1, 0});
 
-        constexpr auto bias_dram_window_lengths =
-            make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
-        const auto bias_dram_window = make_null_tile_window(bias_dram_window_lengths);
-
-        constexpr auto lse_dram_window_lengths = make_tuple(number<FmhaPipeline::kM0>{});
-        auto lse_dram_window                   = make_null_tile_window(lse_dram_window_lengths);
-
-        auto dropout = NullBlockDropout{};
-
-        constexpr auto randval_dram_window_lengths =
-            make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN0>{});
-        auto randval_dram_window = make_null_tile_window(randval_dram_window_lengths);
-
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
@@ -453,33 +394,22 @@ struct FmhaFwdVSAKernel
                 return FmhaMask{kargs.seqlen_q, kargs.seqlen_k};
         }();
 
-        // WA i_batch capture structure binding before c++20
-        auto position_encoding = EmptyPositionEncoding<SaccDataType>{};
-
         AttentionVariant variant;
         const auto variant_params = ck_tile::StandardAttentionParams<FmhaMask>{mask, kargs.scale_s};
 
         BlockIndices block_indices{i_batch, i_nhead, i_nhead / kargs.nhead_ratio_qk};
 
-        auto o_acc_tile = [&]() {
-            // TODO: constexpr(kDoFp8StaticQuant)
-            return FmhaPipeline{}(q_dram_window,
-                                  k_dram_window,
-                                  v_dram_window,
-                                  lut_ptr,
-                                  valid_block_num_value,
-                                  bias_dram_window,
-                                  randval_dram_window,
-                                  lse_dram_window,
-                                  mask,
-                                  position_encoding,
-                                  kargs.scale_s,
-                                  variant,
-                                  variant_params,
-                                  block_indices,
-                                  smem_ptr,
-                                  dropout);
-        }();
+        auto o_acc_tile = FmhaPipeline{}(q_dram_window,
+                                         k_dram_window,
+                                         v_dram_window,
+                                         lut_ptr,
+                                         valid_block_num_value,
+                                         mask,
+                                         kargs.scale_s,
+                                         variant,
+                                         variant_params,
+                                         block_indices,
+                                         smem_ptr);
 
         // O DRAM and O DRAM window
         auto o_dram = [&]() {
