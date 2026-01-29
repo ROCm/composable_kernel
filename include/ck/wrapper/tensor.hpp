@@ -7,6 +7,9 @@
 #include "utils/tensor_partition.hpp"
 #include "utils/layout_utils.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 // Disable from doxygen docs generation
 /// @cond INTERNAL
 namespace ck {
@@ -441,3 +444,4 @@ struct Tensor
 
 } // namespace wrapper
 } // namespace ck
+#pragma clang diagnostic pop
