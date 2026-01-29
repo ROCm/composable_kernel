@@ -319,7 +319,8 @@ class TestCkTileMHC : public ::testing::Test
         const ck_tile::index_t kGridSize       = (output_dim + 15) / 16;
         constexpr ck_tile::index_t kBlockPerCu = 1;
 
-        const float r = 1.0f, alpha_pre = 1.0f, alpha_post = 1.0f, alpha_res = 1.0f, bias = 0.0f;
+        // const float r = 1.0f, alpha_pre = 1.0f, alpha_post = 1.0f, alpha_res = 1.0f, bias = 0.0f;
+        const float r = 2.0f, alpha_pre = 1.5f, alpha_post = 2.5f, alpha_res = 3.5f, bias = 1.5f;
 
         // Launch kernel (B, n, C are now template parameters, not runtime)
         ck_tile::launch_kernel(
