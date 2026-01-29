@@ -5,6 +5,7 @@
 #include "ck_tile/ops/batched_contraction/kernel/batched_contraction_kernel.hpp"
 #include "ck_tile/ops/batched_contraction/pipeline/batched_contraction_problem.hpp"
 #include "ck_tile/ops/batched_contraction/utils/tensor_descriptor_utils.hpp"
+#include "ck_tile/ops/common/determine_warp_prec_type.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/load_and_convert_tile.hpp"
 #include "ck_tile/ops/common/streamk_common.hpp"

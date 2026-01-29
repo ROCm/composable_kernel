@@ -14,6 +14,7 @@
 #include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_traits.hpp"
 #include "ck_tile/ops/fused_moe/pipeline/moe_sorting_pipeline.hpp"
 #include "ck_tile/ops/fused_moe/pipeline/moe_sorting_policy.hpp"
+#include "ck_tile/ops/common/determine_warp_prec_type.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/load_and_convert_tile.hpp"
 #include "ck_tile/ops/common/streamk_common.hpp"
