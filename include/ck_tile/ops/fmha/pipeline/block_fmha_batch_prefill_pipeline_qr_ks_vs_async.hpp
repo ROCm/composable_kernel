@@ -533,32 +533,170 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
             randval_dram_block_window_tmp, seqlen_k_start);
 
-        auto v_dist                 = Policy::template MakeVDramTileDistribution<Problem>();
-        auto v_coord                = v_dist.calculate_index();
-        const auto VPageIndexDim    = I1;
-        using VDstrEncode           = typename decltype(v_dist)::DstrEncode;
-        constexpr index_t V_KRepeat = VDstrEncode::hs_lengthss_[I1][I3];
-        statically_indexed_array<index_t, V_KRepeat> v_offsets;
-        kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
-                                  decltype(v_coord),
-                                  VPageIndexDim,
-                                  kPageBlockSize,
-                                  0,
-                                  V_KRepeat,
-                                  1,
-                                  kKVMemoryLayout,
-                                  false,
-                                  kN0,
-                                  kVectorSize>(
-            page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
+        auto v_dist       = Policy::template MakeVDramTileDistribution<Problem>();
+        auto v_coord      = v_dist.calculate_index();
+        using VDstrEncode = typename decltype(v_dist)::DstrEncode;
 
+        // V tensor K-dimension decomposition for page index computation
+        // ============================================================
+        // The K dimension (seqlen_k) in V distribution is decomposed into multiple sub-dimensions.
+        // This decomposition determines how threads iterate over the K dimension and how page
+        // indices are computed for paged KV cache.
+        //
+        // The decomposition pattern differs by memory layout:
+        //
+        // VECTORIZED_LAYOUT (ColumnMajor, custom distribution):
+        //   3D decomposition: K = K2 × K0 × K1
+        //   - K2 (V_KIterOuter): Outer iteration count
+        //   - K0 (V_KLanes):     Lanes for K dimension (matches GEMM kABKLane)
+        //   - K1 (V_KIterInner): Vector load size (matches GEMM kKPerThread)
+        //   - hs_lengthss_[I1] = {K2, K0, K1}, size = 3 (or {K0, K1} size = 2 if no outer iter)
+        //
+        // LINEAR_LAYOUT ColumnMajor (base class distribution):
+        //   2D decomposition: K = K0 × K1
+        //   - K0: Lanes for K dimension (may not match GEMM kABKLane)
+        //   - K1: Vector load size
+        //   - hs_lengthss_[I1] = {K0, K1}, size = 2
+        //
+        // LINEAR_LAYOUT RowMajor (base class distribution):
+        //   4D decomposition: K = K0 × K1 × K2 × K3 (uses shuffle_tile for GEMM alignment)
+        //   3D decomposition: K = K0 × K1 × K2 (fallback case)
+        //   - Page lookup uses Y-space's last dimension only (inner iteration)
+        //
+        // V_PageIdxRepeat = total number of page lookups per thread = V_KIterOuter × V_KIterInner
+        constexpr index_t V_KIterInner = VDstrEncode::hs_lengthss_[I1].back();
+
+        // Compute V_KIterOuter and V_KLanes based on memory layout and K decomposition
+        constexpr index_t V_KIterOuter = [] {
+            if constexpr(kKVMemoryLayout ==
+                         BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
+            {
+                // VECTORIZED_LAYOUT: 3D decomposition {K2, K0, K1} when outer iteration is needed
+                if constexpr(VDstrEncode::hs_lengthss_[I1].size() == 3)
+                    return static_cast<index_t>(VDstrEncode::hs_lengthss_[I1][I0]);
+                else
+                    return index_t{1};
+            }
+            else
+            {
+                // LINEAR_LAYOUT: No outer iteration for page lookup
+                // RowMajor uses shuffle_tile, ColumnMajor has simple 2D decomposition
+                // Both cases use single-dimension Y-space page lookup
+                return index_t{1};
+            }
+        }();
+
+        constexpr index_t V_KLanes = [] {
+            if constexpr(kKVMemoryLayout ==
+                         BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
+            {
+                // VECTORIZED_LAYOUT: K0 is the lanes dimension
+                if constexpr(V_KIterOuter > 1)
+                    return static_cast<index_t>(VDstrEncode::hs_lengthss_[I1][I1]);
+                else
+                    return static_cast<index_t>(VDstrEncode::hs_lengthss_[I1][I0]);
+            }
+            else
+            {
+                // LINEAR_LAYOUT: First dimension is K0 (lanes)
+                return static_cast<index_t>(VDstrEncode::hs_lengthss_[I1][I0]);
+            }
+        }();
+
+        // This affects page offset computation - need to track offsets for each (k2, k1)
+        // combination
+        constexpr index_t V_PageIdxRepeat = V_KIterInner * V_KIterOuter;
+
+        // VPageIndexYDims: Y-space dimension indices that participate in page index computation
+        // ================================================================================
+        // In tile_scatter_gather, the gather index is computed from Y-space coordinates.
+        // This sequence specifies which Y dimensions should be linearized to form the page lookup
+        // index.
+        //
+        // VECTORIZED_LAYOUT with outer iteration: sequence<Y_K1, Y_K2>
+        //   - Both K1 and K2 are in Y-space (thread iteration dimensions)
+        //   - gather_index = y_k1 + y_k2 * len(Y_K1)  (linearized 2D -> 1D)
+        //
+        // VECTORIZED_LAYOUT without outer iteration / LINEAR_LAYOUT: sequence<Y_K1>
+        //   - Only the innermost K dimension is used for page lookup (single dimension)
+        //
+        constexpr auto VPageIndexYDims = []() {
+            // K1Minor is always the last element index in hs_lengthss_[I1]
+            constexpr index_t K1Minor = VDstrEncode::hs_lengthss_[I1].size() - 1;
+            constexpr index_t Y_K1    = VDstrEncode::detail::rhs_major_minor_to_ys_[2][K1Minor];
+
+            if constexpr(kKVMemoryLayout ==
+                             BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT &&
+                         V_KIterOuter > 1)
+            {
+                // VECTORIZED_LAYOUT with outer iteration: need 2D page lookup
+                constexpr index_t Y_K2 = VDstrEncode::detail::rhs_major_minor_to_ys_[2][I0];
+                return sequence<Y_K1, Y_K2>{};
+            }
+            else
+            {
+                // LINEAR_LAYOUT or VECTORIZED_LAYOUT without outer iteration: 1D page lookup
+                return sequence<Y_K1>{};
+            }
+        }();
+
+        static_assert(decltype(VPageIndexYDims)::at(0) < VDstrEncode::NDimY,
+                      "V page-index Y dim must be valid");
+
+        statically_indexed_array<index_t, V_PageIdxRepeat> v_offsets;
+        auto update_v_offsets = [&](auto k_loop_start) {
+            constexpr index_t kLoopStart = decltype(k_loop_start)::value;
+            // For 3D K decomposition (K2, K0, K1), compute offsets for each K2 slice
+            // The global K offset for (k2, k1) is: kLoopStart + k2 * (K0 * K1) + k1
+            // We iterate K2 outer, K1 inner, and merge into 1D v_offsets array
+            if constexpr(V_KIterOuter > 1)
+            {
+                static_for<0, V_KIterOuter, 1>{}([&](auto k2) {
+                    statically_indexed_array<index_t, V_KIterInner> v_offsets_k2;
+                    kv_offset_array_transform<statically_indexed_array<index_t, V_KIterInner>,
+                                              decltype(v_coord),
+                                              I1,
+                                              kPageBlockSize,
+                                              kLoopStart + k2.value * V_KLanes * V_KIterInner,
+                                              V_KIterInner,
+                                              1,
+                                              kKVMemoryLayout,
+                                              false,
+                                              kN0,
+                                              kVectorSize>(
+                        page_idx, stride_v, page_stride_v, v_coord, v_offsets_k2, current_seq_k);
+                    static_for<0, V_KIterInner, 1>{}([&](auto k1) {
+                        constexpr auto idx = number<k1.value + k2.value * V_KIterInner>{};
+                        v_offsets[idx]     = v_offsets_k2[k1];
+                    });
+                });
+            }
+            else
+            {
+                kv_offset_array_transform<statically_indexed_array<index_t, V_KIterInner>,
+                                          decltype(v_coord),
+                                          I1,
+                                          kPageBlockSize,
+                                          kLoopStart,
+                                          V_KIterInner,
+                                          1,
+                                          kKVMemoryLayout,
+                                          false,
+                                          kN0,
+                                          kVectorSize>(
+                    page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
+            }
+        };
+        update_v_offsets(number<0>{});
         auto v_dram_window =
             make_tile_scatter_gather(v_dram_block_window_tmp.get_bottom_tensor_view(),
                                      v_dram_block_window_tmp.get_window_lengths(),
                                      {0, seqlen_k_start}, // TODO: hdim split?
                                      v_dist,
                                      v_offsets,
-                                     VPageIndexDim);
+                                     number<1>{}, // HsGatherDim
+                                     number<1>{}, // NumCoord
+                                     VPageIndexYDims);
 
         // prefetch K tile
         async_load_tile_raw(
@@ -625,18 +763,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             __builtin_amdgcn_sched_barrier(1);
 
             auto v_buf = load_tile(v_dram_window, number<-1>{}, bool_constant<false>{});
-            kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
-                                      decltype(v_coord),
-                                      VPageIndexDim,
-                                      kPageBlockSize,
-                                      kK1,
-                                      V_KRepeat,
-                                      1,
-                                      kKVMemoryLayout,
-                                      false,
-                                      kN0,
-                                      kVectorSize>(
-                page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
+            update_v_offsets(number<kK1>{});
             v_dram_window.update_page_idx(v_offsets);
 
             const auto p = [&]() {
@@ -766,7 +893,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 
                 __builtin_amdgcn_sched_barrier(0x7F);
                 // store & prefetch next v, after the max reduction
-                if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+                if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> &&
+                             kKVMemoryLayout ==
+                                 BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT)
                 {
                     auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                         Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
@@ -787,8 +916,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                         get_slice_tile(v_lds_window,
                                        sequence<(LdsSeq.at(number<k0_loops>{})) * kN1, 0>{},
                                        sequence<(LdsSeq.at(number<k0_loops>{}) + 1) * kN1, kK1>{});
-                    store_tile(v_lds_window_tmp,
-                               tile_elementwise_in(v_element_func, v_buf)); // store the prefetch
+                    const auto v_store_tile = tile_elementwise_in(v_element_func, v_buf);
+                    store_tile(v_lds_window_tmp, v_store_tile); // store the prefetch
                 }
 
                 if constexpr(k1_loops > 1)
@@ -799,18 +928,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                          kK1}); // will have scratch if move this right after load_tile(v_dram)...
                     v_buf = load_tile(
                         v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
-                    kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
-                                              decltype(v_coord),
-                                              VPageIndexDim,
-                                              kPageBlockSize,
-                                              2 * kK1,
-                                              V_KRepeat,
-                                              1,
-                                              kKVMemoryLayout,
-                                              false,
-                                              kN0,
-                                              kVectorSize>(
-                        page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
+                    update_v_offsets(number<2 * kK1>{});
                     v_dram_window.update_page_idx(v_offsets);
                 }
                 __builtin_amdgcn_sched_barrier(0);
@@ -938,18 +1056,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     {
                         v_buf = load_tile(
                             v_dram_window, number<-1>{}, bool_constant<false>{}); // load next v_buf
-                        kv_offset_array_transform<statically_indexed_array<index_t, V_KRepeat>,
-                                                  decltype(v_coord),
-                                                  VPageIndexDim,
-                                                  kPageBlockSize,
-                                                  (2 + i_k1.value) * kK1,
-                                                  V_KRepeat,
-                                                  1,
-                                                  kKVMemoryLayout,
-                                                  false,
-                                                  kN0,
-                                                  kVectorSize>(
-                            page_idx, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
+                        update_v_offsets(number<(2 + i_k1.value) * kK1>{});
                         v_dram_window.update_page_idx(v_offsets);
                     }
                     block_sync_lds();
@@ -961,7 +1068,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                sequence<(LdsSeq.at(number<k0_loops + i_k1>{})) * kN1, 0>{},
                                sequence<(LdsSeq.at(number<k0_loops + i_k1>{}) + 1) * kN1, kK1>{}));
 
-                    if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+                    if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor> &&
+                                 kKVMemoryLayout ==
+                                     BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT)
                     {
                         auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                             Policy::template MakeShuffledVRegBlockDescriptor<Problem>());

@@ -1,4 +1,4 @@
-.. _ck_tile_distribution:
+.. _ck_tile_tile_distribution:
 
 Tile Distribution - The Core API
 ================================

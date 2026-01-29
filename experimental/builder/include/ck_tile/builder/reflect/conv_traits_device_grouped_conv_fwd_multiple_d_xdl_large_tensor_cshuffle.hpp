@@ -24,8 +24,8 @@ constexpr ConvTraits instance_to_conv_traits()
     return ConvTraits{
         .spatial_dim         = InstTraits::kSpatialDim,
         .direction           = conv_direction<Instance>(),
-        .layout              = conv_layout<Instance>(),
-        .data_type           = conv_data_type<Instance>(),
+        .layout              = fwd_conv_layout<Instance>(),
+        .data_type           = conv_data_type<typename InstTraits::ADataType>(),
         .input_element_op    = elementwise_op<typename InstTraits::AElementwiseOperation>(),
         .weight_element_op   = elementwise_op<typename InstTraits::BElementwiseOperation>(),
         .output_element_op   = elementwise_op<typename InstTraits::CDEElementwiseOperation>(),
