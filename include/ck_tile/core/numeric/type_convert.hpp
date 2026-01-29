@@ -76,7 +76,8 @@ CK_TILE_HOST_DEVICE constexpr float float_to_tf32(float x)
             // Add rounding bias for round-to-nearest-even (RTNE) before truncating:
             //  - 0xfff is the bias for the 13 fraction bits being discarded.
             //  - (i >> 13) & 1 picks the least significant bit that will be rounded off,
-            //    so adding it implements "ties to even" when the discarded part is exactly half-way.
+            //    so adding it implements "ties to even" when the discarded part is exactly
+            //    half-way.
             i += 0xfff + ((i >> 13) & 1);
         }
     }
