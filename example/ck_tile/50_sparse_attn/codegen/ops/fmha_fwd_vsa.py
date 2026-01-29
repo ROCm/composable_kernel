@@ -55,6 +55,15 @@ FMHA_FWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
 
 """
 
+# NOTE: VSA sparse attention kernel has the following restrictions enforced by static_assert:
+#   - Group mode: NOT supported (batch mode only)
+#   - Bias: NOT supported (NO_BIAS only)
+#   - LSE output: NOT supported (false only)
+#   - Dropout: NOT supported (false only)
+#   - Logits soft-cap: NOT supported (false only)
+#   - FP8 static quantization: NOT supported (NO_SCALE only)
+# The template below hardcodes these unsupported features accordingly.
+
 FMHA_FWD_KERNEL_BODY = """
 using fmha_dtype_{F_idx} = {F_dtype};
 
@@ -67,20 +76,22 @@ using fmha_shape_{F_idx} = ck_tile::TileFmhaShape<fmha_block_tile_{F_idx},
                                       ck_tile::sequence<{F_wm1}, {F_wn1}, {F_wk1}>,
                                       {F_vlayout}>;
 
+// TileFmhaTraits: spad, skpad, dpad, dvpad, has_logits_soft_cap, bias_enum,
+//                 store_lse, has_dropout, has_randval, quant_scale_enum, occupancy, is_v_rowmajor_skip
 using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                     {F_skpad},
                                                     {F_dpad},
                                                     {F_dvpad},
-                                                    {F_logits},
-                                                    ck_tile::BlockAttentionBiasEnum::NO_BIAS,
-                                                    false,
-                                                    false,
-                                                    false,
-                                                    ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE,
+                                                    false,  // has_logits_soft_cap - NOT supported
+                                                    ck_tile::BlockAttentionBiasEnum::NO_BIAS,  // bias - NOT supported
+                                                    false,  // store_lse - NOT supported
+                                                    false,  // has_dropout - NOT supported
+                                                    false,  // has_randval - NOT supported
+                                                    ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE,  // FP8 quant - NOT supported
                                                     {F_occupancy},
                                                     false>;
 
-using fmha_variant_{F_idx} = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
+using fmha_variant_{F_idx} = ck_tile::ComposedAttention<0, CK_TILE_FMHA_FWD_FAST_EXP2>;  // logits_soft_cap=0 (NOT supported)
 
 using fmha_mask_{F_idx} = {F_mask};
 
@@ -115,7 +126,7 @@ using fmha_kernel_{F_idx} =
     ck_tile::FmhaFwdVSAKernel<fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}>;
 
 using trait_{F_idx} = fmha_vsa_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
-                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
+                        {F_pipeline_enum}, false/*logits*/, fmha_mask_{F_idx}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
 
 #include <iostream>
 
@@ -203,7 +214,7 @@ FMHA_FWD_API_PER_HDIM_CASE = """        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v
 
 FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) &&
                         ({F_scheck}) && ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
-                using trait_ = fmha_vsa_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
+                using trait_ = fmha_vsa_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, false/*logits*/, {F_mask}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
                 return fmha_vsa_fwd_<trait_>(s, a);
             }}
 """
@@ -395,7 +406,7 @@ class FmhaFwdApiPool:
                             F_if=if_k,
                             F_vlayout=LAYOUT_MAP[trait.vlayout],
                             F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag],
-                            F_logits=BOOL_MAP[trait.logits],
+                            # F_logits removed - hardcoded to false (NOT supported)
                             F_mask=get_mask_map(self.mask_impl)[trait.mask],
                             F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask],
                             F_trload=BOOL_MAP[trait.tr_load],
@@ -510,7 +521,7 @@ class FmhaFwdKernel:
             F_skpad=BOOL_MAP[self.F_pipeline.F_skpad],
             F_dpad=BOOL_MAP[self.F_pipeline.F_dpad],
             F_dvpad=BOOL_MAP[self.F_pipeline.F_dvpad],
-            F_logits=BOOL_MAP[self.F_pipeline.F_logits],
+            # F_logits removed - hardcoded to false in template (NOT supported)
             F_occupancy=self.F_tile.F_occupancy,
             F_pipeline_enum=PIPELINE_ENUM_MAP[self.F_pipeline.tag],
             F_mask=get_mask_map(self.mask_impl)[self.F_pipeline.F_mask],
@@ -670,10 +681,11 @@ class KernelComponentFactory:
     def get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl) -> List[FmhaFwdPipeline]:
         # this function will populate a list possible pipelines
         # TODO: the order of List matters! the later in this list will be also be checked later
+        # NOTE: logits soft-cap is NOT supported by VSA sparse attention (enforced by static_assert)
         pipelines = []
         if dtype in ["fp16", "bf16"]:
             for logits, mask in itertools.product(
-                ["f"],
+                ["f"],  # logits soft-cap NOT supported, always false
                 get_mask_map(mask_impl).keys(),
             ):
                 if hdim == 256 and hdim_v == 256:
@@ -759,23 +771,16 @@ def get_fwd_blobs(
     )
 
     # Only generate fp16/bf16 kernels for now.
+    # NOTE: VSA sparse attention only supports batch mode (group mode NOT supported, enforced by static_assert)
     for dtype in ["fp16", "bf16"]:
         d = factory.get_hdim_tile_size_dict(dtype)
         if d is None:
             continue
-        # for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for ((hdim, hdim_v), tiles), mode in itertools.product(d.items(), ["batch"]):
             for tile, pipeline in itertools.product(
                 tiles, factory.get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl)
             ):
                 if tile.F_bm0 != 128 or tile.F_bn0 != 128:
-                    continue
-                if mode == "group":
-                    if pipeline.F_spad != "t" or pipeline.F_skpad != "t":
-                        # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
-                        continue
-                # logits soft-cap is not generated for sparse attention
-                if not (pipeline.F_logits == "f"):
                     continue
                 if pipeline.tag != "qr_async_vsa":
                     continue
