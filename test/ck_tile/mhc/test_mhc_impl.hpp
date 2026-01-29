@@ -50,7 +50,7 @@ class TestCkTileMHC : public ::testing::Test
         // Test parameters
         const int B  = 8;     // Batch size
         const int n  = 4;     // Expansion rate (aka streams)
-        const int C  = 256;   // Output layer dim
+        const int C  = 64;    // Output layer dim (reduced to avoid shared memory overflow)
         const int nC = n * C; // Total input dimension
 
         const int output_dim = 2 * n + n * n; // 2n + n^2 = 8 + 16 = 24 for n=4
@@ -106,12 +106,9 @@ class TestCkTileMHC : public ::testing::Test
             ck_tile::ManifoldConstrainedHyperConnection<Problem, ck_tile::MHCDefaultPolicy>;
 
         // Define the CK Tile version kernel (v2 with proper tiling)
-        // Template on n=4 to make output dimensions compile-time
-        using KernelCKTile =
-            ck_tile::ManifoldConstrainedHyperConnectionTiled<Problem,
-                                                             ck_tile::MHCDefaultPolicy,
-                                                             4 // n = 4 (expansion factor)
-                                                             >;
+        // Use compile-time parameters for B, n, C
+        using KernelCKTile = ck_tile::
+            ManifoldConstrainedHyperConnectionTiled<Problem, ck_tile::MHCDefaultPolicy, B, n, C>;
 
         // Kernel launch configuration
         const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
@@ -205,7 +202,7 @@ class TestCkTileMHC : public ::testing::Test
         ck_tile::DeviceMem d_output_cktile_mem(h_output_cktile.get_element_space_size_in_bytes());
         d_output_cktile_mem.ToDevice(h_output_cktile.data());
 
-        // Launch CK Tile kernel (note: n is now a template parameter, not runtime)
+        // Launch CK Tile kernel (B, n, C are template parameters)
         ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0},
                                ck_tile::make_kernel<kBlockPerCu>(
                                    KernelCKTile{},
@@ -215,13 +212,11 @@ class TestCkTileMHC : public ::testing::Test
                                    static_cast<float*>(d_x_mem.GetDeviceBuffer()),
                                    static_cast<float*>(d_phi_mem.GetDeviceBuffer()),
                                    static_cast<float*>(d_output_cktile_mem.GetDeviceBuffer()),
-                                   B,
-                                   C,
                                    r,
                                    alpha_pre,
                                    alpha_post,
                                    alpha_res,
-                                   bias)); // n removed, now template param
+                                   bias));
 
         d_output_cktile_mem.FromDevice(h_output_cktile.data());
 
@@ -278,8 +273,9 @@ class TestCkTileMHC : public ::testing::Test
         EXPECT_TRUE(pass_naive && pass_cktile);
     }
 
-    // Test with specific batch size
-    void RunBatchSizeTest(int B, int n = 4, int C = 64)
+    // Test with specific batch size (template version with compile-time parameters)
+    template <int B = 16, int n = 4, int C = 64>
+    void RunBatchSizeTest()
     {
         const int nC         = n * C;         // Total input dimension
         const int output_dim = 2 * n + n * n; // 2n + n^2
@@ -313,8 +309,11 @@ class TestCkTileMHC : public ::testing::Test
                                                         ck_tile::sequence<1, 1>>;
 
         using Problem = ck_tile::MHCProblem<float, float, float, BlockShape>;
-        using KernelExpansionParallel =
-            ck_tile::ManifoldConstrainedHyperConnectionTiled<Problem, ck_tile::MHCDefaultPolicy, 4>;
+
+        // Use template parameters for B, n, C (compile-time)
+        // This allows better optimization and proper use of store_tile
+        using KernelExpansionParallel = ck_tile::
+            ManifoldConstrainedHyperConnectionTiled<Problem, ck_tile::MHCDefaultPolicy, B, n, C>;
 
         const ck_tile::index_t kBlockSize      = KernelExpansionParallel::BlockSize();
         const ck_tile::index_t kGridSize       = (output_dim + 15) / 16;
@@ -322,7 +321,7 @@ class TestCkTileMHC : public ::testing::Test
 
         const float r = 1.0f, alpha_pre = 1.0f, alpha_post = 1.0f, alpha_res = 1.0f, bias = 0.0f;
 
-        // Launch kernel
+        // Launch kernel (B, n, C are now template parameters, not runtime)
         ck_tile::launch_kernel(
             ck_tile::stream_config{nullptr, false, 0},
             ck_tile::make_kernel<kBlockPerCu>(KernelExpansionParallel{},
@@ -332,8 +331,6 @@ class TestCkTileMHC : public ::testing::Test
                                               static_cast<float*>(d_x_mem.GetDeviceBuffer()),
                                               static_cast<float*>(d_phi_mem.GetDeviceBuffer()),
                                               static_cast<float*>(d_output_mem.GetDeviceBuffer()),
-                                              B,
-                                              C,
                                               r,
                                               alpha_pre,
                                               alpha_post,
@@ -382,23 +379,25 @@ class TestCkTileMHC : public ::testing::Test
     // Test with multiple arbitrary batch sizes
     void RunArbitraryBatchSizeTest()
     {
-        // Test multiple batch sizes including edge cases
-        std::vector<int> batch_sizes = {1, 7, 15, 16, 17, 23, 32, 33, 47, 48, 64};
-
-        const int n = 4;  // Expansion rate
-        const int C = 64; // Output layer dim
-
         std::cout << "\n========================================" << std::endl;
         std::cout << "Testing Arbitrary Batch Sizes..." << std::endl;
-        std::cout << "  Expansion factor (n): " << n << std::endl;
-        std::cout << "  Channels per stream (C): " << C << std::endl;
-        std::cout << "  Output dimension: " << (2 * n + n * n) << std::endl;
+        std::cout << "  Expansion factor (n): 4" << std::endl;
+        std::cout << "  Channels per stream (C): 64" << std::endl;
+        std::cout << "  Output dimension: 24" << std::endl;
         std::cout << "========================================" << std::endl;
 
-        for(int B : batch_sizes)
-        {
-            RunBatchSizeTest(B, n, C);
-        }
+        // Call template versions with compile-time parameters
+        RunBatchSizeTest<1, 4, 64>();
+        RunBatchSizeTest<7, 4, 64>();
+        RunBatchSizeTest<15, 4, 64>();
+        RunBatchSizeTest<16, 4, 64>();
+        RunBatchSizeTest<17, 4, 64>();
+        RunBatchSizeTest<23, 4, 64>();
+        RunBatchSizeTest<32, 4, 64>();
+        RunBatchSizeTest<33, 4, 64>();
+        RunBatchSizeTest<47, 4, 64>();
+        RunBatchSizeTest<48, 4, 64>();
+        RunBatchSizeTest<64, 4, 64>();
 
         std::cout << "\n========================================" << std::endl;
         std::cout << "Overall Result: ALL TESTS COMPLETED" << std::endl;
@@ -449,9 +448,9 @@ class TestCkTileMHC : public ::testing::Test
                                                         ck_tile::sequence<1, 256>,
                                                         ck_tile::sequence<1, 1>>;
 
-        using Problem = ck_tile::MHCProblem<float, float, float, BlockShape>;
-        using KernelExpansionParallel =
-            ck_tile::ManifoldConstrainedHyperConnectionTiled<Problem, ck_tile::MHCDefaultPolicy, 4>;
+        using Problem                 = ck_tile::MHCProblem<float, float, float, BlockShape>;
+        using KernelExpansionParallel = ck_tile::
+            ManifoldConstrainedHyperConnectionTiled<Problem, ck_tile::MHCDefaultPolicy, B, n, C>;
 
         const ck_tile::index_t kBlockSize = KernelExpansionParallel::BlockSize();
         // Grid size: one block per 16 output columns (since BlockGemm processes N=16)
@@ -460,7 +459,7 @@ class TestCkTileMHC : public ::testing::Test
 
         const float r = 1.0f, alpha_pre = 1.0f, alpha_post = 1.0f, alpha_res = 1.0f, bias = 0.0f;
 
-        // Launch expansion-parallel kernel
+        // Launch expansion-parallel kernel (B, n, C are template parameters)
         ck_tile::launch_kernel(
             ck_tile::stream_config{nullptr, false, 0},
             ck_tile::make_kernel<kBlockPerCu>(KernelExpansionParallel{},
@@ -470,8 +469,6 @@ class TestCkTileMHC : public ::testing::Test
                                               static_cast<float*>(d_x_mem.GetDeviceBuffer()),
                                               static_cast<float*>(d_phi_mem.GetDeviceBuffer()),
                                               static_cast<float*>(d_output_mem.GetDeviceBuffer()),
-                                              B,
-                                              C,
                                               r,
                                               alpha_pre,
                                               alpha_post,
