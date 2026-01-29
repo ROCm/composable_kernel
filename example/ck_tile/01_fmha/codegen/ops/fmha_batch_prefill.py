@@ -677,7 +677,7 @@ class KernelComponentFactory:
                 kv_lookup_table,
             ) in itertools.product(
                 ["t", "f"],
-                ["pertensor"],
+                ["pertensor", "kv_blockscale"],
                 get_mask_map(mask_impl).keys(),
                 ["no"],
                 SUPPORTED_KV_MEMORY_LAYOUT,
@@ -739,6 +739,9 @@ def get_fwd_blobs(
                 # Generate kernels for both page_size=16 and page_size=1024
                 for page_size in SUPPORTED_PAGE_SIZE:
                     if page_size == 1 and pipeline.F_kv_memory_layout != "linear":
+                        continue
+                    # kv_blockscale only supports page_size=1024
+                    if pipeline.F_qscale == "kv_blockscale" and page_size != 1024:
                         continue
                     k = FmhaFwdKernel(
                         F_idx=0,
