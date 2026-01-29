@@ -75,8 +75,6 @@ struct fmha_sparge_fwd_args
     const void* v_ptr;
     const void* lut_ptr; // delta-encoded K-block indices per Q-block, int32 [B,H,Q_blk,K_blk]
     const void* valid_block_num_ptr; // valid K-block count per Q-block, int32 [B,H,Q_blk]
-    void* rand_val_ptr;
-    void* lse_ptr;
     void* o_ptr;
 
     const void* seqstart_q_ptr;
@@ -95,25 +93,18 @@ struct fmha_sparge_fwd_args
 
     float pv_threshold;
     float scale_s;
-    float scale_p;
-    float scale_o;
 
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
     ck_tile::index_t stride_v;
-    ck_tile::index_t stride_randval;
     ck_tile::index_t stride_o;
     ck_tile::index_t nhead_stride_q;
     ck_tile::index_t nhead_stride_k;
     ck_tile::index_t nhead_stride_v;
-    ck_tile::index_t nhead_stride_randval;
-    ck_tile::index_t nhead_stride_lse;
     ck_tile::index_t nhead_stride_o;
     ck_tile::index_t batch_stride_q;
     ck_tile::index_t batch_stride_k;
     ck_tile::index_t batch_stride_v;
-    ck_tile::index_t batch_stride_randval;
-    ck_tile::index_t batch_stride_lse;
     ck_tile::index_t batch_stride_o;
 
     ck_tile::index_t window_size_left;
@@ -137,9 +128,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_sparge_fwd_args args)
                                              args.v_ptr,
                                              args.lut_ptr,
                                              args.valid_block_num_ptr,
-                                             nullptr,
-                                             args.rand_val_ptr,
-                                             args.lse_ptr,
                                              args.o_ptr,
                                              args.seqstart_q_ptr,
                                              args.seqstart_k_ptr,
@@ -149,30 +137,18 @@ auto fmha_fwd_create_kargs_and_grids(fmha_sparge_fwd_args args)
                                              args.nhead_q,
                                              args.nhead_q / args.nhead_k,
                                              args.pv_threshold,
-                                             args.scale_s,
-                                             args.scale_p,
-                                             args.scale_o,
-                                             0.0f,
                                              args.stride_q,
                                              args.stride_k,
                                              args.stride_v,
-                                             0,
-                                             args.stride_randval,
                                              args.stride_o,
                                              args.nhead_stride_q,
                                              args.nhead_stride_k,
                                              args.nhead_stride_v,
-                                             0,
-                                             args.nhead_stride_randval,
-                                             args.nhead_stride_lse,
                                              args.nhead_stride_o,
                                              args.window_size_left,
                                              args.window_size_right,
                                              args.mask_type,
-                                             args.min_seqlen_q,
-                                             0.0f,
-                                             false,
-                                             std::make_pair(uint64_t{0}, uint64_t{0}));
+                                             args.min_seqlen_q);
         }
         else
         { // create batch mode kernel arguments
@@ -181,9 +157,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_sparge_fwd_args args)
                                              args.v_ptr,
                                              args.lut_ptr,
                                              args.valid_block_num_ptr,
-                                             nullptr,
-                                             args.rand_val_ptr,
-                                             args.lse_ptr,
                                              args.o_ptr,
                                              args.seqlen_q,
                                              args.seqlen_k,
@@ -192,36 +165,21 @@ auto fmha_fwd_create_kargs_and_grids(fmha_sparge_fwd_args args)
                                              args.nhead_q,
                                              args.nhead_q / args.nhead_k,
                                              args.pv_threshold,
-                                             args.scale_s,
-                                             args.scale_p,
-                                             args.scale_o,
-                                             0.0f,
                                              args.stride_q,
                                              args.stride_k,
                                              args.stride_v,
-                                             0,
-                                             args.stride_randval,
                                              args.stride_o,
                                              args.nhead_stride_q,
                                              args.nhead_stride_k,
                                              args.nhead_stride_v,
-                                             0,
-                                             args.nhead_stride_randval,
-                                             args.nhead_stride_lse,
                                              args.nhead_stride_o,
                                              args.batch_stride_q,
                                              args.batch_stride_k,
                                              args.batch_stride_v,
-                                             0,
-                                             args.batch_stride_randval,
-                                             args.batch_stride_lse,
                                              args.batch_stride_o,
                                              args.window_size_left,
                                              args.window_size_right,
-                                             args.mask_type,
-                                             0.0f,
-                                             false,
-                                             std::make_pair(uint64_t{0}, uint64_t{0}));
+                                             args.mask_type);
         }
     }();
 
@@ -253,10 +211,6 @@ template <ck_tile::index_t HDim_,
           ck_tile::BlockFmhaPipelineEnum FmhaPipelineEnum_,
           bool kHasLogitsSoftCap_,
           typename FmhaMask_,
-          ck_tile::BlockAttentionBiasEnum BiasEnum_,
-          bool kStoreLse_,
-          bool kHasDropout_,
-          bool kDoFp8StaticQuant_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
@@ -278,10 +232,6 @@ struct fmha_sparge_fwd_traits_
     static constexpr auto FmhaPipelineEnum           = FmhaPipelineEnum_;
     static constexpr bool kHasLogitsSoftCap          = kHasLogitsSoftCap_;
     using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
-    static constexpr auto BiasEnum                   = BiasEnum_;
-    static constexpr bool kStoreLse                  = kStoreLse_;
-    static constexpr bool kHasDropout                = kHasDropout_;
-    static constexpr bool kDoFp8StaticQuant          = kDoFp8StaticQuant_;
     static constexpr bool kPadS                      = kPadS_;
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
@@ -298,9 +248,6 @@ struct fmha_sparge_fwd_traits
     bool is_group_mode;
     bool is_v_rowmajor;
     mask_enum mask_type;
-    bool has_lse;
-    bool has_dropout;
-    bool do_fp8_static_quant;
     bool skip_min_seqlen_q = false;
     // TODO: padding check is inside this api
 };
@@ -319,8 +266,6 @@ struct fmha_jenga_fwd_args
     const void* k_ptr;
     const void* v_ptr;
     const void* block_relation_onehot_ptr; // one-hot block map [B,H,Q_blk,K_blk], 1=active
-    void* rand_val_ptr;
-    void* lse_ptr;
     void* o_ptr;
 
     const void* seqstart_q_ptr;
@@ -338,25 +283,18 @@ struct fmha_jenga_fwd_args
     ck_tile::index_t nhead_k;
 
     float scale_s;
-    float scale_p;
-    float scale_o;
 
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
     ck_tile::index_t stride_v;
-    ck_tile::index_t stride_randval;
     ck_tile::index_t stride_o;
     ck_tile::index_t nhead_stride_q;
     ck_tile::index_t nhead_stride_k;
     ck_tile::index_t nhead_stride_v;
-    ck_tile::index_t nhead_stride_randval;
-    ck_tile::index_t nhead_stride_lse;
     ck_tile::index_t nhead_stride_o;
     ck_tile::index_t batch_stride_q;
     ck_tile::index_t batch_stride_k;
     ck_tile::index_t batch_stride_v;
-    ck_tile::index_t batch_stride_randval;
-    ck_tile::index_t batch_stride_lse;
     ck_tile::index_t batch_stride_o;
 
     ck_tile::index_t window_size_left;
@@ -375,8 +313,6 @@ struct fmha_vsa_fwd_args
     const void* v_ptr;
     const void* lut_ptr; // delta-encoded K-block indices per Q-block, int32 [B,H,Q_blk,K_blk]
     const void* valid_block_num_ptr; // valid K-block count per Q-block, int32 [B,H,Q_blk]
-    void* rand_val_ptr;
-    void* lse_ptr;
     void* o_ptr;
 
     const void* seqstart_q_ptr;
@@ -394,25 +330,18 @@ struct fmha_vsa_fwd_args
     ck_tile::index_t nhead_k;
 
     float scale_s;
-    float scale_p;
-    float scale_o;
 
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
     ck_tile::index_t stride_v;
-    ck_tile::index_t stride_randval;
     ck_tile::index_t stride_o;
     ck_tile::index_t nhead_stride_q;
     ck_tile::index_t nhead_stride_k;
     ck_tile::index_t nhead_stride_v;
-    ck_tile::index_t nhead_stride_randval;
-    ck_tile::index_t nhead_stride_lse;
     ck_tile::index_t nhead_stride_o;
     ck_tile::index_t batch_stride_q;
     ck_tile::index_t batch_stride_k;
     ck_tile::index_t batch_stride_v;
-    ck_tile::index_t batch_stride_randval;
-    ck_tile::index_t batch_stride_lse;
     ck_tile::index_t batch_stride_o;
 
     ck_tile::index_t window_size_left;
@@ -434,8 +363,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_jenga_fwd_args args)
                                              args.k_ptr,
                                              args.v_ptr,
                                              args.block_relation_onehot_ptr,
-                                             args.rand_val_ptr,
-                                             args.lse_ptr,
                                              args.o_ptr,
                                              args.seqstart_q_ptr,
                                              args.seqstart_k_ptr,
@@ -445,27 +372,18 @@ auto fmha_fwd_create_kargs_and_grids(fmha_jenga_fwd_args args)
                                              args.nhead_q,
                                              args.nhead_q / args.nhead_k,
                                              args.scale_s,
-                                             args.scale_p,
-                                             args.scale_o,
-                                             0.0f,
                                              args.stride_q,
                                              args.stride_k,
                                              args.stride_v,
-                                             args.stride_randval,
                                              args.stride_o,
                                              args.nhead_stride_q,
                                              args.nhead_stride_k,
                                              args.nhead_stride_v,
-                                             args.nhead_stride_randval,
-                                             args.nhead_stride_lse,
                                              args.nhead_stride_o,
                                              args.window_size_left,
                                              args.window_size_right,
                                              args.mask_type,
-                                             args.min_seqlen_q,
-                                             0.0f,
-                                             false,
-                                             std::make_pair(uint64_t{0}, uint64_t{0}));
+                                             args.min_seqlen_q);
         }
         else
         {
@@ -473,8 +391,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_jenga_fwd_args args)
                                              args.k_ptr,
                                              args.v_ptr,
                                              args.block_relation_onehot_ptr,
-                                             args.rand_val_ptr,
-                                             args.lse_ptr,
                                              args.o_ptr,
                                              args.seqlen_q,
                                              args.seqlen_k,
@@ -483,32 +399,21 @@ auto fmha_fwd_create_kargs_and_grids(fmha_jenga_fwd_args args)
                                              args.nhead_q,
                                              args.nhead_q / args.nhead_k,
                                              args.scale_s,
-                                             args.scale_p,
-                                             args.scale_o,
-                                             0.0f,
                                              args.stride_q,
                                              args.stride_k,
                                              args.stride_v,
-                                             args.stride_randval,
                                              args.stride_o,
                                              args.nhead_stride_q,
                                              args.nhead_stride_k,
                                              args.nhead_stride_v,
-                                             args.nhead_stride_randval,
-                                             args.nhead_stride_lse,
                                              args.nhead_stride_o,
                                              args.batch_stride_q,
                                              args.batch_stride_k,
                                              args.batch_stride_v,
-                                             args.batch_stride_randval,
-                                             args.batch_stride_lse,
                                              args.batch_stride_o,
                                              args.window_size_left,
                                              args.window_size_right,
-                                             args.mask_type,
-                                             0.0f,
-                                             false,
-                                             std::make_pair(uint64_t{0}, uint64_t{0}));
+                                             args.mask_type);
         }
     }();
 
@@ -538,8 +443,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_vsa_fwd_args args)
                                              args.v_ptr,
                                              args.lut_ptr,
                                              args.valid_block_num_ptr,
-                                             args.rand_val_ptr,
-                                             args.lse_ptr,
                                              args.o_ptr,
                                              args.seqstart_q_ptr,
                                              args.seqstart_k_ptr,
@@ -549,27 +452,18 @@ auto fmha_fwd_create_kargs_and_grids(fmha_vsa_fwd_args args)
                                              args.nhead_q,
                                              args.nhead_q / args.nhead_k,
                                              args.scale_s,
-                                             args.scale_p,
-                                             args.scale_o,
-                                             0.0f,
                                              args.stride_q,
                                              args.stride_k,
                                              args.stride_v,
-                                             args.stride_randval,
                                              args.stride_o,
                                              args.nhead_stride_q,
                                              args.nhead_stride_k,
                                              args.nhead_stride_v,
-                                             args.nhead_stride_randval,
-                                             args.nhead_stride_lse,
                                              args.nhead_stride_o,
                                              args.window_size_left,
                                              args.window_size_right,
                                              args.mask_type,
-                                             args.min_seqlen_q,
-                                             0.0f,
-                                             false,
-                                             std::make_pair(uint64_t{0}, uint64_t{0}));
+                                             args.min_seqlen_q);
         }
         else
         {
@@ -578,8 +472,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_vsa_fwd_args args)
                                              args.v_ptr,
                                              args.lut_ptr,
                                              args.valid_block_num_ptr,
-                                             args.rand_val_ptr,
-                                             args.lse_ptr,
                                              args.o_ptr,
                                              args.seqlen_q,
                                              args.seqlen_k,
@@ -588,32 +480,21 @@ auto fmha_fwd_create_kargs_and_grids(fmha_vsa_fwd_args args)
                                              args.nhead_q,
                                              args.nhead_q / args.nhead_k,
                                              args.scale_s,
-                                             args.scale_p,
-                                             args.scale_o,
-                                             0.0f,
                                              args.stride_q,
                                              args.stride_k,
                                              args.stride_v,
-                                             args.stride_randval,
                                              args.stride_o,
                                              args.nhead_stride_q,
                                              args.nhead_stride_k,
                                              args.nhead_stride_v,
-                                             args.nhead_stride_randval,
-                                             args.nhead_stride_lse,
                                              args.nhead_stride_o,
                                              args.batch_stride_q,
                                              args.batch_stride_k,
                                              args.batch_stride_v,
-                                             args.batch_stride_randval,
-                                             args.batch_stride_lse,
                                              args.batch_stride_o,
                                              args.window_size_left,
                                              args.window_size_right,
-                                             args.mask_type,
-                                             0.0f,
-                                             false,
-                                             std::make_pair(uint64_t{0}, uint64_t{0}));
+                                             args.mask_type);
         }
     }();
 
@@ -645,10 +526,6 @@ template <ck_tile::index_t HDim_,
           ck_tile::BlockFmhaPipelineEnum FmhaPipelineEnum_,
           bool kHasLogitsSoftCap_,
           typename FmhaMask_,
-          ck_tile::BlockAttentionBiasEnum BiasEnum_,
-          bool kStoreLse_,
-          bool kHasDropout_,
-          bool kDoFp8StaticQuant_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
@@ -670,10 +547,6 @@ struct fmha_jenga_fwd_traits_
     static constexpr auto FmhaPipelineEnum           = FmhaPipelineEnum_;
     static constexpr bool kHasLogitsSoftCap          = kHasLogitsSoftCap_;
     using FmhaMask                                   = ck_tile::remove_cvref_t<FmhaMask_>;
-    static constexpr auto BiasEnum                   = BiasEnum_;
-    static constexpr bool kStoreLse                  = kStoreLse_;
-    static constexpr bool kHasDropout                = kHasDropout_;
-    static constexpr bool kDoFp8StaticQuant          = kDoFp8StaticQuant_;
     static constexpr bool kPadS                      = kPadS_;
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
@@ -690,9 +563,6 @@ struct fmha_jenga_fwd_traits
     bool is_group_mode;
     bool is_v_rowmajor;
     mask_enum mask_type;
-    bool has_lse;
-    bool has_dropout;
-    bool do_fp8_static_quant;
     bool skip_min_seqlen_q = false;
     // TODO: padding check is inside this api
 };

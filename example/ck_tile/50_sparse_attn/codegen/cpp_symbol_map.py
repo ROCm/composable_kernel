@@ -51,16 +51,6 @@ def get_mask_check_map(mask: str):
         return None
 
 
-BIAS_MAP = {
-    "no": "ck_tile::BlockAttentionBiasEnum::NO_BIAS",
-}
-
-# TODO: this is ugly
-BIAS_CHECK_MAP = {
-    "no": "bias_enum::no_bias",
-}
-
-
 MODE_MAP = {"batch": "false"}
 
 LAYOUT_MAP = {"row": "true", "col": "false"}
@@ -80,8 +70,4 @@ BOOL_MAP = {
     "f": "false",
     True: "true",
     False: "false",
-}
-
-SQUANT_MAP = {
-    "f": "ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE",
 }

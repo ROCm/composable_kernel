@@ -12,15 +12,12 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from codegen.cpp_symbol_map import (
-    BIAS_CHECK_MAP,
-    BIAS_MAP,
     BOOL_MAP,
     FWD_DTYPE_MAP,
     LAYOUT_MAP,
     MODE_MAP,
     PIPELINE_ENUM_MAP,
     PIPELINE_MAP,
-    SQUANT_MAP,
     get_mask_check_map,
     get_mask_map,
 )
@@ -75,11 +72,11 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                     {F_dpad},
                                                     {F_dvpad},
                                                     {F_logits},
-                                                    {F_bias},
+                                                    ck_tile::BlockAttentionBiasEnum::NO_BIAS,
                                                     false,
-                                                    {F_lse},
-                                                    {F_dropout},
-                                                    {F_squant_enum},
+                                                    false,
+                                                    false,
+                                                    ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE,
                                                     {F_occupancy},
                                                     {F_skip}>;
 
@@ -118,7 +115,7 @@ using fmha_kernel_{F_idx} =
     ck_tile::FmhaFwdJengaKernel<fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}>;
 
 using trait_{F_idx} = fmha_jenga_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
-                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
+                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
 
 #include <iostream>
 
@@ -204,9 +201,9 @@ FMHA_FWD_API_PER_HDIM_CASE = """        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v
         }}
 """
 
-FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.do_fp8_static_quant == {F_squant}) && (t.skip_min_seqlen_q == {F_skip}) &&
+FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) && (t.skip_min_seqlen_q == {F_skip}) &&
                         ({F_scheck}) && ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
-                using trait_ = fmha_jenga_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
+                using trait_ = fmha_jenga_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
                 return fmha_jenga_fwd_<trait_>(s, a);
             }}
 """
@@ -242,10 +239,6 @@ class FmhaFwdApiTrait:
     vlayout: str
     logits: str
     mask: str
-    bias: str  #
-    lse: str  #
-    dropout: str
-    squant: str  #
     spad: str
     skpad: str
     dpad: str
@@ -258,7 +251,7 @@ class FmhaFwdApiTrait:
     def name(self) -> str:
         return (
             f"{self.hdim}-{self.dtype}-{self.mode}-{self.bm0}-{self.bn0}-{self.bk0}-{self.bn0}-{self.bk1}-{self.bk0max}-"
-            + f"{self.vlayout}-{self.logits}-{self.mask}-{self.bias}-{self.lse}-{self.dropout}-{self.squant}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.skip}"
+            + f"{self.vlayout}-{self.logits}-{self.mask}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.skip}"
         )
 
     @property
@@ -309,10 +302,6 @@ class FmhaFwdPipeline:
     F_dpad: str  #
     F_dvpad: str  #
     F_logits: str  # t/f
-    F_bias: str  # true/false
-    F_lse: str  #
-    F_dropout: str  #
-    F_squant: str  #
     F_mask: str  # value from MASK_MAP
     F_skip: str  # true/false
     F_trload: str  # true/false
@@ -346,10 +335,7 @@ class FmhaFwdPipeline:
         else:
             n += "_nlogits"
 
-        if self.F_bias != "no":
-            n += f"_{self.F_bias}"
-        else:
-            n += "_nbias"
+        n += "_nbias"
 
         if self.F_mask[0:2] == "s_":
             if self.F_mask == "s_mask":
@@ -362,17 +348,12 @@ class FmhaFwdPipeline:
             else:
                 n += "_nmask"
 
-        # Note: lse and dropout are not supported, so we don't add them to filename
-
         if self.F_skip == "t":
             n += "_skip"
         else:
             n += "_nskip"
 
-        if self.F_squant == "t":
-            n += "_squant"
-        else:
-            n += "_nsquant"
+        n += "_nsquant"
 
         if self.F_trload == "t":
             n += "_trload"
@@ -423,13 +404,8 @@ class FmhaFwdApiPool:
                             F_logits=BOOL_MAP[trait.logits],
                             F_mask=get_mask_map(self.mask_impl)[trait.mask],
                             F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask],
-                            F_bias_check=BIAS_CHECK_MAP[trait.bias],
-                            F_bias=BIAS_MAP[trait.bias],
-                            F_lse=BOOL_MAP[trait.lse],
-                            F_dropout=BOOL_MAP[trait.dropout],
                             F_skip=BOOL_MAP[trait.skip],
                             F_trload=BOOL_MAP[trait.tr_load],
-                            F_squant=BOOL_MAP[trait.squant],
                             F_scheck=trait.scheck,
                             F_seqtune=trait.seqtune,
                             F_skcheck=trait.skcheck,
@@ -542,11 +518,6 @@ class FmhaFwdKernel:
             F_dpad=BOOL_MAP[self.F_pipeline.F_dpad],
             F_dvpad=BOOL_MAP[self.F_pipeline.F_dvpad],
             F_logits=BOOL_MAP[self.F_pipeline.F_logits],
-            F_bias=BIAS_MAP[self.F_pipeline.F_bias],
-            F_lse=BOOL_MAP[self.F_pipeline.F_lse],
-            F_dropout=BOOL_MAP[self.F_pipeline.F_dropout],
-            F_squant=BOOL_MAP[self.F_pipeline.F_squant],
-            F_squant_enum=SQUANT_MAP[self.F_pipeline.F_squant],
             F_skip=BOOL_MAP[self.F_pipeline.F_skip],
             F_occupancy=self.F_tile.F_occupancy,
             F_pipeline_enum=PIPELINE_ENUM_MAP[self.F_pipeline.tag],
@@ -586,10 +557,6 @@ class FmhaFwdKernel:
             vlayout=self.F_pipeline.F_vlayout,
             mask=self.F_pipeline.F_mask,
             logits=self.F_pipeline.F_logits,
-            bias=self.F_pipeline.F_bias,
-            lse=self.F_pipeline.F_lse,
-            dropout=self.F_pipeline.F_dropout,
-            squant=self.F_pipeline.F_squant,
             spad=self.F_pipeline.F_spad,
             skpad=self.F_pipeline.F_skpad,
             dpad=self.F_pipeline.F_dpad,
@@ -712,19 +679,13 @@ class KernelComponentFactory:
     def get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl) -> List[FmhaFwdPipeline]:
         # this function will populate a list possible pipelines
         # TODO: the order of List matters! the later in this list will be also be checked later
-        # FP8 static quantization is not supported in sparse attention yet.
-        squant = "f"
         pipelines = []
         if dtype in ["fp16", "bf16"]:
-            for logits, mask, bias, skip in itertools.product(
+            for logits, mask, skip in itertools.product(
                 ["f"],
                 get_mask_map(mask_impl).keys(),
-                ["no"],
                 ["t", "f"],
             ):
-                # Always use lse="f" and dropout="f" (not supported)
-                lse = "f"
-                dropout = "f"
                 if hdim == 256 and hdim_v == 256:
                     # jenga fmha only supports dim <= 192 for now.
                     continue
@@ -737,10 +698,6 @@ class KernelComponentFactory:
                         "t",
                         "t",
                         logits,
-                        bias,
-                        lse,
-                        dropout,
-                        squant,
                         mask,
                         skip,
                         "f",
@@ -755,10 +712,6 @@ class KernelComponentFactory:
                         "t",
                         "t",
                         logits,
-                        bias,
-                        lse,
-                        dropout,
-                        squant,
                         mask,
                         skip,
                         "f",
@@ -833,15 +786,8 @@ def get_fwd_blobs(
                     if pipeline.F_spad != "t" or pipeline.F_skpad != "t":
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
                         continue
-                if (hdim, hdim_v) == (192, 128):
-                    # NOTE: this is used to speedup deepseek prefill case, we don't gen training
-                    if pipeline.F_bias != "no" or pipeline.F_dropout == "t":
-                        continue
                 # logits soft-cap is not generated for sparse attention
-                if not (
-                    (pipeline.F_logits == "t" and pipeline.F_bias == "no")
-                    or pipeline.F_logits == "f"
-                ):
+                if not (pipeline.F_logits == "f"):
                     continue
                 if pipeline.tag != "qr_async":
                     continue
@@ -864,8 +810,6 @@ def get_fwd_blobs(
                 if receipt in (2, 3):
                     cond = dtype in ["fp16", "bf16"]
                     cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_bias in ["no", "alibi"]
-                    cond &= pipeline.F_squant == "f"
                     cond &= pipeline.F_skip == "f"
                     if not cond:
                         continue
@@ -873,8 +817,6 @@ def get_fwd_blobs(
                 elif receipt == 4:
                     cond = dtype in ["fp16", "bf16"]
                     cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_bias in ["no", "bias"]
-                    cond &= pipeline.F_squant == "f"
                     cond &= mode == "batch"
                     cond &= pipeline.F_skip == "f"
                     cond &= pipeline.F_logits == "f"
@@ -885,7 +827,6 @@ def get_fwd_blobs(
                     cond = dtype in ["fp16", "bf16"]
                     cond &= mode == "batch"
                     cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_squant == "f"
                     if not cond:
                         continue
                 # Aiter(mha_varlen_fwd) integration
@@ -893,14 +834,12 @@ def get_fwd_blobs(
                     cond = dtype in ["fp16", "bf16"]
                     cond &= mode == "group"
                     cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_squant == "f"
                     if not cond:
                         continue
                 # aiter::mha_fwd C++ api integration
                 elif receipt == 600:
                     cond = dtype in ["fp16", "bf16"]
                     cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_squant == "f"
                     if not cond:
                         continue
 

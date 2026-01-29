@@ -44,8 +44,6 @@ vsa_sparse_attention(const ck_tile::HostTensor<DataType_>& TQ,
         max_seqlen_k = seqlen_k;
     bool is_v_rowmajor  = true;
     float scale_s       = 1.0 / ck_tile::sqrt(static_cast<float>(hdim_q));
-    float scale_p       = 1.f;
-    float scale_o       = 1.f;
     std::string msk_str = "0";
     mask_info mask      = mask_info::decode(msk_str, seqlen_q, seqlen_k);
 
@@ -83,8 +81,7 @@ vsa_sparse_attention(const ck_tile::HostTensor<DataType_>& TQ,
             else
                 return (i_perm ? shape_seqlen_k : nhead_k * shape_seqlen_k);
         }();
-        const ck_tile::index_t stride_randval = (max_seqlen_k);
-        const ck_tile::index_t stride_o       = (o_perm ? hdim_v : nhead * hdim_v);
+        const ck_tile::index_t stride_o = (o_perm ? hdim_v : nhead * hdim_v);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
         const ck_tile::index_t nhead_stride_k = i_perm ? shape_seqlen_k * hdim_q : hdim_q;
@@ -94,16 +91,12 @@ vsa_sparse_attention(const ck_tile::HostTensor<DataType_>& TQ,
             else
                 return i_perm ? hdim_v * shape_seqlen_k : shape_seqlen_k;
         }();
-        const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
-        const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
-        const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck_tile::index_t nhead_stride_o = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
-        const ck_tile::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
-        const ck_tile::index_t batch_stride_k       = nhead_k * shape_seqlen_k * hdim_q;
-        const ck_tile::index_t batch_stride_v       = nhead_k * hdim_v * shape_seqlen_k;
-        const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
-        const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q);
-        const ck_tile::index_t batch_stride_o       = (nhead * shape_seqlen_q * hdim_v);
+        const ck_tile::index_t batch_stride_q = (nhead * shape_seqlen_q * hdim_q);
+        const ck_tile::index_t batch_stride_k = nhead_k * shape_seqlen_k * hdim_q;
+        const ck_tile::index_t batch_stride_v = nhead_k * hdim_v * shape_seqlen_k;
+        const ck_tile::index_t batch_stride_o = (nhead * shape_seqlen_q * hdim_v);
 
         // Use device buffer pointers instead of host tensor data pointers
         args.q_ptr               = q_buf.GetDeviceBuffer();
@@ -129,8 +122,7 @@ vsa_sparse_attention(const ck_tile::HostTensor<DataType_>& TQ,
         args.batch_stride_k = batch_stride_k;
         args.batch_stride_v = batch_stride_v;
 
-        args.lse_ptr = nullptr;
-        args.o_ptr   = o_buf.GetDeviceBuffer();
+        args.o_ptr = o_buf.GetDeviceBuffer();
 
         args.seqstart_q_ptr = nullptr;
         args.seqstart_k_ptr = nullptr;
@@ -140,24 +132,14 @@ vsa_sparse_attention(const ck_tile::HostTensor<DataType_>& TQ,
         args.max_seqlen_q = max_seqlen_q;
 
         args.scale_s = scale_s;
-        args.scale_p = scale_p;
-        args.scale_o = scale_o;
 
-        args.stride_o         = stride_o;
-        args.nhead_stride_lse = nhead_stride_lse;
-        args.nhead_stride_o   = nhead_stride_o;
-        args.batch_stride_lse = batch_stride_lse;
-        args.batch_stride_o   = batch_stride_o;
+        args.stride_o       = stride_o;
+        args.nhead_stride_o = nhead_stride_o;
+        args.batch_stride_o = batch_stride_o;
 
         args.window_size_left  = mask.left;
         args.window_size_right = mask.right;
         args.mask_type         = static_cast<ck_tile::index_t>(mask.type);
-
-        args.rand_val_ptr = nullptr;
-
-        args.stride_randval       = stride_randval;
-        args.nhead_stride_randval = nhead_stride_randval;
-        args.batch_stride_randval = batch_stride_randval;
 
         // Dropout not supported for sparse attention.
     };
@@ -168,12 +150,8 @@ vsa_sparse_attention(const ck_tile::HostTensor<DataType_>& TQ,
         traits.data_type     = data_type;
         traits.is_v_rowmajor = is_v_rowmajor;
 
-        traits.is_group_mode       = false;
-        traits.mask_type           = mask.type;
-        traits.has_lse             = false;
-        traits.do_fp8_static_quant = false;
-
-        traits.has_dropout = false;
+        traits.is_group_mode = false;
+        traits.mask_type     = mask.type;
     };
 
     fmha_jenga_fwd_traits fmha_traits;
