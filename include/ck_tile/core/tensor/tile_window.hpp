@@ -649,12 +649,19 @@ struct tile_window_with_static_distribution
                         return 0;
                 }();
 
-                this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
-                    smem,
-                    bottom_tensor_thread_coord.get_offset() + offset,
-                    dram_ys_offset - imm_valid,
-                    number<imm_valid>{},
-                    bool_constant<oob_conditional_check>{});
+                if constexpr(!static_move_ys)
+                    this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
+                        smem,
+                        bottom_tensor_thread_coord,
+                        offset + dram_ys_offset,
+                        bool_constant<oob_conditional_check>{});
+                else
+                    this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
+                        smem,
+                        bottom_tensor_thread_coord.get_offset() + offset,
+                        dram_ys_offset - imm_valid,
+                        number<imm_valid>{},
+                        bool_constant<oob_conditional_check>{});
 
                 // Move thread coordinate if not last access
                 if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
