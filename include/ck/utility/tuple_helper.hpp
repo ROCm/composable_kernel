@@ -37,6 +37,27 @@ __host__ __device__ constexpr auto generate_tie(F&& f, Number<N>)
                   typename arithmetic_sequence_gen<0, N, 1>::type{});
 }
 
+// Creates Tuple<Sequence<0>, Sequence<1>, ..., Sequence<N-1>>
+namespace detail {
+template <index_t... Is>
+__host__ __device__ constexpr auto make_identity_sequences_impl(Sequence<Is...>)
+{
+    return make_tuple(Sequence<Is>{}...);
+}
+} // namespace detail
+
+template <index_t N>
+__host__ __device__ constexpr auto generate_identity_sequences()
+{
+    return detail::make_identity_sequences_impl(make_index_sequence<N>{});
+}
+
+template <index_t N>
+__host__ __device__ constexpr auto generate_identity_sequences(Number<N>)
+{
+    return generate_identity_sequences<N>();
+}
+
 // tx and ty are tuple of references, return type of will tuple of referennce (not rvalue)
 template <typename... X, typename... Y>
 __host__ __device__ constexpr auto concat_tuple_of_reference(const Tuple<X&...>& tx,
