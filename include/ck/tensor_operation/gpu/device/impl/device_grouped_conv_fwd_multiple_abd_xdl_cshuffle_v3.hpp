@@ -382,7 +382,8 @@ template <index_t NDimSpatial,
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
           typename BComputeDataType = AComputeDataType,
-          bool DirectLoad           = false>
+          bool DirectLoad           = false,
+          index_t NumGroupsToMerge  = 1>
 struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
                                              ALayout,
@@ -418,6 +419,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                        Wave32MaxMNPerXDL,
                        NXdlPerWave*(NPerXDL / Wave32MaxMNPerXDL)>();
 
+    static_assert(NumGroupsToMerge >= 1);
+
     static constexpr bool isMultiA   = is_detected<is_tuple, ADataType>::value;
     static constexpr bool isMultiB   = is_detected<is_tuple, BDataType>::value;
     static constexpr bool isMultiD   = DsDataType::Size() > 0;
@@ -447,7 +450,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                             ConvForwardSpecialization,
                                                             true /*SplitN*/,
                                                             ADataType,
-                                                            EDataType>;
+                                                            EDataType,
+                                                            NumGroupsToMerge>;
 
     using ComputePtrOffset = ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>;
 
@@ -783,8 +787,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
               cde_element_op_{cde_element_op}
         {
             // A/B/E Batch/N Stride
-            compute_ptr_offset_of_groups_.BatchStrideA_ = a_g_n_c_wis_strides_[0];
-            compute_ptr_offset_of_groups_.BatchStrideB_ = b_g_k_c_xs_strides_[0];
+            compute_ptr_offset_of_groups_.BatchStrideA_ =
+                a_g_n_c_wis_strides_[0] * NumGroupsToMerge;
+            compute_ptr_offset_of_groups_.BatchStrideB_ = b_g_k_c_xs_strides_[0] * NumGroupsToMerge;
             compute_ptr_offset_of_n_.BatchStrideA_ = a_g_n_c_wis_strides_[1] * conv_N_per_block_;
 
             // p_as and p_bs are pointers
@@ -795,7 +800,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
                 // D batch stride
-                compute_ptr_offset_of_groups_.BatchStrideDs_(i) = ds_g_n_k_wos_strides_[i][0];
+                compute_ptr_offset_of_groups_.BatchStrideDs_(i) =
+                    ds_g_n_k_wos_strides_[i][0] * NumGroupsToMerge;
                 compute_ptr_offset_of_n_.BatchStrideDs_(i) =
                     ds_g_n_k_wos_strides_[i][1] * conv_N_per_block_;
 
@@ -815,7 +821,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                     DeviceOp::MakeEGridDescriptor_M_N<DLayout>(conv_to_gemm_transformer_d);
             });
 
-            compute_ptr_offset_of_groups_.BatchStrideE_ = e_g_n_k_wos_strides_[0];
+            compute_ptr_offset_of_groups_.BatchStrideE_ =
+                e_g_n_k_wos_strides_[0] * NumGroupsToMerge;
             compute_ptr_offset_of_n_.BatchStrideE_ = e_g_n_k_wos_strides_[1] * conv_N_per_block_;
 
             if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
@@ -998,7 +1005,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             std::tie(gdx, gdy, gdz) =
                 GridwiseGemm::CalculateGridSize(GemmM, GemmN, I1 /*arg.KBatch*/);
 
-            gdy = arg.num_group_;
+            gdy = arg.num_group_ / NumGroupsToMerge;
             gdz = num_workgroups_per_Conv_N;
 
             index_t K_split                  = (GemmK + KPerBlock - 1) / KPerBlock * KPerBlock;
@@ -1494,6 +1501,19 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         {
             if(get_device_name() != "gfx950")
             {
+                return false;
+            }
+        }
+
+        if constexpr(NumGroupsToMerge > 1)
+        {
+            if(G % NumGroupsToMerge != 0)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! G % NumGroupsToMerge != 0: G=" << G
+                              << ", NumGroupsToMerge=" << NumGroupsToMerge << std::endl;
+                }
                 return false;
             }
         }
@@ -2124,7 +2144,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             << "BlkGemmPipelineScheduler: "
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "
-            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer]
+            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer]  << ", "
+            << NumGroupsToMerge
             << ">";
         // clang-format on
 
