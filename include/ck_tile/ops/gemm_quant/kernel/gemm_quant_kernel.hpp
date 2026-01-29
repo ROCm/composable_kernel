@@ -545,7 +545,7 @@ struct QuantGemmKernel
 
                 return make_tensor_view<address_space_enum::global>(aq_ptr, aq_merge_pad1_desc);
             }
-            else if constexpr(kQuantType == QuantType::AQuantGrouped && !PreshuffleQuant)
+            else if constexpr(kQuantType == QuantType::AQuantGrouped && !APreshuffleQuant)
             {
                 if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
                 {
@@ -567,7 +567,7 @@ struct QuantGemmKernel
                         number<1>{});
                 }
             }
-            else if constexpr(kQuantType == QuantType::ABQuantGrouped && !PreshuffleQuant)
+            else if constexpr(kQuantType == QuantType::ABQuantGrouped && !APreshuffleQuant)
             {
                 if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
                 {

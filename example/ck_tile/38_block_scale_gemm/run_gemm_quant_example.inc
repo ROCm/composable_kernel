@@ -1115,7 +1115,7 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
         std::string a_layout = arg_parser.get_str("a_layout");
         std::string b_layout = arg_parser.get_str("b_layout");
         if constexpr(QuantMode == ck_tile::QuantType::ABQuantGrouped &&
-                     !GemmConfig::PreshuffleQuant && !GemmConfig::PreshuffleB &&
+                     !GemmConfig::APreshuffleQuant && !GemmConfig::PreshuffleB &&
                      BQuantGroupSize::kN == 128 &&
                      (GemmConfig::M_Warp * GemmConfig::N_Warp * GemmConfig::K_Warp == 8))
         {
@@ -1140,9 +1140,7 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
                 arg_parser, Row{}, Row{}, Col{}, Col{}, Row{});
         }
 
-        if constexpr((QuantMode == ck_tile::QuantType::AQuantGrouped ||
-                      QuantMode == ck_tile::QuantType::ABQuantGrouped) &&
-                     !GemmConfig::APreshuffleQuant && !GemmConfig::PreshuffleB)
+        if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
         {
             if(a_layout == "R" && b_layout == "R")
             {
