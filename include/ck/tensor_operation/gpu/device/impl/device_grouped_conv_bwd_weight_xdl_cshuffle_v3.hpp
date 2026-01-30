@@ -382,10 +382,12 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             ? 4 / sizeof(BDataType)
             : BBlockTransferSrcScalarPerVector;
 
+    // Note: Direct load use layout to create proper block and mmtile descriptor
+    // TODO: Fix and verify RC layout for not direct load (currently it returns wrong results)
     template <index_t NXdlPerWave_>
     using GridwiseGemmBase = GridwiseGemm_xdl_cshuffle_conv_v3<
-        tensor_layout::gemm::RowMajor,
-        tensor_layout::gemm::ColumnMajor,
+        DirectLoad ? tensor_layout::gemm::ColumnMajor : tensor_layout::gemm::RowMajor,
+        DirectLoad ? tensor_layout::gemm::RowMajor : tensor_layout::gemm::ColumnMajor,
         tensor_layout::gemm::RowMajor,
         ADataType,
         BDataType,
