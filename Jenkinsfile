@@ -318,33 +318,34 @@ def check_host() {
 }
 
 def check_arch_name(){
-    def arch_name = ""
     sh 'rocminfo | tee rocminfo.log'
     if ( runShell('grep -n "gfx90a" rocminfo.log') ){
-        arch_name = "gfx90a"
+        return "gfx90a"
     }
     else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
-        arch_name = "gfx942"
+        return "gfx942"
     }
     else if ( runShell('grep -n "gfx101" rocminfo.log') ) {
-        arch_name = "gfx101"
+        return "gfx101"
     }
     else if ( runShell('grep -n "gfx103" rocminfo.log') ) {
-        arch_name = "gfx103"
+        return "gfx103"
     }
     else if ( runShell('grep -n "gfx11" rocminfo.log') ) {
-        arch_name = "gfx11"
+        return "gfx11"
     }
     else if ( runShell('grep -n "gfx120" rocminfo.log') ) {
-        arch_name = "gfx12"
+        return "gfx12"
     }
     else if ( runShell('grep -n "gfx908" rocminfo.log') ) {
-        arch_name = "gfx908"
+        return "gfx908"
     }
     else if ( runShell('grep -n "gfx950" rocminfo.log') ) {
-        arch_name = "gfx950"
+        return "gfx950"
     }
-    return arch_name
+    else {
+        return ""
+    }
 }
 
 def getDockerImage(Map conf=[:]){
@@ -646,8 +647,8 @@ def cmake_build(Map conf=[:]){
             }
         }
 
-        //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
-        if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
+        //run tests except when NO_CK_BUILD is set
+        if(!setup_args.contains("NO_CK_BUILD")){
             sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${arch_name}.json"
             archiveArtifacts "ck_build_trace_${arch_name}.json"
             sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${arch_name}.json"
@@ -784,7 +785,7 @@ def Build_CK(Map conf=[:]){
                     //check whether to run performance tests on this node
                     def arch = check_arch_name()
                     cmake_build(conf)
-                    if ( params.RUN_INDUCTOR_TESTS && !params.BUILD_LEGACY_OS && arch == 1 ){
+                    if ( params.RUN_INDUCTOR_TESTS && arch == "gfx90a" ){
                             echo "Run inductor codegen tests"
                             sh """
                                   python3 -m venv ${env.WORKSPACE}
@@ -1091,7 +1092,7 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
-                                              0 13 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
+                                              0 13 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
                                               0 11 * * * % RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
 
 pipeline {
@@ -1227,10 +1228,6 @@ pipeline {
             name: "NINJA_FTIME_TRACE",
             defaultValue: false,
             description: "Generate a detailed time trace (default: OFF)")
-        booleanParam(
-            name: "BUILD_LEGACY_OS",
-            defaultValue: false,
-            description: "Try building CK with legacy OS dockers: RHEL8 and SLES15 (default: OFF)")
         booleanParam(
             name: "RUN_INDUCTOR_TESTS",
             defaultValue: true,
@@ -1728,46 +1725,11 @@ pipeline {
             }
             parallel
             {
-                stage("Build CK with RHEL8")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.BUILD_LEGACY_OS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx90a") }
-                    environment{
-                        setup_args = """ -DGPU_TARGETS="gfx942" -DCK_CXX_STANDARD="17" -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 """
-                        execute_args = " "
-                    }
-                    steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", build_type: 'Release', docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_rhel8_rocm6.3")
-                        cleanWs()
-                    }
-                }
-                stage("Build CK with SLES15")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.BUILD_LEGACY_OS.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx90a") }
-                    environment{
-                        // SLES15 is a legacy platform with limited C++20 ecosystem support (older system libraries,
-                        // standard library implementation). While the ROCm compiler supports C++20, the experimental
-                        // CK Builder requires full C++20 feature support that does not be reliably available on SLES15.
-                        setup_args = """ -DGPU_TARGETS="gfx942" -DCK_USE_ALTERNATIVE_PYTHON=/opt/Python-3.8.13/bin/python3.8 -DCK_EXPERIMENTAL_BUILDER=OFF """
-                        execute_args = " "
-                    }
-                    steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", build_type: 'Release', docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_sles15_rocm6.3")
-                        cleanWs()
-                    }
-                }
                 stage("Build CK and run Tests on gfx942")
                 {
                     when {
                         beforeAgent true
-                        expression { (params.BUILD_GFX942.toBoolean() || params.RUN_FULL_QA.toBoolean()) && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { (params.BUILD_GFX942.toBoolean() || params.RUN_FULL_QA.toBoolean()) && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("gfx942") }
                     environment{
@@ -1783,7 +1745,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX950.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX950.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("gfx950") }
                     environment{
@@ -1799,7 +1761,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX908.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX908.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("gfx908") }
                     environment{
@@ -1815,7 +1777,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX90A.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX90A.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
@@ -1831,7 +1793,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_INSTANCES_ONLY.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_INSTANCES_ONLY.toBoolean() && !params.RUN_FULL_QA.toBoolean() }
                     }
                     agent{ label rocmnode("gfx942") }
                     steps{
@@ -1850,7 +1812,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX101.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX101.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("gfx1010") }
                     environment{
@@ -1866,7 +1828,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX103.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX103.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("gfx1030") }
                     environment{
@@ -1882,7 +1844,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX11.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX11.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label 'miopen && (gfx1101 || gfx1100)' }
                     environment{
@@ -1898,7 +1860,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX12.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX12.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
                     }
                     agent{ label rocmnode("gfx1201") }
                     environment{
@@ -1942,7 +1904,7 @@ pipeline {
                 stage("Process results"){
                     when {
                         beforeAgent true
-                        expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()|| params.BUILD_PACKAGES.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()|| params.BUILD_PACKAGES.toBoolean()) }
                     }
                     agent { label 'mici' }
                     steps{
