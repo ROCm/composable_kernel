@@ -705,12 +705,12 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                                    BDataType,
                                    ComputeTypeA,
                                    AccDataType,
-                                   decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch())),
-                                   decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch())),
+                                   decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
+                                   decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()),
                                    decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
-                     GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch()))),
+                     GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
                                    decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
-                     GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch()))),
+                     GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),
                                    ABlockTransferSrcScalarPerVector,
                                    BBlockTransferSrcScalarPerVector,
                                    MPerBlock,
