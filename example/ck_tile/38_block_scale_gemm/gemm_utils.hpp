@@ -232,8 +232,6 @@ struct GemmConfigPreshuffleB_ABQuant_Prefill : public GemmConfigPreshuffleB_BQua
 
     static constexpr bool kPadK      = false;
     static constexpr bool TransposeC = true;
-
-    static constexpr bool TiledMMAPermuteN = false;
 };
 
 template <typename PrecType>
