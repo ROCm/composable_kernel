@@ -108,9 +108,11 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
         // 4. i4,  bf8, (fp8/fp32) -> f32
         static_assert(
             (std::is_same_v<ADataType, fp8_t> || std::is_same_v<ADataType, bf8_t> ||
-             std::is_same_v<ADataType, ck_tile::pk_int4_t>) &&
+             std::is_same_v<ADataType, ck_tile::pk_int4_t> ||
+             std::is_same_v<ADataType, ck_tile::pk_fp4_t>) &&
             (std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t> ||
-             std::is_same_v<BDataType, ck_tile::pk_int4_t>) &&
+             std::is_same_v<BDataType, ck_tile::pk_int4_t> ||
+             std::is_same_v<BDataType, ck_tile::pk_fp4_t>) &&
             (std::is_same_v<AQDataType, float> || std::is_same_v<AQDataType, ck_tile::fp8_t> ||
              std::is_same_v<AQDataType, ck_tile::bf8_t>) &&
             (std::is_same_v<BQDataType, float> || std::is_same_v<BQDataType, ck_tile::fp8_t> ||
@@ -135,12 +137,9 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
     using ComputeDataType = remove_cvref_t<typename Traits::ComputeDataType>;
     using CDataType       = remove_cvref_t<typename Traits::CDataType>;
 
-    // BDataType gets converted from PkInt4 during loading
-    using OverrideBDataType = std::conditional_t<
-        std::is_same_v<BDataType, pk_int4_t> &&
-            std::is_same_v<typename Traits::BLayout, tensor_layout::gemm::RowMajor>,
-        ADataType,
-        BDataType>;
+    // A/B DataType get converted from PkInt4/PkFp4 during loading
+    using OverrideADataType = ComputeDataType;
+    using OverrideBDataType = ComputeDataType;
 
     using Base     = BlockGemmQuantBase;
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
@@ -268,9 +267,9 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                                           bool_constant<ALoadTranspose> = {},
                                           bool_constant<BLoadTranspose> = {})
         {
-            load_int4_tile<ADataType, ComputeDataType, UnaryOpSize_, ALoadTranspose>(
+            // If A/B datatype were pkint4/pkfp4 it would be converted prior to storing in LDS
+            load_int4_tile<OverrideADataType, ComputeDataType, UnaryOpSize_, ALoadTranspose>(
                 a_warp_tile_, a_block_window);
-            // If B datatype were pkint4 it would be converted prior to storing in LDS
             load_int4_tile<OverrideBDataType, ComputeDataType, UnaryOpSize_, BLoadTranspose>(
                 b_warp_tile_, b_block_window);
         }
