@@ -4,9 +4,11 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
+#include <type_traits>
 
 namespace ck_tile {
 // Default policy for MXGemmPipelineAgBgCrCompAsync
@@ -70,91 +72,234 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         return vector_size;
     }
 
-    // DRAM tile distributions use STORAGE dimensions (for the storage tensor view)
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
-    {
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-        using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
-        using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
-        constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / APackedSize; // Use STORAGE dimensions
-        constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
-        constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+    // // DRAM tile distributions use STORAGE dimensions (for the storage tensor view)
+    // template <typename Problem>
+    // CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
+    // {
+    //     // using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    //     // using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
 
-        using ALayout = remove_cvref_t<
-            std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::AsLayoutTuple>>>;
+    //     // constexpr index_t BlockSize = Problem::kBlockSize;
+    //     // constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+    //     // constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+    //     // constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+        
+    //     // constexpr index_t K2 = 16;                             // 16 bytes
+    //     // constexpr index_t K1 = 128 / K2;             // 8
+    //     // constexpr index_t K0 = KPerBlock / (K1 * K2 * APackedSize); // KPerBlock/256/packsize
+
+    //     // constexpr index_t M2 = get_warp_size() / K1;        // 8
+    //     // constexpr index_t M1 = BlockSize / get_warp_size(); // 4
+    //     // constexpr index_t M0 = MPerBlock / (M2 * M1);
+
+    //     // static_assert(M0 * M1 * M2 == MPerBlock, "M0, M1, M2 must cover whole MPerBlock!");
+    //     // static_assert(K0 * K1 * K2 * APackedSize == KPerBlock,
+    //     //               "K0, K1, K2 must cover whole KPerBlock!");
+
+    //     // return make_static_tile_distribution(
+    //     //     tile_distribution_encoding< //
+    //     //         sequence<1>,
+    //     //         tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2>>, // ?,4,8 1,8,32 or 2,8,16
+    //     //         tuple<sequence<1>, sequence<1, 2>>,                // M1 M2,K1
+    //     //         tuple<sequence<1>, sequence<2, 1>>,
+    //     //         sequence<1, 2, 2>, // M0,K0,K2
+    //     //         sequence<0, 0, 2>>{});
+    //     constexpr index_t BlockSize = Problem::kBlockSize;
+    //     constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
+    //     /// NOTE: for flatmm style byte tensor, divide KPerBlock by APackedSize to get STORAGE dimensions
+    //     // using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    //     // using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+    //     // constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+    //     // constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / APackedSize; // Use STORAGE dimensions
+    //     /// NOTE: use original KPerBlock
+    //     constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+    //     constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
+    //     constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+
+    //     using ALayout = remove_cvref_t<
+    //         std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::AsLayoutTuple>>>;
 
         
-        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
-        {
-            using TileEncodingPattern =
-                tile_distribution_encoding_pattern_2d<BlockSize,
-                                                      MPerBlock,
-                                                      KPerBlock, // Use storage dimensions
-                                                      VecLoadSize,
-                                                      getATileAccessPattern(),
-                                                      NumWaveGroups>;
-            return TileEncodingPattern::make_2d_static_tile_distribution();
-        }
-        else
-        {
-            static_assert(false, "Not implemented");
-            // using TileEncodingPattern =
-            //     tile_distribution_encoding_pattern_2d<BlockSize,
-            //                                           KPerBlock,
-            //                                           MPerBlock,
-            //                                           VecLoadSize,
-            //                                           getATileAccessPattern(),
-            //                                           NumWaveGroups>;
-            // return TileEncodingPattern::make_2d_static_tile_distribution();
-        }
-    }
+    //     if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
+    //     {
+    //         using TileEncodingPattern =
+    //             tile_distribution_encoding_pattern_2d<BlockSize,
+    //                                                   MPerBlock,
+    //                                                   KPerBlock, // Use storage dimensions
+    //                                                   VecLoadSize,
+    //                                                   getATileAccessPattern(),
+    //                                                   NumWaveGroups>;
+    //         return TileEncodingPattern::make_2d_static_tile_distribution();
+    //     }
+    //     else
+    //     {
+    //         static_assert(false, "Not implemented");
+    //         // using TileEncodingPattern =
+    //         //     tile_distribution_encoding_pattern_2d<BlockSize,
+    //         //                                           KPerBlock,
+    //         //                                           MPerBlock,
+    //         //                                           VecLoadSize,
+    //         //                                           getATileAccessPattern(),
+    //         //                                           NumWaveGroups>;
+    //         // return TileEncodingPattern::make_2d_static_tile_distribution();
+    //     }
+    // }
 
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBDramTileDistribution()
-    {
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
-        using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
-        constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / BPackedSize; // Use STORAGE dimensions
-        constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
-        constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+    // template <typename Problem>
+    // CK_TILE_HOST_DEVICE static constexpr auto MakeBDramTileDistribution()
+    // {
+    //     /// NOTE: flatmm style dstr
+    //     // using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+    //     // using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+
+    //     // constexpr index_t BlockSize = Problem::kBlockSize;
+    //     // constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
+    //     // constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+    //     // constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
         
-        using BLayout = remove_cvref_t<
-            std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayoutTuple>>>;
+    //     // constexpr index_t K2 = 16;                             // 16 bytes
+    //     // constexpr index_t K1 = 128 / K2;             // 8
+    //     // constexpr index_t K0 = KPerBlock / (K1 * K2 * BPackedSize); // KPerBlock/256/packsize
+
+    //     // constexpr index_t N2 = get_warp_size() / K1;        // 8
+    //     // constexpr index_t N1 = BlockSize / get_warp_size(); // 4
+    //     // constexpr index_t N0 = NPerBlock / (N2 * N1);
+
+    //     // static_assert(N0 * N1 * N2 == NPerBlock, "N0, N1, N2 must cover whole NPerBlock!");
+    //     // static_assert(K0 * K1 * K2 * BPackedSize == KPerBlock,
+    //     //               "K0, K1, K2 must cover whole KPerBlock!");
+
+    //     // return make_static_tile_distribution(
+    //     //     tile_distribution_encoding< //
+    //     //         sequence<1>,
+    //     //         tuple<sequence<N0, N1, N2>, sequence<K0, K1, K2>>, // ?,4,8 1,8,32 or 2,8,16
+    //     //         tuple<sequence<1>, sequence<1, 2>>,                // M1 M2,K1
+    //     //         tuple<sequence<1>, sequence<2, 1>>,
+    //     //         sequence<1, 2, 2>, // N0,K0,K2
+    //     //         sequence<0, 0, 2>>{});
+    //     constexpr index_t BlockSize = Problem::kBlockSize;
+    //     constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
+    //     /// NOTE: for flatmm style byte tensor, divide KPerBlock by BPackedSize to get STORAGE dimensions
+    //     // using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+    //     // using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+    //     // constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+    //     // constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / BPackedSize; // Use STORAGE dimensions
+    //     /// NOTE: use original KPerBlock
+    //     constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+    //     constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
+    //     constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
+        
+    //     using BLayout = remove_cvref_t<
+    //         std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayoutTuple>>>;
 
         
-        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-        {
-            static_assert(false, "Not implemented");
-        }
-        else
-        {
-            using TileEncodingPattern =
-                tile_distribution_encoding_pattern_2d<BlockSize,
-                                                      NPerBlock,
-                                                      KPerBlock, // Use storage dimensions
-                                                      VecLoadSize,
-                                                      getBTileAccessPattern(),
-                                                      NumWaveGroups>;
-            return TileEncodingPattern::make_2d_static_tile_distribution();
-        }
-    }
+    //     if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+    //     {
+    //         static_assert(false, "Not implemented");
+    //     }
+    //     else
+    //     {
+    //         using TileEncodingPattern =
+    //             tile_distribution_encoding_pattern_2d<BlockSize,
+    //                                                   NPerBlock,
+    //                                                   KPerBlock, // Use storage dimensions
+    //                                                   VecLoadSize,
+    //                                                   getBTileAccessPattern(),
+    //                                                   NumWaveGroups>;
+    //         return TileEncodingPattern::make_2d_static_tile_distribution();
+    //     }
+    // }
+
+    // template <typename Problem>
+    // CK_TILE_HOST_DEVICE static constexpr auto MakeMX_ALDSBytes_TileDistribution()
+    // {
+    //     // static_assert(BlockWarps::at(I0) == 1, "requires Wave_M == 1");
+    //     using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    //     using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+    //     constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+    //     using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
+    //     constexpr index_t MWarps = BlockWarps::at(number<0>{});
+    //     constexpr index_t NWarps = BlockWarps::at(number<1>{});
+    //     constexpr index_t MPerXdl = Problem::BlockGemmShape::WarpTile::at(I0);
+    //     // constexpr index_t NPerXdl = Problem::BlockGemmShape::WarpTile::at(I1);
+    //     constexpr index_t KPerXdl = Problem::BlockGemmShape::WarpTile::at(I2);
+    //     constexpr index_t K_Lane   = get_warp_size() / 16; // 4
+    //     constexpr index_t K_Thread = KPerXdl / K_Lane;     // 32
+    //     constexpr index_t DWORDx4            = 16;
+    //     constexpr index_t AK1 = DWORDx4 * APackedSize;
+
+    //     if constexpr(K_Thread == AK1)
+    //         return make_static_tile_distribution(
+    //             tile_distribution_encoding< //
+    //                 sequence<NWarps>,
+    //                 tuple<sequence<MWarps, 1, MPerXdl>, sequence<K_Lane, AK1 / APackedSize>>,
+    //                 tuple<sequence<1, 0>, sequence<2, 1>>,
+    //                 tuple<sequence<0, 0>, sequence<0, 2>>,
+    //                 sequence<2>,
+    //                 sequence<1>>{});
+    //     else
+    //         return make_static_tile_distribution(
+    //             tile_distribution_encoding< //
+    //                 sequence<NWarps>,
+    //                 tuple<sequence<MWarps, 1, MPerXdl>,
+    //                       sequence<K_Thread / AK1, K_Lane, AK1 / APackedSize>>,
+    //                 tuple<sequence<1, 0>, sequence<2, 1>>,
+    //                 tuple<sequence<0, 0>, sequence<1, 2>>,
+    //                 sequence<2, 2>,
+    //                 sequence<0, 2>>{});
+    // }
+
+    // template <typename Problem>
+    // CK_TILE_HOST_DEVICE static constexpr auto MakeMX_BLDSBytes_TileDistribution()
+    // {
+    //     // static_assert(BlockWarps::at(I0) == 1, "requires Wave_M == 1");
+    //     using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+    //     using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+    //     constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+    //     using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
+    //     constexpr index_t MWarps = BlockWarps::at(number<0>{});
+    //     constexpr index_t NWarps = BlockWarps::at(number<1>{});
+    //     // constexpr index_t MPerXdl = Problem::BlockGemmShape::WarpTile::at(I0);
+    //     constexpr index_t NPerXdl = Problem::BlockGemmShape::WarpTile::at(I1);
+    //     constexpr index_t KPerXdl = Problem::BlockGemmShape::WarpTile::at(I2);
+    //     constexpr index_t K_Lane   = get_warp_size() / 16; // 4
+    //     constexpr index_t K_Thread = KPerXdl / K_Lane;     // 32
+    //     constexpr index_t DWORDx4            = 16;
+    //     constexpr index_t BK1 = DWORDx4 * BPackedSize;
+
+    //     if constexpr(K_Thread == BK1)
+    //         return make_static_tile_distribution(
+    //             tile_distribution_encoding< //
+    //                 sequence<MWarps>,
+    //                 tuple<sequence<NWarps, 1, NPerXdl>, sequence<K_Lane, BK1 / BPackedSize>>,
+    //                 tuple<sequence<1, 0>, sequence<2, 1>>,
+    //                 tuple<sequence<0, 0>, sequence<0, 2>>,
+    //                 sequence<2>,
+    //                 sequence<1>>{});
+    //     else
+    //         return make_static_tile_distribution(
+    //             tile_distribution_encoding< //
+    //                 sequence<MWarps>,
+    //                 tuple<sequence<NWarps, 1, NPerXdl>,
+    //                       sequence<K_Thread / BK1, K_Lane, BK1 / BPackedSize>>,
+    //                 tuple<sequence<1, 0>, sequence<2, 1>>,
+    //                 tuple<sequence<0, 0>, sequence<1, 2>>,
+    //                 sequence<2, 2>,
+    //                 sequence<0, 2>>{});
+    // }
 
     template <typename Problem,
               typename OverrideADataType = remove_cvref_t<typename Problem::ADataType>>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
-    {
-        using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
-        using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
-        constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
-        
+    {        
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / APackedSize; // Use STORAGE dimensions
+        /// NOTE: for flatmm style byte tensor, divide KPerBlock by APackedSize to get STORAGE dimensions
+        // using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+        // using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+        // constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+        // constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / APackedSize; // Use STORAGE dimensions
+        /// NOTE: use original KPerBlock
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         if constexpr(is_a_load_tr<Problem>)
         {
             // TODO: better LDS descriptor for performance
@@ -170,6 +315,7 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         else
         {
             constexpr index_t KPack = GetSmemPackA<Problem>();
+            static_assert(KPack >= 16, "KPack must be at least 16");
 
             constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
@@ -190,12 +336,14 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
-        using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
-        constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
-        
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / BPackedSize;
+        /// NOTE: for flatmm style byte tensor, divide KPerBlock by BPackedSize to get STORAGE dimensions
+        // using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+        // using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+        // constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
+        // constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / BPackedSize; // Use STORAGE dimensions
+        /// NOTE: use original KPerBlock
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         if constexpr(is_b_load_tr<Problem>)
         {
             // TODO: better LDS descriptor for performance
@@ -211,6 +359,7 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         else
         {
             constexpr index_t KPack = GetSmemPackB<Problem>();
+            static_assert(KPack >= 16, "KPack must be at least 16");
 
             constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<KPerBlock / KPack>{}, number<NPerBlock>{}, number<KPack>{}),
