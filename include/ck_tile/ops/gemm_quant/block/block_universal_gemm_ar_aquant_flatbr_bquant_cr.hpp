@@ -69,7 +69,8 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
         static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
         static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
 
-        static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
+        static constexpr bool APreshuffleQuant = Problem::Traits::APreshuffleQuant;
+        static constexpr bool BPreshuffleQuant = Problem::Traits::BPreshuffleQuant;
 
         static constexpr index_t QScalesPerBlockRow =
             integer_divide_ceil(KPerBlock, BQuantGroupSize::kK);
@@ -127,9 +128,9 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
-    using QuantGroupSize  = remove_cvref_t<typename Problem::BQuantGroupSize>;
+    using BQuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
-    static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant preshuffle kernel!");
+    static_assert(BQuantGroupSize::kM == 1, "only N/K blocks for BQuant preshuffle kernel!");
 
     static constexpr auto I0   = number<0>();
     static constexpr auto I1   = number<1>();
@@ -162,12 +163,12 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
     static constexpr auto MIter_2nd_last =
         (MIterPerWarp >= 2) ? MIterPerWarp - 2 : MIterPerWarp - 1;
 
-    static constexpr index_t KPerBlockBQ = KPerBlock / QuantGroupSize::kK;
+    static constexpr index_t KPerBlockBQ = KPerBlock / BQuantGroupSize::kK;
 
     static constexpr index_t QScalesPerBlockRow =
-        integer_divide_ceil(KPerBlock, QuantGroupSize::kK); // 128 / 128 = 1
+        integer_divide_ceil(KPerBlock, BQuantGroupSize::kK); // 128 / 128 = 1
     static constexpr index_t QScalesPerWarpGemmRow =
-        integer_divide_ceil(WG::kK, QuantGroupSize::kK);
+        integer_divide_ceil(WG::kK, BQuantGroupSize::kK);
 
     static constexpr index_t KIterPerQScale = KIterPerWarp / QScalesPerBlockRow; // 8 / 1 = 8
     static constexpr index_t DsReadPreload  = 2; // default 2, preload 2 ds read
@@ -213,6 +214,22 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                 });
             });
         };
+
+        auto q_block_tensor = aq_block_tensor;
+        constexpr bool SimpleDequant =
+            Traits::NQPerBlock == 1 &&
+            AccTensor::get_distributed_spans()[I0].impl_.size() == 0; // c_transpose
+        if constexpr(SimpleDequant)
+        {
+            constexpr auto aq_spans = AQBlockTensor::get_distributed_spans();
+            sweep_tile_span(aq_spans[I0], [&](auto im) {
+                sweep_tile_span(aq_spans[I1], [&](auto ik) {
+                    q_block_tensor(make_tuple(im, ik)) *=
+                        bq_block_tensor(make_tuple(tile_distributed_index<0>{}, ik));
+                });
+            });
+        }
+        // hot loop:
         static_for<0, QScalesPerBlockRow, 1>{}([&](auto kQScale) {
             zero_accumulators();
             static_for<0, KIterPerQScale, 1>{}([&](auto kIterInQScale) {
@@ -243,9 +260,29 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                     }
                 });
             });
-            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(aq_block_tensor);
-                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+            static_for_product<number<MIterPerWarp>, number<NIterPerWarp>>{}([&](auto mIter,
+                                                                                 auto nIter) {
+                if constexpr(SimpleDequant)
+                {
+                    constexpr auto tbuf_offset =
+                        number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
+                                   merge_sequences(sequence<mIter, nIter>{},
+                                                   c_warp_y_index_zeros)) /
+                               CBlockTensor::PackedSize>{};
+
+                    constexpr auto block_idx_m  = tile_distributed_index<mIter>{};
+                    constexpr auto block_idx_kq = tile_distributed_index<kQScale>{};
+
+                    static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
+                        auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
+                        const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
+                        c_ref += acc_val * q_block_tensor(make_tuple(block_idx_m, block_idx_kq));
+                    });
+                }
+                else
+                {
+                    AQPickerCommon<AQBlockTensor, Traits, mIter, kQScale> aq_picker(
+                        aq_block_tensor);
                     constexpr auto tbuf_offset =
                         number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
                                    merge_sequences(sequence<mIter, nIter>{},
@@ -253,9 +290,9 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                                CBlockTensor::PackedSize>{};
 
                     index_t reg_offset = [&]() {
-                        if constexpr(QuantGroupSize::kN >= (NWarp * WG::kN))
+                        if constexpr(BQuantGroupSize::kN >= (NWarp * WG::kN))
                         {
-                            return (nIter * NWarp * WG::kN) / QuantGroupSize::kN * KPerBlockBQ +
+                            return (nIter * NWarp * WG::kN) / BQuantGroupSize::kN * KPerBlockBQ +
                                    kQScale;
                         }
                         else
@@ -273,7 +310,7 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                         const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
                         c_ref              = c_ref + acc_val * b_scale_reg_f * a_scale_reg_f;
                     });
-                });
+                }
             });
         });
     }

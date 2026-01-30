@@ -38,7 +38,7 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_NWGC_GKXC_NWGK)
                                                 .weight = {.config = {.layout = GKXC}},
                                                 .output = {.config = {.layout = NWGK}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 1>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::NWGC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKXC>));
@@ -57,7 +57,7 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKXC_NGKW)
                                                 .weight = {.config = {.layout = GKXC}},
                                                 .output = {.config = {.layout = NGKW}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 1>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::NGCW>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKXC>));
@@ -76,7 +76,7 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_GNWC_GKXC_GNWK)
                                                 .weight = {.config = {.layout = GKXC}},
                                                 .output = {.config = {.layout = GNWK}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 1>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::GNWC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKXC>));
@@ -95,7 +95,7 @@ TEST(ConvTensorLayout, AssignsLayoutsFor1D_NGCW_GKCX_NGKW)
                                                 .weight = {.config = {.layout = GKCX}},
                                                 .output = {.config = {.layout = NGKW}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 1>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::NGCW>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKCX>));
@@ -114,7 +114,7 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKYXC_NGKHW)
                                                 .weight = {.config = {.layout = GKYXC}},
                                                 .output = {.config = {.layout = NGKHW}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 2>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::NGCHW>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKYXC>));
@@ -133,7 +133,7 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_NHWGC_GKYXC_NHWGK)
                                                 .weight = {.config = {.layout = GKYXC}},
                                                 .output = {.config = {.layout = NHWGK}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 2>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::NHWGC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKYXC>));
@@ -152,7 +152,7 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_GNHWC_GKYXC_GNHWK)
                                                 .weight = {.config = {.layout = GKYXC}},
                                                 .output = {.config = {.layout = GNHWK}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 2>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::GNHWC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKYXC>));
@@ -171,7 +171,7 @@ TEST(ConvTensorLayout, AssignsLayoutsFor2D_NGCHW_GKCYX_NGKHW)
                                                 .weight = {.config = {.layout = GKCYX}},
                                                 .output = {.config = {.layout = NGKHW}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 2>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::NGCHW>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKCYX>));
@@ -190,7 +190,7 @@ TEST(ConvTensorLayout, AssignsLayoutsFor3D_NGCDHW_GKCZYX_NGKDHW)
                                                 .weight = {.config = {.layout = GKCZYX}},
                                                 .output = {.config = {.layout = NGKDHW}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 3>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::NGCDHW>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKCZYX>));
@@ -209,7 +209,7 @@ TEST(ConvTensorLayout, AssignsLayoutsFor3D_NDHWGC_GKZYXC_NDHWGK)
                                                 .weight = {.config = {.layout = GKZYXC}},
                                                 .output = {.config = {.layout = NDHWGK}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 3>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::NDHWGC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKZYXC>));
@@ -228,7 +228,7 @@ TEST(ConvTensorLayout, AssignsLayoutsFor3D_GNDHWC_GKZYXC_GNDHWK)
                                                 .weight = {.config = {.layout = GKZYXC}},
                                                 .output = {.config = {.layout = GNDHWK}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 3>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::GNDHWC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKZYXC>));
@@ -387,7 +387,7 @@ TEST(ConvTensorLayoutsWithAuxiliary, Conv2DWithSingleBiasG_K)
                                        .operation =
                                            OutputOp{.elementwise_operation = ElementwiseOperation::SCALE}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 2>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::NGCHW>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKYXC>));
@@ -414,7 +414,7 @@ TEST(ConvTensorLayoutsWithAuxiliary, Conv2DWithSingleBiasGC)
                                        .operation =
                                            OutputOp{.elementwise_operation = ElementwiseOperation::SCALE}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 2>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::NHWGC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKYXC>));
@@ -442,7 +442,7 @@ TEST(ConvTensorLayoutsWithAuxiliary, Conv2DWithTwoAuxiliaryTensors)
                                        .operation = OutputOp{.elementwise_operation =
                                                  ElementwiseOperation::SCALEADD_SCALEADD_RELU}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 2>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::GNHWC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKYXC>));
@@ -470,7 +470,7 @@ TEST(ConvTensorLayoutsWithAuxiliary, Conv1DWithBias)
                                        .operation =
                                            OutputOp{.elementwise_operation = ElementwiseOperation::SCALE}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 1>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::NWGC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKXC>));
@@ -497,7 +497,7 @@ TEST(ConvTensorLayoutsWithAuxiliary, Conv3DWithBias)
                                        .operation = OutputOp{.elementwise_operation =
                                                  ElementwiseOperation::BIAS_BNORM_CLAMP}}};
 
-    using TensorLayouts = ConvTensorLayouts<sig, 3>;
+    using TensorLayouts = ConvTensorLayouts<sig>;
 
     EXPECT_TRUE((std::is_same_v<TensorLayouts::InLayout, ck::tensor_layout::convolution::NDHWGC>));
     EXPECT_TRUE((std::is_same_v<TensorLayouts::WeiLayout, ck::tensor_layout::convolution::GKZYXC>));

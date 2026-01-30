@@ -43,12 +43,14 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using BQLayout       = remove_cvref_t<typename Problem::BQLayout>;
         using BlockGemmShape = typename Problem::BlockGemmShape;
 
-        constexpr index_t BlockSize    = Problem::kBlockSize;
-        constexpr index_t NPerBlock    = Problem::BlockGemmShape::kN;
-        constexpr index_t NPerBlockBQ  = NPerBlock / Problem::BQuantGroupSize::kN;
-        constexpr index_t KPerBlock    = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockBQ  = KPerBlock / Problem::BQuantGroupSize::kK;
-        constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
+        constexpr index_t BlockSize     = Problem::kBlockSize;
+        constexpr index_t NPerBlock     = Problem::BlockGemmShape::kN;
+        constexpr index_t NPerBlockBQ   = (Problem::BQuantGroupSize::kN <= NPerBlock)
+                                              ? NPerBlock / Problem::BQuantGroupSize::kN
+                                              : 1;
+        constexpr index_t KPerBlock     = Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlockBQ   = KPerBlock / Problem::BQuantGroupSize::kK;
+        constexpr bool BPreshuffleQuant = Problem::Traits::BPreshuffleQuant;
 
         using WarpTile = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
@@ -59,7 +61,7 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                             WarpTile::at(I2),
                                             Problem::TransposeC>;
 
-        if constexpr(PreshuffleQuant)
+        if constexpr(BPreshuffleQuant)
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_bq<
                 BlockGemmShape,
@@ -70,7 +72,7 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                 Problem::BQuantGroupSize::kN,
                 Problem::BQuantGroupSize::kK,
                 BQLayout,
-                PreshuffleQuant>;
+                BPreshuffleQuant>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         else

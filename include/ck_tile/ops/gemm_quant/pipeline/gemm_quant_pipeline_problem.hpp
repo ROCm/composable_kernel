@@ -79,10 +79,8 @@ struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
     static constexpr auto TailNum    = TailNum_;
 
     static_assert(BlockGemmShape::kM % AQuantGroupSize::kM == 0);
-    static_assert(BlockGemmShape::kN % AQuantGroupSize::kN == 0);
     static_assert(BlockGemmShape::kK % AQuantGroupSize::kK == 0);
     static_assert(BlockGemmShape::kM % BQuantGroupSize::kM == 0);
-    static_assert(BlockGemmShape::kN % BQuantGroupSize::kN == 0);
     static_assert(BlockGemmShape::kK % BQuantGroupSize::kK == 0);
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
@@ -122,7 +120,7 @@ template <typename ADataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          typename QuantGroupSize_,
+          typename AQuantGroupSize_,
           bool TransposeC_,
           typename ComputeDataType_        = BDataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
@@ -135,7 +133,7 @@ using GemmAQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                CDataType_,
                                                                BlockGemmShape_,
                                                                Traits_,
-                                                               QuantGroupSize_,
+                                                               AQuantGroupSize_,
                                                                void,
                                                                TransposeC_,
                                                                ComputeDataType_,
@@ -149,7 +147,7 @@ template <typename ADataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          typename QuantGroupSize_,
+          typename BQuantGroupSize_,
           typename ComputeDataType_        = ADataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
@@ -162,7 +160,7 @@ using GemmBQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                BlockGemmShape_,
                                                                Traits_,
                                                                void,
-                                                               QuantGroupSize_,
+                                                               BQuantGroupSize_,
                                                                false, // no TransposeC
                                                                ComputeDataType_,
                                                                Scheduler_,

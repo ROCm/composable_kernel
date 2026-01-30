@@ -314,6 +314,10 @@ struct DeviceBatchedGemmMultiD_Wmma_CShuffleV3
     {
         ActiveWorkgroupsPerCU()
         {
+            if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
+            {
+                return;
+            }
             constexpr int dynamic_smem_size = 0;
             int max_occupancy               = 0;
 
@@ -598,6 +602,26 @@ struct DeviceBatchedGemmMultiD_Wmma_CShuffleV3
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "Unsupported K dimension without padding." << std::endl;
+            }
+            return false;
+        }
+
+        if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityAWaveTransfer(arg.M, arg.K))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Wave Transfer not applicable for matrix A" << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+            }
+            return false;
+        }
+
+        if(ck::is_gfx12_supported() && !GridwiseGemm::CheckValidityBWaveTransfer(arg.N, arg.K))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Wave Transfer not applicable for matrix B" << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
             }
             return false;
         }

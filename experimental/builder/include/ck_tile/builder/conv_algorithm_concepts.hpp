@@ -104,7 +104,7 @@ concept EpilogueDescriptor = requires(T t) {
 
 // Concept for the thread cluster access order
 template <typename T>
-concept AccessOrderDescriptor = requires(T t) {
+concept ThreadClusterOrderDescriptor = requires(T t) {
     { t.order } -> std::convertible_to<std::array<size_t, 3>>;
 } || requires(T t) {
     { t.order } -> std::convertible_to<std::array<size_t, 4>>;
@@ -231,16 +231,16 @@ concept SpecifiesLdsTransfer = requires(T t) {
 
 // Concept to check if a struct specifies thread cluster access order info.
 template <typename T>
-concept SpecifiesThreadClusterAccessOrder = requires(T t) {
-    { T::transfer.a.block_transfer_access_order } -> AccessOrderDescriptor;
-    { T::transfer.b.block_transfer_access_order } -> AccessOrderDescriptor;
+concept SpecifiesThreadClusterArrangeOrder = requires(T t) {
+    { T::transfer.a.thread_cluster_arrange_order } -> ThreadClusterOrderDescriptor;
+    { T::transfer.b.thread_cluster_arrange_order } -> ThreadClusterOrderDescriptor;
 };
 
 // Concept to check if a struct specifies source access order info.
 template <typename T>
 concept SpecifiesSourceAccessOrder = requires(T t) {
-    { T::transfer.a.src_access_order } -> AccessOrderDescriptor;
-    { T::transfer.b.src_access_order } -> AccessOrderDescriptor;
+    { T::transfer.a.src_access_order } -> ThreadClusterOrderDescriptor;
+    { T::transfer.b.src_access_order } -> ThreadClusterOrderDescriptor;
 };
 
 // Concept to check if struct specifies block GEMM.

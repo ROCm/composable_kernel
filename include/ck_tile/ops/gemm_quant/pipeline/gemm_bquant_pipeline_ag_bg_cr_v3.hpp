@@ -26,12 +26,12 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmBQuantPipelineAgBgCrImplBase<Problem, Policy>;
 
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
-    using QuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
+    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
+    using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
+    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
+    using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using BQuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
     using ALayout  = remove_cvref_t<typename Problem::ALayout>;
     using BQLayout = remove_cvref_t<typename Problem::BQLayout>;
@@ -45,7 +45,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                            ADataType,
                            BDataType>;
 
-    static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant kernel!");
+    static_assert(BQuantGroupSize::kM == 1, "only N/K blocks for BQuant kernel!");
     using I0 = number<0>;
     using I1 = number<1>;
     using I2 = number<2>;
@@ -66,9 +66,11 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
     static constexpr index_t NPerBlockBQ =
-        integer_divide_ceil(BlockGemmShape::kN, QuantGroupSize::kN);
+        (BQuantGroupSize::kN <= BlockGemmShape::kN)
+            ? integer_divide_ceil(BlockGemmShape::kN, BQuantGroupSize::kN)
+            : 1;
     static constexpr index_t KPerBlockBQ =
-        integer_divide_ceil(BlockGemmShape::kK, QuantGroupSize::kK);
+        integer_divide_ceil(BlockGemmShape::kK, BQuantGroupSize::kK);
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
@@ -86,7 +88,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
     static constexpr bool kPadK = Problem::kPadK;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
-    static constexpr bool PreshuffleQuant  = Problem::Traits::PreshuffleQuant;
+    static constexpr bool BPreshuffleQuant = Problem::Traits::BPreshuffleQuant;
 
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
@@ -107,7 +109,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                       BlockSize,
                       concat('x', WaveNumM, WaveNumN),
                       concat('x', BlockGemm::WarpGemm::kM, BlockGemm::WarpGemm::kN, BlockGemm::WarpGemm::kK),
-                      concat('x', kPadM, kPadN, kPadK), QuantGroupSize::GetName());
+                      concat('x', kPadM, kPadN, kPadK), BQuantGroupSize::GetName());
         // clang-format on
     }
 
@@ -163,7 +165,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             << "\n"
             << "A/B LDS read inst: " << A_LDS_Read_Inst_Num << ", " << B_LDS_Read_Inst_Num << "\n"
             << "C MFMA inst: " << C_MFMA_Inst_Num << "\n"
-            << "QuantGroupSize: " << QuantGroupSize::GetName() << "\n"
+            << "BQuantGroupSize: " << BQuantGroupSize::GetName() << "\n"
             << "KPack: " << BlockGemm::Traits::KPack << "\n"
             << "PrefetchStages: " << PrefetchStages << "\n";
         return str.str();
@@ -250,7 +252,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
                                  KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                           "B block window has incorrect lengths for defined BLayout!");
             static_assert(
-                PreshuffleQuant ||
+                BPreshuffleQuant ||
                     (is_bq_row_major
                          ? (KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                             NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])
@@ -302,9 +304,9 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             const BQDramTileWindowStep bq_dram_tile_window_step =
-                (PreshuffleQuant)
+                (BPreshuffleQuant)
                     ? make_array(((NPerBlockBQ <= BlockGemmShape::BlockWarps::at(number<1>{}))
-                                      ? ck_tile::integer_divide_ceil(n, QuantGroupSize::kN)
+                                      ? ck_tile::integer_divide_ceil(n, BQuantGroupSize::kN)
                                       : ck_tile::integer_least_multiple(n, NPerBlock) /
                                             BlockGemmShape::WarpTile::at(number<1>{})),
                                  0)

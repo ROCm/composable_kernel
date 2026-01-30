@@ -12,13 +12,13 @@ namespace ck_tile {
 template <typename Problem, typename Policy>
 struct GemmBQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Problem, Policy>
 {
-    using Base           = GemmPipelineAgBgCrImplBase<Problem, Policy>;
-    using ADataType      = typename Base::ADataType;
-    using ALayout        = typename Base::ALayout;
-    using BDataType      = typename Base::BDataType;
-    using BLayout        = typename Base::BLayout;
-    using BlockGemmShape = typename Base::BlockGemmShape;
-    using QuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
+    using Base            = GemmPipelineAgBgCrImplBase<Problem, Policy>;
+    using ADataType       = typename Base::ADataType;
+    using ALayout         = typename Base::ALayout;
+    using BDataType       = typename Base::BDataType;
+    using BLayout         = typename Base::BLayout;
+    using BlockGemmShape  = typename Base::BlockGemmShape;
+    using BQuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
     using BQLayout = remove_cvref_t<typename Problem::BQLayout>;
 
@@ -26,16 +26,17 @@ struct GemmBQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t NPerBlockBQ = NPerBlock / QuantGroupSize::kN;
-    static constexpr index_t KPerBlockBQ = KPerBlock / QuantGroupSize::kK;
+    static constexpr index_t NPerBlockBQ =
+        (BQuantGroupSize::kN <= NPerBlock) ? NPerBlock / BQuantGroupSize::kN : 1;
+    static constexpr index_t KPerBlockBQ = KPerBlock / BQuantGroupSize::kK;
 
-    static_assert(NPerBlockBQ >= 1, "NPerBlock must be >= QuantGroupSize");
-    static_assert(KPerBlockBQ >= 1, "KPerBlock must be >= QuantGroupSize");
+    // static_assert(NPerBlockBQ >= 1, "NPerBlock must be >= BQuantGroupSize");
+    static_assert(KPerBlockBQ >= 1, "KPerBlock must be >= BQuantGroupSize");
 
-    static_assert(NPerBlock % QuantGroupSize::kN == 0,
-                  "NPerBlock must be a multiple of QuantGroupSize::kN");
-    static_assert(KPerBlock % QuantGroupSize::kK == 0,
-                  "KPerBlock must be a multiple of QuantGroupSize::kK");
+    // static_assert(NPerBlock % BQuantGroupSize::kN == 0,
+    //               "NPerBlock must be a multiple of BQuantGroupSize::kN");
+    static_assert(KPerBlock % BQuantGroupSize::kK == 0,
+                  "KPerBlock must be a multiple of BQuantGroupSize::kK");
 
     // Create DRAM tile window for BQ
     template <typename BQDramBlockWindowTmp>

@@ -51,6 +51,39 @@ TEST(StreamKTilePartitionerBaseConstructor, EdgeCase)
     validate_streamk_base_constructor<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
+TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsLessThan128Bytes)
+{
+    using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
+                                        ck_tile::StreamKReductionStrategy::Reduction>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 128);
+}
+
+TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsEqual128Bytes)
+{
+    using Config = StreamKTilePartitionerBaseConfigFlagsSizeEqual128Bytes;
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
+                                        ck_tile::StreamKReductionStrategy::Reduction>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 128);
+}
+
+TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsGreaterThan128Bytes)
+{
+    using Config = StreamKTilePartitionerBaseConfigFlagsSizeGreaterThan128Bytes;
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
+                                        ck_tile::StreamKReductionStrategy::Reduction>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 256);
+}
+
 TEST(StreamKTilePartitionerBaseGetWorkSpaceSize, AtomicStrategy)
 {
     using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
@@ -71,7 +104,9 @@ TEST(StreamKTilePartitionerBaseGetWorkSpaceSize, ReductionStrategy)
 
     ck_tile::index_t expected_partials_size =
         sizeof(float) * Config::M_TILE * Config::N_TILE * Config::GRID;
-    ck_tile::index_t expected_flags_size = sizeof(ck_tile::index_t) * Config::GRID;
+    // Since GRID is 3, the final padded flags array must be 128B to ensure the total byte size of
+    // the flags array is 128B-aligned.
+    ck_tile::index_t expected_flags_size = 128;
 
     EXPECT_EQ(tile_partitioner.get_workspace_size(sizeof(float)),
               expected_partials_size + expected_flags_size);

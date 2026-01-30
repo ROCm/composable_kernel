@@ -1,0 +1,231 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK Test - Run Composable Kernel tests
+# Environment-agnostic: works natively on ROCm hosts or inside containers
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(find_project_root "${SCRIPT_DIR}" || get_project_root "${SCRIPT_DIR}")
+BUILD_DIR=$(get_build_dir "${PROJECT_ROOT}")
+
+# Help message
+show_help() {
+    cat << EOF
+CK Test - Run Composable Kernel tests
+
+Usage: ck-test [options] [test_name] [-- gtest_options]
+
+Options:
+  -h, --help              Show this help message
+  --build-dir <dir>       Build directory (default: ./build)
+  --no-build              Skip building, run test directly
+  --list                  List available tests
+  --smoke                 Run all smoke tests (via CTest -L SMOKE_TEST)
+  --regression            Run all regression tests (via CTest -L REGRESSION_TEST)
+  --all                   Run all tests (via CTest)
+  --filter <pattern>      Shorthand for --gtest_filter=<pattern>
+
+Arguments:
+  test_name               Name of test executable (optional for --smoke/--regression/--all)
+  gtest_options           Additional options passed to test (after --)
+
+Environment:
+  CK_BUILD_DIR   - Override build directory
+
+Examples:
+  ck-test test_amdgcn_mma                         # Build and run specific test
+  ck-test test_amdgcn_mma --filter '*Fp16*'       # Run with gtest filter
+  ck-test test_amdgcn_mma -- --gtest_filter=*Fp16*  # Explicit gtest options
+  ck-test --no-build test_amdgcn_mma              # Run without rebuilding
+  ck-test --list                                  # List available tests
+  ck-test --smoke                                 # Run all smoke tests
+  ck-test --regression                            # Run all regression tests
+  ck-test --all                                   # Run all tests
+
+EOF
+}
+
+# Parse arguments
+test_name=""
+no_build=false
+list_tests=false
+run_smoke=false
+run_regression=false
+run_all=false
+gtest_filter=""
+gtest_options=()
+parsing_gtest=false
+
+while [[ $# -gt 0 ]]; do
+    if [ "$parsing_gtest" = true ]; then
+        gtest_options+=("$1")
+        shift
+        continue
+    fi
+
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --build-dir)
+            require_arg "$1" "${2:-}"
+            BUILD_DIR="$2"
+            shift 2
+            ;;
+        --no-build)
+            no_build=true
+            shift
+            ;;
+        --list)
+            list_tests=true
+            shift
+            ;;
+        --smoke)
+            run_smoke=true
+            shift
+            ;;
+        --regression)
+            run_regression=true
+            shift
+            ;;
+        --all)
+            run_all=true
+            shift
+            ;;
+        --filter)
+            require_arg "$1" "${2:-}"
+            gtest_filter="$2"
+            shift 2
+            ;;
+        --)
+            parsing_gtest=true
+            shift
+            ;;
+        --gtest_*)
+            gtest_options+=("$1")
+            shift
+            ;;
+        *)
+            if [ -z "$test_name" ]; then
+                test_name="$1"
+            else
+                gtest_options+=("$1")
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Add filter to gtest options if specified
+if [ -n "$gtest_filter" ]; then
+    gtest_options+=("--gtest_filter=${gtest_filter}")
+fi
+
+# Validate mutual exclusivity of test suite options
+suite_count=0
+[ "$run_smoke" = true ] && suite_count=$((suite_count + 1))
+[ "$run_regression" = true ] && suite_count=$((suite_count + 1))
+[ "$run_all" = true ] && suite_count=$((suite_count + 1))
+
+if [ "$suite_count" -gt 1 ]; then
+    error "Options --smoke, --regression, and --all are mutually exclusive"
+    exit 1
+fi
+
+# Check build is configured
+if ! is_build_configured "${BUILD_DIR}"; then
+    error "Build not configured. Run 'ck-configure' first"
+    exit 1
+fi
+
+# Handle --list
+if [ "$list_tests" = true ]; then
+    info "Available tests:"
+    if [ -d "${BUILD_DIR}/bin" ]; then
+        ls -1 "${BUILD_DIR}/bin/" 2>/dev/null | grep -E '^test_' | sort || echo "  (No test binaries found)"
+    else
+        echo "  (No bin directory found)"
+    fi
+    echo ""
+    echo "CTest labels:"
+    cd "${BUILD_DIR}"
+    ctest -N 2>/dev/null | head -20 || echo "  (Run 'ctest -N' for full list)"
+    exit 0
+fi
+
+# Handle CTest-based test suites
+if [ "$run_smoke" = true ] || [ "$run_regression" = true ] || [ "$run_all" = true ]; then
+    cd "${BUILD_DIR}"
+
+    ctest_cmd=(ctest --output-on-failure)
+
+    if [ "$run_smoke" = true ]; then
+        ctest_cmd+=(-L SMOKE_TEST)
+        info "Running smoke tests..."
+    elif [ "$run_regression" = true ]; then
+        ctest_cmd+=(-L REGRESSION_TEST)
+        info "Running regression tests..."
+    else
+        info "Running all tests..."
+    fi
+
+    "${ctest_cmd[@]}"
+    exit_code=$?
+
+    echo ""
+    if [ $exit_code -eq 0 ]; then
+        info "Tests completed successfully"
+    else
+        error "Tests failed with exit code: ${exit_code}"
+    fi
+    exit $exit_code
+fi
+
+# Validate test name for individual test runs
+if [ -z "$test_name" ]; then
+    error "test_name required (or use --smoke/--regression/--all for test suites)"
+    echo ""
+    show_help
+    exit 1
+fi
+
+# Build test if needed (unless --no-build is specified)
+if [ "$no_build" = false ]; then
+    info "Building ${test_name}..."
+    "${SCRIPT_DIR}/ck-build" --build-dir "${BUILD_DIR}" "${test_name}"
+    echo ""
+fi
+
+# Verify test executable exists
+test_binary="${BUILD_DIR}/bin/${test_name}"
+if [ ! -f "$test_binary" ]; then
+    error "Test executable not found: ${test_binary}"
+    echo "Run 'ck-build ${test_name}' first"
+    exit 1
+fi
+
+# Run test
+echo "Running: ${test_name} ${gtest_options[*]}"
+echo "---"
+
+cd "${BUILD_DIR}"
+"./bin/${test_name}" "${gtest_options[@]}"
+exit_code=$?
+
+echo "---"
+if [ $exit_code -eq 0 ]; then
+    info "Test completed successfully"
+else
+    error "Test failed with exit code: ${exit_code}"
+fi
+
+exit $exit_code

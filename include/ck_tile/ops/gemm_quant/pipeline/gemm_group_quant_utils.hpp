@@ -52,7 +52,7 @@ template <typename BlockGemmShape,
           index_t XPerTile,
           index_t KPerBlockAQ,
           index_t VecSize,
-          bool PreshuffleQuant>
+          bool APreshuffleQuant>
 struct tile_distribution_encoding_pattern_aq : public tile_distribution_encoding_pattern
 {
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
@@ -72,7 +72,7 @@ struct tile_distribution_encoding_pattern_aq : public tile_distribution_encoding
 
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
-        if constexpr(PreshuffleQuant)
+        if constexpr(APreshuffleQuant)
         {
             // # of elements per thread
             static_assert(XPerTile >= warp_size && XPerTile % warp_size == 0);
@@ -193,8 +193,8 @@ template <typename BlockGemmShape,
           index_t NPerTile,
           index_t NPerQ,
           index_t KPerQ,
-          typename BQLayout    = tensor_layout::gemm::ColumnMajor,
-          bool PreshuffleQuant = false>
+          typename BQLayout     = tensor_layout::gemm::ColumnMajor,
+          bool BPreshuffleQuant = false>
 struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding_pattern
 {
     static constexpr index_t warp_size = get_warp_size();
@@ -212,10 +212,11 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
         // Preshuffle only supported for ColumnMajor currently
-        static_assert(!(PreshuffleQuant && std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>),
-                      "PreshuffleQuant only supported for ColumnMajor BQLayout");
+        static_assert(
+            !(BPreshuffleQuant && std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>),
+            "PreshuffleQuant only supported for ColumnMajor BQLayout");
 
-        if constexpr(PreshuffleQuant)
+        if constexpr(BPreshuffleQuant)
         {
             // =============================================================================
             // PRE-SHUFFLED BQ SCALE TILE DISTRIBUTION
@@ -240,20 +241,26 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                 //
                 // Example: NPerQ=8, WarpGemm::kN=16, KPerQ=128, BlockGemmShape::kK=256
                 //          → 2 scales per warp in N, 2 K-groups per block
-                constexpr auto N1 = BlockGemmShape::kK /
-                                    KPerQ; // Number of K-dimension quantization groups per block,
-                                           // Each K-group of KPerQ elements shares the same scale.
-                constexpr auto N0 =
-                    WarpGemm::kN / NPerQ;   // Number of scales per warp in N-dimension, Since NPerQ
-                                            // <= WarpGemm::kN, each warp handles multiple scales.
-                constexpr auto N2  = 1;     // Elements per thread
-                constexpr auto NR1 = NPerQ; // Elements sharing the same scale in N-dimension
+
+                // N1: Number of K-dimension quantization groups per block,
+                //      Each K-group of KPerQ elements shares the same scale.
+                // N0: Number of scales per warp in N-dimension, Since NPerQ
+                //      <= WarpGemm::kN, each warp handles multiple scales.
+                // N2: Elements per thread
+                // NR1: Elements sharing the same scale in N-dimension
+                // NR0: Interleave factor to ensure full warp utilization
+                // K1: Number of warps distributed along this dimension
+                // K0: Iterations per warp to cover the K-tile
+                // KR: No replication in K-dimension
+                constexpr auto N1  = BlockGemmShape::kK / KPerQ;
+                constexpr auto N0  = WarpGemm::kN / NPerQ;
+                constexpr auto N2  = 1;
+                constexpr auto NR1 = NPerQ;
                 constexpr auto NR0 =
-                    warp_size /
-                    (N0 * N1 * N2 * NR1);   // Interleave factor to ensure full warp utilization
-                constexpr auto K1 = NWarps; // Number of warps distributed along this dimension
-                constexpr auto K0 = KPerTile / K1; // Iterations per warp to cover the K-tile
-                constexpr auto KR = 1;             // No replication in K-dimension
+                    (warp_size <= (N0 * N1 * N2 * NR1)) ? 1 : warp_size / (N0 * N1 * N2 * NR1);
+                constexpr auto K1 = NWarps;
+                constexpr auto K0 = KPerTile / K1;
+                constexpr auto KR = 1;
 
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<MWarps, NR0, NR1, KR>,
@@ -275,15 +282,24 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                 // Example: NPerQ=32, WarpGemm::kN=16, NWarps=4
                 //          → KR=2 (2 warps share same scale), K1=2 (2 unique scale groups)
 
-                constexpr auto KR  = NPerQ / WarpGemm::kN; // Number of warps sharing the same scale
-                constexpr auto K1  = NWarps / KR; // Number of distinct warp groups (unique scales)
-                constexpr auto K0  = KPerTile / K1; // Iterations to cover K-tile per warp group
-                constexpr auto N1  = BlockGemmShape::kK / KPerQ; // K-dimension quantization groups
-                constexpr auto N0  = 1; // Scales per warp in N-dim (1 since NPerQ >= WarpGemm::kN)
-                constexpr auto N2  = 1; // Elements per thread
-                constexpr auto NR1 = NPerQ; // Scale broadcast factor (full NPerQ)
+                // KR: Number of warps sharing the same scale
+                // K1: Number of distinct warp groups (unique scales)
+                // K0: Iterations to cover K-tile per warp group
+                // N1: K-dimension quantization groups
+                // N0: Scales per warp in N-dim (1 since NPerQ >= WarpGemm::kN)
+                // N2: Elements per thread
+                // NR1: Scale broadcast factor (full NPerQ)
+                // NR0: Remaining interleave factor
+
+                constexpr auto KR  = NPerQ / WarpGemm::kN;
+                constexpr auto K1  = NWarps / KR;
+                constexpr auto K0  = KPerTile / K1;
+                constexpr auto N1  = BlockGemmShape::kK / KPerQ;
+                constexpr auto N0  = 1;
+                constexpr auto N2  = 1;
+                constexpr auto NR1 = NPerQ;
                 constexpr auto NR0 =
-                    warp_size / (N0 * N1 * N2 * NR1); // Remaining interleave factor
+                    (warp_size <= (N0 * N1 * N2 * NR1)) ? 1 : warp_size / (N0 * N1 * N2 * NR1);
 
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<MWarps, NR0, NR1, KR>,
@@ -303,12 +319,19 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                 //
                 // Example: NPerQ=128, WarpGemm::kN=16, NWarps=4
                 //          → 128 >= 16*4=64, so all 4 warps use the same scale
-                constexpr auto N1  = BlockGemmShape::kK / KPerQ; // K-dimension quantization groups
-                constexpr auto N0  = 1;  // Minimal (1) since scale is shared across N
-                constexpr auto N2  = 1;  // Elements per thread
-                constexpr auto NR1 = 32; // Fixed broadcast size
+
+                // N1: K-dimension quantization groups
+                // N0: Minimal (1) since scale is shared across N
+                // N2: Elements per thread
+                // NR1: Fixed broadcast size
+                // NR0: Remaining interleave factor
+
+                constexpr auto N1  = BlockGemmShape::kK / KPerQ;
+                constexpr auto N0  = 1;
+                constexpr auto N2  = 1;
+                constexpr auto NR1 = 32;
                 constexpr auto NR0 =
-                    warp_size / (N0 * N1 * N2 * NR1); // Remaining interleave factor
+                    (warp_size <= (N0 * N1 * N2 * NR1)) ? 1 : warp_size / (N0 * N1 * N2 * NR1);
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<MWarps, NWarps, NR0, NR1>,
                                                tuple<sequence<KPerTile>, sequence<N0, N1, N2>>,

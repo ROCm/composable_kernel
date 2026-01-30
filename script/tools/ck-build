@@ -1,0 +1,163 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK Build - Build Composable Kernel targets
+# Environment-agnostic: works natively on ROCm hosts or inside containers
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(find_project_root "${SCRIPT_DIR}" || get_project_root "${SCRIPT_DIR}")
+BUILD_DIR=$(get_build_dir "${PROJECT_ROOT}")
+
+# Help message
+show_help() {
+    cat << EOF
+CK Build - Build Composable Kernel targets
+
+Usage: ck-build [options] [target...]
+
+Options:
+  -h, --help              Show this help message
+  -j <N>                  Parallel jobs (passed to ninja)
+  -v, --verbose           Verbose output
+  --build-dir <dir>       Build directory (default: ./build)
+  --clean                 Clean before building
+  --configure             Auto-configure if build.ninja missing
+  --list                  List available targets
+
+Arguments:
+  target                  Target(s) to build (default: all)
+
+Environment:
+  CK_BUILD_DIR    - Override build directory
+  CK_GPU_TARGET   - Override GPU target for auto-configure
+
+Examples:
+  ck-build                                # Build all targets
+  ck-build test_amdgcn_mma                # Build specific target
+  ck-build test_amdgcn_mma test_gemm      # Build multiple targets
+  ck-build --configure                    # Auto-configure and build all
+  ck-build --clean test_amdgcn_mma        # Clean and build target
+  ck-build -j 8 test_amdgcn_mma           # Build with 8 parallel jobs
+  ck-build --list                         # List available targets
+
+EOF
+}
+
+# Parse arguments
+targets=()
+parallel_jobs=""
+verbose=false
+clean=false
+auto_configure=false
+list_targets=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -j)
+            require_arg "$1" "${2:-}"
+            parallel_jobs="$2"
+            shift 2
+            ;;
+        -j*)
+            parallel_jobs="${1#-j}"
+            shift
+            ;;
+        -v|--verbose)
+            verbose=true
+            shift
+            ;;
+        --build-dir)
+            require_arg "$1" "${2:-}"
+            BUILD_DIR="$2"
+            shift 2
+            ;;
+        --clean)
+            clean=true
+            shift
+            ;;
+        --configure)
+            auto_configure=true
+            shift
+            ;;
+        --list)
+            list_targets=true
+            shift
+            ;;
+        *)
+            targets+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Handle --list
+if [ "$list_targets" = true ]; then
+    if ! is_build_configured "${BUILD_DIR}"; then
+        error "Build not configured. Run 'ck-configure' first or use --configure"
+        exit 1
+    fi
+    info "Available targets:"
+    cd "${BUILD_DIR}"
+    ninja -t targets 2>/dev/null | grep -E '^[a-zA-Z_][a-zA-Z0-9_-]*:' | cut -d: -f1 | sort | head -100
+    echo ""
+    echo "(Showing first 100 targets. Use 'ninja -t targets' for full list)"
+    exit 0
+fi
+
+# Auto-configure if needed
+if ! is_build_configured "${BUILD_DIR}"; then
+    if [ "$auto_configure" = true ]; then
+        info "Build not configured. Running ck-configure..."
+        "${SCRIPT_DIR}/ck-configure" --build-dir "${BUILD_DIR}"
+        echo ""
+    else
+        error "Build not configured. Run 'ck-configure' first or use --configure"
+        exit 1
+    fi
+fi
+
+# Clean if requested
+if [ "$clean" = true ]; then
+    info "Cleaning build directory..."
+    cd "${BUILD_DIR}"
+    ninja clean
+    echo ""
+fi
+
+# Build ninja command
+ninja_cmd=(ninja -C "${BUILD_DIR}")
+
+if [ -n "$parallel_jobs" ]; then
+    ninja_cmd+=("-j" "$parallel_jobs")
+fi
+
+if [ "$verbose" = true ]; then
+    ninja_cmd+=(-v)
+fi
+
+# Add targets
+ninja_cmd+=("${targets[@]}")
+
+# Build targets
+if [ ${#targets[@]} -eq 0 ]; then
+    info "Building all configured targets..."
+else
+    info "Building targets: ${targets[*]}"
+fi
+
+"${ninja_cmd[@]}"
+
+echo ""
+info "Build complete"

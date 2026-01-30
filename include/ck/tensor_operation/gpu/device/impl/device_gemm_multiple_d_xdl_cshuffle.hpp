@@ -37,7 +37,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
 #endif
     kernel_gemm_multiple_d_xdl_cshuffle(const ADataType* __restrict__ p_a_grid,
                                         const BDataType* __restrict__ p_b_grid,
@@ -57,7 +57,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
             p_a_grid,
@@ -899,7 +899,8 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         assert(desc.IsValid());
 #endif
         using GridwiseGemm = conditional_t<get_warp_size() == 64, GridwiseGemm64, GridwiseGemm32>;
-        __shared__ char p_shared_block[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char
+            p_shared_block[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
         if(desc.has_main_k_block_loop)
         {
             GridwiseGemm::template Run<true, InMemoryDataOperationEnum::Set>(
