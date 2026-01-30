@@ -39,7 +39,7 @@ class TestCkTileSinkHorn : public ::testing::Test
         ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(h_x);
 
         auto buffer_size = h_x.get_element_space_size_in_bytes();
-        ck_tile::DeviceMem d_x_mem(h_x.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem d_x_mem(buffer_size);
         ck_tile::DeviceMem d_y_mem(buffer_size);
 
         ck_tile::SinkhornKnoppArgs args{static_cast<void*>(d_y_mem.GetDeviceBuffer()),
@@ -53,8 +53,7 @@ class TestCkTileSinkHorn : public ::testing::Test
         using Problem =
             ck_tile::SinkhornKnoppProblem<XDataType, YDataType, TestSinkhornShape, ComputeDataType>;
         using Kernel =
-            ck_tile::SinkhornKnoppKernelDummyNonStochastic<Problem,
-                                                           ck_tile::SinkhornKnoppDefaultPolicy>;
+            ck_tile::SinkhornKnoppKernelReduce<Problem, ck_tile::SinkhornKnoppDefaultPolicy>;
 
         // Launch configuration
         const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
