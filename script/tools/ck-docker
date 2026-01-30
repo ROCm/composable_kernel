@@ -22,25 +22,29 @@ CK Docker Tool - Build and test composable_kernel in Docker
 
 Usage: ck-docker <command> [options]
 
-Commands:
-  start [name]                    Start Docker container
-  build [target] [--reconfigure]  Build target (optionally reconfigure CMake)
-  test <test> [options]           Run test
-  shell [name]                    Open shell in container
-  status [name]                   Check container status
-  stop [name]                     Stop and remove container
+Container Management:
+  start [name]            Start Docker container
+  stop [name]             Stop and remove container
+  status [name]           Check container status
+  shell [name]            Open shell in container
+
+Build/Test (delegates to core tools inside container):
+  configure [opts]        Run ck-configure in container
+  build [opts]            Run ck-build in container
+  test [opts]             Run ck-test in container
+  exec <cmd>              Run arbitrary command in container
 
 Examples:
   ck-docker start
+  ck-docker configure --preset dev-gfx950
   ck-docker build test_amdgcn_mma
-  ck-docker build --reconfigure test_amdgcn_mma
-  ck-docker test test_amdgcn_mma --gtest_filter=*Fp16*
+  ck-docker test test_amdgcn_mma --filter '*Fp16*'
   ck-docker shell
+  ck-docker exec rocminfo
 
 Environment:
   CK_CONTAINER_NAME - Override default container name (default: ck_<username>_<branch>)
   CK_DOCKER_IMAGE   - Override Docker image (default: rocm/composable_kernel:ck_ub24.04_rocm7.0.1)
-  GPU_TARGET        - Override GPU target detection (e.g., gfx950, gfx942)
 EOF
 }
 
@@ -77,126 +81,38 @@ cmd_start() {
     docker exec "${name}" bash -c "echo 'Working directory:' && pwd"
 }
 
-# Build target
-cmd_build() {
-    local target=""
-    local name="${CONTAINER_NAME}"
-    local reconfigure=false
-
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --name)
-                name="$2"
-                shift 2
-                ;;
-            --reconfigure)
-                reconfigure=true
-                shift
-                ;;
-            *)
-                target="$1"
-                shift
-                ;;
-        esac
-    done
-
-    # Check if container is running
-    if ! container_is_running "${name}"; then
-        echo "Container '${name}' not running. Starting..."
-        cmd_start "${name}"
-    fi
-
-    # Reconfigure CMake if requested or if build.ninja doesn't exist
-    if [ "$reconfigure" = true ] || ! docker exec "${name}" test -f /workspace/build/build.ninja 2>/dev/null; then
-        echo "Detecting GPU target..."
-        local gpu_target=$(detect_gpu_target "${name}")
-
-        if [ "$reconfigure" = true ]; then
-            echo "Reconfiguring CMake from scratch for GPU target: ${gpu_target}"
-        else
-            echo "Configuring build with CMake for GPU target: ${gpu_target}"
-        fi
-
-        docker exec "${name}" bash -c "
-            cd /workspace || exit 1
-            rm -rf /workspace/build
-            mkdir /workspace/build
-            cd /workspace/build || exit 1
-            cmake .. -GNinja \
-                -DGPU_TARGETS=${gpu_target} \
-                -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
-                -DBUILD_TESTING=ON 2>&1 | tail -30
-        "
-    fi
-
-    if [ -z "$target" ]; then
-        echo "Building all configured targets..."
-    else
-        echo "Building target: ${target}"
-    fi
-
-    docker exec "${name}" bash -c "
-        cd /workspace/build || exit 1
-        ninja ${target} 2>&1
-    "
-
-    echo "Build complete"
+# Configure (delegate to ck-configure in container)
+cmd_configure() {
+    ensure_container_running "${CONTAINER_NAME}" "${SCRIPT_DIR}"
+    docker exec "${CONTAINER_NAME}" /workspace/script/tools/ck-configure "$@"
 }
 
-# Run test
+# Build (delegate to ck-build in container)
+cmd_build() {
+    ensure_container_running "${CONTAINER_NAME}" "${SCRIPT_DIR}"
+    docker exec "${CONTAINER_NAME}" /workspace/script/tools/ck-build "$@"
+}
+
+# Test (delegate to ck-test in container)
 cmd_test() {
-    local test_name=""
-    local name="${CONTAINER_NAME}"
-    local -a test_options=()
+    ensure_container_running "${CONTAINER_NAME}" "${SCRIPT_DIR}"
+    docker exec "${CONTAINER_NAME}" /workspace/script/tools/ck-test "$@"
+}
 
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --name)
-                name="$2"
-                shift 2
-                ;;
-            --gtest_*|--help)
-                test_options+=("$1")
-                shift
-                ;;
-            *)
-                if [ -z "$test_name" ]; then
-                    test_name="$1"
-                else
-                    test_options+=("$1")
-                fi
-                shift
-                ;;
-        esac
-    done
-
-    if [ -z "$test_name" ]; then
-        echo "Error: test_name required"
-        echo "Usage: ck-docker test <test_name> [--name container_name] [gtest_options]"
+# Execute arbitrary command in container
+cmd_exec() {
+    if [ $# -eq 0 ]; then
+        error "command required"
+        echo "Usage: ck-docker exec <command>"
         return 1
     fi
 
-    # Check if container is running
-    if ! container_is_running "${name}"; then
-        echo "Error: Container '${name}' not running"
-        echo "Start it with: ck-docker start --name ${name}"
-        return 1
-    fi
+    ensure_container_running "${CONTAINER_NAME}" "${SCRIPT_DIR}"
 
-    if ! docker exec "${name}" test -f "/workspace/build/bin/${test_name}" 2>/dev/null; then
-        echo "Test executable not found. Building ${test_name}..."
-        cmd_build "${test_name}" --name "${name}"
-    fi
+    local docker_flags=()
+    [ -t 0 ] && [ -t 1 ] && docker_flags+=("-it")
 
-    echo "Running: ${test_name} ${test_options[*]}"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    # Build the command with proper quoting
-    local cmd="cd /workspace/build && ./bin/${test_name}"
-    for opt in "${test_options[@]}"; do
-        cmd="${cmd} $(printf '%q' "$opt")"
-    done
-    docker exec "${name}" bash -c "${cmd}"
+    docker exec "${docker_flags[@]}" "${CONTAINER_NAME}" "$@"
 }
 
 # Shell
@@ -220,7 +136,7 @@ cmd_status() {
 
     if [ -z "$name" ]; then
         echo "Composable Kernel Docker Containers:"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "---"
         docker ps -a --filter "ancestor=${docker_image}" \
             --format "table {{.Names}}\t{{.Status}}\t{{.CreatedAt}}" || echo "No containers found"
     else
@@ -262,6 +178,10 @@ case "${1:-}" in
         shift
         cmd_start "$@"
         ;;
+    configure)
+        shift
+        cmd_configure "$@"
+        ;;
     build)
         shift
         cmd_build "$@"
@@ -269,6 +189,10 @@ case "${1:-}" in
     test)
         shift
         cmd_test "$@"
+        ;;
+    exec)
+        shift
+        cmd_exec "$@"
         ;;
     shell)
         shift
