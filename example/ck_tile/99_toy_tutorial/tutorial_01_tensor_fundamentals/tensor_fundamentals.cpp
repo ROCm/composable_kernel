@@ -502,10 +502,10 @@ int main()
     std::cout << "Using GPU: " << props.name << "\n";
 
     // Small tensor for demonstration
-    constexpr index_t H    = 2;
-    constexpr index_t W    = 3;
-    constexpr index_t C    = 2;
-    constexpr index_t size = H * W * C;
+    constexpr index_t H    = 2;         // height
+    constexpr index_t W    = 3;         // width
+    constexpr index_t C    = 2;         // # of chanels
+    constexpr index_t size = H * W * C; // total tensor size
 
     std::cout << "\nTensor configuration:\n";
     std::cout << "  Shape: [" << H << ", " << W << ", " << C << "]\n";
