@@ -791,6 +791,18 @@ struct UnaryAbs
     {
         y = ck::type_convert<bhalf_t>(ck::math::abs(x));
     };
+
+    template <>
+    __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
+    {
+        y = ck::type_convert<int8_t>(ck::math::abs(x));
+    };
+
+    template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        y = ck::type_convert<half_t>(ck::math::abs(x));
+    };
 };
 
 struct UnarySqrt
@@ -912,6 +924,20 @@ struct Relu
     {
         float y_f32 = x > 0 ? x : 0;
         y           = type_convert<bhalf_t>(y_f32);
+    };
+
+    template <>
+    __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
+    {
+        float y_f32 = x > 0 ? x : 0;
+        y           = type_convert<int8_t>(y_f32);
+    };
+
+    template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        float y_f32 = x > 0 ? x : 0;
+        y           = type_convert<half_t>(y_f32);
     };
 };
 
@@ -1081,6 +1107,20 @@ struct Sigmoid
         constexpr float one = 1.f;
         y                   = type_convert<bhalf_t>(one / (one + math::exp(-x)));
     };
+
+    template <>
+    __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
+    {
+        constexpr float one = 1.f;
+        y                   = type_convert<int8_t>(one / (one + math::exp(-x)));
+    };
+
+    template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        constexpr float one = 1.f;
+        y                   = type_convert<half_t>(one / (one + math::exp(-x)));
+    };
 };
 
 struct Silu
@@ -1120,6 +1160,18 @@ struct TanH
     __host__ __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
     {
         y = type_convert<bhalf_t>(math::tanh(x));
+    };
+
+    template <>
+    __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
+    {
+        y = type_convert<int8_t>(math::tanh(x));
+    };
+
+    template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        y = type_convert<half_t>(math::tanh(x));
     };
 };
 
@@ -1453,6 +1505,21 @@ struct SoftRelu
         constexpr float one = 1.f;
         y = type_convert<bhalf_t>(math::log(one + math::exp(x * alpha_)) / alpha_);
     };
+
+    template <>
+    __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
+    {
+        constexpr float one = 1.f;
+        y                   = type_convert<int8_t>(math::log(one + math::exp(x * alpha_)) / alpha_);
+    };
+
+    template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        constexpr float one = 1.f;
+        y                   = type_convert<half_t>(math::log(one + math::exp(x * alpha_)) / alpha_);
+    };
+
     const float alpha_;
 };
 
@@ -1487,6 +1554,20 @@ struct Power
         y                            = type_convert<bhalf_t>(math::pow(shifted_scaled_x, gamma_));
     };
 
+    template <>
+    __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
+    {
+        const float shifted_scaled_x = alpha_ + beta_ * x;
+        y                            = type_convert<int8_t>(math::pow(shifted_scaled_x, gamma_));
+    };
+
+    template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        const float shifted_scaled_x = alpha_ + beta_ * x;
+        y                            = type_convert<half_t>(math::pow(shifted_scaled_x, gamma_));
+    };
+
     const float alpha_;
     const float beta_;
     const float gamma_;
@@ -1519,6 +1600,18 @@ struct ClippedRelu
         y = type_convert<bhalf_t>(math::min(beta_, math::max(alpha_, x)));
     };
 
+    template <>
+    __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
+    {
+        y = type_convert<int8_t>(math::min(beta_, math::max(alpha_, x)));
+    };
+
+    template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        y = type_convert<half_t>(math::min(beta_, math::max(alpha_, x)));
+    };
+
     const float alpha_;
     const float beta_;
 };
@@ -1549,6 +1642,18 @@ struct LeakyRelu
         y = type_convert<bhalf_t>(x >= 0 ? x : x * alpha_);
     };
 
+    template <>
+    __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
+    {
+        y = type_convert<int8_t>(x >= 0 ? x : x * alpha_);
+    };
+
+    template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        y = type_convert<half_t>(x >= 0 ? x : x * alpha_);
+    };
+
     const float alpha_;
 };
 
@@ -1576,6 +1681,18 @@ struct Elu
     __host__ __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
     {
         y = type_convert<bhalf_t>(x > 0 ? x : alpha_ * math::expm1(x));
+    };
+
+    template <>
+    __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
+    {
+        y = type_convert<int8_t>(x > 0 ? x : alpha_ * math::expm1(x));
+    };
+
+    template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        y = type_convert<half_t>(x > 0 ? x : alpha_ * math::expm1(x));
     };
 
     const float alpha_;
@@ -1608,6 +1725,21 @@ struct Logistic
         constexpr float one = 1.f;
         y                   = type_convert<bhalf_t>(alpha_ / (one + ck::math::exp(-x) * alpha_));
     };
+
+    template <>
+    __host__ __device__ void operator()<int8_t, float>(int8_t& y, const float& x) const
+    {
+        constexpr float one = 1.f;
+        y                   = type_convert<int8_t>(alpha_ / (one + ck::math::exp(-x) * alpha_));
+    };
+
+    template <>
+    __host__ __device__ void operator()<half_t, float>(half_t& y, const float& x) const
+    {
+        constexpr float one = 1.f;
+        y                   = type_convert<half_t>(alpha_ / (one + ck::math::exp(-x) * alpha_));
+    };
+
     const float alpha_;
 };
 
