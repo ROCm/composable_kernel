@@ -346,6 +346,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
             ? 4 / sizeof(BDataType)
             : BBlockTransferSrcScalarPerVector;
 
+    static constexpr bool ALdsScalarLoadToVgpr = false;
+    static constexpr bool BLdsScalarLoadToVgpr = true;
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_xdl_cshuffle_conv_v3<
         tensor_layout::gemm::RowMajor,
@@ -394,7 +397,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
         BlkGemmPipelineVer,
         AComputeType,
         BComputeType,
-        DirectLoad>;
+        DirectLoad,
+        ALdsScalarLoadToVgpr,
+        BLdsScalarLoadToVgpr>;
 
     template <typename Desc_K0_M_K1>
     static auto transform_k0_m_k1_to_m_k(const Desc_K0_M_K1& desc_k0_m_k1)

@@ -63,7 +63,9 @@ template <typename ALayout,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v4,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
-          bool DirectLoad                             = false>
+          bool DirectLoad                             = false,
+          bool ALdsScalarLoadToVgpr                   = false,
+          bool BLdsScalarLoadToVgpr                   = false>
 struct GridwiseGemm_xdl_cshuffle_conv_v3
 {
     static_assert((is_same_v<AElementwiseOperation, tensor_operation::element_wise::PassThrough> &&
@@ -691,34 +693,37 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
     IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType)
 
-    static constexpr bool LdsScalarLoad = DirectLoad;
-    using BlockwiseGemmPipe =
-        remove_cvref_t<decltype(BlockGemmPipeline_Selector<
-                                BlkGemmPipelineVer,
-                                BlkGemmPipeSched,
-                                BlockSize,
-                                ADataType,
-                                BDataType,
-                                ComputeTypeA,
-                                AccDataType,
-                                decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
-                                decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()),
-                                decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
-                                    GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
-                                decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
-                                    GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),
-                                ABlockTransferSrcScalarPerVector,
-                                BBlockTransferSrcScalarPerVector,
-                                MPerBlock,
-                                NPerBlock,
-                                KPerBlock,
-                                MPerXdl,
-                                NPerXdl,
-                                MXdlPerWave,
-                                NXdlPerWave,
-                                KPack,
-                                DirectLoad,
-                                LdsScalarLoad>())>;
+    // Disable vector load from lds to vgpr for direct load (backward weight store with continous M
+    // or N dimension)
+    //static constexpr bool LdsScalarLoadToVgpr = DirectLoad;
+    using BlockwiseGemmPipe                   = remove_cvref_t<
+                          decltype(BlockGemmPipeline_Selector<
+                                   BlkGemmPipelineVer,
+                                   BlkGemmPipeSched,
+                                   BlockSize,
+                                   ADataType,
+                                   BDataType,
+                                   ComputeTypeA,
+                                   AccDataType,
+                                   decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch())),
+                                   decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch())),
+                                   decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
+                     GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch()))),
+                                   decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
+                     GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch()))),
+                                   ABlockTransferSrcScalarPerVector,
+                                   BBlockTransferSrcScalarPerVector,
+                                   MPerBlock,
+                                   NPerBlock,
+                                   KPerBlock,
+                                   MPerXdl,
+                                   NPerXdl,
+                                   MXdlPerWave,
+                                   NXdlPerWave,
+                                   KPack,
+                                   DirectLoad,
+                                   ALdsScalarLoadToVgpr,
+                                   BLdsScalarLoadToVgpr>())>;
 
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {

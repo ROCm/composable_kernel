@@ -246,6 +246,20 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_optimized_loa
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_xdl_v3_nhwgk_gkyxc_nhwgc_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_FP16
