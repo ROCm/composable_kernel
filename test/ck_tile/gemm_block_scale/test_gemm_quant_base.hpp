@@ -209,7 +209,7 @@ template <>
 struct QuantTypeTraits<ck_tile::QuantType::ABQuantGrouped>
 {
     template <typename ADataType, typename BDataType>
-    using ComputeDataType = BDataType; // For AQuant, compute type is BDataType
+    using ComputeDataType = void; // Use automatically determined compute type
 
     static constexpr const char* name = "abquant";
 };
