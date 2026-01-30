@@ -123,4 +123,5 @@ int main(int argc, char* argv[])
                      "group_size not supported."
                   << std::endl;
         return -1;
+    }
 }

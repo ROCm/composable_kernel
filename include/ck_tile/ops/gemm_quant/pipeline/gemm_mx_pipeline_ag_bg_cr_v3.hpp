@@ -33,9 +33,9 @@ struct MxGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
     using BLDSType = std::conditional_t<IsCastBeforeLDS, BDqDataType, BDataType>;
 
-    using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
+    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
+    using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
     using BQuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
     static_assert(BQuantGroupSize::kM == 1, "only N/K blocks for BQuant kernel!");
