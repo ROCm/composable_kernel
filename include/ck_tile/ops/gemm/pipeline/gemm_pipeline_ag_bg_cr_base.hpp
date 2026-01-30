@@ -21,7 +21,13 @@ struct GemmPipelineAgBgCrImplBase
     using ALayout     = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
     using BInDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
 
-    static constexpr bool IsBCastPolicyBeforeLDSWrite = IsBCastPolicyBeforeLDSWrite_v<Problem>;
+    static constexpr bool IsBCastPolicyBeforeLDSWrite = [] {
+        if constexpr(has_bcastpolicy<Problem>::value)
+            return Problem::BCastPolicy == CastPolicy::BeforeLDSWrite;
+        else
+            return false;
+    }();
+
     using BDataType = std::conditional_t<IsBCastPolicyBeforeLDSWrite, ADataType, BInDataType>;
 
     using BLayout = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;

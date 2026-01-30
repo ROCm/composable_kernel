@@ -109,6 +109,8 @@ using is_known_at_compile_time = is_static<T>;
     {                                                                        \
     };
 
+DEFINE_STATIC_MEMBER_CHECKER(has_bcastpolicy, BCastPolicy);
+
 // FIXME: do we need this anymore?
 template <
     typename PY,

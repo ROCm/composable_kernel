@@ -11,16 +11,6 @@
 
 namespace ck_tile {
 
-DEFINE_STATIC_MEMBER_CHECKER(has_bcastpolicy, BCastPolicy);
-
-template <typename Problem>
-static constexpr bool IsBCastPolicyBeforeLDSWrite_v = [] {
-    if constexpr(has_bcastpolicy<Problem>::value)
-        return Problem::BCastPolicy == CastPolicy::BeforeLDSWrite;
-    else
-        return false;
-}();
-
 template <typename T, typename = void>
 struct has_a_tile_access_pattern : std::false_type
 {
@@ -89,6 +79,14 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     static constexpr bool is_b_load_tr = false;
 #endif
+
+    template <typename Problem>
+    static constexpr bool IsBCastPolicyBeforeLDSWrite_v = [] {
+        if constexpr(has_bcastpolicy<Problem>::value)
+            return Problem::BCastPolicy == CastPolicy::BeforeLDSWrite;
+        else
+            return false;
+    }();
 
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
