@@ -10,7 +10,7 @@
 
 namespace ck_tile {
 
-/**
+/** 
  * @brief This T5Pass implements the RMSNorm2d forward pipeline as a variant
  *        based on Rmsnorm2dFwdPipelineOnePass and Rmsnorm2dFwdPipelineTwoPass using a T5 model-like
  * method.
