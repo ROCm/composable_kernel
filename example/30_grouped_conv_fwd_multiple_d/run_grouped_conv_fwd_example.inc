@@ -76,7 +76,7 @@ using DeviceConvFwdInstance =
         InElementOp,
         WeiElementOp,
         OutElementOp,
-        ConvSpecFilter3x3,    // ConvForwardSpecialization
+        ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter3x3Stride1Pad1Dilation1,    // ConvForwardSpecialization
         GemmSpec,    // GemmSpecialization
         256,         // BlockSize
         128,         // MPerBlock

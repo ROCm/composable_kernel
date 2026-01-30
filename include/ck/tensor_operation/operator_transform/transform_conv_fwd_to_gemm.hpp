@@ -8,6 +8,7 @@
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
+#include "ck/tensor_operation/operator_transform/transform_conv_fwd_to_gemm_filter3x3_pad1_dilation1_stride1.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -818,59 +819,15 @@ struct TransformConvFwdToGemm
             }
         }
         else if constexpr (ConvForwardSpecialization ==
-                          device::ConvolutionForwardSpecialization::Filter3x3Stride1Pad1Dilation1_200x200_32_4x4 &&
+                          device::ConvolutionForwardSpecialization::Filter3x3Stride1Pad1Dilation1 &&
                            NumGroupsToMerge > 1)
         {
-            constexpr auto N = Number<32>{};
-            //constexpr auto K = Number<4>{};
-            constexpr auto C = Number<4>{};
-            constexpr auto Hi = Number<200>{};
-            constexpr auto Wi = Number<200>{};
-            constexpr auto Ho = Number<200>{};
-            constexpr auto Wo = Number<200>{};
-
-            //constexpr auto NStrideTensorA_
-
-            const auto in_n_hi_wi_groups_c_desc = make_naive_tensor_descriptor(
-                    make_tuple(N, Hi, Wi, NumGroupsToMerge, C),
-                    make_tuple(
-                        NStrideTensorA_, HiStride_, WiStride_, GStrideTensorA_, CStrideTensorA_));
-
-                const auto in_n_hip_wip_groups_c_desc = transform_tensor_descriptor(
-                    in_n_hi_wi_groups_c_desc,
-                    make_tuple(make_pass_through_transform(N_),
-                               make_pad_transform(Hi, Number<1>{}, Number<1>{}),
-                               make_pad_transform(Wi, Number<1>{}, Number<1>{}),
-                               make_pass_through_transform(NumGroupsToMerge),
-                               make_pass_through_transform(C)),
-                    make_tuple(
-                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
-                    make_tuple(
-                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
-
-                const auto in_n_y_ho_x_wo_groups_c_desc = transform_tensor_descriptor(
-                    in_n_hip_wip_groups_c_desc,
-                    make_tuple(make_pass_through_transform(N_),
-                               make_embed_transform(make_tuple(Number<3>{}, Ho),
-                                                    make_tuple(Number<1>{}, Number<1>{})),
-                               make_embed_transform(make_tuple(Number<3>{}, Wo),
-                                                    make_tuple(Number<1>{}, Number<1>{})),
-                               make_pass_through_transform(NumGroupsToMerge),
-                               make_pass_through_transform(C)),
-                    make_tuple(
-                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
-                    make_tuple(Sequence<0>{},
-                               Sequence<1, 2>{},
-                               Sequence<3, 4>{},
-                               Sequence<5>{},
-                               Sequence<6>{}));
-
-                return transform_tensor_descriptor(
-                    in_n_y_ho_x_wo_groups_c_desc,
-                    make_tuple(make_merge_transform(make_tuple(N, Ho, Wo, NumGroupsToMerge)),
-                               make_merge_transform(make_tuple(Number<3>{}, Number<3>{}, C))),
-                    make_tuple(Sequence<0, 2, 4, 5>{}, Sequence<1, 3, 6>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}));
+            const index_t NStride = Hi_ * Wi_ * NumGroupsToMerge * C_;
+            const ck::index_t GStride = C_;
+            const ck::index_t CStride = 1;
+            Filter3x3Stride1Pad1Dilation1_Composite<NumGroupsToMerge> composite_transform(
+                N_, Hi_, Wi_, C_, NStride, HiStride_, WiStride_, GStride, CStride);
+            return composite_transform;
         }
         else if constexpr(ConvForwardSpecialization ==
                           device::ConvolutionForwardSpecialization::Filter1x1Pad0)
