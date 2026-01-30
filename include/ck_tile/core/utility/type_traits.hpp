@@ -98,6 +98,17 @@ using is_known_at_compile_time = is_static<T>;
 // , this helper will also return false, which is not good(?)
 //       do we need something like is_constexpr()?
 
+#define DEFINE_STATIC_MEMBER_CHECKER(trait_name, member)                     \
+    template <typename, typename = void>                                     \
+    struct trait_name : std::false_type                                      \
+    {                                                                        \
+    };                                                                       \
+                                                                             \
+    template <typename T>                                                    \
+    struct trait_name<T, std::void_t<decltype(&T::member)>> : std::true_type \
+    {                                                                        \
+    };
+
 // FIXME: do we need this anymore?
 template <
     typename PY,

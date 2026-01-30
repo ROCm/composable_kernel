@@ -11,6 +11,16 @@
 
 namespace ck_tile {
 
+DEFINE_STATIC_MEMBER_CHECKER(has_bcastpolicy, BCastPolicy);
+
+template <typename Problem>
+static constexpr bool IsBCastPolicyBeforeLDSWrite_v = [] {
+    if constexpr(has_bcastpolicy<Problem>::value)
+        return Problem::BCastPolicy == CastPolicy::BeforeLDSWrite;
+    else
+        return false;
+}();
+
 template <typename T, typename = void>
 struct has_a_tile_access_pattern : std::false_type
 {
@@ -305,10 +315,11 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        using BLayout   = remove_cvref_t<typename Problem::BLayout>;
-        using BDataType = std::conditional_t<Problem::BCastPolicy == CastPolicy::BeforeLDSWrite,
-                                             typename Problem::ADataType,
-                                             typename Problem::BDataType>;
+        using BLayout                              = remove_cvref_t<typename Problem::BLayout>;
+        constexpr bool IsBCastPolicyBeforeLDSWrite = IsBCastPolicyBeforeLDSWrite_v<Problem>;
+        using BDataType                            = std::conditional_t<IsBCastPolicyBeforeLDSWrite,
+                                                                        typename Problem::ADataType,
+                                                                        typename Problem::BDataType>;
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -592,9 +603,10 @@ struct UniversalGemmBasePolicy
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         using BLayout               = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
 
-        using BDataType = std::conditional_t<Problem::BCastPolicy == CastPolicy::BeforeLDSWrite,
-                                             typename Problem::ADataType,
-                                             typename Problem::BDataType>;
+        constexpr bool IsBCastPolicyBeforeLDSWrite = IsBCastPolicyBeforeLDSWrite_v<Problem>;
+        using BDataType                            = std::conditional_t<IsBCastPolicyBeforeLDSWrite,
+                                                                        typename Problem::ADataType,
+                                                                        typename Problem::BDataType>;
 
         if constexpr(Problem::FixedVectorSize)
         {
@@ -739,8 +751,9 @@ struct UniversalGemmBasePolicy
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         // If we cast before writing to LDS, the vectorsize is defined by the A type
         // since the assumption is that A type is going to be the B LDS type
+        constexpr bool IsBCastPolicyBeforeLDSWrite = IsBCastPolicyBeforeLDSWrite_v<Problem>;
         constexpr index_t VecLoadSize =
-            Problem::BCastPolicy == CastPolicy::BeforeLDSWrite
+            IsBCastPolicyBeforeLDSWrite
                 ? (Problem::FixedVectorSize ? Problem::VectorSizeA : GetVectorSizeA<Problem>())
                 : (Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>());
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
@@ -851,9 +864,10 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr index_t GetSmemSizeB()
     {
-        using BDataType = std::conditional_t<Problem::BCastPolicy == CastPolicy::BeforeLDSWrite,
-                                             typename Problem::ADataType,
-                                             typename Problem::BDataType>;
+        constexpr bool IsBCastPolicyBeforeLDSWrite = IsBCastPolicyBeforeLDSWrite_v<Problem>;
+        using BDataType                            = std::conditional_t<IsBCastPolicyBeforeLDSWrite,
+                                                                        typename Problem::ADataType,
+                                                                        typename Problem::BDataType>;
         constexpr auto b_lds_block_desc = Derived::template MakeBLdsBlockDescriptor<Problem>();
         constexpr index_t smem_size_b   = integer_least_multiple(
             b_lds_block_desc.get_element_space_size() * sizeof(BDataType), 16);

@@ -20,8 +20,9 @@ struct GemmPipelineAgBgCrImplBase
     using ADataType   = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
     using ALayout     = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
     using BInDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
-    using BDataType   = std::
-        conditional_t<Problem::BCastPolicy == CastPolicy::BeforeLDSWrite, ADataType, BInDataType>;
+
+    static constexpr bool IsBCastPolicyBeforeLDSWrite = IsBCastPolicyBeforeLDSWrite_v<Problem>;
+    using BDataType = std::conditional_t<IsBCastPolicyBeforeLDSWrite, ADataType, BInDataType>;
 
     using BLayout = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
 
@@ -314,7 +315,7 @@ struct GemmPipelineAgBgCrImplBase
 
         auto b_copy_lds_window = make_tile_window(b_lds_block_view, b_lds_shape, {0, 0});
 
-        using BLdsDataType = std::conditional_t<Problem::BCastPolicy == CastPolicy::BeforeLDSWrite,
+        using BLdsDataType = std::conditional_t<IsBCastPolicyBeforeLDSWrite,
                                                 typename Problem::ADataType,
                                                 typename Problem::BDataType>;
 
