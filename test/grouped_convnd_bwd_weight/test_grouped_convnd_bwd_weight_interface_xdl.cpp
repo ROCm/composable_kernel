@@ -184,5 +184,5 @@ TYPED_TEST(TestGroupedConvndBwdWeightDefault, SingleStageAutoDeduce)
     this->conv_param  = {2, 2, 128, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
     this->split_k_    = -1;
     bool is_supported = this->template Run<2>();
-    EXPECT_FALSE(is_supported);
+    EXPECT_TRUE(is_supported);
 }
