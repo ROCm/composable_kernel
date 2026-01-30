@@ -1414,7 +1414,7 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
             (std::is_same<T, pk_int4_t>::value &&
                  (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32) ||
              (std::is_same<T, pk_fp4_t>::value &&
-              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16))),
+              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32))),
         "wrong! not implemented");
 
     using rtn_type = thread_buffer<T, N>;
@@ -1713,9 +1713,8 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
     ignore = src_immediate_addr_offset;
 
 #if defined(__gfx950__)
-    static_assert(bytes == 16, "wrong! not implemented vector size");
-    // static_assert(bytes == 4 || bytes == 12 || bytes == 16,
-    //               "wrong! only support in dword, dwordx3, dwordx4");
+    static_assert(bytes == 4 || bytes == 12 || bytes == 16,
+                  "wrong! only support in dword, dwordx3, dwordx4");
     src_wave_addr_offset = 0;
 #else
     static_assert(bytes == 4, "wrong! not implemented vector size");
