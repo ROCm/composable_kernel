@@ -140,9 +140,10 @@ struct BlockFmhaV3PipelineDefaultPolicy
         constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
         static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
 
+        // Swap NumWarps and LaneGroups to store V in non-swizzled layout in LDS
         constexpr index_t N0 = NumIssues;
-        constexpr index_t N1 = LaneGroups;
-        constexpr index_t N2 = NumWarps;
+        constexpr index_t N1 = NumWarps;    // was LaneGroups
+        constexpr index_t N2 = LaneGroups;  // was NumWarps
         constexpr index_t K0 = LanesPerK;
         constexpr index_t K1 = KVector;
 
@@ -150,7 +151,7 @@ struct BlockFmhaV3PipelineDefaultPolicy
             tile_distribution_encoding<sequence<1>,
                                        tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
                                        tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<2>, sequence<1, 0>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
     }
@@ -315,8 +316,8 @@ struct BlockFmhaV3PipelineDefaultPolicy
         return BlockGemmARegBRegCRegV2<GemmProblem, BlockGemmPolicy>{};
     }
 
-    static constexpr ck_tile::index_t kKLdsPadInBytes = 4 * 4;  // 4 dwords
-    static constexpr ck_tile::index_t kVLdsPadInBytes = 4 * 16; // 16 dwords
+    static constexpr ck_tile::index_t kKLdsPadInBytes = 0;  // 4 dwords
+    static constexpr ck_tile::index_t kVLdsPadInBytes = 0; // 16 dwords
 
     template <typename Problem, ck_tile::index_t IBuf = 0>
     CK_TILE_DEVICE static constexpr auto
@@ -497,13 +498,13 @@ struct BlockFmhaV3PipelineDefaultPolicy
 
         constexpr auto v_lds_block_desc_0 = make_naive_tensor_descriptor_with_offset(
             make_tuple(number<NumIssues>{},  // n0
-                       number<LaneGroups>{}, // n1
                        number<NumWarps>{},   // n2
+                       number<LaneGroups>{}, // n1
                        number<LanesPerK>{},  // k0
                        number<KVector>{}),   // k1
             make_tuple(number<NumWarps*(WarpSize * KVector + kPad)>{},
-                       number<kKPerBlock>{},
                        number<WarpSize * KVector + kPad>{},
+                       number<kKPerBlock>{},
                        number<KVector>{},
                        number<1>{}),
             number<(IBuf + 2) * GetSingleSmemElementSpaceSize<Problem>()>{},
@@ -518,7 +519,7 @@ struct BlockFmhaV3PipelineDefaultPolicy
                        make_pass_through_transform(number<NumWarps>{}),
                        make_merge_transform(make_tuple(
                            number<LaneGroups>{}, number<LanesPerK>{}, number<KVector>{}))),
-            make_tuple(sequence<0>{}, sequence<2>{}, sequence<1, 3, 4>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2, 3, 4>{}),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
 
         return v_lds_block_desc_issues_warps_lanes;
@@ -566,9 +567,9 @@ struct BlockFmhaV3PipelineDefaultPolicy
             v_lds_block_desc_0,
             make_tuple(
                 make_merge_transform(
-                    make_tuple(number<NumIssues>{}, number<LaneGroups>{}, number<NumWarps>{})),
+                    make_tuple(number<NumIssues>{}, number<NumWarps>{}, number<LaneGroups>{})),
                 make_merge_transform(make_tuple(number<kKPerBlock / KPack>{}, number<KPack>{}))),
-            make_tuple(sequence<0, 2, 1>{}, sequence<3, 4>{}),
+            make_tuple(sequence<0, 1, 2>{}, sequence<3, 4>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return v_lds_block_desc;
