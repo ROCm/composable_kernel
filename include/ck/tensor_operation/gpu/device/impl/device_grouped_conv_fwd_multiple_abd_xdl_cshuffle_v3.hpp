@@ -1615,6 +1615,22 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 }
             }
         }
+        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter3x3)
+        {
+            if(C != 1)
+            {
+                return false;
+            }
+            for(index_t i = 0; i < NDimSpatial; ++i)
+            {
+                const index_t filter_spatial_dim = arg.b_g_k_c_xs_lengths_[i + I3];
+
+                if(filter_spatial_dim != I3)
+                {
+                    return false;
+                }
+            }
+        }
 
         // check vector access of A
         // FIXME: layout
