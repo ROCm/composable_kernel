@@ -456,7 +456,12 @@ struct vector_type
         // Note: We might end up with incomplete quantization from slicing
         // when Rank % TraitsX::vector_size != 0, so take the floor division.
         constexpr index_t newRank = Rank / TraitsX::vector_size;
-        using ResultT             = StaticallyIndexedArray_v2<X, newRank>;
+
+        // Determine the cast type:
+        // - Scalar T if slicing to scalar or vector size of 1,
+        // - X otherwise.
+        using CastT   = conditional_t<TraitsX::vector_size == 1, T, X>;
+        using ResultT = StaticallyIndexedArray_v2<CastT, newRank>;
 
         // As a rule, the aliasing type should not be larger than the original type.
         static_assert(sizeof(ResultT) <= sizeof(vector_type),
@@ -487,7 +492,12 @@ struct vector_type
         // Note: We might end up with incomplete quantization from slicing
         // when Rank % TraitsX::vector_size != 0, so take the floor division.
         constexpr index_t newRank = Rank / TraitsX::vector_size;
-        using ResultT             = StaticallyIndexedArray_v2<X, newRank>;
+
+        // Determine the cast type:
+        // - Scalar T if slicing to scalar or vector size of 1,
+        // - X otherwise.
+        using CastT   = conditional_t<TraitsX::vector_size == 1, T, X>;
+        using ResultT = StaticallyIndexedArray_v2<CastT, newRank>;
 
         // As a rule, the aliasing type should not be larger than the original type.
         static_assert(sizeof(ResultT) <= sizeof(vector_type),
