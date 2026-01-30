@@ -218,45 +218,46 @@ struct ABTransferWaveTilesInterleave : ABTransferWaveTiles<ABLayout,
                                             const index_t block_mn_id,
                                             const index_t)
     {
-        // Note: GlobalBufferNum is currently not used but it will be needed
-        // once we add other pipelines. It is currently needed only for
-        // consistency with the thread tiles approach
-        static_assert(GlobalBufferNum == 1, "single global buffer is only supported");
         constexpr index_t NumABTensor = ABsDataType::Size();
-        static_assert(NumABTensor == 1, "multiAB currently not supported");
-
-        using ABDataType = remove_cvref_t<tuple_element_t<0, ABsDataType>>;
 
         const auto wave_idx = GetWaveIdx();
         index_t wave_idK    = wave_idx[I1];
         index_t wave_idMN   = wave_idx[I0];
-
-        const auto grid_lane_id    = Base::template GetGridLaneIdx<ABDataType>();
-        index_t lane_group_grid    = grid_lane_id[I0];
-        index_t lane_local_id_grid = grid_lane_id[I1];
 
         const auto block_lane_id    = GetBlockLaneIdx();
         index_t lane_group_block    = block_lane_id[I0];
         index_t lane_local_id_block = block_lane_id[I1];
 
         constexpr index_t MNRepeatRatio = MNRepeat_Grid / MNRepeat_;
-        return ThreadGroupTransferGlobal<decltype(grid_descriptor[I0]),
+
+        const auto idx_as_block_begin = generate_tuple(
+            [&](auto iTensor) {
+                using ABDataType           = remove_cvref_t<tuple_element_t<iTensor, ABsDataType>>;
+                const auto grid_lane_id    = Base::template GetGridLaneIdx<ABDataType>();
+                index_t lane_group_grid    = grid_lane_id[I0];
+                index_t lane_local_id_grid = grid_lane_id[I1];
+                return make_multi_index(block_mn_id * MNWaves_Grid + wave_idMN / MNRepeatRatio,
+                                        wave_idK * KRepeat_Grid,
+                                        (wave_idMN % MNRepeatRatio) * MNRepeat_,
+                                        lane_group_grid,
+                                        lane_local_id_grid);
+            },
+            Number<NumABTensor>{});
+
+        return ThreadGroupTransferGlobal<GridDescriptor,
                                          BlockDescriptor,
-                                         ABDataType,
-                                         ABDataType,
+                                         ABsDataType,
+                                         LDSTypeAB,
                                          ABElementwiseOperation,
                                          Sequence<I1, KRepeat_, MNRepeat_, I1, I1>,
                                          Sequence<I1, KWaves_, I1, I1, I1>,
                                          Sequence<I0, I1, I2, I3, I4>,
                                          ABK1Value,
-                                         ABDoTranspose>(
-            grid_descriptor[I0],
+                                         ABDoTranspose,
+                                         GlobalBufferNum>(
+            grid_descriptor,
             block_descriptor,
-            make_multi_index(block_mn_id * MNWaves_Grid + wave_idMN / MNRepeatRatio,
-                             wave_idK * KRepeat_Grid,
-                             (wave_idMN % MNRepeatRatio) * MNRepeat_,
-                             lane_group_grid,
-                             lane_local_id_grid),
+            idx_as_block_begin,
             make_multi_index(wave_idMN / MNRepeatRatio,
                              wave_idK * KRepeat_,
                              (wave_idMN % MNRepeatRatio) * MNRepeat_,
