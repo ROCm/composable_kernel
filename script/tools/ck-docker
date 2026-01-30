@@ -112,6 +112,19 @@ cmd_exec() {
     local docker_flags=()
     [ -t 0 ] && [ -t 1 ] && docker_flags+=("-it")
 
+    # Auto-detect Python commands and enable unbuffered output for live streaming
+    local is_python=false
+    for arg in "$@"; do
+        if [[ "$arg" == "python" || "$arg" == "python3" || "$arg" == *.py ]]; then
+            is_python=true
+            break
+        fi
+    done
+
+    if [ "$is_python" = true ]; then
+        docker_flags+=("-e" "PYTHONUNBUFFERED=1")
+    fi
+
     docker exec "${docker_flags[@]}" "${CONTAINER_NAME}" "$@"
 }
 
