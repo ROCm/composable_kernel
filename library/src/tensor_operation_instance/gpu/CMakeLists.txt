@@ -104,7 +104,7 @@ function(add_instance_library INSTANCE_NAME)
             list(REMOVE_ITEM ARGN "${source}")
         endif()
         # Do not build WMMA grouped conv 3d fwd fp8 / bf8 for any targets except gfx12+
-        if(NOT INST_TARGETS MATCHES "gfx12" AND source_name MATCHES "grouped_conv3d_fwd_wmma" AND (source_name MATCHES "_fp8_" OR source_name MATCHES "_bf8_"))
+        if(NOT INST_TARGETS MATCHES "gfx12" AND source_name MATCHES "grouped_conv3d_fwd_wmma" AND source_name MATCHES "_(f8|fp8|bf8)_")
             message(DEBUG "removing grouped_conv3d_fwd_wmma fp8/bf8 instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
