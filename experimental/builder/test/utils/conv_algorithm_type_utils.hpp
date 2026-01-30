@@ -86,6 +86,15 @@ inline std::string to_string<ThreadBlock>(ThreadBlock t)
 }
 
 template <>
+inline std::string to_string<GridwiseBwdDataXdlGemm>(GridwiseBwdDataXdlGemm t)
+{
+    std::ostringstream oss;
+    oss << t.ak1 << "," << t.bk1 << "," << t.xdl_params.m_per_xdl << "," << t.xdl_params.n_per_xdl
+        << "," << t.xdl_params.m_xdl_per_wave << "," << t.xdl_params.n_xdl_per_wave;
+    return oss.str();
+}
+
+template <>
 inline std::string to_string<GridwiseBwdXdlGemm>(GridwiseBwdXdlGemm t)
 {
     std::ostringstream oss;
@@ -284,6 +293,12 @@ inline std::string to_string<BwdXdlGemm_>(BwdXdlGemm_ t)
 }
 
 template <>
+inline std::string to_string<BwdDataXdlGemm_>(BwdDataXdlGemm_ t)
+{
+    return to_string(t.gridwise_gemm);
+}
+
+template <>
 inline std::string to_string<WmmaGemm_>(WmmaGemm_ t)
 {
     return to_string(t.gridwise_gemm);
@@ -308,6 +323,14 @@ inline std::string to_string<ConvSpecializationBwdWeight_>(ConvSpecializationBwd
 {
     std::ostringstream oss;
     oss << to_string(t.bwd_weight_specialization);
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<ConvSpecializationBwdData_>(ConvSpecializationBwdData_ t)
+{
+    std::ostringstream oss;
+    oss << to_string(t.bwd_data_specialization);
     return oss.str();
 }
 
@@ -492,6 +515,17 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_X
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
         << "," << to_string(static_cast<Transfer_<4>>(t));
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle>(
+    ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle t)
+{
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
+        << to_string(static_cast<BwdDataXdlGemm_>(t)) << ","
+        << to_string(static_cast<Transfer_<4>>(t));
     return oss.str();
 }
 

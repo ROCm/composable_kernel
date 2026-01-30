@@ -189,6 +189,14 @@ concept GridwiseBwdXdlGemmDescriptor = requires(T t) {
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
+concept GridwiseBwdDataXdlGemmDescriptor = requires(T t) {
+    { t.ak1 } -> SizeType;
+    { t.bk1 } -> SizeType;
+    { t.xdl_params } -> GridwiseXdlGemmDescriptor;
+};
+
+// Concept to check if a struct specifies gridwise XDL GEMM info.
+template <typename T>
 concept SpecifiesGridwiseFwdXdlGemm = requires(T t) {
     { t.gridwise_gemm } -> GridwiseFwdXdlGemmDescriptor;
 };
@@ -197,6 +205,12 @@ concept SpecifiesGridwiseFwdXdlGemm = requires(T t) {
 template <typename T>
 concept SpecifiesGridwiseBwdXdlGemm = requires(T t) {
     { t.gridwise_gemm } -> GridwiseBwdXdlGemmDescriptor;
+};
+
+// Concept to check if a struct specifies gridwise XDL GEMM info.
+template <typename T>
+concept SpecifiesGridwiseBwdDataXdlGemm = requires(T t) {
+    { t.gridwise_gemm } -> GridwiseBwdDataXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise WMMA GEMM info.
@@ -290,6 +304,11 @@ concept SpecifiesFwdConvSpecialization = requires {
 template <typename T>
 concept SpecifiesBwdWeightConvSpecialization = requires {
     { T::bwd_weight_specialization } -> std::convertible_to<ConvSpecialization>;
+};
+
+template <typename T>
+concept SpecifiesBwdDataConvSpecialization = requires {
+    { T::bwd_data_specialization } -> std::convertible_to<ConvSpecialization>;
 };
 
 template <typename T>

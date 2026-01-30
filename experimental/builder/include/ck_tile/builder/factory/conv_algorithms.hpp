@@ -29,23 +29,27 @@ concept FwdXdlAlgorithmBase =
 template <typename T>
 concept BwdXdlAlgorithmBase =
     ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters4D<T> &&
-    SpecifiesGridwiseBwdXdlGemm<T> && SpecifiesBwdWeightConvSpecialization<T>;
+    (SpecifiesGridwiseBwdXdlGemm<T> || SpecifiesGridwiseBwdDataXdlGemm<T>) &&
+    (SpecifiesBwdWeightConvSpecialization<T> || SpecifiesBwdDataConvSpecialization<T>);
 
 template <typename T>
 concept BwdXdlV3AlgorithmBase =
     ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters3D<T> &&
-    SpecifiesGridwiseBwdXdlGemm<T> && SpecifiesBwdWeightConvSpecialization<T> &&
+    (SpecifiesGridwiseBwdXdlGemm<T> || SpecifiesGridwiseBwdDataXdlGemm<T>) &&
+    (SpecifiesBwdWeightConvSpecialization<T> || SpecifiesBwdDataConvSpecialization<T>) &&
     SpecifiesBlockGemm<T> && SpecifiesNumGroupsToMerge<T>;
 
 template <typename T>
 concept BwdWmmaAlgorithmBase =
     ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters3D<T> &&
-    SpecifiesGridwiseWmmaGemm<T> && SpecifiesBwdWeightConvSpecialization<T>;
+    SpecifiesGridwiseWmmaGemm<T> &&
+    (SpecifiesBwdWeightConvSpecialization<T> || SpecifiesBwdDataConvSpecialization<T>);
 
 template <typename T>
 concept BwdWmmaV3AlgorithmBase =
     ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters3D<T> &&
-    SpecifiesGridwiseWmmaGemm<T> && SpecifiesBwdWeightConvSpecialization<T> &&
+    SpecifiesGridwiseWmmaGemm<T> &&
+    (SpecifiesBwdWeightConvSpecialization<T> || SpecifiesBwdDataConvSpecialization<T>) &&
     SpecifiesBlockGemm<T>;
 
 // Reference algorithm concept

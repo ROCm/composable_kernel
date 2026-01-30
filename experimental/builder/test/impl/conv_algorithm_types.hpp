@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
+#include "ck_tile/builder/types.hpp"
 
 namespace ck_tile::builder::test {
 
@@ -53,6 +54,13 @@ struct GridwiseBwdXdlGemm
     XdlParams xdl_params;
 };
 static_assert(ckb::GridwiseBwdXdlGemmDescriptor<GridwiseBwdXdlGemm>);
+
+struct GridwiseBwdDataXdlGemm
+{
+    size_t ak1 = 0;
+    size_t bk1 = 0;
+    XdlParams xdl_params;
+};
 
 // Describe gridwise WMMA GEMM parameters.
 struct GridwiseWmmaGemm
@@ -209,6 +217,11 @@ struct BwdXdlGemm_
     GridwiseBwdXdlGemm gridwise_gemm;
 };
 
+struct BwdDataXdlGemm_
+{
+    GridwiseBwdDataXdlGemm gridwise_gemm;
+};
+
 struct WmmaGemm_
 {
     GridwiseWmmaGemm gridwise_gemm;
@@ -231,10 +244,21 @@ struct ConvSpecializationBwdWeight_
     ConvSpecialization bwd_weight_specialization;
 };
 
+struct ConvSpecializationBwdData_
+{
+    ConvSpecialization bwd_data_specialization;
+};
+
 struct Prefetch_
 {
     size_t num_gemm_k_prefetch_stages;
     PipelineScheduler loop_scheduler;
+};
+
+struct GemmPad_
+{
+    size_t DoPadGemmM;
+    size_t DoPadGemmN;
 };
 
 struct TransposeParams_
@@ -394,6 +418,10 @@ struct ConvAlgorithmTemplate : Components...
         {
             result.gridwise_gemm = gemm;
         }
+        else if constexpr(std::is_base_of_v<BwdDataXdlGemm_, ConvAlgorithmTemplate>)
+        {
+            result.gridwise_gemm = gemm;
+        }
         else if constexpr(std::is_base_of_v<WmmaGemm_, ConvAlgorithmTemplate>)
         {
             result.gridwise_gemm = gemm;
@@ -433,6 +461,14 @@ struct ConvAlgorithmTemplate : Components...
         return result;
     }
 
+    constexpr auto with_bwd_data_specialization(ConvSpecialization bwd_spec) const
+    {
+        static_assert(std::is_base_of_v<ConvSpecializationBwdData_, ConvAlgorithmTemplate>);
+        auto result                    = *this;
+        result.bwd_data_specialization = bwd_spec;
+        return result;
+    }
+
     constexpr auto with_prefetch_config(size_t k_prefetch_stages, PipelineScheduler scheduler) const
     {
         static_assert(std::is_base_of_v<Prefetch_, ConvAlgorithmTemplate>);
@@ -449,6 +485,15 @@ struct ConvAlgorithmTemplate : Components...
         auto result                                         = *this;
         result.max_transpose_transfer_src_scalar_per_vector = max_src_scalar_per_vector;
         result.max_transpose_transfer_dst_scalar_per_vector = max_dst_scalar_per_vector;
+        return result;
+    }
+
+    constexpr auto with_gemm_pad_params(size_t doPadGemmN_, size_t doPadGemmM_) const
+    {
+        static_assert(std::is_base_of_v<GemmPad_, ConvAlgorithmTemplate>);
+        auto result       = *this;
+        result.DoPadGemmN = doPadGemmN_;
+        result.DoPadGemmM = doPadGemmM_;
         return result;
     }
 
@@ -683,4 +728,14 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle_V3 =
                           BlockGemm_,
                           MultipleDSpecialization_>;
 
+// Bwd Data algorithm types
+using ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle =
+    ConvAlgorithmTemplate<ThreadBlock_,
+                          BwdDataXdlGemm_,
+                          Transfer_<4>,
+                          ConvSpecializationBwdData_,
+                          MultipleDSpecialization_,
+                          Prefetch_,
+                          TransposeParams_,
+                          GemmPad_>;
 } // namespace ck_tile::builder::test
