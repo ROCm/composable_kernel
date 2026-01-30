@@ -80,6 +80,8 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<ComputeTypeB, F16>)
                 {
                     add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_instances(op_ptrs);
+                    add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_group_merge_instances(
+                        op_ptrs);
                 }
 #endif
 #ifdef CK_ENABLE_FP32

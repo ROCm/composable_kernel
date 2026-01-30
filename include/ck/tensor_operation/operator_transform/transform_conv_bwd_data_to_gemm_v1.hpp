@@ -508,9 +508,19 @@ struct TransformConvBwdDataToGemm_v1
                          ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
                              Filter1x1Stride1Pad0)
             {
-
-                return make_naive_tensor_descriptor(make_tuple(N_ * Ho_ * Wo_, K_),
-                                                    make_tuple(WoStride_, KStrideTensorA_));
+                if constexpr(NumGroupsToMerge == 1)
+                {
+                    return make_naive_tensor_descriptor(make_tuple(N_ * Ho_ * Wo_, K_),
+                                                        make_tuple(WoStride_, KStrideTensorA_));
+                }
+                else
+                {
+                    // Add NumGroupsToMerge dimension for group merging
+                    const index_t BatchStride = NStrideTensorA_;
+                    return make_naive_tensor_descriptor(
+                        make_tuple(N_ * Ho_ * Wo_, NumGroupsToMerge, K_),
+                        make_tuple(WoStride_, BatchStride, KStrideTensorA_));
+                }
             }
             else
             {
@@ -607,14 +617,105 @@ struct TransformConvBwdDataToGemm_v1
 
     __host__ __device__ auto MakeWeiGridDesc() const
     {
+        // Power-of-2 constraint for NumGroupsToMerge (required for XOR transform)
+        static_assert(NumGroupsToMerge == 1 || NumGroupsToMerge == 2 || NumGroupsToMerge == 4 ||
+                      NumGroupsToMerge == 8 || NumGroupsToMerge == 16 || NumGroupsToMerge == 32 ||
+                      NumGroupsToMerge == 64);
 
         if constexpr(is_same_v<BLayout, tensor_layout::convolution::GKYXC>)
         {
-            return make_naive_tensor_descriptor_packed(make_tuple(K_, Y_, X_, C_));
+            if constexpr(NumGroupsToMerge == 1)
+            {
+                // Original V1 logic - no group merging
+                return make_naive_tensor_descriptor_packed(make_tuple(K_, Y_, X_, C_));
+            }
+            else
+            {
+                // Group merging logic - XOR + merge pattern from bwd_weight V2
+                // Add NumGroupsToMerge for M dimension and 1 as placeholder for N dimension
+                constexpr auto NumGroupsToMergeNumber = Number<NumGroupsToMerge>{};
+                const auto desc                       = make_naive_tensor_descriptor_packed(
+                    make_tuple(NumGroupsToMergeNumber, K_, Y_ * X_, I1, C_));
+
+                // Pad placeholder dimension from 1 to NumGroupsToMerge
+                const auto padded_desc = transform_tensor_descriptor(
+                    desc,
+                    make_tuple(make_pass_through_transform(NumGroupsToMergeNumber),
+                               make_pass_through_transform(K_),
+                               make_pass_through_transform(Y_ * X_),
+                               make_pad_transform(I1, I0, NumGroupsToMergeNumber - I1),
+                               make_pass_through_transform(C_)),
+                    make_tuple(
+                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+                    make_tuple(
+                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+
+                // XOR transform to select diagonal (where group indices match)
+                const auto unmerged_padded_desc = transform_tensor_descriptor(
+                    padded_desc,
+                    make_tuple(make_xor_transform(
+                                   make_tuple(NumGroupsToMergeNumber, NumGroupsToMergeNumber)),
+                               make_pass_through_transform(K_),
+                               make_pass_through_transform(Y_ * X_),
+                               make_pass_through_transform(C_)),
+                    make_tuple(Sequence<0, 3>{}, Sequence<1>{}, Sequence<2>{}, Sequence<4>{}),
+                    make_tuple(Sequence<0, 3>{}, Sequence<1>{}, Sequence<2>{}, Sequence<4>{}));
+
+                // Merge to create M and N dimensions for GEMM
+                return transform_tensor_descriptor(
+                    unmerged_padded_desc,
+                    make_tuple(
+                        make_merge_transform(make_tuple(K_, NumGroupsToMergeNumber)), // M dimension
+                        make_merge_transform(
+                            make_tuple(Y_ * X_, NumGroupsToMergeNumber, C_))), // N dimension
+                    make_tuple(Sequence<1, 0>{}, Sequence<2, 3, 4>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}));
+            }
         }
         else if constexpr(is_same_v<BLayout, tensor_layout::convolution::GKZYXC>)
         {
-            return make_naive_tensor_descriptor_packed(make_tuple(K_, Z_, Y_, X_, C_));
+            if constexpr(NumGroupsToMerge == 1)
+            {
+                // Original V1 logic - no group merging
+                return make_naive_tensor_descriptor_packed(make_tuple(K_, Z_, Y_, X_, C_));
+            }
+            else
+            {
+                // Group merging logic for 3D - XOR + merge pattern from bwd_weight V2
+                constexpr auto NumGroupsToMergeNumber = Number<NumGroupsToMerge>{};
+                const auto desc                       = make_naive_tensor_descriptor_packed(
+                    make_tuple(NumGroupsToMergeNumber, K_, Z_ * Y_ * X_, I1, C_));
+
+                const auto padded_desc = transform_tensor_descriptor(
+                    desc,
+                    make_tuple(make_pass_through_transform(NumGroupsToMergeNumber),
+                               make_pass_through_transform(K_),
+                               make_pass_through_transform(Z_ * Y_ * X_),
+                               make_pad_transform(I1, I0, NumGroupsToMergeNumber - I1),
+                               make_pass_through_transform(C_)),
+                    make_tuple(
+                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+                    make_tuple(
+                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+
+                const auto unmerged_padded_desc = transform_tensor_descriptor(
+                    padded_desc,
+                    make_tuple(make_xor_transform(
+                                   make_tuple(NumGroupsToMergeNumber, NumGroupsToMergeNumber)),
+                               make_pass_through_transform(K_),
+                               make_pass_through_transform(Z_ * Y_ * X_),
+                               make_pass_through_transform(C_)),
+                    make_tuple(Sequence<0, 3>{}, Sequence<1>{}, Sequence<2>{}, Sequence<4>{}),
+                    make_tuple(Sequence<0, 3>{}, Sequence<1>{}, Sequence<2>{}, Sequence<4>{}));
+
+                return transform_tensor_descriptor(
+                    unmerged_padded_desc,
+                    make_tuple(
+                        make_merge_transform(make_tuple(K_, NumGroupsToMergeNumber)),
+                        make_merge_transform(make_tuple(Z_ * Y_ * X_, NumGroupsToMergeNumber, C_))),
+                    make_tuple(Sequence<1, 0>{}, Sequence<2, 3, 4>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}));
+            }
         }
         else
         {
@@ -670,20 +771,49 @@ struct TransformConvBwdDataToGemm_v1
                 math::integer_divide_ceil(K_, AK1 * K0PerBlock * batch_k_) * K0PerBlock;
 
             // A: output tensor
-            const auto out_gemmak0_gemmmraw_gemmak1_grid_desc = transform_tensor_descriptor(
-                out_grid_desc,
-                make_tuple(make_pass_through_transform(N_ * Do_ * Ho_ * Wo_),
-                           make_unmerge_transform(make_tuple(AK0 * batch_k_, AK1))),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<1>{}, Sequence<0, 2>{}));
+            if constexpr(NumGroupsToMerge == 1)
+            {
+                const auto out_gemmak0_gemmmraw_gemmak1_grid_desc = transform_tensor_descriptor(
+                    out_grid_desc,
+                    make_tuple(make_pass_through_transform(N_ * Do_ * Ho_ * Wo_),
+                               make_unmerge_transform(make_tuple(AK0 * batch_k_, AK1))),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}),
+                    make_tuple(Sequence<1>{}, Sequence<0, 2>{}));
 
-            const auto out_gemmak0_gemmm_gemmak1_grid_desc =
-                ck::tensor_operation::device::PadTensorDescriptor(
-                    out_gemmak0_gemmmraw_gemmak1_grid_desc,
-                    make_tuple(AK0 * batch_k_, GemmMPerBlock, AK1),
-                    Sequence<false, DoPadGemmM, false>{});
+                const auto out_gemmak0_gemmm_gemmak1_grid_desc =
+                    ck::tensor_operation::device::PadTensorDescriptor(
+                        out_gemmak0_gemmmraw_gemmak1_grid_desc,
+                        make_tuple(AK0 * batch_k_, GemmMPerBlock, AK1),
+                        Sequence<false, DoPadGemmM, false>{});
 
-            return out_gemmak0_gemmm_gemmak1_grid_desc;
+                return out_gemmak0_gemmm_gemmak1_grid_desc;
+            }
+            else
+            {
+                // Group merging: out_grid_desc has (N * Ho * Wo, NumGroupsToMerge, K)
+                // Merge NumGroupsToMerge with K to form M dimension
+                const auto out_gemmkpad_gemmm_grid_desc = transform_tensor_descriptor(
+                    out_grid_desc,
+                    make_tuple(make_pass_through_transform(N_ * Do_ * Ho_ * Wo_),
+                               make_merge_transform(make_tuple(NumGroupsToMerge, K_))),
+                    make_tuple(Sequence<0>{}, Sequence<1, 2>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}));
+
+                const auto out_gemmak0_gemmmraw_gemmak1_grid_desc = transform_tensor_descriptor(
+                    out_gemmkpad_gemmm_grid_desc,
+                    make_tuple(make_unmerge_transform(make_tuple(AK0 * batch_k_, AK1)),
+                               make_pass_through_transform(NumGroupsToMerge * K_)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}),
+                    make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+                const auto out_gemmak0_gemmm_gemmak1_grid_desc =
+                    ck::tensor_operation::device::PadTensorDescriptor(
+                        out_gemmak0_gemmmraw_gemmak1_grid_desc,
+                        make_tuple(AK0 * batch_k_, GemmMPerBlock, AK1),
+                        Sequence<false, DoPadGemmM, false>{});
+
+                return out_gemmak0_gemmm_gemmak1_grid_desc;
+            }
         }
         else
         {
@@ -947,26 +1077,54 @@ struct TransformConvBwdDataToGemm_v1
                      ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
                          Filter1x1Stride1Pad0)
         {
-            const index_t K0PerBlock = GemmKPerBlock / BK1;
-            const index_t BK0 =
-                math::integer_divide_ceil(K_, BK1 * K0PerBlock * batch_k_) * K0PerBlock;
-
             // B: weight tensor
-            const auto wei_gemmbk0_gemmnraw_gemmbk1_grid_desc = transform_tensor_descriptor(
-                make_naive_tensor_descriptor_packed(make_tuple(K_, C_)),
-                make_tuple(make_unmerge_transform(make_tuple(BK0 * batch_k_, BK1)),
-                           make_pass_through_transform(C_)),
-                make_tuple(Sequence<0>{}, Sequence<1>{}),
-                make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
-            make_naive_tensor_descriptor(make_tuple(N_ * Do_ * Ho_ * Wo_, C_), make_tuple(I0, I1));
+            if constexpr(NumGroupsToMerge == 1)
+            {
+                const index_t K0PerBlock = GemmKPerBlock / BK1;
+                const index_t BK0 =
+                    math::integer_divide_ceil(K_, BK1 * K0PerBlock * batch_k_) * K0PerBlock;
 
-            const auto wei_gemmbk0_gemmn_gemmbk1_grid_desc =
-                ck::tensor_operation::device::PadTensorDescriptor(
-                    wei_gemmbk0_gemmnraw_gemmbk1_grid_desc,
-                    make_tuple(BK0 * batch_k_, GemmNPerBlock, BK1),
-                    Sequence<false, DoPadGemmN, false>{});
+                const auto wei_gemmbk0_gemmnraw_gemmbk1_grid_desc = transform_tensor_descriptor(
+                    make_naive_tensor_descriptor_packed(make_tuple(K_, C_)),
+                    make_tuple(make_unmerge_transform(make_tuple(BK0 * batch_k_, BK1)),
+                               make_pass_through_transform(C_)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}),
+                    make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
 
-            return wei_gemmbk0_gemmn_gemmbk1_grid_desc;
+                const auto wei_gemmbk0_gemmn_gemmbk1_grid_desc =
+                    ck::tensor_operation::device::PadTensorDescriptor(
+                        wei_gemmbk0_gemmnraw_gemmbk1_grid_desc,
+                        make_tuple(BK0 * batch_k_, GemmNPerBlock, BK1),
+                        Sequence<false, DoPadGemmN, false>{});
+
+                return wei_gemmbk0_gemmn_gemmbk1_grid_desc;
+            }
+            else
+            {
+                // Group merging: wei_grid_desc already has merged M, N from MakeWeiGridDesc()
+                // It returns (K * NumGroupsToMerge, Y * X * NumGroupsToMerge * C)
+                const auto wei_grid_desc = MakeWeiGridDesc();
+
+                const index_t K0PerBlock = GemmKPerBlock / BK1;
+                const index_t BK0 =
+                    math::integer_divide_ceil(K_ * NumGroupsToMerge, BK1 * K0PerBlock * batch_k_) *
+                    K0PerBlock;
+
+                const auto wei_gemmbk0_gemmnraw_gemmbk1_grid_desc = transform_tensor_descriptor(
+                    wei_grid_desc,
+                    make_tuple(make_unmerge_transform(make_tuple(BK0 * batch_k_, BK1)),
+                               make_pass_through_transform(Y_ * X_ * NumGroupsToMerge * C_)),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}),
+                    make_tuple(Sequence<0, 2>{}, Sequence<1>{}));
+
+                const auto wei_gemmbk0_gemmn_gemmbk1_grid_desc =
+                    ck::tensor_operation::device::PadTensorDescriptor(
+                        wei_gemmbk0_gemmnraw_gemmbk1_grid_desc,
+                        make_tuple(BK0 * batch_k_, GemmNPerBlock, BK1),
+                        Sequence<false, DoPadGemmN, false>{});
+
+                return wei_gemmbk0_gemmn_gemmbk1_grid_desc;
+            }
         }
         else
         {
@@ -1161,32 +1319,86 @@ struct TransformConvBwdDataToGemm_v1
             // C: input tensor
             if constexpr(NDimSpatial == 2)
             {
-                const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
-                    in_grid_desc,
-                    make_tuple(
-                        make_pass_through_transform(N_),
-                        make_embed_transform(make_tuple(I1, Ho_), make_tuple(I1, ConvStrideH_)),
-                        make_embed_transform(make_tuple(I1, Wo_), make_tuple(I1, ConvStrideW_)),
-                        make_pass_through_transform(C_)),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
+                if constexpr(NumGroupsToMerge == 1)
+                {
+                    const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
+                        in_grid_desc,
+                        make_tuple(
+                            make_pass_through_transform(N_),
+                            make_embed_transform(make_tuple(I1, Ho_), make_tuple(I1, ConvStrideH_)),
+                            make_embed_transform(make_tuple(I1, Wo_), make_tuple(I1, ConvStrideW_)),
+                            make_pass_through_transform(C_)),
+                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+                        make_tuple(
+                            Sequence<0>{}, Sequence<1, 2>{}, Sequence<3, 4>{}, Sequence<5>{}));
 
-                const auto in_gemmmraw_gemmnraw_grid_desc = transform_tensor_descriptor(
-                    in_n_y_ho_x_wo_c_grid_desc,
-                    make_tuple(make_freeze_transform(I0),
-                               make_freeze_transform(I0),
-                               make_merge_transform(make_tuple(N_, Ho_, Wo_)),
-                               make_pass_through_transform(C_)),
-                    make_tuple(Sequence<1>{}, Sequence<3>{}, Sequence<0, 2, 4>{}, Sequence<5>{}),
-                    make_tuple(Sequence<>{}, Sequence<>{}, Sequence<0>{}, Sequence<1>{}));
+                    const auto in_gemmmraw_gemmnraw_grid_desc = transform_tensor_descriptor(
+                        in_n_y_ho_x_wo_c_grid_desc,
+                        make_tuple(make_freeze_transform(I0),
+                                   make_freeze_transform(I0),
+                                   make_merge_transform(make_tuple(N_, Ho_, Wo_)),
+                                   make_pass_through_transform(C_)),
+                        make_tuple(
+                            Sequence<1>{}, Sequence<3>{}, Sequence<0, 2, 4>{}, Sequence<5>{}),
+                        make_tuple(Sequence<>{}, Sequence<>{}, Sequence<0>{}, Sequence<1>{}));
 
-                const auto in_gemmm_gemmn_grid_desc =
-                    ck::tensor_operation::device::PadTensorDescriptor(
-                        in_gemmmraw_gemmnraw_grid_desc,
-                        make_tuple(GemmMPerBlock, GemmNPerBlock),
-                        Sequence<DoPadGemmM, DoPadGemmN>{});
+                    const auto in_gemmm_gemmn_grid_desc =
+                        ck::tensor_operation::device::PadTensorDescriptor(
+                            in_gemmmraw_gemmnraw_grid_desc,
+                            make_tuple(GemmMPerBlock, GemmNPerBlock),
+                            Sequence<DoPadGemmM, DoPadGemmN>{});
 
-                return in_gemmm_gemmn_grid_desc;
+                    return in_gemmm_gemmn_grid_desc;
+                }
+                else
+                {
+                    // Group merging: Add NumGroupsToMerge dimension and merge with C
+                    // in_grid_desc is (N, Hi, Wi, C) from MakeInGridDesc()
+                    const index_t BatchStride = NStrideTensorC_;
+
+                    // Create descriptor with NumGroupsToMerge dimension
+                    const auto in_n_hi_wi_numgroups_c_grid_desc = make_naive_tensor_descriptor(
+                        make_tuple(N_, Hi_, Wi_, NumGroupsToMerge, C_),
+                        make_tuple(
+                            NStrideTensorC_, HiStride_, WiStride_, BatchStride, CStrideTensorC_));
+
+                    const auto in_n_y_ho_x_wo_numgroups_c_grid_desc = transform_tensor_descriptor(
+                        in_n_hi_wi_numgroups_c_grid_desc,
+                        make_tuple(
+                            make_pass_through_transform(N_),
+                            make_embed_transform(make_tuple(I1, Ho_), make_tuple(I1, ConvStrideH_)),
+                            make_embed_transform(make_tuple(I1, Wo_), make_tuple(I1, ConvStrideW_)),
+                            make_pass_through_transform(NumGroupsToMerge),
+                            make_pass_through_transform(C_)),
+                        make_tuple(Sequence<0>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<3>{},
+                                   Sequence<4>{}),
+                        make_tuple(Sequence<0>{},
+                                   Sequence<1, 2>{},
+                                   Sequence<3, 4>{},
+                                   Sequence<5>{},
+                                   Sequence<6>{}));
+
+                    const auto in_gemmmraw_gemmnraw_grid_desc = transform_tensor_descriptor(
+                        in_n_y_ho_x_wo_numgroups_c_grid_desc,
+                        make_tuple(make_freeze_transform(I0),
+                                   make_freeze_transform(I0),
+                                   make_merge_transform(make_tuple(N_, Ho_, Wo_)),
+                                   make_merge_transform(make_tuple(NumGroupsToMerge, C_))),
+                        make_tuple(
+                            Sequence<1>{}, Sequence<3>{}, Sequence<0, 2, 4>{}, Sequence<5, 6>{}),
+                        make_tuple(Sequence<>{}, Sequence<>{}, Sequence<0>{}, Sequence<1>{}));
+
+                    const auto in_gemmm_gemmn_grid_desc =
+                        ck::tensor_operation::device::PadTensorDescriptor(
+                            in_gemmmraw_gemmnraw_grid_desc,
+                            make_tuple(GemmMPerBlock, GemmNPerBlock),
+                            Sequence<DoPadGemmM, DoPadGemmN>{});
+
+                    return in_gemmm_gemmn_grid_desc;
+                }
             }
             else if constexpr(NDimSpatial == 3)
             {

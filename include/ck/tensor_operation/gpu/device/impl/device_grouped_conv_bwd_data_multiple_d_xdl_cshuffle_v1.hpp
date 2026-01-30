@@ -287,7 +287,8 @@ template <index_t NDimSpatial,
           typename AComputeType                          = ADataType,
           typename BComputeType                          = AComputeType,
           index_t MaxTransposeTransferInScalarPerVector  = 1,
-          index_t MaxTransposeTransferOutScalarPerVector = 1>
+          index_t MaxTransposeTransferOutScalarPerVector = 1,
+          index_t NumGroupsToMerge                       = 1>
 struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     : public DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
                                                ALayout,    // output image
@@ -387,7 +388,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                                                                      true, /*SplitConvN*/
                                                                      ABDataType,
                                                                      EDataType,
-                                                                     1,
+                                                                     NumGroupsToMerge,
                                                                      index_t,
                                                                      CTranspose>;
 
@@ -964,10 +965,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 math::integer_divide_ceil(gemms_count_, MaxGroupedGemmGroupsNum));
             gemms_grid_size_.push_back(grid_size);
 
-            // A/B/Ds/E Batch Stride
-            compute_ptr_offset_of_batch_.BatchStrideA_ = a_g_n_k_wos_strides_transposed[0];
-            compute_ptr_offset_of_batch_.BatchStrideB_ = b_g_k_c_xs_strides_transposed[0];
-            compute_ptr_offset_of_batch_.BatchStrideE_ = e_g_n_c_wis_strides_transposed[0];
+            // A/B/Ds/E Batch Stride (multiply by NumGroupsToMerge for group merging)
+            compute_ptr_offset_of_batch_.BatchStrideA_ =
+                a_g_n_k_wos_strides_transposed[0] * NumGroupsToMerge;
+            compute_ptr_offset_of_batch_.BatchStrideB_ =
+                b_g_k_c_xs_strides_transposed[0] * NumGroupsToMerge;
+            compute_ptr_offset_of_batch_.BatchStrideE_ =
+                e_g_n_c_wis_strides_transposed[0] * NumGroupsToMerge;
 
             compute_ptr_offset_of_n_.BatchStrideA_ =
                 a_g_n_k_wos_strides_transposed[1] * conv_N_per_block_;
@@ -1147,7 +1151,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         {
             float ave_time = 0;
 
-            const index_t gdy = arg.num_group_;
+            const index_t gdy = arg.num_group_ / NumGroupsToMerge;
             const index_t gdz = arg.num_workgroups_per_Conv_N_ * arg.k_batch_;
 
             const ADataType* p_a_grid = arg.p_a_grid_;
@@ -1542,6 +1546,21 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             arg.e_g_n_c_wis_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
         const index_t input_spatial_acum = ck::accumulate_n<index_t>(
             arg.a_g_n_k_wos_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
+
+        // Validation: Check that NumGroupsToMerge divides ConvG evenly
+        if constexpr(NumGroupsToMerge > 1)
+        {
+            if(ConvG % NumGroupsToMerge != 0)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! Conv_G % NumGroupsToMerge != 0: Conv_G=" << ConvG
+                              << ", NumGroupsToMerge=" << NumGroupsToMerge << std::endl;
+                }
+                return false;
+            }
+        }
+
         // Specifialization
         if constexpr(ConvBackwardDataSpecialization ==
                      ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
@@ -1908,7 +1927,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     << TransposeTransferInScalarPerVectorAligned <<", "
                     << "TransposeTransferOutScalarPerVectorAligned: " << TransposeTransferOutScalarPerVectorAligned;
                 }
-    
+            
+            if constexpr(NumGroupsToMerge > 1)
+            {
+                str << ", NumGroupsToMerge: " << NumGroupsToMerge;
+            }
                 
             str << ">";
 

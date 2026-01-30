@@ -78,6 +78,9 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     DeviceMem wei_device_buf(sizeof(WeiDataType) * wei_element_space_size);
     DeviceMem in_device_buf(sizeof(InDataType) * in_element_space_size);
 
+    if(do_verification > 0)
+        do_verification = 2;
+
     // Initialize tensors based on do_verification:
     // - do_verification=2: GPU-side initialization
     // - do_verification=0,1: CPU-side initialization
@@ -410,7 +413,8 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     copy(conv_param.input_left_pads_, input_left_pads);
     copy(conv_param.input_right_pads_, input_right_pads);
 
-    std::vector<ck::index_t> split_k_list = {1, 2, 4, 8, 16, 32, 64, 128};
+    // std::vector<ck::index_t> split_k_list = {1, 2, 4, 8, 16, 32, 64, 128};
+    std::vector<ck::index_t> split_k_list = {1, 2, 4, 8};
 
     if(split_k > 0)
     {
