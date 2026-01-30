@@ -825,13 +825,13 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
             if constexpr(std::is_same_v<BQDataType, ck_tile::e8m0_t>)
-                ck_tile::reference_mxfp4gemm_quant<ADataType,
-                                                   BQDataType,
-                                                   BDataType,
-                                                   AccDataType,
-                                                   CDataType,
-                                                   BQuantGroupSize,
-                                                   false>(
+                ck_tile::reference_mx_gemm_bquant<ADataType,
+                                                  BQDataType,
+                                                  BDataType,
+                                                  AccDataType,
+                                                  CDataType,
+                                                  BQuantGroupSize,
+                                                  false>(
                     a_m_k, *bq_tensor_ptr, b_k_n, c_m_n_host_ref);
             else
                 ck_tile::reference_gemm_quant<ADataType,

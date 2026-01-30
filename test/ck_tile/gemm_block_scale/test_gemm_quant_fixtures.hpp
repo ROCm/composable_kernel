@@ -787,13 +787,13 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
         // Run reference BQuant implementation
         if constexpr(std::is_same_v<QDataType, ck_tile::e8m0_t>)
-            ck_tile::reference_mxfp4gemm_quant<ADataType,
-                                               QDataType,
-                                               BDataType,
-                                               AccDataType,
-                                               CDataType,
-                                               QuantGroupSize,
-                                               false>(a_m_k, bq_bqk_bqn, b_k_n, c_m_n_host_ref);
+            ck_tile::reference_mx_gemm_bquant<ADataType,
+                                              QDataType,
+                                              BDataType,
+                                              AccDataType,
+                                              CDataType,
+                                              QuantGroupSize,
+                                              false>(a_m_k, bq_bqk_bqn, b_k_n, c_m_n_host_ref);
         else
             ck_tile::reference_gemm_quant<ADataType,
                                           QDataType,

@@ -70,6 +70,10 @@ struct GemmMxPipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBQDramTileDistribution()
     {
+        // If we apply scale before writing to LDS, we need a tile distribution for
+        // BQuant consistent with global memory reading of matrix B, while
+        // if we apply scale after reading from LDS, we need a tile distribution for
+        // BQuant consistent with the MMA instructions layout
         if constexpr(Problem::BCastPolicy == CastPolicy::AfterLDSRead)
         {
             using BQLayout       = remove_cvref_t<typename Problem::BQLayout>;
