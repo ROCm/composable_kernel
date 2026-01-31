@@ -245,9 +245,10 @@ struct BlockFmhaV3PipelineDefaultPolicy
                          std::is_same_v<typename Problem::KDataType, fp8_t> &&
                          std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                constexpr index_t swizzle_factor = 4;
-                return WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution<
-                    swizzle_factor>{};
+                /// NOTICE: in order to use load_tile() for K tile with correct row stride,
+                /// we cannot use WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution here
+                /// because SwizzleB encoding has half-stride issue for K tile loading
+                return WarpGemmMfma_f32_32x32x32_fp8_fp8_CTransposed<>{};
             }
             else if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
                               std::is_same_v<typename Problem::KDataType, half_t> &&
