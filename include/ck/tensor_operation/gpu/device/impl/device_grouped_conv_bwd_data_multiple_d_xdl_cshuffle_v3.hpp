@@ -864,8 +864,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
                 ave_time += RunMultiDGemm<InMemoryDataOperationEnum::Set>(arg, stream_config);
             }
 
-            arg.Print();
-
             return ave_time;
         }
 
