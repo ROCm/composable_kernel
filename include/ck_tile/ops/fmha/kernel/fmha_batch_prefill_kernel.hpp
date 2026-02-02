@@ -207,19 +207,19 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
     // Helper template to select QScale Kargs type based on QScaleEnum
     // EmptyType: type to use when QScaleEnum is NO_SCALE (e.g., FmhaFwdEmptyKargs<3>)
     template <BlockAttentionQuantScaleEnum QScale, typename EmptyType>
-    struct QScaleKargsSelector
+    struct GetQScaleKargs
     {
         using type = EmptyType;
     };
 
     template <typename EmptyType>
-    struct QScaleKargsSelector<BlockAttentionQuantScaleEnum::PERTENSOR, EmptyType>
+    struct GetQScaleKargs<BlockAttentionQuantScaleEnum::PERTENSOR, EmptyType>
     {
         using type = FmhaFwdPerTensorQScaleKargs;
     };
 
     template <typename EmptyType>
-    struct QScaleKargsSelector<BlockAttentionQuantScaleEnum::KV_BLOCKSCALE, EmptyType>
+    struct GetQScaleKargs<BlockAttentionQuantScaleEnum::KV_BLOCKSCALE, EmptyType>
     {
         using type = FmhaFwdKVBlockScaleKargs;
     };
@@ -287,7 +287,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                                 FmhaFwdEmptyKargs<0>>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
-          QScaleKargsSelector<QScaleEnum, FmhaFwdEmptyKargs<3>>::type,
+          GetQScaleKargs<QScaleEnum, FmhaFwdEmptyKargs<3>>::type,
           std::conditional_t<kHasDropout, FmhaFwdBatchModeDropoutKargs, FmhaFwdEmptyKargs<4>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
     {
@@ -306,7 +306,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                                 FmhaFwdEmptyKargs<0>>>,
           std::conditional_t<kHasMask, FmhaFwdMaskKargs, FmhaFwdEmptyKargs<1>>,
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
-          QScaleKargsSelector<QScaleEnum, FmhaFwdEmptyKargs<3>>::type,
+          GetQScaleKargs<QScaleEnum, FmhaFwdEmptyKargs<3>>::type,
           std::conditional_t<kHasDropout, FmhaFwdCommonDropoutKargs, FmhaFwdEmptyKargs<4>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
     {

@@ -34,10 +34,5 @@ struct BlockAttentionQuantScaleEnumToStr<BlockAttentionQuantScaleEnum::BLOCKSCAL
 {
     static constexpr const char* name = "blockscale";
 };
-template <>
-struct BlockAttentionQuantScaleEnumToStr<BlockAttentionQuantScaleEnum::KV_BLOCKSCALE>
-{
-    static constexpr const char* name = "kv_blockscale";
-};
 
 } // namespace ck_tile

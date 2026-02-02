@@ -740,8 +740,9 @@ def get_fwd_blobs(
                 for page_size in SUPPORTED_PAGE_SIZE:
                     if page_size == 1 and pipeline.F_kv_memory_layout != "linear":
                         continue
-                    # kv_blockscale only supports page_size=1024
-                    if pipeline.F_qscale == "kv_blockscale" and page_size != 1024:
+                    # kv_blockscale requires page_size >= kN0 (tile.F_bn0)
+                    # This ensures all tokens in a main loop iteration belong to the same page
+                    if pipeline.F_qscale == "kv_blockscale" and page_size < tile.F_bn0:
                         continue
                     k = FmhaFwdKernel(
                         F_idx=0,
