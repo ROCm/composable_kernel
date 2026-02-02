@@ -24,15 +24,15 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmMxFp4PipelineAgBgCrImplBase<Problem, Policy>;
 
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using BDqDataType    = remove_cvref_t<typename Problem::ADataType>;
-    using BQDataType     = remove_cvref_t<typename Problem::BQDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
-    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
-    using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
+    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
+    using BDqDataType     = remove_cvref_t<typename Problem::ADataType>;
+    using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
+    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
+    using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using BQuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
-    static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant kernel!");
+    static_assert(BQuantGroupSize::kM == 1, "only N/K blocks for BQuant kernel!");
 
     using I0 = number<0>;
     using I1 = number<1>;
@@ -58,8 +58,8 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t NPerBlockBQ = BlockGemmShape::kN / QuantGroupSize::kN;
-    static constexpr index_t KPerBlockBQ = BlockGemmShape::kK / QuantGroupSize::kK;
+    static constexpr index_t NPerBlockBQ = BlockGemmShape::kN / BQuantGroupSize::kN;
+    static constexpr index_t KPerBlockBQ = BlockGemmShape::kK / BQuantGroupSize::kK;
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
@@ -93,7 +93,7 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                       concat('x', MPerBlock, NPerBlock, KPerBlock),  BlockSize,
                       concat('x', WaveNumM, WaveNumN),
                       concat('x', kPadM, kPadN, kPadK),
-                      concat('x', kPadM, kPadN, kPadK), QuantGroupSize::GetName());
+                      concat('x', kPadM, kPadN, kPadK), BQuantGroupSize::GetName());
         // clang-format on
     }
 
@@ -149,7 +149,7 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
             << "\n"
             << "A/B LDS read inst: " << A_LDS_Read_Inst_Num << ", " << B_LDS_Read_Inst_Num << "\n"
             << "C MFMA inst: " << C_MFMA_Inst_Num << "\n"
-            << "QuantGroupSize: " << QuantGroupSize::GetName() << "\n"
+            << "BQuantGroupSize: " << BQuantGroupSize::GetName() << "\n"
             << "KPack: " << BlockGemm::Traits::KPack << "\n"
             << "PrefetchStages: " << PrefetchStages << "\n";
         return str.str();
@@ -412,7 +412,7 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock / 2, 0) : make_array(0, KPerBlock / 2);
 
-            constexpr index_t b_scale_dram_tile_window_step = KPerBlock / QuantGroupSize::kK;
+            constexpr index_t b_scale_dram_tile_window_step = KPerBlock / BQuantGroupSize::kK;
             // -----------------------------------------------------------------------------------------
             // Gemm pipeline start
 

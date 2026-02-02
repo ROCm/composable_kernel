@@ -397,6 +397,29 @@ struct PassThroughPack8
         y.hi = i4_to_bf8x4(bit_cast<int>(x) >> 8);
 #endif
     }
+
+    CK_TILE_HOST_DEVICE constexpr void operator()(fp8x8_t& y, const pk_fp4x4_t& x) const
+    {
+        pk_fp4_t f0 = pk_fp4_t{x[0]};
+        pk_fp4_t f1 = pk_fp4_t{x[1]};
+        pk_fp4_t f2 = pk_fp4_t{x[2]};
+        pk_fp4_t f3 = pk_fp4_t{x[3]};
+
+        fp8x2_t x0 = f0.to_fp8x2();
+        fp8x2_t x1 = f1.to_fp8x2();
+        fp8x2_t x2 = f2.to_fp8x2();
+        fp8x2_t x3 = f3.to_fp8x2();
+
+        y[0] = x0[0];
+        y[1] = x0[1];
+        y[2] = x1[0];
+        y[3] = x1[1];
+        y[4] = x2[0];
+        y[5] = x2[1];
+        y[6] = x3[0];
+        y[7] = x3[1];
+    }
+
     constexpr const static bool is_pack8_invocable = true;
 };
 

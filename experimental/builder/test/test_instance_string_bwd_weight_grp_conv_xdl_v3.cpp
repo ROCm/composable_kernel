@@ -69,6 +69,8 @@ std::string expected_str =
     ",v1"           // BlkGemmPipelineVer
     ",fp16"         // ComputeTypeA
     ",fp16"         // ComputeTypeB
+    ",0"            // DirectLoad
+    ",1"            // NumGroupsToMerge
     ">";
 
 // Test describe() through base class pointer for XDL V3 variant

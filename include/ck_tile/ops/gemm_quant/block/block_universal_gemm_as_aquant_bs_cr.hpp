@@ -34,7 +34,7 @@ struct AQuantBlockUniversalGemmAsBsCr
         using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
         using CDataType       = remove_cvref_t<typename Problem::CDataType>;
         using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
-        using QuantGroupSize  = remove_cvref_t<typename Problem::AQuantGroupSize>;
+        using AQuantGroupSize = remove_cvref_t<typename Problem::AQuantGroupSize>;
 
         static constexpr index_t kBlockSize = Problem::kBlockSize;
         static constexpr auto Scheduler     = Problem::Scheduler;
@@ -43,7 +43,7 @@ struct AQuantBlockUniversalGemmAsBsCr
         static constexpr index_t MPerBlock  = BlockGemmShape::kM;
         static constexpr index_t NPerBlock  = BlockGemmShape::kN;
         static constexpr index_t KPerBlock  = BlockGemmShape::kK;
-        static constexpr index_t AQPerBlock = KPerBlock / QuantGroupSize::kK;
+        static constexpr index_t AQPerBlock = KPerBlock / AQuantGroupSize::kK;
 
         static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WarpGemm               = remove_cvref_t<decltype(config.template at<0>())>;
@@ -69,20 +69,20 @@ struct AQuantBlockUniversalGemmAsBsCr
         static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
 
         static constexpr index_t QScalesPerBlockRow =
-            integer_divide_ceil(KPerBlock, QuantGroupSize::kK);
+            integer_divide_ceil(KPerBlock, AQuantGroupSize::kK);
         static constexpr index_t QScalesPerWarpGemmRow =
-            integer_divide_ceil(WarpGemm::kK, QuantGroupSize::kK);
+            integer_divide_ceil(WarpGemm::kK, AQuantGroupSize::kK);
 
         static constexpr index_t KIterPerQScale = KIterPerWarp / QScalesPerBlockRow;
 
-        static_assert(QuantGroupSize::kK % WarpGemm::kK == 0,
-                      "Error! WarpGemm::kK should be a multiple of QuantGroupSize");
+        static_assert(AQuantGroupSize::kK % WarpGemm::kK == 0,
+                      "Error! WarpGemm::kK should be a multiple of AQuantGroupSize");
         static_assert(QScalesPerWarpGemmRow == 1,
-                      "Error! QuantGroupSize shouldn't be smaller than WarpGemm::kK");
+                      "Error! AQuantGroupSize shouldn't be smaller than WarpGemm::kK");
         static_assert(KIterPerWarp % QScalesPerBlockRow == 0,
                       "Error! KItersPerWarp should be a multiple of QscalesPerBlockRow");
 
-        static_assert(KPerBlock / QuantGroupSize::kK > 0,
+        static_assert(KPerBlock / AQuantGroupSize::kK > 0,
                       "Error! Each row of blockgemm should have a separate scale");
 
         static_assert(MIterPerWarp * MWarp * WarpGemm::kM == MPerBlock,
@@ -110,8 +110,8 @@ struct AQuantBlockUniversalGemmAsBsCr
         static constexpr index_t KPack      = WarpGemm::kKPerThread;
         static constexpr index_t KPerThread = KIterPerWarp * WarpGemm::kKPerThread;
 
-        static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
-        static constexpr bool TransposeC      = Problem::TransposeC;
+        static constexpr bool APreshuffleQuant = Problem::Traits::APreshuffleQuant;
+        static constexpr bool TransposeC       = Problem::TransposeC;
     };
 
     public:

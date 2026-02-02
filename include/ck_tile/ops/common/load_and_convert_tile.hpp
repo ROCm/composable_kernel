@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include "ck_tile/core.hpp"
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 namespace ck_tile {
@@ -18,12 +19,17 @@ struct ConverterLoader
         constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
         const auto tmp                       = load_tile(src);
 
-        using DstVectorType = DstDataType __attribute__((ext_vector_type(UnaryOpSize)));
+        // NOTE: we rely on types packing neatly here
+        using RawSrcType          = typename WarpWindow::Base::DataType::type;
+        constexpr auto PackedSize = numeric_traits<typename WarpWindow::Base::DataType>::PackedSize;
+
+        using SrcVectorType = ext_vector_t<RawSrcType, UnaryOpSize / PackedSize>;
+        using DstVectorType = ext_vector_t<DstDataType, UnaryOpSize>;
         static_for<0, thread_buffer_size, 1>{}([&](auto i) {
             const element_wise::PassThroughPack8 elementwise_op{};
 
             elementwise_op(dst.get_thread_buffer().template get_as<DstVectorType>()(i),
-                           tmp.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
+                           tmp.get_thread_buffer().template get_as<SrcVectorType>()[i]);
         });
     }
 };
@@ -31,9 +37,9 @@ struct ConverterLoader
 template <index_t UnaryOpSize, bool LoadTranspose = false, typename WarpTile, typename WarpWindow>
 CK_TILE_DEVICE void load_and_convert_tile(WarpTile& dst, const WarpWindow& src)
 {
-    if constexpr(std::is_same_v<typename WarpWindow::Base::DataType, pk_int4_t>)
+    if constexpr(is_packed_type_v<typename WarpWindow::Base::DataType>)
     {
-        static_assert(!LoadTranspose, "LoadTranspose not supported with pk_int4_t");
+        static_assert(!LoadTranspose, "LoadTranspose not supported with pk_int4_t or pk_fp4_t");
         ConverterLoader<typename WarpTile::DataType, UnaryOpSize>::load_interleaved_pk_type(dst,
                                                                                             src);
     }

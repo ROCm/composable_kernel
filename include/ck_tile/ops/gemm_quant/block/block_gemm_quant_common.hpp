@@ -96,9 +96,9 @@ struct AQPickerCommon : public BlockGemmQuantBase
         if constexpr(Traits::TransposeC) // transposed C
         {
             index_t reg_offset =
-                Traits::PreshuffleQuant ? mIter : mIter * Traits::AQPerBlock + kQScale;
+                Traits::APreshuffleQuant ? mIter : mIter * Traits::AQPerBlock + kQScale;
             auto scale_reg = aq_block_tensor.get_thread_buffer()[reg_offset];
-            if constexpr(Traits::PreshuffleQuant)
+            if constexpr(Traits::APreshuffleQuant)
             {
                 auto pull_from_lane =
                     (__lane_id() & (Traits::WarpGemm::kN - 1)) * Traits::AQPerBlock + kQScale;
@@ -121,7 +121,7 @@ struct AQPickerCommon : public BlockGemmQuantBase
         }
         else
         {
-            if constexpr(Traits::PreshuffleQuant)
+            if constexpr(Traits::APreshuffleQuant)
             {
                 // A view is created on top of the preshuffled AQ, where each row of
                 // the view is composed of a row from a warp tile within an AQ block

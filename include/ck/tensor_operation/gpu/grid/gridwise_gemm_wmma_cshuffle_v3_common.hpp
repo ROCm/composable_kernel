@@ -364,7 +364,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     __host__ __device__ static constexpr bool AWaveTransferApplicable()
     {
-        return !ForceThreadTileTransfer && NumATensor == 1 && APackedSize == 1 &&
+        return !ForceThreadTileTransfer && APackedSize == 1 &&
                ABlockTransferSrcScalarPerVector == 8 && ABlockTransferDstScalarPerVector_AK1 == 8 &&
                BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && AK1Value == 8 &&
                !IsBPreShuffled;
@@ -372,13 +372,11 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     __host__ __device__ static constexpr bool BWaveTransferApplicable()
     {
-        return !ForceThreadTileTransfer && NumBTensor == 1 && BPackedSize == 1 &&
+        return !ForceThreadTileTransfer && BPackedSize == 1 &&
                BBlockTransferSrcScalarPerVector == 8 && BBlockTransferDstScalarPerVector_BK1 == 8 &&
                BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && BK1Value == 8;
     }
 
-    // Limitations of the current implementation:
-    //  - no multiAB
 #ifdef __gfx12__
     static constexpr bool IsAWaveTransferApplicable = AWaveTransferApplicable();
 
@@ -1319,19 +1317,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         }
     }
 
-    template <index_t numElements, typename Type>
-    __device__ __forceinline__ static auto get_first_element_workaround(Type& array)
-    {
-        if constexpr(numElements > 1)
-        {
-            return array;
-        }
-        else
-        {
-            return array[I0];
-        }
-    }
-
     // Note: arguments k_batch and k_id should be set if splitk is used
     // with implicit gemm (no pointer shift but shift using tensor descriptors)
     template <typename AGridDesc_AK0_M_K1,
@@ -1435,16 +1420,16 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             ATransfer::GetKDimension(as_grid_desc_ak0_m_ak1[I0]) / (KPerBlock * k_batch));
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
-            get_first_element_workaround<NumATensor>(as_grid_desc_ak0_m_ak1),
+            ATransfer::template get_first_element_workaround<NumATensor>(as_grid_desc_ak0_m_ak1),
             a_block_desc_ak0_m_ak1,
             a_blockwise_copy,
-            get_first_element_workaround<NumATensor>(as_grid_buf),
+            ATransfer::template get_first_element_workaround<NumATensor>(as_grid_buf),
             a_block_buf,
             a_block_slice_copy_step,
-            get_first_element_workaround<NumBTensor>(bs_grid_desc_bk0_n_bk1),
+            BTransfer::template get_first_element_workaround<NumBTensor>(bs_grid_desc_bk0_n_bk1),
             b_block_desc_bk0_n_bk1,
             b_blockwise_copy,
-            get_first_element_workaround<NumBTensor>(bs_grid_buf),
+            BTransfer::template get_first_element_workaround<NumBTensor>(bs_grid_buf),
             b_block_buf,
             b_block_slice_copy_step,
             c_thread_buf,

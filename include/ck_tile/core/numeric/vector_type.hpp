@@ -11,6 +11,7 @@
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/bfloat16.hpp"
 #include "ck_tile/core/numeric/pk_int4.hpp"
+#include "ck_tile/core/numeric/pk_fp4.hpp"
 #include "ck_tile/core/numeric/e8m0.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
@@ -158,6 +159,40 @@ using int32x8_t  = int32_t __attribute__((ext_vector_type(8)));
 using int32x16_t = int32_t __attribute__((ext_vector_type(16)));
 using int32x32_t = int32_t __attribute__((ext_vector_type(32)));
 using int32x64_t = int32_t __attribute__((ext_vector_type(64)));
+
+struct int32x3_tt
+{
+    int32_t data[3];
+};
+
+struct int32x6_tt
+{
+    int32_t data[6];
+};
+
+template <>
+struct impl::ext_vector<int8_t, 12>
+{
+    static constexpr index_t N = 12;
+    using value_type           = int32x3_tt;
+    using type                 = int32x3_tt;
+};
+
+template <>
+struct impl::ext_vector<pk_fp6x16_t, 1>
+{
+    static constexpr index_t N = 1;
+    using value_type           = int32x3_tt;
+    using type                 = int32x3_tt;
+};
+
+template <>
+struct impl::ext_vector<pk_fp6x16_t, 2>
+{
+    static constexpr index_t N = 2;
+    using value_type           = int32x6_tt;
+    using type                 = int32x6_tt;
+};
 
 // u32
 // using uint32_t = ...
