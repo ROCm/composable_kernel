@@ -7,6 +7,8 @@
 #include "ck/utility/sequence_helper.hpp"
 #include "ck/tensor_description/multi_index_transform.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 
 template <index_t NDimHidden, typename VisibleDimensionIds>
@@ -179,7 +181,10 @@ struct TensorDescriptor
     }
 
     // TODO make these private
-    __host__ __device__ constexpr const auto& GetTransforms() const { return transforms_; }
+    __host__ __device__ constexpr const auto& GetTransforms() const [[clang::lifetimebound]]
+    {
+        return transforms_;
+    }
 
     __host__ __device__ static constexpr auto GetLowerDimensionIdss()
     {
@@ -253,9 +258,12 @@ struct TensorCoordinate
     __host__ __device__ constexpr index_t GetOffset() const { return idx_hidden_[Number<0>{}]; }
 
     // TODO make these private
-    __host__ __device__ constexpr const auto& GetHiddenIndex() const { return idx_hidden_; }
+    __host__ __device__ constexpr const auto& GetHiddenIndex() const [[clang::lifetimebound]]
+    {
+        return idx_hidden_;
+    }
 
-    __host__ __device__ auto& GetHiddenIndex() { return idx_hidden_; }
+    __host__ __device__ auto& GetHiddenIndex() [[clang::lifetimebound]] { return idx_hidden_; }
 
     __host__ __device__ constexpr auto GetVisibleIndex() const
     {
@@ -284,7 +292,7 @@ struct TensorCoordinateStep
     __host__ __device__ constexpr const auto& GetIndexDiff() const { return GetVisibleIndexDiff(); }
 
     // TODO make these private
-    __host__ __device__ constexpr const auto& GetVisibleIndexDiff() const
+    __host__ __device__ constexpr const auto& GetVisibleIndexDiff() const [[clang::lifetimebound]]
     {
         return idx_diff_visible_;
     }
@@ -613,3 +621,4 @@ using TensorCoordinateStep_t = decltype(make_tensor_coordinate_step(
     TensorDesc{}, MultiIndex<remove_cvref_t<TensorDesc>::GetNumOfDimension()>{}));
 
 } // namespace ck
+#pragma clang diagnostic pop

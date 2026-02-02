@@ -13,6 +13,8 @@
 #include "ck_tile/host.hpp"
 #include "gemm_common.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 // Data types and Layouts are defined by the generated kernel headers
 // No hardcoded type definitions here to avoid conflicts
 
@@ -240,3 +242,4 @@ void gemm_host_reference(int verify,
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_host_result.data());
     }
 }
+#pragma clang diagnostic pop
