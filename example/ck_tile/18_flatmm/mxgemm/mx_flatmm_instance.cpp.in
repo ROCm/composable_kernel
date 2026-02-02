@@ -19,6 +19,7 @@
 
 using FP4  = ck_tile::pk_fp4_t;
 using FP8  = ck_tile::fp8_t;
+using FP6  = ck_tile::pk_fp6x16_t;
 using FP16 = ck_tile::fp16_t;
 using BF16 = ck_tile::bf16_t;
 

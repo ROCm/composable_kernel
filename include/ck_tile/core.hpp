@@ -54,6 +54,7 @@
 #include "ck_tile/core/numeric/null_type.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
 #include "ck_tile/core/numeric/pk_fp4.hpp"
+#include "ck_tile/core/numeric/pk_fp6.hpp"
 #include "ck_tile/core/numeric/pk_int4.hpp"
 #include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
