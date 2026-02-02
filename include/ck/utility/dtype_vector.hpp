@@ -364,6 +364,57 @@ template <typename Lhs, typename Rhs>
 static constexpr bool is_same_vector_storage_class_v =
     is_same_vector_storage_class<Lhs, Rhs>::value;
 
+// Fwd declaration
+template <typename T, index_t Rank>
+struct vector_type;
+
+/**
+ * @brief Trait to extract element type and rank from vector_type and related types
+ * @tparam T The vector type
+ */
+template <typename T>
+struct vector_type_traits
+{
+    using element_type            = T;
+    static constexpr index_t Rank = 1;
+};
+
+/**
+ * @brief Specialization of vector_type_traits for vector_type
+ * @tparam T The element type of the vector
+ * @tparam Rank_ The number of elements in the vector
+ */
+template <typename T, index_t Rank_>
+struct vector_type_traits<vector_type<T, Rank_>>
+{
+    using element_type            = T;
+    static constexpr index_t Rank = Rank_;
+};
+
+/**
+ * @brief Specialization of vector_type_traits for non_native_vector_base
+ * @tparam T The element type of the vector
+ * @tparam Rank_ The number of elements in the vector
+ */
+template <typename T, index_t Rank_>
+struct vector_type_traits<non_native_vector_base<T, Rank_>>
+{
+    using element_type            = T;
+    static constexpr index_t Rank = Rank_;
+};
+
+/**
+ * @brief Specialization of vector_type_traits for NativeVectorT
+ * @tparam T The element type of the vector
+ * @tparam Rank_ The number of elements in the vector
+ */
+template <typename T, index_t Rank_>
+struct vector_type_traits<NativeVectorT<T, Rank_>>
+{
+    using element_type            = T;
+    static constexpr index_t Rank = Rank_;
+};
+
 /**
  * @brief Vector type wrapper
  * @tparam T The element type of the vector
@@ -413,13 +464,12 @@ struct vector_type
      * X = NativeVectorT<float, 5>;            // ERROR: RankX not a power of 2, ==3, or ==Rank
      * X = int;                                // ERROR: Invalid scalar cast, T != int
      * X = float[4];                           // ERROR: Invalid type, storage vector class doesn't
-     * match
-     *                                         //        native vector vs C-array
+     *                                         // match (native vector != C-array)
      */
     template <typename X>
     static constexpr bool is_as_type_cast_valid()
     {
-        using TraitsX = scalar_type<X>;
+        using TraitsX = vector_type_traits<X>;
 
         // Checks storage classes match, with same base type (may have different ranks)
         constexpr bool is_valid_cast =
@@ -427,10 +477,9 @@ struct vector_type
             is_same_v<X, T>;                               // Matching scalar type
 
         // Validate vector ranks
-        constexpr bool is_valid_rank =
-            (math::is_power_of_two_integer(TraitsX::vector_size) || (TraitsX::vector_size == 3) ||
-             (TraitsX::vector_size == Rank)) &&
-            (TraitsX::vector_size <= Rank);
+        constexpr bool is_valid_rank = (math::is_power_of_two_integer(TraitsX::Rank) ||
+                                        (TraitsX::Rank == 3) || (TraitsX::Rank == Rank)) &&
+                                       (TraitsX::Rank <= Rank);
 
         return is_valid_cast && is_valid_rank;
     }
@@ -450,17 +499,17 @@ struct vector_type
         // Make this a hard error if the datatype X is not a valid cast.
         static_assert(is_as_type_cast_valid<X>(), "Datatype X is not a valid AsType cast");
 
-        using TraitsX = scalar_type<X>;
+        using TraitsX = vector_type_traits<X>;
 
         // Calculate the new rank after slicing.
         // Note: We might end up with incomplete quantization from slicing
-        // when Rank % TraitsX::vector_size != 0, so take the floor division.
-        constexpr index_t newRank = Rank / TraitsX::vector_size;
+        // when Rank % TraitsX::Rank != 0, so take the floor division.
+        constexpr index_t newRank = Rank / TraitsX::Rank;
 
         // Determine the cast type:
         // - Scalar T if slicing to scalar or vector size of 1,
         // - X otherwise.
-        using CastT   = conditional_t<TraitsX::vector_size == 1, T, X>;
+        using CastT   = conditional_t<TraitsX::Rank == 1, T, X>;
         using ResultT = StaticallyIndexedArray_v2<CastT, newRank>;
 
         // As a rule, the aliasing type should not be larger than the original type.
@@ -486,17 +535,17 @@ struct vector_type
         // Make this a hard error if the datatype X is not a valid cast.
         static_assert(is_as_type_cast_valid<X>(), "Datatype X is not a valid AsType cast");
 
-        using TraitsX = scalar_type<X>;
+        using TraitsX = vector_type_traits<X>;
 
         // Calculate the new rank after slicing.
         // Note: We might end up with incomplete quantization from slicing
-        // when Rank % TraitsX::vector_size != 0, so take the floor division.
-        constexpr index_t newRank = Rank / TraitsX::vector_size;
+        // when Rank % TraitsX::Rank != 0, so take the floor division.
+        constexpr index_t newRank = Rank / TraitsX::Rank;
 
         // Determine the cast type:
         // - Scalar T if slicing to scalar or vector size of 1,
         // - X otherwise.
-        using CastT   = conditional_t<TraitsX::vector_size == 1, T, X>;
+        using CastT   = conditional_t<TraitsX::Rank == 1, T, X>;
         using ResultT = StaticallyIndexedArray_v2<CastT, newRank>;
 
         // As a rule, the aliasing type should not be larger than the original type.
