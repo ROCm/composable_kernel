@@ -10,10 +10,9 @@
 
 namespace ck_tile {
 
-struct GemmABQuantPipelineAgBgCrDefaultPolicy
-    : public UniversalGemmBasePolicy<GemmABQuantPipelineAgBgCrDefaultPolicy>
+struct GemmABQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgCrPolicy
 {
-    using Base = UniversalGemmBasePolicy<GemmABQuantPipelineAgBgCrDefaultPolicy>;
+    using Base = UniversalGemmPipelineAgBgCrPolicy;
     using Base::I0;
     using Base::I1;
     using Base::I2;

@@ -101,11 +101,9 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
         // 4. i4,  bf8, (fp8/fp32) -> f32
         static_assert(
             (std::is_same_v<ADataType, fp8_t> || std::is_same_v<ADataType, bf8_t> ||
-             std::is_same_v<ADataType, ck_tile::pk_int4_t> ||
-             std::is_same_v<ADataType, ck_tile::pk_fp4_t>) &&
+             std::is_same_v<ADataType, ck_tile::pk_int4_t>) &&
             (std::is_same_v<BDataType, fp8_t> || std::is_same_v<BDataType, bf8_t> ||
-             std::is_same_v<BDataType, ck_tile::pk_int4_t> ||
-             std::is_same_v<BDataType, ck_tile::pk_fp4_t>) &&
+             std::is_same_v<BDataType, ck_tile::pk_int4_t>) &&
             (std::is_same_v<AQDataType, float> || std::is_same_v<AQDataType, ck_tile::fp8_t> ||
              std::is_same_v<AQDataType, ck_tile::bf8_t>) &&
             (std::is_same_v<BQDataType, float> || std::is_same_v<BQDataType, ck_tile::fp8_t> ||
@@ -191,8 +189,7 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
               typename BFlatBlockTensor,
               typename AQBlockTensor,
               typename BQBlockTensor,
-              typename ABlockWindow,
-              index_t UnaryOpSize = 8>
+              typename ABlockWindow>
     CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
                                    ABlockTensor& a_warp_tensor,
                                    BFlatBlockTensor& b_warp_tensor,
@@ -252,10 +249,8 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg
                     {
                         constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
                         constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
-
-                        load_int4_tile<ADataType, ComputeDataType, UnaryOpSize>(
-                            a_warp_tensor(number<AwarpIter>{}),
-                            a_warp_windows(number<AmIter>{})(number<AkIter>{}));
+                        a_warp_tensor(number<AwarpIter>{}) =
+                            load_tile(a_warp_windows(number<AmIter>{})(number<AkIter>{}));
                     }
                     // barrier
                     // Could be deleted
