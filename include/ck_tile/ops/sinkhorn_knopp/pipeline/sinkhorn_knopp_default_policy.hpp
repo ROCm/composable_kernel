@@ -20,10 +20,10 @@ struct SinkhornKnoppDefaultPolicy : public Reduce2dDefaultPolicy
                     sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::ThreadTile_N>,
                     sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M, S::ThreadTile_M>>,
                 tuple<sequence<2, 1>, sequence<2, 1>>,
-                tuple<sequence<1, 1>, sequence<2, 2>>,
+                tuple<sequence<1, 1>, sequence<2, 1>>,
                 // WarpPerBlock_M, WarpPerBlock_N, ThreadPerWarp_M, ThreadPerWarp_N
-                sequence<2, 2, 1, 1>,
-                sequence<0, 3, 0, 3>>{}); // Repeat_M, ThreadTile_M, Repeat_N, ThreadTile_N
+                sequence<2, 1>,
+                sequence<3, 3>>{}); // Repeat_M, ThreadTile_M, Repeat_N, ThreadTile_N
     }
 
     template <typename Problem>
@@ -38,8 +38,9 @@ struct SinkhornKnoppDefaultPolicy : public Reduce2dDefaultPolicy
                     sequence<S::Repeat_N, S::WarpPerBlock_N, S::ThreadPerWarp_N, S::ThreadTile_N>>,
                 tuple<sequence<1, 2>, sequence<1, 2>>,
                 tuple<sequence<1, 1>, sequence<1, 2>>,
-                sequence<1, 1, 2, 2>,
-                sequence<0, 3, 0, 3>>{});
+                // WarpPerBlock_M, WarpPerBlock_N, ThreadPerWarp_M, ThreadPerWarp_N
+                sequence<2, 1>,
+                sequence<3, 3>>{});
     }
 
     template <typename Problem>
