@@ -27,11 +27,12 @@ void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_wave_trans
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_bf16_wave_transfer_instances<2,
-                                                                        NHWGC,
-                                                                        GKYXC,
-                                                                        NHWGK,
-                                                                        ConvBwdWeightFilter1x1Stride1Pad0>{});
+        device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_bf16_wave_transfer_instances<
+            2,
+            NHWGC,
+            GKYXC,
+            NHWGK,
+            ConvBwdWeightFilter1x1Stride1Pad0>{});
 }
 
 } // namespace instance

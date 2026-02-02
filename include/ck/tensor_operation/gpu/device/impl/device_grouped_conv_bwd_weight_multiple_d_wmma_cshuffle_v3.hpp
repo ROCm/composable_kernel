@@ -29,8 +29,6 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
 
-
-
 #include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 
@@ -56,7 +54,7 @@ __global__ void
 #if CK_USE_LAUNCH_BOUNDS
 __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-       kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3_multiple_d(
+    kernel_grouped_conv_bwd_weight_wmma_cshuffle_v3_multiple_d(
         typename GridwiseGemm::Argument karg,
         const AGridDesc_M_K a_grid_desc_m_k,
         const BGridDesc_N_K b_grid_desc_n_k,
@@ -87,9 +85,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         const auto b_grid_desc_bk0_n_bk1 =
             GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
-    
-            
-              GridwiseGemm::template Run<decltype(a_grid_desc_ak0_m_ak1),
+
+        GridwiseGemm::template Run<decltype(a_grid_desc_ak0_m_ak1),
                                    decltype(b_grid_desc_bk0_n_bk1),
                                    CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                                    ComputePtrOffsetOfBatch,
@@ -162,7 +159,7 @@ template <ck::index_t NDimSpatial,
           index_t CShuffleBlockTransferScalarPerVector_NPerBlock,
           BlockGemmPipelineScheduler BlkGemmPipeSched = BlockGemmPipelineScheduler::Intrawave,
           BlockGemmPipelineVersion BlkGemmPipelineVer = BlockGemmPipelineVersion::v1,
-          bool UseThreadTileTransfer = true,
+          bool UseThreadTileTransfer                  = true,
           typename ComputeTypeA                       = InDataType,
           typename ComputeTypeB                       = ComputeTypeA>
 struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
@@ -184,10 +181,10 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
 
 #if defined USE_WAVE
 
-   static_assert(UseThreadTileTransfer==false &&
-                  (ConvBackwardWeightSpecialization==ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0
-                     ),"Only Filter1x1Stride1Pad0is supported for wavetile transfer"
-               );
+    static_assert(UseThreadTileTransfer == false &&
+                      (ConvBackwardWeightSpecialization ==
+                       ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0),
+                  "Only Filter1x1Stride1Pad0is supported for wavetile transfer");
 #endif
 
     using DeviceOp = DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3;
@@ -301,8 +298,8 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
             params,
             batch);
     }
-    
-            template <typename Desc_K0_M_K1>
+
+    template <typename Desc_K0_M_K1>
     static auto transform_k0_m_k1_to_m_k(const Desc_K0_M_K1& desc_k0_m_k1)
     {
         const auto grid_desc_m_k = transform_tensor_descriptor(
@@ -323,7 +320,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
     using AGridDesc_M_K = decltype(transform_k0_m_k1_to_m_k(AGridDesc_K0_M_K1{}));
-    using BGridDesc_N_K =  decltype(transform_k0_m_k1_to_m_k(BGridDesc_K0_N_K1{}));
+    using BGridDesc_N_K = decltype(transform_k0_m_k1_to_m_k(BGridDesc_K0_N_K1{}));
 
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
         tensor_layout::gemm::ColumnMajor,
@@ -374,9 +371,9 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB,
-        false, // permuteA
-        false, // permuteB
-        false, // IsBPreShuffled
+        false,                  // permuteA
+        false,                  // permuteB
+        false,                  // IsBPreShuffled
         UseThreadTileTransfer>; // ForceThreadTileTransfer
 
     static constexpr auto MakeElementwiseInputSequence()
@@ -731,8 +728,8 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
             });
 
             a_grid_desc_kbatch_m_k_ = transform_k0_m_k1_to_m_k(descs[I0]);
-            b_grid_desc_kbatch_n_k_ =transform_k0_m_k1_to_m_k(descs[I1]);
-            ce_grid_desc_m_n_           = descs[I2];
+            b_grid_desc_kbatch_n_k_ = transform_k0_m_k1_to_m_k(descs[I1]);
+            ce_grid_desc_m_n_       = descs[I2];
 
             ds_grid_descs_tuple_ =
                 MakeDsGridDescriptor_M_N<NDimSpatial>(ds_g_k_c_xs_lengths, ds_g_k_c_xs_strides);
@@ -831,7 +828,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
             const index_t GemmN = arg.b_grid_desc_kbatch_n_k_.GetLength(I0);
             const index_t GemmK = arg.a_grid_desc_kbatch_m_k_.GetLength(I1);
 
-
             AccDataType* p_e_grid = type_convert<AccDataType*>(arg.p_workspace_);
 
             // Convolution kernel dispatch
@@ -860,7 +856,8 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
             index_t K_split                  = (gemm_arg.K + k_grain - 1) / k_grain * KPerBlock;
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
-              const index_t num_k_per_block = (GridwiseGemm::CalculateAK0Padded( arg.a_grid_desc_kbatch_m_k_.GetLength(Number<1>{}),arg.k_batch_));
+            const index_t num_k_per_block = (GridwiseGemm::CalculateAK0Padded(
+                arg.a_grid_desc_kbatch_m_k_.GetLength(Number<1>{}), arg.k_batch_));
 
             const auto clear_workspace = [&]() {
                 hip_check_error(hipMemsetAsync(
@@ -1082,7 +1079,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
         const index_t GemmM = arg.a_grid_desc_kbatch_m_k_.GetLength(I0);
         const index_t GemmN = arg.b_grid_desc_kbatch_n_k_.GetLength(I0);
         const index_t GemmK = arg.a_grid_desc_kbatch_m_k_.GetLength(I1);
-
 
         typename GridwiseGemm::Argument gemm_arg{std::array<const void*, 1>{nullptr}, // p_as_grid
                                                  std::array<const void*, 1>{nullptr}, // p_bs_grid

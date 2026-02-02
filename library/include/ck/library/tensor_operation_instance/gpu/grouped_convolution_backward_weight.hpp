@@ -1013,21 +1013,19 @@ struct DeviceOperationInstanceFactory<
 
 #ifdef CK_ENABLE_BF16
         add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_wave_transfer_instances(
-                        op_ptrs);
+            op_ptrs);
         add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_wave_transfer_instances(
-                        op_ptrs);
+            op_ptrs);
 #endif
 #ifdef CK_ENABLE_FP16
         add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_wave_transfer_instances(
-                        op_ptrs);
+            op_ptrs);
         add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_f16_wave_transfer_instances(
-                        op_ptrs);
+            op_ptrs);
 #endif
         return op_ptrs;
-
-        }
-          
-    };
+    }
+};
 #endif
 } // namespace instance
 } // namespace device

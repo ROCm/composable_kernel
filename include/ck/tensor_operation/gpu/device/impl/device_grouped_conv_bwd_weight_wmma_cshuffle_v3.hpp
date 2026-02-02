@@ -84,9 +84,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         const auto b_grid_desc_bk0_n_bk1 =
             GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
-    
-            
-              GridwiseGemm::template Run<decltype(a_grid_desc_ak0_m_ak1),
+
+        GridwiseGemm::template Run<decltype(a_grid_desc_ak0_m_ak1),
                                    decltype(b_grid_desc_bk0_n_bk1),
                                    CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                                    ComputePtrOffsetOfBatch,
@@ -181,18 +180,19 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
     static_assert(is_same_v<OutElementwiseOperation, element_wise::PassThrough>);
 
     using DeviceOp = DeviceGroupedConvBwdWeight_Wmma_CShuffleV3;
-  
+
     using ADataType = OutDataType;
     using BDataType = InDataType;
     using CDataType = WeiDataType;
-//    // static const auto  F1S1 = ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0;
-//     #if defined USE_WAVE
+    //    // static const auto  F1S1 =
+    //    ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0;
+    //     #if defined USE_WAVE
 
-//      static_assert(UseThreadTileTransfer==false &&
-//                    (ConvBackwardWeightSpecialization==ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0
-//                        ),"Only Filter1x1Stride1Pad0is supported for wavetile transfer"
-//                 );   
-//    #endif
+    //      static_assert(UseThreadTileTransfer==false &&
+    //                    (ConvBackwardWeightSpecialization==ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0
+    //                        ),"Only Filter1x1Stride1Pad0is supported for wavetile transfer"
+    //                 );
+    //    #endif
     // If NGCHW then ADataType must be equal to BDataType
     static_assert(!(is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>() ||
                     is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>()) ||
@@ -314,7 +314,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
             batch);
     }
 
-        template <typename Desc_K0_M_K1>
+    template <typename Desc_K0_M_K1>
     static auto transform_k0_m_k1_to_m_k(const Desc_K0_M_K1& desc_k0_m_k1)
     {
         const auto grid_desc_m_k = transform_tensor_descriptor(
@@ -327,7 +327,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
 
         return grid_desc_m_k;
     }
-            template <typename Desc_K0_N_K1>
+    template <typename Desc_K0_N_K1>
     static auto transform_k0_m_k1_to_n_k(const Desc_K0_N_K1& desc_k0_n_k1)
     {
         const auto grid_desc_n_k = transform_tensor_descriptor(
@@ -358,12 +358,10 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
 
     using AGridDesc_M_K_ = remove_cvref_t<decltype(ABCGridDescs{}[I0])>;
     using BGridDesc_N_K_ = remove_cvref_t<decltype(ABCGridDescs{}[I1])>;
-    using CGridDesc_M_N = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
+    using CGridDesc_M_N  = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
-    
     using AGridDesc_M_K = decltype(transform_k0_m_k1_to_m_k(AGridDesc_M_K_{}));
-    using BGridDesc_N_K =  decltype(transform_k0_m_k1_to_n_k(BGridDesc_N_K_{}));
-
+    using BGridDesc_N_K = decltype(transform_k0_m_k1_to_n_k(BGridDesc_N_K_{}));
 
     using Block2TileMapTranspose = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
 
@@ -626,7 +624,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
                         k_batch_);
 
             a_grid_desc_kbatch_m_k_ = transform_k0_m_k1_to_m_k(descs[I0]);
-            b_grid_desc_kbatch_n_k_ =transform_k0_m_k1_to_n_k(descs[I1]);
+            b_grid_desc_kbatch_n_k_ = transform_k0_m_k1_to_n_k(descs[I1]);
             c_grid_desc_m_n_        = descs[I2];
 
             // A/B/C Batch Stride
@@ -889,10 +887,14 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
             index_t K_split                  = (gemm_arg.K + k_grain - 1) / k_grain * KPerBlock;
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
-            std::cout << "K0 value is:" << (GridwiseGemm::CalculateAK0Padded( arg.a_grid_desc_kbatch_m_k_.GetLength(Number<1>{}),arg.k_batch_)) << std::endl;
+            std::cout << "K0 value is:"
+                      << (GridwiseGemm::CalculateAK0Padded(
+                             arg.a_grid_desc_kbatch_m_k_.GetLength(Number<1>{}), arg.k_batch_))
+                      << std::endl;
 
-              const index_t num_k_per_block = (GridwiseGemm::CalculateAK0Padded( arg.a_grid_desc_kbatch_m_k_.GetLength(Number<1>{}),arg.k_batch_));
-            const auto clear_workspace = [&]() {
+            const index_t num_k_per_block = (GridwiseGemm::CalculateAK0Padded(
+                arg.a_grid_desc_kbatch_m_k_.GetLength(Number<1>{}), arg.k_batch_));
+            const auto clear_workspace    = [&]() {
                 hip_check_error(
                     hipMemsetAsync(p_e_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
             };

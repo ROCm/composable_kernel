@@ -12,26 +12,27 @@ namespace instance {
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
 void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_wave_transfer_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<2,
-                                                           NHWGC,
-                                                           GKYXC,
-                                                           NHWGK,
-                                                           Tuple<>,
-                                                           F16,
-                                                           F16,
-                                                           F16,
-                                                           Tuple<>,
-                                                           PassThrough,
-                                                           PassThrough,
-                                                           PassThrough>>>& instances)
+                                                                    NHWGC,
+                                                                    GKYXC,
+                                                                    NHWGK,
+                                                                    Tuple<>,
+                                                                    F16,
+                                                                    F16,
+                                                                    F16,
+                                                                    Tuple<>,
+                                                                    PassThrough,
+                                                                    PassThrough,
+                                                                    PassThrough>>>& instances)
 {
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_f16_wave_transfer_instances<2,
-                                                                       NHWGC,
-                                                                       GKYXC,
-                                                                       NHWGK,
-                                                                       ConvBwdWeightFilter1x1Stride1Pad0>{});
+        device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_f16_wave_transfer_instances<
+            2,
+            NHWGC,
+            GKYXC,
+            NHWGK,
+            ConvBwdWeightFilter1x1Stride1Pad0>{});
 }
 
 } // namespace instance

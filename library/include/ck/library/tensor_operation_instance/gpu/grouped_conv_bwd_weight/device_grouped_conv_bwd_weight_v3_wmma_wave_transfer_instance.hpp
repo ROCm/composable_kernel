@@ -8,7 +8,6 @@
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
-
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -27,8 +26,6 @@ using F8 = ck::f8_t;
 #ifdef CK_ENABLE_BF8
 using BF8 = ck::bf8_t;
 #endif
-
-
 
 using Empty_Tuple = ck::Tuple<>;
 
@@ -60,7 +57,7 @@ using device_grouped_conv_bwd_weight_v3_wmma_c_shuffle_f16_wave_transfer_instanc
     DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,        Tuple<>,    F16,     F16,     F16,     F32,     Tuple<>, PassThrough, PassThrough, PassThrough,       ConvSpec,    64,    64,    64,    32,    8,   16,   16,       4,       2,       S<4,  8, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              1,              4,         1,       S<4,  8, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              1,              4,         1,           1,           1,        S<1, 16, 1, 4>,               1, BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1, false>,
 
     DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,        Tuple<>,    F16,     F16,     F16,     F32,     Tuple<>, PassThrough, PassThrough, PassThrough,       ConvSpec,   128,   128,   128,    32,    8,   16,   16,       8,       2,       S<4, 32, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              4,              8,         0,       S<4, 32, 1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              4,              8,         0,           1,           1,        S<1, 16, 1, 8>,               8, BlockGemmPipelineScheduler::Intrawave, BlockGemmPipelineVersion::v1, false>
- 
+
     // clang-format on
     >;
 

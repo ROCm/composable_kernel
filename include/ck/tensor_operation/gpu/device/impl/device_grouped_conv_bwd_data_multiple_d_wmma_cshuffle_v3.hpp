@@ -98,13 +98,14 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             }
             group_id = index_t((left + right) / 2);
         }
-        
 
-        const auto num_k_per_block =
-            GridwiseGemm::CalculateAK0Padded(gemm_kernel_args[group_id].a_grid_desc_m_k_.GetLength(Number<1>{}),KBatch);
+        const auto num_k_per_block = GridwiseGemm::CalculateAK0Padded(
+            gemm_kernel_args[group_id].a_grid_desc_m_k_.GetLength(Number<1>{}), KBatch);
 
-           const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(gemm_kernel_args[group_id].a_grid_desc_m_k_);
-           const auto b_grid_desc_bk0_n_bk1 =  GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(gemm_kernel_args[group_id].b_grid_desc_n_k_);
+        const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
+            gemm_kernel_args[group_id].a_grid_desc_m_k_);
+        const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
+            gemm_kernel_args[group_id].b_grid_desc_n_k_);
 
         if constexpr(HasMainKBlockLoopInAllGemm || NoMainKBlockLoopInAllGemm)
         {
@@ -173,7 +174,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                            CTranspose,
                                            TailNum>(
                     p_shared,
-                   a_grid_desc_ak0_m_ak1,
+                    a_grid_desc_ak0_m_ak1,
                     b_grid_desc_bk0_n_bk1,
                     gemm_kernel_args[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
                     gemm_kernel_args[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
@@ -513,15 +514,14 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         return grid_desc_m_k;
     }
 
-
     // Note: the dummy function is used just to create the alias
     constexpr static ConvToGemmBwdDataTransform dummy_conv_to_gemm_transform;
     using ABDsEGridDesc = decltype(GetDummyABDsEGridDescriptor(dummy_conv_to_gemm_transform));
 
     using AGridDesc_AK0_M_AK1 = remove_cvref_t<tuple_element_t<0, ABDsEGridDesc>>;
     using BGridDesc_BK0_N_BK1 = remove_cvref_t<tuple_element_t<1, ABDsEGridDesc>>;
-    using DsGridDesc_M_N = remove_cvref_t<tuple_element_t<2, ABDsEGridDesc>>;
-    using EGridDesc_M_N  = remove_cvref_t<tuple_element_t<3, ABDsEGridDesc>>;
+    using DsGridDesc_M_N      = remove_cvref_t<tuple_element_t<2, ABDsEGridDesc>>;
+    using EGridDesc_M_N       = remove_cvref_t<tuple_element_t<3, ABDsEGridDesc>>;
 
     using AGridDesc_M_K = decltype(transform_k0_m_k1_to_m_k(AGridDesc_AK0_M_AK1{}));
     using BGridDesc_N_K = decltype(transform_k0_m_k1_to_m_k(BGridDesc_BK0_N_BK1{}));
