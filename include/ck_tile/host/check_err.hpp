@@ -720,4 +720,57 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     return err_count == 0;
 }
 
+/**
+ * @brief Check errors between pk_fp6x16_t ranges
+ *
+ * Compares two ranges of pk_fp6x16_t without tolerance.
+ * This specialization handles ck_tile::pk_fp6x16_t type.
+ *
+ * @tparam Range Type of output range
+ * @tparam RefRange Type of reference range
+ * @param out Output range to check
+ * @param ref Reference range to check against
+ * @param msg Error message to display if check fails
+ * @return True if check passes, false otherwise
+ */
+template <typename Range, typename RefRange>
+std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
+                  std::is_same_v<ranges::range_value_t<Range>, pk_fp6x16_t>),
+                 bool>
+    CK_TILE_HOST check_err(const Range& out,
+                           const RefRange& ref,
+                           const std::string& msg = "Error: Incorrect results!",
+                           double                 = 0,
+                           double                 = 0)
+{
+    if(check_size_mismatch(out, ref, msg))
+        return false;
+
+    int err_count   = 0;
+    float max_err   = 0.0f;
+    auto update_err = [&](float o, float r, std::size_t index) {
+        if(std::fabs(o - r) > 1e-8)
+        {
+            std::cerr << msg << " out[" << index << "] != ref[" << index << "]: " << o
+                      << " != " << r << std::endl;
+            ++err_count;
+            max_err = max_err < std::fabs(o - r) ? o : max_err;
+        }
+    };
+    for(std::size_t i = 0; i < ref.size(); ++i)
+    {
+        const pk_fp6x16_t o = *std::next(std::begin(out), i);
+        const pk_fp6x16_t r = *std::next(std::begin(ref), i);
+        for(std::size_t j = 0; j < numeric_traits<pk_fp6x16_t>::PackedSize; j++)
+        {
+            update_err(o.unpack(j), r.unpack(j), i * numeric_traits<pk_fp6x16_t>::PackedSize + j);
+        }
+    }
+    if(err_count > 0)
+    {
+        report_error_stats(err_count, max_err, ref.size());
+    }
+    return err_count == 0;
+}
+
 } // namespace ck_tile

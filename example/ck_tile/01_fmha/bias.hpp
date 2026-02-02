@@ -106,7 +106,7 @@ struct bias_info
         return info;
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const bias_info& bi)
+    friend std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os, const bias_info& bi)
     {
         bi.serialize(os);
         return os;

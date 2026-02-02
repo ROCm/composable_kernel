@@ -68,24 +68,47 @@ int run_mx_flatmm_with_layouts(int argc,
         M / ScaleGranularityM, K / ScaleGranularityK, scale_stride_A, is_row_major(a_layout)));
     ck_tile::HostTensor<ScaleType> scale_b(ck_tile::host_tensor_descriptor(
         K / ScaleGranularityK, N / ScaleGranularityN, scale_stride_B, is_row_major(b_layout)));
+    if constexpr(std::is_same_v<ADataType, ck_tile::pk_fp6x16_t>)
+    {
+        auto a_buffer_bytes = a_host.get_element_space_size_in_bytes();
+        auto b_buffer_bytes = b_origin_host.get_element_space_size_in_bytes();
+        ck_tile::FillUniformDistribution<>{-1.f, 1.f}(scale_a);
+        ck_tile::FillUniformDistribution<>{-1.f, 1.f}(scale_b);
+        std::vector<int8_t> random_bufA(a_buffer_bytes);
+        std::vector<int8_t> random_bufB(b_buffer_bytes);
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<int> dis(1, 4);
 
-    if(init_method == 0)
-    {
-        ck_tile::FillUniformDistribution<>{0.0f, 1.0f}(a_host);
-        ck_tile::FillUniformDistribution<>{-.5f, .5f}(b_origin_host);
-        ck_tile::FillUniformDistribution<>{-2.f, 2.f}(scale_a);
-        ck_tile::FillUniformDistribution<>{-2.f, 2.f}(scale_b);
-    }
-    else if(init_method == 1)
-    {
-        ck_tile::FillUniformDistribution<>{1.f, 1.f}(a_host);
-        ck_tile::FillUniformDistribution<>{1.f, 1.f}(b_origin_host);
-        ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_a);
-        ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_b);
+        for(size_t i = 0; i < a_buffer_bytes; ++i)
+            random_bufA[i] = static_cast<int8_t>(dis(gen));
+
+        for(size_t i = 0; i < b_buffer_bytes; ++i)
+            random_bufB[i] = static_cast<int8_t>(dis(gen));
+
+        memcpy(a_host.data(), random_bufA.data(), a_buffer_bytes);
+        memcpy(b_origin_host.data(), random_bufB.data(), b_buffer_bytes);
     }
     else
     {
-        throw std::runtime_error("wrong! Unexpected init_method");
+        if(init_method == 0)
+        {
+            ck_tile::FillUniformDistribution<>{0.0f, 1.0f}(a_host);
+            ck_tile::FillUniformDistribution<>{-.5f, .5f}(b_origin_host);
+            ck_tile::FillUniformDistribution<>{-2.f, 2.f}(scale_a);
+            ck_tile::FillUniformDistribution<>{-2.f, 2.f}(scale_b);
+        }
+        else if(init_method == 1)
+        {
+            ck_tile::FillUniformDistribution<>{1.f, 1.f}(a_host);
+            ck_tile::FillUniformDistribution<>{1.f, 1.f}(b_origin_host);
+            ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_a);
+            ck_tile::FillUniformDistribution<>{1.f, 1.f}(scale_b);
+        }
+        else
+        {
+            throw std::runtime_error("wrong! Unexpected init_method");
+        }
     }
 
     const auto b_shuffled_host  = preShuffleWeight<FlatmmConfig::N_Warp_Tile>(b_origin_host);
