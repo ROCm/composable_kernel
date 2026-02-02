@@ -1428,7 +1428,7 @@ pipeline {
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ python3 ../experimental/builder/src/generate_instances.py --mode=profiler && \
+                        execute_args = """ python3 ../experimental/grouped_convolution_tile_instances/generate_instances.py --mode=profiler && \
                                            ../script/cmake-ck-dev.sh  ../ gfx90a && \
                                            make -j64 test_grouped_convnd_fwd_tile && \
                                            ./bin/test_grouped_convnd_fwd_tile"""
