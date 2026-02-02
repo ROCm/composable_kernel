@@ -210,16 +210,21 @@ float fmha_fwd(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::stream
                         ((0 < args.window_size_left) or (0 < args.window_size_right));
     const bool can_dispatch_v3 =
         (device_name.compare(0, 6, "gfx950") == 0) and
-        (((traits.data_type.compare("fp16") == 0 or traits.data_type.compare("bf16") == 0) and
-          (traits.qscale_type == quant_scale_enum::no_scale)) or
+        ((false) or
          ((traits.data_type.compare("fp8bf16") == 0) and
           (traits.qscale_type == quant_scale_enum::pertensor))) and
         traits.is_v_rowmajor and (traits.bias_type == bias_enum::no_bias) and
         (not traits.has_lse) and (not traits.has_dropout) and (not is_swa) and
         (args.nhead_q % args.nhead_k == 0) and (args.hdim_q == 128) and (args.hdim_v == 128);
+    if(traits.data_type.compare("fp8bf16") == 0)
+    printf("[POYENC] can_dispatch_v3(=%d) -> ", can_dispatch_v3);
     if ({F_is_v3_enabled} and can_dispatch_v3) {{
+        if(traits.data_type.compare("fp8bf16") == 0)
+        printf("dispatch to fmha_fwd_v3()\\n");
         return fmha_fwd_v3(traits, args, config);
     }} else {{
+        if(traits.data_type.compare("fp8bf16") == 0)
+        printf("dispatch to fmha_fwd_v2()\\n");
         return fmha_fwd_v2(traits, args, config);
     }}
 }}
@@ -936,27 +941,14 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
             }  # fmt: skip
         elif dtype in cls._DT_FP16_BF16:
             return {
-                ( 32,  32) : [FmhaFwdTileSize(128,  64,  16,  32,  32,  32,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
-                ( 64,  64) : [FmhaFwdTileSize( 16,  32,  64,  64,  32,  64,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
-                              FmhaFwdTileSize( 32,  32,  64,  64,  32,  64,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-                              FmhaFwdTileSize(128,  64,  32,  64,  32,  64,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
-                ( 80, 96)  : [FmhaFwdTileSize(128, 128,  16,  96,  32,  80,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
-                ( 96, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32,  96,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (128, 128) : [FmhaFwdTileSize( 16,  32,  64, 128,  32, 128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
                               FmhaFwdTileSize( 32,  32, 128, 128,  32, 128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                               FmhaFwdTileSize(128,  64,  32, 128,  16, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                               FmhaFwdTileSize(128, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
-              # (160, 160) : [FmhaFwdTileSize(128, 128 , 32, 160,  32, 160,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
-                (192, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32, 192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
-                (192, 192) : [FmhaFwdTileSize(128, 128,  32, 192,  32, 192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
-                (256, 256) : [FmhaFwdTileSize(128, 128,  32, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
             }  # fmt: skip
         elif dtype in cls._DT_FP8 or dtype in cls._DT_FP8BF16:
             return {
-                ( 64,  64) : [FmhaFwdTileSize(128,  64,  32,  64,  32,  64,  2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
                 (128, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
-                (192, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32, 192,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
-                (256, 256) : [FmhaFwdTileSize(128, 128,  32, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
             }  # fmt: skip
         elif dtype in cls._DT_FP8FP32:
             return {
@@ -1065,6 +1057,7 @@ class KernelComponentFactoryGfx950(
         )
         if dtype in cls._DT_FP16_BF16:
             qscale = "no"
+            """
             for logits, mask, bias, lse, dropout, skip, sink in itertools.product(
                 ["t", "f"],
                 get_mask_map(mask_impl).keys(),
@@ -1090,7 +1083,7 @@ class KernelComponentFactoryGfx950(
                 for logits, mask in itertools.product(["t", "f"], ["no", "causal"]):
                     pipelines.append(FmhaFwdPipeline("qr_async_trload_v3", "row", "t", "t", "f", "f",
                         F_logits=logits, F_bias="no", F_lse="f", F_dropout="f", F_qscale=qscale, F_mask=mask, F_skip="f", F_trload="t", F_sink="f"))  # fmt: skip
-
+            """
         elif dtype in cls._DT_FP8BF16:
             # no need lse/dropout kernels
             # qr_async_trload_v3 only supports (generic) causal mask
@@ -1380,8 +1373,8 @@ def write_fwd_api(
             FMHA_FWD_API_FOOTER_TEMPLATE.format(
                 F_is_v3_enabled=BOOL_MAP[
                     # NOTE: enable v3 pipelines when ready
-                    # 0 < api_pool.get_num_traits(filter_fn=accept_only_v3)
-                    False
+                    0 < api_pool.get_num_traits(filter_fn=accept_only_v3)
+                    # False
                 ]
             ),
         ]
