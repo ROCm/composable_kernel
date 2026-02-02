@@ -829,6 +829,100 @@ struct TransformConvFwdToGemm
                 N_, Hi_, Wi_, C_, NStride, HiStride_, WiStride_, GStride, CStride);
             return composite_transform;
         }
+        else if constexpr (ConvForwardSpecialization ==
+                          device::ConvolutionForwardSpecialization::Filter3x3Stride1Pad1Dilation1_32_4_4_200x200 &&
+                           NumGroupsToMerge > 1)
+        {
+            constexpr ck::index_t X = 3;
+            constexpr ck::index_t Y = 3;
+            constexpr ck::index_t N = 32;
+            constexpr ck::index_t H = 200;
+            constexpr ck::index_t W = 200;
+            constexpr ck::index_t C = 4;
+            constexpr ck::index_t G = 32;
+            constexpr ck::index_t Pad1 = 1;
+            constexpr ck::index_t Dilation1 = 1;
+            constexpr ck::index_t Stride1 = 1;
+
+            // Tensor strides
+            constexpr ck::index_t NStride = H * W * G * C;
+            constexpr ck::index_t HiStride = W * G * C;
+            constexpr ck::index_t WiStride = G * C;
+            constexpr ck::index_t GStride = C;
+            constexpr ck::index_t CStride = 1;
+            
+            std::cout << "Specialized Filter3x3Stride1Pad1Dilation1_32_4_4_200x200 called.\n";
+
+            // Ensure conv shapes match expected values
+            if (Hi_ != H || Wi_ != W || C_ != C || N_ != N || Y != 3 || X != 3 || Pad1 != InLeftPadH_ || Pad1 != InRightPadH_ ||
+                Pad1 != InLeftPadW_ || Pad1 != InRightPadW_ || Ho_ != H || Wo_ != W)
+            {
+                std::ostringstream oss;
+                oss << "Input dimensions do not match expected values for this specialization.\n";
+                oss << "Expected: N=" << N << ", H=" << H << ", W=" << W << ", C=" << C << ", Y=3, X=3, Pad=1\n";
+                oss << "Got: N=" << N_ << ", Hi=" << Hi_ << ", Wi=" << Wi_ << ", C=" << C_ 
+                    << ", Y=" << Y << ", X=" << X 
+                    << ", InLeftPadH=" << InLeftPadH_ << ", InRightPadH=" << InRightPadH_
+                    << ", InLeftPadW=" << InLeftPadW_ << ", InRightPadW=" << InRightPadW_
+                    << ", Ho=" << Ho_ << ", Wo=" << Wo_;
+                throw std::runtime_error(oss.str());
+            }   
+
+            // Ensure input strides match expected values
+            if (NStrideTensorA_ != NStride || HiStride_ != HiStride || WiStride_ != WiStride ||
+                GStrideTensorA_ != GStride || CStrideTensorA_ != CStride)
+            {
+                std::ostringstream oss;
+                oss << "Input strides do not match expected values for this specialization.\n";
+                oss << "Expected: NStride=" << NStride << ", HiStride=" << HiStride << ", WiStride=" << WiStride 
+                    << ", GStride=" << GStride << ", CStride=" << CStride << "\n";
+                oss << "Got: NStrideTensorA=" << NStrideTensorA_ << ", HiStride=" << HiStride_ 
+                    << ", WiStride=" << WiStride_ << ", GStrideTensorA=" << GStrideTensorA_ 
+                    << ", CStrideTensorA=" << CStrideTensorA_;
+                throw std::runtime_error(oss.str());
+            }
+
+            const auto in_n_hi_wi_groups_c_desc = make_naive_tensor_descriptor(
+                    make_tuple(N, H, W, NumGroupsToMerge, C),
+                    make_tuple(
+                        NStrideTensorA_, HiStride_, WiStride_, GStrideTensorA_, CStrideTensorA_));
+
+                const auto in_n_hip_wip_groups_c_desc = transform_tensor_descriptor(
+                    in_n_hi_wi_groups_c_desc,
+                    make_tuple(make_pass_through_transform(N),
+                               make_pad_transform(H, Pad1, Pad1),
+                               make_pad_transform(W, Pad1, Pad1),
+                               make_pass_through_transform(NumGroupsToMerge),
+                               make_pass_through_transform(C)),
+                    make_tuple(
+                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+                    make_tuple(
+                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+
+                const auto in_n_y_ho_x_wo_groups_c_desc = transform_tensor_descriptor(
+                    in_n_hip_wip_groups_c_desc,
+                    make_tuple(make_pass_through_transform(N),
+                               make_embed_transform(make_tuple(Y, H),
+                                                    make_tuple(Dilation1, Stride1)),
+                               make_embed_transform(make_tuple(X, W),
+                                                    make_tuple(Dilation1, Stride1)),
+                               make_pass_through_transform(NumGroupsToMerge),
+                               make_pass_through_transform(C)),
+                    make_tuple(
+                        Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+                    make_tuple(Sequence<0>{},
+                               Sequence<1, 2>{},
+                               Sequence<3, 4>{},
+                               Sequence<5>{},
+                               Sequence<6>{}));
+
+                return transform_tensor_descriptor(
+                    in_n_y_ho_x_wo_groups_c_desc,
+                    make_tuple(make_merge_transform(make_tuple(N, H, W, NumGroupsToMerge)),
+                               make_merge_transform(make_tuple(Y, X, C))),
+                    make_tuple(Sequence<0, 2, 4, 5>{}, Sequence<1, 3, 6>{}),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
         else if constexpr(ConvForwardSpecialization ==
                           device::ConvolutionForwardSpecialization::Filter1x1Pad0)
         {

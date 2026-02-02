@@ -18,7 +18,8 @@ enum struct ConvolutionForwardSpecialization
     Filter1x1Stride1Pad0,
     OddC,
     Filter3x3,
-    Filter3x3Stride1Pad1Dilation1 //_200x200_32_4x4 // Image 200x200, K=C=4, and 32 batches
+    Filter3x3Stride1Pad1Dilation1,
+    Filter3x3Stride1Pad1Dilation1_32_4_4_200x200  // Image 200x200, K=C=4, and 32 batches
 };
 
 #ifndef CK_CODE_GEN_RTC
@@ -32,6 +33,7 @@ inline std::string getConvForwardSpecializationString(const ConvolutionForwardSp
     case ConvolutionForwardSpecialization::OddC: return "OddC";
     case ConvolutionForwardSpecialization::Filter3x3: return "Filter3x3";
     case ConvolutionForwardSpecialization::Filter3x3Stride1Pad1Dilation1: return "Filter3x3Stride1Pad1Dilation1";
+    case ConvolutionForwardSpecialization::Filter3x3Stride1Pad1Dilation1_32_4_4_200x200: return "Filter3x3Stride1Pad1Dilation1_32_4_4_200x200";
     default: return "Unrecognized specialization!";
     }
 }
