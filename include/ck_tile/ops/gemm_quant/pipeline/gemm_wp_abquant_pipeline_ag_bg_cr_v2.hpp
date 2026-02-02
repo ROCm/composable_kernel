@@ -7,7 +7,7 @@
 #include <sstream>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
+#include "ck_tile/ops/common/load_and_convert_tile.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_v2.hpp"
