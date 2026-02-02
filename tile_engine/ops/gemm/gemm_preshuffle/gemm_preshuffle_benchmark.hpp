@@ -7,6 +7,9 @@
 #include "ck_tile/host.hpp"
 #include "gemm_preshuffle_common.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 //[TODO] Move parts of this File to commons
 enum class Metric
 {
@@ -234,3 +237,4 @@ void gemm_host_reference(int verify,
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_ref.data());
     }
 }
+#pragma clang diagnostic pop

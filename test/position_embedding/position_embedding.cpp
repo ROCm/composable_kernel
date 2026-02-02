@@ -9,6 +9,9 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 #ifndef TEST_ALIBI_VERBOSE
 #define TEST_ALIBI_VERBOSE 0
 #endif
@@ -213,3 +216,4 @@ int main()
     // clang-format on
     return rtn ? 0 : -1;
 }
+#pragma clang diagnostic pop
