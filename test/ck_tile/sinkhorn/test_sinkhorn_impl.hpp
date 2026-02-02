@@ -36,7 +36,8 @@ class TestCkTileSinkHorn : public ::testing::Test
         ck_tile::HostTensor<XDataType> h_x(input_shape, default_stride);
         ck_tile::HostTensor<YDataType> h_y(input_shape, default_stride);
 
-        ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(h_x);
+        // ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(h_x);
+        ck_tile::FillMonotonicSeq<XDataType>{}(h_x);
 
         auto buffer_size = h_x.get_element_space_size_in_bytes();
         ck_tile::DeviceMem d_x_mem(buffer_size);

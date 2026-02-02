@@ -42,15 +42,6 @@ struct SinkhornKnoppDefaultPolicy : public Reduce2dDefaultPolicy
                 sequence<2, 1>,
                 sequence<3, 3>>{});
     }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSum()
-    {
-        using br_problem = BlockReduce2dProblem<typename Problem::InDataType,
-                                                typename Problem::ComputeDataType,
-                                                typename Problem::BlockShape>;
-        return BlockReduce2d<br_problem>{};
-    }
 };
 
 } // namespace ck_tile
