@@ -44,6 +44,11 @@ __device__ inline int32_t amd_wave_read_first_lane(int32_t value)
     return __builtin_amdgcn_readfirstlane(value);
 }
 
+__device__ inline uint32_t amd_wave_read_first_lane(uintptr_t value)
+{
+    return __builtin_amdgcn_readfirstlane(static_cast<uint32_t>(value));
+}
+
 template <typename Object, std::enable_if_t<std::is_trivially_copyable_v<Object>, int> = 0>
 __device__ inline auto amd_wave_read_first_lane(const Object& obj)
 {
@@ -1414,7 +1419,7 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
             (std::is_same<T, pk_int4_t>::value &&
                  (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32) ||
              (std::is_same<T, pk_fp4_t>::value &&
-              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16))),
+              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32))),
         "wrong! not implemented");
 
     using rtn_type = thread_buffer<T, N>;

@@ -1174,8 +1174,8 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                    ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
+                ck_tile::CShuffleEpilogueProblem<typename PipelineProblem::ComputeDataType,
+                                                 typename PipelineProblem::ComputeDataType,
                                                  ck_tile::tuple<>,
                                                  AccDataType,
                                                  CDataType,
