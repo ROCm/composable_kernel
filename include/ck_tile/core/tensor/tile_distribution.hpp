@@ -45,6 +45,22 @@ struct tile_distributed_index
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return true; }
 };
 
+template <index_t... Is>
+CK_TILE_HOST_DEVICE void print(const tile_distributed_index<Is...>)
+{
+    printf("tile_distributed_index<");
+    if constexpr(sizeof...(Is) > 0)
+    {
+        bool first = true;
+        (([&first](index_t value) {
+             printf("%s%d", first ? "" : ", ", value);
+             first = false;
+         }(Is)),
+         ...);
+    }
+    printf(">");
+}
+
 namespace detail {
 
 template <index_t... Is>
