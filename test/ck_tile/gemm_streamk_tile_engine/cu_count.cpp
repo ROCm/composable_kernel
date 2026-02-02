@@ -41,8 +41,4 @@ int get_cu_count()
     return dev_prop.multiProcessorCount;
 }
 
-int main()
-{
-    std::cout << get_cu_count();
-    return 0;
-}
+int main() { return get_cu_count(); }
