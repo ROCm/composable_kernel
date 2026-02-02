@@ -114,6 +114,72 @@ void add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_bf
                                                            PassThrough>>>& instances);
 #endif
 
+#if defined USE_WAVE
+#ifdef CK_ENABLE_BF16
+
+void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_wave_transfer_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<2,
+                                                                    NHWGC,
+                                                                    GKYXC,
+                                                                    NHWGK,
+                                                                    Tuple<>,
+                                                                    BF16,
+                                                                    BF16,
+                                                                    BF16,
+                                                                    Tuple<>,
+                                                                    PassThrough,
+                                                                    PassThrough,
+                                                                    PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_wave_transfer_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NHWGC,
+                                                           GKYXC,
+                                                           NHWGK,
+                                                           Tuple<>,
+                                                           BF16,
+                                                           BF16,
+                                                           BF16,
+                                                           Tuple<>,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+
+#endif
+
+#ifdef CK_ENABLE_FP16
+
+void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_wave_transfer_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<2,
+                                                                    NHWGC,
+                                                                    GKYXC,
+                                                                    NHWGK,
+                                                                    Tuple<>,
+                                                                    F16,
+                                                                    F16,
+                                                                    F16,
+                                                                    Tuple<>,
+                                                                    PassThrough,
+                                                                    PassThrough,
+                                                                    PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_wave_transfer_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           Tuple<>,
+                                                           F16,
+                                                           F16,
+                                                           F16,
+                                                           Tuple<>,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough>>>& instances);
+
+#endif
+#endif
+
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

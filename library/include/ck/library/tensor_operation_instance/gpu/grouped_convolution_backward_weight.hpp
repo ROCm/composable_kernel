@@ -12,6 +12,11 @@
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 
+#if defined USE_WAVE
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_weight_multiple_d.hpp"
+
+#endif
+
 #ifdef DL_KERNELS
 #include "grouped_convolution_backward_weight_dl.inc"
 #endif
@@ -957,7 +962,73 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         return op_ptrs;
     }
 };
+#if defined USE_WAVE
+template <ck::index_t NumDimSpatial,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
+          typename DsLayout,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename DsDataType,
+          typename ComputeTypeA,
+          typename ComputeTypeB>
+struct DeviceOperationInstanceFactory<
+    ck::tensor_operation::device::DeviceGroupedConvBwdWeightMultipleD<
+        NumDimSpatial,
+        InLayout,
+        WeiLayout,
+        OutLayout,
+        DsLayout,
+        InDataType,
+        WeiDataType,
+        OutDataType,
+        DsDataType,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::PassThrough,
+        ck::tensor_operation::element_wise::PassThrough,
+        ComputeTypeA,
+        ComputeTypeB>>
+{
+    using DeviceOp =
+        DeviceGroupedConvBwdWeightMultipleD<NumDimSpatial,
+                                            InLayout,
+                                            WeiLayout,
+                                            OutLayout,
+                                            DsLayout,
+                                            InDataType,
+                                            WeiDataType,
+                                            OutDataType,
+                                            DsDataType,
+                                            ck::tensor_operation::element_wise::PassThrough,
+                                            ck::tensor_operation::element_wise::PassThrough,
+                                            ck::tensor_operation::element_wise::PassThrough,
+                                            ComputeTypeA,
+                                            ComputeTypeB>;
 
+    static auto GetInstances()
+    {
+        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+#ifdef CK_ENABLE_BF16
+        add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_wave_transfer_instances(
+                        op_ptrs);
+        add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_f16_wave_transfer_instances(
+                        op_ptrs);
+#endif
+#ifdef CK_ENABLE_FP16
+        add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_wave_transfer_instances(
+                        op_ptrs);
+        add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_f16_wave_transfer_instances(
+                        op_ptrs);
+#endif
+        return op_ptrs;
+
+        }
+          
+    };
+#endif
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation
