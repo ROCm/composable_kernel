@@ -11,32 +11,37 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/ck.hpp"
 
-template <typename inType, typename outType>
-void convertTypeFromDevice(std::vector<inType>& fromDevice,
-                           std::vector<outType>& res,
+template <typename InType, typename OutType>
+void convertTypeFromDevice(std::vector<InType>& fromDevice,
+                           std::vector<OutType>& res,
                            uint64_t num_elements)
 {
-    for(uint64_t i = 0; i < num_elements / ck::packed_size_v<inType>; i++)
+    for(uint64_t i = 0; i < num_elements / ck::packed_size_v<InType>; i++)
     {
         // since the CPU dosen't have non-standard data types, we need to convert to float
-        if constexpr(ck::is_same_v<ck::remove_cvref_t<inType>, ck::f4x2_pk_t>)
+        if constexpr(ck::is_same_v<ck::remove_cvref_t<InType>, ck::f4x2_pk_t>)
         {
             ck::float2_t tmp = ck::type_convert<ck::float2_t, ck::f4x2_t>(fromDevice[i]);
             res[i * 2]       = tmp.x;
             res[i * 2 + 1]   = tmp.y;
         }
-        else if constexpr(ck::is_same_v<ck::remove_cvref_t<inType>, ck::pk_i4_t>)
+        else if constexpr(ck::is_same_v<ck::remove_cvref_t<InType>, ck::pk_i4_t>)
         {
             uint8_t packed = fromDevice[i].data;
 
             int hi         = (packed >> 4) & 0x0f;
             int lo         = packed & 0x0f;
-            res[i * 2]     = static_cast<outType>(hi - 8);
-            res[i * 2 + 1] = static_cast<outType>(lo - 8);
+            res[i * 2]     = static_cast<OutType>(hi - 8);
+            res[i * 2 + 1] = static_cast<OutType>(lo - 8);
+        }
+        else if constexpr(ck::is_same_v<InType, ck::bhalf_t>)
+        {
+            res[i] = ck::type_convert<OutType, float>(
+                ck::type_convert<float, ck::bhalf_t>(fromDevice[i]));
         }
         else
         {
-            res[i] = ck::type_convert<outType, inType>(fromDevice[i]);
+            res[i] = ck::type_convert<OutType, InType>(fromDevice[i]);
         }
     }
 }
@@ -198,12 +203,13 @@ void TDevRanNormGenFp(double sigma,
 }
 
 TEST(TDevIntegerRanUniGen, U8) { TDevRanUniGenInt<uint8_t>(0, 2, 15000); }
-TEST(TDevIntegerRanUniGen, U16) { TDevRanUniGenInt<uint16_t>(0, 100, 100000); }
+// Note: U16 conflicts with ck::bhalf_t
 TEST(TDevIntegerRanUniGen, U32) { TDevRanUniGenInt<uint32_t>(0, 10000, 10000000); }
 TEST(TDevIntegerRanUniGen, I4) { TDevRanUniGenInt<ck::pk_i4_t>(-2, 2, 10000000); }
 
 TEST(TDevIntegerRanUniGen, F32) { TDevRanUniGenInt<float>(-2, 2, 10000000); }
 TEST(TDevIntegerRanUniGen, F16) { TDevRanUniGenInt<ck::half_t>(-2, 2, 1000000); }
+TEST(TDevIntegerRanUniGen, BF16) { TDevRanUniGenInt<ck::bhalf_t>(-2, 2, 1000000); }
 
 TEST(TDevFpRanUniGen, F32_1) { TDevRanUniGenFp<float>(0, 1, 100000); }
 TEST(TDevFpRanUniGen, F32_2) { TDevRanUniGenFp<float>(0, 37, 73000); }

@@ -6,6 +6,7 @@
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
+#include "ck_tile/core/numeric/pk_fp4.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/random.hpp"
 #include <stdint.h>
@@ -23,6 +24,11 @@ struct pk_int4_t
     type data;
     CK_TILE_HOST_DEVICE constexpr pk_int4_t() : data{type{}} {}
     CK_TILE_HOST_DEVICE constexpr pk_int4_t(type init) : data{init} {}
+
+    // NOTE: added for interface compatibility with pk_fp4_t
+    // Other data types could be added for greater similarity
+    CK_TILE_HOST_DEVICE constexpr fp32x2_t to_fp32x2() const;
+    CK_TILE_HOST_DEVICE constexpr operator fp32x2_t() const { return to_fp32x2(); }
 };
 
 // limits
@@ -111,7 +117,7 @@ CK_TILE_HOST_DEVICE fp32x2_t pk_int4_t_to_fp32x2_t(const pk_int4_t& x)
 
 #ifdef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
     fp32x2_t res = {x_h, x_l};
-#elif
+#else
     fp32x2_t res = {x_l, x_h};
 #endif
     return res;
@@ -129,7 +135,7 @@ CK_TILE_HOST_DEVICE fp32x2_t pk_int4_t_to_fp32x2_t_signed_conversion(const pk_in
 
 #ifdef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
     fp32x2_t res = {x_h, x_l};
-#elif
+#else
     fp32x2_t res = {x_l, x_h};
 #endif
     return res;
@@ -140,7 +146,7 @@ CK_TILE_HOST_DEVICE fp16x2_t pk_int4_t_to_halfx2_t(const pk_int4_t& x)
     uint8_t x_u8 = ck_tile::bit_cast<uint8_t>(x);
 #ifdef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
     uint32_t i4s = ((x_u8 & 0x0f) << 16) | ((x_u8 & 0xf0) >> 4);
-#elif
+#else
     uint32_t i4s = ((x_u8 & 0xf0) << 12) | (x_u8 & 0xf);
 #endif
     const int EX  = 0x64006400;
@@ -160,7 +166,7 @@ CK_TILE_HOST_DEVICE bf16x2_t pk_int4_t_to_bfloat16x2_t(const pk_int4_t& x)
 
 #ifdef CK_TILE_USE_PK4_LAYOUT_SHUFFLE
     bf16x2_t res = {type_convert<bf16_t>(x_h), type_convert<bf16_t>(x_l)};
-#elif
+#else
     bf16x2_t res = {type_convert<bf16_t>(x_l), type_convert<bf16_t>(x_h)};
 #endif
     return res;
@@ -184,6 +190,11 @@ CK_TILE_HOST_DEVICE int8x2_t pk_int4_t_to_int8x2_t(const pk_int4_t& x)
     int8x2_t res = {x_l, x_h};
 #endif
     return res;
+}
+
+CK_TILE_HOST_DEVICE constexpr fp32x2_t pk_int4_t::to_fp32x2() const
+{
+    return pk_int4_t_to_fp32x2_t(*this);
 }
 
 } // namespace ck_tile

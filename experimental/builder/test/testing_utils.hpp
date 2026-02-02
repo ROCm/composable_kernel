@@ -209,7 +209,8 @@ struct ReferenceOutputMatcher
                     // Round to 2 digits
                     const float percentage = e.wrong_elements * 10000 / e.total_elements / 100.f;
                     *listener << e.wrong_elements << "/" << e.total_elements
-                              << " incorrect elements (~" << percentage << "%)";
+                              << " incorrect elements (~" << percentage << "%)," << " max error "
+                              << e.max_error;
                 }
             }
         }

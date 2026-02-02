@@ -5,8 +5,10 @@
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convinvscale.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale_relu.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_scale.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "profiler/common.hpp"
@@ -42,7 +44,7 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
                                                 bool time_kernel,
                                                 const ck::utils::conv::ConvParam& conv_param)
 {
-    auto pass = true; // return status
+    auto pass = true;
 
     using CShuffleDataType = float;
 
@@ -150,7 +152,7 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
     std::cout << "scale_out: " << scale_out << std::endl;
 
     // run reference op
-    if(do_verification)
+    if(do_verification == 1)
     {
 
         std::cout << "\nVerifying algorithm against reference convolution..." << std::endl;
@@ -200,6 +202,57 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
             }
         });
     }
+    else if(do_verification == 2)
+    {
+        // GPU reference
+        // WORKAROUND: For int8_t with Scale, use CPU post-processing to match CPU reference
+        // Pure GPU approach fails int8 test (see 2026-01-07-int8-scale-debugging.md)
+        if constexpr(std::is_same_v<OutElementOp, ck::tensor_operation::element_wise::Scale> &&
+                     std::is_same_v<OutDataType, int8_t>)
+        {
+            // Compute conv to CShuffleDataType (float), then post-process on CPU
+            DeviceMem gpu_ref_c_dev(sizeof(CShuffleDataType) * c.mDesc.GetElementSpaceSize());
+
+            ck::ref::naive_conv_fwd<InLayout, WeiLayout, OutLayout>(
+                static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                static_cast<CShuffleDataType*>(gpu_ref_c_dev.GetDeviceBuffer()),
+                conv_param,
+                in_element_op,
+                wei_element_op,
+                PassThrough{});
+
+            ck::hip_check_error(hipDeviceSynchronize());
+
+            Tensor<CShuffleDataType> gpu_c(out_g_n_k_wos_desc);
+            gpu_ref_c_dev.FromDevice(gpu_c.mData.data());
+
+            // Post-process on CPU to match CPU reference behavior
+            host_output.ForEach([&](auto&, auto idx) {
+                const auto conv_shuffle = ck::type_convert<CShuffleDataType>(gpu_c(idx));
+                const auto conv_val     = ck::type_convert<OutDataType>(conv_shuffle);
+                out_element_op(host_output(idx), conv_val);
+            });
+        }
+        else
+        {
+            // Normal path for non-int8 or non-Scale cases
+            DeviceMem gpu_ref_out_dev(sizeof(OutDataType) *
+                                      device_output.mDesc.GetElementSpaceSize());
+
+            ck::ref::naive_conv_fwd<InLayout, WeiLayout, OutLayout>(
+                static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
+                static_cast<WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+                static_cast<OutDataType*>(gpu_ref_out_dev.GetDeviceBuffer()),
+                conv_param,
+                in_element_op,
+                wei_element_op,
+                out_element_op);
+
+            ck::hip_check_error(hipDeviceSynchronize());
+            gpu_ref_out_dev.FromDevice(host_output.mData.data());
+        }
+    }
 
     std::string best_op_name;
     float best_avg_time   = 0;
@@ -239,7 +292,7 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
                 best_gb_per_sec = gb_per_sec;
             }
 
-            if(do_verification)
+            if(do_verification == 1)
             {
                 out_device_buf.FromDevice(device_output.mData.data());
 
@@ -254,6 +307,27 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
                     LogRangeAsType<float>(std::cout << "input : ", input.mData, ",") << std::endl;
                     LogRangeAsType<float>(std::cout << "weight: ", weight.mData, ",") << std::endl;
                     LogRangeAsType<float>(std::cout << "host_output  : ", host_output.mData, ",")
+                        << std::endl;
+                    LogRangeAsType<float>(std::cout << "device_output: ", device_output.mData, ",")
+                        << std::endl;
+                }
+            }
+            else if(do_verification == 2)
+            {
+                out_device_buf.FromDevice(device_output.mData.data());
+
+                pass =
+                    pass & ck::utils::check_err(device_output,
+                                                host_output,
+                                                "Error: Device and GPU ref results do not match!",
+                                                get_rtol<OutDataType>(),
+                                                get_atol<OutDataType>());
+
+                if(do_log)
+                {
+                    LogRangeAsType<float>(std::cout << "input : ", input.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "weight: ", weight.mData, ",") << std::endl;
+                    LogRangeAsType<float>(std::cout << "gpu_ref_output  : ", host_output.mData, ",")
                         << std::endl;
                     LogRangeAsType<float>(std::cout << "device_output: ", device_output.mData, ",")
                         << std::endl;

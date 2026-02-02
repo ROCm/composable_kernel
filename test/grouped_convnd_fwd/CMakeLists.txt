@@ -7,6 +7,9 @@ if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     add_gtest_executable(test_grouped_convnd_fwd_bilinear test_grouped_convnd_fwd_bilinear.cpp)
     target_link_libraries(test_grouped_convnd_fwd_bilinear PRIVATE utility device_grouped_conv3d_fwd_bilinear_instance)
 
+    add_gtest_executable(test_grouped_convnd_fwd_dynamic_op test_grouped_convnd_fwd_dynamic_op.cpp)
+    target_link_libraries(test_grouped_convnd_fwd_dynamic_op PRIVATE utility device_grouped_conv2d_fwd_dynamic_op_instance device_grouped_conv3d_fwd_dynamic_op_instance)
+
     add_gtest_executable(test_grouped_convnd_fwd_scaleadd_ab test_grouped_convnd_fwd_scaleadd_ab.cpp)
     target_link_libraries(test_grouped_convnd_fwd_scaleadd_ab PRIVATE utility device_grouped_conv3d_fwd_scaleadd_ab_instance)
 
@@ -21,13 +24,12 @@ endif()
 
 if(GPU_TARGETS MATCHES "gfx9")
   if(CK_EXPERIMENTAL_BUILDER)
-    # TODO: Reenable after the instance fixes
-    # add_executable(test_grouped_convnd_fwd_tile test_grouped_convnd_fwd_tile.cpp)
-    # target_compile_options(test_grouped_convnd_fwd_tile PRIVATE -Wno-global-constructors -Wno-undef -Wno-c++20-compat)
-    # target_link_libraries(test_grouped_convnd_fwd_tile PRIVATE gtest_main getopt::getopt utility)
-    # if(TARGET device_grouped_conv_fwd_tile_instances)
-    #     target_link_libraries(test_grouped_convnd_fwd_tile PRIVATE device_grouped_conv_fwd_tile_instances)
-    # endif()
+    add_gtest_executable(test_grouped_convnd_fwd_tile test_grouped_convnd_fwd_tile.cpp)
+    target_compile_options(test_grouped_convnd_fwd_tile PRIVATE -Wno-global-constructors -Wno-undef -Wno-c++20-compat)
+    target_link_libraries(test_grouped_convnd_fwd_tile PRIVATE gtest_main getopt::getopt utility)
+    if(TARGET device_grouped_conv_fwd_tile_instances)
+        target_link_libraries(test_grouped_convnd_fwd_tile PRIVATE device_grouped_conv_fwd_tile_instances)
+    endif()
   endif()
 endif()
 
