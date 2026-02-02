@@ -13,6 +13,9 @@
 #include <unordered_map>
 #include <vector>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 /*
  * a host side utility, arg parser for, either
@@ -234,3 +237,4 @@ class ArgParser
     std::vector<std::string> keys;
 };
 } // namespace ck_tile
+#pragma clang diagnostic pop

@@ -13,6 +13,9 @@
 #include "ck_tile/host.hpp"
 #include "gemm_multi_d_common.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-seggestions"
+
 // Data types and Layouts are defined by the generated kernel headers
 // No hardcoded type definitions here to avoid conflicts
 
@@ -230,3 +233,4 @@ void gemm_multi_d_host_reference(int verify,
             a_m_k, b_k_n, {d0_m_n, d1_m_n}, c_m_n_host_result);
     }
 }
+#pragma clang diagnostic pop
