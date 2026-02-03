@@ -34,17 +34,25 @@ Each test configuration can specify optimized problem sizes in its JSON file:
 The key idea: **Unit tests that use tile_engine's exact kernel generation and verification methodology** instead of creating separate test infrastructure.
 
 ## Test Configurations
+Test configs are generated during the Generation Phase. They are stored under the build directory at test/ck_tile/gemm_streamk_tile_engine/configs. The Compute Unit (CU) count of the device is required to generate the configs. If the Generation Phase occurs on a machine without a GPU or does not contain same GPU architecture on which you will run the tests, you can manually set the CU count using the `CU_COUNT` option:
+```bash
+# Assuming you are at the root of the repo
+cd build
+../script/cmake-ck-dev.sh .. gfx90a  -G Ninja -DCU_COUNT=100
+```
+You can reference the public whitepaper for your specific GPU to get the appropriate CU count. 
+If no `CU_COUNT` option is given and no HIP device is found, then the default value of 100 CUs will be used to determine the problem sizes tested.
 
-### 1. **Simple Test** (`simple_test_config.json`)
-- **Purpose**: Basic functionality validation for fp16/bf16 data types
-- **Config**: 128x128x32, warp 2x2x1, warp_tile 32x32x16  
+### 1. **Smoke Tests**
+- **Purpose**: Basic functionality validation for fp16/bf16/fp8/bf8 data types
+- **Config**: 256x256x32 (for bf16/fp16) or 128x128x32 (for bf8/fp8), warp 2x2x1, warp_tile 32x32x16  
 - **Traits**: compv3 pipeline only
-- **Coverage**: All 4 layouts (rcr, rrr, ccr, crr) for  fp16, bf16
+- **Coverage**: All 4 layouts (rcr, rrr, ccr, crr)
 
 ## Data Type Support
-- ✅ **fp16, bf16**: Fully supported - all layouts (rcr, rrr, ccr, crr)
+- ✅ **fp16, bf16, fp8, bf8**: Fully supported - all layouts (rcr, rrr, ccr, crr)
 - ❌ **fp64**: Not supported (hardware MFMA limitation)
-- ⏳ **fp32, bf8, pk-int4-t**: Not yet supported by gemm_instance_builder (will be added later)
+- ⏳ **fp32, pk-int4-t**: Not yet supported by gemm_instance_builder (will be added later)
 
 ## Test Result Behavior
 
