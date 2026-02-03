@@ -268,7 +268,7 @@ if __name__ == "__main__":
     for config in fwd_configs:
         instances = []
         generate_dir = Path(__file__).resolve().parent
-        config_path = f"{generate_dir}/configs/{configs_prefix}/{config}.conf"
+        config_path = f"{generate_dir}/configs/fwd/{configs_prefix}/{config}.conf"
         with open(config_path, "r") as file:
             instances = file.readlines()
         problem_name = f"grouped_convolution_forward_tile_{config}"
