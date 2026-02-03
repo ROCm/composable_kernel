@@ -84,6 +84,11 @@ struct BaseGemmPipelineAgBgCrCompAsync
             "Invalid TailNumber: Only TailNumber::Three and TailNumber::Two are supported");
 #endif
     }
+
+    CK_TILE_HOST static constexpr auto GetName()
+    {
+        return "COMPUTE_ASYNC";
+    }
 };
 
 /**
