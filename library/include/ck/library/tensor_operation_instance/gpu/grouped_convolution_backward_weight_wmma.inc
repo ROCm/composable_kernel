@@ -114,7 +114,7 @@ void add_device_grouped_conv3d_bwd_weight_two_stage_wmma_ndhwgc_gkzyxc_ndhwgk_bf
                                                            PassThrough>>>& instances);
 #endif
 
-#if defined USE_WAVE_TRANSFER_BWD_WEI
+#if defined USE_WAVE
 #ifdef CK_ENABLE_BF16
 
 void add_device_grouped_conv2d_bwd_weight_wmma_nhwgc_gkyxc_nhwgk_bf16_wave_transfer_instances(

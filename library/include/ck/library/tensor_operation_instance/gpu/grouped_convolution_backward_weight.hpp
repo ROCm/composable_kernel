@@ -12,7 +12,7 @@
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
 
-#if defined USE_WAVE_TRANSFER_BWD_WEI
+#if defined USE_WAVE
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_bwd_weight_multiple_d.hpp"
 
 #endif
@@ -962,7 +962,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         return op_ptrs;
     }
 };
-#if defined USE_WAVE_TRANSFER_BWD_WEI
+#if defined USE_WAVE
 template <ck::index_t NumDimSpatial,
           typename InLayout,
           typename WeiLayout,
