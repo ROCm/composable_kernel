@@ -184,16 +184,15 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
     using ADataType = OutDataType;
     using BDataType = InDataType;
     using CDataType = WeiDataType;
-    //    // static const auto  F1S1 =
-    //    ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0;
-    //     #if defined USE_WAVE
 
-    //      static_assert(UseThreadTileTransfer==false &&
-    //                    (ConvBackwardWeightSpecialization==ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0
-    //                        ),"Only Filter1x1Stride1Pad0is supported for wavetile transfer"
-    //                 );
-    //    #endif
-    // If NGCHW then ADataType must be equal to BDataType
+        #if defined USE_WAVE_TRANSFER_BWD_WEI
+
+         static_assert(UseThreadTileTransfer==false &&
+                       (ConvBackwardWeightSpecialization==ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0
+                           ),"Only Filter1x1Stride1Pad0is supported for wavetile transfer"
+                    );
+       #endif
+  //  If NGCHW then ADataType must be equal to BDataType
     static_assert(!(is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>() ||
                     is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>()) ||
                   is_same_v<ADataType, BDataType>);
@@ -1094,12 +1093,6 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#if DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
-        if(arg.k_batch_ < 0)
-        {
-            return false;
-        }
-#endif
         const index_t GemmM = arg.a_grid_desc_kbatch_m_k_.GetLength(I0);
         const index_t GemmN = arg.b_grid_desc_kbatch_n_k_.GetLength(I0);
         const index_t GemmK = arg.a_grid_desc_kbatch_m_k_.GetLength(I1);

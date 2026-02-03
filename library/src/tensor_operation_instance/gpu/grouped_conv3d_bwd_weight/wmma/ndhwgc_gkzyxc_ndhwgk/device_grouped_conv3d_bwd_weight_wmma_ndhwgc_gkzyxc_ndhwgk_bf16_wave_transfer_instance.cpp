@@ -11,15 +11,13 @@ namespace instance {
 
 // Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
 void add_device_grouped_conv3d_bwd_weight_wmma_ndhwgc_gkzyxc_ndhwgk_bf16_wave_transfer_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<3,
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                                     NDHWGC,
                                                                     GKZYXC,
                                                                     NDHWGK,
-                                                                    Tuple<>,
                                                                     BF16,
                                                                     BF16,
                                                                     BF16,
-                                                                    Tuple<>,
                                                                     PassThrough,
                                                                     PassThrough,
                                                                     PassThrough>>>& instances)
