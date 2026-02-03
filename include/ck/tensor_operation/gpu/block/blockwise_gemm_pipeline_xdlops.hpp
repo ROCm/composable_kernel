@@ -13,6 +13,8 @@
 // Prefetech 2 stage
 // Local prefetch 1 stage
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 
 template <index_t BlockSize,
@@ -992,3 +994,4 @@ struct BlockwiseGemmXdlops_pipeline_v4
 };
 
 } // namespace ck
+#pragma clang diagnostic pop

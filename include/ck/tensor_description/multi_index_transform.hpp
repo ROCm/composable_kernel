@@ -6,6 +6,9 @@
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/multi_index.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 template <typename LowLength>
@@ -29,7 +32,10 @@ struct PassThrough
 
     __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return 1; }
 
-    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+    __host__ __device__ constexpr const auto& GetUpperLengths() const [[clang::lifetimebound]]
+    {
+        return up_lengths_;
+    }
 
     template <typename LowIdx, typename UpIdx>
     __host__ __device__ static constexpr void CalculateLowerIndex(LowIdx& idx_low,
@@ -305,7 +311,10 @@ struct RightPad
 
     __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return 1; }
 
-    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+    __host__ __device__ constexpr const auto& GetUpperLengths() const [[clang::lifetimebound]]
+    {
+        return up_lengths_;
+    }
 
     template <typename LowIdx, typename UpIdx>
     __host__ __device__ static constexpr void CalculateLowerIndex(LowIdx& idx_low,
@@ -403,7 +412,10 @@ struct Embed
 
     __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return NDimUp; }
 
-    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+    __host__ __device__ constexpr const auto& GetUpperLengths() const [[clang::lifetimebound]]
+    {
+        return up_lengths_;
+    }
 
     template <typename LowIdx, typename UpIdx>
     __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
@@ -1074,7 +1086,10 @@ struct Merge_v2_magic_division
 
     __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return 1; }
 
-    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+    __host__ __device__ constexpr const auto& GetUpperLengths() const [[clang::lifetimebound]]
+    {
+        return up_lengths_;
+    }
 
     template <typename LowIdx, typename UpIdx>
     __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
@@ -1366,7 +1381,10 @@ struct Merge_v3_division_mod
 
     __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return 1; }
 
-    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+    __host__ __device__ constexpr const auto& GetUpperLengths() const [[clang::lifetimebound]]
+    {
+        return up_lengths_;
+    }
 
     template <typename LowIdx, typename UpIdx>
     __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
@@ -1480,7 +1498,10 @@ struct UnMerge
 
     __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return NDimUp; }
 
-    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+    __host__ __device__ constexpr const auto& GetUpperLengths() const [[clang::lifetimebound]]
+    {
+        return up_lengths_;
+    }
 
     template <typename LowIdx, typename UpIdx>
     __host__ __device__ constexpr void CalculateLowerIndex(LowIdx& idx_low,
@@ -1640,7 +1661,10 @@ struct ConvBwdDataImplicitGemmOutTransform
 
     __host__ __device__ static constexpr index_t GetNumOfUpperDimension() { return 3; }
 
-    __host__ __device__ constexpr const auto& GetUpperLengths() const { return up_lengths_; }
+    __host__ __device__ constexpr const auto& GetUpperLengths() const [[clang::lifetimebound]]
+    {
+        return up_lengths_;
+    }
 
     template <typename UpIdx>
     __host__ __device__ constexpr auto CalculateLowerIndexN(const UpIdx& idx_up) const
@@ -2236,3 +2260,4 @@ struct Xor
     }
 };
 } // namespace ck
+#pragma clang diagnostic pop

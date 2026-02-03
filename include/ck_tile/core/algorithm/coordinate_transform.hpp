@@ -11,6 +11,9 @@
 #include "ck_tile/core/utility/magic_div.hpp"
 #include "ck_tile/core/utility/print.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 enum struct coord_transform_enum
@@ -1776,3 +1779,4 @@ make_indexing_transform_with_adaptor(const UpLength& up_lengths, const IndexingA
 }
 
 } // namespace ck_tile
+#pragma clang diagnostic pop

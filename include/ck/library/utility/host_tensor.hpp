@@ -23,10 +23,14 @@
 
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#pragma clang diagnostic ignored "-Wlifetime-safety-cross-tu-suggestions"
+
 namespace ck {
 
 template <typename Range>
-std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
+std::ostream& LogRange([[clang::lifetimebound]] std::ostream& os, Range&& range, std::string delim)
 {
     bool first = true;
     for(auto&& v : range)
@@ -580,8 +584,9 @@ struct HostTensorDescriptor
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc);
-    friend std::ostream& operator<<(std::ostream& os, ChosenLayout tag);
+    friend std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                                    const HostTensorDescriptor& desc);
+    friend std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os, ChosenLayout tag);
 
     private:
     std::vector<std::size_t> mLens;
@@ -1171,3 +1176,4 @@ struct Tensor
 };
 
 } // namespace ck
+#pragma clang diagnostic pop

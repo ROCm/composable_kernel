@@ -9,6 +9,9 @@
 #include <string_view>
 #include <utility>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 class ProfilerOperationRegistry final
 {
     ProfilerOperationRegistry()  = default;
@@ -83,3 +86,4 @@ class ProfilerOperationRegistry final
             ::ProfilerOperationRegistry::GetInstance().Add(name, description, operation)      \
                 _Pragma("clang diagnostic pop")
 // clang-format on
+#pragma clang diagnostic pop

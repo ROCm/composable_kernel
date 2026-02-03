@@ -1,6 +1,8 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
+include(generate_configs.cmake) 
+
 # ============================================================================
 # GEMM Tile Engine Unit Tests
 # 
@@ -87,7 +89,7 @@ function(create_individual_gemm_test_target datatype layout config_name trait ti
         target_compile_options(${target_name} PRIVATE -DCK_TILE_USE_OCP_FP8)
     endif()
 
-    message(STATUS "  Created test target: ${target_name}")
+    message(DEBUG "  Created test target: ${target_name}")
 endfunction()
 
 # ============================================================================
@@ -101,12 +103,12 @@ endfunction()
 #   layout       - Matrix layout (rcr, rrr, ccr, crr)
 #   config_name  - Configuration file name without .json extension
 # ============================================================================
-function(build_gemm_test_targets datatype layout config_name)
+function(build_gemm_test_targets datatype layout config_name configs_dir_path)
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}/${config_name}")
 
     # Locate and validate configuration file
     set(config_filename "${config_name}.json")
-    set(json_blob "${CMAKE_CURRENT_SOURCE_DIR}/configs/${config_filename}")
+    set(json_blob "${configs_dir_path}/${config_filename}")
 
     if(NOT EXISTS ${json_blob})
         message(WARNING "Test config file not found: ${json_blob}")
@@ -137,11 +139,11 @@ function(build_gemm_test_targets datatype layout config_name)
 
     # Verify kernel list file was generated
     if(NOT EXISTS ${working_path}/gemm_kernel_list.txt)
-        message(STATUS "No kernels found for ${datatype}_${layout}_${config_name} (validation filtered out all combinations)")
+        message(DEBUG "No kernels found for ${datatype}_${layout}_${config_name} (validation filtered out all combinations)")
         return()
     endif()
 
-    message(STATUS "Building tests for ${datatype}_${layout}_${config_name}")
+    message(DEBUG "Building tests for ${datatype}_${layout}_${config_name}")
 
     # STEP 2a: Extract test parameters from config
     set(test_params_file "${working_path}/test_params.hpp")
@@ -230,7 +232,7 @@ message(STATUS "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 
 # GPU architecture filtering - only build tests for supported architectures
 set(GEMM_TEST_GPU_TARGETS "")
-set(DESIRED_TARGETS "gfx90a;gfx942")
+set(DESIRED_TARGETS "gfx90a;gfx942;gfx950")
 
 foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
     if(target IN_LIST DESIRED_TARGETS)
@@ -241,7 +243,7 @@ endforeach()
 
 # Early exit if no compatible GPU architectures are available
 if(NOT GEMM_TEST_GPU_TARGETS)
-	message(WARNING "Skipping StreamK GEMM Tile Engine tests: No supported GPU targets (gfx90a, gfx942) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+	message(WARNING "Skipping StreamK GEMM Tile Engine tests: No supported GPU targets (gfx90a, gfx942, gfx950) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
     return()
 endif()
 
@@ -282,25 +284,35 @@ set(TEST_LAYOUTS "rcr;rrr;ccr;crr")
 # Test Target Generation - Datatype-Specific Categories
 # ============================================================================
 
-# 1. SIMPLE TEST: Test for basic functionality with data types (fp16, bf16)
-#    These data types can use larger warp tiles due to smaller memory footprint
-set(SIMPLE_TEST_CONFIG "simple_test_config")
-set(SIMPLE_TEST_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${SIMPLE_TEST_CONFIG}.json")
-set(SIMPLE_DATATYPES "fp16;bf16")
+# 1. SMOKE TESTS: Test for basic functionality with data types (fp8, bf8, fp16, bf16)
+set(SMALL_DATATYPES "fp16;bf16;fp8;bf8")
+set(SIXTEEN_BIT_DATATYPES "fp16;bf16")
+set(EIGHT_BIT_DATATYPES "fp8;bf8")
+set(LARGE_TILES "256,256,32")
+set(SMALL_TILES "128,128,32")
+set(CONFIG_LIST "")
+set(GENERATED_CONFIG_PATH ${CMAKE_CURRENT_BINARY_DIR}/configs)
+get_cu_count(CU_COUNT)
 
-if(EXISTS ${SIMPLE_TEST_CONFIG_FILE})
-	message(STATUS "Processing simple test config: ${SIMPLE_TEST_CONFIG} (fp16, bf16)")
-	foreach(datatype IN LISTS SIMPLE_DATATYPES)
-        # fp16, bf16: testing all layouts (rcr, rrr, ccr, crr)
+message(STATUS "Generating and processing configs for Stream-K tests")
+foreach(datatype IN LISTS SMALL_DATATYPES)
+
+    if(datatype IN_LIST SIXTEEN_BIT_DATATYPES)
+        generate_test_configs(${CU_COUNT} ${LARGE_TILES} ${datatype} CONFIG_LIST ${GENERATED_CONFIG_PATH})
+    else()
+        generate_test_configs(${CU_COUNT} ${SMALL_TILES} ${datatype} CONFIG_LIST ${GENERATED_CONFIG_PATH})
+    endif()
+
+    foreach(config IN LISTS CONFIG_LIST)
+    # testing all layouts (rcr, rrr, ccr, crr)
         foreach(layout IN LISTS TEST_LAYOUTS)
-		build_gemm_test_targets("${datatype}" "${layout}" "${SIMPLE_TEST_CONFIG}")
+            build_gemm_test_targets("${datatype}" "${layout}" "${config}" "${GENERATED_CONFIG_PATH}")
         endforeach()
     endforeach()
-else()
-	message(WARNING "Simple test config file not found: ${SIMPLE_TEST_CONFIG_FILE}")
-endif()
+endforeach()
+
 # ============================================================================
 
 
 message(STATUS "StreamK GEMM tile engine tests configured with datatype-specific design:")
-message(STATUS "  - Simple test: fp16/bf16 (all layouts)")
+message(STATUS "  - Smoke tests: fp16/bf16/fp8/bf8 (all layouts)")

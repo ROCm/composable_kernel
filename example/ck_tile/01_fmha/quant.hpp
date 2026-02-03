@@ -8,6 +8,9 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 // keep sync with BlockAttentionQuantScaleEnum
 enum class quant_scale_enum
 {
@@ -58,3 +61,4 @@ struct quant_scale_info
         return os;
     }
 };
+#pragma clang diagnostic pop

@@ -14,6 +14,9 @@
 #include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/container/thread_buffer.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 template <typename DataType_, typename StaticTileDistribution_>
@@ -266,3 +269,4 @@ inline constexpr bool is_similiar_distributed_tensor_v =
 } // namespace detail
 
 } // namespace ck_tile
+#pragma clang diagnostic pop

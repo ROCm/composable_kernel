@@ -14,6 +14,9 @@
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 /*
@@ -582,3 +585,4 @@ pad_tensor_view(const TensorView& tensor_view, const TileLengths& tile_lengths, 
 }
 
 } // namespace ck_tile
+#pragma clang diagnostic pop

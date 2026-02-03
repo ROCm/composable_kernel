@@ -191,7 +191,7 @@ struct mask_info
         return area;
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const mask_info& mi)
+    friend std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os, const mask_info& mi)
     {
         mi.serialize(os);
         return os;
