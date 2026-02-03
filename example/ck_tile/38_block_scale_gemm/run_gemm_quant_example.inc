@@ -549,18 +549,31 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
             {
                 ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
-                ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
-                    *bq_tensor_ptr);
             }
-            else if constexpr(std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>)
+            else if constexpr(std::is_same_v<BDataType, ck_tile::pk_fp4_t>)
             {
                 ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
-                ck_tile::FillUniformDistribution<BQDataType>{125.f, 130.f, fill_seed(gen)}(
-                    *bq_tensor_ptr);
             }
             else
             {
                 ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
+            }
+
+            if constexpr(std::is_same_v<BQDataType, ck_tile::e8m0_t>)
+            {
+                auto gen_scales = [&](auto& scales, float range_min, float range_max) {
+                    // e8m0_t is basically an exponent of float32
+                    ck_tile::HostTensor<float> pow2(scales.get_lengths());
+                    ck_tile::FillUniformDistributionIntegerValue<float>{
+                        range_min, range_max, fill_seed(gen)}(pow2);
+                    scales.ForEach([&](auto& self, const auto& i) {
+                        self(i) = static_cast<BQDataType>(std::exp2(pow2(i)));
+                    });
+                };
+                gen_scales(*bq_tensor_ptr, -2, 2);
+            }
+            else
+            {
                 ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
                     *bq_tensor_ptr);
             }
