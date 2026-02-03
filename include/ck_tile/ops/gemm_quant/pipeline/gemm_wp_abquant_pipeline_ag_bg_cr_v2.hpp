@@ -77,10 +77,7 @@ struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRe
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t NPerBlockBQ = (BQuantGroupSize::kN <= NPerBlock)
-                                               ? integer_divide_ceil(NPerBlock, BQuantGroupSize::kN)
-                                               : 1;
-
+    static constexpr index_t NPerBlockBQ = integer_divide_ceil(NPerBlock, BQuantGroupSize::kN);
     static constexpr index_t KPerBlockAQ = integer_divide_ceil(KPerBlock, AQuantGroupSize::kK);
     static constexpr index_t KPerBlockBQ = integer_divide_ceil(KPerBlock, BQuantGroupSize::kK);
     static constexpr index_t QScalesPerBlockRow =
