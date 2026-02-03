@@ -1069,13 +1069,6 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#if DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
-        if(arg.k_batch_ < 0)
-        {
-            return false;
-        }
-#endif
-
         const index_t GemmM = arg.a_grid_desc_kbatch_m_k_.GetLength(I0);
         const index_t GemmN = arg.b_grid_desc_kbatch_n_k_.GetLength(I0);
         const index_t GemmK = arg.a_grid_desc_kbatch_m_k_.GetLength(I1);
