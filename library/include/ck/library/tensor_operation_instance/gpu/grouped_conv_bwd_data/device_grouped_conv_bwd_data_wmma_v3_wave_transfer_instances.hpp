@@ -14,7 +14,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-#define USE_WAVE_TRANSFER
+#define USE_WAVE_TRANSFER_BWD_DATA
 
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;

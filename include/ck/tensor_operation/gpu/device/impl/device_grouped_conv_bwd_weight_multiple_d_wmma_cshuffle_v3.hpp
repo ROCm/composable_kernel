@@ -179,7 +179,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
                                                  ComputeTypeB>
 {
 
-#if defined USE_WAVE
+#if defined USE_WAVE_TRANSFER_BWD_WEI
 
     static_assert(UseThreadTileTransfer == false &&
                       (ConvBackwardWeightSpecialization ==

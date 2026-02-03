@@ -282,7 +282,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
     static_assert(NDimSpatial == 2 || NDimSpatial == 3,
                   "wrong! only implemented for 2D and 3D now");
 
-#ifdef USE_WAVE_TRANSFER
+#ifdef USE_WAVE_TRANSFER_BWD_DATA
 
     static_assert(UseThreadTileTransfer == false &&
                       (ConvBackwardDataSpecialization ==
