@@ -195,13 +195,14 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
     };
 
     // KV_BLOCKSCALE: Q per-tensor, K/V per-page descales
+    // K descale: [num_block, num_kv_head], V descale: [num_block, num_kv_head]
     struct FmhaFwdKVBlockScaleKargs
     {
         const void* q_descale_ptr                       = nullptr; // Per-tensor Q descale
-        const void* kv_block_descale_ptr                = nullptr; // [num_block, num_kv_head, 2]
+        const void* k_descale_ptr                       = nullptr; // [num_block, num_kv_head]
+        const void* v_descale_ptr                       = nullptr; // [num_block, num_kv_head]
         ck_tile::index_t nblock_stride_kv_block_descale = 0; // Stride along num_block dimension
         ck_tile::index_t nhead_stride_kv_block_descale  = 0; // Stride along num_kv_head dimension
-        ck_tile::index_t kv_stride_kv_block_descale     = 1; // Stride for K/V index
     };
 
     // Helper template to select QScale Kargs type based on QScaleEnum
@@ -377,10 +378,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                   drop_seed_offset,
               const void* sink_ptr                            = nullptr,
-              const void* kv_block_descale_ptr                = nullptr,
               ck_tile::index_t nblock_stride_kv_block_descale = 0,
-              ck_tile::index_t nhead_stride_kv_block_descale  = 0,
-              ck_tile::index_t kv_stride_kv_block_descale     = 1)
+              ck_tile::index_t nhead_stride_kv_block_descale  = 0)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -454,10 +453,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
         {
             kargs.q_descale_ptr                  = q_descale_ptr;
-            kargs.kv_block_descale_ptr           = kv_block_descale_ptr;
+            kargs.k_descale_ptr                  = k_descale_ptr;
+            kargs.v_descale_ptr                  = v_descale_ptr;
             kargs.nblock_stride_kv_block_descale = nblock_stride_kv_block_descale;
             kargs.nhead_stride_kv_block_descale  = nhead_stride_kv_block_descale;
-            kargs.kv_stride_kv_block_descale     = kv_stride_kv_block_descale;
         }
         if constexpr(kHasDropout)
         {
@@ -536,10 +535,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                   drop_seed_offset,
               const void* sink_ptr                            = nullptr,
-              const void* kv_block_descale_ptr                = nullptr,
               ck_tile::index_t nblock_stride_kv_block_descale = 0,
-              ck_tile::index_t nhead_stride_kv_block_descale  = 0,
-              ck_tile::index_t kv_stride_kv_block_descale     = 1)
+              ck_tile::index_t nhead_stride_kv_block_descale  = 0)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -610,10 +607,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
         {
             kargs.q_descale_ptr                  = q_descale_ptr;
-            kargs.kv_block_descale_ptr           = kv_block_descale_ptr;
+            kargs.k_descale_ptr                  = k_descale_ptr;
+            kargs.v_descale_ptr                  = v_descale_ptr;
             kargs.nblock_stride_kv_block_descale = nblock_stride_kv_block_descale;
             kargs.nhead_stride_kv_block_descale  = nhead_stride_kv_block_descale;
-            kargs.kv_stride_kv_block_descale     = kv_stride_kv_block_descale;
         }
         if constexpr(kHasDropout)
         {
@@ -1302,9 +1299,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
             {
                 // KV_BLOCKSCALE: K/V descale is per-page, handled in pipeline
-                assert(kargs.kv_block_descale_ptr != nullptr);
-                const float* kv_block_descale_ptr =
-                    reinterpret_cast<const float*>(kargs.kv_block_descale_ptr);
+                assert(kargs.k_descale_ptr != nullptr);
+                assert(kargs.v_descale_ptr != nullptr);
+                const float* k_descale_ptr = reinterpret_cast<const float*>(kargs.k_descale_ptr);
+                const float* v_descale_ptr = reinterpret_cast<const float*>(kargs.v_descale_ptr);
 
                 return FmhaPipeline{}(q_dram_window,
                                       k_dram_window,
@@ -1326,10 +1324,10 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       kargs.batch_stride_v,
                                       dropout,
                                       sink_value,
-                                      kv_block_descale_ptr,
+                                      k_descale_ptr,
+                                      v_descale_ptr,
                                       kargs.nblock_stride_kv_block_descale,
-                                      kargs.nhead_stride_kv_block_descale,
-                                      kargs.kv_stride_kv_block_descale);
+                                      kargs.nhead_stride_kv_block_descale);
             }
             else
             {

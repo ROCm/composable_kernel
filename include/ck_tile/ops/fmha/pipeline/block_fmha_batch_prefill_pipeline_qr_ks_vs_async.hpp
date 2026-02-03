@@ -409,10 +409,10 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                DropoutType& dropout,
                const float sink_v,
                // KV_BLOCKSCALE parameters (only used when QScaleEnum == KV_BLOCKSCALE)
-               const float* kv_block_descale_ptr      = nullptr,
+               const float* k_descale_ptr             = nullptr,
+               const float* v_descale_ptr             = nullptr,
                index_t nblock_stride_kv_block_descale = 0,
-               index_t nhead_stride_kv_block_descale  = 0,
-               index_t kv_stride_kv_block_descale     = 1) const
+               index_t nhead_stride_kv_block_descale  = 0) const
     {
         // KV_BLOCKSCALE requires page_block_size >= kN0 to ensure
         // all tokens in a main loop iteration belong to the same page
@@ -899,8 +899,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 const index_t scale_offset =
                     k_physical_pages[number<0>{}] * nblock_stride_kv_block_descale +
                     block_indices.kv_head_idx * nhead_stride_kv_block_descale;
-                k_descale = kv_block_descale_ptr[scale_offset + 0 * kv_stride_kv_block_descale];
-                v_descale = kv_block_descale_ptr[scale_offset + 1 * kv_stride_kv_block_descale];
+                k_descale = k_descale_ptr[scale_offset];
+                v_descale = v_descale_ptr[scale_offset];
             }
 
             // Prefetch V physical pages early - overlaps with GEMM0 computation
@@ -1556,10 +1556,10 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const index_t page_stride_v,
                DropoutType& dropout,
                float sink_v,
-               const float* kv_block_descale_ptr,
+               const float* k_descale_ptr,
+               const float* v_descale_ptr,
                index_t nblock_stride_kv_block_descale,
-               index_t nhead_stride_kv_block_descale,
-               index_t kv_stride_kv_block_descale) const
+               index_t nhead_stride_kv_block_descale) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -1589,10 +1589,10 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                           page_stride_v,
                           dropout,
                           sink_v,
-                          kv_block_descale_ptr,
+                          k_descale_ptr,
+                          v_descale_ptr,
                           nblock_stride_kv_block_descale,
-                          nhead_stride_kv_block_descale,
-                          kv_stride_kv_block_descale);
+                          nhead_stride_kv_block_descale);
     }
 };
 
