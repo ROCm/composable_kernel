@@ -605,7 +605,7 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
             if(arg.grouped_gemm_kernel_args_dev == nullptr)
             {
-                throw std::runtime_error("wrong! grouped_gemm_kernel_args_dev is nullptr");
+                throw std::runtime_error("wrong! grouped_gemm_kernel_args_dev is nullpr");
             }
 
             float ave_time = 0;
@@ -688,11 +688,6 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_wmma_supported<ComputeType, ComputeType, MPerXDL, NPerXDL>())
-        {
-            return false;
-        }
-
         // Split-K autodeduction is not supported
         if(arg.k_batch_ < 1)
         {
@@ -722,26 +717,6 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
                 supported = supported & (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
                 supported = supported & (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
-            }
-        }
-
-        for(index_t i = 0; i < arg.group_count_; i++)
-        {
-            if(get_warp_size() == 64)
-            {
-                if(GridwiseGemm64::CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[i].K_) !=
-                   true)
-                {
-                    supported = false;
-                }
-            }
-            else
-            {
-                if(GridwiseGemm32::CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[i].K_) !=
-                   true)
-                {
-                    supported = false;
-                }
             }
         }
 

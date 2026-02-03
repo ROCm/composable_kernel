@@ -20,8 +20,6 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
-#include "ck/host_utility/hip_check_error.hpp"
-
 using ::ck::DeviceMem;
 using ::ck::hip_check_error;
 using ::ck::HostTensorDescriptor;
@@ -49,9 +47,9 @@ using B0DataType       = F16;
 using BsDataType       = ck::Tuple<B0DataType>;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
-using D0DataType       = F16;
+using D0DataType       = F32;
 using DsDataType       = ck::Tuple<D0DataType>;
-using EDataType        = F16;
+using EDataType        = F32;
 
 using A0Layout = Row;
 using A1Layout = Row;
@@ -212,11 +210,11 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     for(int i = 0; i < group_count; i++)
     {
-        a0_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(A0DataType) * problem_size.Ms[i] * problem_size.Ks[i]));
+        a0_tensors_device.emplace_back(
+            std::make_unique<DeviceMem>(sizeof(A0DataType) * sum_of_m * problem_size.Ks[i]));
 
-        a1_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(A1DataType) * problem_size.Ms[i] * problem_size.Ks[i]));
+        a1_tensors_device.emplace_back(
+            std::make_unique<DeviceMem>(sizeof(A1DataType) * sum_of_m * problem_size.Ks[i]));
 
         b_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(B0DataType) * problem_size.Ns[i] * problem_size.Ks[i]));
@@ -224,12 +222,19 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         d0_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(D0DataType) * problem_size.Ns[i]));
 
-        c_tensors_device.emplace_back(std::make_unique<DeviceMem>(
-            sizeof(EDataType) * problem_size.Ms[i] * problem_size.Ns[i]));
+        c_tensors_device.emplace_back(
+            std::make_unique<DeviceMem>(sizeof(EDataType) * sum_of_m * problem_size.Ns[i]));
 
-        a0_tensors_device[i]->ToDevice(a0_tensors[i].mData.data());
-        a1_tensors_device[i]->ToDevice(a1_tensors[i].mData.data());
-        b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());
+        a0_tensors_device[i]->ToDevice(a0_tensors[i].mData.data(),
+                                       a0_tensors[i].mDesc.GetElementSpaceSize() *
+                                           sizeof(A0DataType));
+
+        a1_tensors_device[i]->ToDevice(a1_tensors[i].mData.data(),
+                                       a1_tensors[i].mDesc.GetElementSpaceSize() *
+                                           sizeof(A1DataType));
+        b_tensors_device[i]->ToDevice(b_tensors[i].mData.data(),
+                                      b_tensors[i].mDesc.GetElementSpaceSize() *
+                                          sizeof(B0DataType));
         d0_tensors_device[i]->ToDevice(d0_tensors[i].mData.data());
         c_tensors_device[i]->SetZero();
 
@@ -389,7 +394,7 @@ int main(int argc, char* argv[])
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=no, 1=yes)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
         printf("arg4: k_batch (>0)\n");
         exit(0);
     }
