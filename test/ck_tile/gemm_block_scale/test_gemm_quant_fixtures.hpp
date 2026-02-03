@@ -655,7 +655,10 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     void SetUpQuantTypeSpecific() {}
     void TearDownQuantTypeSpecific() {}
 
-    void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
+    void run_test_with_validation(ck_tile::index_t M,
+                                  ck_tile::index_t N,
+                                  ck_tile::index_t K,
+                                  ck_tile::index_t k_batch = 1)
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B =
@@ -697,6 +700,9 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         ck_tile::DeviceMem bq_bqk_bqn_dev_buf(bq_bqk_bqn.get_element_space_size() *
                                               sizeof(QDataType));
         ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
+
+        // Zero C buffer - required for split-K atomic_add accumulation
+        c_m_n_dev_buf.SetZero();
 
         // Copy to device
         a_m_k_dev_buf.ToDevice(a_m_k.data());
@@ -746,12 +752,12 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             c_m_n_dev_buf.GetDeviceBuffer(),      // c_ptr
             nullptr,                              // aq_ptr (not used for BQuant)
             bq_bqk_bqn_dev_buf.GetDeviceBuffer(), // bq_ptr (scales)
-            1,                                    // k_batch
+            k_batch,                              // k_batch (split-K)
             M,
             N,
             K,   // M, N, K
             0,   // QK_A (not used for BQuant)
-            BQK, // QK_B - TODO: we can remove BQK and BQN from args later?
+            BQK, // QK_B
             stride_A,
             stride_B,
             stride_C,
@@ -796,7 +802,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
         const auto rtol_atol =
             this->template calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-                K, 1, max_accumulated_value);
+                K, k_batch, max_accumulated_value);
 
         // Validate results
         bool pass = ck_tile::check_err(c_m_n_dev_result,
@@ -806,7 +812,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                        rtol_atol.at(ck_tile::number<1>{}));
 
         EXPECT_TRUE(pass) << "BQuantGrouped validation failed with M=" << M << ", N=" << N
-                          << ", K=" << K;
+                          << ", K=" << K << ", k_batch=" << k_batch;
 
         if(!pass)
         {

@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <utility>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck_tile {
 
 namespace detail {
@@ -270,3 +272,4 @@ constexpr auto conditional_expr(X&& x, Y&& y)
 }
 
 } // namespace ck_tile
+#pragma clang diagnostic pop
