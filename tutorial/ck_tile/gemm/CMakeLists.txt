@@ -8,3 +8,5 @@ include_directories(AFTER
 add_subdirectory(01_naive_gemm)
 add_subdirectory(02_padding_k_first)
 add_subdirectory(03_mfma_16x16x16)
+add_subdirectory(04_mfma_16x16x16x2)
+add_subdirectory(05_xor_bank_conflict_free)
