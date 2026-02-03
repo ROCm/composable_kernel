@@ -11,6 +11,9 @@
 
 #define CK_MNK_LOOP
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 #ifdef __gfx12__
@@ -1028,3 +1031,4 @@ struct BlockwiseGemmWMMA
 #endif
 
 } // namespace ck
+#pragma clang diagnostic pop
