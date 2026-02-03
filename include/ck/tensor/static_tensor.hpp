@@ -4,6 +4,8 @@
 #ifndef CK_STATIC_TENSOR_HPP
 #define CK_STATIC_TENSOR_HPP
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 
 // StaticTensor for Scalar
@@ -270,4 +272,5 @@ __host__ __device__ constexpr auto make_static_tensor(TensorDesc, X invalid_elem
 }
 
 } // namespace ck
+#pragma clang diagnostic pop
 #endif

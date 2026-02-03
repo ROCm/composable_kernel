@@ -9,6 +9,9 @@
 #include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/mxfp_convert.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 #if defined(__gfx950__)
 #define CK_TILE_FP4_CVT_DEVICE 1
 #else
@@ -517,3 +520,4 @@ CK_TILE_HOST_DEVICE constexpr fp8x2_t pk_fp4_t::to_fp8x2(float scale) const
 #endif
 
 } // namespace ck_tile
+#pragma clang diagnostic pop

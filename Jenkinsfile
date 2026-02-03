@@ -581,7 +581,7 @@ def cmake_build(Map conf=[:]){
         if (params.NINJA_BUILD_TRACE) {
             echo "running ninja build trace"
         }
-        if ((params.RUN_BUILDER_TESTS || params.RUN_FULL_CONV_TILE_TESTS) && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
+        if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
             setup_args = " -D CK_EXPERIMENTAL_BUILDER=ON "  + setup_args
         }
         setup_cmd = conf.get(
@@ -1428,8 +1428,8 @@ pipeline {
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ python3 ../experimental/builder/src/generate_instances.py --mode=profiler && \
-                                           ../script/cmake-ck-dev.sh  ../ gfx90a && \
+                        execute_args = """ python3 ../experimental/grouped_convolution_tile_instances/generate_instances.py --mode=profiler && \
+                                           cmake .. --preset dev-gfx90a -D CK_EXPERIMENTAL_BUILDER=ON && \
                                            make -j64 test_grouped_convnd_fwd_tile && \
                                            ./bin/test_grouped_convnd_fwd_tile"""
                     }
