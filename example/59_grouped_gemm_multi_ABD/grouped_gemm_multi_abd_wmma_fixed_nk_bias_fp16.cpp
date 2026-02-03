@@ -9,10 +9,11 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_multi_abd_xdl_fixed_nk.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_gemm_multi_abd_wmma_fixed_nk.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_multi_abd.hpp"
 #include "ck/tensor_operation/gpu/element/combined_element_wise_operation.hpp"
 
+#include "ck/utility/scheduler_enum.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -62,21 +63,19 @@ using D0Layout = Row;
 using DsLayout = ck::Tuple<D0Layout>;
 using ELayout  = Row;
 
-using AElementOp = AddScale;
-using BElementOp = PassThrough;
-
+using AElementOp   = AddScale;
+using BElementOp   = PassThrough;
 using CDEElementOp = Add;
 
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
 
-using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
+using DeviceGemmInstance = ck::tensor_operation::device::DeviceGroupedGemm_Wmma_Multi_ABD_Fixed_NK
     // clang-format off
-///######|  ALayout|  BLayout| DsLayout| ELayout|      AData|      BData|     AccData|         CShuffle|     DsData|     EData|           A|           B|          CDE|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
-///######|         |         |         |        |       Type|       Type|        Type|         DataType|       Type|      Type| Elementwise| Elementwise|  Elementwise| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
-///######|         |         |         |        |           |           |            |                 |           |          |   Operation|   Operation|    Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
-///######|         |         |         |        |           |           |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
-         < AsLayout, BsLayout, DsLayout, ELayout, AsDataType, BsDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,        1,   128,    16,   128,    32,   8,   8,   16,   16,    1,    4,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,         1,           1,           1,               S<1, 16, 1, 8>,               1,  ck::half_t>;
-
+///######|  ALayout|  BLayout| DsLayout| ELayout|      AData|      BData|     AccData|         CShuffle|     DsData|     EData|           A|           B|          CDE|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+///######|         |         |         |        |       Type|       Type|        Type|         DataType|       Type|      Type| Elementwise| Elementwise|  Elementwise| Spacialization|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+///######|         |         |         |        |           |           |            |                 |           |          |   Operation|   Operation|    Operation|               |      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+///######|         |         |         |        |           |           |            |                 |           |          |            |            |             |               |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+         < AsLayout, BsLayout, DsLayout, ELayout, AsDataType, BsDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,    GemmDefault,   128,    32,   128,    32,   8,   8,   16,   16,    1,    4,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              1,         1,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              1,         1,           1,           1,               S<1, 16, 1, 8>,               1>;
 // clang-format on
 
 struct ProblemSize final
@@ -294,11 +293,11 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     gemm.SetElementwiseOps(argument, a_element_op, b_element_op, cde_element_op);
 
-    invoker.Run(argument, StreamConfig{nullptr, false});
+    invoker.Run(&argument, StreamConfig{nullptr, false});
 
     if(config.time_kernel)
     {
-        float ave_time   = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+        float ave_time   = invoker.Run(&argument, StreamConfig{nullptr, config.time_kernel});
         float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
         float gb_per_sec = num_btype / 1.E6 / ave_time;
 
@@ -309,7 +308,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     bool pass = true;
     if(config.do_verification)
     {
-
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<A0DataType,
                                                                                 B0DataType,
                                                                                 EDataType,
@@ -370,8 +368,8 @@ int main(int argc, char* argv[])
     for(int i = 0; i < problem_size.group_count; i++)
     {
         problem_size.Ms.push_back(32 + rand() % 32);
-        problem_size.Ns.push_back(1024);
-        problem_size.Ks.push_back(512);
+        problem_size.Ns.push_back(64);
+        problem_size.Ks.push_back(64);
 
         problem_size.stride_As.push_back(problem_size.Ks[i]);
         problem_size.stride_Bs.push_back(problem_size.Ks[i]);

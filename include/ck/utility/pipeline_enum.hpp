@@ -25,7 +25,8 @@ enum struct PipelineVersion
 } // namespace ck
 
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
-inline std::ostream& operator<<(std::ostream& os, const ck::PipelineVersion& p)
+inline std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                                const ck::PipelineVersion& p)
 {
     switch(p)
     {
