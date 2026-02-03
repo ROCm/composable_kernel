@@ -41,11 +41,11 @@ int run_mx_gemm_with_layouts(int argc,
         stride_C = is_row_major(CLayout{}) ? N : M;
 
     ck_tile::HostTensor<ADataType> a_host(
-        ck_tile::HostTensorDescriptor({M, K}, {stride_A, 1}));
+        ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(ALayout{})));
     ck_tile::HostTensor<BDataType> b_host(
-        ck_tile::HostTensorDescriptor({K, N}, {stride_B, 1}));
+        ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(BLayout{})));
     ck_tile::HostTensor<CDataType> c_host(
-        ck_tile::HostTensorDescriptor({M, N}, {stride_C, 1}));
+        ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
     // Scale tensors
     // Assuming block scale 32
