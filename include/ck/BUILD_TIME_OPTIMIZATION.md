@@ -105,7 +105,7 @@ struct generate_identity_sequence
 generate_tuple(generate_identity_sequence{}, Number<N>{});
 ```
 
-This reduced `transform_tensor_descriptor` instantiations from 388 to 32 (92% reduction).
+This significantly reduces template instantiations for `transform_tensor_descriptor`.
 
 **Example: container_concat**
 
@@ -135,7 +135,7 @@ __host__ __device__ constexpr auto container_concat(const Tuple<X...>& tx, const
 }
 ```
 
-This reduced `container_concat` instantiations from 186 to 93 (50% reduction).
+This reduces `container_concat` template instantiations.
 
 **Example: make_uniform_tuple**
 
@@ -192,7 +192,7 @@ __host__ __device__ constexpr index_t find_source_index(Sequence<Is...>)
 }
 ```
 
-This reduced `sequence_map_inverse` instantiations from 45 to 10 (78% reduction) and wall-clock time by 95%.
+This significantly reduces `sequence_map_inverse` instantiations and compile time.
 
 ### 4. Use Fold Expressions for Accumulation
 
@@ -222,4 +222,4 @@ __host__ __device__ constexpr auto compute_element_space_size(
 }
 ```
 
-This reduced `calculate_element_space_size` instantiations from 24 to 10 (58% reduction) and wall-clock time by 73%.
+This reduces `calculate_element_space_size` instantiations and compile time.
