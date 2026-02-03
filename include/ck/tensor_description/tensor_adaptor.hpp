@@ -23,7 +23,10 @@ struct TensorAdaptor
 {
     __host__ __device__ static constexpr index_t GetNumOfTransform() { return Transforms::Size(); }
 
-    __host__ __device__ constexpr const auto& GetTransforms() const { return transforms_; }
+    __host__ __device__ constexpr const auto& GetTransforms() const [[clang::lifetimebound]]
+    {
+        return transforms_;
+    }
 
     __host__ __device__ static constexpr auto GetLowerDimensionHiddenIdss()
     {
