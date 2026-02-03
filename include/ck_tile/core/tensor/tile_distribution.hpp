@@ -15,6 +15,9 @@
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 template <typename Distribution>
@@ -731,3 +734,4 @@ CK_TILE_HOST_DEVICE void print(const tile_distribution<PsYs2XsAdaptor_,
 }
 
 } // namespace ck_tile
+#pragma clang diagnostic pop

@@ -12,6 +12,7 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <tuple>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
@@ -126,13 +127,18 @@ class StreamKGemmTileEngineTest : public ::testing::TestWithParam<GemmTestParams
 
 TEST_P(StreamKGemmTileEngineTest, BasicFunctionality)
 {
+    // Check that kernel information is available
+    EXPECT_TRUE(strlen(KERNEL_NAME) > 0) << "Kernel name should not be empty";
+
+    std::cout << "Testing kernel: " << KERNEL_NAME << std::endl;
+    std::cout << "Problem size: " << m_ << "x" << n_ << "x" << k_ << std::endl;
+
     // Get tensor layouts from generated kernel
     const ALayout layout_a = ALayout{};
     const BLayout layout_b = BLayout{};
     const CLayout layout_c = CLayout{};
 
-    // Use split_k from test parameters
-    int split_k       = split_k_;
+    // Calculate tensor strides
     int stride_a_calc = ck_tile::get_default_stride(m_, k_, 0, is_row_major(layout_a));
     int stride_b_calc = ck_tile::get_default_stride(k_, n_, 0, is_row_major(layout_b));
     int stride_c_calc = ck_tile::get_default_stride(m_, n_, 0, is_row_major(layout_c));
@@ -144,27 +150,42 @@ TEST_P(StreamKGemmTileEngineTest, BasicFunctionality)
         ck_tile::host_tensor_descriptor(k_, n_, stride_b_calc, is_row_major(layout_b)));
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(m_, n_, stride_c_calc, is_row_major(layout_c)));
-    ck_tile::HostTensor<CDataType> c_m_n_host_result(
+    ck_tile::HostTensor<CDataType> c_m_n_dev_ref(
         ck_tile::host_tensor_descriptor(m_, n_, stride_c_calc, is_row_major(layout_c)));
 
     // Initialize input tensors with uniform random distribution [-1.0, 1.0] (matches tile_engine)
     ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
     ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
+    c_m_n_dev_ref.SetZero();
 
     // Allocate GPU device memory
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem ref_c_m_n_dev_buf(c_m_n_dev_ref.get_element_space_size_in_bytes());
 
     // Copy data to device and zero output buffer
     a_m_k_dev_buf.ToDevice(a_m_k.data());
     b_k_n_dev_buf.ToDevice(b_k_n.data());
     c_m_n_dev_buf.SetZero();
-    c_m_n_dev_result.SetZero();
+    ref_c_m_n_dev_buf.SetZero();
 
-    // Calculate reference result on host for verification
-    ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-        a_m_k, b_k_n, c_m_n_host_result);
+    // Calculate reference result on device for verification
+    ADataType* a_m_k_dev_ref_ptr = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
+    BDataType* b_k_n_dev_ref_ptr = static_cast<BDataType*>(b_k_n_dev_buf.GetDeviceBuffer());
+    CDataType* c_m_n_dev_ref_ptr = static_cast<CDataType*>(ref_c_m_n_dev_buf.GetDeviceBuffer());
+    ck_tile::
+        reference_gemm_gpu<ADataType, BDataType, AccDataType, CDataType, ALayout, BLayout, CLayout>(
+            a_m_k_dev_ref_ptr,
+            b_k_n_dev_ref_ptr,
+            c_m_n_dev_ref_ptr,
+            m_,
+            n_,
+            k_,
+            stride_a_calc,
+            stride_b_calc,
+            stride_c_calc);
+    ref_c_m_n_dev_buf.FromDevice(c_m_n_dev_ref.data());
 
     // Create GEMM kernel arguments
     ck_tile::StreamKHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
@@ -188,9 +209,10 @@ TEST_P(StreamKGemmTileEngineTest, BasicFunctionality)
                                          1};      // rotating_count
 
     // Launch the generated kernel (no timing overhead for fastest execution)
+    std::tuple<float, ck_tile::index_t> launch_result;
     try
     {
-        SelectedKernel::launch(args, stream_config);
+        launch_result = SelectedKernel::launch(args, stream_config);
         // Kernel launched successfully if no exception thrown
     }
     catch(const std::exception& e)
@@ -211,20 +233,11 @@ TEST_P(StreamKGemmTileEngineTest, BasicFunctionality)
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
     // Verify results using tile_engine's adaptive error thresholds
+    const ck_tile::index_t num_wgs_per_tile = get<1>(launch_result);
     bool verification_passed = compare_results<ADataType, BDataType, AccDataType, CDataType>(
-        KERNEL_NAME, k_, split_k, c_m_n_dev_result, c_m_n_host_result);
+        KERNEL_NAME, k_, num_wgs_per_tile, c_m_n_dev_result, c_m_n_dev_ref);
 
     EXPECT_TRUE(verification_passed) << "GEMM result verification failed";
-}
-
-TEST_P(StreamKGemmTileEngineTest, KernelInfo)
-{
-    // Simple test to verify kernel information is available
-    EXPECT_TRUE(strlen(KERNEL_NAME) > 0) << "Kernel name should not be empty";
-
-    std::cout << "Testing kernel: " << KERNEL_NAME << std::endl;
-    std::cout << "Problem size: " << m_ << "x" << n_ << "x" << k_ << " with split_k=" << split_k_
-              << std::endl;
 }
 
 // Use config-specific test parameters (included via compile flags)

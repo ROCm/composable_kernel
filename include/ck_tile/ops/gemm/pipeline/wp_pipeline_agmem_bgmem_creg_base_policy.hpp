@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/numeric/numeric.hpp"
 #include "ck_tile/ops/gemm/block/block_wp_asmem_breg_creg.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
@@ -255,17 +256,26 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
     {
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
-        using BTypeToUse =
-            std::conditional_t<std::is_same_v<typename Problem::BDataType, ck_tile::pk_int4_t>,
-                               typename Problem::ADataType,
-                               typename Problem::BDataType>;
+
+        // Determine compute types to use
+        // This logic defaults to A/B DataType, but if one of them is packed falls back to the other
+        // If both are packed, it falls back to the explicitly defined ComputeDataType in the
+        // problem It might be a good idea to use ComputeDataType anyway, but that would break how
+        // this behaviour used to work
+        using ATypeToUse = mixed_prec_compute_type_from_input_t<typename Problem::ADataType,
+                                                                typename Problem::BDataType,
+                                                                typename Problem::ComputeDataType>;
+        using BTypeToUse = mixed_prec_compute_type_from_input_t<typename Problem::BDataType,
+                                                                typename Problem::ADataType,
+                                                                typename Problem::ComputeDataType>;
+
         constexpr index_t WaveSize = get_warp_size();
         constexpr index_t KLane    = WarpTile::at(I2) * WarpTile::at(I0) / WaveSize;
         using BDataType            = typename Problem::BDataType;
         constexpr index_t KLaneBytes =
             KLane / numeric_traits<BDataType>::PackedSize * sizeof(BDataType);
         constexpr auto NumAccess = static_cast<WGAttrNumAccessEnum>(max(1, KLaneBytes / 16));
-        using WarpGemm           = WarpGemmDispatcher<typename Problem::ADataType,
+        using WarpGemm           = WarpGemmDispatcher<ATypeToUse,
                                                       BTypeToUse,
                                                       typename Problem::CDataType,
                                                       WarpTile::at(I0),
