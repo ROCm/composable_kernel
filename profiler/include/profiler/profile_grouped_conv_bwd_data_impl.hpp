@@ -61,7 +61,11 @@ namespace bwd_data
 
         for(const auto& op_ptr : op_ptrs)
         {
+#ifdef CK_EXPERIMENTAL_BUILDER
+            std::cout << op_ptr->GetInstanceString() << std::endl;
+#else
             std::cout << op_ptr->GetTypeString() << std::endl;
+#endif
         }
     }
 }
