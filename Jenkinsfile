@@ -39,11 +39,13 @@ def sendFailureNotifications() {
     // Error patterns to scan build logs for specific failure types and send detailed notifications.
     def failurePatterns = [
         [pattern: /login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
-        [pattern: /(.*)docker login failed(.*)/, description: "Docker login failed"],
+        [pattern: /.*docker login failed.*/, description: "Docker login failed"],
         [pattern: /HTTP request sent .* 404 Not Found/, description: "HTTP request failed with 404"],
         [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
-        [pattern: /(.*)GPU not found(.*)/, description: "GPU not found"],
-        [pattern: /Could not connect to Redis at .* Connection timed out/, description: "Redis connection timed out"]
+        [pattern: /.*GPU not found.*/, description: "GPU not found"],
+        [pattern: /Could not connect to Redis at .* Connection timed out/, description: "Redis connection timed out"],
+        [pattern: /.*unauthorized: your account must log in with a Personal Access Token.*/, description: "Docker login failed"],
+        [pattern: /.*sccache: error: Server startup failed: Address in use.*/, description: "Sccache Error"]
     ]
     
     // Get the build log.
