@@ -409,10 +409,10 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                DropoutType& dropout,
                const float sink_v,
                // KV_BLOCKSCALE parameters (only used when QScaleEnum == KV_BLOCKSCALE)
-               const float* kv_block_descale_ptr     = nullptr,
-               index_t kv_block_descale_stride_block = 0,
-               index_t kv_block_descale_stride_head  = 0,
-               index_t kv_block_descale_stride_kv    = 1) const
+               const float* kv_block_descale_ptr      = nullptr,
+               index_t nblock_stride_kv_block_descale = 0,
+               index_t nhead_stride_kv_block_descale  = 0,
+               index_t kv_stride_kv_block_descale     = 1) const
     {
         // KV_BLOCKSCALE requires page_block_size >= kN0 to ensure
         // all tokens in a main loop iteration belong to the same page
@@ -897,10 +897,10 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
             {
                 const index_t scale_offset =
-                    k_physical_pages[number<0>{}] * kv_block_descale_stride_block +
-                    block_indices.kv_head_idx * kv_block_descale_stride_head;
-                k_descale = kv_block_descale_ptr[scale_offset + 0 * kv_block_descale_stride_kv];
-                v_descale = kv_block_descale_ptr[scale_offset + 1 * kv_block_descale_stride_kv];
+                    k_physical_pages[number<0>{}] * nblock_stride_kv_block_descale +
+                    block_indices.kv_head_idx * nhead_stride_kv_block_descale;
+                k_descale = kv_block_descale_ptr[scale_offset + 0 * kv_stride_kv_block_descale];
+                v_descale = kv_block_descale_ptr[scale_offset + 1 * kv_stride_kv_block_descale];
             }
 
             // Prefetch V physical pages early - overlaps with GEMM0 computation
@@ -1557,9 +1557,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                DropoutType& dropout,
                float sink_v,
                const float* kv_block_descale_ptr,
-               index_t kv_block_descale_stride_block,
-               index_t kv_block_descale_stride_head,
-               index_t kv_block_descale_stride_kv) const
+               index_t nblock_stride_kv_block_descale,
+               index_t nhead_stride_kv_block_descale,
+               index_t kv_stride_kv_block_descale) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -1590,9 +1590,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                           dropout,
                           sink_v,
                           kv_block_descale_ptr,
-                          kv_block_descale_stride_block,
-                          kv_block_descale_stride_head,
-                          kv_block_descale_stride_kv);
+                          nblock_stride_kv_block_descale,
+                          nhead_stride_kv_block_descale,
+                          kv_stride_kv_block_descale);
     }
 };
 

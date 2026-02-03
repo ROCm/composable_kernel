@@ -606,10 +606,10 @@ struct fmha_batch_prefill_args
     // KV_BLOCKSCALE: per-page K/V descales (Q per-tensor, K/V per-page)
     // Layout: [num_block, num_kv_head, 2] where 2 = (k_descale, v_descale)
     // Mutually exclusive with per-tensor k_descale_ptr/v_descale_ptr
-    const void* kv_block_descale_ptr               = nullptr;
-    ck_tile::index_t kv_block_descale_stride_block = 0; // Stride along num_block dimension
-    ck_tile::index_t kv_block_descale_stride_head  = 0; // Stride along num_kv_head dimension
-    ck_tile::index_t kv_block_descale_stride_kv    = 1; // Stride for K/V index (last dim)
+    const void* kv_block_descale_ptr                = nullptr;
+    ck_tile::index_t nblock_stride_kv_block_descale = 0; // Stride along num_block dimension
+    ck_tile::index_t nhead_stride_kv_block_descale  = 0; // Stride along num_kv_head dimension
+    ck_tile::index_t kv_stride_kv_block_descale     = 1; // Stride for K/V index (last dim)
 };
 
 template <typename FmhaKernel>
@@ -1235,9 +1235,9 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.drop_seed_offset,
                                          args.sink_ptr,
                                          args.kv_block_descale_ptr,
-                                         args.kv_block_descale_stride_block,
-                                         args.kv_block_descale_stride_head,
-                                         args.kv_block_descale_stride_kv);
+                                         args.nblock_stride_kv_block_descale,
+                                         args.nhead_stride_kv_block_descale,
+                                         args.kv_stride_kv_block_descale);
         }
         else
         { // create batch mode kernel arguments
@@ -1292,9 +1292,9 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.drop_seed_offset,
                                          args.sink_ptr,
                                          args.kv_block_descale_ptr,
-                                         args.kv_block_descale_stride_block,
-                                         args.kv_block_descale_stride_head,
-                                         args.kv_block_descale_stride_kv);
+                                         args.nblock_stride_kv_block_descale,
+                                         args.nhead_stride_kv_block_descale,
+                                         args.kv_stride_kv_block_descale);
         }
     }();
 
