@@ -1784,7 +1784,7 @@ pipeline {
                     agent{ label rocmnode("gfx90a") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx90a" -DCK_CXX_STANDARD="17" """
-                        execute_args = build_client_examples_and_codegen_tests("gfx90a")
+                        execute_args = build_client_examples("gfx90a")
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')

@@ -14,9 +14,10 @@
 // keep sync with BlockAttentionQuantScaleEnum
 enum class quant_scale_enum
 {
-    no_scale  = 0,
-    pertensor = 1,
-    blockscale,
+    no_scale      = 0,
+    pertensor     = 1,
+    blockscale    = 2,
+    kv_blockscale = 3, // Q per-tensor, K/V per-page block scale
 };
 
 struct quant_scale_info
@@ -31,6 +32,8 @@ struct quant_scale_info
             os << "pt";
         else if(type == quant_scale_enum::blockscale)
             os << "bs";
+        else if(type == quant_scale_enum::kv_blockscale)
+            os << "kvbs";
     }
 
     static quant_scale_info decode(std::string str)
@@ -47,6 +50,10 @@ struct quant_scale_info
         else if(str == "bs" || str == "2")
         {
             info.type = quant_scale_enum::blockscale;
+        }
+        else if(str == "kvbs" || str == "3")
+        {
+            info.type = quant_scale_enum::kv_blockscale;
         }
         else
         {
