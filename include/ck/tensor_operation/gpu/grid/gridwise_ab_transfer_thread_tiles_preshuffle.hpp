@@ -133,6 +133,19 @@ struct ABTransferThreadTilesPreShuffle
     {
         return make_static_buffer<AddressSpaceEnum::Vgpr, LDSType>(size);
     }
+
+    template <index_t numElements, typename Type>
+    __device__ __forceinline__ static auto get_first_element_workaround(Type& array)
+    {
+        if constexpr(numElements > 1)
+        {
+            return array;
+        }
+        else
+        {
+            return array[I0];
+        }
+    }
 };
 
 } // namespace ck

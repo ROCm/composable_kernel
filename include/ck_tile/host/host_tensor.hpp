@@ -17,6 +17,9 @@
 #include "ck_tile/host/joinable_thread.hpp"
 #include "ck_tile/host/ranges.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 template <typename Range>
@@ -859,3 +862,4 @@ auto get_default_stride(std::size_t row,
         return stride;
 }
 } // namespace ck_tile
+#pragma clang diagnostic pop

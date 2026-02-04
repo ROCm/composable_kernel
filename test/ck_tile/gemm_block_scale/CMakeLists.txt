@@ -45,7 +45,22 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
 
     target_compile_options(test_tile_gemm_quant_aquant_base_ccr PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
-    # ABQuant tests
+    add_gtest_executable(test_tile_gemm_quant_aquant_prefill 
+        test_gemm_quant_aquant_prefill.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_aquant_prefill PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_aquant_transpose_c 
+        test_gemm_quant_aquant_transpose_c.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_aquant_transpose_c PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_aquant_preshuffle 
+        test_gemm_quant_aquant_preshuffle.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_aquant_preshuffle PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    # ABQuant tests split into 4 files
     add_gtest_executable(test_tile_gemm_quant_abquant_base
         test_gemm_quant_abquant_base.cpp
     )
@@ -61,21 +76,26 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_abquant_preshuffle PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
-    # AQuant tests
-    add_gtest_executable(test_tile_gemm_quant_aquant_prefill 
-        test_gemm_quant_aquant_prefill.cpp
-    )
-    target_compile_options(test_tile_gemm_quant_aquant_prefill PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
-    add_gtest_executable(test_tile_gemm_quant_aquant_transpose_c 
-        test_gemm_quant_aquant_transpose_c.cpp
+    add_gtest_executable(test_tile_gemm_quant_abquant_a4w4_base
+        test_gemm_quant_abquant_a4w4_base.cpp
     )
-    target_compile_options(test_tile_gemm_quant_aquant_transpose_c PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+    target_compile_options(test_tile_gemm_quant_abquant_a4w4_base PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
-    add_gtest_executable(test_tile_gemm_quant_aquant_preshuffle 
-        test_gemm_quant_aquant_preshuffle.cpp
+    add_gtest_executable(test_tile_gemm_quant_abquant_a4w4_padding
+        test_gemm_quant_abquant_a4w4_padding.cpp
     )
-    target_compile_options(test_tile_gemm_quant_aquant_preshuffle PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+    target_compile_options(test_tile_gemm_quant_abquant_a4w4_padding PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_abquant_a4w4_preshuffle
+        test_gemm_quant_abquant_a4w4_preshuffle.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_abquant_a4w4_preshuffle PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_abquant_preshuffleQuant
+        test_gemm_quant_abquant_preshuffleQuant.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_abquant_preshuffleQuant PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
     # BQuant tests (without PreshuffleB) - split into 6 files
     add_gtest_executable(test_tile_gemm_quant_bquant_1d_128 
@@ -107,6 +127,17 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         test_gemm_quant_bquant_transpose.cpp
     )
     target_compile_options(test_tile_gemm_quant_bquant_transpose PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    # BQuant split-K tests (no preshuffle)
+    add_gtest_executable(test_tile_gemm_quant_bquant_splitk_decode 
+        test_gemm_quant_bquant_splitk_decode.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_splitk_decode PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_splitk_prefill 
+        test_gemm_quant_bquant_splitk_prefill.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_splitk_prefill PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
     # BQuant tests (with PreshuffleB) - split into 5 files
     add_gtest_executable(test_tile_gemm_quant_bquant_preshuffle_decode_1d 
@@ -188,6 +219,11 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         test_tile_gemm_quant_aquant_prefill
         test_tile_gemm_quant_aquant_transpose_c
         test_tile_gemm_quant_aquant_preshuffle
+        # ABQuant tests
+        test_tile_gemm_quant_abquant_base
+        test_tile_gemm_quant_abquant_padding
+        test_tile_gemm_quant_abquant_preshuffle
+        test_tile_gemm_quant_abquant_preshuffleQuant
         # BQuant tests
         test_tile_gemm_quant_bquant_1d_128
         test_tile_gemm_quant_bquant_1d_64

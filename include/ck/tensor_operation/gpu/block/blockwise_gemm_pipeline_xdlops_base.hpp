@@ -9,6 +9,9 @@
 #include "ck/tensor_operation/gpu/warp/xdlops_gemm.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 template <index_t BlockSize,
@@ -30,7 +33,8 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
-          bool TransposeC = false>
+          bool TransposeC          = false,
+          bool LdsScalarLoadToVgpr = false>
 struct BlockwiseGemmXdlops_pipeline_base
 {
     static constexpr auto I0 = Number<0>{};
@@ -385,7 +389,7 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                          Sequence<1, 1, 1, KPack>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
-                                                         A_K1,
+                                                         LdsScalarLoadToVgpr ? 1 : A_K1,
                                                          A_K1>;
 
     using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<BDataType,
@@ -395,7 +399,7 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                          Sequence<1, 1, 1, KPack>,
                                                          Sequence<0, 1, 2, 3>,
                                                          3,
-                                                         B_K1,
+                                                         LdsScalarLoadToVgpr ? 1 : B_K1,
                                                          B_K1>;
 
     AThreadCopy a_thread_copy_;
@@ -403,3 +407,4 @@ struct BlockwiseGemmXdlops_pipeline_base
 };
 
 } // namespace ck
+#pragma clang diagnostic pop

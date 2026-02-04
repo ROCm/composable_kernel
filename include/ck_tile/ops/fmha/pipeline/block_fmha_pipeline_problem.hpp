@@ -121,6 +121,9 @@ struct BlockFmhaBatchPrefillPipelineProblem
     static_assert(!kIsVectorizedLayout || kPageBlockSize % kVectorSize == 0,
                   "kPageBlockSize must be divisible by kVectorSize for vectorized layout");
     static_assert(kIsGroupMode_, "Batch prefill requires group mode");
+
+    static_assert(BlockFmhaShape_::IsVLayoutRowMajor,
+                  "Batch prefill kernel requires RowMajor VLayout");
 };
 
 template <typename QDataType_,

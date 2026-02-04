@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/numeric.hpp"
+
 #include <tuple>
 #include <type_traits>
 #include <stdint.h>
@@ -186,5 +188,20 @@ struct tuple_element_or_default
 template <typename Tuple_, std::size_t Idx, typename DefaultType>
 using tuple_element_or_default_t =
     typename tuple_element_or_default<Tuple_, Idx, DefaultType>::type;
+
+// Helper struct to determine if a type is packed (more than 1 element per byte)
+template <typename T>
+struct is_packed_type
+{
+    static constexpr bool value = numeric_traits<T>::PackedSize > 1;
+};
+
+template <typename T>
+static constexpr bool is_packed_type_v = is_packed_type<T>::value;
+
+// Helper definition to take the largest sizes type
+template <typename ADataType, typename BDataType>
+using largest_type_t =
+    std::conditional_t<sizeof(ADataType) >= sizeof(BDataType), ADataType, BDataType>;
 
 } // namespace ck_tile

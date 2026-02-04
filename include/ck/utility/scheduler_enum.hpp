@@ -70,7 +70,8 @@ enum struct TailNumber
 } // namespace ck
 
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
-inline std::ostream& operator<<(std::ostream& os, const ck::LoopScheduler& s)
+inline std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                                const ck::LoopScheduler& s)
 {
     switch(s)
     {

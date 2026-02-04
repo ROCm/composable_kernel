@@ -387,8 +387,8 @@ struct QuantGroupedGemmKernel
             Base::MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
         const auto& b_block_window =
             Base::MakeBBlockWindow(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
-        const auto& bq_block_window =
-            Base::MakeBQBlockWindow(bq_ptr, kargs, block_idx_m, block_idx_n);
+        const auto& bq_block_window = Base::MakeBQBlockWindow(
+            bq_ptr, kargs, splitk_batch_offset.bq_group_offset, block_idx_m, block_idx_n);
 
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
@@ -453,8 +453,8 @@ struct QuantGroupedGemmKernel
             Base::MakeBBlockWindow(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
         const auto& aq_block_window =
             Base::MakeAQBlockWindow(aq_ptr, kargs, block_idx_m, block_idx_n);
-        const auto& bq_block_window =
-            Base::MakeBQBlockWindow(bq_ptr, kargs, block_idx_m, block_idx_n);
+        const auto& bq_block_window = Base::MakeBQBlockWindow(
+            bq_ptr, kargs, splitk_batch_offset.bq_group_offset, block_idx_m, block_idx_n);
 
         // Get hot-loop and tail configuration
         const index_t num_loop = __builtin_amdgcn_readfirstlane(

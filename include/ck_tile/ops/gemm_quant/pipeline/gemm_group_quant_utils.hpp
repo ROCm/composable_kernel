@@ -52,7 +52,7 @@ template <typename BlockGemmShape,
           index_t XPerTile,
           index_t KPerBlockAQ,
           index_t VecSize,
-          bool PreshuffleQuant>
+          bool APreshuffleQuant>
 struct tile_distribution_encoding_pattern_aq : public tile_distribution_encoding_pattern
 {
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
@@ -72,7 +72,7 @@ struct tile_distribution_encoding_pattern_aq : public tile_distribution_encoding
 
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
-        if constexpr(PreshuffleQuant)
+        if constexpr(APreshuffleQuant)
         {
             // # of elements per thread
             static_assert(XPerTile >= warp_size && XPerTile % warp_size == 0);
@@ -193,8 +193,8 @@ template <typename BlockGemmShape,
           index_t NPerTile,
           index_t NPerQ,
           index_t KPerQ,
-          typename BQLayout    = tensor_layout::gemm::ColumnMajor,
-          bool PreshuffleQuant = false>
+          typename BQLayout     = tensor_layout::gemm::ColumnMajor,
+          bool BPreshuffleQuant = false>
 struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding_pattern
 {
     static constexpr index_t warp_size = get_warp_size();
@@ -212,10 +212,11 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
         // Preshuffle only supported for ColumnMajor currently
-        static_assert(!(PreshuffleQuant && std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>),
-                      "PreshuffleQuant only supported for ColumnMajor BQLayout");
+        static_assert(
+            !(BPreshuffleQuant && std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>),
+            "PreshuffleQuant only supported for ColumnMajor BQLayout");
 
-        if constexpr(PreshuffleQuant)
+        if constexpr(BPreshuffleQuant)
         {
             // =============================================================================
             // PRE-SHUFFLED BQ SCALE TILE DISTRIBUTION

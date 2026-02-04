@@ -7,6 +7,9 @@
 #include "ck_tile/core/numeric/vector_type.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile::core::arch::mma {
 
 /**
@@ -112,6 +115,7 @@ struct amdgcn_mma
 };
 
 } // namespace ck_tile::core::arch::mma
+#pragma clang diagnostic pop
 
 // Include the implementations
 #include "wmma/wmma.hpp"

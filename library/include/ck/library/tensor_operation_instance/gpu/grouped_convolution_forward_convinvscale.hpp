@@ -22,6 +22,7 @@ using PassThrough  = ck::tensor_operation::element_wise::PassThrough;
 using ConvInvscale = ck::tensor_operation::element_wise::ConvInvscale;
 
 #ifdef CK_ENABLE_FP8
+#ifdef CK_USE_XDL
 void add_device_grouped_conv3d_fwd_xdl_convinvscale_ndhwgc_gkzyxc_ndhwgk_f8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
@@ -37,6 +38,25 @@ void add_device_grouped_conv3d_fwd_xdl_convinvscale_ndhwgc_gkzyxc_ndhwgk_f8_inst
                                                                 ConvInvscale,
                                                                 F8,
                                                                 F8>>>& instances);
+#endif
+
+#ifdef CK_USE_WMMA_FP8
+void add_device_grouped_conv3d_fwd_wmma_cshufflev3_convinvscale_ndhwgc_gkzyxc_ndhwgk_f8_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                ck::Tuple<>,
+                                                                NDHWGK,
+                                                                F8,
+                                                                F8,
+                                                                ck::Tuple<>,
+                                                                F8,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                ConvInvscale,
+                                                                F8,
+                                                                F8>>>& instances);
+#endif
 #endif
 
 template <ck::index_t NumDimSpatial,
@@ -93,8 +113,14 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, f8_t> && is_same_v<AComputeType, f8_t> &&
                          is_same_v<BComputeType, f8_t>)
             {
+#ifdef CK_USE_XDL
                 add_device_grouped_conv3d_fwd_xdl_convinvscale_ndhwgc_gkzyxc_ndhwgk_f8_instances(
                     op_ptrs);
+#endif
+#ifdef CK_USE_WMMA_FP8
+                add_device_grouped_conv3d_fwd_wmma_cshufflev3_convinvscale_ndhwgc_gkzyxc_ndhwgk_f8_instances(
+                    op_ptrs);
+#endif
             }
 #endif
         }

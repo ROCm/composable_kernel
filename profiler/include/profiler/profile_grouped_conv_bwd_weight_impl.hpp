@@ -364,26 +364,39 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     using AccDataType =
                         std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
 
-                    // Calculate number of accumulations accounting for split_k
-                    const int num_accums =
-                        static_cast<int>(output.GetElementSize() / conv_param.K_ / split_k_value);
-
-                    // Additional tolerance for split_k accumulation if needed
-                    int total_accums = num_accums;
-                    if(split_k_value > 1)
-                    {
-                        total_accums = std::max(num_accums, static_cast<int>(split_k_value));
-                    }
-
-                    // Perform GPU verification (max value computed internally on GPU)
+                    const index_t num_accums         = output.GetElementSize() / conv_param.K_;
+                    const index_t num_accums_split_k = split_k_value;
+                    // Get maximum accumulated value from reference
                     const std::size_t tensor_size =
                         weight_device_result.mDesc.GetElementSpaceSize();
+                    max_accumulated_value =
+                        gpu_reduce_max<WeiDataType>(gpu_ref_wei_buf.GetDeviceBuffer(), tensor_size);
+                    // Calculate thresholds
+                    auto rtol =
+                        ck::utils::get_relative_threshold<ComputeType, WeiDataType, AccDataType>(
+                            num_accums / num_accums_split_k);
+                    auto atol =
+                        ck::utils::get_absolute_threshold<ComputeType, WeiDataType, AccDataType>(
+                            max_accumulated_value / num_accums_split_k,
+                            num_accums / num_accums_split_k);
+                    // Calculate error due to split_k accumulation
+                    auto rtol_split_k =
+                        ck::utils::get_relative_threshold<WeiDataType, WeiDataType, WeiDataType>(
+                            num_accums_split_k);
+                    auto atol_split_k =
+                        ck::utils::get_absolute_threshold<WeiDataType, WeiDataType, WeiDataType>(
+                            max_accumulated_value, num_accums_split_k);
+                    // Use higher threshold
+                    rtol = std::max(rtol, rtol_split_k);
+                    atol = std::max(atol, atol_split_k);
+
+                    // Perform GPU verification
                     auto gpu_result =
-                        ck::profiler::gpu_verify<WeiDataType, ComputeType, AccDataType>(
-                            wei_device_buf.GetDeviceBuffer(),
-                            gpu_ref_wei_buf.GetDeviceBuffer(),
-                            total_accums,
-                            tensor_size);
+                        ck::profiler::gpu_verify<WeiDataType>(wei_device_buf.GetDeviceBuffer(),
+                                                              gpu_ref_wei_buf.GetDeviceBuffer(),
+                                                              rtol,
+                                                              atol,
+                                                              tensor_size);
 
                     if(!gpu_result)
                     {

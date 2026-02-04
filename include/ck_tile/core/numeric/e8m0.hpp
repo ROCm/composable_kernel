@@ -6,6 +6,9 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/mxfp_convert.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 /**
@@ -100,3 +103,4 @@ CK_TILE_HOST_DEVICE constexpr e8m0_bexp_t::operator float() const
 }
 
 } // namespace ck_tile
+#pragma clang diagnostic pop

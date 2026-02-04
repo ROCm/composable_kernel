@@ -162,7 +162,6 @@ struct DeviceGroupedConvBwdWeight_Explicit
             }
             else
             {
-#if !DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
                 if(split_k < 0)
                 {
                     const auto max_occupancy = DeviceGemmV3Op::GetMaxOccupancy();
@@ -171,9 +170,11 @@ struct DeviceGroupedConvBwdWeight_Explicit
                         DeviceGemmV3Op::GridwiseGemm::CalculateGridSize(M, N, BatchSize);
                     const index_t grid_size = gdx * gdy * gdz;
                     k_batch_ = get_best_occupancy_k_batch_value(max_occupancy, grid_size);
+
+                    // Cap k_batch_ to 128 to avoid accuracy issues
+                    k_batch_ = std::min(k_batch_, 128);
                 }
                 else
-#endif
                 {
                     k_batch_ = split_k;
                 }
@@ -338,16 +339,6 @@ struct DeviceGroupedConvBwdWeight_Explicit
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-#if DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
-        if constexpr(!IsTwoStageNeeded)
-        {
-            if(arg.k_batch_ < 0)
-            {
-                return false;
-            }
-        }
-#endif
-
         if constexpr(NDimSpatial == 2)
         {
             if constexpr(!is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>())

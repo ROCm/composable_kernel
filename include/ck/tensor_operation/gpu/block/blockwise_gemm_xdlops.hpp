@@ -9,6 +9,8 @@
 #include "ck/tensor_operation/gpu/warp/xdlops_gemm.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 
 template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
@@ -1031,3 +1033,4 @@ struct BlockwiseGemmXdlops_v2
 };
 
 } // namespace ck
+#pragma clang diagnostic pop

@@ -27,6 +27,7 @@
 #include "ck_tile/host/reference/reference_batched_rotary_position_embedding.hpp"
 #include "ck_tile/host/reference/reference_batched_softmax.hpp"
 #include "ck_tile/host/reference/reference_batched_transpose.hpp"
+#include "ck_tile/host/reference/reference_blocked_attention.hpp"
 #include "ck_tile/host/reference/reference_elementwise.hpp"
 #include "ck_tile/host/reference/reference_fused_moe.hpp"
 #include "ck_tile/host/reference/reference_gemm.hpp"

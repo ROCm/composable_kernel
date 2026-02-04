@@ -32,7 +32,8 @@ constexpr auto ALGORITHM =
         .with_gemm_config(cku::BwdGemmParams_Xdl_1x1_per_wave)
         .with_transfer(cku::BwdTransfer_4x8x1_4x16x1_v3)
         .with_bwd_specialization(ckb::ConvSpecialization::FILTER_1X1_STRIDE1_PAD0)
-        .with_block_gemm(cku::BlockGemmDesc_v2_intrawave);
+        .with_block_gemm(cku::BlockGemmDesc_v2_intrawave)
+        .with_num_conv_groups_to_merge(1);
 
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;

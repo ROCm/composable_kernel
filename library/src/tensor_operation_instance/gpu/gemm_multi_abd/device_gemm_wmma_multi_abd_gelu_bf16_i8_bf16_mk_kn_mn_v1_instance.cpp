@@ -39,7 +39,7 @@ void add_device_gemm_wmma_multi_abd_bf16_i8_bf16_mk_kn_mn_gelu_v1_instances(
                                        Multiply,
                                        FastGelu,
                                        GemmMNKPadding,
-                                       Interwave>{});
+                                       Intrawave>{});
 
     add_device_operation_instances(instances,
                                    device_gemm_wmma_multi_abd_bf16_i8_bf16_mk_kn_mn_mem_instances<

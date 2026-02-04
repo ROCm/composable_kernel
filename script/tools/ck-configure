@@ -1,0 +1,187 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK Configure - Configure CMake build for Composable Kernel
+# Environment-agnostic: works natively on ROCm hosts or inside containers
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(find_project_root "${SCRIPT_DIR}" || get_project_root "${SCRIPT_DIR}")
+BUILD_DIR=$(get_build_dir "${PROJECT_ROOT}")
+
+# Help message
+show_help() {
+    cat << EOF
+CK Configure - Configure CMake build for Composable Kernel
+
+Usage: ck-configure [options]
+
+Options:
+  -h, --help              Show this help message
+  --preset <name>         Use CMake preset (dev, dev-gfx908, dev-gfx90a, dev-gfx942, dev-gfx950)
+  --gpu <target>          Override GPU_TARGETS (auto-detected if not specified)
+  --dtypes <types>        Set DTYPES (e.g., fp16,fp32,bf16)
+  --build-type <type>     CMAKE_BUILD_TYPE (default: Release)
+  --build-dir <dir>       Build directory (default: ./build)
+  --clean                 Remove existing build directory before configuring
+  --list-presets          List available CMake presets
+  -D <VAR>=<value>        Pass additional CMake variable
+
+Environment:
+  CK_GPU_TARGET  - Override GPU target detection (e.g., gfx950, gfx942)
+  CK_BUILD_DIR   - Override build directory
+
+Examples:
+  ck-configure                              # Auto-detect GPU and configure
+  ck-configure --preset dev-gfx950          # Use CMake preset
+  ck-configure --gpu gfx942                 # Configure for specific GPU
+  ck-configure --clean --preset dev         # Clean and reconfigure
+  ck-configure -D BUILD_DEV=ON              # Pass CMake variable
+
+EOF
+}
+
+# Parse arguments
+preset=""
+gpu_target=""
+dtypes=""
+build_type="Release"
+clean=false
+list_presets=false
+cmake_vars=()
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --preset)
+            require_arg "$1" "${2:-}"
+            preset="$2"
+            shift 2
+            ;;
+        --gpu)
+            require_arg "$1" "${2:-}"
+            gpu_target="$2"
+            shift 2
+            ;;
+        --dtypes)
+            require_arg "$1" "${2:-}"
+            dtypes="$2"
+            shift 2
+            ;;
+        --build-type)
+            require_arg "$1" "${2:-}"
+            build_type="$2"
+            shift 2
+            ;;
+        --build-dir)
+            require_arg "$1" "${2:-}"
+            BUILD_DIR="$2"
+            shift 2
+            ;;
+        --clean)
+            clean=true
+            shift
+            ;;
+        --list-presets)
+            list_presets=true
+            shift
+            ;;
+        -D)
+            require_arg "$1" "${2:-}"
+            cmake_vars+=("-D$2")
+            shift 2
+            ;;
+        -D*)
+            cmake_vars+=("$1")
+            shift
+            ;;
+        *)
+            error "Unknown option: $1"
+            echo ""
+            show_help
+            exit 1
+            ;;
+    esac
+done
+
+# Handle --list-presets
+if [ "$list_presets" = true ]; then
+    echo "Available CMake presets:"
+    presets=$(list_cmake_presets "${PROJECT_ROOT}" 2>/dev/null)
+    if [ -n "$presets" ]; then
+        echo "$presets" | sed 's/^/  /'
+    else
+        echo "  (No CMakePresets.json found or jq not available)"
+    fi
+    exit 0
+fi
+
+# Clean build directory if requested
+if [ "$clean" = true ]; then
+    if [ -d "${BUILD_DIR}" ]; then
+        info "Removing existing build directory: ${BUILD_DIR}"
+        rm -rf "${BUILD_DIR}"
+    fi
+fi
+
+# Create build directory
+mkdir -p "${BUILD_DIR}"
+
+# Change to project root for CMake
+cd "${PROJECT_ROOT}"
+
+# Build CMake command
+cmake_cmd=(cmake -S . -B "${BUILD_DIR}" -GNinja)
+
+# Use preset if specified
+if [ -n "$preset" ]; then
+    cmake_cmd+=(--preset "${preset}")
+    info "Using CMake preset: ${preset}"
+else
+    # Manual configuration
+
+    # Detect GPU target if not specified
+    if [ -z "$gpu_target" ]; then
+        gpu_target=$(detect_gpu_native)
+        info "Auto-detected GPU target: ${gpu_target}"
+    else
+        info "Using specified GPU target: ${gpu_target}"
+    fi
+
+    cmake_cmd+=(-DGPU_TARGETS="${gpu_target}")
+    cmake_cmd+=(-DCMAKE_BUILD_TYPE="${build_type}")
+    cmake_cmd+=(-DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++)
+    cmake_cmd+=(-DBUILD_TESTING=ON)
+
+    # Add DTYPES if specified
+    if [ -n "$dtypes" ]; then
+        cmake_cmd+=(-DDTYPES="${dtypes}")
+        info "Using DTYPES: ${dtypes}"
+    fi
+fi
+
+# Add any additional CMake variables
+for var in "${cmake_vars[@]}"; do
+    cmake_cmd+=("$var")
+done
+
+# Run CMake
+info "Configuring build in: ${BUILD_DIR}"
+echo "Running: ${cmake_cmd[*]}"
+echo ""
+
+"${cmake_cmd[@]}"
+
+echo ""
+info "Configuration complete. Build directory: ${BUILD_DIR}"
+info "Next: run 'ck-build' to build targets"

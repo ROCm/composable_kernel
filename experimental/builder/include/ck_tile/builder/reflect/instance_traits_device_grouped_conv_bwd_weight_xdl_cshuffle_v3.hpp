@@ -53,7 +53,9 @@ template <ck::index_t NDimSpatial,
           ck::BlockGemmPipelineScheduler BlkGemmPipeSched,
           ck::BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename ComputeTypeA,
-          typename ComputeTypeB>
+          typename ComputeTypeB,
+          bool DirectLoad,
+          index_t NumGroupsToMerge>
 struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3;
 
 } // namespace ck::tensor_operation::device
@@ -109,7 +111,9 @@ template <ck::index_t NDimSpatial,
           ck::BlockGemmPipelineScheduler BlkGemmPipeSched,
           ck::BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename ComputeTypeA_,
-          typename ComputeTypeB_>
+          typename ComputeTypeB_,
+          bool DirectLoad,
+          index_t NumGroupsToMerge>
 struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffleV3<
     NDimSpatial,
     InLayout_,
@@ -153,7 +157,9 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
     BlkGemmPipeSched,
     BlkGemmPipelineVer,
     ComputeTypeA_,
-    ComputeTypeB_>>
+    ComputeTypeB_,
+    DirectLoad,
+    NumGroupsToMerge>>
 {
 
     /// @brief Tag type identifying this device kernel variant
@@ -241,6 +247,9 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
     using ComputeTypeA = ComputeTypeA_;
     using ComputeTypeB = ComputeTypeB_;
 
+    static constexpr bool kDirectLoad          = DirectLoad;
+    static constexpr index_t kNumGroupsToMerge = NumGroupsToMerge;
+
     // Static member function to generate instance string
     static std::string instance_string()
     {
@@ -302,6 +311,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
         oss << "," << detail::pipeline_version_name(kBlkGemmPipelineVer);             // 41.
         oss << "," << detail::type_name<ComputeTypeA>();                              // 42.
         oss << "," << detail::type_name<ComputeTypeB>();                              // 43.
+        oss << "," << kDirectLoad;                                                    // 44.
+        oss << "," << kNumGroupsToMerge;                                              // 45.
         oss << ">";
 
         return oss.str();

@@ -34,7 +34,8 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr bool PreshuffleQuant           = false;
+    static constexpr bool APreshuffleQuant          = false;
+    static constexpr bool BPreshuffleQuant          = false;
     static constexpr bool PreshuffleB               = false;
     static constexpr bool DoubleSmemBuffer          = false;
     static constexpr bool TiledMMAPermuteN          = false;
@@ -110,7 +111,7 @@ struct GemmConfigMxFp4 : public GemmConfigBase
 
 struct GemmConfigPreshuffleQuant : public GemmConfigBase
 {
-    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool APreshuffleQuant = true;
 };
 
 struct GemmConfigTransposeC : public GemmConfigBase
@@ -120,8 +121,8 @@ struct GemmConfigTransposeC : public GemmConfigBase
 
 struct GemmConfigPreshuffleQuantTransposeC : public GemmConfigBase
 {
-    static constexpr bool PreshuffleQuant = true;
-    static constexpr bool TransposeC      = true;
+    static constexpr bool APreshuffleQuant = true;
+    static constexpr bool TransposeC       = true;
 };
 
 struct GemmConfigPadding : public GemmConfigBase
@@ -138,7 +139,7 @@ struct GemmConfigPreshuffleBDecode : public GemmConfigDecode
 
 struct GemmConfigPreshuffleQuantDecode : public GemmConfigDecode
 {
-    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool BPreshuffleQuant = true;
 };
 
 struct GemmConfigPreshuffleBPrefill : public GemmConfigPrefill
@@ -149,7 +150,7 @@ struct GemmConfigPreshuffleBPrefill : public GemmConfigPrefill
 
 struct GemmConfigPreshuffleQuantPrefill : public GemmConfigPrefill
 {
-    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool BPreshuffleQuant = true;
 };
 
 struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBPrefill
@@ -160,7 +161,7 @@ struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBP
 
 struct GemmConfigPreshuffleBPreshuffleQuantDecode : public GemmConfigPreshuffleBDecode
 {
-    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool BPreshuffleQuant = true;
 };
 
 template <typename Tuple>
@@ -244,7 +245,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             a_m_k_dev_buf.ToDevice(a_m_k.data());
         }
         // aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
-        if constexpr(Base::GemmConfig::PreshuffleQuant)
+        if constexpr(Base::GemmConfig::APreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> aq_shuffle_host =
                 ck_tile::shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / QuantGroupSize::kK);
@@ -481,7 +482,7 @@ class TestCkTileGemmAQuantMem
             a_m_k_dev_buf.ToDevice(a_m_k.data());
         }
         // aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
-        if constexpr(Base::GemmConfig::PreshuffleQuant)
+        if constexpr(Base::GemmConfig::APreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> aq_shuffle_host =
                 ck_tile::shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / QuantGroupSize::kK);
@@ -654,7 +655,10 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     void SetUpQuantTypeSpecific() {}
     void TearDownQuantTypeSpecific() {}
 
-    void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
+    void run_test_with_validation(ck_tile::index_t M,
+                                  ck_tile::index_t N,
+                                  ck_tile::index_t K,
+                                  ck_tile::index_t k_batch = 1)
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B =
@@ -697,6 +701,9 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                               sizeof(QDataType));
         ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
 
+        // Zero C buffer - required for split-K atomic_add accumulation
+        c_m_n_dev_buf.SetZero();
+
         // Copy to device
         a_m_k_dev_buf.ToDevice(a_m_k.data());
         ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
@@ -727,7 +734,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                 ck_tile::bq_permuteN<GemmConfig>(bq_bqk_bqn, QuantGroupSize::kN);
             bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
         }
-        else if constexpr(GemmConfig::PreshuffleQuant)
+        else if constexpr(GemmConfig::BPreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> bq_shuffle_host =
                 ck_tile::shuffle_bq(&bq_bqk_bqn, GemmConfig::K_Tile / QuantGroupSize::kK);
@@ -745,12 +752,12 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             c_m_n_dev_buf.GetDeviceBuffer(),      // c_ptr
             nullptr,                              // aq_ptr (not used for BQuant)
             bq_bqk_bqn_dev_buf.GetDeviceBuffer(), // bq_ptr (scales)
-            1,                                    // k_batch
+            k_batch,                              // k_batch (split-K)
             M,
             N,
             K,   // M, N, K
             0,   // QK_A (not used for BQuant)
-            BQK, // QK_B - TODO: we can remove BQK and BQN from args later?
+            BQK, // QK_B
             stride_A,
             stride_B,
             stride_C,
@@ -795,7 +802,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
         const auto rtol_atol =
             this->template calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-                K, 1, max_accumulated_value);
+                K, k_batch, max_accumulated_value);
 
         // Validate results
         bool pass = ck_tile::check_err(c_m_n_dev_result,
@@ -805,7 +812,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                        rtol_atol.at(ck_tile::number<1>{}));
 
         EXPECT_TRUE(pass) << "BQuantGrouped validation failed with M=" << M << ", N=" << N
-                          << ", K=" << K;
+                          << ", K=" << K << ", k_batch=" << k_batch;
 
         if(!pass)
         {
@@ -1024,7 +1031,7 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
 
         b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
 
-        if constexpr(Base::GemmConfig::PreshuffleQuant)
+        if constexpr(Base::GemmConfig::APreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> aq_shuffle_host =
                 ck_tile::shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / AQuantGroupSize::kK);
@@ -1041,7 +1048,7 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                 ck_tile::bq_permuteN<GemmConfig>(bq_bqk_bqn, BQuantGroupSize::kN);
             bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
         }
-        else if constexpr(GemmConfig::PreshuffleQuant)
+        else if constexpr(GemmConfig::BPreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> bq_shuffle_host =
                 ck_tile::shuffle_bq(&bq_bqk_bqn, GemmConfig::K_Tile / BQuantGroupSize::kK);
@@ -1173,8 +1180,8 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                    ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
+                ck_tile::CShuffleEpilogueProblem<typename PipelineProblem::ComputeDataType,
+                                                 typename PipelineProblem::ComputeDataType,
                                                  ck_tile::tuple<>,
                                                  AccDataType,
                                                  CDataType,

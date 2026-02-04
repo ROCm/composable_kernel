@@ -632,7 +632,8 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeight_Xdl_CShuffle_V3 =
                           BwdXdlGemm_,
                           Transfer_<>,
                           ConvSpecializationBwdWeight_,
-                          BlockGemm_>;
+                          BlockGemm_,
+                          GemmBatchOptions_>;
 
 using ConvAlgorithm_DeviceGroupedConvBwdWeight_Dl =
     ConvAlgorithmTemplate<ThreadBlock_,

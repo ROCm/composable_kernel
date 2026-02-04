@@ -567,6 +567,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     using DsGridDesc_M_N =
         remove_cvref_t<decltype(MakeDsGridDescriptor_M_N(dummy_conv_to_gemm_transformer))>;
 
+    // Disable vector load = 4. It is not supported for Direct Load. Align to 2 in such case.
     static constexpr index_t ABlockTransferSrcScalarPerVectorAligned =
         ABlockTransferSrcScalarPerVector * sizeof(ADataType) == 8
             ? 4 / sizeof(ADataType)
