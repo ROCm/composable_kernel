@@ -114,4 +114,4 @@ experimental/grouped_convolution_tile_instances/instances/*
 experimental/grouped_convolution_tile_instances/*.inc
 
 benchmarking/workloads/
-benchmarking/.rockprofv3
+benchmarking/.rocprofv3/
