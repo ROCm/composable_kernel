@@ -7,6 +7,7 @@
 #include <string>
 #include <tuple>
 
+#if 0
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
@@ -94,9 +95,13 @@ auto gen_lut_key(const ck_tile::ArgParser& arg_parser)
 
     return hash_multiple_strings(params);
 }
+#endif
 
-int main(int argc, char* argv[])
+// int main(int argc, char* argv[])
+int main()
 {
+    return -1;
+#if 0
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result || arg_parser.get_bool("h"))
     {
@@ -124,4 +129,5 @@ int main(int argc, char* argv[])
                   << std::endl;
         return -1;
     }
+#endif
 }
