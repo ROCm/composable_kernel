@@ -208,6 +208,74 @@ def parse_fwd_instances(instances, problem_name):
         convs.append(conv)
     return convs
 
+def parse_bwd_weight_instances(instances, problem_name):
+    convs = []
+
+    for instance_id, instance in enumerate(instances):
+        if instance.find("#") != -1 or instance.find(";") != -1:
+            continue
+
+        device_op_name = instance.split("<")[0]
+        if device_op_name.find("Explicit") == -1:
+            # Skip the explicit GEMM instances for now.
+            continue
+        else:
+            instance_args_list = instance[instance.find("<") + 1 : instance.find(">")]
+            args = instance_args_list.split(", ")
+            m_per_block = int(args[13])
+            n_per_block = int(args[14])
+            k_per_block = int(args[15])
+            spec = args[11]
+            m_per_xdl = int(args[17])
+            n_per_xdl = int(args[18])
+            m_xdl_per_wave = int(args[7])
+            n_xdl_per_wave = int(args[8])
+            a_scalar_per_vector = int(args[9])
+            b_scalar_per_vector = int(args[10])
+            c_scalar_per_vector = int(args[11])
+            if len(args) == 15:
+                num_groups_to_merge = int(args[14])
+            elif len(args) != 16 and len(args) != 14:
+                raise RuntimeError("wrong number of parameters")
+            else:
+                num_groups_to_merge = 1
+            split_image = instance.find("Large") != -1
+            double_smem_buffer = instance.find("BlkGemmPipelineVersion: v4") != -1
+            num_wave_groups = 2 if instance.find("BlkGemmPipelineVersion: v5") != -1 else 1
+            scheduler = (
+                "Intrawave" if instance.find("BlkGemmPipelineScheduler") == -1 else args[14]
+            )
+            pipeline_version = (
+                "v1" if instance.find("BlkGemmPipelineVersion") == -1 else args[15]
+            )
+
+            m_warp = int(m_per_block / (m_per_xdl * m_xdl_per_wave))
+            n_warp = int(n_per_block / (n_per_xdl * n_xdl_per_wave))
+            warp_size = 64
+            k_warp = int(block_size / (warp_size * m_warp * n_warp))
+            dtype = get_dtype(problem_name)
+            # TODO: Make it more flexible
+            # k_per_xdl = f"ck_tile::get_k_warp_tile<{dtype}, {m_per_xdl}>()"
+            k_per_xdl = 8 if dtype == "float" else 16
+
+            conv = ConvInstanceTemplateParams(
+                spec,
+                [m_per_block, n_per_block, k_per_block],
+                [m_warp, n_warp, k_warp],
+                [m_per_xdl, n_per_xdl, k_per_xdl],
+                double_smem_buffer,
+                num_wave_groups,
+                pipeline_version,
+                scheduler,
+                [a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector],
+                num_groups_to_merge,
+                split_image,
+                False,
+                instance_id,
+            )
+            convs.append(conv)
+    return convs
+
 
 def generate_instances_fwd(instances, problem_name, config, filter_pattern):
     direction = "forward"
@@ -225,9 +293,43 @@ def generate_instances_fwd(instances, problem_name, config, filter_pattern):
         instances, problem_name, config, direction, signature_name, filter_pattern
     )
 
+def generate_instances_bwd_weight(instances, problem_name, config, filter_pattern):
+    direction = "backward_weight"
+    signature_name = f"SIGNATURE_{config.upper()}_BWD_WEIGHT"
+    instances = parse_bwd_weight_instances(instances, problem_name)
+    generate_calls_inc(instances, problem_name, direction, filter_pattern)
+    generate_defs_inc(
+        instances,
+        problem_name,
+        signature_name,
+        direction,
+        filter_pattern,
+    )
+    generate_bwd_weight_cpp(
+        instances, problem_name, config, direction, signature_name, filter_pattern
+    )
+
 
 if __name__ == "__main__":
     fwd_configs = [
+        "nhwgc_fp32",
+        "nhwgc_fp16",
+        "nhwgc_bf16",
+        "ndhwgc_fp32",
+        "ndhwgc_fp16",
+        "ndhwgc_bf16",
+    ]
+
+    bwd_weight_configs = [
+        "nhwgc_fp32",
+        "nhwgc_fp16",
+        "nhwgc_bf16",
+        "ndhwgc_fp32",
+        "ndhwgc_fp16",
+        "ndhwgc_bf16",
+    ]
+
+    bwd_data_configs = [
         "nhwgc_fp32",
         "nhwgc_fp16",
         "nhwgc_bf16",
@@ -273,3 +375,21 @@ if __name__ == "__main__":
             instances = file.readlines()
         problem_name = f"grouped_convolution_forward_tile_{config}"
         generate_instances_fwd(instances, problem_name, config, args.filter_pattern)
+
+    for config in bwd_weight_configs:
+        instances = []
+        generate_dir = Path(__file__).resolve().parent
+        config_path = f"{generate_dir}/configs/bwd_weight/{configs_prefix}/{config}.conf"
+        with open(config_path, "r") as file:
+            instances = file.readlines()
+        problem_name = f"grouped_convolution_backward_tile_{config}"
+        generate_instances_bwd_weight(instances, problem_name, config, args.filter_pattern)
+
+    for config in bwd_data_configs:
+        instances = []
+        generate_dir = Path(__file__).resolve().parent
+        config_path = f"{generate_dir}/configs/bwd_data/{configs_prefix}/{config}.conf"
+        with open(config_path, "r") as file:
+            instances = file.readlines()
+        problem_name = f"grouped_convolution_backward_data_tile_{config}"
+        generate_instances_bwd_data(instances, problem_name, config, args.filter_pattern)
