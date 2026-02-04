@@ -123,6 +123,88 @@ compute_output_spatial(const std::array<long_index_t, SPATIAL_DIM>& input_spatia
     return output_spatial;
 }
 
+/// @brief Get memory layout order for any convolution tensor based on TensorLayout.
+///
+/// This function maps TensorLayout enums to their corresponding memory dimension ordering.
+/// Layouts with the same memory pattern (e.g., GNCW, GKCX, GNKW) share the same order array,
+/// demonstrating that memory layout order depends on dimension positions, not semantic meaning.
+///
+/// @tparam LAYOUT The tensor layout (input, weight, or output)
+/// @tparam SPATIAL_DIM The spatial dimensionality (1, 2, or 3)
+/// @returns Array indicating dimension order from outermost to innermost in memory
+template <TensorLayout LAYOUT, int SPATIAL_DIM>
+consteval auto get_layout_order()
+{
+    if constexpr(SPATIAL_DIM == 1)
+    {
+        // 1D layouts: Order {0, 1, 2, 3} - G, N/K, C/K, W/X pattern
+        if constexpr(LAYOUT == TensorLayout::GNCW || LAYOUT == TensorLayout::GKCX ||
+                     LAYOUT == TensorLayout::GNKW)
+            return std::array<size_t, 4>{0, 1, 2, 3};
+        // 1D layouts: Order {0, 1, 3, 2} - G, N/K, W/X, C/K pattern (channels-last)
+        else if constexpr(LAYOUT == TensorLayout::GNWC || LAYOUT == TensorLayout::G_NW_C_strided ||
+                          LAYOUT == TensorLayout::GKXC || LAYOUT == TensorLayout::G_K_X_C_strided ||
+                          LAYOUT == TensorLayout::GNWK || LAYOUT == TensorLayout::G_NW_K_strided)
+            return std::array<size_t, 4>{0, 1, 3, 2};
+        // 1D layouts: Order {1, 3, 0, 2} - N/K, W/X, G, C/K pattern (batch-first)
+        else if constexpr(LAYOUT == TensorLayout::NWGC || LAYOUT == TensorLayout::KXGC ||
+                          LAYOUT == TensorLayout::NWGK)
+            return std::array<size_t, 4>{1, 3, 0, 2};
+        // 1D layouts: Order {1, 0, 2, 3} - N/K, G, C/K, W/X pattern
+        else if constexpr(LAYOUT == TensorLayout::NGCW || LAYOUT == TensorLayout::NGKW)
+            return std::array<size_t, 4>{1, 0, 2, 3};
+        else
+            static_assert(sizeof(UnsupportedEnumValue<LAYOUT>) == 0, "Unsupported 1D layout");
+    }
+    else if constexpr(SPATIAL_DIM == 2)
+    {
+        // 2D layouts: Order {0, 1, 2, 3, 4} - G, N/K, C/K, H/Y, W/X pattern
+        if constexpr(LAYOUT == TensorLayout::GNCHW || LAYOUT == TensorLayout::GKCYX ||
+                     LAYOUT == TensorLayout::GNKHW)
+            return std::array<size_t, 5>{0, 1, 2, 3, 4};
+        // 2D layouts: Order {0, 1, 3, 4, 2} - G, N/K, H/Y, W/X, C/K pattern (channels-last)
+        else if constexpr(LAYOUT == TensorLayout::GNHWC ||
+                          LAYOUT == TensorLayout::G_NHW_C_strided ||
+                          LAYOUT == TensorLayout::GKYXC ||
+                          LAYOUT == TensorLayout::G_K_YX_C_strided ||
+                          LAYOUT == TensorLayout::GNHWK || LAYOUT == TensorLayout::G_NHW_K_strided)
+            return std::array<size_t, 5>{0, 1, 3, 4, 2};
+        // 2D layouts: Order {1, 3, 4, 0, 2} - N/K, H/Y, W/X, G, C/K pattern (batch-first)
+        else if constexpr(LAYOUT == TensorLayout::NHWGC || LAYOUT == TensorLayout::KYXGC ||
+                          LAYOUT == TensorLayout::NHWGK)
+            return std::array<size_t, 5>{1, 3, 4, 0, 2};
+        // 2D layouts: Order {1, 0, 2, 3, 4} - N/K, G, C/K, H/Y, W/X pattern
+        else if constexpr(LAYOUT == TensorLayout::NGCHW || LAYOUT == TensorLayout::NGKHW)
+            return std::array<size_t, 5>{1, 0, 2, 3, 4};
+        else
+            static_assert(sizeof(UnsupportedEnumValue<LAYOUT>) == 0, "Unsupported 2D layout");
+    }
+    else
+    {
+        // 3D layouts: Order {0, 1, 2, 3, 4, 5} - G, N/K, C/K, D/Z, H/Y, W/X pattern
+        if constexpr(LAYOUT == TensorLayout::GNCDHW || LAYOUT == TensorLayout::GKCZYX ||
+                     LAYOUT == TensorLayout::GNKDHW)
+            return std::array<size_t, 6>{0, 1, 2, 3, 4, 5};
+        // 3D layouts: Order {0, 1, 3, 4, 5, 2} - G, N/K, D/Z, H/Y, W/X, C/K pattern (channels-last)
+        else if constexpr(LAYOUT == TensorLayout::GNDHWC ||
+                          LAYOUT == TensorLayout::G_NDHW_C_strided ||
+                          LAYOUT == TensorLayout::GKZYXC ||
+                          LAYOUT == TensorLayout::G_K_ZYX_C_strided ||
+                          LAYOUT == TensorLayout::GNDHWK ||
+                          LAYOUT == TensorLayout::G_NDHW_K_strided)
+            return std::array<size_t, 6>{0, 1, 3, 4, 5, 2};
+        // 3D layouts: Order {1, 3, 4, 5, 0, 2} - N/K, D/Z, H/Y, W/X, G, C/K pattern (batch-first)
+        else if constexpr(LAYOUT == TensorLayout::NDHWGC || LAYOUT == TensorLayout::KZYXGC ||
+                          LAYOUT == TensorLayout::NDHWGK)
+            return std::array<size_t, 6>{1, 3, 4, 5, 0, 2};
+        // 3D layouts: Order {1, 0, 2, 3, 4, 5} - N/K, G, C/K, D/Z, H/Y, W/X pattern
+        else if constexpr(LAYOUT == TensorLayout::NGCDHW || LAYOUT == TensorLayout::NGKDHW)
+            return std::array<size_t, 6>{1, 0, 2, 3, 4, 5};
+        else
+            static_assert(sizeof(UnsupportedEnumValue<LAYOUT>) == 0, "Unsupported 3D layout");
+    }
+}
+
 } // namespace detail
 
 /// @brief `Args` specialization for forward convolution.
@@ -229,52 +311,8 @@ struct Args<SIGNATURE>
 
         const auto make_default_strides = [&] {
             constexpr auto layout = SIGNATURE.input.config.layout;
-
-            if constexpr(SPATIAL_DIM == 1)
-            {
-                if constexpr(layout == TensorLayout::GNCW)
-                    return detail::make_packed_strides_for_order<4>(lens, {0, 1, 2, 3});
-                else if constexpr(layout == TensorLayout::GNWC ||
-                                  layout == TensorLayout::G_NW_C_strided)
-                    return detail::make_packed_strides_for_order<4>(lens, {0, 1, 3, 2});
-                else if constexpr(layout == TensorLayout::NWGC)
-                    return detail::make_packed_strides_for_order<4>(lens, {1, 3, 0, 2});
-                else if constexpr(layout == TensorLayout::NGCW)
-                    return detail::make_packed_strides_for_order<4>(lens, {1, 0, 2, 3});
-                else
-                    static_assert(sizeof(UnsupportedEnumValue<layout>) == 0,
-                                  "Unsupported 1D input layout for descriptor initialization.");
-            }
-            else if constexpr(SPATIAL_DIM == 2)
-            {
-                if constexpr(layout == TensorLayout::GNCHW)
-                    return detail::make_packed_strides_for_order<5>(lens, {0, 1, 2, 3, 4});
-                else if constexpr(layout == TensorLayout::GNHWC ||
-                                  layout == TensorLayout::G_NHW_C_strided)
-                    return detail::make_packed_strides_for_order<5>(lens, {0, 1, 3, 4, 2});
-                else if constexpr(layout == TensorLayout::NHWGC)
-                    return detail::make_packed_strides_for_order<5>(lens, {1, 3, 4, 0, 2});
-                else if constexpr(layout == TensorLayout::NGCHW)
-                    return detail::make_packed_strides_for_order<5>(lens, {1, 0, 2, 3, 4});
-                else
-                    static_assert(sizeof(UnsupportedEnumValue<layout>) == 0,
-                                  "Unsupported 2D input layout for descriptor initialization.");
-            }
-            else
-            {
-                if constexpr(layout == TensorLayout::GNCDHW)
-                    return detail::make_packed_strides_for_order<6>(lens, {0, 1, 2, 3, 4, 5});
-                else if constexpr(layout == TensorLayout::GNDHWC ||
-                                  layout == TensorLayout::G_NDHW_C_strided)
-                    return detail::make_packed_strides_for_order<6>(lens, {0, 1, 3, 4, 5, 2});
-                else if constexpr(layout == TensorLayout::NDHWGC)
-                    return detail::make_packed_strides_for_order<6>(lens, {1, 3, 4, 5, 0, 2});
-                else if constexpr(layout == TensorLayout::NGCDHW)
-                    return detail::make_packed_strides_for_order<6>(lens, {1, 0, 2, 3, 4, 5});
-                else
-                    static_assert(sizeof(UnsupportedEnumValue<layout>) == 0,
-                                  "Unsupported 3D input layout for descriptor initialization.");
-            }
+            constexpr auto order  = detail::get_layout_order<layout, SPATIAL_DIM>();
+            return detail::make_packed_strides_for_order<INPUT_RANK>(lens, order);
         };
 
         const Extent strides =
@@ -312,46 +350,8 @@ struct Args<SIGNATURE>
 
         const auto make_default_strides = [&] {
             constexpr auto layout = SIGNATURE.weight.config.layout;
-
-            if constexpr(SPATIAL_DIM == 1)
-            {
-                if constexpr(layout == TensorLayout::GKCX)
-                    return detail::make_packed_strides_for_order<4>(lens, {0, 1, 2, 3});
-                else if constexpr(layout == TensorLayout::GKXC ||
-                                  layout == TensorLayout::G_K_X_C_strided)
-                    return detail::make_packed_strides_for_order<4>(lens, {0, 1, 3, 2});
-                else if constexpr(layout == TensorLayout::KXGC)
-                    return detail::make_packed_strides_for_order<4>(lens, {1, 3, 0, 2});
-                else
-                    static_assert(sizeof(UnsupportedEnumValue<layout>) == 0,
-                                  "Unsupported 1D weight layout for descriptor initialization.");
-            }
-            else if constexpr(SPATIAL_DIM == 2)
-            {
-                if constexpr(layout == TensorLayout::GKCYX)
-                    return detail::make_packed_strides_for_order<5>(lens, {0, 1, 2, 3, 4});
-                else if constexpr(layout == TensorLayout::GKYXC ||
-                                  layout == TensorLayout::G_K_YX_C_strided)
-                    return detail::make_packed_strides_for_order<5>(lens, {0, 1, 3, 4, 2});
-                else if constexpr(layout == TensorLayout::KYXGC)
-                    return detail::make_packed_strides_for_order<5>(lens, {1, 3, 4, 0, 2});
-                else
-                    static_assert(sizeof(UnsupportedEnumValue<layout>) == 0,
-                                  "Unsupported 2D weight layout for descriptor initialization.");
-            }
-            else
-            {
-                if constexpr(layout == TensorLayout::GKCZYX)
-                    return detail::make_packed_strides_for_order<6>(lens, {0, 1, 2, 3, 4, 5});
-                else if constexpr(layout == TensorLayout::GKZYXC ||
-                                  layout == TensorLayout::G_K_ZYX_C_strided)
-                    return detail::make_packed_strides_for_order<6>(lens, {0, 1, 3, 4, 5, 2});
-                else if constexpr(layout == TensorLayout::KZYXGC)
-                    return detail::make_packed_strides_for_order<6>(lens, {1, 3, 4, 5, 0, 2});
-                else
-                    static_assert(sizeof(UnsupportedEnumValue<layout>) == 0,
-                                  "Unsupported 3D weight layout for descriptor initialization.");
-            }
+            constexpr auto order  = detail::get_layout_order<layout, SPATIAL_DIM>();
+            return detail::make_packed_strides_for_order<WEIGHT_RANK>(lens, order);
         };
 
         const Extent strides =
@@ -391,52 +391,8 @@ struct Args<SIGNATURE>
 
         const auto make_default_strides = [&] {
             constexpr auto layout = SIGNATURE.output.config.layout;
-
-            if constexpr(SPATIAL_DIM == 1)
-            {
-                if constexpr(layout == TensorLayout::GNKW)
-                    return detail::make_packed_strides_for_order<4>(lens, {0, 1, 2, 3});
-                else if constexpr(layout == TensorLayout::GNWK ||
-                                  layout == TensorLayout::G_NW_K_strided)
-                    return detail::make_packed_strides_for_order<4>(lens, {0, 1, 3, 2});
-                else if constexpr(layout == TensorLayout::NWGK)
-                    return detail::make_packed_strides_for_order<4>(lens, {1, 3, 0, 2});
-                else if constexpr(layout == TensorLayout::NGKW)
-                    return detail::make_packed_strides_for_order<4>(lens, {1, 0, 2, 3});
-                else
-                    static_assert(sizeof(UnsupportedEnumValue<layout>) == 0,
-                                  "Unsupported 1D output layout for descriptor initialization.");
-            }
-            else if constexpr(SPATIAL_DIM == 2)
-            {
-                if constexpr(layout == TensorLayout::GNKHW)
-                    return detail::make_packed_strides_for_order<5>(lens, {0, 1, 2, 3, 4});
-                else if constexpr(layout == TensorLayout::GNHWK ||
-                                  layout == TensorLayout::G_NHW_K_strided)
-                    return detail::make_packed_strides_for_order<5>(lens, {0, 1, 3, 4, 2});
-                else if constexpr(layout == TensorLayout::NHWGK)
-                    return detail::make_packed_strides_for_order<5>(lens, {1, 3, 4, 0, 2});
-                else if constexpr(layout == TensorLayout::NGKHW)
-                    return detail::make_packed_strides_for_order<5>(lens, {1, 0, 2, 3, 4});
-                else
-                    static_assert(sizeof(UnsupportedEnumValue<layout>) == 0,
-                                  "Unsupported 2D output layout for descriptor initialization.");
-            }
-            else
-            {
-                if constexpr(layout == TensorLayout::GNKDHW)
-                    return detail::make_packed_strides_for_order<6>(lens, {0, 1, 2, 3, 4, 5});
-                else if constexpr(layout == TensorLayout::GNDHWK ||
-                                  layout == TensorLayout::G_NDHW_K_strided)
-                    return detail::make_packed_strides_for_order<6>(lens, {0, 1, 3, 4, 5, 2});
-                else if constexpr(layout == TensorLayout::NDHWGK)
-                    return detail::make_packed_strides_for_order<6>(lens, {1, 3, 4, 5, 0, 2});
-                else if constexpr(layout == TensorLayout::NGKDHW)
-                    return detail::make_packed_strides_for_order<6>(lens, {1, 0, 2, 3, 4, 5});
-                else
-                    static_assert(sizeof(UnsupportedEnumValue<layout>) == 0,
-                                  "Unsupported 3D output layout for descriptor initialization.");
-            }
+            constexpr auto order  = detail::get_layout_order<layout, SPATIAL_DIM>();
+            return detail::make_packed_strides_for_order<OUTPUT_RANK>(lens, order);
         };
 
         const Extent strides =
