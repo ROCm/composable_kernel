@@ -765,6 +765,32 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
 
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BDramBlockWindowTmp>::value,
+                                        bool>* = nullptr>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const index_t num_loop,
+                                   void* __restrict__ p_smem) const
+    {
+        const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
+        const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
+
+        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop_.value, tail_num_.value>(
+                ck_tile::make_tuple(a_dram_block_window_tmp),
+                [](auto& e, const ADataType& a) { e = a; },
+                ck_tile::make_tuple(b_dram_block_window_tmp),
+                [](auto& e, const BDataType& b) { e = b; },
+                num_loop,
+                p_smem);
+        };
+
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
+    }
+
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
               typename AElementFunction,
               typename BElementFunction,
               typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
