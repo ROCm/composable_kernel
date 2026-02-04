@@ -8,25 +8,25 @@ import argparse
 profiler_commands = [
   "1         1       1              0      1         0     1           2     32  32  4     4    3  3  200  200   1   1   1   1   1   1    1   1", 
   "1         1       1              0      1         0     1           2     32  32  8     8    3  3  200  200   2   2   1   1   1   1    1   1", 
-  "1         1       1              0      1         0     1           2     32  32  8     8    3  3  100  100   1   2   1   1   1   1    1   1", 
+  #"1         1       1              0      1         0     1           2     32  32  8     8    3  3  100  100   1   2   1   1   1   1    1   1", 
   "1         1       1              0      1         0     1           2     1   32  2376  256  3  3  100  100   1   1   1   1   1   1    1   1", 
-  "1         1       1              0      1         0     1           2     1   32  256   256  3  3  100  100   1   1   1   1   1   1    1   1"
+  #"1         1       1              0      1         0     1           2     1   32  256   256  3  3  100  100   1   1   1   1   1   1    1   1"
   ]
 
 baseline_instances = [
   "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<256, 64, 64, 32, Default, 16, 16, 2, 2, 4, 4, 4, 1, 1, 1>", 
   "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_DirectLoad<128, 16, 64, 64, Default, 16, 16, 1, 2, 8, 8, 4, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v1, 1>",
-  "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_DirectLoad<256, 256, 32, 64, Default, 32, 32, 2, 1, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v1, 1>", 
+  #"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_DirectLoad<256, 256, 32, 64, Default, 32, 32, 2, 1, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v1, 1>", 
   "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<256, 256, 128, 32, Default, 32, 32, 4, 2, 8, 8, 8, 1, 1, 1>", 
-  "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<256, 256, 128, 32, OddC, 32, 32, 4, 2, 8, 8, 8, 1, 1, 1>"
+  #"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<256, 256, 128, 32, OddC, 32, 32, 4, 2, 8, 8, 8, 1, 1, 1>"
 ]
 
 improved_instances = [
   "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 128, 32, 32, Default, 32, 32, 2, 1, 4, 4, 1, 1, 1, BlkGemmPipelineScheduler: Interwave, BlkGemmPipelineVersion: v1, 8>",
   "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<256, 128, 64, 32, Default, 32, 32, 4, 2, 8, 8, 1, 1, 1, 8>",
-  "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<256, 128, 64, 32, Default, 32, 32, 4, 2, 8, 8, 1, 1, 1, 8>",
+  #"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<256, 128, 64, 32, Default, 32, 32, 4, 2, 8, 8, 1, 1, 1, 8>",
   "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 64, Default, 32, 32, 4, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v3, 1>",
-  "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 64, Default, 32, 32, 4, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v3, 1>"
+  #"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 64, Default, 32, 32, 4, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v3, 1>"
 ]
 
 def main():
