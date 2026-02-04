@@ -16,7 +16,7 @@ find_package(ROCM)
 include(ROCMInstallTargets)
 include(ROCMTest)
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm $ENV{ROCM_PATH})
-find_package(hiprtc REQUIRED)
+find_package(hiprtc REQUIRED PATHS /opt/rocm/lib/cmake/hiprtc)
 
 rocm_setup_version(VERSION 1.0)
 
