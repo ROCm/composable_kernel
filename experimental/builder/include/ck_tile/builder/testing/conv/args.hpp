@@ -85,27 +85,6 @@ Extent<RANK> make_packed_strides_for_order(const Extent<RANK>& lengths,
 }
 
 template <int SPATIAL_DIM>
-std::array<long_index_t, SPATIAL_DIM> to_spatial_array(const FilterExtent<SPATIAL_DIM>& extent)
-{
-    if constexpr(SPATIAL_DIM == 1)
-    {
-        return {static_cast<long_index_t>(extent.width)};
-    }
-    else if constexpr(SPATIAL_DIM == 2)
-    {
-        // CK Builder uses spatial ordering {H, W} for 2D.
-        return {static_cast<long_index_t>(extent.height), static_cast<long_index_t>(extent.width)};
-    }
-    else
-    {
-        // CK Builder uses spatial ordering {D, H, W} for 3D.
-        return {static_cast<long_index_t>(extent.depth),
-                static_cast<long_index_t>(extent.height),
-                static_cast<long_index_t>(extent.width)};
-    }
-}
-
-template <int SPATIAL_DIM>
 std::array<long_index_t, SPATIAL_DIM>
 compute_output_spatial(const std::array<long_index_t, SPATIAL_DIM>& input_spatial,
                        const std::array<long_index_t, SPATIAL_DIM>& filter_spatial,
@@ -202,13 +181,12 @@ struct Args<SIGNATURE>
     /// @returns FilterExtent with computed output height, width, (and depth for 3D)
     FilterExtent<SPATIAL_DIM> compute_output_spatial() const
     {
-        const auto input_spatial_arr  = detail::to_spatial_array<SPATIAL_DIM>(this->lengths.image);
-        const auto filter_spatial_arr = detail::to_spatial_array<SPATIAL_DIM>(this->lengths.filter);
-        const auto conv_strides_arr   = detail::to_spatial_array<SPATIAL_DIM>(this->filter_strides);
-        const auto conv_dilations_arr =
-            detail::to_spatial_array<SPATIAL_DIM>(this->filter_dilation);
-        const auto left_pads_arr  = detail::to_spatial_array<SPATIAL_DIM>(this->input_left_pad);
-        const auto right_pads_arr = detail::to_spatial_array<SPATIAL_DIM>(this->input_right_pad);
+        const auto input_spatial_arr  = this->lengths.image.template to_array<long_index_t>();
+        const auto filter_spatial_arr = this->lengths.filter.template to_array<long_index_t>();
+        const auto conv_strides_arr   = this->filter_strides.template to_array<long_index_t>();
+        const auto conv_dilations_arr = this->filter_dilation.template to_array<long_index_t>();
+        const auto left_pads_arr      = this->input_left_pad.template to_array<long_index_t>();
+        const auto right_pads_arr     = this->input_right_pad.template to_array<long_index_t>();
 
         const auto output_spatial_arr =
             detail::compute_output_spatial<SPATIAL_DIM>(input_spatial_arr,
