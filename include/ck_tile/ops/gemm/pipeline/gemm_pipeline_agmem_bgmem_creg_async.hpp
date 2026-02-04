@@ -37,7 +37,7 @@ struct BaseGemmPipelineAGmemBGmemCRegV1
 //  B Tile Window: global memory
 //  C Distributed tensor: register
 template <typename Problem, typename Policy = UniversalGemmPipelineAgBgCrPolicy>
-struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Problem>
+struct GemmPipelineAGmemBGmemCRegAsyncV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Problem>
 {
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
@@ -71,7 +71,7 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
-    static constexpr bool Async = false;
+    static constexpr bool Async = true;
 
     template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeA()
@@ -103,14 +103,14 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
     [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
     {
         // clang-format off
-        return "BASIC_V1";
+        return "BASIC_ASYNC_V1";
         // clang-format on
     }
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "pipeline_AGmemBGmemCRegV1", 
+        return concat('_', "pipeline_AGmemBGmemCRegAsyncV1", 
                       concat('x', kMPerBlock, kNPerBlock, kKPerBlock,  BlockSize),
                       concat('x', GetVectorSizeA(), GetVectorSizeB(), GetVectorSizeC()),
                       concat('x', kPadM, kPadN, kPadK));
