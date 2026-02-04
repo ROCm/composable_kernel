@@ -40,11 +40,14 @@ enum class ScaleType
 
 // Simple test kernel to invoke the CShuffleEpilogue
 template <typename Problem, index_t M, index_t N, ScaleType Scale>
-__global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __restrict__ output_data,
-                                              float* m_scale,
-                                              float* n_scale)
+__global__ void
+test_cshuffle_epilogue_kernel(const typename Problem::AccDataType* __restrict__ input_data,
+                              typename Problem::ODataType* __restrict__ output_data,
+                              float* m_scale,
+                              float* n_scale)
 {
-    using Epilogue = CShuffleEpilogue<Problem>;
+    using Epilogue    = CShuffleEpilogue<Problem>;
+    using AccDataType = typename Epilogue::AccDataType;
 
     static_assert(Problem::kMPerBlock <= M && Problem::kNPerBlock <= N,
                   "Block size must fit in tensor dimensions");
@@ -52,23 +55,33 @@ __global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __res
     // Allocate shared memory for epilogue
     __shared__ char smem[Epilogue::GetSmemSize()];
 
-    // Create accumulator tile
+    // Create accumulator tile with the epilogue's distribution
     constexpr auto lds_distribution_encode =
         make_static_tile_distribution(Epilogue::MakeLdsDistributionEncode());
-    auto acc_tile =
-        make_static_distributed_tensor<typename Epilogue::AccDataType>(lds_distribution_encode);
+    auto acc_tile = make_static_distributed_tensor<AccDataType>(lds_distribution_encode);
 
-    // Fill acc_tile with unique integer values per thread and buffer index
-    // Values are exactly representable in the 32-bit float accumulator
-    auto& acc_buffer          = acc_tile.get_thread_buffer();
-    const index_t thread_id   = threadIdx.x;
-    const index_t buffer_size = acc_buffer.size();
-    for(index_t i = 0; i < buffer_size; i++)
-    {
-        // Generate unique value: 1-based to avoid zero
-        const index_t unique_val = thread_id * buffer_size + i + 1;
-        acc_buffer[i]            = static_cast<typename Epilogue::AccDataType>(unique_val);
-    }
+    // Create input tensor view for loading from global memory
+    // Note: cast away const since buffer_view infrastructure doesn't support const pointers,
+    // but the input_data is only read, never written
+    // Use runtime values for dimensions to avoid issues with constant buffer size types
+    constexpr index_t kMPerBlock = Problem::kMPerBlock;
+    constexpr index_t kNPerBlock = Problem::kNPerBlock;
+    auto input_tensor_view       = make_naive_tensor_view<address_space_enum::global>(
+        const_cast<AccDataType*>(input_data),
+        make_tuple(kMPerBlock, kNPerBlock),
+        make_tuple(kNPerBlock, 1), // row-major strides
+        number<1>{},
+        number<1>{});
+
+    // Create tile window with the same distribution as acc_tile
+    auto input_tile_window =
+        make_tile_window(input_tensor_view,
+                         make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
+                         {0, 0},
+                         lds_distribution_encode);
+
+    // Load input data from global memory into acc_tile
+    load_tile(acc_tile, input_tile_window);
 
     // Create output tensor view
     auto output_tensor_view =
@@ -145,7 +158,8 @@ using SimpleCShuffleEpilogueProblem =
 
 // Launch kernel with RowCol scaling
 template <typename Problem, index_t M, index_t N>
-void launch_kernel_with_rowcol_scale(typename Problem::ODataType* device_output,
+void launch_kernel_with_rowcol_scale(const typename Problem::AccDataType* device_input,
+                                     typename Problem::ODataType* device_output,
                                      dim3 gridSize,
                                      dim3 blockSize)
 {
@@ -167,7 +181,8 @@ void launch_kernel_with_rowcol_scale(typename Problem::ODataType* device_output,
     n_scale_buf.ToDevice(h_n_scale.data());
 
     test_cshuffle_epilogue_kernel<Problem, M, N, ScaleType::RowCol>
-        <<<gridSize, blockSize>>>(device_output,
+        <<<gridSize, blockSize>>>(device_input,
+                                  device_output,
                                   static_cast<float*>(m_scale_buf.GetDeviceBuffer()),
                                   static_cast<float*>(n_scale_buf.GetDeviceBuffer()));
     HIP_CHECK_ERROR(hipGetLastError());
@@ -176,7 +191,8 @@ void launch_kernel_with_rowcol_scale(typename Problem::ODataType* device_output,
 
 // Launch kernel with Tensor scaling
 template <typename Problem, index_t M, index_t N>
-void launch_kernel_with_tensor_scale(typename Problem::ODataType* device_output,
+void launch_kernel_with_tensor_scale(const typename Problem::AccDataType* device_input,
+                                     typename Problem::ODataType* device_output,
                                      dim3 gridSize,
                                      dim3 blockSize)
 {
@@ -191,7 +207,8 @@ void launch_kernel_with_tensor_scale(typename Problem::ODataType* device_output,
     n_scale_buf.ToDevice(h_n_scale.data());
 
     test_cshuffle_epilogue_kernel<Problem, M, N, ScaleType::Tensor>
-        <<<gridSize, blockSize>>>(device_output,
+        <<<gridSize, blockSize>>>(device_input,
+                                  device_output,
                                   static_cast<float*>(m_scale_buf.GetDeviceBuffer()),
                                   static_cast<float*>(n_scale_buf.GetDeviceBuffer()));
     HIP_CHECK_ERROR(hipGetLastError());
@@ -200,12 +217,13 @@ void launch_kernel_with_tensor_scale(typename Problem::ODataType* device_output,
 
 // Launch kernel without scaling
 template <typename Problem, index_t M, index_t N>
-void launch_kernel_without_scale(typename Problem::ODataType* device_output,
+void launch_kernel_without_scale(const typename Problem::AccDataType* device_input,
+                                 typename Problem::ODataType* device_output,
                                  dim3 gridSize,
                                  dim3 blockSize)
 {
     test_cshuffle_epilogue_kernel<Problem, M, N, ScaleType::None>
-        <<<gridSize, blockSize>>>(device_output, nullptr, nullptr);
+        <<<gridSize, blockSize>>>(device_input, device_output, nullptr, nullptr);
     HIP_CHECK_ERROR(hipGetLastError());
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 }
@@ -213,7 +231,8 @@ void launch_kernel_without_scale(typename Problem::ODataType* device_output,
 template <typename Problem, index_t M, index_t N>
 auto run_cshuffle_epilogue_test(ScaleType scale = ScaleType::None)
 {
-    using ODataType = typename Problem::ODataType;
+    using AccDataType = typename Problem::AccDataType;
+    using ODataType   = typename Problem::ODataType;
 
     constexpr index_t kMPerBlock = Problem::kMPerBlock;
     constexpr index_t kNPerBlock = Problem::kNPerBlock;
@@ -223,11 +242,26 @@ auto run_cshuffle_epilogue_test(ScaleType scale = ScaleType::None)
               << ", MPerBlock=" << kMPerBlock << ", NPerBlock=" << kNPerBlock
               << ", BlockSize=" << kBlockSize << std::endl;
 
-    // Allocate host memory
+    // Create host input with known values: value(m,n) = m * N + n + 1
+    HostTensor<AccDataType> host_input({kMPerBlock, kNPerBlock});
+    for(index_t m = 0; m < kMPerBlock; ++m)
+    {
+        for(index_t n = 0; n < kNPerBlock; ++n)
+        {
+            host_input(m, n) = static_cast<AccDataType>(m * kNPerBlock + n + 1);
+        }
+    }
+
+    // Allocate device input and copy from host
+    DeviceMem device_input_buf(host_input.get_element_space_size_in_bytes());
+    device_input_buf.ToDevice(host_input.data());
+    auto* device_input = static_cast<const AccDataType*>(device_input_buf.GetDeviceBuffer());
+
+    // Allocate host output memory
     HostTensor<ODataType> host_output({M, N});
     host_output.SetZero();
 
-    // Allocate device memory
+    // Allocate device output memory
     DeviceMem device_output_buf(host_output.get_element_space_size_in_bytes());
     device_output_buf.ToDevice(host_output.data());
     ODataType* device_output = static_cast<ODataType*>(device_output_buf.GetDeviceBuffer());
@@ -239,20 +273,23 @@ auto run_cshuffle_epilogue_test(ScaleType scale = ScaleType::None)
     switch(scale)
     {
     case ScaleType::RowCol:
-        launch_kernel_with_rowcol_scale<Problem, M, N>(device_output, gridSize, blockSize);
+        launch_kernel_with_rowcol_scale<Problem, M, N>(
+            device_input, device_output, gridSize, blockSize);
         break;
     case ScaleType::Tensor:
-        launch_kernel_with_tensor_scale<Problem, M, N>(device_output, gridSize, blockSize);
+        launch_kernel_with_tensor_scale<Problem, M, N>(
+            device_input, device_output, gridSize, blockSize);
         break;
     case ScaleType::None:
-        launch_kernel_without_scale<Problem, M, N>(device_output, gridSize, blockSize);
+        launch_kernel_without_scale<Problem, M, N>(
+            device_input, device_output, gridSize, blockSize);
         break;
     }
 
     // Copy results back
     device_output_buf.FromDevice(host_output.data());
 
-    return host_output;
+    return std::make_pair(std::move(host_input), std::move(host_output));
 }
 
 // Convert output values to sorted float vector for verification
@@ -271,14 +308,17 @@ std::vector<float> convert_and_sort_output(const HostTensor<ODataType>& output)
 }
 
 // Run both unscaled and scaled tests for comparison
-// Returns pair of (unscaled, scaled) host tensors
+// Returns pair of (unscaled_output, scaled_output) host tensors
 template <typename Problem, index_t M, index_t N, ScaleType ScaleMode>
 auto run_scale_comparison_test()
 {
-    auto unscaled = run_cshuffle_epilogue_test<Problem, M, N>(ScaleType::None);
-    auto scaled   = run_cshuffle_epilogue_test<Problem, M, N>(ScaleMode);
+    auto [unscaled_input, unscaled_output] = run_cshuffle_epilogue_test<Problem, M, N>(ScaleType::None);
+    auto [scaled_input, scaled_output] = run_cshuffle_epilogue_test<Problem, M, N>(ScaleMode);
 
-    return std::make_pair(std::move(unscaled), std::move(scaled));
+    // Inputs should be the same, just return outputs for comparison
+    (void)unscaled_input;
+    (void)scaled_input;
+    return std::make_pair(std::move(unscaled_output), std::move(scaled_output));
 }
 
 } // namespace ck_tile

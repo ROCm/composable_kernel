@@ -152,11 +152,17 @@ TYPED_TEST_P(CShuffleEpilogueTypedTest, BasicTest)
     using TestProblem                     = MakeProblem<Config>;
     constexpr ck_tile::index_t kBlockSize = TestProblem::kBlockSize;
 
-    auto output = ck_tile::run_cshuffle_epilogue_test<TestProblem, kMPerBlock, kNPerBlock>(
-        ck_tile::ScaleType::None);
+    auto [host_input, host_output] =
+        ck_tile::run_cshuffle_epilogue_test<TestProblem, kMPerBlock, kNPerBlock>(
+            ck_tile::ScaleType::None);
 
-    // Convert output to sorted vector and verify
-    auto output_vals = ck_tile::convert_and_sort_output(output);
+    // Note: input is unused here - the key verification is that the epilogue
+    // properly writes the loaded values to the output in the expected pattern.
+    // The input is provided for potential future use or debugging.
+    (void)host_input;
+
+    // Convert output to sorted vector and verify using existing helper
+    auto output_vals = ck_tile::convert_and_sort_output(host_output);
     verify_permutation_output<DataType, kMPerBlock, kNPerBlock, kBlockSize>(output_vals);
 }
 
