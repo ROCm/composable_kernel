@@ -42,16 +42,16 @@ struct PaddingTileKernel
 
         // Step 2: Apply padding transform
         index_t pad_amount = padded_size - orig_size;
-        auto desc_padded =
-            transform_tensor_descriptor(desc_orig,
-                                        make_tuple(make_right_pad_transform(orig_size, pad_amount)),
-                                        make_tuple(sequence<0>{}),
-                                        make_tuple(sequence<0>{}));
+        auto desc_padded   = transform_tensor_descriptor(
+            desc_orig,
+            make_tuple(make_right_pad_transform(orig_size, pad_amount)), // extend on the right
+            make_tuple(sequence<0>{}), // no dimension reordering
+            make_tuple(sequence<0>{}));
 
         auto tensor_simple = make_tensor_view<address_space_enum::global>(p_data, desc_padded);
 
         printf("Created tensor_view (simple API, no identity value)\n");
-        printf("  - Padded reads will wrap around to existing data\n\n");
+        printf("  - Padded reads will wrap around to existing data     WRONG!!!\n\n");
 
         // Step 5: Read tiles using get_vectorized_elements
         constexpr index_t tile_size = 8;
@@ -92,9 +92,10 @@ struct PaddingTileKernel
             index_t tile_end   = tile_start + tile_size;
             if(tile_end > orig_size)
             {
-                printf("  Note: Elements %ld-%ld are padded (return identity value 0.0)\n",
+                printf("  Note: Elements %ld-%ld are padded (return identity value %f)\n",
                        static_cast<long>(orig_size - tile_start),
-                       static_cast<long>(tile_size - 1));
+                       static_cast<long>(tile_size - 1),
+                       DataType{});
             }
             printf("\n");
         }
