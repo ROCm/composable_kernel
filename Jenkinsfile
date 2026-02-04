@@ -12,6 +12,24 @@ def show_node_info() {
     """
 }
 
+def checkoutComposableKernel()
+{
+    // checkout project
+    checkout([
+        $class: 'GitSCM',
+        branches: scm.branches,
+        doGenerateSubmoduleConfigurations: false,
+        extensions: [
+            [$class: 'SparseCheckoutPaths', sparseCheckoutPaths: [
+                [$class: 'SparseCheckoutPath', path: 'projects/composablekernel']
+            ]],
+            [$class: 'CloneOption', depth: 1, noTags: false, reference: '', shallow: true],
+            [$class: 'CleanBeforeCheckout']
+        ],
+        userRemoteConfigs: scm.userRemoteConfigs
+    ])
+}
+
 // Given a pattern, check if the log contains the pattern and return the context.
 def checkForPattern(pattern, log) {
     def lines = log.split('\n')
@@ -448,7 +466,7 @@ def get_docker_options(){
 
 def build_client_examples(String arch){
     def cmd = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
-                cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/projects/composablekernel/install;/opt/rocm" \
                 -DGPU_TARGETS="${arch}" \
                 -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                 -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
@@ -456,8 +474,21 @@ def build_client_examples(String arch){
     return cmd
 }
 
+def build_client_examples_and_codegen_tests(String arch){
+    def cmd = """ cmake -DCMAKE_PREFIX_PATH=/opt/rocm -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" ../codegen && \
+                make -j64 check && \
+                cd ../client_example && rm -rf build && mkdir build && cd build && \
+                cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/projects/composablekernel/install;/opt/rocm" \
+                -DGPU_TARGETS="${arch}" \
+                -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
+                -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
+    return cmd
+}
+
+
 def build_and_run_fmha(String arch){
-    def cmd = """ cmake -G Ninja -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+    def cmd = """ cmake -G Ninja -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/projects/composablekernel/install;/opt/rocm" \
                 -DGPU_TARGETS="${arch}" \
                 -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                 -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" .. && \
@@ -498,6 +529,7 @@ def cmake_build(Map conf=[:]){
 
     def pre_setup_cmd = """
             #!/bin/bash
+            cd projects/composablekernel
             ulimit -c unlimited
             rm -rf build
             mkdir build
@@ -609,7 +641,7 @@ def cmake_build(Map conf=[:]){
 
     echo cmd
 
-    dir("build"){
+    dir("projects/composablekernel/build"){
         // Start sccache monitoring
         if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null" && "${invocation_tag}" != "") {
             sh """
@@ -725,14 +757,14 @@ def cmake_build(Map conf=[:]){
 
 def buildHipClangJob(Map conf=[:]){
         show_node_info()
-        checkout scm
+        checkoutComposableKernel()
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def dockerOpts = get_docker_options()
         def image
         def retimage
         (retimage, image) = getDockerImage(conf)
 
-        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
             withDockerContainer(image: image, args: dockerOpts) {
                 timeout(time: 20, unit: 'HOURS')
                 {
@@ -756,13 +788,13 @@ def buildHipClangJobAndReboot(Map conf=[:]){
 
 def Build_CK(Map conf=[:]){
         show_node_info()
-        checkout scm
+        checkoutComposableKernel()
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def dockerOpts=get_docker_options()
         def image
         def retimage
 
-        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
             try {
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -790,8 +822,8 @@ def Build_CK(Map conf=[:]){
                     if ( params.RUN_INDUCTOR_TESTS && arch == "gfx90a" ){
                             echo "Run inductor codegen tests"
                             sh """
-                                  python3 -m venv ${env.WORKSPACE}
-                                  . ${env.WORKSPACE}/bin/activate
+                                  python3 -m venv ${env.WORKSPACE}/projects/composablekernel
+                                  . ${env.WORKSPACE}/projects/composablekernel/bin/activate
                                   python3 -m pip install pytest build setuptools setuptools_scm
                                   python3 -m pip install .
                                   python3 -m pytest python/test/test_gen_instances.py
@@ -865,7 +897,7 @@ def process_results(Map conf=[:]){
     //use older image that has user jenkins
     def image = "${env.CK_DOCKERHUB}:ck_ub22.04_rocm6.3"
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'composable_kernel') {
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
         try
         {
             echo "Pulling image: ${image}"
@@ -999,7 +1031,7 @@ def run_aiter_tests(Map conf=[:]){
     def image = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
     def dockerOpts=get_docker_options() + ' --group-add irc '
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'composable_kernel') {
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
         try
         {
             echo "Pulling image: ${image}"
@@ -1052,7 +1084,7 @@ def run_pytorch_tests(Map conf=[:]){
     def image = "${env.CK_DOCKERHUB}:ck_pytorch"
     def dockerOpts=get_docker_options() + ' --group-add irc '
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'composable_kernel') {
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
         try
         {
             echo "Pulling image: ${image}"
@@ -1095,7 +1127,7 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
                                               0 13 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
-                                              0 11 * * * % RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
+                                              0 11 * * * % RUN_PYTORCH_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
 
 pipeline {
     agent none
@@ -1167,10 +1199,6 @@ pipeline {
             defaultValue: false,
             description: "Run comprehensive convolution dataset tests before important changes (default: OFF)")
         booleanParam(
-            name: "RUN_CODEGEN_TESTS",
-            defaultValue: true,
-            description: "Run codegen tests (default: ON)")
-        booleanParam(
             name: "RUN_CK_TILE_FMHA_TESTS",
             defaultValue: false,
             description: "Run the ck_tile FMHA tests (default: OFF)")
@@ -1232,8 +1260,8 @@ pipeline {
             description: "Generate a detailed time trace (default: OFF)")
         booleanParam(
             name: "RUN_INDUCTOR_TESTS",
-            defaultValue: true,
-            description: "Run inductor codegen tests (default: ON)")
+            defaultValue: false,
+            description: "Run inductor codegen tests (default: OFF)")
         booleanParam(
             name: "RUN_BUILDER_TESTS",
             defaultValue: true,
@@ -1510,33 +1538,6 @@ pipeline {
                 }
             }
         }
-        stage("Run Codegen Tests")
-        {
-            when {
-                beforeAgent true
-                expression { env.SHOULD_RUN_CI.toBoolean() }
-            }
-            parallel
-            {
-                stage("Run Codegen Tests on gfx90a")
-                {
-                    when {
-                        beforeAgent true
-                        expression { params.RUN_CODEGEN_TESTS.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() }
-                    }
-                    agent{ label rocmnode("gfx90a")}
-                    environment{
-                        setup_args = "NO_CK_BUILD"
-                        execute_args = """ cmake -DCMAKE_PREFIX_PATH=/opt/rocm -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" ../codegen && \
-                                           make -j64 check"""
-                    }
-                    steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
-                        cleanWs()
-                    }
-                }
-            }
-        }
         stage("Run CK_TILE_FMHA Tests")
         {
             when {
@@ -1783,7 +1784,7 @@ pipeline {
                     agent{ label rocmnode("gfx90a") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx90a" -DCK_CXX_STANDARD="17" """
-                        execute_args = build_client_examples("gfx90a")
+                        execute_args = build_client_examples_and_codegen_tests("gfx90a")
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
@@ -1891,7 +1892,7 @@ pipeline {
                 success {
                     script {
                         // Report the parent stage build ck and run tests status
-                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'composable_kernel') {
+                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
                             echo "Reporting success status for build ck and run tests"
                         }
                     }
@@ -1918,11 +1919,11 @@ pipeline {
                 success {
                     script {
                         // Report the skipped parent's stage status
-                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Process Performance Test Results", account: 'ROCm', repo: 'composable_kernel') {
+                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Process Performance Test Results", account: 'ROCm', repo: 'rocm-libraries') {
                             echo "Process Performance Test Results stage skipped."
                         }
                         // Report the skipped stage's status
-                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Process results", account: 'ROCm', repo: 'composable_kernel') {
+                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Process results", account: 'ROCm', repo: 'rocm-libraries') {
                             echo "Process Performance Test Results stage skipped."
                         }
                     }
@@ -1931,8 +1932,16 @@ pipeline {
         }
     }
     post {
+        success {
+            githubNotify context: 'Math CI Summary',
+                         status: 'SUCCESS',
+                         description: 'All checks have passed'
+        }
         failure {
             node(rocmnode("nogpu")) {
+                githubNotify context: 'Math CI Summary',
+                             status: 'FAILURE',
+                             description: 'Some checks have failed'
                 script {
                     sendFailureNotifications()
                 }
