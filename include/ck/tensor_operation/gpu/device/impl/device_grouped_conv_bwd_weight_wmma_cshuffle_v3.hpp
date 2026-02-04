@@ -185,14 +185,14 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
     using BDataType = InDataType;
     using CDataType = WeiDataType;
 
-        #if defined USE_WAVE_TRANSFER_BWD_WEI
+#if defined USE_WAVE_TRANSFER_BWD_WEI
 
-         static_assert(UseThreadTileTransfer==false &&
-                       (ConvBackwardWeightSpecialization==ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0
-                           ),"Only Filter1x1Stride1Pad0is supported for wavetile transfer"
-                    );
-       #endif
-  //  If NGCHW then ADataType must be equal to BDataType
+    static_assert(UseThreadTileTransfer == false &&
+                      (ConvBackwardWeightSpecialization ==
+                       ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0),
+                  "Only Filter1x1Stride1Pad0is supported for wavetile transfer");
+#endif
+    //  If NGCHW then ADataType must be equal to BDataType
     static_assert(!(is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>() ||
                     is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>()) ||
                   is_same_v<ADataType, BDataType>);
