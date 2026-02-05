@@ -3,6 +3,7 @@
 
 #pragma once
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/tensor/load_tile.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
@@ -450,7 +451,6 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             auto&& [a_lds_block0, b_lds_block0] = Base::GetABLdsTensorViews(p_smem_0);
             auto&& [a_lds_block1, b_lds_block1] = Base::GetABLdsTensorViews(p_smem_1);
 
-
             // set up LDS tile shapes - always use STORAGE dimensions for K
             /// NOTE: flatmm style byte tensor approach:
             // constexpr auto a_lds_shape = []() {
@@ -586,13 +586,12 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                     scale_a(mIter) = load_tile_with_offset(scale_a_dram_window, make_tuple(mIter * scale_a_dram_step_m, number<0>{}));
                 });
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                    // static_for<0, ScaleKPackedPerIter, 1>{}([&](auto kPacked) {
-                    //     // Scale B is [K/32/KXdlPack, N], so K is first dimension
-                    //     scale_b(nIter)(kPacked) = load_tile_with_offset(
-                    //         scale_b_dram_window, kPacked * scale_b_dram_step_k + nIter * scale_b_dram_step_n);
-                    // });
+                    // Scale B viewed as [N, K], so N is first dimension
                     scale_b(nIter) = load_tile_with_offset(scale_b_dram_window, make_tuple(nIter * scale_b_dram_step_n, number<0>{}));
                 });
+                // Advance to next KPerBlock
+                // Scale A: [M, K] -> advance in K (second dimension)
+                // Scale B: viewed as [N, K] -> advance in K (second dimension)
                 move_tile_window(scale_a_dram_window, {0, KPerBlock / ScaleBlockSize / KXdlPack});
                 move_tile_window(scale_b_dram_window, {0, KPerBlock / ScaleBlockSize / KXdlPack});
             };
@@ -746,11 +745,11 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                                                   b_tile_windows[number<0>{}],
                                                   b_dram_tile_window_step);
                         // C(i-3) = A(i-3) @ B(i-3) with MX scaling
-                        // block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
-                        block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                        /// TODO: remove these after creating a block gemm with scales
-                        ignore = scale_a_tile_ping;
-                        ignore = scale_b_tile_ping;
+                        block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
+                        // block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
+                        // /// TODO: remove these after creating a block gemm with scales
+                        // ignore = scale_a_tile_ping;
+                        // ignore = scale_b_tile_ping;
                         HotLoopScheduler();
                         // Load scales for iteration i+2 (ping)
                         if (i_global_read + 2 < num_loop) {

@@ -243,17 +243,18 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t K_Lane = get_warp_size() / NPerXdl;  // 64/16 = 4 threads in K dimension
         // constexpr index_t KPackedElementsPerThread = ScaleKDimPerBlock / K_Lane;  // 4/4 = 1 for K=512
         
-        // Scale B: [ScaleKDimPerBlock, NWarp * NPerXdl] warp-level tile
-        // For K=512: [4, 64], distribute 4 int32s across 4 K_Lane threads (1 each)
+        // Scale B: [NWarp * NPerXdl, ScaleKDimPerBlock] warp-level tile
+        // Viewed as [N, K] = [64, 4] for K=512 (access pattern, not storage)
+        // For K=512: [64, 4], distribute 4 int32s across 4 K_Lane threads (1 each)
         // Strided packing: thread at K_lane=k gets one int32 with scales for all kIters at K position k
-        // Distribution: Distribute in K dimension (no vectorization - scalar loads), replicate in N dimension
+        // Distribution: Replicate in N dimension, distribute in K dimension
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<MWarp>,                              // repeat over MWarps
-                                       tuple<sequence<NWarp, NPerXdl>,               // N dimension
-                                             sequence<ScaleKDimPerBlock, K_Lane>>, // K dimension
-                                       tuple<sequence<0, 1>, sequence<2, 1>>,        // <MWarp, NWarp>, <K_Lane, NPerXdl>
-                                       tuple<sequence<0, 0>, sequence<1, 1>>,
-                                       sequence<2>,                                   // ScaleKDimPerBlock, all int32 needed to cover KPerBlock
+                                       tuple<sequence<NWarp, NPerXdl>,               // N dimension (first)
+                                             sequence<ScaleKDimPerBlock, K_Lane>>,   // K dimension (second)
+                                       tuple<sequence<0, 1>, sequence<2, 1>>,        // which direction
+                                       tuple<sequence<0, 0>, sequence<1, 1>>,        // which index
+                                       sequence<2>,                                   // replicate N
                                        sequence<0>>{}); 
     }
 };

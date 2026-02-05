@@ -295,21 +295,17 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
         const auto scale_k_size = kargs.K / BlockScaleSize;
         const auto scale_k_size_packed = scale_k_size / KXdlPack;
 
-        // B scale tensor view - layout [scale_k_size_packed, N] with packed int32_t
-        // Host packs 4 consecutive e8m0_t scales into one int32_t
-        // const auto scale_b_desc = make_naive_tensor_descriptor(
-        //     make_tuple(kargs.N, scale_k_size_packed),
-        //     make_tuple(scale_k_size_packed, 1));
-
-        // const auto scale_b_tensor_view = make_tensor_view<address_space_enum::global>(
-        //     reinterpret_cast<const int32_t*>(scale_b.ptr), scale_b_desc);
-
+        // B scale tensor view - for col-major B, we access as [N, K] for better coalescing
+        // Host stores as [K/32, N] col-major = [N, K/32] row-major from access perspective
+        // After packing: stored as [K/128, N] col-major
+        // But we create view as [N, K/128] to match the access pattern (each thread handles one N)
         const auto scale_b_tensor_view = make_naive_tensor_view<address_space_enum::global>(
             reinterpret_cast<const int32_t*>(scale_b.ptr),
-            make_tuple(kargs.N, scale_k_size_packed),
-            make_tuple(scale_k_size_packed, 1));
+            make_tuple(kargs.N, scale_k_size_packed),  // [N, K/32/4] for access
+            make_tuple(scale_k_size_packed, 1));       // stride to match col-major storage
 
         // Create block window for scale B
+        // Tile window shape matches access pattern: [NPerBlock, KPerBlock/32/4]
         // i_n is element offset (iN * NPerBlock), not tile index
         auto scale_b_block_window = make_tile_window(
             scale_b_tensor_view,
