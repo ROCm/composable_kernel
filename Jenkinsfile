@@ -1965,10 +1965,10 @@ pipeline {
                          description: 'All checks have passed'
         }
         failure {
+            githubNotify context: 'Math CI Summary',
+                         status: 'FAILURE',
+                         description: 'Some checks have failed'
             node(rocmnode("nogpu")) {
-                githubNotify context: 'Math CI Summary',
-                             status: 'FAILURE',
-                             description: 'Some checks have failed'
                 script {
                     sendFailureNotifications()
                 }
