@@ -35,6 +35,13 @@ def get_changed_files(ref1, ref2):
     """Return a set of files changed between two git refs."""
     try:
         result = subprocess.run(
+            ["pwd"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        print("cwd:", result.stdout)
+        result = subprocess.run(
             ["git", "diff", "--name-only", ref1, ref2],
             capture_output=True,
             text=True,
@@ -43,7 +50,9 @@ def get_changed_files(ref1, ref2):
         files = set(line.strip() for line in result.stdout.splitlines() if line.strip())
         return files
     except subprocess.CalledProcessError as e:
-        print(f"Error running git diff: {e}")
+        print(f"Command '{e.cmd}' returned non-zero exit status {e.returncode}.")
+        print(f"Error output: {e.stderr}")
+        print(f"Standard output: {e.stdout}")
         sys.exit(1)
 
 
