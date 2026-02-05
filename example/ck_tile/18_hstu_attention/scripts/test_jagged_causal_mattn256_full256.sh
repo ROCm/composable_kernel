@@ -1,14 +1,20 @@
 #!/bin/bash
 
-ndist=0
+set +x
 
+ndist=0
+BUILD=build
+
+USE_SOFTMAX=0
 if [ $# -ge 1 ]; then
-    ndist=$1
+    USE_SOFTMAX=$1
 fi
 
-set +x
-BUILD=build
-EXE=$BUILD/bin/tile_example_hstu_attention
+if [ $USE_SOFTMAX -eq 1 ]; then
+    EXE="$BUILD/bin/tile_example_hstu_attention -softmax=1"
+else
+    EXE="$BUILD/bin/tile_example_hstu_attention"
+fi
 
 dtype="bf16"
 
