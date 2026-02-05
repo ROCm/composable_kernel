@@ -35,7 +35,8 @@ struct MHCProblem
 
     // Layout types for BlockGemm
     using ALayout = ck_tile::tensor_layout::gemm::RowMajor; // x is row-major [B, nC]
-    using BLayout = ck_tile::tensor_layout::gemm::RowMajor; // phi is row-major [nC, output_dim]
+    using BLayout =
+        ck_tile::tensor_layout::gemm::ColumnMajor; // phi treated as column-major for V1 pipeline
     using CLayout = ck_tile::tensor_layout::gemm::RowMajor; // output is row-major
 
     // For GEMM pipeline compatibility
@@ -48,9 +49,9 @@ struct MHCProblem
     using BElementWise = identity;
 
     static constexpr bool TransposeC = false;
-    static constexpr bool kPadM      = false;
-    static constexpr bool kPadN      = false; // TESTING: Disable N padding
-    static constexpr bool kPadK      = false;
+    static constexpr bool kPadM      = true; // Enable padding to help with boundary conditions
+    static constexpr bool kPadN      = true; // Enable padding
+    static constexpr bool kPadK      = true; // Enable padding
     static constexpr bool Preshuffle = false;
 
     static constexpr auto Scheduler        = GemmPipelineScheduler::Intrawave;
@@ -64,7 +65,7 @@ struct MHCProblem
     static constexpr index_t kBlockSize = BlockShape::BlockSize;
 
     // Additional traits required by v3 pipeline
-    static constexpr bool DoubleSmemBuffer      = false;
+    static constexpr bool DoubleSmemBuffer      = true; // Enable double buffering for multi-block
     static constexpr bool UseStructuredSparsity = false;
     static constexpr bool FixedVectorSize       = false;
 
