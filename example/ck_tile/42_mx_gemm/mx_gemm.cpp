@@ -31,7 +31,7 @@ template <typename GemmConfig,
           typename CLayout,
           typename ScaleM,
           typename ScaleN,
-          bool UsePersistentKernel = true>
+          bool UsePersistentKernel = false>
 float invoke_mx_gemm(ck_tile::DeviceMem& a_dev_buf,
                        ck_tile::DeviceMem& b_dev_buf,
                        ck_tile::DeviceMem& c_dev_buf,

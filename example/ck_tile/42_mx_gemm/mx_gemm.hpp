@@ -56,7 +56,7 @@ struct MxGemmConfig
 
     static constexpr bool kPadM = false;
     static constexpr bool kPadN = false;
-    static constexpr bool kPadK = false;
+    static constexpr bool kPadK = true;  // Enable K padding to handle K < K_Tile
 
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
