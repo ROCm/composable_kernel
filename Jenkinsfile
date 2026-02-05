@@ -151,7 +151,7 @@ def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
         sh """#!/bin/bash
             ls -la
             mkdir -p workspace
-            cp ./script/infra_helper/capture_build_trace.js ./workspace
+            cp ./projects/composablekernel/script/infra_helper/capture_build_trace.js ./workspace
             cp ${buildTraceFileName} ./workspace/${buildTraceFileName}
             chmod 777 ./workspace
             ls -la ./workspace
@@ -1294,8 +1294,8 @@ pipeline {
             description: "Run CK_BUILDER tests (default: ON)")
         booleanParam(
             name: "RUN_ALL_UNIT_TESTS",
-            defaultValue: false,
-            description: "Run all unit tests (default: OFF)")
+            defaultValue: true,
+            description: "Run all unit tests (default: ON)")
         booleanParam(
             name: "RUN_PYTORCH_TESTS",
             defaultValue: false,
