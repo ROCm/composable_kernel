@@ -13,6 +13,7 @@ namespace ck_tile {
 // This policy provides warp gemm configuration for MHC operations
 struct MHCDefaultPolicy
 {
+
     // Provide warp gemm configuration for float data types
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetWarpGemmMWarpNWarp()

@@ -4,21 +4,16 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
 
 namespace ck_tile {
 
-// Simple GEMM shape for MHC operations
-// This provides the kM, kN, kK members that BlockGemm expects
+// GEMM shape for MHC operations
+// This provides the kM, kN, kK members and warp configuration
 template <index_t M_, index_t N_, index_t K_>
-struct MHCGemmShape
-{
-    static constexpr index_t kM = M_;
-    static constexpr index_t kN = N_;
-    static constexpr index_t kK = K_;
-
-    // For compatibility with BlockGemm
-    static constexpr index_t NumWarps   = 1;   // Simple: 1 warp for now
-    static constexpr index_t kBlockSize = 256; // Block size
-};
+using MHCGemmShape =
+    TileGemmShape<sequence<M_, N_, K_>,  // BlockTile
+                  sequence<1, 1, 1>,     // BlockWarps (1 warp in M, N, K)
+                  sequence<M_, N_, K_>>; // WarpTile (same as block tile for single warp)
 
 } // namespace ck_tile
