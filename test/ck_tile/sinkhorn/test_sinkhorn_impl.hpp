@@ -31,13 +31,14 @@ class TestCkTileSinkHorn : public ::testing::Test
     void RunGenericTest(const std::vector<ck_tile::index_t>& input_shape, const int max_iterations)
     {
         auto input_n        = input_shape[0];
-        auto default_stride = {input_n, 1};
+        auto default_stride = {1, input_n};
 
         ck_tile::HostTensor<XDataType> h_x(input_shape, default_stride);
         ck_tile::HostTensor<YDataType> h_y(input_shape, default_stride);
 
         // ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(h_x);
         ck_tile::FillMonotonicSeq<XDataType>{}(h_x);
+        std::cout << h_x << std::endl;
 
         auto buffer_size = h_x.get_element_space_size_in_bytes();
         ck_tile::DeviceMem d_x_mem(buffer_size);

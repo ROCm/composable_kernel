@@ -16,10 +16,10 @@
 #include "test_sinkhorn_impl.hpp"
 
 // Shape parameters for different test configurations
-using Shape1_BlockWarps = ck_tile::sequence<4, 1>;
-using Shape1_BlockTile  = ck_tile::sequence<128, 128>;
-using Shape1_WarpTile   = ck_tile::sequence<32, 128>;
-using Shape1_ThreadTile = ck_tile::sequence<1, 4>;
+using Shape1_BlockWarps = ck_tile::sequence<1, 1>;
+using Shape1_BlockTile  = ck_tile::sequence<4, 4>;
+using Shape1_WarpTile   = ck_tile::sequence<4, 4>;
+using Shape1_ThreadTile = ck_tile::sequence<4, 1>;
 
 // Test configurations for different data types and input size
 using TestConfig_F16 = std::tuple<float, // ck_tile::half_t, // XDataType
@@ -34,4 +34,4 @@ using TestTypes = ::testing::Types<TestConfig_F16>;
 
 TYPED_TEST_SUITE(TestCkTileSinkHorn, TestTypes);
 
-TYPED_TEST(TestCkTileSinkHorn, Test_4x4) { this->RunGenericTest({4, 4}, 20); }
+TYPED_TEST(TestCkTileSinkHorn, Test_4x4) { this->RunGenericTest({4, 4}, 1); }

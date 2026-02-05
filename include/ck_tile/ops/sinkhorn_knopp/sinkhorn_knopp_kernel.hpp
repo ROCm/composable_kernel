@@ -26,6 +26,9 @@ struct SinkhornKnoppKernelReduce
 
     CK_TILE_DEVICE void operator()(const SinkhornKnoppArgs& args) const
     {
+
+        // constexpr int INSPECT_THREAD = 2;
+
         // Creating tensor descriptors, views and windows for inputs and outputs
         using S               = Problem::BlockShape;
         using InDataType      = typename Problem::InDataType;
@@ -80,18 +83,20 @@ struct SinkhornKnoppKernelReduce
 
         // Run the first steps iteration of the Sinkhorn-Knopp algorithm
         // Exponentiate the input to make it strictly positive
-        // auto exp_func = [](ComputeDataType x) -> ComputeDataType { return ck_tile::exp(x); };
-        // auto exp_func = []([[maybe_unused]] ComputeDataType x) {
+        // auto exp_func = [](InDataType x) -> ComputeDataType {
+        //     return ck_tile::exp(type_convert<ComputeDataType>(x));
+        // };
+        // auto exp_func = []([[maybe_unused]] InDataType x) {
         //     return static_cast<ComputeDataType>(1.0);
         // };
         auto exp_func = [](InDataType x) -> ComputeDataType {
-            return static_cast<ComputeDataType>(x);
+            return type_convert<ComputeDataType>(x);
         };
 
         auto compute_tile = tile_elementwise_in(exp_func, input_tile);
 
         // Create a transposed tile
-        [[maybe_unused]] auto compute_tile_t = make_static_distributed_tensor<ComputeDataType>(
+        auto compute_tile_t = make_static_distributed_tensor<ComputeDataType>(
             Policy::template MakeTransposedInputBlockTileDistribution<Problem>());
 
         // Hot loop for Sinkhorn-Knopp iterations from 1 to iterations
@@ -106,16 +111,18 @@ struct SinkhornKnoppKernelReduce
             auto block_reduce2d_sync = Policy::template GetBlockReduce2dSync<br_problem>();
             // TODO: Deduce/allow specifying a separate type for the accumulators?
             // NOTE: MakeYBlockTile defaults to reducing 2nd dimension
-            auto acc_tile = block_reduce2d.template MakeYBlockTile<decltype(c_tile)>();
-            set_tile(acc_tile, acc_op.template GetIdentityValue<ComputeDataType>());
+            // auto acc_tile = block_reduce2d.template MakeYBlockTile<decltype(c_tile)>();
+            // set_tile(acc_tile, acc_op.template GetIdentityValue<ComputeDataType>());
 
-            block_reduce2d(c_tile, acc_tile, acc_op);
+            auto acc_tile =
+                block_reduce2d(c_tile, acc_op.template GetIdentityValue<ComputeDataType>(), acc_op);
+
             block_reduce2d_sync(acc_tile, acc_op);
 
             return acc_tile;
         };
 
-        for(int i = 0; i < 1; i++)
+        for(int i = 0; i < args.iterations; i++)
         {
             // 1. Compute row sums (REDUCE)
             // FIXME: Uses overload that is hardcoded to reduce 2nd dimension, be explicit instead
@@ -127,50 +134,51 @@ struct SinkhornKnoppKernelReduce
                 sweep_tile_span(c_spans[number<1>{}], [&](const auto idx1) {
                     constexpr auto c_idx       = make_tuple(idx0, idx1);
                     constexpr auto row_acc_idx = make_tuple(idx0);
-                    if(threadIdx.x == 0)
-                    {
-                        print(row_acc_idx);
-                        print(":");
-                        print(row_acc_tile(row_acc_idx));
-                        print("\n");
-                    }
+                    // if(threadIdx.x == INSPECT_THREAD)
+                    // {
+                    //     print(row_acc_idx);
+                    //     print(":");
+                    //     print(row_acc_tile(row_acc_idx));
+                    //     print("\n");
+                    // }
                     compute_tile(c_idx) = compute_tile(c_idx) / row_acc_tile(row_acc_idx);
                 });
             });
 
-            if(threadIdx.x == 0)
-            {
-                print("compute tile after rows summed and divided\n");
-                [&](auto tile) {
-                    constexpr auto spans = tile.get_distributed_spans();
-                    sweep_tile_span(spans[number<0>{}], [&](const auto idx0) {
-                        sweep_tile_span(spans[number<1>{}], [&](const auto idx1) {
-                            constexpr auto idx = make_tuple(idx0, idx1);
-                            print(idx);
-                            print(tile(idx));
-                            print("\n");
-                        });
-                    });
-                }(compute_tile);
-            }
+            // if(threadIdx.x == INSPECT_THREAD)
+            // {
+            //     printf("compute tile after normalization\n");
+            //     [&](auto tile) {
+            //         constexpr auto spans = tile.get_distributed_spans();
+            //         sweep_tile_span(spans[number<0>{}], [&](const auto idx0) {
+            //             sweep_tile_span(spans[number<1>{}], [&](const auto idx1) {
+            //                 constexpr auto idx = make_tuple(idx0, idx1);
+            //                 print(idx);
+            //                 print(tile(idx));
+            //                 print("\n");
+            //             });
+            //         });
+            //         printf("\n");
+            //     }(compute_tile);
+            // }
 
             transpose_tile2d(compute_tile_t, compute_tile);
 
-            if(threadIdx.x == 0)
-            {
-                print("compute tile transposed\n");
-                [&](auto tile) {
-                    constexpr auto spans = tile.get_distributed_spans();
-                    sweep_tile_span(spans[number<0>{}], [&](const auto idx0) {
-                        sweep_tile_span(spans[number<1>{}], [&](const auto idx1) {
-                            constexpr auto idx = make_tuple(idx0, idx1);
-                            print(idx);
-                            print(tile(idx));
-                            print("\n");
-                        });
-                    });
-                }(compute_tile_t);
-            }
+            // if(threadIdx.x == INSPECT_THREAD)
+            // {
+            //     printf("compute tile transposed\n");
+            //     [&](auto tile) {
+            //         constexpr auto spans = tile.get_distributed_spans();
+            //         sweep_tile_span(spans[number<0>{}], [&](const auto idx0) {
+            //             sweep_tile_span(spans[number<1>{}], [&](const auto idx1) {
+            //                 constexpr auto idx = make_tuple(idx0, idx1);
+            //                 print(idx);
+            //                 print(tile(idx));
+            //                 print("\n");
+            //             });
+            //         });
+            //     }(compute_tile_t);
+            // }
 
             // Row sum is column sum for transposed c_tile
             auto col_acc_tile = row_sum(compute_tile_t);
@@ -179,16 +187,55 @@ struct SinkhornKnoppKernelReduce
             sweep_tile_span(c_t_spans[number<0>{}], [&](const auto idx0) {
                 sweep_tile_span(c_t_spans[number<1>{}], [&](const auto idx1) {
                     constexpr auto c_t_idx     = make_tuple(idx0, idx1);
-                    constexpr auto col_acc_idx = make_tuple(idx0);
+                    constexpr auto col_acc_idx = make_tuple(idx1);
+                    // if(threadIdx.x == INSPECT_THREAD)
+                    // {
+                    //     print(col_acc_idx);
+                    //     print(":");
+                    //     print(col_acc_tile(col_acc_idx));
+                    //     print("\n");
+                    // }
                     compute_tile_t(c_t_idx) = compute_tile_t(c_t_idx) / col_acc_tile(col_acc_idx);
                 });
             });
 
+            // if(threadIdx.x == INSPECT_THREAD)
+            // {
+            //     printf("transpose after normalizing\n");
+            //     [&](auto tile) {
+            //         constexpr auto spans = tile.get_distributed_spans();
+            //         sweep_tile_span(spans[number<0>{}], [&](const auto idx0) {
+            //             sweep_tile_span(spans[number<1>{}], [&](const auto idx1) {
+            //                 constexpr auto idx = make_tuple(idx0, idx1);
+            //                 print(idx);
+            //                 print(tile(idx));
+            //                 print("\n");
+            //             });
+            //         });
+            //     }(compute_tile_t);
+            // }
+
             transpose_tile2d(compute_tile, compute_tile_t);
+
+            // if(threadIdx.x == INSPECT_THREAD)
+            // {
+            //     printf("thread %d, iter %d: original after transpose\n", INSPECT_THREAD, i);
+            //     [&](auto tile) {
+            //         constexpr auto spans = tile.get_distributed_spans();
+            //         sweep_tile_span(spans[number<0>{}], [&](const auto idx0) {
+            //             sweep_tile_span(spans[number<1>{}], [&](const auto idx1) {
+            //                 constexpr auto idx = make_tuple(idx0, idx1);
+            //                 print(idx);
+            //                 print(tile(idx));
+            //                 print("\n");
+            //             });
+            //         });
+            //     }(compute_tile);
+            // }
         }
 
         // Copy the final values to the output
-        store_tile(out_window, compute_tile);
+        store_tile(out_window, cast_tile<OutDataType>(compute_tile));
     }
 };
 
