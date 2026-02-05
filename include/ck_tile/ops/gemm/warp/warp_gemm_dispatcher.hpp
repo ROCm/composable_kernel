@@ -119,6 +119,11 @@ template<> struct Dispatcher<bf8_t, bf8_t, float, 16, 16,  64, false> { using Ty
 template<> struct Dispatcher<bf8_t, bf8_t, float, 16, 16,  64,  true> { using Type = WarpGemmMfma_f32_16x16x64_bf8_bf8_CTransposed; };
 template<> struct Dispatcher<bf8_t, bf8_t, float, 32, 32,  16,  true> { using Type = WarpGemmMfma_f32_32x32x16_bf8_bf8_CTransposed; };
 
+
+template<> struct Dispatcher<fp8_t, fp8_t, float, 32, 32,  32, false, false, false, EDouble> { using Type = WarpGemmMfma_f32_32x32x32_fp8_fp8<EDouble>; };
+
+
+
 // scale mfma based f8f6f4
 template<typename A, typename B, WGAttrNumAccessEnum I>
 struct Dispatcher<A, B, float, 16, 16, 128, false, false, false, I> { using Type = WarpGemmMfma_f32_16x16x128_f8f6f4<A, B, I>; };

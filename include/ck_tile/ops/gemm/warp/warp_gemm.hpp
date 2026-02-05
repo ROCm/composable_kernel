@@ -357,6 +357,11 @@ using WarpGemmMfma_f32_16x16x128_bf8_bf8_CTransposed =
         AttrNumAccess>>;
 
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfma_f32_32x32x32_fp8_fp8 = WarpGemmImpl<
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_32x32x32_fp8_fp8<WGAttrCtlEnum::Default_>,
+                          AttrNumAccess>>;        
+
+template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfma_f32_32x32x64_fp8_fp8 = WarpGemmImpl<
     WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_32x32x64_fp8_fp8<WGAttrCtlEnum::Default_>,
                           AttrNumAccess>>;
