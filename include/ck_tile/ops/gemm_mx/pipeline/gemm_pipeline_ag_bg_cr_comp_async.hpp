@@ -3,6 +3,7 @@
 
 #pragma once
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/tensor/load_tile.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/ops/gemm_mx/pipeline/gemm_pipeline_ag_bg_cr_comp_async_default_policy.hpp"
@@ -294,7 +295,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                           "B block window has incorrect lengths for defined BLayout!");
 
             ////////////// global window & register /////////////////
-            // A DRAM tile window(s) for load
+            // A DRAM tile window(s) for load  
             
             auto a_tile_windows = generate_tuple(
                 [&](auto idx) {
@@ -410,33 +411,35 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             constexpr index_t NWarp = BlockWarps::at(I1{});
             constexpr index_t MPerXdl = WarpTile::at(I0{});
             constexpr index_t NPerXdl = WarpTile::at(I1{});
-            constexpr index_t KPerXdl = WarpTile::at(I2{});
             
-            constexpr index_t ScaleBlockSize = 32;
+            constexpr index_t ScaleBlockSize = 32;  // Each scale covers 32 K elements
             
-            // Scale A DRAM Window: [MWarp * MPerXdl, kKPerBlock / 32 / KXdlPack]
+            // Calculate scale dimensions: KPerBlock elements need KPerBlock/32 scales
+            // Each int32 packs KXdlPack=4 scales, so we need KPerBlock/32/4 int32s per block
+            constexpr index_t ScaleKDimPerBlock = KPerBlock / ScaleBlockSize / KXdlPack;  // Packed int32s per block
+            static_assert(ScaleBlockSize == 32, "Scale block size must be 32 for MX format");
+            
+            // Scale A DRAM Window: [MWarp * MPerXdl, ScaleKDimPerBlock]
+            // With strided packing: KXdlPack kIters share each int32 via OpSel
             auto scale_a_dram_window = make_tile_window(
                 scale_a_window.get_bottom_tensor_view(),
-                make_tuple(number<MWarp * MPerXdl>{}, number<KPerBlock / ScaleBlockSize / KXdlPack>{}),
+                make_tuple(number<MWarp * MPerXdl>{}, number<ScaleKDimPerBlock>{}),
                 scale_a_window.get_window_origin(),
                 Policy::template MakeMX_ScaleA_DramTileDistribution<Problem>());
             
             const auto scale_a_dram_step_m = amd_wave_read_first_lane(
                 scale_a_dram_window.get_load_offset(tuple<number<MWarp * MPerXdl>, number<0>>{}));
-            const auto scale_a_dram_step_k = amd_wave_read_first_lane(
-                scale_a_dram_window.get_load_offset(tuple<number<0>, number<KPerBlock / ScaleBlockSize / KXdlPack>>{}));
             
-            // Scale B DRAM Window: [kKPerBlock / 32 / KXdlPack, NWarp * NPerXdl]
+            // Scale B DRAM Window: [ScaleKDimPerBlock, NWarp * NPerXdl]
+            // With strided packing: KXdlPack kIters share each int32 via OpSel
             auto scale_b_dram_window = make_tile_window(
                 scale_b_window.get_bottom_tensor_view(),
-                make_tuple(number<KPerBlock / ScaleBlockSize / KXdlPack>{}, number<NWarp * NPerXdl>{}),
+                make_tuple(number<ScaleKDimPerBlock>{}, number<NWarp * NPerXdl>{}),
                 scale_b_window.get_window_origin(),
                 Policy::template MakeMX_ScaleB_DramTileDistribution<Problem>());
             
-            const auto scale_b_dram_step_k = amd_wave_read_first_lane(
-                scale_b_dram_window.get_load_offset(tuple<number<KPerBlock / ScaleBlockSize / KXdlPack>, number<0>>{}));
             const auto scale_b_dram_step_n = amd_wave_read_first_lane(
-                scale_b_dram_window.get_load_offset(tuple<number<0>, number<NWarp * NPerXdl>>{}));
+                scale_b_dram_window.get_load_offset(tuple<number<NWarp * NPerXdl>, number<0>>{}));
 
             // this pipeline has a pair of LDS buffers per logical tile
             // TODO: check for packed size - are these blocks too big?
@@ -446,6 +449,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             /// NOTE: with original fp4 types:
             auto&& [a_lds_block0, b_lds_block0] = Base::GetABLdsTensorViews(p_smem_0);
             auto&& [a_lds_block1, b_lds_block1] = Base::GetABLdsTensorViews(p_smem_1);
+
 
             // set up LDS tile shapes - always use STORAGE dimensions for K
             /// NOTE: flatmm style byte tensor approach:
@@ -544,23 +548,29 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             static_assert(Policy::template GetSmemSizeB<Problem>() == (KPerBlock * sizeof(BDataType) / BPackedSize) * NPerBlock, "SmemSizeB size is wrong!");
 
             ////////////// MX Scale register tiles (ping-pong buffers) /////////////////
-            // Calculate scale iterations: each scale covers 32 elements in K
-            // Each K iteration processes KPerXdl elements
-            // Each packed int32 contains KXdlPack scales
+            // Calculate scale iterations for M/N dimensions
+            constexpr index_t KPerXdl = WarpTile::at(I2{});
             constexpr index_t KIterPerWarp = KPerBlock / KPerXdl;
             constexpr index_t MIterPerWarp = MPerBlock / (MWarp * MPerXdl);
             constexpr index_t NIterPerWarp = NPerBlock / (NWarp * NPerXdl);
-            constexpr index_t ScaleKPackedPerIter = (KIterPerWarp * KPerXdl) / (ScaleBlockSize * KXdlPack);
-            static_assert(ScaleKPackedPerIter > 0, "ScaleKPackedPerIter is wrong!");
             
-            // Load a sample scale tile to get the type
+            // ScaleKPackedPerIter: number of int32s needed to cover all KIterPerWarp iterations
+            // Each int32 packs 4 scales (via strided packing), OpSel selects byte for kIter
+            // KXdlPack kIters share one int32, so we need KIterPerWarp/KXdlPack int32s total
+            constexpr index_t ScaleKPackedPerIter = KIterPerWarp / KXdlPack;
+            static_assert(ScaleKPackedPerIter > 0, "ScaleKPackedPerIter must be positive!");
+            
+            // Load a sample scale tile to get the type after distribution
             auto scale_a_sample = load_tile_with_offset(scale_a_dram_window, tuple<number<0>, number<0>>{});
             auto scale_b_sample = load_tile_with_offset(scale_b_dram_window, tuple<number<0>, number<0>>{});
             
             using ScaleTileElementA = remove_cvref_t<decltype(scale_a_sample)>;
             using ScaleTileElementB = remove_cvref_t<decltype(scale_b_sample)>;
-            using ScaleATileType = statically_indexed_array<statically_indexed_array<ScaleTileElementA, ScaleKPackedPerIter>, MIterPerWarp>;
-            using ScaleBTileType = statically_indexed_array<statically_indexed_array<ScaleTileElementB, ScaleKPackedPerIter>, NIterPerWarp>;
+            
+            // ScaleATileType: array of distributed tensors, one per M/N iteration
+            // Each distributed tensor holds ScaleKPackedPerIter int32 elements across threads
+            using ScaleATileType = statically_indexed_array<ScaleTileElementA, MIterPerWarp>;
+            using ScaleBTileType = statically_indexed_array<ScaleTileElementB, NIterPerWarp>;
             
             ScaleATileType scale_a_tile_ping, scale_a_tile_pong;
             ScaleBTileType scale_b_tile_ping, scale_b_tile_pong;
@@ -569,20 +579,22 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             auto load_scales_ = [&](auto& scale_a, auto& scale_b) {
                 // Load scales for each M/N iteration
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                    static_for<0, ScaleKPackedPerIter, 1>{}([&](auto kPacked) {
-                        scale_a(mIter)(kPacked) = load_tile_with_offset(
-                            scale_a_dram_window, mIter * scale_a_dram_step_m + kPacked * scale_a_dram_step_k);
-                    });
+                    // static_for<0, ScaleKPackedPerIter, 1>{}([&](auto kPacked) {
+                    //     scale_a(mIter)(kPacked) = load_tile_with_offset(
+                    //         scale_a_dram_window, mIter * scale_a_dram_step_m + kPacked * scale_a_dram_step_k);
+                    // });
+                    scale_a(mIter) = load_tile_with_offset(scale_a_dram_window, make_tuple(mIter * scale_a_dram_step_m, number<0>{}));
                 });
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                    static_for<0, ScaleKPackedPerIter, 1>{}([&](auto kPacked) {
-                        // Scale B is [K/32/KXdlPack, N], so K is first dimension
-                        scale_b(nIter)(kPacked) = load_tile_with_offset(
-                            scale_b_dram_window, kPacked * scale_b_dram_step_k + nIter * scale_b_dram_step_n);
-                    });
+                    // static_for<0, ScaleKPackedPerIter, 1>{}([&](auto kPacked) {
+                    //     // Scale B is [K/32/KXdlPack, N], so K is first dimension
+                    //     scale_b(nIter)(kPacked) = load_tile_with_offset(
+                    //         scale_b_dram_window, kPacked * scale_b_dram_step_k + nIter * scale_b_dram_step_n);
+                    // });
+                    scale_b(nIter) = load_tile_with_offset(scale_b_dram_window, make_tuple(nIter * scale_b_dram_step_n, number<0>{}));
                 });
                 move_tile_window(scale_a_dram_window, {0, KPerBlock / ScaleBlockSize / KXdlPack});
-                move_tile_window(scale_b_dram_window, {KPerBlock / ScaleBlockSize / KXdlPack, 0});
+                move_tile_window(scale_b_dram_window, {0, KPerBlock / ScaleBlockSize / KXdlPack});
             };
 
             // constexpr auto a_lds_input_tile_distr = [ALdsTileDistr]() {
@@ -734,7 +746,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                                                   b_tile_windows[number<0>{}],
                                                   b_dram_tile_window_step);
                         // C(i-3) = A(i-3) @ B(i-3) with MX scaling
-                        // warp_gemm_loop(a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
+                        // block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
                         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                         /// TODO: remove these after creating a block gemm with scales
                         ignore = scale_a_tile_ping;
@@ -763,11 +775,11 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                                                   b_tile_windows[number<0>{}],
                                                   b_dram_tile_window_step);
                         // C(i-2) = A(i-2) @ B(i-2) with MX scaling
-                        // warp_gemm_loop(a_block_tile1, b_block_tile1, scale_a_tile_pong, scale_b_tile_pong);
-                        block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-                        /// TODO: remove these after creating a block gemm with scales
-                        ignore = scale_a_tile_pong;
-                        ignore = scale_b_tile_pong;
+                        block_gemm(c_block_tile, a_block_tile1, b_block_tile1, scale_a_tile_pong, scale_b_tile_pong);
+                        // block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
+                        // /// TODO: remove these after creating a block gemm with scales
+                        // ignore = scale_a_tile_pong;
+                        // ignore = scale_b_tile_pong;
                         HotLoopScheduler();
                         // Load scales for iteration i+2 (pong)
                         /// TODO: check condition
@@ -787,11 +799,11 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1, is_a_load_tr_v);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1, is_b_load_tr_v);
                     // C(num_loop-2) = A(num_loop-2) @ B(num_loop-2) with MX scaling
-                    // warp_gemm_loop(a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
-                    block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                    /// TODO: remove these after creating a block gemm with scales
-                    ignore = scale_a_tile_ping;
-                    ignore = scale_b_tile_ping;
+                    block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
+                    // block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
+                    // /// TODO: remove these after creating a block gemm with scales
+                    // ignore = scale_a_tile_ping;
+                    // ignore = scale_b_tile_ping;
                     /// TODO: load next scales to ping for the last iteration
                 }
                 {
@@ -801,19 +813,19 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                     Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0, is_a_load_tr_v);
                     Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0, is_b_load_tr_v);
                     // C(num_loop-1) = A(num_loop-1) @ B(num_loop-1) with MX scaling
-                    // warp_gemm_loop(a_block_tile1, b_block_tile1, scale_a_tile_pong, scale_b_tile_pong);
-                    block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-                    /// TODO: remove these after creating a block gemm with scales
-                    ignore = scale_a_tile_pong;
-                    ignore = scale_b_tile_pong;
+                    block_gemm(c_block_tile, a_block_tile1, b_block_tile1, scale_a_tile_pong, scale_b_tile_pong);
+                    // block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
+                    // /// TODO: remove these after creating a block gemm with scales
+                    // ignore = scale_a_tile_pong;
+                    // ignore = scale_b_tile_pong;
                 }
                 {
                     // C(num_loop) = A(num_loop) @ B(num_loop) with MX scaling
-                    // warp_gemm_loop(a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
-                    block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                    /// TODO: remove these after creating a block gemm with scales
-                    ignore = scale_a_tile_ping;
-                    ignore = scale_b_tile_ping;
+                    block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
+                    // block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
+                    // /// TODO: remove these after creating a block gemm with scales
+                    // ignore = scale_a_tile_ping;
+                    // ignore = scale_b_tile_ping;
                 }
             }
             else if(TailNum == TailNumber::Two)
@@ -824,30 +836,30 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1, is_a_load_tr_v);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1, is_b_load_tr_v);
                     // C(num_loop-1) = A(num_loop-1) @ B(num_loop-1) with MX scaling
-                    // warp_gemm_loop(a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
-                    block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                    /// TODO: remove these after creating a block gemm with scales
-                    ignore = scale_a_tile_ping;
-                    ignore = scale_b_tile_ping;
+                    block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
+                    // block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
+                    // /// TODO: remove these after creating a block gemm with scales
+                    // ignore = scale_a_tile_ping;
+                    // ignore = scale_b_tile_ping;
                 }
                 {
                     // C(num_loop) = A(num_loop) @ B(num_loop) with MX scaling
-                    // warp_gemm_loop(a_block_tile1, b_block_tile1, scale_a_tile_pong, scale_b_tile_pong);
-                    block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-                    /// TODO: remove these after creating a block gemm with scales
-                    ignore = scale_a_tile_pong;
-                    ignore = scale_b_tile_pong;
+                    block_gemm(c_block_tile, a_block_tile1, b_block_tile1, scale_a_tile_pong, scale_b_tile_pong);
+                    // block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
+                    // /// TODO: remove these after creating a block gemm with scales
+                    // ignore = scale_a_tile_pong;
+                    // ignore = scale_b_tile_pong;
                 }
             }
             else if(TailNum == TailNumber::One)
             {
                 block_sync_lds();
                 // C(num_loop) = A(num_loop) @ B(num_loop) with MX scaling
-                // warp_gemm_loop(a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
-                block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                /// TODO: remove these after creating a block gemm with scales
-                ignore = scale_a_tile_ping;
-                ignore = scale_b_tile_ping;
+                block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
+                // block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
+                // /// TODO: remove these after creating a block gemm with scales
+                // ignore = scale_a_tile_ping;
+                // ignore = scale_b_tile_ping;
                 __builtin_amdgcn_sched_barrier(0);
             }
             

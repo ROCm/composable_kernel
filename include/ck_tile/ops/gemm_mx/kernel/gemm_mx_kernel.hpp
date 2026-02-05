@@ -152,30 +152,40 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
     CK_TILE_HOST static constexpr auto
     GridSize(const KernelArgs<ScaleM, ScaleN>& kargs)
     {
-        hipDeviceProp_t prop;
-        int deviceId = 0; // default device
+        const int total_work_tile_cnt = TilePartitioner::GridSize(kargs.M, kargs.N);
+        
+        if constexpr(UsePersistentKernel)
+        {
+            hipDeviceProp_t prop;
+            int deviceId = 0; // default device
 
-        int dync_smem_size       = 0;
-        int maxActiveBlocksPerCU = 0;
+            int dync_smem_size       = 0;
+            int maxActiveBlocksPerCU = 0;
 
-        if(hipGetDeviceProperties(&prop, deviceId) != hipSuccess)
-            throw std::runtime_error(std::string("hipGetDeviceProperties failed: ") +
-                                        hipGetErrorName(hipGetLastError()));
+            if(hipGetDeviceProperties(&prop, deviceId) != hipSuccess)
+                throw std::runtime_error(std::string("hipGetDeviceProperties failed: ") +
+                                            hipGetErrorName(hipGetLastError()));
 
-        if(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-                &maxActiveBlocksPerCU,
-                reinterpret_cast<void*>(
-                    kentry<1, MXGemmKernel, remove_cvref_t<decltype(kargs)>>),
-                KernelBlockSize,
-                dync_smem_size) != hipSuccess)
-            throw std::runtime_error(
-                std::string("hipOccupancyMaxActiveBlocksPerMultiprocessor failed: ") +
-                hipGetErrorName(hipGetLastError()));
+            if(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                    &maxActiveBlocksPerCU,
+                    reinterpret_cast<void*>(
+                        kentry<1, MXGemmKernel, remove_cvref_t<decltype(kargs)>>),
+                    KernelBlockSize,
+                    dync_smem_size) != hipSuccess)
+                throw std::runtime_error(
+                    std::string("hipOccupancyMaxActiveBlocksPerMultiprocessor failed: ") +
+                    hipGetErrorName(hipGetLastError()));
 
-        const int persistent_block_size = prop.multiProcessorCount * maxActiveBlocksPerCU;
-        const int total_work_tile_cnt   = TilePartitioner::GridSize(kargs.M, kargs.N);
+            const int persistent_block_size = prop.multiProcessorCount * maxActiveBlocksPerCU;
+            const int actual_grid_size      = min(persistent_block_size, total_work_tile_cnt);
 
-        return dim3(min(persistent_block_size, total_work_tile_cnt), 1, 1);
+            return dim3(actual_grid_size, 1, 1);
+        }
+        else
+        {
+            // Non-persistent: use full grid size based on number of tiles
+            return dim3(total_work_tile_cnt, 1, 1);
+        }
     }
 
     using SplitKBatchOffset = typename Underlying::SplitKBatchOffset;
@@ -240,26 +250,36 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
     // Create scale A block windows following the pattern of MakeABlockWindows
     template <typename ScaleM, typename ScaleN>
     CK_TILE_DEVICE static auto
-    MakeScaleABlockWindows(const KernelArgs<ScaleM, ScaleN>& kargs, const index_t block_idx_m)
+        MakeScaleABlockWindows(const KernelArgs<ScaleM, ScaleN>& kargs, const index_t i_m)
     {
         auto scale_a = kargs.scale_m_ptr;
         
         static constexpr int BlockScaleSize = ScaleM::GranularityK;
-        const auto scale_k_packed = kargs.K / BlockScaleSize / KXdlPack;
+        const auto scale_k_size = kargs.K / BlockScaleSize;
+        const auto scale_k_size_packed = scale_k_size / KXdlPack;
 
-        // A scale tensor view - simple 2D layout [M, K/BlockScaleSize/KXdlPack]
-        const auto scale_a_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(kargs.M, scale_k_packed));
+        // A scale tensor view - layout [M, scale_k_size_packed] with packed int32_t
+        // Host packs 4 consecutive e8m0_t scales into one int32_t
+        // const auto scale_a_desc = make_naive_tensor_descriptor(
+        //     make_tuple(kargs.M, scale_k_size_packed),
+        //     make_tuple(scale_k_size_packed, 1));
 
-        const auto scale_a_tensor_view = make_tensor_view<address_space_enum::global>(
-            reinterpret_cast<const int32_t*>(scale_a.ptr), scale_a_desc);
+        // const auto scale_a_tensor_view = make_tensor_view<address_space_enum::global>(
+        //     reinterpret_cast<const int32_t*>(scale_a.ptr), scale_a_desc);
+
+        const auto scale_a_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+            reinterpret_cast<const int32_t*>(scale_a.ptr),
+            make_tuple(kargs.M, scale_k_size_packed),
+            make_tuple(scale_k_size_packed, 1));
 
         // Create block window for scale A
+        // K dimension: KIterPerWarp int32s, each int32 contains 4 scales for K_Lane threads
+        // i_m is element offset (iM * MPerBlock), not tile index
         auto scale_a_block_window = make_tile_window(
             scale_a_tensor_view,
             make_tuple(number<TilePartitioner::MPerBlock>{},
                        number<TilePartitioner::KPerBlock / BlockScaleSize / KXdlPack>{}),
-            {block_idx_m, 0});
+            {i_m, 0});
 
         return scale_a_block_window;
     }
@@ -267,26 +287,35 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
     // Create scale B block windows following the pattern of MakeBBlockWindows
     template <typename ScaleM, typename ScaleN>
     CK_TILE_DEVICE static auto
-    MakeScaleBBlockWindows(const KernelArgs<ScaleM, ScaleN>& kargs, const index_t block_idx_n)
+    MakeScaleBBlockWindows(const KernelArgs<ScaleM, ScaleN>& kargs, const index_t i_n)
     {
         auto scale_b = kargs.scale_n_ptr;
         
         static constexpr int BlockScaleSize = ScaleN::GranularityK;
-        const auto scale_k_packed = kargs.K / BlockScaleSize / KXdlPack;
+        const auto scale_k_size = kargs.K / BlockScaleSize;
+        const auto scale_k_size_packed = scale_k_size / KXdlPack;
 
-        // B scale tensor view - layout [K/BlockScaleSize/KXdlPack, N]
-        const auto scale_b_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(scale_k_packed, kargs.N));
+        // B scale tensor view - layout [scale_k_size_packed, N] with packed int32_t
+        // Host packs 4 consecutive e8m0_t scales into one int32_t
+        // const auto scale_b_desc = make_naive_tensor_descriptor(
+        //     make_tuple(kargs.N, scale_k_size_packed),
+        //     make_tuple(scale_k_size_packed, 1));
 
-        const auto scale_b_tensor_view = make_tensor_view<address_space_enum::global>(
-            reinterpret_cast<const int32_t*>(scale_b.ptr), scale_b_desc);
+        // const auto scale_b_tensor_view = make_tensor_view<address_space_enum::global>(
+        //     reinterpret_cast<const int32_t*>(scale_b.ptr), scale_b_desc);
+
+        const auto scale_b_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+            reinterpret_cast<const int32_t*>(scale_b.ptr),
+            make_tuple(kargs.N, scale_k_size_packed),
+            make_tuple(scale_k_size_packed, 1));
 
         // Create block window for scale B
+        // i_n is element offset (iN * NPerBlock), not tile index
         auto scale_b_block_window = make_tile_window(
             scale_b_tensor_view,
-            make_tuple(number<TilePartitioner::KPerBlock / BlockScaleSize / KXdlPack>{},
-                       number<TilePartitioner::NPerBlock>{}),
-            {0, block_idx_n});
+            make_tuple(number<TilePartitioner::NPerBlock>{},
+                       number<TilePartitioner::KPerBlock / BlockScaleSize / KXdlPack>{}),
+            {i_n, 0});
 
         return scale_b_block_window;
     }
@@ -301,19 +330,20 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
               void* smem_ptr_pong,
               const KernelArgs<ScaleM, ScaleN>& kargs,
               const SplitKBatchOffset& splitk_batch_offset,
-              const index_t block_idx_m,
-              const index_t block_idx_n)
+              const index_t i_m,
+              const index_t i_n)
     {
         // Create block windows directly, following the new pattern from UniversalGemmKernel
+        // i_m and i_n are element offsets (iM * MPerBlock, iN * NPerBlock), not tile indices
         const auto& a_block_window =
-            Underlying::MakeABlockWindows(as_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
+            Underlying::MakeABlockWindows(as_ptr, kargs, splitk_batch_offset.splitted_k, i_m);
         const auto& b_block_window =
-            Underlying::MakeBBlockWindows(bs_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
-        const auto& d_block_window = Underlying::MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n);
+            Underlying::MakeBBlockWindows(bs_ptr, kargs, splitk_batch_offset.splitted_k, i_n);
+        const auto& d_block_window = Underlying::MakeDBlockWindows(ds_ptr, kargs, i_m, i_n);
         
         // Create scale block windows using our new functions
-        const auto& scale_a_block_window = MakeScaleABlockWindows(kargs, block_idx_m);
-        const auto& scale_b_block_window = MakeScaleBBlockWindows(kargs, block_idx_n);
+        const auto& scale_a_block_window = MakeScaleABlockWindows(kargs, i_m);
+        const auto& scale_b_block_window = MakeScaleBBlockWindows(kargs, i_n);
 
         const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
 
@@ -321,6 +351,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
                           || ScaleM::GranularityMN == -1           // or ScaleA is disable
                           || ScaleN::GranularityMN == -1,          // or ScaleB is disable
                       "ScaleM and ScaleN should have the same GranularityK");
+
 
         const auto& c_block_tile = MXGemmPipeline{}(a_block_window[number<0>{}],
                                                       b_block_window[number<0>{}],
@@ -332,7 +363,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
 
         // Run Epilogue Pipeline - create C block window directly
         auto c_block_window =
-            MakeCBlockWindows<EpiloguePipeline::MemoryOperation>(e_ptr, kargs, block_idx_m, block_idx_n);
+            MakeCBlockWindows<EpiloguePipeline::MemoryOperation>(e_ptr, kargs, i_m, i_n);
         EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_ping);
     }
 
@@ -352,6 +383,11 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
     {
         const int total_work_tile_cnt = amd_wave_read_first_lane(TilePartitioner::GridSize(kargs.M, kargs.N));
 
+        // Allocate shared memory OUTSIDE the loop - __shared__ variables must be at function scope
+        __shared__ char smem_ptr_ping[GetSmemPingSize()];
+        __shared__ char smem_ptr_pong[GetSmemPongSize()];
+
+        // Support both persistent and non-persistent modes
         do
         {
             const auto [iM, iN] =
@@ -376,10 +412,6 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
                 bs_ptr[i] = static_cast<const BDataType*>(kargs.bs_ptr[i]) +
                             splitk_batch_offset.bs_k_split_offset[i] / BPackedSize;
             });
-
-            // allocate LDS
-            __shared__ char smem_ptr_ping[GetSmemPingSize()];
-            __shared__ char smem_ptr_pong[GetSmemPongSize()];
 
             if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
                            EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
