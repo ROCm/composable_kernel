@@ -12,22 +12,47 @@ def show_node_info() {
     """
 }
 
+def cloneUpdateRefRepo() {
+    def refRepoPath = "/var/jenkins/ref-repo/rocm-libraries"
+    def lockLabel = "git ref repo lock - ${env.NODE_NAME}"
+    def folderExists = sh(
+        script: "test -d ${refRepoPath}/refs",
+        returnStatus: true
+    ) == 0
+
+    if (!folderExists) {
+        echo "rocm-libraries repo does not exist at ${refRepoPath}, creating mirror clone..."
+        echo "locking on label: ${lockLabel}"
+        lock(lockLabel) {
+            def cloneCommand = """
+                set -ex
+                rm -rf ${refRepoPath} && mkdir -p ${refRepoPath}
+                git clone --mirror https://github.com/ROCm/rocm-libraries.git ${refRepoPath}
+            """
+            sh(script: cloneCommand, label: "clone ref repo")
+        }
+        echo "Completed git clone, lock released"
+    }
+    echo "rocm-libraries repo exists at ${refRepoPath}, performing git remote update..."
+    echo "locking on label: ${lockLabel}"
+    lock(lockLabel) {
+        def fetchCommand = """
+            set -ex
+            cd ${refRepoPath}
+            git remote prune origin
+            git remote update
+        """
+        sh(script: fetchCommand, label: "update ref repo")
+    }
+    echo "Completed git ref repo fetch, lock released"
+}
+
 def checkoutComposableKernel()
 {
+    //update ref repo
+    cloneUpdateRefRepo()
     // checkout project
-    checkout([
-        $class: 'GitSCM',
-        branches: scm.branches,
-        doGenerateSubmoduleConfigurations: false,
-        extensions: [
-            [$class: 'SparseCheckoutPaths', sparseCheckoutPaths: [
-                [$class: 'SparseCheckoutPath', path: 'projects/composablekernel']
-            ]],
-            [$class: 'CloneOption', depth: 1, noTags: false, reference: '', shallow: true],
-            [$class: 'CleanBeforeCheckout']
-        ],
-        userRemoteConfigs: scm.userRemoteConfigs
-    ])
+    checkout scm
 }
 
 // Given a pattern, check if the log contains the pattern and return the context.
@@ -94,7 +119,7 @@ def sendFailureNotifications() {
 
 def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
     try {
-        checkout scm
+        checkoutComposableKernel()
 
         // Retrieve the build trace artifact
         def traceFileExists = false
@@ -398,7 +423,7 @@ def getDockerImage(Map conf=[:]){
 def buildDocker(install_prefix){
     show_node_info()
     env.DOCKER_BUILDKIT=1
-    checkout scm
+    checkoutComposableKernel()
     def image_name = getDockerImageName()
     def base_image_name = getBaseDockerImageName()
     echo "Building Docker for ${image_name}"
@@ -893,7 +918,7 @@ def Build_CK_and_Reboot(Map conf=[:]){
 }
 
 def process_results(Map conf=[:]){
-    checkout scm
+    checkoutComposableKernel()
     //use older image that has user jenkins
     def image = "${env.CK_DOCKERHUB}:ck_ub22.04_rocm6.3"
 
@@ -1026,7 +1051,7 @@ def process_results(Map conf=[:]){
 
 def run_aiter_tests(Map conf=[:]){
     show_node_info()
-    checkout scm
+    checkoutComposableKernel()
     //use the latest pytorch image
     def image = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
     def dockerOpts=get_docker_options() + ' --group-add irc '
@@ -1079,7 +1104,7 @@ def run_aiter_tests(Map conf=[:]){
 
 def run_pytorch_tests(Map conf=[:]){
     show_node_info()
-    checkout scm
+    checkoutComposableKernel()
     //use the latest pytorch-nightly image
     def image = "${env.CK_DOCKERHUB}:ck_pytorch"
     def dockerOpts=get_docker_options() + ' --group-add irc '
@@ -1135,6 +1160,7 @@ pipeline {
         parameterizedCron(CRON_SETTINGS)
     }
     options {
+        skipDefaultCheckout()
         parallelsAlwaysFailFast()
     }
     parameters {
@@ -1315,6 +1341,7 @@ pipeline {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
+                    checkoutComposableKernel()
                     env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || shouldRunCICheck())
                     echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
                 }
