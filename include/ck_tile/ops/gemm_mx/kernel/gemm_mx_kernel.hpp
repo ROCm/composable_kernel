@@ -386,6 +386,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
         // Support both persistent and non-persistent modes
         do
         {
+            if (get_block_id() == 0 && get_thread_id() == 0) printf("partition_idx: %d\n", partition_idx);
             const auto [iM, iN] =
                 TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(partition_idx);
             const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);

@@ -221,11 +221,11 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<NWarp>,                              // repeat over NWarps
                                        tuple<sequence<MWarp, MPerXdl>,               // M dimension
-                                             sequence<ScaleKDimPerBlock, K_Lane>>, // K dimension
+                                             sequence<ScaleKDimPerBlock / K_Lane, K_Lane, 1>>, // K dimension
                                        tuple<sequence<1, 0>, sequence<2, 1>>,        // <MWarp, NWarp>, <K_Lane, MPerXdl>
                                        tuple<sequence<0, 0>, sequence<1, 1>>,
-                                       sequence<2>,                                   // ScaleKDimPerBlock, all int32 needed to cover KPerBlock
-                                       sequence<0>>{});
+                                       sequence<2, 2>,                                   // ScaleKDimPerBlock, all int32 needed to cover KPerBlock
+                                       sequence<0, 2>>{});
     }
 
     template <typename Problem>
@@ -251,11 +251,11 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<MWarp>,                              // repeat over MWarps
                                        tuple<sequence<NWarp, NPerXdl>,               // N dimension (first)
-                                             sequence<ScaleKDimPerBlock, K_Lane>>,   // K dimension (second)
+                                             sequence<ScaleKDimPerBlock / K_Lane, K_Lane, 1>>,   // K dimension (second)
                                        tuple<sequence<0, 1>, sequence<2, 1>>,        // which direction
                                        tuple<sequence<0, 0>, sequence<1, 1>>,        // which index
-                                       sequence<2>,                                   // replicate N
-                                       sequence<0>>{}); 
+                                       sequence<2, 2>,                                   // replicate N
+                                       sequence<0, 2>>{}); 
     }
 };
 } // namespace ck_tile
