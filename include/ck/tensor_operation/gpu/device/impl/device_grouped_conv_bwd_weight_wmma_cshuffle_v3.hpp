@@ -886,11 +886,6 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
             index_t K_split                  = (gemm_arg.K + k_grain - 1) / k_grain * KPerBlock;
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
-            std::cout << "K0 value is:"
-                      << (GridwiseGemm::CalculateAK0Padded(
-                             arg.a_grid_desc_kbatch_m_k_.GetLength(Number<1>{}), arg.k_batch_))
-                      << std::endl;
-
             const index_t num_k_per_block = (GridwiseGemm::CalculateAK0Padded(
                 arg.a_grid_desc_kbatch_m_k_.GetLength(Number<1>{}), arg.k_batch_));
             const auto clear_workspace    = [&]() {
