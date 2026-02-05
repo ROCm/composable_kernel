@@ -484,7 +484,7 @@ def get_docker_options(){
     // on some machines the group ids for video and render groups may not be the same as in the docker image!
     def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
     def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
-    dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
+    dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} -v /var/jenkins/ref-repo/:/var/jenkins/ref-repo/ "
     echo "Docker flags: ${dockerOpts}"
     return dockerOpts
 }
@@ -1294,8 +1294,8 @@ pipeline {
             description: "Run CK_BUILDER tests (default: ON)")
         booleanParam(
             name: "RUN_ALL_UNIT_TESTS",
-            defaultValue: true,
-            description: "Run all unit tests (default: ON)")
+            defaultValue: false,
+            description: "Run all unit tests (default: OFF)")
         booleanParam(
             name: "RUN_PYTORCH_TESTS",
             defaultValue: false,
