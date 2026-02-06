@@ -206,6 +206,7 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         using BlockWarps = typename BlockGemmShape::BlockWarps;
         using WarpTile = typename BlockGemmShape::WarpTile;
         
+        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t MWarp = BlockWarps::at(number<0>{});
         constexpr index_t NWarp = BlockWarps::at(number<1>{});
         constexpr index_t MPerXdl = WarpTile::at(number<0>{});
@@ -213,6 +214,7 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t ScaleKDimPerBlock = KPerBlock / BlockScaleSize / KXdlPack;  // int32s per block
         constexpr index_t K_Lane = get_warp_size() / MPerXdl;  // 64/16 = 4 threads in K dimension
         // constexpr index_t KPackedElementsPerThread = ScaleKDimPerBlock / K_Lane;  // 4/4 = 1 for K=512
+        constexpr index_t MIterPerWarp = MPerBlock / (MWarp * MPerXdl);
         
         // Scale A: [MWarp * MPerXdl, ScaleKDimPerBlock] warp-level tile  
         // For K=512: [16, 4], distribute 4 int32s across 4 K_Lane threads (1 each)
@@ -220,12 +222,12 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         // Distribution: Replicate in M dimension, distribute in K dimension (no vectorization - scalar loads)
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<NWarp>,                              // repeat over NWarps
-                                       tuple<sequence<MWarp, MPerXdl>,               // M dimension
-                                             sequence<ScaleKDimPerBlock / K_Lane, K_Lane, 1>>, // K dimension
+                                       tuple<sequence<MWarp, MIterPerWarp, MPerXdl>,               // M dimension
+                                             sequence<ScaleKDimPerBlock / K_Lane, K_Lane>>, // K dimension
                                        tuple<sequence<1, 0>, sequence<2, 1>>,        // <MWarp, NWarp>, <K_Lane, MPerXdl>
-                                       tuple<sequence<0, 0>, sequence<1, 1>>,
-                                       sequence<2, 2>,                                   // ScaleKDimPerBlock, all int32 needed to cover KPerBlock
-                                       sequence<0, 2>>{});
+                                       tuple<sequence<0, 0>, sequence<1, 2>>,
+                                       sequence<1, 2>,                                   // <MIterPerWarp, ScaleKDimPerBlock / K_Lane>
+                                       sequence<1, 0>>{});
     }
 
     template <typename Problem>
@@ -235,6 +237,7 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         using BlockWarps = typename BlockGemmShape::BlockWarps;
         using WarpTile = typename BlockGemmShape::WarpTile;
         
+        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t MWarp = BlockWarps::at(number<0>{});
         constexpr index_t NWarp = BlockWarps::at(number<1>{});
         constexpr index_t NPerXdl = WarpTile::at(number<1>{});
@@ -242,7 +245,7 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t ScaleKDimPerBlock = KPerBlock / BlockScaleSize / KXdlPack;  // int32s per block
         constexpr index_t K_Lane = get_warp_size() / NPerXdl;  // 64/16 = 4 threads in K dimension
         // constexpr index_t KPackedElementsPerThread = ScaleKDimPerBlock / K_Lane;  // 4/4 = 1 for K=512
-        
+        constexpr index_t NIterPerWarp = NPerBlock / (NWarp * NPerXdl);
         // Scale B: [NWarp * NPerXdl, ScaleKDimPerBlock] warp-level tile
         // Viewed as [N, K] = [64, 4] for K=512 (access pattern, not storage)
         // For K=512: [64, 4], distribute 4 int32s across 4 K_Lane threads (1 each)
@@ -250,12 +253,12 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         // Distribution: Replicate in N dimension, distribute in K dimension
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<MWarp>,                              // repeat over MWarps
-                                       tuple<sequence<NWarp, NPerXdl>,               // N dimension (first)
-                                             sequence<ScaleKDimPerBlock / K_Lane, K_Lane, 1>>,   // K dimension (second)
-                                       tuple<sequence<0, 1>, sequence<2, 1>>,        // which direction
-                                       tuple<sequence<0, 0>, sequence<1, 1>>,        // which index
-                                       sequence<2, 2>,                                   // replicate N
-                                       sequence<0, 2>>{}); 
+                                       tuple<sequence<NIterPerWarp, NWarp, NPerXdl>,          // N dimension (first)
+                                             sequence<K_Lane, ScaleKDimPerBlock / K_Lane>>,   // K dimension (second)
+                                       tuple<sequence<0, 1>, sequence<2, 1>>,        // <MWarp, NWarp>, <K_Lane, MPerXdl>
+                                       tuple<sequence<0, 1>, sequence<0, 2>>,
+                                       sequence<1, 2>,                               // <NIterPerWarp, ScaleKDimPerBlock / K_Lane>
+                                       sequence<0, 1>>{}); 
     }
 };
 } // namespace ck_tile
