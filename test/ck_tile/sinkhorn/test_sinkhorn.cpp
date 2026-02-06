@@ -22,7 +22,7 @@ using Shape1_WarpTile   = ck_tile::sequence<4, 4>;
 using Shape1_ThreadTile = ck_tile::sequence<4, 1>;
 
 // Test configurations for different data types and input size
-using TestConfig_F16 = std::tuple<float, // ck_tile::half_t, // XDataType
+using TestConfig_F16 = std::tuple<float, // XDataType
                                   float, // ComputeDataType
                                   float, // YDataType
                                   Shape1_BlockWarps,

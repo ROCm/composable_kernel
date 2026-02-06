@@ -23,8 +23,8 @@ void sinkhorn_knopp_ref(const HostTensor<XDataType>& x_n_n,
     {
         for(index_t j = 0; j < input_n; ++j)
         {
-            // c_n_n(i, j) = exp(type_convert<ComputeDataType>(x_n_n(i, j)));
-            c_n_n(i, j) = type_convert<ComputeDataType>(x_n_n(i, j));
+            c_n_n(i, j) = exp(type_convert<ComputeDataType>(x_n_n(i, j)));
+            // c_n_n(i, j) = type_convert<ComputeDataType>(x_n_n(i, j));
         }
     }
 
