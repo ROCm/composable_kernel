@@ -57,13 +57,13 @@ CK_TILE_HOST void reference_mhc(const HostTensor<XDataType>& x_b_nc,       // [B
                        type_convert<ComputeDataType>(phi_nc_out(k, out_idx));
             }
             // // Step 4: Apply activation σ(H^{pre})
-            // ComputeDataType activated_value;
-            // activation(activated_value, sum);
-            // output_b_out(b, out_idx) =
-            //     type_convert<YDataType>((alpha_pre / r) * activated_value + bias);
+            ComputeDataType activated_value;
+            activation(activated_value, sum);
+            output_b_out(b, out_idx) =
+                type_convert<YDataType>((alpha_pre / norm) * activated_value + bias);
 
             // TESTING: Store raw GEMM output
-            output_b_out(b, out_idx) = type_convert<YDataType>(sum);
+            // output_b_out(b, out_idx) = type_convert<YDataType>(sum);
         }
 
         // Process H^{post}: x * phi[:, n:2n] -> 2*sigma(output[:, n:2n])
@@ -76,13 +76,13 @@ CK_TILE_HOST void reference_mhc(const HostTensor<XDataType>& x_b_nc,       // [B
                        type_convert<ComputeDataType>(phi_nc_out(k, n + out_idx));
             }
             // // Step 5: Apply 2*σ(H^{post})
-            // ComputeDataType activated_value;
-            // activation(activated_value, sum);
-            // output_b_out(b, n + out_idx) =
-            //     type_convert<YDataType>((alpha_post / r) * 2.0f * activated_value + bias);
+            ComputeDataType activated_value;
+            activation(activated_value, sum);
+            output_b_out(b, n + out_idx) =
+                type_convert<YDataType>((alpha_post / norm) * 2.0f * activated_value + bias);
 
             // TESTING: Store raw GEMM output
-            output_b_out(b, n + out_idx) = type_convert<YDataType>(sum);
+            // output_b_out(b, n + out_idx) = type_convert<YDataType>(sum);
         }
 
         // Process H^{res}: x * phi[:, 2n:2n+n^2] -> output[:, 2n:2n+n^2]
@@ -95,17 +95,17 @@ CK_TILE_HOST void reference_mhc(const HostTensor<XDataType>& x_b_nc,       // [B
                 sum += type_convert<ComputeDataType>(x_b_nc(b, k)) *
                        type_convert<ComputeDataType>(phi_nc_out(k, 2 * n + out_idx));
             }
-            // // Apply: 1/r * alpha_res * sum + bias
-            // output_b_out(b, 2 * n + out_idx) =
-            //     type_convert<YDataType>((alpha_res / r) * sum + bias);
+            // Apply: 1/r * alpha_res * sum + bias
+            output_b_out(b, 2 * n + out_idx) =
+                type_convert<YDataType>((alpha_res / norm) * sum + bias);
 
             // TESTING: Store raw GEMM output
-            output_b_out(b, 2 * n + out_idx) = type_convert<YDataType>(sum);
+            // output_b_out(b, 2 * n + out_idx) = type_convert<YDataType>(sum);
         }
 
         // Note: norm is computed but not currently used in the output
         // It could be used for additional normalization if needed
-        (void)norm;
+        // (void)norm;
     };
 
     make_ParallelTensorFunctor(f_batch, B)(std::thread::hardware_concurrency());
