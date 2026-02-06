@@ -191,17 +191,17 @@ class EnhancedNinjaDependencyParser:
         if any(
             file_path.startswith(prefix)
             for prefix in [
-                "include/",
-                "library/",
-                "test/",
-                "example/",
-                "src/",
-                "profiler/",
-                "build/include/",
-                "build/_deps/gtest",
-                "client_example",
-                "codegen",
-                "tile_engine",
+                "projects/composablekernel/include/",
+                "projects/composablekernel/library/",
+                "projects/composablekernel/test/",
+                "projects/composablekernel/example/",
+                "projects/composablekernel/src/",
+                "projects/composablekernel/profiler/",
+                "projects/composablekernel/build/include/",
+                "projects/composablekernel/build/_deps/gtest",
+                "projects/composablekernel/client_example",
+                "projects/composablekernel/codegen",
+                "projects/composablekernel/tile_engine",
             ]
         ):
             return True
