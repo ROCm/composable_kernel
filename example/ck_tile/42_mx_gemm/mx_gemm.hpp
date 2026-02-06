@@ -73,9 +73,9 @@ struct MxGemmConfig
 };
 struct MXfp4_GemmConfig16 : MxGemmConfig
 {
-    static constexpr ck_tile::index_t M_Tile = 32;
+    static constexpr ck_tile::index_t M_Tile = 64;
     static constexpr ck_tile::index_t N_Tile = 64;
-    static constexpr ck_tile::index_t K_Tile = 512;
+    static constexpr ck_tile::index_t K_Tile = 256;
 };
 
 // GEMM config with 16x16 warp tile
@@ -83,5 +83,5 @@ struct MXfp8_GemmConfig16 : MxGemmConfig
 {
     static constexpr ck_tile::index_t M_Tile = 32;
     static constexpr ck_tile::index_t N_Tile = 64;
-    static constexpr ck_tile::index_t K_Tile = 512;
+    static constexpr ck_tile::index_t K_Tile = 256;
 };
