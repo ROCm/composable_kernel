@@ -21,11 +21,8 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
     static constexpr auto ATileAccessPattern = tile_distribution_pattern::warp_raked;
     static constexpr auto BTileAccessPattern = tile_distribution_pattern::warp_raked;
 
-    // MX scaling configuration: pack 4 consecutive e8m0 scales in K dimension
-    static constexpr int MXdlPack = 1;  // No M packing
-    static constexpr int NXdlPack = 1;  // No N packing
-    static constexpr int KXdlPack = 4;  // Pack 4 consecutive e8m0 scales in K = 4 bytes = 1 int32
-    static constexpr int BlockScaleSize = 32;  // Each e8m0 scale covers 32 elements in K
+    // MX scaling configuration: each e8m0 scale covers 32 elements in K
+    static constexpr int BlockScaleSize = 32;  
 
     // Override vector size methods to ensure compatibility with async buffer operations
     // Valid sizes for amd_async_buffer_load are 4, 12, or 16 bytes
@@ -78,18 +75,10 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {        
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-        /// NOTE: for flatmm style byte tensor, divide KPerBlock by APackedSize to get STORAGE dimensions
-        // using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
-        // using ADataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
-        // constexpr index_t APackedSize = numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
-        // constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / APackedSize; // Use STORAGE dimensions
-        /// NOTE: use original KPerBlock
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         if constexpr(is_a_load_tr<Problem>)
         {
             // TODO: better LDS descriptor for performance
-            // This branch is reusing the logic from
-            // UniversalGemmBasePolicy::MakeALdsBlockDescriptor
             constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor( //
                 make_tuple(number<KPerBlock>{}, number<MPerBlock>{}),
                 make_tuple(number<MPerBlock>{}, number<1>{}),
@@ -100,7 +89,6 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         else
         {
             constexpr index_t KPack = GetSmemPackA<Problem>();
-            static_assert(KPack >= 16, "KPack must be at least 16");
 
             constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<KPerBlock / KPack>{}, number<MPerBlock>{}, number<KPack>{}),
@@ -122,18 +110,10 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        /// NOTE: for flatmm style byte tensor, divide KPerBlock by BPackedSize to get STORAGE dimensions
-        // using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
-        // using BDataType  = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
-        // constexpr index_t BPackedSize = numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
-        // constexpr index_t KPerBlock = Problem::BlockGemmShape::kK / BPackedSize; // Use STORAGE dimensions
-        /// NOTE: use original KPerBlock
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         if constexpr(is_b_load_tr<Problem>)
         {
             // TODO: better LDS descriptor for performance
-            // This branch is reusing the logic from
-            // UniversalGemmBasePolicy::MakeBLdsBlockDescriptor
             constexpr auto b_lds_block_desc_0 =
                 make_naive_tensor_descriptor(make_tuple(number<KPerBlock>{}, number<NPerBlock>{}),
                                              make_tuple(number<NPerBlock>{}, number<1>{}),
@@ -144,7 +124,6 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         else
         {
             constexpr index_t KPack = GetSmemPackB<Problem>();
-            static_assert(KPack >= 16, "KPack must be at least 16");
 
             constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<KPerBlock / KPack>{}, number<NPerBlock>{}, number<KPack>{}),
@@ -211,13 +190,9 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t NWarp = BlockWarps::at(number<1>{});
         constexpr index_t MPerXdl = WarpTile::at(number<0>{});
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        // constexpr index_t ScaleKDimPerBlock = KPerBlock / BlockScaleSize;  // e8m0_t elements per block (no packing)
+
         constexpr index_t K_Lane = get_warp_size() / MPerXdl;  // 64/16 = 4 threads in K dimension
         constexpr index_t MIterPerWarp = MPerBlock / (MWarp * MPerXdl);
-        
-        // Scale A: [MWarp * MPerXdl, ScaleKDimPerBlock] warp-level tile with e8m0_t elements
-        // For K=512: [16, 16], distribute 16 e8m0_t elements across 4 K_Lane threads (4 each)
-        // Distribution: Replicate in M dimension, distribute in K dimension
         constexpr index_t KPerXdl = WarpTile::at(number<2>{});
         constexpr index_t KIterPerWarp = KPerBlock / KPerXdl;
         constexpr index_t KPerLane = KPerXdl / BlockScaleSize / K_Lane;
@@ -244,13 +219,8 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t NWarp = BlockWarps::at(number<1>{});
         constexpr index_t NPerXdl = WarpTile::at(number<1>{});
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        // constexpr index_t ScaleKDimPerBlock = KPerBlock / BlockScaleSize;  // e8m0_t elements per block (no packing)
         constexpr index_t K_Lane = get_warp_size() / NPerXdl;  // 64/16 = 4 threads in K dimension
         constexpr index_t NIterPerWarp = NPerBlock / (NWarp * NPerXdl);
-        // Scale B: [NWarp * NPerXdl, ScaleKDimPerBlock] warp-level tile with e8m0_t elements
-        // Viewed as [N, K] = [64, 16] for K=512 (access pattern, not storage)
-        // For K=512: [64, 16], distribute 16 e8m0_t elements across 4 K_Lane threads (4 each)
-        // Distribution: Replicate in N dimension, distribute in K dimension
 
         constexpr index_t KPerXdl = WarpTile::at(number<2>{});
         constexpr index_t KIterPerWarp = KPerBlock / KPerXdl;

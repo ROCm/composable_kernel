@@ -313,8 +313,12 @@ struct BlockGemmARegBRegCRegV1
                     merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                     merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
-                // get A scale for this M-K tile
-                const int32_t a_scale = scale_a_tensor(mIter, kIter);
+                // get A scale for this M-K tile using get_y_sliced_thread_data
+                auto scale_a_slice = scale_a_tensor.get_y_sliced_thread_data(
+                    sequence<kIter, mIter, 0>{},
+                    sequence<1, 1, 1>{});
+                const auto a_scale_e8m0 = scale_a_slice[number<0>{}];
+                const int32_t a_scale = static_cast<int32_t>(a_scale_e8m0.get());
 
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     // read B warp tensor from B block tensor
@@ -323,8 +327,12 @@ struct BlockGemmARegBRegCRegV1
                         merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 
-                    // get B scale for this N-K tile
-                    const int32_t b_scale = scale_b_tensor(nIter, kIter);
+                    // get B scale for this N-K tile using get_y_sliced_thread_data
+                    auto scale_b_slice = scale_b_tensor.get_y_sliced_thread_data(
+                        sequence<kIter, nIter, 0>{},
+                        sequence<1, 1, 1>{});
+                    const auto b_scale_e8m0 = scale_b_slice[number<0>{}];
+                    const int32_t b_scale = static_cast<int32_t>(b_scale_e8m0.get());
 
                     // read C warp tensor from C block tensor
                     using c_iter_idx = std::
@@ -335,9 +343,10 @@ struct BlockGemmARegBRegCRegV1
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                     // warp GEMM with MX scaling
-                    // opsel is kIter for both A and B (selecting which packed element group)
-                    WarpGemm{}.template operator()<kIter, kIter>(
-                        c_warp_tensor, a_warp_tensor, a_scale, b_warp_tensor, b_scale);
+                    // Cast e8m0_t to int32_t, use OpSel=0 (least significant byte)
+                    constexpr index_t kOpSel = 0;  // Always use OpSel=0
+                    WarpGemm{}.template operator()<kOpSel, kOpSel>(
+                        c_warp_tensor, a_warp_tensor, b_warp_tensor, a_scale, b_scale);
 
                     // write C warp tensor into C block tensor
                     c_block_tensor.set_y_sliced_thread_data(

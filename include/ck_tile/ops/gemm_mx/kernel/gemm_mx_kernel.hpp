@@ -301,7 +301,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
         return scale_b_block_window;
     }
 
-    template <class ScaleM, class ScaleN, bool UseDefaultScheduler = true>
+    template <class ScaleM, class ScaleN>
     CK_TILE_DEVICE static void
     RunMxGemm(const std::array<const ADataType*, NumATensor>& as_ptr,
               const std::array<const BDataType*, NumBTensor>& bs_ptr,
@@ -344,7 +344,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
 
         // Run Epilogue Pipeline - create C block window directly
         auto c_block_window =
-            MakeCBlockWindows<EpiloguePipeline::MemoryOperation>(e_ptr, kargs, i_m, i_n);
+            MakeCBlockWindows(e_ptr, kargs, i_m, i_n);
         EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_ping);
     }
 
@@ -364,7 +364,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
     {
         const int total_work_tile_cnt = amd_wave_read_first_lane(TilePartitioner::GridSize(kargs.M, kargs.N));
 
-        // Allocate shared memory OUTSIDE the loop - __shared__ variables must be at function scope
+        // Allocate shared memory for ping pong buffers
         __shared__ char smem_ptr_ping[GetSmemPingSize()];
         __shared__ char smem_ptr_pong[GetSmemPongSize()];
 
@@ -394,27 +394,16 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
                             splitk_batch_offset.bs_k_split_offset[i] / BPackedSize;
             });
 
-            if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
-                           EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                           is_any_of<EDataType, fp16_t, bf16_t>::value))
-            {
-                constexpr auto scheduler_type = (MXGemmPipeline::NumWaveGroups == 1);
-                RunMxGemm<ScaleM, ScaleN, scheduler_type>(as_ptr,
-                                                          bs_ptr,
-                                                          kargs.ds_ptr,
-                                                          e_ptr,
-                                                          smem_ptr_ping,
-                                                          smem_ptr_pong,
-                                                          kargs,
-                                                          splitk_batch_offset,
-                                                          i_m,
-                                                          i_n);
-            }
-            else
-            {
-                static_assert(false,
-                              "Unimplemented: atomic_add with odd vector size for fp16/bf16");
-            }
+            RunMxGemm<ScaleM, ScaleN>(as_ptr,
+                                                      bs_ptr,
+                                                      kargs.ds_ptr,
+                                                      e_ptr,
+                                                      smem_ptr_ping,
+                                                      smem_ptr_pong,
+                                                      kargs,
+                                                      splitk_batch_offset,
+                                                      i_m,
+                                                      i_n);
             partition_idx += gridDim.x;
         } while(UsePersistentKernel && partition_idx < total_work_tile_cnt);
     }

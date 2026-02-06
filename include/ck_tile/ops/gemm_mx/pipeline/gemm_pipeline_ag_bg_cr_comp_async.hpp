@@ -294,8 +294,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                           "B block window has incorrect lengths for defined BLayout!");
 
             ////////////// global window & register /////////////////
-            // A DRAM tile window(s) for load  
-            
+            // A DRAM tile window(s) for load
             auto a_tile_windows = generate_tuple(
                 [&](auto idx) {
                     return make_tile_window(
@@ -323,8 +322,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             constexpr index_t NWarp = BlockWarps::at(I1{});
             
             // Calculate scale dimensions: KPerBlock elements need KPerBlock/32 e8m0_t scales
-            // Use e8m0_t directly without packing
-            constexpr index_t ScaleKDimPerBlock = KPerBlock / ScaleBlockSize;  // e8m0_t elements per block
+            constexpr index_t ScaleKDimPerBlock = KPerBlock / ScaleBlockSize;
             
             // Scale tensor views and base origins for creating tile windows per iteration
             const auto& scale_a_tensor_view = scale_a_window.get_bottom_tensor_view();
@@ -434,7 +432,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             constexpr ScaleBDramTileWindowStep scale_b_dram_tile_window_step = make_array(0, ScaleKDimPerBlock);
             
             // Helper function to load scales
-            auto load_scales_once = [&](auto& scale_a, auto& scale_b) {
+            auto load_scales_from_dram = [&](auto& scale_a, auto& scale_b) {
                 scale_a = load_tile(scale_a_dram_window);
                 scale_b = load_tile(scale_b_dram_window);
                 move_tile_window(scale_a_dram_window, scale_a_dram_tile_window_step);
@@ -494,11 +492,11 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
 
             // Load scales for iteration 0 (ping)
-            load_scales_once(scale_a_tile_ping, scale_b_tile_ping);
+            load_scales_from_dram(scale_a_tile_ping, scale_b_tile_ping);
             
             // Load scales for iteration 1 (pong) if needed
             if (num_loop > 1) {
-                load_scales_once(scale_a_tile_pong, scale_b_tile_pong);
+                load_scales_from_dram(scale_a_tile_pong, scale_b_tile_pong);
             }
 
             if(HasHotLoop)
@@ -528,7 +526,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                         block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
                         HotLoopScheduler();
                         // Load next scales after using current scales above
-                        load_scales_once(scale_a_tile_ping, scale_b_tile_ping);
+                        load_scales_from_dram(scale_a_tile_ping, scale_b_tile_ping);
                     }
                     // pong
                     {
@@ -551,7 +549,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                         block_gemm(c_block_tile, a_block_tile1, b_block_tile1, scale_a_tile_pong, scale_b_tile_pong);
                         HotLoopScheduler();
                         // Load next scales after using current scales above
-                        load_scales_once(scale_a_tile_pong, scale_b_tile_pong);
+                        load_scales_from_dram(scale_a_tile_pong, scale_b_tile_pong);
                     }
                     i_global_read += 2;
                 } while(i_global_read < num_loop);
@@ -568,7 +566,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
                     
                     // load last scales to ping for the last iteration to ping buffers
-                    load_scales_once(scale_a_tile_ping, scale_b_tile_ping);
+                    load_scales_from_dram(scale_a_tile_ping, scale_b_tile_ping);
                 }
                 {
                     // write to LDS window(0) must complete before the local prefetch
