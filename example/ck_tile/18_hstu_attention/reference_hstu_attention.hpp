@@ -33,7 +33,8 @@ template <typename InOutDataType,
           bool kUseCausal>
 struct reference_hstu_attention
 {
-    static void Run(const HostTensor<InOutDataType>& q_batch_seq_nhead_hdim,
+    static void Run(bool is_cross_attention,
+                    const HostTensor<InOutDataType>& q_batch_seq_nhead_hdim,
                     const HostTensor<InOutDataType>& k_batch_seq_nhead_hdim,
                     const HostTensor<InOutDataType>& v_batch_seq_nhead_hdim,
                     HostTensor<InOutDataType>& o_batch_seq_nhead_hdim,
@@ -53,6 +54,8 @@ struct reference_hstu_attention
                     int min_full_attn_seqlen) // define masking length at the end of query token
                                               // sequence which is included for full attention
     {
+        ignore = is_cross_attention;
+
         if constexpr(kIsJagged)
         {
             // check the number of batches

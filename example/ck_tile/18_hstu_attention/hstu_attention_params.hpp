@@ -7,6 +7,11 @@
 
 struct HstuAttentionFwdParams
 {
+    // for self-attention (is_cross_attention = false), we requires
+    // 1) either seqlen_kv == 0 or seqlen_kv == seqlen_q
+    // 2) either seq_kv_offsets_ptr == nullptr, or seq_kv_offsets_ptr == seq_q_offsets_ptr
+    bool is_cross_attention;
+
     bool is_jagged;
 
     ck_tile::index_t num_batch;

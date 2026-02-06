@@ -263,6 +263,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     int max_target = 0;
 
+    bool is_cross_attention = false;
+
     if(!num_targets.empty())
     {
         // supplement num_targets using the last input value if user-provided lengths not enough
@@ -275,9 +277,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     HSTU_CHECK(!seq_lengths_q.empty(), "sequence lengths of q shoud be defined!");
 
-    // assume seq_lengths_kv is same as seq_lengths_q if not defined
+    // assume seq_lengths_kv is same as seq_lengths_q if not defined, or else when
+    // seq_lengths_kv is explicitly defined, we think the input case is a cross_attention case
     if(seq_lengths_kv.empty())
         seq_lengths_kv = seq_lengths_q;
+    else
+        is_cross_attention = true;
 
     // assume input_max_uih_seqlen_kv is same as input_max_uih_seqlen_q if not strictly defined
     if(input_max_uih_seqlen_kv <= 0)
@@ -285,10 +290,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(is_jagged)
     {
-        // supplement seq_lengths_q using the last input value if user-provided lengths not enough
+        // supplement seq_lengths_q using the last input value if user-provided lengths not
+        // enough
         supplement_array_by_last_element(seq_lengths_q, num_batch);
 
-        // supplement seq_lengths_kv using the last input value if user-provided lengths not enough
+        // supplement seq_lengths_kv using the last input value if user-provided lengths not
+        // enough
         supplement_array_by_last_element(seq_lengths_kv, num_batch);
 
         // only consider num_batch values even if more values are provided by the user
@@ -452,6 +459,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(is_jagged)
     {
+        params.is_cross_attention = is_cross_attention;
         params.is_jagged          = true;
         params.num_batch          = num_batch;
         params.seq_q_offsets_ptr  = seq_offsets_q_dev.GetDeviceBuffer();
@@ -489,35 +497,36 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
     else
     {
-        params.is_jagged         = false;
-        params.num_batch         = num_batch;
-        params.seqlen_q          = phy_seqlen_q;
-        params.seqlen_kv         = phy_seqlen_kv;
-        params.q_ptr             = q_dev.GetDeviceBuffer();
-        params.k_ptr             = k_dev.GetDeviceBuffer();
-        params.v_ptr             = v_dev.GetDeviceBuffer();
-        params.bias_ptr          = nullptr; // bias is not supported at present
-        params.o_ptr             = o_dev.GetDeviceBuffer();
-        params.hdim_qk           = hdim_qk;
-        params.hdim_v            = hdim_v;
-        params.num_head          = num_head;
-        params.scale_s           = scale_s;
-        params.attn_scale        = attn_scale;
-        params.seq_stride_q      = q_host.get_strides()[1];
-        params.seq_stride_k      = k_host.get_strides()[1];
-        params.seq_stride_v      = v_host.get_strides()[1];
-        params.seq_stride_bias   = 0;
-        params.seq_stride_o      = o_host_ref.get_strides()[1];
-        params.nhead_stride_q    = q_host.get_strides()[2];
-        params.nhead_stride_k    = k_host.get_strides()[2];
-        params.nhead_stride_v    = v_host.get_strides()[2];
-        params.nhead_stride_bias = 0;
-        params.nhead_stride_o    = o_host_ref.get_strides()[2];
-        params.batch_stride_q    = q_host.get_strides()[0];
-        params.batch_stride_k    = k_host.get_strides()[0];
-        params.batch_stride_v    = v_host.get_strides()[0];
-        params.batch_stride_bias = 0;
-        params.batch_stride_o    = o_host_ref.get_strides()[0];
+        params.is_cross_attention = is_cross_attention;
+        params.is_jagged          = false;
+        params.num_batch          = num_batch;
+        params.seqlen_q           = phy_seqlen_q;
+        params.seqlen_kv          = phy_seqlen_kv;
+        params.q_ptr              = q_dev.GetDeviceBuffer();
+        params.k_ptr              = k_dev.GetDeviceBuffer();
+        params.v_ptr              = v_dev.GetDeviceBuffer();
+        params.bias_ptr           = nullptr; // bias is not supported at present
+        params.o_ptr              = o_dev.GetDeviceBuffer();
+        params.hdim_qk            = hdim_qk;
+        params.hdim_v             = hdim_v;
+        params.num_head           = num_head;
+        params.scale_s            = scale_s;
+        params.attn_scale         = attn_scale;
+        params.seq_stride_q       = q_host.get_strides()[1];
+        params.seq_stride_k       = k_host.get_strides()[1];
+        params.seq_stride_v       = v_host.get_strides()[1];
+        params.seq_stride_bias    = 0;
+        params.seq_stride_o       = o_host_ref.get_strides()[1];
+        params.nhead_stride_q     = q_host.get_strides()[2];
+        params.nhead_stride_k     = k_host.get_strides()[2];
+        params.nhead_stride_v     = v_host.get_strides()[2];
+        params.nhead_stride_bias  = 0;
+        params.nhead_stride_o     = o_host_ref.get_strides()[2];
+        params.batch_stride_q     = q_host.get_strides()[0];
+        params.batch_stride_k     = k_host.get_strides()[0];
+        params.batch_stride_v     = v_host.get_strides()[0];
+        params.batch_stride_bias  = 0;
+        params.batch_stride_o     = o_host_ref.get_strides()[0];
         params.num_targets_ptr = num_targets.empty() ? nullptr : num_targets_dev.GetDeviceBuffer();
         params.use_softmax     = use_softmax;
         params.use_causal      = use_causal;
@@ -566,7 +575,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                               CompDataType,
                                               kIsJagged,
                                               kUseSoftmax,
-                                              kUseCausal>::Run(q_host,
+                                              kUseCausal>::Run(is_cross_attention,
+                                                               q_host,
                                                                k_host,
                                                                v_host,
                                                                o_host_ref,

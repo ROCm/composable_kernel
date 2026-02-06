@@ -61,6 +61,7 @@ struct HstuAttentionFwdKernel
     // user need to use MakeKargs() function to create kargs.
     struct HstuAttentionFwdBatchModeBaseKargs
     {
+        bool is_cross_attention;
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
         ck_tile::index_t batch_stride_v;
@@ -99,6 +100,7 @@ struct HstuAttentionFwdKernel
 
     struct HstuAttentionFwdJaggModeBaseKargs
     {
+        bool is_cross_attention;
         const int32_t* seq_q_offsets_ptr;
         const int32_t* seq_kv_offsets_ptr;
 
@@ -194,7 +196,8 @@ struct HstuAttentionFwdKernel
 
     template <bool Cond = !kIsJagged>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* q_ptr,
+    MakeKargs(bool is_cross_attention,
+              const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
               const void* bias_ptr,
@@ -230,7 +233,8 @@ struct HstuAttentionFwdKernel
               uint64_t philox_offset)
     {
         Kargs kargs{
-            {batch_stride_q,
+            {is_cross_attention,
+             batch_stride_q,
              batch_stride_k,
              batch_stride_v,
              batch_stride_o,
@@ -279,7 +283,8 @@ struct HstuAttentionFwdKernel
 
     template <bool Cond = kIsJagged>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* q_ptr,
+    MakeKargs(bool is_cross_attention,
+              const void* q_ptr,
               const void* k_ptr,
               const void* v_ptr,
               const void* bias_ptr,
@@ -311,7 +316,8 @@ struct HstuAttentionFwdKernel
               uint64_t philox_offset)
     {
         Kargs kargs{
-            {reinterpret_cast<const int32_t*>(seq_q_offsets_ptr),
+            {is_cross_attention,
+             reinterpret_cast<const int32_t*>(seq_q_offsets_ptr),
              reinterpret_cast<const int32_t*>(seq_kv_offsets_ptr),
              seq_stride_q,
              seq_stride_k,
