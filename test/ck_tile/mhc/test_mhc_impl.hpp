@@ -19,18 +19,15 @@ template <typename Tuple>
 class TestCkTileMHC : public ::testing::Test
 {
     public:
-    // protected:
-    // using XDataType               = std::tuple_element_t<0, Tuple>;
-    // using ComputeDataType         = std::tuple_element_t<1, Tuple>;
-    // using YDataType               = std::tuple_element_t<2, Tuple>;
-    // using ReduceOpsType           = std::tuple_element_t<3, Tuple>;
-    // using ElementwiseOpsType      = std::tuple_element_t<4, Tuple>;
-    // using AccumulatorOpsType      = std::tuple_element_t<5, Tuple>;
-    // using InterBlockReduceOpsType = std::tuple_element_t<6, Tuple>;
-    // using BlockWarps_             = std::tuple_element_t<7, Tuple>;
-    // using BlockTile_              = std::tuple_element_t<8, Tuple>;
-    // using WarpTile_               = std::tuple_element_t<9, Tuple>;
-    // using ThreadTile_             = std::tuple_element_t<10, Tuple>;
+    // Extract data types and shape parameters from tuple
+    using XDataType       = std::tuple_element_t<0, Tuple>;
+    using PhiDataType     = std::tuple_element_t<1, Tuple>;
+    using YDataType       = std::tuple_element_t<2, Tuple>;
+    using ComputeDataType = std::tuple_element_t<3, Tuple>;
+    using BlockWarps_     = std::tuple_element_t<4, Tuple>;
+    using BlockTile_      = std::tuple_element_t<5, Tuple>;
+    using WarpTile_       = std::tuple_element_t<6, Tuple>;
+    using ThreadTile_     = std::tuple_element_t<7, Tuple>;
 
     // using TestReduce2dShape =
     //     ck_tile::Reduce2dShape<BlockWarps_, BlockTile_, WarpTile_, ThreadTile_>;
@@ -653,20 +650,21 @@ class TestCkTileMHC : public ::testing::Test
         const int nC         = n * C;         // Total input dimension
         const int output_dim = 2 * n + n * n; // 2n + n^2 = 24
 
-        // using ActivationFunc = ck_tile::element_wise::Sigmoid;
-
         std::cout << "\n--- Testing MHC Kernel V3 with B=" << B << " (n=" << n << ", C=" << C
                   << ") ---" << std::endl;
+        std::cout << "Data types: X=" << typeid(XDataType).name()
+                  << ", Phi=" << typeid(PhiDataType).name() << ", Y=" << typeid(YDataType).name()
+                  << std::endl;
         std::cout << "Output dimension: " << output_dim << std::endl;
 
-        // Allocate host tensors
-        ck_tile::HostTensor<float> h_x({B, nC});
-        ck_tile::HostTensor<float> h_phi({nC, output_dim});
-        ck_tile::HostTensor<float> h_output({B, output_dim});
+        // Allocate host tensors with proper data types
+        ck_tile::HostTensor<XDataType> h_x({B, nC});
+        ck_tile::HostTensor<PhiDataType> h_phi({nC, output_dim});
+        ck_tile::HostTensor<YDataType> h_output({B, output_dim});
 
         // Initialize with random data
-        ck_tile::FillUniformDistribution<float>{-1.0f, 1.0f}(h_x);
-        ck_tile::FillUniformDistribution<float>{-0.5f, 0.5f}(h_phi);
+        ck_tile::FillUniformDistribution<XDataType>{-1.0f, 1.0f}(h_x);
+        ck_tile::FillUniformDistribution<PhiDataType>{-0.5f, 0.5f}(h_phi);
         h_output.SetZero();
 
         // Allocate device memory
@@ -684,7 +682,7 @@ class TestCkTileMHC : public ::testing::Test
                                                         ck_tile::sequence<1, 128>,
                                                         ck_tile::sequence<1, 1>>;
 
-        using Problem = ck_tile::MHCProblem<float, float, float, BlockShape>;
+        using Problem = ck_tile::MHCProblem<XDataType, ComputeDataType, YDataType, BlockShape>;
 
         // V3 kernel with 2D tiling
         constexpr ck_tile::index_t kMTile = 64; // Batch tile
@@ -713,41 +711,42 @@ class TestCkTileMHC : public ::testing::Test
         const float r = 2.0f, alpha_pre = 1.5f, alpha_post = 2.5f, alpha_res = 3.5f, bias = 1.5f;
 
         // Launch kernel
-        ck_tile::launch_kernel(
-            ck_tile::stream_config{nullptr, false, 0},
-            ck_tile::make_kernel<kBlockPerCu>(KernelV3{},
-                                              kGridSize,
-                                              kBlockSize,
-                                              KernelV3::GetSmemSize(),
-                                              static_cast<float*>(d_x_mem.GetDeviceBuffer()),
-                                              static_cast<float*>(d_phi_mem.GetDeviceBuffer()),
-                                              static_cast<float*>(d_output_mem.GetDeviceBuffer()),
-                                              B,
-                                              nC,
-                                              output_dim,
-                                              n,
-                                              r,
-                                              alpha_pre,
-                                              alpha_post,
-                                              alpha_res,
-                                              bias));
+        ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0},
+                               ck_tile::make_kernel<kBlockPerCu>(
+                                   KernelV3{},
+                                   kGridSize,
+                                   kBlockSize,
+                                   KernelV3::GetSmemSize(),
+                                   static_cast<XDataType*>(d_x_mem.GetDeviceBuffer()),
+                                   static_cast<PhiDataType*>(d_phi_mem.GetDeviceBuffer()),
+                                   static_cast<YDataType*>(d_output_mem.GetDeviceBuffer()),
+                                   B,
+                                   nC,
+                                   output_dim,
+                                   n,
+                                   r,
+                                   alpha_pre,
+                                   alpha_post,
+                                   alpha_res,
+                                   bias));
 
         d_output_mem.FromDevice(h_output.data());
 
         // Compute reference
-        ck_tile::HostTensor<float> h_output_ref({B, output_dim});
+        ck_tile::HostTensor<YDataType> h_output_ref({B, output_dim});
         h_output_ref.SetZero();
-        ck_tile::reference_mhc<float, float, float, float, ActivationFunc>(h_x,
-                                                                           h_phi,
-                                                                           h_output_ref,
-                                                                           n,
-                                                                           C,
-                                                                           r,
-                                                                           alpha_pre,
-                                                                           alpha_post,
-                                                                           alpha_res,
-                                                                           bias,
-                                                                           ActivationFunc{});
+        ck_tile::reference_mhc<XDataType, PhiDataType, YDataType, ComputeDataType, ActivationFunc>(
+            h_x,
+            h_phi,
+            h_output_ref,
+            n,
+            C,
+            r,
+            alpha_pre,
+            alpha_post,
+            alpha_res,
+            bias,
+            ActivationFunc{});
 
         // Validate
         bool pass = ck_tile::check_err(

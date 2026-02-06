@@ -21,13 +21,27 @@ using Shape1_WarpTile   = ck_tile::sequence<32, 128>;
 using Shape1_ThreadTile = ck_tile::sequence<8, 8>;
 
 // Test configurations for different data types
-using TestConfig_F16_Basic = std::tuple< // TODO,
-    Shape1_BlockWarps,
-    Shape1_BlockTile,
-    Shape1_WarpTile,
-    Shape1_ThreadTile>;
+// Tuple format: <XDataType, PhiDataType, YDataType, ComputeDataType, BlockWarps, BlockTile,
+// WarpTile, ThreadTile>
+using TestConfig_F32 = std::tuple<float, // XDataType
+                                  float, // PhiDataType
+                                  float, // CDataType
+                                  float, // ComputeDataType
+                                  Shape1_BlockWarps,
+                                  Shape1_BlockTile,
+                                  Shape1_WarpTile,
+                                  Shape1_ThreadTile>;
 
-using TestTypes = ::testing::Types<TestConfig_F16_Basic>;
+using TestConfig_BF16 = std::tuple<ck_tile::bf16_t, // XDataType
+                                   ck_tile::bf16_t, // PhiDataType
+                                   float,           // CDataType
+                                   float,           // ComputeDataType
+                                   Shape1_BlockWarps,
+                                   Shape1_BlockTile,
+                                   Shape1_WarpTile,
+                                   Shape1_ThreadTile>;
+
+using TestTypes = ::testing::Types<TestConfig_F32, TestConfig_BF16>;
 
 TYPED_TEST_SUITE(TestCkTileMHC, TestTypes);
 
