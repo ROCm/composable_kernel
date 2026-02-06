@@ -429,18 +429,18 @@ def buildDocker(install_prefix){
     echo "Building Docker for ${image_name}"
     def dockerArgs = "--build-arg PREFIX=${install_prefix} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
     if(params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
-        dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f Dockerfile.compiler . "
+        dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f projects/composablekernel/Dockerfile.compiler . "
     }
     else if(params.RUN_AITER_TESTS){
         image_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
-        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
+        dockerArgs = dockerArgs + " --no-cache -f projects/composablekernel/Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
     }
      else if(params.RUN_PYTORCH_TESTS){
         image_name = "${env.CK_DOCKERHUB}:ck_pytorch"
-        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.pytorch --build-arg CK_PYTORCH_BRANCH='${params.ck_pytorch_branch}' . "
+        dockerArgs = dockerArgs + " --no-cache -f projects/composablekernel/Dockerfile.pytorch --build-arg CK_PYTORCH_BRANCH='${params.ck_pytorch_branch}' . "
     }
    else{
-        dockerArgs = dockerArgs + " -f Dockerfile . "
+        dockerArgs = dockerArgs + " -f projects/composablekernel/Dockerfile . "
     }
     echo "Build Args: ${dockerArgs}"
     try{
@@ -500,9 +500,10 @@ def build_client_examples(String arch){
 }
 
 def build_client_examples_and_codegen_tests(String arch){
-    def cmd = """ cmake -DCMAKE_PREFIX_PATH=/opt/rocm -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" ../codegen && \
+    def cmd = """ cd ../codegen && rm -rf build && mkdir build && cd build && \
+                cmake -DCMAKE_PREFIX_PATH=/opt/rocm -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" .. && \
                 make -j64 check && \
-                cd ../client_example && rm -rf build && mkdir build && cd build && \
+                cd ../../client_example && rm -rf build && mkdir build && cd build && \
                 cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/projects/composablekernel/install;/opt/rocm" \
                 -DGPU_TARGETS="${arch}" \
                 -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
@@ -510,7 +511,6 @@ def build_client_examples_and_codegen_tests(String arch){
                 -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
     return cmd
 }
-
 
 def build_and_run_fmha(String arch){
     def cmd = """ cmake -G Ninja -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/projects/composablekernel/install;/opt/rocm" \
@@ -855,7 +855,7 @@ def Build_CK(Map conf=[:]){
                             """
                     }
                     // run performance tests, stash the logs, results will be processed on the master node
-					dir("script"){
+					dir("projects/composablekernel/script"){
                         if (params.RUN_PERFORMANCE_TESTS){
                         if (params.RUN_FULL_QA && (arch == "gfx90a" || arch == "gfx942")){
                             // run full tests on gfx90a or gfx942
@@ -940,7 +940,7 @@ def process_results(Map conf=[:]){
     withDockerContainer(image: image, args: '--cap-add=SYS_PTRACE --security-opt seccomp=unconfined -v=/var/jenkins/:/var/jenkins') {
         timeout(time: 15, unit: 'MINUTES'){
             try{
-                dir("script"){
+                dir("projects/composablekernel/script"){
                     if (params.RUN_CK_TILE_FMHA_TESTS){
                         try{
                             unstash "perf_fmha_log_gfx942"
@@ -1288,6 +1288,10 @@ pipeline {
             name: "RUN_INDUCTOR_TESTS",
             defaultValue: false,
             description: "Run inductor codegen tests (default: OFF)")
+        booleanParam(
+            name: "RUN_CODEGEN_TESTS",
+            defaultValue: true,
+            description: "Run codegen tests (default: ON)")
         booleanParam(
             name: "RUN_BUILDER_TESTS",
             defaultValue: true,
@@ -1811,7 +1815,7 @@ pipeline {
                     agent{ label rocmnode("gfx90a") }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx90a" -DCK_CXX_STANDARD="17" """
-                        execute_args = build_client_examples("gfx90a")
+                        execute_args = build_client_examples_and_codegen_tests("gfx90a")
                     }
                     steps{
                         Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
