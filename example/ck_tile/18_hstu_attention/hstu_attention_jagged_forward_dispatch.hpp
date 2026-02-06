@@ -113,13 +113,15 @@ struct jagged_forward_causal_softmax_bias_dropout_dispatch
     static void RunWithKernel(HstuAttentionFwdParams& param, hipStream_t stream)
     {
         const auto kargs = [&] {
-            return HstuKernel::MakeKargs(param.q_ptr,
+            return HstuKernel::MakeKargs(param.is_cross_attention,
+                                         param.q_ptr,
                                          param.k_ptr,
                                          param.v_ptr,
                                          param.bias_ptr,
                                          param.o_ptr,
                                          param.seq_q_offsets_ptr,
-                                         param.seq_kv_offsets_ptr,
+                                         param.is_cross_attention ? param.seq_kv_offsets_ptr
+                                                                  : param.seq_q_offsets_ptr,
                                          param.max_seqlen,
                                          param.hdim_qk,
                                          param.hdim_v,
