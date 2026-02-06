@@ -50,8 +50,8 @@ int run_mx_gemm_with_layouts(int argc,
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
     // Scale tensors - follow parent matrix layouts for optimal memory access
-    // A scales: [M, K/32] with A's layout → coalescing follows A's pattern
-    // B scales: [K/32, N] with B's layout → coalescing follows B's pattern
+    // A scales: [M, K/32] with A's layout
+    // B scales: [K/32, N] with B's layout
     using ScaleType = ck_tile::e8m0_t;
     ck_tile::index_t scale_k_size = K / 32;
     
@@ -189,7 +189,7 @@ int run_mx_gemm_example(int argc, char* argv[])
                                                 ck_tile::pk_fp4_t,
                                                 float,
                                                 MXfp4_GemmConfig16,
-                                                false>(argc, argv, Row{}, Col{}, Row{});
+                                                true>(argc, argv, Row{}, Col{}, Row{});
         }
         else if(mx_prec == "fp8" || mx_prec == "fp8xfp8")
         {
@@ -197,7 +197,7 @@ int run_mx_gemm_example(int argc, char* argv[])
                                                 ck_tile::fp8_t,
                                                 float,
                                                 MXfp8_GemmConfig16,
-                                                false>(argc, argv, Row{}, Col{}, Row{});
+                                                true>(argc, argv, Row{}, Col{}, Row{});
         }
         else
         {
