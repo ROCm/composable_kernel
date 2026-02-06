@@ -61,7 +61,7 @@ struct SinkhornKnoppShape
 template <typename _InDataType,
           typename _OutDataType,
           typename _BlockShape,
-          typename _ComputeDataType = _OutDataType>
+          typename _ComputeDataType = float>
 struct SinkhornKnoppProblem
 {
     using InDataType      = remove_cvref_t<_InDataType>;
