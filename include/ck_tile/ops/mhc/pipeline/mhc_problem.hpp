@@ -26,12 +26,12 @@ struct MHCProblem
     using CDataType = ComputeDataType; // Output/accumulator matrix C
 
     // BlockGemmShape with kM, kN, kK members for BlockGemm
-    // Use supported warp gemm configuration for float32: 32x32x8
-    // We'll use 2 warps in M and 1 warp in N to get 64x32 block
+    // Using 32x32x8 warp tiles (supported by MFMA) with 2x1 warp layout for 64x32 block
+    // This gives better parallelism than 64x32 while using supported warp sizes
     using BlockGemmShape =
-        TileGemmShape<sequence<64, 32, 8>,  // BlockTile (M, N, K)
+        TileGemmShape<sequence<64, 32, 8>,  // BlockTile (M, N, K) - keep original for now
                       sequence<2, 1, 1>,    // BlockWarps (2 warps in M, 1 in N, 1 in K)
-                      sequence<32, 32, 8>>; // WarpTile (matches available float32 MFMA)
+                      sequence<32, 32, 8>>; // WarpTile (32x32x8 is supported by MFMA)
 
     // Layout types for BlockGemm
     using ALayout = ck_tile::tensor_layout::gemm::RowMajor; // x is row-major [B, nC]

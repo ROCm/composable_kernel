@@ -13,4 +13,5 @@ add_executable(${TARGET_NAME} mhc_v3_single_block_test.cpp)
 set(TARGET_NAME example_mhc_v3_two_block_test)
 add_executable(${TARGET_NAME} mhc_v3_two_block_test.cpp)
 
-
+set(TARGET_NAME example_mhc_v3_bf16_benchmark)
+add_executable(${TARGET_NAME} mhc_v3_bf16_benchmark.cpp)

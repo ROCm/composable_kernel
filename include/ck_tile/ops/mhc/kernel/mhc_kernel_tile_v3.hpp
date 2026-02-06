@@ -22,9 +22,6 @@ namespace ck_tile {
 
 template <typename Problem_,
           typename Policy_     = MHCDefaultPolicy,
-          index_t kMTile_      = 64, // Batch tile size
-          index_t kNTile_      = 32, // Output dimension tile (can cover all 24 outputs)
-          index_t kKTile_      = 8,  // K-tile for C dimension (must match BlockGemmShape::kK)
           typename Activation_ = element_wise::Sigmoid>
 struct MHCKernelV3
 {
@@ -37,9 +34,10 @@ struct MHCKernelV3
     using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
     using PhiDataType     = ck_tile::remove_cvref_t<typename Problem::PhiDataType>;
 
-    static constexpr index_t kMTile = kMTile_; // Batch tile
-    static constexpr index_t kNTile = kNTile_; // Output tile
-    static constexpr index_t kKTile = kKTile_; // K tile for C dimension
+    // Automatically derive tile sizes from BlockGemmShape (single source of truth!)
+    static constexpr index_t kMTile = Problem::BlockGemmShape::kM; // Batch tile
+    static constexpr index_t kNTile = Problem::BlockGemmShape::kN; // Output tile
+    static constexpr index_t kKTile = Problem::BlockGemmShape::kK; // K tile for C dimension
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
