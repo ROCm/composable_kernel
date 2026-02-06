@@ -9,11 +9,12 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/gemm/kernel/universal_gemm_kernel.hpp"
+#include "ck_tile/ops/gemm_mx/kernel/scale_pointer.hpp"
 
 namespace ck_tile {
 
 
-template <typename ScaleM = MXScalePointer<-1>, typename ScaleN = MXScalePointer<-1>, index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0>
+template <typename ScaleM = MXScalePointer<e8m0_t, -1>, typename ScaleN = MXScalePointer<e8m0_t, -1>, index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0>
 struct MXGemmKernelArgs : UniversalGemmKernelArgs<NumATensor, NumBTensor, NumDTensor>
 {
     using Base = UniversalGemmKernelArgs<NumATensor, NumBTensor, NumDTensor>;
@@ -95,11 +96,6 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
     static constexpr auto APackedSize = numeric_traits<ADataType>::PackedSize;
     static constexpr auto BPackedSize = numeric_traits<BDataType>::PackedSize;
 
-    /// @brief The e8m0 scales are packed into int32/float32 such that
-    /// in one element contains a 2x2 block of scales (two rows, two lements in K dim)
-    static constexpr auto MXdlPack = MXGemmPipeline::MXdlPack;
-    static constexpr auto NXdlPack = MXGemmPipeline::NXdlPack;
-    static constexpr auto KXdlPack = MXGemmPipeline::KXdlPack;
 
     static constexpr int kBlockPerCu = 1;
 
@@ -256,29 +252,21 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
         
         static constexpr int BlockScaleSize = ScaleM::GranularityK;
         const auto scale_k_size = kargs.K / BlockScaleSize;
-        const auto scale_k_size_packed = scale_k_size / KXdlPack;
 
-        // A scale tensor view - layout [M, scale_k_size_packed] with packed int32_t
-        // Host packs 4 consecutive e8m0_t scales into one int32_t
-        // const auto scale_a_desc = make_naive_tensor_descriptor(
-        //     make_tuple(kargs.M, scale_k_size_packed),
-        //     make_tuple(scale_k_size_packed, 1));
-
-        // const auto scale_a_tensor_view = make_tensor_view<address_space_enum::global>(
-        //     reinterpret_cast<const int32_t*>(scale_a.ptr), scale_a_desc);
-
+        // A scale tensor view - layout [M, scale_k_size] with e8m0_t elements
+        // Use e8m0_t directly without packing
         const auto scale_a_tensor_view = make_naive_tensor_view<address_space_enum::global>(
-            reinterpret_cast<const int32_t*>(scale_a.ptr),
-            make_tuple(kargs.M, scale_k_size_packed),
-            make_tuple(scale_k_size_packed, 1));
+            reinterpret_cast<const e8m0_t*>(scale_a.ptr),
+            make_tuple(kargs.M, scale_k_size),
+            make_tuple(scale_k_size, 1));
 
         // Create block window for scale A
-        // K dimension: KIterPerWarp int32s, each int32 contains 4 scales for K_Lane threads
+        // K dimension: scale_k_size e8m0_t elements
         // i_m is element offset (iM * MPerBlock), not tile index
         auto scale_a_block_window = make_tile_window(
             scale_a_tensor_view,
             make_tuple(number<TilePartitioner::MPerBlock>{},
-                       number<TilePartitioner::KPerBlock / BlockScaleSize / KXdlPack>{}),
+                       number<TilePartitioner::KPerBlock / BlockScaleSize>{}),
             {i_m, 0});
 
         return scale_a_block_window;
@@ -293,24 +281,21 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
         
         static constexpr int BlockScaleSize = ScaleN::GranularityK;
         const auto scale_k_size = kargs.K / BlockScaleSize;
-        const auto scale_k_size_packed = scale_k_size / KXdlPack;
 
-        // B scale tensor view - for col-major B, we access as [N, K] for better coalescing
+        // B scale tensor view
         // Host stores as [K/32, N] col-major = [N, K/32] row-major from access perspective
-        // After packing: stored as [K/128, N] col-major
-        // But we create view as [N, K/128] to match the access pattern (each thread handles one N)
         const auto scale_b_tensor_view = make_naive_tensor_view<address_space_enum::global>(
-            reinterpret_cast<const int32_t*>(scale_b.ptr),
-            make_tuple(kargs.N, scale_k_size_packed),  // [N, K/32/4] for access
-            make_tuple(scale_k_size_packed, 1));       // stride to match col-major storage
+            reinterpret_cast<const e8m0_t*>(scale_b.ptr),
+            make_tuple(kargs.N, scale_k_size),  // [N, K/32] for access
+            make_tuple(scale_k_size, 1));       // stride to match col-major storage
 
         // Create block window for scale B
-        // Tile window shape matches access pattern: [NPerBlock, KPerBlock/32/4]
-        // i_n is element offset (iN * NPerBlock), not tile index
+        // Tile window shape matches access pattern: [NPerBlock, KPerBlock/32]
+        // i_n is element offset (iN * NPerBlock)
         auto scale_b_block_window = make_tile_window(
             scale_b_tensor_view,
             make_tuple(number<TilePartitioner::NPerBlock>{},
-                       number<TilePartitioner::KPerBlock / BlockScaleSize / KXdlPack>{}),
+                       number<TilePartitioner::KPerBlock / BlockScaleSize>{}),
             {i_n, 0});
 
         return scale_b_block_window;
@@ -386,7 +371,6 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
         // Support both persistent and non-persistent modes
         do
         {
-            if (get_block_id() == 0 && get_thread_id() == 0) printf("partition_idx: %d\n", partition_idx);
             const auto [iM, iN] =
                 TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(partition_idx);
             const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);

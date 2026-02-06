@@ -124,10 +124,8 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
 
     static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
     
-    // MX scaling packing constants
-    static constexpr int MXdlPack = Policy::MXdlPack;
-    static constexpr int NXdlPack = Policy::NXdlPack;
-    static constexpr int KXdlPack = Policy::KXdlPack;
+    // Each scale covers 32 K elements
+    static constexpr index_t ScaleBlockSize = 32;  
 
     static constexpr index_t APackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
@@ -300,44 +298,6 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             
             auto a_tile_windows = generate_tuple(
                 [&](auto idx) {
-                    /// NOTE: flatmm style byte tensor approach:
-                    // Create tile window with STORAGE dimensions to match LDS
-                    // auto&& tensor_view_tmp  = a_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view();
-                    // auto&& byte_ptr = reinterpret_cast<const uint8_t*>(&(tensor_view_tmp.get_buffer_view()(0)));
-                    // const auto [rows, cols] = tensor_view_tmp.get_tensor_descriptor().get_lengths();
-                    // auto&& a_tensor_view = make_naive_tensor_view<address_space_enum::global>(
-                    //     static_cast<const uint8_t*>(byte_ptr),
-                    //     make_tuple(rows, cols / APackedSize),
-                    //     make_tuple(cols / APackedSize, 1),
-                    //     number<16>{},
-                    //     number<1>{});
-                    // return make_tile_window(a_tensor_view,
-                    //     make_tuple(number<MPerBlock>{}, number<KPerBlock / APackedSize>{}),
-                    //     [&]() {
-                    //         auto origin = a_dram_block_window_tmp[number<idx>{}].get_window_origin();
-                    //         if constexpr(is_a_col_major) {
-                    //             origin[0] = origin[0] / APackedSize;  // Adjust K origin
-                    //         } else {
-                    //             origin[1] = origin[1] / APackedSize;  // Adjust K origin
-                    //         }
-                    //         return origin;
-                    //     }(),
-                    //     Policy::template MakeADramTileDistribution<Problem>());
-                    /// NOTE: re-use original tensor view but with adjusted origin and K/PackedSize
-                    // return make_tile_window(
-                    //     a_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
-                    //     make_tuple(number<MPerBlock>{}, number<KPerBlock / APackedSize>{}),
-                    //     [&]() {
-                    //         auto origin = a_dram_block_window_tmp[number<idx>{}].get_window_origin();
-                    //         if constexpr(is_a_col_major) {
-                    //             origin[0] = origin[0] / APackedSize;  // Adjust K origin
-                    //         } else {
-                    //             origin[1] = origin[1] / APackedSize;  // Adjust K origin
-                    //         }
-                    //         return origin;
-                    //     }(),
-                    //     Policy::template MakeADramTileDistribution<Problem>());
-                    /// NOTE: use original shapes
                     return make_tile_window(
                         a_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(), 
                         make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
@@ -348,44 +308,6 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             // B DRAM window(s) for load
             auto b_tile_windows = generate_tuple(
                 [&](auto idx) {
-                    /// NOTE: flatmm style byte tensor approach:
-                    // Create tile window with STORAGE dimensions to match LDS
-                    // auto&& tensor_view_tmp  = b_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view();
-                    // auto&& byte_ptr = reinterpret_cast<const uint8_t*>(&(tensor_view_tmp.get_buffer_view()(0)));
-                    // const auto [rows, cols] = tensor_view_tmp.get_tensor_descriptor().get_lengths();
-                    // auto&& b_tensor_view = make_naive_tensor_view<address_space_enum::global>(
-                    //     static_cast<const uint8_t*>(byte_ptr),
-                    //     make_tuple(rows, cols / BPackedSize),
-                    //     make_tuple(cols / BPackedSize, 1),
-                    //     number<16>{},
-                    //     number<1>{});
-                    // return make_tile_window(b_tensor_view,
-                    //     make_tuple(number<NPerBlock>{}, number<KPerBlock / BPackedSize>{}),
-                    //     [&]() {
-                    //         auto origin = b_dram_block_window_tmp[number<idx>{}].get_window_origin();
-                    //         if constexpr(is_b_row_major) {
-                    //             origin[0] = origin[0] / BPackedSize;  // Adjust K origin
-                    //         } else {
-                    //             origin[1] = origin[1] / BPackedSize;  // Adjust K origin
-                    //         }
-                    //         return origin;
-                    //     }(),
-                    //     Policy::template MakeBDramTileDistribution<Problem>());
-                    /// NOTE: re-use original tensor view but with adjusted origin and K/PackedSize
-                    // return make_tile_window(
-                    //     b_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
-                    //     make_tuple(number<NPerBlock>{}, number<KPerBlock / BPackedSize>{}),
-                    //     [&]() {
-                    //         auto origin = b_dram_block_window_tmp[number<idx>{}].get_window_origin();
-                    //         if constexpr(is_b_row_major) {
-                    //             origin[0] = origin[0] / BPackedSize;  // Adjust K origin
-                    //         } else {
-                    //             origin[1] = origin[1] / BPackedSize;  // Adjust K origin
-                    //         }
-                    //         return origin;
-                    //     }(),
-                    //     Policy::template MakeBDramTileDistribution<Problem>());
-                    /// NOTE: use original shapes
                     return make_tile_window(
                         b_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(), 
                         make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
@@ -393,32 +315,16 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                         Policy::template MakeBDramTileDistribution<Problem>());
                 },
                 number<BsLayout::size()>{});
-            
-            /// Check tile window traits for vector size
-            // Note: Vector size checks are disabled because we're using storage dimensions
-            // The actual vector size is controlled by the tile distribution
-            // using ATileDstr = remove_cvref_t<decltype(Policy::template MakeADramTileDistribution<Problem>())>;
-            // static_assert(ATileDstr::LargestVec >= 16, "wrong! not implemented vector size");
-            // using ATileType = remove_cvref_t<decltype(a_tile_windows[number<0>{}])>;
-            // using BTileType = remove_cvref_t<decltype(b_tile_windows[number<0>{}])>;
-            // static_assert(sizeof(typename ATileType::Traits::vector_t) == 16, "wrong! not implemented vector size");
-            // static_assert(sizeof(typename BTileType::Traits::vector_t) == 16, "wrong! not implemented vector size");
 
             ////////////// MX Scale windows /////////////////
             // Get WarpGemm configuration
             using BlockWarps = typename BlockGemmShape::BlockWarps;
-            using WarpTile = typename BlockGemmShape::WarpTile;
             constexpr index_t MWarp = BlockWarps::at(I0{});
             constexpr index_t NWarp = BlockWarps::at(I1{});
-            // constexpr index_t MPerXdl = WarpTile::at(I0{});
-            // constexpr index_t NPerXdl = WarpTile::at(I1{});
             
-            constexpr index_t ScaleBlockSize = 32;  // Each scale covers 32 K elements
-            
-            // Calculate scale dimensions: KPerBlock elements need KPerBlock/32 scales
-            // Each int32 packs KXdlPack=4 scales, so we need KPerBlock/32/4 int32s per block
-            constexpr index_t ScaleKDimPerBlock = KPerBlock / ScaleBlockSize / KXdlPack;  // Packed int32s per block
-            static_assert(ScaleBlockSize == 32, "Scale block size must be 32 for MX format");
+            // Calculate scale dimensions: KPerBlock elements need KPerBlock/32 e8m0_t scales
+            // Use e8m0_t directly without packing
+            constexpr index_t ScaleKDimPerBlock = KPerBlock / ScaleBlockSize;  // e8m0_t elements per block
             
             // Scale tensor views and base origins for creating tile windows per iteration
             const auto& scale_a_tensor_view = scale_a_window.get_bottom_tensor_view();
@@ -513,17 +419,8 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             static_assert(Policy::template GetSmemSizeB<Problem>() == (KPerBlock * sizeof(BDataType) / BPackedSize) * NPerBlock, "SmemSizeB size is wrong!");
 
             ////////////// MX Scale register tiles (ping-pong buffers) /////////////////
-            // Calculate scale iterations for M/N dimensions
-            constexpr index_t KPerXdl = WarpTile::at(I2{});
-            constexpr index_t KIterPerWarp = KPerBlock / KPerXdl;
-            // constexpr index_t MIterPerWarp = MPerBlock / (MWarp * MPerXdl);
-            // constexpr index_t NIterPerWarp = NPerBlock / (NWarp * NPerXdl);
-            
-            // ScaleKPackedPerIter: number of int32s needed to cover all KIterPerWarp iterations
-            // Each int32 packs 4 scales (via strided packing), OpSel selects byte for kIter
-            // KXdlPack kIters share one int32, so we need KIterPerWarp/KXdlPack int32s total
-            constexpr index_t ScaleKPackedPerIter = KIterPerWarp / KXdlPack;
-            static_assert(ScaleKPackedPerIter > 0, "ScaleKPackedPerIter must be positive!");
+            // No packing needed - each thread gets e8m0_t elements directly
+            // Each thread will cast e8m0_t to int32_t for WarpGemm with OpSel=0
             
             using ScaleATileType = decltype(load_tile(scale_a_dram_window));
             using ScaleBTileType = decltype(load_tile(scale_b_dram_window));
@@ -544,6 +441,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 move_tile_window(scale_b_dram_window, scale_b_dram_tile_window_step);
             };
 
+            /// TODO: enable transpose
             // constexpr auto a_lds_input_tile_distr = [ALdsTileDistr]() {
             //     if constexpr(is_a_load_tr_v)
             //         return make_static_tile_distribution(
@@ -629,10 +527,8 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                         // C(i-3) = A(i-3) @ B(i-3) with MX scaling
                         block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
                         HotLoopScheduler();
-                        // Load scales for iteration i+2 (ping)
-                        if (i_global_read - 1 < num_loop) {
-                            load_scales_once(scale_a_tile_ping, scale_b_tile_ping);
-                        }
+                        // Load next scales after using current scales above
+                        load_scales_once(scale_a_tile_ping, scale_b_tile_ping);
                     }
                     // pong
                     {
@@ -653,16 +549,9 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                                                   b_dram_tile_window_step);
                         // C(i-2) = A(i-2) @ B(i-2) with MX scaling
                         block_gemm(c_block_tile, a_block_tile1, b_block_tile1, scale_a_tile_pong, scale_b_tile_pong);
-                        // block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-                        // /// TODO: remove these after creating a block gemm with scales
-                        // ignore = scale_a_tile_pong;
-                        // ignore = scale_b_tile_pong;
                         HotLoopScheduler();
-                        // Load scales for iteration i+2 (pong)
-                        /// TODO: check condition
-                        if (i_global_read + 2 < num_loop) {
-                            load_scales_once(scale_a_tile_pong, scale_b_tile_pong);
-                        }
+                        // Load next scales after using current scales above
+                        load_scales_once(scale_a_tile_pong, scale_b_tile_pong);
                     }
                     i_global_read += 2;
                 } while(i_global_read < num_loop);
@@ -677,10 +566,6 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1, is_b_load_tr_v);
                     // C(num_loop-2) = A(num_loop-2) @ B(num_loop-2) with MX scaling
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
-                    // block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                    // /// TODO: remove these after creating a block gemm with scales
-                    // ignore = scale_a_tile_ping;
-                    // ignore = scale_b_tile_ping;
                     
                     // load last scales to ping for the last iteration to ping buffers
                     load_scales_once(scale_a_tile_ping, scale_b_tile_ping);
@@ -693,40 +578,15 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                     Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0, is_b_load_tr_v);
                     // C(num_loop-1) = A(num_loop-1) @ B(num_loop-1) with MX scaling
                     block_gemm(c_block_tile, a_block_tile1, b_block_tile1, scale_a_tile_pong, scale_b_tile_pong);
-                    // block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-                    // /// TODO: remove these after creating a block gemm with scales
-                    // ignore = scale_a_tile_pong;
-                    // ignore = scale_b_tile_pong;
                 }
                 {
                     // C(num_loop) = A(num_loop) @ B(num_loop) with MX scaling
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
-                    // block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                    // /// TODO: remove these after creating a block gemm with scales
-                    // ignore = scale_a_tile_ping;
-                    // ignore = scale_b_tile_ping;
                 }
             }
             else if(TailNum == TailNumber::Two)
             // 2 block gemms remaining
             {
-                if (get_block_id() == 0 && (get_thread_id() == 0 || get_thread_id() == 16))
-                {
-                    int32_t a_ping = scale_a_tile_ping.get_thread_buffer()[0];
-                    uint8_t* a_ping_bytes = reinterpret_cast<uint8_t*>(&a_ping);
-                    int32_t b_ping = scale_b_tile_ping.get_thread_buffer()[0];
-                    uint8_t* b_ping_bytes = reinterpret_cast<uint8_t*>(&b_ping);
-                    int32_t a_pong = scale_a_tile_pong.get_thread_buffer()[0];
-                    uint8_t* a_pong_bytes = reinterpret_cast<uint8_t*>(&a_pong);
-                    int32_t b_pong = scale_b_tile_pong.get_thread_buffer()[0];
-                    uint8_t* b_pong_bytes = reinterpret_cast<uint8_t*>(&b_pong);
-                    printf("[tid=%d]: ScaleA ping: [%d,%d,%d,%d], ScaleB ping: [%d,%d,%d,%d]\n", get_thread_id(),
-                        a_ping_bytes[0], a_ping_bytes[1], a_ping_bytes[2], a_ping_bytes[3],
-                        b_ping_bytes[0], b_ping_bytes[1], b_ping_bytes[2], b_ping_bytes[3]);
-                    printf("[tid=%d]: ScaleA pong: [%d,%d,%d,%d], ScaleB pong: [%d,%d,%d,%d]\n", get_thread_id(),
-                        a_pong_bytes[0], a_pong_bytes[1], a_pong_bytes[2], a_pong_bytes[3],
-                        b_pong_bytes[0], b_pong_bytes[1], b_pong_bytes[2], b_pong_bytes[3]);
-                }
                 {
                     // read A(num_loop), B(num_loop) from LDS window(1) to pipeline registers(1)
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1, is_a_load_tr_v);
@@ -740,16 +600,6 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
             }
             else if(TailNum == TailNumber::One)
             {
-                if (get_block_id() == 0 && (get_thread_id() == 0 || get_thread_id() == 16))
-                {
-                    int32_t a_ping = scale_a_tile_ping.get_thread_buffer()[0];
-                    uint8_t* a_ping_bytes = reinterpret_cast<uint8_t*>(&a_ping);
-                    int32_t b_ping = scale_b_tile_ping.get_thread_buffer()[0];
-                    uint8_t* b_ping_bytes = reinterpret_cast<uint8_t*>(&b_ping);
-                    printf("[tid=%d]: ScaleA ping: [%d,%d,%d,%d], ScaleB ping: [%d,%d,%d,%d]\n", get_thread_id(),
-                        a_ping_bytes[0], a_ping_bytes[1], a_ping_bytes[2], a_ping_bytes[3],
-                        b_ping_bytes[0], b_ping_bytes[1], b_ping_bytes[2], b_ping_bytes[3]);
-                }
                 block_sync_lds();
                 // C(num_loop) = A(num_loop) @ B(num_loop) with MX scaling
                 block_gemm(c_block_tile, a_block_tile0, b_block_tile0, scale_a_tile_ping, scale_b_tile_ping);
