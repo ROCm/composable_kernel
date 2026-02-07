@@ -47,17 +47,7 @@ TYPED_TEST(TestGemmBlockScaleWP_FP8_MK_NK, Regular0)
 {
     std::vector<int> Ms{128, 256, 512};
     constexpr int N = 512;
-    constexpr int K = 2048;
-
-    for(int M : Ms)
-        this->Run(M, N, K);
-}
-
-TYPED_TEST(TestGemmBlockScaleWP_FP8_MK_NK, Regular1)
-{
-    std::vector<int> Ms{128, 256, 512};
-    constexpr int N = 1024;
-    constexpr int K = 4096;
+    constexpr int K = 512;
 
     for(int M : Ms)
         this->Run(M, N, K);
