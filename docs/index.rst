@@ -25,6 +25,7 @@ The Composable Kernel repository is located at `https://github.com/ROCm/composab
 
     * :doc:`Composable Kernel structure <./conceptual/Composable-Kernel-structure>`
     * :doc:`Composable Kernel mathematical basis <./conceptual/Composable-Kernel-math>`
+    * :doc:`CK Tile intrawave and interwave scheduling <../conceptual/CK-Tile-intra-inter-wave>`
     * :doc:`CK Tile conceptual documentation <./conceptual/ck_tile/CK-tile-index>`
 
   .. grid-item-card:: Tutorials
