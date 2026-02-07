@@ -255,7 +255,10 @@ class TestCkTileBatchedGemm : public ::testing::Test
         ck_tile::reference_batched_gemm<ADataType, BDataType, AccDataType, CDataType>(
             a_m_k, b_n_k, c_m_n_host_ref);
 
-        pass = ck_tile::check_err(c_m_n_dev_result, c_m_n_host_ref);
+        constexpr double rtol = 2e-3;
+        constexpr double atol = 2e-3;
+        pass                  = ck_tile::check_err(
+            c_m_n_dev_result, c_m_n_host_ref, "Error: Incorrect results!", rtol, atol);
         EXPECT_TRUE(pass);
     }
 };

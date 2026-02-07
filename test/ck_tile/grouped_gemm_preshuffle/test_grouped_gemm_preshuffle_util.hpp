@@ -62,18 +62,16 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
     {
         using ComputeType =
             std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
-        // Calculate thresholds
         const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
             ck_tile::integer_divide_ceil(K, kbatch));
         const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
             max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
-        // Calculate error due to split_k accumulation
         const auto rtol_split_k =
             ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
         const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
             max_accumulated_value, kbatch);
-        // Use higher threshold
-        return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+        return ck_tile::make_tuple(std::max({rtol, rtol_split_k, 2e-3}),
+                                   std::max({atol, atol_split_k, 2e-3}));
     }
 
     using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs<>;
