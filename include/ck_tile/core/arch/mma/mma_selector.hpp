@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
+#include "ck_tile/core/arch/arch.hpp"
+
 namespace ck_tile::core::arch::mma {
 
 /**
@@ -42,7 +44,7 @@ struct MmaDefaultSelector
         amdgcn_mma<ADataType, BDataType, CDataType, FragM, FragN, FragK, void, amdgcn_target<>>;
 };
 
-#if defined(__cpp_concepts) && __cpp_concepts >= 201907L
+#if CK_TILE_CONCEPTS
 
 /**
  *  @concept MmaSelectorI
@@ -54,7 +56,7 @@ concept MmaSelectorI = requires(MmaSelector op) {
     typename MmaSelector::SelectedOp;
 };
 
-#endif // defined(__cpp_concepts) && __cpp_concepts >= 201907L
+#endif // CK_TILE_CONCEPTS
 
 } // namespace ck_tile::core::arch::mma
 
