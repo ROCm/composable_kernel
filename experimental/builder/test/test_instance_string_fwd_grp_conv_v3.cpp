@@ -77,7 +77,8 @@ std::string expected_str = "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3"
                            ",v4"            // BlkGemmPipelineVer
                            ",fp16"          // AComputeDataType
                            ",fp16"          // BComputeDataType
-                           ",false>";       // DirectLoad
+                           ",false"         // DirectLoad
+                           ",1>";           // NumGroupsToMerge
 
 // Test describe() through base class pointer for V3 variant
 TEST(InstanceString, DescribeReturnsCorrectValueForFwdGrpConvV3)

@@ -102,7 +102,8 @@ TEST(InstanceToConvTraits, TransformsFwdMultipleAbdXdlCShuffleV3)
             ck::BlockGemmPipelineVersion::v1,          // BlkGemmPipelineVer
             ck::half_t,                                // AComputeDataType
             ck::half_t,                                // BComputeDataType
-            false>;                                    // DirectLoad
+            false,                                     // DirectLoad
+            1>;                                        // NumGroupsToMerge
 
     using InstTraits  = ck_tile::reflect::InstanceTraits<DeviceInstance>;
     const auto traits = ck_tile::reflect::conv::instance_to_conv_traits<DeviceInstance>();

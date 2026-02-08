@@ -32,7 +32,8 @@ constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xd
                                .with_transfer(cku::Transfer_4x64x1)
                                .with_fwd_specializations(ckb::ConvSpecialization::DEFAULT,
                                                          ckb::GemmSpecialization::MNKPadding)
-                               .with_block_gemm(cku::BlockGemmDesc_v3_intrawave);
+                               .with_block_gemm(cku::BlockGemmDesc_v3_intrawave)
+                               .with_num_conv_groups_to_merge(1);
 
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;

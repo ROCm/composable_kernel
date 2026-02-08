@@ -164,6 +164,7 @@ struct DefaultAlgorithm
     ckb::test::BlockGemmPipeline block_gemm_pipeline{.pipeline_version = ckb::PipelineVersion::V4,
                                                      .scheduler =
                                                          ckb::PipelineScheduler::INTRAWAVE};
+    size_t num_conv_groups_to_merge = 1;
 };
 static_assert(ckb::ConvAlgorithmDescriptor<DefaultAlgorithm>);
 

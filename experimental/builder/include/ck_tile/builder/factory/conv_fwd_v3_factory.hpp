@@ -161,7 +161,8 @@ struct ConvFwdXdlV3Factory
         BLOCK_GEMM.pipeline_version,
         typename Types::InComputeType,
         typename Types::WeiComputeType,
-        IS_DIRECT_LOAD>;
+        IS_DIRECT_LOAD,
+        ALGORITHM.num_conv_groups_to_merge>;
 };
 
 } // namespace ck_tile::builder::factory
