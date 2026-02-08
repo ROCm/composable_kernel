@@ -697,43 +697,94 @@ struct HstuAttentionFwdKernel
         auto o_acc_tile = [&]() {
             if(kargs.window_size > 0)
             {
-                using HstuMaskType = typename ck_tile::HstuBlockMasking<kHasCausalMask, true>::Type;
-                const auto mask =
-                    make_hstu_block_mask_with_local<HstuMaskType>(is_tile_in_first_split,
-                                                                  kargs.seqlen_q,
-                                                                  kargs.seqlen_kv,
-                                                                  kargs.contextual_seqlen,
-                                                                  num_target,
-                                                                  kargs.window_size,
-                                                                  kargs.min_full_attn_seqlen);
+                if(kargs.is_cross_attention)
+                {
 
-                return HstuAttentionPipeline{}(q_dram_window,
-                                               k_dram_window,
-                                               v_dram_window,
-                                               bias_dram_window,
-                                               mask,
-                                               kargs.scale_s,
-                                               kargs.scale_p,
-                                               smem_ptr,
-                                               dropout);
+                    using HstuMaskType =
+                        typename ck_tile::HstuBlockMasking<true, kHasCausalMask, true>::Type;
+
+                    auto mask = make_hstu_cross_attention_block_mask_with_local<HstuMaskType>(
+                        is_tile_in_first_split,
+                        kargs.seqlen_q,
+                        kargs.seqlen_kv,
+                        kargs.contextual_seqlen,
+                        num_target,
+                        kargs.window_size,
+                        kargs.min_full_attn_seqlen);
+
+                    return HstuAttentionPipeline{}(q_dram_window,
+                                                   k_dram_window,
+                                                   v_dram_window,
+                                                   bias_dram_window,
+                                                   mask,
+                                                   kargs.scale_s,
+                                                   kargs.scale_p,
+                                                   smem_ptr,
+                                                   dropout);
+                }
+                else
+                {
+                    using HstuMaskType =
+                        typename ck_tile::HstuBlockMasking<false, kHasCausalMask, true>::Type;
+
+                    auto mask = make_hstu_self_attention_block_mask_with_local<HstuMaskType>(
+                        is_tile_in_first_split,
+                        kargs.seqlen_q,
+                        kargs.contextual_seqlen,
+                        num_target,
+                        kargs.window_size,
+                        kargs.min_full_attn_seqlen);
+
+                    return HstuAttentionPipeline{}(q_dram_window,
+                                                   k_dram_window,
+                                                   v_dram_window,
+                                                   bias_dram_window,
+                                                   mask,
+                                                   kargs.scale_s,
+                                                   kargs.scale_p,
+                                                   smem_ptr,
+                                                   dropout);
+                }
             }
             else
             {
-                using HstuMaskType =
-                    typename ck_tile::HstuBlockMasking<kHasCausalMask, false>::Type;
-                const auto mask = make_hstu_block_mask_without_local<HstuMaskType>(
-                    kargs.seqlen_q, kargs.seqlen_kv, kargs.contextual_seqlen, num_target);
+                if(kargs.is_cross_attention)
+                {
+                    using HstuMaskType =
+                        typename ck_tile::HstuBlockMasking<true, kHasCausalMask, false>::Type;
 
-                return HstuAttentionPipeline{}(q_dram_window,
-                                               k_dram_window,
-                                               v_dram_window,
-                                               bias_dram_window,
-                                               mask,
-                                               kargs.scale_s,
-                                               kargs.scale_p,
-                                               smem_ptr,
-                                               dropout);
-            };
+                    auto mask = make_hstu_cross_attention_block_mask_without_local<HstuMaskType>(
+                        kargs.seqlen_q, kargs.seqlen_kv, kargs.contextual_seqlen, num_target);
+
+                    return HstuAttentionPipeline{}(q_dram_window,
+                                                   k_dram_window,
+                                                   v_dram_window,
+                                                   bias_dram_window,
+                                                   mask,
+                                                   kargs.scale_s,
+                                                   kargs.scale_p,
+                                                   smem_ptr,
+                                                   dropout);
+                }
+                else
+                {
+                    using HstuMaskType =
+                        typename ck_tile::HstuBlockMasking<false, kHasCausalMask, false>::Type;
+
+                    auto mask = make_hstu_self_attention_block_mask_without_local<HstuMaskType>(
+                        kargs.seqlen_q, kargs.contextual_seqlen, num_target);
+
+                    return HstuAttentionPipeline{}(q_dram_window,
+                                                   k_dram_window,
+                                                   v_dram_window,
+                                                   bias_dram_window,
+                                                   mask,
+                                                   kargs.scale_s,
+                                                   kargs.scale_p,
+                                                   smem_ptr,
+                                                   dropout);
+                }
+            }
         }();
 
         // O DRAM and O DRAM window
