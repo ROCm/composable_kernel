@@ -54,8 +54,6 @@ struct reference_hstu_attention
                     int min_full_attn_seqlen) // define masking length at the end of query token
                                               // sequence which is included for full attention
     {
-        ignore = is_cross_attention;
-
         if constexpr(kIsJagged)
         {
             // check the number of batches
@@ -122,34 +120,67 @@ struct reference_hstu_attention
                                 ? attn_scale
                                 : 1.0f / static_cast<float>(max(max_seqlen_q, max_seqlen_kv));
 
-            BOOL_SWITCH(window_size > 0, kHasLocal, [&] {
-                using HstuMaskType = typename HstuBlockMasking<kUseCausal, kHasLocal>::Type;
+            BOOL_SWITCH_2(window_size > 0, kHasLocal, is_cross_attention, kIsCrossAttention, [&] {
+                using HstuMaskType =
+                    typename HstuBlockMasking<kIsCrossAttention, kUseCausal, kHasLocal>::Type;
 
                 HstuMaskType mask = [&]() {
                     if constexpr(kHasLocal)
-                        // need adjust the min_full_attn_seqlen passed to the HstuBlockMask() if the
-                        // user passed min_full_attn_seqlen is bigger than max_uih_len
-                        if(seqlen_q - num_target > min_full_attn_seqlen)
-                            return ck_tile::make_hstu_block_mask_with_local<HstuMaskType>(
-                                true,
-                                seqlen_q,
-                                seqlen_kv,
-                                contextual_seqlen,
-                                num_target,
-                                window_size,
-                                min_full_attn_seqlen);
+                    {
+                        if constexpr(kIsCrossAttention)
+                        {
+                            // need adjust the min_full_attn_seqlen passed to the HstuBlockMask() if
+                            // the user passed min_full_attn_seqlen is bigger than max_uih_len
+                            if(seqlen_q - num_target > min_full_attn_seqlen)
+                                return ck_tile::make_hstu_cross_attention_block_mask_with_local<
+                                    HstuMaskType>(true,
+                                                  seqlen_q,
+                                                  seqlen_kv,
+                                                  contextual_seqlen,
+                                                  num_target,
+                                                  window_size,
+                                                  min_full_attn_seqlen);
+                            else
+                                return ck_tile::make_hstu_cross_attention_block_mask_with_local<
+                                    HstuMaskType>(true,
+                                                  seqlen_q,
+                                                  seqlen_kv,
+                                                  contextual_seqlen,
+                                                  num_target,
+                                                  window_size,
+                                                  seqlen_q - num_target);
+                        }
                         else
-                            return ck_tile::make_hstu_block_mask_with_local<HstuMaskType>(
-                                true,
-                                seqlen_q,
-                                seqlen_kv,
-                                contextual_seqlen,
-                                num_target,
-                                window_size,
-                                seqlen_q - num_target);
+                        {
+                            // need adjust the min_full_attn_seqlen passed to the HstuBlockMask() if
+                            // the user passed min_full_attn_seqlen is bigger than max_uih_len
+                            if(seqlen_q - num_target > min_full_attn_seqlen)
+                                return ck_tile::make_hstu_self_attention_block_mask_with_local<
+                                    HstuMaskType>(true,
+                                                  seqlen_q,
+                                                  contextual_seqlen,
+                                                  num_target,
+                                                  window_size,
+                                                  min_full_attn_seqlen);
+                            else
+                                return ck_tile::make_hstu_self_attention_block_mask_with_local<
+                                    HstuMaskType>(true,
+                                                  seqlen_q,
+                                                  contextual_seqlen,
+                                                  num_target,
+                                                  window_size,
+                                                  seqlen_q - num_target);
+                        }
+                    }
                     else
-                        return ck_tile::make_hstu_block_mask_without_local<HstuMaskType>(
-                            seqlen_q, seqlen_kv, contextual_seqlen, num_target);
+                    {
+                        if constexpr(kIsCrossAttention)
+                            return ck_tile::make_hstu_cross_attention_block_mask_without_local<
+                                HstuMaskType>(seqlen_q, seqlen_kv, contextual_seqlen, num_target);
+                        else
+                            return ck_tile::make_hstu_self_attention_block_mask_without_local<
+                                HstuMaskType>(seqlen_q, contextual_seqlen, num_target);
+                    }
                 }();
 
                 if(save_mask)
