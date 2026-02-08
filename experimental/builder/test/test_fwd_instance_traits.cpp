@@ -83,7 +83,8 @@ TEST(InstanceTraits, V3ExtractsAllFieldsCorrectly)
             ck::BlockGemmPipelineVersion::v1,          // BlkGemmPipelineVer
             ck::half_t,                                // AComputeDataType
             ck::half_t,                                // BComputeDataType
-            false>;
+            false,                                     // DirectLoad
+            1>;                                        // NumGroupsToMerge
 
     // Use InstanceTraits to extract compile-time information
     using Traits = ck_tile::reflect::InstanceTraits<DeviceInstance>;
@@ -225,7 +226,8 @@ TEST(InstanceTraits, V3InstanceStringReturnsCorrectFormat)
             ck::BlockGemmPipelineVersion::v1,          // BlkGemmPipelineVer
             ck::half_t,                                // AComputeDataType
             ck::half_t,                                // BComputeDataType
-            false>;                                    // DirectLoad
+            false,                                     // DirectLoad
+            1>;                                        // NumGroupsToMerge
 
     std::string instance_str = ck_tile::reflect::instance_string<DeviceInstance>();
 
@@ -278,7 +280,8 @@ TEST(InstanceTraits, V3InstanceStringReturnsCorrectFormat)
                                ",v1"            // BlkGemmPipelineVer
                                ",fp16"          // AComputeDataType
                                ",fp16"          // BComputeDataType
-                               ",false>";       // DirectLoad
+                               ",false"         // DirectLoad
+                               ",1>";           // NumGroupsToMerge
 
     EXPECT_EQ(instance_str, expected_str);
 }
