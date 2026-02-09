@@ -3,14 +3,17 @@
 
 #include "run_gemm_quant_example.inc"
 
+#if defined(CK_TILE_EIGHTWARP_SUP)
+template <typename T>
+using GemmConfig = GemmConfigEightWarps<T>;
+template <typename T>
+using GemmConfigPrefill = GemmConfigPreshuffleBEightWarps<T>;
+#else
 template <typename T>
 using GemmConfig = GemmConfigABQuantPrefill<T>;
-
 template <typename T>
-using GemmConfigPreshuffleB = GemmConfigPreshuffleB_ABQuant_Prefill<T>;
-
-// template <typename T>
-// using GemmConfigPreshuffleB = GemmConfigPreshuffleB_ABQuant_Decode<T>;
+using GemmConfigPrefill = GemmConfigPreshuffleB_ABQuant_Prefill<T>;
+#endif
 
 static auto _ = []() {
     auto& lut                               = get_kernel_lut();
@@ -23,7 +26,7 @@ static auto _ = []() {
         using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+        return run_gemm_example_prec_type<GemmConfigABQuantPrefill<ck_tile::fp8_t>,
                                           TypeConfig,
                                           AQuantGroupSize,
                                           BQuantGroupSize,
@@ -53,7 +56,7 @@ static auto _ = []() {
         using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t, float>{});
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
+        return run_gemm_example_prec_type<GemmConfigABQuantPrefill<ck_tile::bf8_t>,
                                           TypeConfig,
                                           AQuantGroupSize,
                                           BQuantGroupSize,
@@ -83,7 +86,7 @@ static auto _ = []() {
         using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
-        return run_gemm_example_prec_type<GemmConfigPreshuffleB<ck_tile::fp8_t>,
+        return run_gemm_example_prec_type<GemmConfigPrefill<ck_tile::fp8_t>,
                                           TypeConfig,
                                           AQuantGroupSize,
                                           BQuantGroupSize,
@@ -98,7 +101,7 @@ static auto _ = []() {
         using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
-        return run_gemm_example_prec_type<GemmConfigPreshuffleB<ck_tile::fp8_t>,
+        return run_gemm_example_prec_type<GemmConfigPrefill<ck_tile::fp8_t>,
                                           TypeConfig,
                                           AQuantGroupSize,
                                           BQuantGroupSize,
@@ -113,7 +116,7 @@ static auto _ = []() {
         using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t, float>{});
-        return run_gemm_example_prec_type<GemmConfigPreshuffleB<ck_tile::bf8_t>,
+        return run_gemm_example_prec_type<GemmConfigPrefill<ck_tile::bf8_t>,
                                           TypeConfig,
                                           AQuantGroupSize,
                                           BQuantGroupSize,
@@ -128,7 +131,7 @@ static auto _ = []() {
         using BQuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t, float>{});
-        return run_gemm_example_prec_type<GemmConfigPreshuffleB<ck_tile::bf8_t>,
+        return run_gemm_example_prec_type<GemmConfigPrefill<ck_tile::bf8_t>,
                                           TypeConfig,
                                           AQuantGroupSize,
                                           BQuantGroupSize,
@@ -173,7 +176,7 @@ static auto _ = []() {
                                                                  ck_tile::pk_fp4_t,
                                                                  ck_tile::half_t,
                                                                  float>{});
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_fp4_raw_t>,
+            return run_gemm_example_prec_type<GemmConfigABQuantPrefill<ck_tile::pk_fp4_raw_t>,
                                               TypeConfig,
                                               AQuantGroupSize,
                                               BQuantGroupSize,
@@ -188,11 +191,12 @@ static auto _ = []() {
                                                                  ck_tile::pk_fp4_t,
                                                                  ck_tile::half_t,
                                                                  float>{});
-            return run_gemm_example_prec_type<GemmConfigPreshuffleB<ck_tile::pk_fp4_raw_t>,
-                                              TypeConfig,
-                                              AQuantGroupSize,
-                                              BQuantGroupSize,
-                                              ck_tile::QuantType::ABQuantGrouped>(arg_parser);
+            return run_gemm_example_prec_type<
+                GemmConfigPreshuffleB_ABQuant_Prefill<ck_tile::pk_fp4_raw_t>,
+                TypeConfig,
+                AQuantGroupSize,
+                BQuantGroupSize,
+                ck_tile::QuantType::ABQuantGrouped>(arg_parser);
         };
     return 0;
 }();

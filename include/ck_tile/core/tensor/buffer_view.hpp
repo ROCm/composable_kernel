@@ -411,10 +411,12 @@ struct buffer_view<address_space_enum::global,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
-                  bool>::type = false>
+                  bool>::type = false,
+              typename linear_offset_t>
     CK_TILE_DEVICE constexpr auto async_get(CK_TILE_LDS_ADDR remove_cvref_t<T>* smem,
                                             index_t i,
-                                            index_t linear_offset,
+                                            index_t wave_i,
+                                            linear_offset_t&& linear_offset,
                                             bool is_valid_element,
                                             bool_constant<oob_conditional_check> = {}) const
     {
@@ -426,14 +428,14 @@ struct buffer_view<address_space_enum::global,
                       "wrong! X should contain multiple T");
 
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-        const int32x4_t src_wave_buffer_resource =
-            make_wave_buffer_resource(p_data_, (buffer_size_) * sizeof(type));
+        const auto rsrc = make_builtin_buffer_resource(p_data_, buffer_size_ * sizeof(type));
 
         amd_async_buffer_load_with_oob<remove_cvref_t<T>, t_per_x, Coherence>(
             smem,
-            src_wave_buffer_resource,
+            rsrc,
             i,
-            linear_offset,
+            wave_i,
+            std::forward<linear_offset_t>(linear_offset),
             is_valid_element,
             bool_constant<oob_conditional_check>{});
     }

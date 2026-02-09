@@ -103,27 +103,33 @@ struct CShuffleEpilogue
                                           ADataType,
                                           BDataType>;
 
-    using ELayout                                = remove_cvref_t<typename Problem::ELayout>;
-    using CDElementwise                          = remove_cvref_t<typename Problem::CDElementwise>;
-    static constexpr index_t kBlockSize          = Problem::kBlockSize;
-    static constexpr index_t kMPerBlock          = Problem::kMPerBlock;
-    static constexpr index_t kNPerBlock          = Problem::kNPerBlock;
-    static constexpr index_t MWave               = Problem::MWave;
-    static constexpr index_t NWave               = Problem::NWave;
-    static constexpr index_t MPerXdl             = Problem::MPerXdl;
-    static constexpr index_t NPerXdl             = Problem::NPerXdl;
-    static constexpr index_t KPerXdl             = Problem::KPerXdl;
-    static constexpr index_t isCTransposed       = Problem::isCTransposed;
-    static constexpr bool FixedVectorSize        = Problem::FixedVectorSize;
-    static constexpr bool TiledMMAPermuteN       = Problem::TiledMMAPermuteN;
-    static constexpr index_t BlockedXDLN_PerWarp = Problem::BlockedXDLN_PerWarp;
-    static constexpr bool DoubleSmemBuffer       = Problem::DoubleSmemBuffer;
-    static constexpr index_t VectorSizeC         = Problem::VectorSizeC;
-    static constexpr index_t MPerIteration       = MPerXdl * MWave;
-    static constexpr index_t NPerIteration       = NPerXdl * NWave;
-    static constexpr index_t NumDTensor          = Problem::NumDTensor;
-    static constexpr index_t MRepeat             = kMPerBlock / (MPerXdl * MWave);
-    static constexpr index_t NRepeat             = kNPerBlock / (NPerXdl * NWave);
+    using ELayout                          = remove_cvref_t<typename Problem::ELayout>;
+    using CDElementwise                    = remove_cvref_t<typename Problem::CDElementwise>;
+    static constexpr index_t kBlockSize    = Problem::kBlockSize;
+    static constexpr index_t kMPerBlock    = Problem::kMPerBlock;
+    static constexpr index_t kNPerBlock    = Problem::kNPerBlock;
+    static constexpr index_t MWave         = Problem::MWave;
+    static constexpr index_t NWave         = Problem::NWave;
+    static constexpr index_t MPerXdl       = Problem::MPerXdl;
+    static constexpr index_t NPerXdl       = Problem::NPerXdl;
+    static constexpr index_t KPerXdl       = Problem::KPerXdl;
+    static constexpr index_t isCTransposed = Problem::isCTransposed;
+    static constexpr bool FixedVectorSize  = Problem::FixedVectorSize;
+    static constexpr bool TiledMMAPermuteN = Problem::TiledMMAPermuteN;
+#ifdef __gfx9__
+    static constexpr bool AsyncPipeline = (MWave * NWave == 8);
+#else
+    static constexpr bool AsyncPipeline = false;
+#endif
+    static constexpr index_t BlockedXDLN_PerWarp =
+        AsyncPipeline ? kNPerBlock / NWave / NPerXdl : Problem::BlockedXDLN_PerWarp;
+    static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
+    static constexpr index_t VectorSizeC   = Problem::VectorSizeC;
+    static constexpr index_t MPerIteration = MPerXdl * MWave;
+    static constexpr index_t NPerIteration = NPerXdl * NWave;
+    static constexpr index_t NumDTensor    = Problem::NumDTensor;
+    static constexpr index_t MRepeat       = kMPerBlock / (MPerXdl * MWave);
+    static constexpr index_t NRepeat       = kNPerBlock / (NPerXdl * NWave);
 
     CDElementwise elfunc_;
 
@@ -342,14 +348,28 @@ struct CShuffleEpilogue
                 if constexpr(is_950 || is_any_of<ADataType, pk_int4_t, pk_fp4_t>::value ||
                              is_any_of<BDataType, pk_int4_t, pk_fp4_t>::value)
                 {
-                    return tile_distribution_encoding<
-                        sequence<>,
-                        tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                              sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
-                        tuple<sequence<1, 2>>,
-                        tuple<sequence<1, 1>>,
-                        sequence<1, 2, 2>,
-                        sequence<0, 0, 2>>{};
+                    if constexpr(AsyncPipeline)
+                    {
+                        return tile_distribution_encoding<
+                            sequence<>,
+                            tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
+                                  sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
+                            tuple<sequence<2, 1>>,
+                            tuple<sequence<1, 1>>,
+                            sequence<1, 2, 2>,
+                            sequence<0, 0, 2>>{};
+                    }
+                    else
+                    {
+                        return tile_distribution_encoding<
+                            sequence<>,
+                            tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
+                                  sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
+                            tuple<sequence<1, 2>>,
+                            tuple<sequence<1, 1>>,
+                            sequence<1, 2, 2>,
+                            sequence<0, 0, 2>>{};
+                    }
                 }
                 else
                 {

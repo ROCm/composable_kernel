@@ -1016,6 +1016,11 @@ CK_TILE_DEVICE void s_waitcnt()
                                waitcnt_arg::from_lgkmcnt<lgkmcnt>());
 #endif
 }
+template <index_t lgkmcnt = waitcnt_arg::kMaxLgkmCnt>
+CK_TILE_DEVICE void s_waitcnt_lgkm()
+{
+    s_waitcnt<waitcnt_arg::kMaxVmCnt, waitcnt_arg::kMaxExpCnt, lgkmcnt>();
+}
 
 template <index_t vmcnt   = waitcnt_arg::kMaxVmCnt,
           index_t expcnt  = waitcnt_arg::kMaxExpCnt,
