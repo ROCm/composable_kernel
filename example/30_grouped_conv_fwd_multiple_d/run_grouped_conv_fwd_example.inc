@@ -179,7 +179,7 @@ ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimS
 /*
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance =
-    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
         NDimSpatial,
         InputLayout<NDimSpatial>,
         WeightLayout<NDimSpatial>,
@@ -196,7 +196,6 @@ using DeviceConvFwdInstance =
         OutElementOp,
         ConvSpec,    // ConvForwardSpecialization
         GemmSpec,    // GemmSpecialization
-        1,           //
         256,         // BlockSize
         128,         // MPerBlock
         256,         // NPerBlock

@@ -787,7 +787,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
               cde_element_op_{cde_element_op}
         {
             // A/B/E Batch/N Stride
-            compute_ptr_offset_of_groups_.BatchStrideA_ = a_g_n_c_wis_strides_[0] * NumGroupsToMerge;
+            compute_ptr_offset_of_groups_.BatchStrideA_ =
+                a_g_n_c_wis_strides_[0] * NumGroupsToMerge;
             compute_ptr_offset_of_groups_.BatchStrideB_ = b_g_k_c_xs_strides_[0] * NumGroupsToMerge;
             compute_ptr_offset_of_n_.BatchStrideA_ = a_g_n_c_wis_strides_[1] * conv_N_per_block_;
 
@@ -799,7 +800,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
                 // D batch stride
-                compute_ptr_offset_of_groups_.BatchStrideDs_(i) = ds_g_n_k_wos_strides_[i][0] * NumGroupsToMerge;
+                compute_ptr_offset_of_groups_.BatchStrideDs_(i) =
+                    ds_g_n_k_wos_strides_[i][0] * NumGroupsToMerge;
                 compute_ptr_offset_of_n_.BatchStrideDs_(i) =
                     ds_g_n_k_wos_strides_[i][1] * conv_N_per_block_;
 
@@ -819,7 +821,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                     DeviceOp::MakeEGridDescriptor_M_N<DLayout>(conv_to_gemm_transformer_d);
             });
 
-            compute_ptr_offset_of_groups_.BatchStrideE_ = e_g_n_k_wos_strides_[0] * NumGroupsToMerge;
+            compute_ptr_offset_of_groups_.BatchStrideE_ =
+                e_g_n_k_wos_strides_[0] * NumGroupsToMerge;
             compute_ptr_offset_of_n_.BatchStrideE_ = e_g_n_k_wos_strides_[1] * conv_N_per_block_;
 
             if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
@@ -1611,10 +1614,21 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                 }
             }
         }
-        else if constexpr (ConvForwardSpecialization ==
-                          ConvolutionForwardSpecialization::Filter3x3Stride1Pad1Dilation1)
+        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter3x3)
         {
-            
+            if(C != 1)
+            {
+                return false;
+            }
+            for(index_t i = 0; i < NDimSpatial; ++i)
+            {
+                const index_t filter_spatial_dim = arg.b_g_k_c_xs_lengths_[i + I3];
+
+                if(filter_spatial_dim != I3)
+                {
+                    return false;
+                }
+            }
         }
 
         // check vector access of A
@@ -2165,7 +2179,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             << "BlkGemmPipelineScheduler: "
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "
-            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
+            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer]  << ", "
             << NumGroupsToMerge
             << ">";
         // clang-format on

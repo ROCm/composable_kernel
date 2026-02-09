@@ -44,6 +44,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                    bool do_log,
                                    bool time_kernel,
                                    const ck::utils::conv::ConvParam& conv_param,
+                                   std::optional<std::string> run_instance = std::nullopt,
                                    const OutElementOp out_element_op = OutElementOp{},
                                    index_t instance_index            = -1)
 {
@@ -229,6 +230,12 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             if((instance_index != -1) && (instance_index + 1 != num_kernel))
             {
                 // skip test if instance_index is specified
+                return;
+            }
+
+            if (run_instance.has_value() && !run_instance.value().empty() && op_ptr->GetTypeString().find(run_instance.value()) == std::string::npos)
+            {
+                // skip if run_instance is specified and does not match op name
                 return;
             }
 
