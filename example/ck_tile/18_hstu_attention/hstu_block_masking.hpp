@@ -47,7 +47,7 @@ struct HstuCrossAttentionBlockMaskWithLocal
           min_full_attn_seqlen(min_full_attn_seqlen_)
     {
         max_q_uih_len = seqlen_q - num_target_;
-        max_k_uih_len = seqlen_k - num_target_;
+        max_k_uih_len = seqlen_k; // assuming target_in_kv == false
 
         // in case user provided max_attn_len_ could be bigger than max_uih_len
         max_attn_len = min(max_k_uih_len, min(max_q_uih_len, max_attn_len));
@@ -223,11 +223,12 @@ struct HstuCrossAttentionBlockMaskWithLocal
         }
         else
         {
+            // Non-causal: only apply sliding window constraint, no diagonal inclusion
+            // logic This matches PyTorch reference which just returns boundary mask for non-causal
             bool in_min_full_scope =
                 (min_full_attn_seqlen > 0) ? (row_id >= max_row_id - min_full_attn_seqlen) : false;
 
-            return (((row_id != col_id) || (row == col)) &&
-                    ((abs(row_id - col_id) <= max_attn_len) || in_min_full_scope));
+            return ((abs(row_id - col_id) <= max_attn_len) || in_min_full_scope);
         }
     };
 
@@ -523,7 +524,7 @@ struct HstuCrossAttentionBlockMaskNoLocal
         : seqlen_q(seqlen_q_), seqlen_k(seqlen_k_), contextual_seqlen(contextual_seqlen_)
     {
         max_q_uih_len = seqlen_q - num_target_;
-        max_k_uih_len = seqlen_k - num_target_;
+        max_k_uih_len = seqlen_k; // assuming target_in_kv == false
 
         if(contextual_seqlen > 0)
         {
@@ -609,7 +610,9 @@ struct HstuCrossAttentionBlockMaskNoLocal
         }
         else
         {
-            return (row_id != col_id) || (row == col);
+            // Non-causal: no masking needed, everything in bounds is allowed
+            // This matches PyTorch reference which just returns boundary mask for non-causal
+            return true;
         };
     };
 

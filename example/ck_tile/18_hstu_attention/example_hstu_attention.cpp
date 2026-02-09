@@ -284,9 +284,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     else
         is_cross_attention = true;
 
-    // assume input_max_uih_seqlen_kv is same as input_max_uih_seqlen_q if not strictly defined
-    if(input_max_uih_seqlen_kv <= 0)
-        input_max_uih_seqlen_kv = input_max_uih_seqlen_q;
+    if(!is_cross_attention)
+    {
+        // assume input_max_uih_seqlen_kv is same as input_max_uih_seqlen_q if not strictly defined
+        if(input_max_uih_seqlen_kv <= 0)
+            input_max_uih_seqlen_kv = input_max_uih_seqlen_q;
+    };
 
     if(is_jagged)
     {
@@ -333,7 +336,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int phy_seqlen_q  = 0;
     int phy_seqlen_kv = 0;
     int max_seqlen_q  = max_uih_seqlen_q + max_target + contextual_seqlen;
-    int max_seqlen_kv = max_uih_seqlen_kv + max_target + contextual_seqlen;
+    int max_seqlen_kv = is_cross_attention ? max_uih_seqlen_kv + contextual_seqlen
+                                           : max_uih_seqlen_kv + max_target + contextual_seqlen;
 
     std::vector<int> seq_offsets_q;
     std::vector<int> seq_offsets_kv;
@@ -356,12 +360,22 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         for(int i = 0; i < num_batch; i++)
         {
-            int batch_seqlen = num_targets.empty()
-                                   ? seq_lengths_kv[i] + contextual_seqlen
-                                   : seq_lengths_kv[i] + num_targets[i] + contextual_seqlen;
+            if(!is_cross_attention)
+            {
+                int batch_seqlen = num_targets.empty()
+                                       ? seq_lengths_kv[i] + contextual_seqlen
+                                       : seq_lengths_kv[i] + num_targets[i] + contextual_seqlen;
 
-            phy_seqlen_kv += batch_seqlen;
-            seq_offsets_kv.push_back(phy_seqlen_kv);
+                phy_seqlen_kv += batch_seqlen;
+                seq_offsets_kv.push_back(phy_seqlen_kv);
+            }
+            else // for cross_attention, assume target_in_kv == false
+            {
+                int batch_seqlen = seq_lengths_kv[i] + contextual_seqlen;
+
+                phy_seqlen_kv += batch_seqlen;
+                seq_offsets_kv.push_back(phy_seqlen_kv);
+            }
         };
     }
     else

@@ -187,6 +187,10 @@ struct reference_hstu_attention
                 {
                     for(int sq = 0; sq < max_seqlen_q; sq++)
                         for(int sk = 0; sk < max_seqlen_kv; sk++)
+                            mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) = 0;
+
+                    for(int sq = 0; sq < seqlen_q; sq++)
+                        for(int sk = 0; sk < seqlen_kv; sk++)
                             mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) =
                                 static_cast<int8_t>(mask.IsTokenPairInsideMask(sq, sk));
                 }
