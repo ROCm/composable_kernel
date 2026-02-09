@@ -454,12 +454,50 @@ struct QuantGemmKernel
                 bq_group_offset   = 0;
                 bq_k_split_offset = 0;
             }
+
+            // Compute AQ and BQ offsets for ABQuantGrouped mode
+            if constexpr(kQuantType == QuantType::ABQuantGrouped && !APreshuffleQuant)
+            {
+                using AQuantGroupSize = remove_cvref_t<typename GemmPipeline::AQuantGroupSize>;
+                using BQuantGroupSize = remove_cvref_t<typename GemmPipeline::BQuantGroupSize>;
+
+                const index_t k_offset = amd_wave_read_first_lane(k_id * KRead);
+                aq_group_offset        = amd_wave_read_first_lane(k_offset / AQuantGroupSize::kK);
+                bq_group_offset        = amd_wave_read_first_lane(k_offset / BQuantGroupSize::kK);
+
+                if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, AQLayout>)
+                {
+                    aq_k_split_offset = amd_wave_read_first_lane(aq_group_offset);
+                }
+                else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, AQLayout>)
+                {
+                    aq_k_split_offset = amd_wave_read_first_lane(aq_group_offset * kargs.stride_AQ);
+                }
+
+                if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BQLayout>)
+                {
+                    const index_t stride_bq =
+                        amd_wave_read_first_lane(integer_divide_ceil(kargs.N, BQuantGroupSize::kN));
+                    bq_k_split_offset = amd_wave_read_first_lane(bq_group_offset * stride_bq);
+                }
+                else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BQLayout>)
+                {
+                    bq_k_split_offset = amd_wave_read_first_lane(bq_group_offset);
+                }
+            }
+            else
+            {
+                aq_group_offset   = 0;
+                aq_k_split_offset = 0;
+            }
         }
 
         index_t a_k_split_offset;
         index_t b_k_split_offset;
-        index_t bq_group_offset;   // Logical offset in K-groups (K/kK dimension)
-        index_t bq_k_split_offset; // Memory pointer offset (accounting for layout/stride)
+        index_t aq_group_offset;   // Logical offset in AQ K-groups (K/kK dimension) for ABQuant
+        index_t aq_k_split_offset; // Memory pointer offset for AQ (accounting for layout/stride)
+        index_t bq_group_offset;   // Logical offset in BQ K-groups (K/kK dimension)
+        index_t bq_k_split_offset; // Memory pointer offset for BQ (accounting for layout/stride)
         index_t splitted_k;
     };
 
@@ -531,6 +569,7 @@ struct QuantGemmKernel
 
     CK_TILE_DEVICE static auto MakeAQBlockWindow(const AQDataType* aq_ptr,
                                                  const QuantGemmKernelArgs& kargs,
+                                                 const index_t aq_group_offset,
                                                  const index_t i_m,
                                                  const index_t i_n)
     {
@@ -595,11 +634,15 @@ struct QuantGemmKernel
                                kQuantType == QuantType::ABQuantGrouped) &&
                               !APreshuffleQuant)
             {
+                // For split-K with ABQuant, adjust AQ tensor dimension based on group offset
+                // This reflects "remaining K-groups from split-K offset position"
+                const index_t aq_k_groups = kargs.QK_A - aq_group_offset;
+
                 if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
                 {
                     return make_naive_tensor_view<address_space_enum::global>(
                         aq_ptr,
-                        make_tuple(kargs.M, kargs.QK_A),
+                        make_tuple(kargs.M, aq_k_groups),
                         make_tuple(kargs.stride_AQ, 1),
                         number<GemmPipeline::GetVectorSizeAQ()>{},
                         number<1>{});
@@ -608,7 +651,7 @@ struct QuantGemmKernel
                 {
                     return make_naive_tensor_view<address_space_enum::global>(
                         aq_ptr,
-                        make_tuple(kargs.QK_A, kargs.M),
+                        make_tuple(aq_k_groups, kargs.M),
                         make_tuple(kargs.stride_AQ, 1),
                         number<GemmPipeline::GetVectorSizeAQ()>{},
                         number<1>{});
@@ -1097,17 +1140,21 @@ struct QuantGemmKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const QuantGemmKernelArgs& kargs)
     {
-        // Split-K is supported for BQuantGrouped mode without preshuffle
+        // Split-K is supported for BQuantGrouped and ABQuantGrouped modes without preshuffle
         if(kargs.k_batch != 1)
         {
             constexpr bool is_bquant_non_preshuffle =
                 (kQuantType == QuantType::BQuantGrouped) && !BPreshuffleQuant;
-            if constexpr(!is_bquant_non_preshuffle)
+            constexpr bool is_abquant_non_preshuffle =
+                (kQuantType == QuantType::ABQuantGrouped) && !APreshuffleQuant && !BPreshuffleQuant;
+
+            if constexpr(!is_bquant_non_preshuffle && !is_abquant_non_preshuffle)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
                     CK_TILE_ERROR("Conditions not met for Kbatch >1 ! "
-                                  "Split-K only supported for BQuantGrouped without preshuffle.");
+                                  "Split-K only supported for BQuantGrouped or ABQuantGrouped "
+                                  "without preshuffle.");
                 }
                 return false;
             }
@@ -1150,6 +1197,27 @@ struct QuantGemmKernel
                                       std::to_string(BQuantGroupSize::kK));
                     }
                     return false;
+                }
+
+                // Constraint 3 (ABQuant only): KRead must also align with AQ group boundaries
+                // For ABQuantGrouped mode, we have two quantization tensors (AQ and BQ).
+                // Both must have their K-dimension aligned with the split-K batch size.
+                if constexpr(kQuantType == QuantType::ABQuantGrouped)
+                {
+                    using AQuantGroupSize = remove_cvref_t<typename GemmPipeline::AQuantGroupSize>;
+                    if(KRead % AQuantGroupSize::kK != 0)
+                    {
+                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                        {
+                            CK_TILE_ERROR(
+                                "Split-K batch size must be aligned with AQ quantization group "
+                                "size! KRead=" +
+                                std::to_string(KRead) +
+                                " is not divisible by AQuantGroupSize::kK=" +
+                                std::to_string(AQuantGroupSize::kK));
+                        }
+                        return false;
+                    }
                 }
             }
         }
@@ -1312,7 +1380,10 @@ struct QuantGemmKernel
             MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
         const auto& b_block_window =
             MakeBBlockWindow(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
-        const auto& aq_block_window = MakeAQBlockWindow(aq_ptr, kargs, block_idx_m, block_idx_n);
+        // Note: Pass aq_group_offset so the tensor view dimension reflects
+        // the remaining K-groups from the split-K offset position for ABQuant.
+        const auto& aq_block_window = MakeAQBlockWindow(
+            aq_ptr, kargs, splitk_batch_offset.aq_group_offset, block_idx_m, block_idx_n);
         // Note: Pass bq_group_offset so the tensor view dimension reflects
         // the remaining K-groups from the split-K offset position.
         const auto& bq_block_window = MakeBQBlockWindow(
@@ -1443,7 +1514,20 @@ struct QuantGemmKernel
             static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
         const BDataType* b_ptr =
             static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
-        const AQDataType* aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
+
+        // AQ pointer: Apply split-K offset for ABQuant mode
+        const AQDataType* aq_ptr;
+        if constexpr(kQuantType == QuantType::ABQuantGrouped && !APreshuffleQuant)
+        {
+            aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr) +
+                     splitk_batch_offset.aq_k_split_offset;
+        }
+        else
+        {
+            aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
+        }
+
+        // BQ pointer: Apply split-K offset for BQuant and ABQuant modes
         const BQDataType* bq_ptr =
             static_cast<const BQDataType*>(kargs.bq_ptr) + splitk_batch_offset.bq_k_split_offset;
         CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
