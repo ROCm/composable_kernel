@@ -54,14 +54,15 @@ void init_tensor_buffer_uniform_int(void* buf,
 
     // we might be asked to generate int values on fp data types that don't have the required
     // precision
-    if(static_cast<ck_type>(max_value - 1) == static_cast<ck_type>(min_value))
+    if(static_cast<ck_type>(max_value - 1) <= static_cast<ck_type>(min_value) &&
+       static_cast<ck_type>(max_value - 1) >= static_cast<ck_type>(min_value))
     {
         throw std::runtime_error("Error while filling device tensor with random integer data: "
                                  "insufficient precision in specified range");
     }
     size_t packed_size = ck::packed_size_v<ck_type>;
     fill_tensor_uniform_rand_int_values<<<256, 256>>>(
-        static_cast<ck_type>(buf), min_value, max_value, (size * packed_size) / sizeof(ck_type));
+        static_cast<ck_type*>(buf), min_value, max_value, (size * packed_size) / sizeof(ck_type));
 }
 
 /// @brief Initialize tensor data with a uniform float distribution
