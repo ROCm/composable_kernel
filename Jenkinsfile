@@ -93,18 +93,20 @@ def sendFailureNotifications() {
     
     // Get the build log.
     def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
+    echo "Checking for failure patterns..."
     // Check for patterns in the log.
-    def foundPatterns = []
-    for (patternMap in failurePatterns) {
-        def result = checkForPattern(patternMap.pattern, buildLog)
-        if (result.found) {
-            foundPatterns.add([
-                description: patternMap.description,
-                matchedLine: result.matchedLine,
-                context: result.context
-            ])
-        }
-    }
+    // def foundPatterns = []
+    // for (patternMap in failurePatterns) {
+    //     def result = checkForPattern(patternMap.pattern, buildLog)
+    //     if (result.found) {
+    //         foundPatterns.add([
+    //             description: patternMap.description,
+    //             matchedLine: result.matchedLine,
+    //             context: result.context
+    //         ])
+    //     }
+    // }
+    echo "Done checking for failure patterns..."
     // Send a notification for each matched failure pattern.
     for (patternMap in foundPatterns) {
         withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
@@ -115,6 +117,7 @@ def sendFailureNotifications() {
         '''
         }
     }
+    echo "Done failure pattern checking and notifications"
 }
 
 def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
