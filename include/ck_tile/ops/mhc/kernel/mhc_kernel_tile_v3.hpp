@@ -97,54 +97,8 @@ struct MHCKernelV3
         if(batch_start >= batch || out_start >= output_dim)
             return;
 
-        // Create full tensor views (not adjusted) and use window origins to select regions
-        auto x_tensor_full = make_naive_tensor_view<address_space_enum::global>(
-            p_x, make_tuple(batch, nC), make_tuple(nC, 1), number<1>{}, number<1>{});
-
-        // For column-major B [N, K], reinterpret row-major phi [nC, output_dim]
-        // as column-major [output_dim, nC] with strides [1, output_dim]
-        auto phi_tensor_full = make_naive_tensor_view<address_space_enum::global>(
-            p_phi, make_tuple(output_dim, nC), make_tuple(1, output_dim), number<1>{}, number<1>{});
-
-        // Pad tensors according to GEMM pipeline requirements
-        // For row-major A [M, K]: pad with sequence<false, kPadK>
-        auto x_tensor_padded =
-            pad_tensor_view(x_tensor_full,
-                            make_tuple(number<kMTile>{}, number<kKTile>{}),
-                            sequence<false, Problem::kPadK>{}); // Don't pad M, conditionally pad K
-
-        // For column-major B [N, K]: pad with sequence<false, kPadK>
-        auto phi_tensor_padded =
-            pad_tensor_view(phi_tensor_full,
-                            make_tuple(number<kNTile>{}, number<kKTile>{}),
-                            sequence<false, Problem::kPadK>{}); // Don't pad N, conditionally pad K
-
-        // Create DRAM tile windows from padded tensors
-        auto x_dram_window =
-            make_tile_window(x_tensor_padded,
-                             make_tuple(number<kMTile>{}, number<kKTile>{}),
-                             {batch_start, 0}); // Start at this block's batch range
-
-        auto phi_dram_window =
-            make_tile_window(phi_tensor_padded,
-                             make_tuple(number<kNTile>{}, number<kKTile>{}),
-                             {out_start, 0}); // Start at this block's output range
-
-        // Use GEMM pipeline v1 to compute the full GEMM (more robust for multi-block execution)
-        using GemmPipeline = GemmPipelineAGmemBGmemCRegV1<Problem>;
-
-        const index_t num_k_loops = (nC + kKTile - 1) / kKTile;
-
-        // Use static shared memory allocation (per-block, not shared across blocks!)
-        __shared__ char smem[GetSmemSize()];
-        auto gemm_pipeline = GemmPipeline{};
-
-        // V1 pipeline expects tuple-wrapped windows
-        auto result_tile = gemm_pipeline(
-            make_tuple(x_dram_window), make_tuple(phi_dram_window), num_k_loops, smem);
-
+        // STEP 1: Compute norm BEFORE GEMM to enable future fusion
         // Compute norm ||x_l||_2 / sqrt(nC) for each batch element using vectorized loads
-        // Use vector loads (float4) for better memory bandwidth utilization
         constexpr index_t kVectorSize = 4; // Load 4 floats at a time
 
         ComputeDataType norms[kMTile];
@@ -189,6 +143,41 @@ struct MHCKernelV3
                 norms[local_m] = 1.0f; // Default for out-of-bounds
             }
         }
+
+        // Now setup GEMM after norm computation (better for register allocation)
+        // Create full tensor views
+        auto x_tensor_full = make_naive_tensor_view<address_space_enum::global>(
+            p_x, make_tuple(batch, nC), make_tuple(nC, 1), number<1>{}, number<1>{});
+
+        auto phi_tensor_full = make_naive_tensor_view<address_space_enum::global>(
+            p_phi, make_tuple(output_dim, nC), make_tuple(1, output_dim), number<1>{}, number<1>{});
+
+        // Pad tensors
+        auto x_tensor_padded = pad_tensor_view(x_tensor_full,
+                                               make_tuple(number<kMTile>{}, number<kKTile>{}),
+                                               sequence<false, Problem::kPadK>{});
+
+        auto phi_tensor_padded = pad_tensor_view(phi_tensor_full,
+                                                 make_tuple(number<kNTile>{}, number<kKTile>{}),
+                                                 sequence<false, Problem::kPadK>{});
+
+        // Create DRAM tile windows
+        auto x_dram_window = make_tile_window(
+            x_tensor_padded, make_tuple(number<kMTile>{}, number<kKTile>{}), {batch_start, 0});
+
+        auto phi_dram_window = make_tile_window(
+            phi_tensor_padded, make_tuple(number<kNTile>{}, number<kKTile>{}), {out_start, 0});
+
+        // Use GEMM pipeline v1
+        using GemmPipeline = GemmPipelineAGmemBGmemCRegV1<Problem>;
+
+        const index_t num_k_loops = (nC + kKTile - 1) / kKTile;
+
+        __shared__ char smem[GetSmemSize()];
+        auto gemm_pipeline = GemmPipeline{};
+
+        auto result_tile = gemm_pipeline(
+            make_tuple(x_dram_window), make_tuple(phi_dram_window), num_k_loops, smem);
 
         // Apply elementwise operations (currently commented out for GEMM testing)
         constexpr auto result_spans = decltype(result_tile)::get_distributed_spans();
