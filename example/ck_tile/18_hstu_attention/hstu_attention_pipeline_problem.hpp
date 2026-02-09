@@ -63,6 +63,7 @@ template <typename InOutDataType_,
           typename GemmAccDataType_,
           typename CompDataType_, // data type for SiLU and other non-linear calculation
           typename BiasDataType_,
+          bool kIsCrossAttention_,
           bool kIsJagged_,
           bool kHasBias_,
           bool kHasDropout_,
@@ -85,12 +86,13 @@ struct HstuAttentionFwdPipelineProblem
     using OaccDataType = GemmAccDataType;
     using PDataType    = QKVDataType;
 
-    static constexpr bool kIsJagged   = kIsJagged_;
-    static constexpr bool kHasBias    = kHasBias_;
-    static constexpr bool kHasDropout = kHasDropout_;
-    static constexpr bool kHasCausal  = kHasCausal_;
-    static constexpr bool kUseSoftmax = kUseSoftmax_;
-    static constexpr bool kUseTrLoad  = kUseTrLoad_;
+    static constexpr bool kIsCrossAttention = kIsCrossAttention_;
+    static constexpr bool kIsJagged         = kIsJagged_;
+    static constexpr bool kHasBias          = kHasBias_;
+    static constexpr bool kHasDropout       = kHasDropout_;
+    static constexpr bool kHasCausal        = kHasCausal_;
+    static constexpr bool kUseSoftmax       = kUseSoftmax_;
+    static constexpr bool kUseTrLoad        = kUseTrLoad_;
 
     using HstuAttentionTileSetting = remove_cvref_t<AttentionTileSetting_>;
 

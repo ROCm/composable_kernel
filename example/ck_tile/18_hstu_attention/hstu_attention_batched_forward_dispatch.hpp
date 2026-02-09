@@ -41,11 +41,13 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
     static constexpr bool kUseTrLoad = false;
 #endif
 
-    using HstuPipelineProblem = ck_tile::HstuAttentionFwdPipelineProblem<
+    template <bool kIsCrossAttention>
+    using HstuPipelineProblemTemp = ck_tile::HstuAttentionFwdPipelineProblem<
         InOutDataType,
         typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType,
         typename HstuAttentionFwdTypeConfig<InOutDataType>::CompDataType,
         typename HstuAttentionFwdTypeConfig<InOutDataType>::BiasDataType,
+        kIsCrossAttention,
         false, // kIsJagged
         kHasBias,
         kHasDropout,
@@ -87,33 +89,40 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
                         kPadSeqLenQ,
                         kPadHeadDimV>>;
 
-                if constexpr(!kUseTrLoad)
-                {
-                    using HstuPipeline = std::conditional_t<
-                        kUseSoftmax,
-                        ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVS<HstuPipelineProblem,
-                                                                           HstuTraits>,
-                        ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVS<HstuPipelineProblem,
-                                                                         HstuTraits>>;
+                BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
+                    using HstuPipelineProblem = HstuPipelineProblemTemp<kIsCrossAttention>;
 
-                    using HstuKernel = ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
+                    if constexpr(!kUseTrLoad)
+                    {
+                        using HstuPipeline = std::conditional_t<
+                            kUseSoftmax,
+                            ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVS<HstuPipelineProblem,
+                                                                               HstuTraits>,
+                            ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVS<HstuPipelineProblem,
+                                                                             HstuTraits>>;
 
-                    RunWithKernel<HstuKernel>(param, stream);
-                }
-                else
-                {
-                    using HstuPipeline = std::conditional_t<
-                        kUseSoftmax,
-                        ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad<
-                            HstuPipelineProblem,
-                            HstuTraits>,
-                        ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad<HstuPipelineProblem,
-                                                                               HstuTraits>>;
+                        using HstuKernel =
+                            ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
 
-                    using HstuKernel = ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
+                        RunWithKernel<HstuKernel>(param, stream);
+                    }
+                    else
+                    {
+                        using HstuPipeline = std::conditional_t<
+                            kUseSoftmax,
+                            ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad<
+                                HstuPipelineProblem,
+                                HstuTraits>,
+                            ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad<
+                                HstuPipelineProblem,
+                                HstuTraits>>;
 
-                    RunWithKernel<HstuKernel>(param, stream);
-                };
+                        using HstuKernel =
+                            ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
+
+                        RunWithKernel<HstuKernel>(param, stream);
+                    };
+                });
             });
     };
 
@@ -121,8 +130,7 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
     static void RunWithKernel(HstuAttentionFwdParams& param, hipStream_t stream)
     {
         const auto kargs = [&] {
-            return HstuKernel::MakeKargs(param.is_cross_attention,
-                                         param.q_ptr,
+            return HstuKernel::MakeKargs(param.q_ptr,
                                          param.k_ptr,
                                          param.v_ptr,
                                          param.bias_ptr,
