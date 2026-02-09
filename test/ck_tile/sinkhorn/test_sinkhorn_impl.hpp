@@ -28,6 +28,40 @@ class TestCkTileSinkHorn : public ::testing::Test
     using TestSinkhornShape =
         ck_tile::SinkhornKnoppShape<BlockWarps_, BlockTile_, WarpTile_, ThreadTile_>;
 
+    template <typename ComputeDataType>
+    auto row_sum(const ck_tile::HostTensor<ComputeDataType>& x_n_n)
+    {
+        const ck_tile::index_t input_n = x_n_n.get_length(0);
+        ck_tile::HostTensor<ComputeDataType> acc_n({input_n}, {1});
+
+        for(ck_tile::index_t i = 0; i < input_n; ++i)
+        {
+            acc_n(i) = 0;
+            for(ck_tile::index_t j = 0; j < input_n; ++j)
+            {
+                acc_n(i) += x_n_n(i, j);
+            }
+        }
+        return acc_n;
+    }
+
+    template <typename ComputeDataType>
+    auto col_sum(const ck_tile::HostTensor<ComputeDataType>& x_n_n)
+    {
+        const ck_tile::index_t input_n = x_n_n.get_length(0);
+        ck_tile::HostTensor<ComputeDataType> acc_n({input_n}, {1});
+
+        for(ck_tile::index_t i = 0; i < input_n; ++i)
+        {
+            acc_n(i) = 0;
+            for(ck_tile::index_t j = 0; j < input_n; ++j)
+            {
+                acc_n(i) += x_n_n(j, i);
+            }
+        }
+        return acc_n;
+    }
+
     void RunGenericTest(const std::vector<ck_tile::index_t>& input_shape, const int max_iterations)
     {
         auto input_n        = input_shape[0];
@@ -74,15 +108,34 @@ class TestCkTileSinkHorn : public ::testing::Test
         ck_tile::HostTensor<YDataType> h_y_ref(input_shape, default_stride);
         sinkhorn_knopp_ref<XDataType, ComputeDataType, YDataType>(h_x, h_y_ref, max_iterations);
 
-        // TODO: Test whether or not output is actually doubly stochastic
-
         // TODO: Refine tolerances
         const float rtol = 1e-7;
         const float atol = 1e-8;
 
+        // Check that reference result is doubly stochastic
+        ck_tile::HostTensor<YDataType> unit_n({input_n}, {1});
+        ck_tile::FillConstant<YDataType>{1.0}(unit_n);
+
+        auto rows_ref = row_sum(h_y_ref);
+        auto cols_ref = col_sum(h_y_ref);
+
+        bool result = true;
+
+        result &= ck_tile::check_err(rows_ref,
+                                     unit_n,
+                                     "Error: Reference computation result rows do not sum to 1!",
+                                     rtol,
+                                     atol);
+
+        result &= ck_tile::check_err(cols_ref,
+                                     unit_n,
+                                     "Error: Reference computation result cols do not sum to 1!",
+                                     rtol,
+                                     atol);
+
         // Transfer data from device and check that it matches reference
         d_y_mem.FromDevice(h_y.data());
-        bool result = true;
+
         result &= ck_tile::check_err(
             h_y, h_y_ref, "Error: Sinkhorn-Knopp doesn't match CPU reference!", rtol, atol);
 
