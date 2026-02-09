@@ -69,9 +69,9 @@ class TestGroupedConvndFwdTile : public ::testing::Test
 
             auto inputs  = alloc_inputs(args);
             auto outputs = alloc_outputs(args);
-            ckt::init_tensor_buffer_uniform_fp(
+            ckt::init_tensor_buffer_uniform_int(
                 inputs.get().input, args.make_input_descriptor(), -5, 5);
-            ckt::init_tensor_buffer_uniform_fp(
+            ckt::init_tensor_buffer_uniform_int(
                 inputs.get().weight, args.make_weight_descriptor(), -5, 5);
 
             std::cout << args.make_input_descriptor() << std::endl;

@@ -654,6 +654,14 @@ struct GroupedConvolutionForwardKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const GroupedConvFwdKernelArgsSpecialized& kargs)
     {
+        if constexpr(GemmPipeline_::Async)
+        {
+            if(get_device_name() != "gfx950")
+            {
+                return false;
+            }
+        }
+
         if constexpr((GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
                       is_any_of<OutDataType, fp16_t, bf16_t>::value) ||
                      !IsSplitKSupported)
@@ -1141,19 +1149,40 @@ struct GroupedConvolutionForwardKernel
             // allocate LDS
             __shared__ char smem_ptr[GetSmemSize()];
 
-            RunGemm(a_ptr,
-                    b_ptr,
-                    ds_ptr_with_offsets,
-                    c_ptr,
-                    smem_ptr,
-                    a_desc,
-                    b_desc,
-                    c_desc,
-                    kargs.GemmK,
-                    kargs.k_batch,
-                    i_m,
-                    i_n,
-                    kargs.elfunc);
+            if constexpr(GemmPipeline_::Async)
+            {
+#if defined(__gfx950__)
+                RunGemm(a_ptr,
+                        b_ptr,
+                        ds_ptr_with_offsets,
+                        c_ptr,
+                        smem_ptr,
+                        a_desc,
+                        b_desc,
+                        c_desc,
+                        kargs.GemmK,
+                        kargs.k_batch,
+                        i_m,
+                        i_n,
+                        kargs.elfunc);
+#endif
+            }
+            else
+            {
+                RunGemm(a_ptr,
+                        b_ptr,
+                        ds_ptr_with_offsets,
+                        c_ptr,
+                        smem_ptr,
+                        a_desc,
+                        b_desc,
+                        c_desc,
+                        kargs.GemmK,
+                        kargs.k_batch,
+                        i_m,
+                        i_n,
+                        kargs.elfunc);
+            }
         }
     }
 };

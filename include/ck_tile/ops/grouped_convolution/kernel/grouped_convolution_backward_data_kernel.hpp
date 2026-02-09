@@ -731,6 +731,13 @@ struct GroupedConvolutionBackwardDataKernel
     CK_TILE_HOST static bool
     IsSupportedArgument(const GroupedConvBwdDataKernelArgsSpecialized& kargs)
     {
+        if constexpr(GemmPipeline_::Async)
+        {
+            if(get_device_name() != "gfx950")
+            {
+                return false;
+            }
+        }
         if constexpr(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
                      is_any_of<OutDataType, fp16_t, bf16_t>::value)
         {
@@ -1128,17 +1135,36 @@ struct GroupedConvolutionBackwardDataKernel
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
-        RunGemm(a_ptr,
-                b_ptr,
-                kargs.ds_ptr,
-                c_ptr,
-                smem_ptr,
-                kargs,
-                splitted_k,
-                i_m,
-                i_n,
-                i_k,
-                group_id);
+        if constexpr(GemmPipeline_::Async)
+        {
+#if defined(__gfx950__)
+            RunGemm(a_ptr,
+                    b_ptr,
+                    kargs.ds_ptr,
+                    c_ptr,
+                    smem_ptr,
+                    kargs,
+                    splitted_k,
+                    i_m,
+                    i_n,
+                    i_k,
+                    group_id);
+#endif
+        }
+        else
+        {
+            RunGemm(a_ptr,
+                    b_ptr,
+                    kargs.ds_ptr,
+                    c_ptr,
+                    smem_ptr,
+                    kargs,
+                    splitted_k,
+                    i_m,
+                    i_n,
+                    i_k,
+                    group_id);
+        }
     }
 };
 
