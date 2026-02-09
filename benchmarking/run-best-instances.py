@@ -5,12 +5,16 @@ import subprocess
 import sys
 import argparse
 
+# Run under rocprof-compute
+#    HIP_VISIBLE_DEVICES=7 rockprof-compute profile -n grouped_conv_fwd --roofline-data-type FP16 -- ./run-best-instances.py --profiler-path ../build-improved-convs/bin/ckProfiler
+
+# Set no verify, and timing of the kernel. Multiple calls of the same kernel inside the script will confuse the profiler.
 profiler_commands = [
-  "1         1       1              0      1         0     1           2     32  32  4     4    3  3  200  200   1   1   1   1   1   1    1   1", 
-  "1         1       1              0      1         0     1           2     32  32  8     8    3  3  200  200   2   2   1   1   1   1    1   1", 
-  #"1         1       1              0      1         0     1           2     32  32  8     8    3  3  100  100   1   2   1   1   1   1    1   1", 
-  "1         1       1              0      1         0     1           2     1   32  2376  256  3  3  100  100   1   1   1   1   1   1    1   1", 
-  #"1         1       1              0      1         0     1           2     1   32  256   256  3  3  100  100   1   1   1   1   1   1    1   1"
+  "1         1       1              0      1         0     0           2     32  32  4     4    3  3  200  200   1   1   1   1   1   1    1   1", 
+  "1         1       1              0      1         0     0           2     32  32  8     8    3  3  200  200   2   2   1   1   1   1    1   1", 
+  #"1         1       1              0      1         0     0           2     32  32  8     8    3  3  100  100   1   2   1   1   1   1    1   1", 
+  "1         1       1              0      1         0     0           2     1   32  2376  256  3  3  100  100   1   1   1   1   1   1    1   1", 
+  #"1         1       1              0      1         0     0           2     1   32  256   256  3  3  100  100   1   1   1   1   1   1    1   1"
   ]
 
 baseline_instances = [
