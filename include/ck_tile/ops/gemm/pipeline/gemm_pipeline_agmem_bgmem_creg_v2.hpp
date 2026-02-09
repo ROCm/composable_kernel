@@ -71,6 +71,8 @@ struct GemmPipelineAGmemBGmemCRegV2 : public BaseGemmPipelineAGmemBGmemCRegV2<Pr
     static constexpr index_t kNPerBlock = BlockGemmShape::kN;
     static constexpr index_t kKPerBlock = BlockGemmShape::kK;
 
+    static constexpr bool Async = false;
+
     template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeA()
     {

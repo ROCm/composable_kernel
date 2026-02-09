@@ -144,6 +144,8 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+    static constexpr bool Async = false;
+
     template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeA()
     {

@@ -15,8 +15,7 @@
 #include "ck_tile/builder/testing/conv/reference.hpp"
 #include "ck_tile/builder/conv_builder.hpp"
 
-// Temporary disable builder validate since we don't have deduced rtol, atol support
-#define ENABLE_BUILDER_VALIDATE 0
+#define ENABLE_BUILDER_VALIDATE 1
 
 namespace ck_tile::builder::profiling {
 
@@ -168,11 +167,8 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
 #else
             HIP_CHECK_ERROR(
                 hipMemcpy(&out.data()[0], outputs.output, output_bytes_num, hipMemcpyDeviceToHost));
-            valid = ck_tile::check_err(out, ref, "Error: Incorrect results!", rtol, atol);
+            valid = ck_tile::check_err(out, ref, "Error: Incorrect results!");
 #endif
-
-            std::cout << "Relative error threshold: " << rtol
-                      << " Absolute error threshold: " << atol << std::endl;
         }
         else
         {
