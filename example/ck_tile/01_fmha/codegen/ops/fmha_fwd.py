@@ -1219,7 +1219,6 @@ def get_product(receipt: int) -> Product:
             cond &= kernel_ctx.pipeline.F_vlayout == "row"
             cond &= kernel_ctx.pipeline.F_bias in ["no", "bias"]
             cond &= kernel_ctx.pipeline.F_qscale == "no"
-            cond &= problem_ctx.mode == "batch"
             cond &= kernel_ctx.pipeline.F_skip == "f"
             cond &= kernel_ctx.pipeline.F_logits == "f"
             return cond
