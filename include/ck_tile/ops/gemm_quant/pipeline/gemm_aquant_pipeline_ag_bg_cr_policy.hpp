@@ -65,8 +65,6 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         {
             if constexpr(Problem::TransposeC)
             {
-                static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>,
-                              "TransposeC currently only supports RowMajor layout");
                 using TileEncodingPatternTransposeC =
                     tile_distribution_encoding_pattern_aq_transposed_c<BlockGemmShape,
                                                                        WarpGemm,

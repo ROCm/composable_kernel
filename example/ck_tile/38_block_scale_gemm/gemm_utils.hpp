@@ -272,6 +272,29 @@ struct GemmConfigABQuantPrefill : public GemmConfigQuantPrefill<PrecType>
 };
 
 template <typename PrecType>
+struct GemmConfigEightWarps : public GemmConfigABQuantPrefill<PrecType>
+{
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 2; // NWarps == 2 for ping-pong!
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Tile = 192;
+    static constexpr ck_tile::index_t N_Tile = 128 * N_Warp;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType) * K_Warp;
+
+    static constexpr bool kPadK      = false;
+    static constexpr bool TransposeC = true;
+    static constexpr int kBlockPerCu = 1;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshuffleBEightWarps : public GemmConfigEightWarps<PrecType>
+{
+    static constexpr bool PreshuffleB      = true;
+    static constexpr bool DoubleSmemBuffer = true;
+};
+
+template <typename PrecType>
 struct GemmConfigPreshuffleBQuantPrefill : public GemmConfigQuantPrefill<PrecType>
 {
     static constexpr bool BPreshuffleQuant = true;
