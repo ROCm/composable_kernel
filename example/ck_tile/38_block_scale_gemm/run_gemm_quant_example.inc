@@ -246,6 +246,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                       << std::endl;
         }
         float ave_time = 0;
+        using k_attr_t = ck_tile::kernel_attr<eight_warps>;
         if(s.flush_cache_)
         {
             std::cout << "Flushing cache..." << std::endl;
@@ -284,13 +285,15 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 run_flush_cache,
-                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu, k_attr_t>(
+                    Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time = ck_tile::launch_kernel(
+            ave_time = ck_tile::launch_kernel( //
                 s,
-                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu, k_attr_t>(
+                    Kernel{}, grids, blocks, 0, kargs));
         }
 
         return ave_time;

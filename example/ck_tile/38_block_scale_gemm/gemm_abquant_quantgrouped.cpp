@@ -3,7 +3,7 @@
 
 #include "run_gemm_quant_example.inc"
 
-#if defined(CK_TILE_EIGHTWARP_SUP)
+#if defined(CK_USE_GFX950)
 template <typename T>
 using GemmConfig = GemmConfigEightWarps<T>;
 template <typename T>
