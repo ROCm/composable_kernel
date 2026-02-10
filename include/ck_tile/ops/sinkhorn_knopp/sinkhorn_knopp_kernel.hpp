@@ -74,11 +74,20 @@ CK_TILE_DEVICE auto print_tile([[maybe_unused]] const T& my_tile)
 template <typename Problem, typename Policy>
 struct SinkhornKnoppKernelReduce
 {
+
+    static_assert(!std::is_same_v<typename Problem::ComputeDataType, double>,
+                  "Doubles are not supported for compute data type");
+
     static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
 
     CK_TILE_HOST static constexpr auto BlockSize()
     {
         return is_wave32() ? kBlockSize / 2 : kBlockSize;
+    }
+
+    CK_TILE_HOST static bool IsSupportedArgument([[maybe_unused]] const SinkhornKnoppArgs& args)
+    {
+        return true;
     }
 
     CK_TILE_DEVICE void operator()(const SinkhornKnoppArgs& args) const

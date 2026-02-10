@@ -100,13 +100,24 @@ class TestCkTileSinkHorn : public ::testing::Test
         //      throw std::runtime_error("Wrong! Arguments not supported!\n");
         //  }
 
-        ck_tile::launch_kernel(
-            ck_tile::stream_config{nullptr, false, 0},
+        auto timer = ck_tile::launch_kernel(
+            //     hipStream_t stream_id_ = nullptr;
+            // bool time_kernel_      = false;
+            // int log_level_         = 0;
+            // int cold_niters_       = 3;
+            // int nrepeat_           = 10;
+            // bool is_gpu_timer_     = true; // keep compatible
+            // bool flush_cache_      = false;
+            // int rotating_count_    = 1;
+            ck_tile::stream_config{nullptr, true, 0},
             ck_tile::make_kernel<kBlockPerCu>(Kernel{}, kGridSize, kBlockSize, 0, args));
+
+        printf("Time: %f", timer);
 
         // Reference computation
         ck_tile::HostTensor<YDataType> h_y_ref(input_shape, default_stride);
-        sinkhorn_knopp_ref<XDataType, ComputeDataType, YDataType>(h_x, h_y_ref, max_iterations);
+        sinkhorn_knopp_naive_ref<XDataType, ComputeDataType, YDataType>(
+            h_x, h_y_ref, max_iterations);
 
         // TODO: Refine tolerances
         const float rtol = 1e-7;
