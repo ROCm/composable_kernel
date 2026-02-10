@@ -103,9 +103,18 @@ for arg in "${command_args[@]}"; do
     cmd_string="${cmd_string} $(printf '%q' "$arg")"
 done
 
+# Auto-detect Python commands and enable unbuffered output for live streaming
+env_flags=""
+for arg in "${command_args[@]}"; do
+    if [[ "$arg" == "python" || "$arg" == "python3" || "$arg" == *.py ]]; then
+        env_flags="-e PYTHONUNBUFFERED=1"
+        break
+    fi
+done
+
 # Execute command
 if [ "$interactive" = true ]; then
-    docker exec -it -w "${workdir}" "${CONTAINER_NAME}" bash -c "${cmd_string}"
+    docker exec -it ${env_flags} -w "${workdir}" "${CONTAINER_NAME}" bash -c "${cmd_string}"
 else
-    docker exec -w "${workdir}" "${CONTAINER_NAME}" bash -c "${cmd_string}"
+    docker exec ${env_flags} -w "${workdir}" "${CONTAINER_NAME}" bash -c "${cmd_string}"
 fi
