@@ -181,11 +181,11 @@ struct MHCKernelV3
         auto phi_identity_func = [](auto& e, const PhiDataType& phi_val) { e = phi_val; };
 
         auto result_tile = gemm_pipeline(make_tuple(x_dram_window),
-                                        phi_identity_func,
-                                        make_tuple(phi_dram_window),
-                                        phi_identity_func,
-                                        num_k_loops,
-                                        smem);
+                                         phi_identity_func,
+                                         make_tuple(phi_dram_window),
+                                         phi_identity_func,
+                                         num_k_loops,
+                                         smem);
 
         // Apply normalization and activation in post-processing
         // Now we divide by norm AFTER the GEMM, which means:
@@ -222,7 +222,8 @@ struct MHCKernelV3
                     {
                         ComputeDataType activated_value;
                         Activation{}(activated_value, value);
-                        result_tile(i_j_idx) = alpha_post * inv_norm * 2.0f * activated_value + bias;
+                        result_tile(i_j_idx) =
+                            alpha_post * inv_norm * 2.0f * activated_value + bias;
                     }
                     else
                     {
