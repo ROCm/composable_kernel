@@ -69,6 +69,7 @@ void sinkhorn_knopp_naive_ref(const HostTensor<XDataType>& x_n_n,
     }
 }
 
+// Log-space implementation for Sinkhorn-Knopp
 template <typename XDataType, typename ComputeDataType, typename YDataType>
 void sinkhorn_knopp_lse_ref(const HostTensor<XDataType>& x_n_n,
                             HostTensor<YDataType>& y_n_n,
@@ -82,23 +83,13 @@ void sinkhorn_knopp_lse_ref(const HostTensor<XDataType>& x_n_n,
     ck_tile::FillConstant<ComputeDataType>{0}(log_u);
     ck_tile::FillConstant<ComputeDataType>{0}(log_v);
 
-    // LSE implementation for Sinkhorn-Knopp
-    //
-    // Y_ij = exp(X_ij + log_u_j + log_v_i)
-    //
-    // where log_u and log_v are computed as follows:
-    //
-    // log_u = 0, log_v = 0
-    // for n_iter:
-    //  log_u_j = -(max_i(X_ij + log_v_i) + log(sum_i(A + log_v_i))
-
     for(auto it = 0; it < n_iter; ++it)
     {
         for(auto i = 0; i < input_n; ++i)
         {
             // For each row:
             // 1. Add the corresponding column scaling to each value and compute the max
-            auto max_value = 0;
+            ComputeDataType max_value = 0.0;
             for(auto j = 0; j < input_n; ++j)
             {
                 c_n_n(i, j) = type_convert<ComputeDataType>(x_n_n(i, j)) + log_v(j);
@@ -109,7 +100,7 @@ void sinkhorn_knopp_lse_ref(const HostTensor<XDataType>& x_n_n,
             }
 
             // 2. exponentiate and compute the sum of the row
-            auto sumexp = 0;
+            ComputeDataType sumexp = 0.0;
             for(auto j = 0; j < input_n; ++j)
             {
                 sumexp += ck_tile::exp(c_n_n(i, j) - max_value);
@@ -123,7 +114,7 @@ void sinkhorn_knopp_lse_ref(const HostTensor<XDataType>& x_n_n,
         {
             // For each column:
             // 1. Add the corresponding row scaling to each value and compute the max
-            auto max_value = 0;
+            ComputeDataType max_value = 0.0;
             for(auto i = 0; i < input_n; ++i)
             {
                 c_n_n(i, j) = type_convert<ComputeDataType>(x_n_n(i, j)) + log_u(i);
@@ -134,7 +125,7 @@ void sinkhorn_knopp_lse_ref(const HostTensor<XDataType>& x_n_n,
             }
 
             // 2. exponentiate and compute the sum of the row
-            auto sumexp = 0;
+            ComputeDataType sumexp = 0.0;
             for(auto i = 0; i < input_n; ++i)
             {
                 sumexp += ck_tile::exp(c_n_n(i, j) - max_value);
