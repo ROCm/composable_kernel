@@ -164,3 +164,14 @@ with the corresponding lines of kernel code. It will provide information such as
 
 If the profiler indicates register spillage (kernel using more registers than available at SIMD unit), one can look for `scratch_store_dword` and `scratch_load_dword` from the ASM file. Such scratch loads/stores slow down the excution significantly. With the annotation, one can see what 
 parts of the code are using too many registers.
+
+## Memory transaction stalls
+
+If the ISA has shows many `s_waitcnt vmcnt(0)` calls, it indicates that we are waiting for global memory (read or write) ops to complete. To mitigate this, we can try to overlap memory copies and compute using double buffering (copy to one buffer, compute from another).
+
+If ISA contains `s_waitcnt lgkmcnt(0)`, we may have LDS bank conflicts (multiple write to same LDS bank are serialized), and we may need to improve the LDS access patterns.
+
+## MFMA underutilization
+
+If ISA contains `s_nop` between MFMA instructions (`v_mfma_`), it indicates that the matrix units 
+are not fully utilized.
