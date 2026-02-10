@@ -49,15 +49,6 @@ __host__ __device__ constexpr auto concat_tuple_of_reference(const Tuple<X&...>&
 }
 
 template <typename... X, typename... Y>
-auto concat_tuple_of_reference(ck::Tuple<X&...>& tx, ck::Tuple<Y&...>& ty)
-{
-    return ck::unpack2(
-        [&](auto&&... zs) { return ck::Tuple<decltype(zs)...>{ck::forward<decltype(zs)>(zs)...}; },
-        tx,
-        ty);
-}
-
-template <typename... X, typename... Y>
 __host__ __device__ constexpr auto concat_tuple(const Tuple<X...>& tx, const Tuple<Y...>& ty)
 {
     return unpack2(

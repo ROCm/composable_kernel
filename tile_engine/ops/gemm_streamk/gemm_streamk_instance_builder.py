@@ -481,8 +481,9 @@ struct SelectedKernel {{
         AccDataType,
         TileShape,
         GemmUniversalTraits>;
-    
-    static float launch(const ck_tile::StreamKHostArgs& args, const ck_tile::stream_config& stream) {{
+
+    static std::tuple<float, ck_tile::index_t> launch(const ck_tile::StreamKHostArgs& args,
+                                                      const ck_tile::stream_config& stream) {{
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
@@ -562,12 +563,16 @@ struct SelectedKernel {{
                     workspace_data.SetZero();
                 }}
             }};
+
+            const ck_tile::index_t num_wgs_per_tile = kargs.tile_partitioner.estimate_num_wgs_per_tile();
      
             // Launch kernel
-            return ck_tile::launch_kernel_time_mask(
+            const float time = ck_tile::launch_kernel_time_mask(
                 stream,
                 reset_data_buffers,
                 ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
+            
+            return std::tuple<float, ck_tile::index_t>{{time, num_wgs_per_tile}};
     }}
 }};
 """

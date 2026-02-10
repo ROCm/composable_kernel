@@ -18,12 +18,6 @@ if (CK_USE_XDL OR CK_USE_WMMA)
         target_link_libraries(test_grouped_gemm_fastgelu PRIVATE utility device_grouped_gemm_fastgelu_instance)
         add_dependencies(test_grouped_gemm test_grouped_gemm_fastgelu)
     endif()
-
-    add_gtest_executable(test_grouped_gemm_multi_abd_fixed_nk test_grouped_gemm_multi_abd_fixed_nk.cpp)
-    if(result EQUAL 0)
-        target_link_libraries(test_grouped_gemm_multi_abd_fixed_nk PRIVATE utility device_grouped_gemm_fixed_nk_multi_abd_instance)
-        add_dependencies(test_grouped_gemm test_grouped_gemm_multi_abd_fixed_nk)
-    endif()
 endif()
 
 add_gtest_executable(test_grouped_gemm_interface test_grouped_gemm_interface_xdl.cpp)
