@@ -159,6 +159,11 @@ struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBP
     static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
 };
 
+struct GemmConfigPreshuffleBPreshuffleQuantPrefill : public GemmConfigPreshuffleBPrefill
+{
+    static constexpr bool BPreshuffleQuant = true;
+};
+
 struct GemmConfigPreshuffleBPreshuffleQuantDecode : public GemmConfigPreshuffleBDecode
 {
     static constexpr bool BPreshuffleQuant = true;

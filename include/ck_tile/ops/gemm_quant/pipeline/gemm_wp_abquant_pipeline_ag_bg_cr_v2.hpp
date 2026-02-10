@@ -73,12 +73,18 @@ struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRe
     using Base::m_preload;
 
     static constexpr index_t VectorLoadSize = Problem::VectorLoadSize;
-    static constexpr index_t KPerBlockAQ =
-        integer_divide_ceil(BlockGemmShape::kK, AQuantGroupSize::kK);
-    static constexpr index_t KPerBlockBQ =
-        integer_divide_ceil(BlockGemmShape::kK, BQuantGroupSize::kK);
+
+    static constexpr index_t NPerBlock = BlockGemmShape::kN;
+    static constexpr index_t KPerBlock = BlockGemmShape::kK;
+
+    static constexpr index_t NPerBlockBQ = integer_divide_ceil(NPerBlock, BQuantGroupSize::kN);
+    static constexpr index_t KPerBlockAQ = integer_divide_ceil(KPerBlock, AQuantGroupSize::kK);
+    static constexpr index_t KPerBlockBQ = integer_divide_ceil(KPerBlock, BQuantGroupSize::kK);
     static constexpr index_t QScalesPerBlockRow =
         integer_divide_ceil(kKPerBlock, BQuantGroupSize::kK);
+
+    static constexpr bool BPreshuffleQuant = Problem::Traits::BPreshuffleQuant;
+
     static constexpr index_t GetVectorSizeAQ()
     {
         return PipelinePolicy::template GetVectorSizeAQ<Problem>();
@@ -348,6 +354,17 @@ struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRe
                              bq_dram_block_window_tmp.get_window_origin(),
                              PipelinePolicy::template MakeBQDramTileDistribution<Problem>());
 
+        // BQ DRAM window step
+        using BQDramTileWindowStep = typename BQDramBlockWindowTmp::BottomTensorIndex;
+        const BQDramTileWindowStep bq_dram_tile_window_step =
+            (BPreshuffleQuant)
+                ? make_array(((NPerBlockBQ <= BlockGemmShape::BlockWarps::at(number<1>{}))
+                                  ? ck_tile::integer_divide_ceil(n, BQuantGroupSize::kN)
+                                  : ck_tile::integer_least_multiple(n, NPerBlock) /
+                                        BlockGemmShape::WarpTile::at(number<1>{})),
+                             0)
+                : make_array(0, KPerBlockBQ);
+
         // Prefetch A0
         auto a_block_tile = load_tile(a_copy_dram_window);
         // move A window to next k
@@ -383,7 +400,7 @@ struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRe
         bq_block_tile = load_tile(bq_copy_dram_window);
         // move BQ to tile 1
         move_tile_window(aq_copy_dram_window, {0, KPerBlockAQ});
-        move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
+        move_tile_window(bq_copy_dram_window, bq_dram_tile_window_step);
         // Prefill A0
         auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
         store_tile(a_copy_lds_window_ping, a_block_tile_tmp);
@@ -453,7 +470,7 @@ struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRe
             aq_block_tile_2 = load_tile(aq_copy_dram_window);
             move_tile_window(aq_copy_dram_window, {0, KPerBlockAQ});
             bq_block_tile_2 = load_tile(bq_copy_dram_window);
-            move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
+            move_tile_window(bq_copy_dram_window, bq_dram_tile_window_step);
 
             // Preload A(2i+1) ds_read
             static_for<0, m_preload, 1>{}([&](auto loadIter) {
@@ -482,7 +499,7 @@ struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRe
             aq_block_tile = load_tile(aq_copy_dram_window);
             move_tile_window(aq_copy_dram_window, {0, KPerBlockAQ});
             bq_block_tile = load_tile(bq_copy_dram_window);
-            move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
+            move_tile_window(bq_copy_dram_window, bq_dram_tile_window_step);
 
             // Prefill A(2i+2)
             a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
