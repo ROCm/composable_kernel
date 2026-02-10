@@ -357,7 +357,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
         if(ck::get_device_name() == "gfx950")
         {
-            return Base::GetSharedMemoryNumberOfByte(gfx950_t{});
+            // Double buffering -> 2 times shared memory
+            return 2*Base::GetSharedMemoryNumberOfByte(gfx950_t{});
         }
         else
 #endif
@@ -755,12 +756,24 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+        constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
 
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+        // Double buffers for A and B in LDS
+        auto a_block_buf_0 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<AComputeDataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BComputeDataType*>(p_shared) + a_block_space_size_aligned,
+        auto a_block_buf_1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<AComputeDataType*>(p_shared)  + a_block_space_size_aligned, 
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+
+        auto b_block_buf_0 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<BComputeDataType*>(p_shared) + 2*a_block_space_size_aligned,
+            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+
+        auto b_block_buf_1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<BComputeDataType*>(p_shared) + 2*a_block_space_size_aligned + 
+                b_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
@@ -778,13 +791,15 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                                a_block_desc_ak0_m_ak1,
                                                                a_blockwise_copy,
                                                                a_grid_buf,
-                                                               a_block_buf,
+                                                               a_block_buf_0,
+                                                               a_block_buf_1,
                                                                a_block_slice_copy_step,
                                                                b_grid_desc_bk0_n_bk1,
                                                                b_block_desc_bk0_n_bk1,
                                                                b_blockwise_copy,
                                                                b_grid_buf,
-                                                               b_block_buf,
+                                                               b_block_buf_0,
+                                                               b_block_buf_1,
                                                                b_block_slice_copy_step,
                                                                blockwise_gemm,
                                                                c_thread_buf,
