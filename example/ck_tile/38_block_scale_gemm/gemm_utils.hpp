@@ -235,6 +235,13 @@ struct GemmConfigPreshuffleB_ABQuant_Prefill : public GemmConfigPreshuffleB_BQua
 };
 
 template <typename PrecType>
+struct GemmConfigPreshuffleB_ABQuant_PreshuffleBQuant_Prefill
+    : public GemmConfigPreshuffleB_ABQuant_Prefill<PrecType>
+{
+    static constexpr bool BPreshuffleQuant = true;
+};
+
+template <typename PrecType>
 struct GemmConfigPreshuffleB_ABQuant_Decode : public GemmConfigPreshuffleB_BQuant_Prefill<PrecType>
 {
     static constexpr ck_tile::index_t M_Tile = 16;
