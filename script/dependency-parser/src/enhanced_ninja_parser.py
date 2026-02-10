@@ -163,11 +163,20 @@ class EnhancedNinjaDependencyParser:
         """Build the final mapping from files to executables."""
         print("Building file-to-executable mapping...")
 
+        # For monorepo, truncate the path before and including projects/<project_name>
+        self.project = None
+        rl_regex = rf"rocm-libraries[\\/]+projects[\\/]+([^\\/]+)[\\/]+(.*)"
         for exe, object_files in self.executable_to_objects.items():
             for obj_file in object_files:
                 # Add all dependencies of this object file
                 if obj_file in self.object_to_all_deps:
                     for dep_file in self.object_to_all_deps[obj_file]:
+                        match = re.search(rl_regex, dep_file, re.IGNORECASE)
+                        if match:
+                            dep_file = match.group(2)
+                            if not self.project:
+                                print(f"Found rocm-libraries project: '{match.group(1)}'")
+                                self.project = match.group(1)
                         # Filter out system files and focus on project files
                         if self._is_project_file(dep_file):
                             self.file_to_executables[dep_file].add(exe)
@@ -244,6 +253,10 @@ class EnhancedNinjaDependencyParser:
                 exe_to_files[exe].add(file_path)
 
         mapping_data = {
+            "repo": {
+                "type": "monorepo" if self.project else "component",
+                "project": self.project
+            },
             "file_to_executables": {
                 file_path: list(exes)
                 for file_path, exes in self.file_to_executables.items()
