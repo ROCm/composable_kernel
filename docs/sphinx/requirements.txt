@@ -58,6 +58,8 @@ fastjsonschema==2.21.2
     # via
     #   nbformat
     #   rocm-docs-core
+fonttools==4.61.0
+    # via matplotlib
 gitdb==4.0.12
     # via gitpython
 gitpython==3.1.46
