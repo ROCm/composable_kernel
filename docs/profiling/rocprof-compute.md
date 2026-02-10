@@ -137,3 +137,30 @@ For LDS utilization and statistics, we can use
 ```bash
 rocprof-compute analyze -p workloads/no_group_merge/MI350/ -p workloads/8_group_merged/MI350/ -b 12 --output-format txt --output-name LDS-comparison
 ```
+
+# Inspecting ASM code
+
+Assume we have created a directory `asm` under the CK root directory. The easiest way to inspect the ASM code 
+for a given kernel is the wrap it into a CK example, which is a cmd line application. The ISA file can be 
+created by running `hipcc -c --save-temps -g`. For example, under the `asm` directory, run
+
+````bash
+hipcc -c --save-temps -g -I../include -I../build/include -I../library/include ../example/30_grouped_conv_fwd_multiple_d/grouped_conv_fwd_xdl_bf16.cpp
+````
+
+This will create an `.s` for that can be opend e.g. with VSCode. Note that it is important to use flag `-g` to get the ISA annotated 
+with the corresponding lines of kernel code. It will provide information such as
+
+````asm
+.Ltmp47:
+	.loc	18 1494 65                      ; ../include/ck/tensor_description/multi_index_transform.hpp:1494:65
+	v_lshrrev_b32_e32 v2, 2, v6
+	scratch_store_dword off, v2, off offset:1088 ; 4-byte Folded Spill
+	.loc	18 1494 52 is_stmt 0            ; ../include/ck/tensor_description/multi_index_transform.hpp:1494:52
+	v_and_or_b32 v2, v2, 32, v4
+````
+
+## Register spillage
+
+If the profiler indicates register spillage (kernel using more registers than available at SIMD unit), one can look for `scratch_store_dword` and `scratch_load_dword` from the ASM file. Such scratch loads/stores slow down the excution significantly. With the annotation, one can see what 
+parts of the code are using too many registers.
