@@ -19,7 +19,10 @@ namespace ck_tile {
 ///
 /// Handles tensor setup, kernel launch, reference computation, and verification
 /// for 2D pooling benchmarks.
-template <typename InDataType, typename OutDataType, typename ComputeDataType, typename IndexDataType>
+template <typename InDataType,
+          typename OutDataType,
+          typename ComputeDataType,
+          typename IndexDataType>
 class PoolProfiler2D
 {
     public:
@@ -56,34 +59,30 @@ class PoolProfiler2D
         d_out_index.SetZero();
 
         // Build kernel args
-        const auto input_shape =
-            make_tuple(problem.N, problem.H, problem.W, problem.C);
+        const auto input_shape  = make_tuple(problem.N, problem.H, problem.W, problem.C);
         const auto output_shape = make_tuple(problem.N, Ho, Wo, problem.C);
-        const auto input_strides = make_tuple(
-            problem.H * problem.W * problem.C, problem.W * problem.C, problem.C, 1);
-        const auto output_strides =
-            make_tuple(Ho * Wo * problem.C, Wo * problem.C, problem.C, 1);
-        const auto window_lengths  = make_tuple(problem.Y, problem.X);
-        const auto window_strides  = make_tuple(problem.stride_h, problem.stride_w);
+        const auto input_strides =
+            make_tuple(problem.H * problem.W * problem.C, problem.W * problem.C, problem.C, 1);
+        const auto output_strides   = make_tuple(Ho * Wo * problem.C, Wo * problem.C, problem.C, 1);
+        const auto window_lengths   = make_tuple(problem.Y, problem.X);
+        const auto window_strides   = make_tuple(problem.stride_h, problem.stride_w);
         const auto window_dilations = make_tuple(problem.dilation_h, problem.dilation_w);
-        const auto input_left_pads = make_tuple(problem.pad_h_left, problem.pad_w_left);
-        const auto input_right_pads =
-            make_tuple(problem.pad_h_right, problem.pad_w_right);
+        const auto input_left_pads  = make_tuple(problem.pad_h_left, problem.pad_w_left);
+        const auto input_right_pads = make_tuple(problem.pad_h_right, problem.pad_w_right);
 
-        auto host_args =
-            PoolHostArgs<decltype(input_shape), decltype(window_lengths)>{
-                d_in.GetDeviceBuffer(),
-                d_out.GetDeviceBuffer(),
-                d_out_index.GetDeviceBuffer(),
-                input_shape,
-                output_shape,
-                input_strides,
-                output_strides,
-                window_lengths,
-                window_strides,
-                window_dilations,
-                input_left_pads,
-                input_right_pads};
+        auto host_args = PoolHostArgs<decltype(input_shape), decltype(window_lengths)>{
+            d_in.GetDeviceBuffer(),
+            d_out.GetDeviceBuffer(),
+            d_out_index.GetDeviceBuffer(),
+            input_shape,
+            output_shape,
+            input_strides,
+            output_strides,
+            window_lengths,
+            window_strides,
+            window_dilations,
+            input_left_pads,
+            input_right_pads};
 
         // Launch kernel
         float latency = kernel_func(host_args);
@@ -95,20 +94,19 @@ class PoolProfiler2D
         // Verify if requested
         if(setting_.verify)
         {
-            auto kernel_args_ref =
-                PoolKernelArgs<decltype(input_shape), decltype(window_lengths)>{
-                    h_in.data(),
-                    h_out_ref.data(),
-                    h_out_ref_index.data(),
-                    input_shape,
-                    output_shape,
-                    input_strides,
-                    output_strides,
-                    window_lengths,
-                    window_strides,
-                    window_dilations,
-                    input_left_pads,
-                    input_right_pads};
+            auto kernel_args_ref = PoolKernelArgs<decltype(input_shape), decltype(window_lengths)>{
+                h_in.data(),
+                h_out_ref.data(),
+                h_out_ref_index.data(),
+                input_shape,
+                output_shape,
+                input_strides,
+                output_strides,
+                window_lengths,
+                window_strides,
+                window_dilations,
+                input_left_pads,
+                input_right_pads};
 
             // Use ReduceOp::Max as default for reference
             using ReduceOp = ReduceOp::Max;
@@ -119,11 +117,9 @@ class PoolProfiler2D
                              ReduceOp,
                              decltype(input_shape),
                              decltype(window_lengths),
-                             true>(
-                h_in, h_out_ref, h_out_ref_index, kernel_args_ref, ReduceOp{});
+                             true>(h_in, h_out_ref, h_out_ref_index, kernel_args_ref, ReduceOp{});
 
-            bool pass =
-                check_err(h_out, h_out_ref, "Error: Incorrect results!", 1e-3, 1e-3);
+            bool pass = check_err(h_out, h_out_ref, "Error: Incorrect results!", 1e-3, 1e-3);
             if(!pass)
             {
                 std::cerr << "Verification FAILED!" << std::endl;

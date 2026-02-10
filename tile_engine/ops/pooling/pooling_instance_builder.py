@@ -22,7 +22,6 @@ import multiprocessing
 import concurrent.futures
 from pathlib import Path
 import logging
-from typing import Optional
 
 from pooling_validation_utils import is_tile_config_valid, is_trait_combination_valid
 
@@ -252,14 +251,12 @@ class PoolingKernelBuilder:
         if pooling_dim == "2d":
             tensor_shape_type = "ck_tile::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t, ck_tile::index_t>"
             window_shape_type = "ck_tile::tuple<ck_tile::index_t, ck_tile::index_t>"
-            reference_func = "ck_tile::reference_pool2d"
-            tensor_rank = 4
             window_rank = 2
         else:
             tensor_shape_type = "ck_tile::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t, ck_tile::index_t, ck_tile::index_t>"
-            window_shape_type = "ck_tile::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t>"
-            reference_func = "ck_tile::reference_pool3d"
-            tensor_rank = 5
+            window_shape_type = (
+                "ck_tile::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t>"
+            )
             window_rank = 3
 
         pragma_line = "#pragma once\n" if is_header else ""

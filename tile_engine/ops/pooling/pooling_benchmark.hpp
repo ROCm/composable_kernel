@@ -27,14 +27,14 @@ enum class PoolMetric
 /// @brief Pooling problem specification for 2D pooling
 struct PoolProblem2D
 {
-    index_t N, H, W, C;                                 // Input dimensions (NHWC)
-    index_t Y, X;                                        // Window dimensions
-    index_t stride_h, stride_w;                          // Window strides
-    index_t dilation_h, dilation_w;                      // Window dilations
-    index_t pad_h_left, pad_h_right;                     // Height padding
-    index_t pad_w_left, pad_w_right;                     // Width padding
-    std::string datatype;                                // Data type name
-    std::string reduce_op;                               // "max" or "avg"
+    index_t N, H, W, C;              // Input dimensions (NHWC)
+    index_t Y, X;                    // Window dimensions
+    index_t stride_h, stride_w;      // Window strides
+    index_t dilation_h, dilation_w;  // Window dilations
+    index_t pad_h_left, pad_h_right; // Height padding
+    index_t pad_w_left, pad_w_right; // Width padding
+    std::string datatype;            // Data type name
+    std::string reduce_op;           // "max" or "avg"
 
     index_t Ho() const
     {
@@ -54,9 +54,8 @@ struct PoolProblem2D
     std::string to_string() const
     {
         std::ostringstream oss;
-        oss << "N" << N << "_H" << H << "_W" << W << "_C" << C << "_Y" << Y << "_X" << X
-            << "_Sh" << stride_h << "_Sw" << stride_w << "_Dh" << dilation_h << "_Dw"
-            << dilation_w;
+        oss << "N" << N << "_H" << H << "_W" << W << "_C" << C << "_Y" << Y << "_X" << X << "_Sh"
+            << stride_h << "_Sw" << stride_w << "_Dh" << dilation_h << "_Dw" << dilation_w;
         if(pad_h_left > 0 || pad_w_left > 0)
             oss << "_Ph" << pad_h_left << "_Pw" << pad_w_left;
         return oss.str();
@@ -66,15 +65,15 @@ struct PoolProblem2D
 /// @brief Pooling problem specification for 3D pooling
 struct PoolProblem3D
 {
-    index_t N, D, H, W, C;                              // Input dimensions (NDHWC)
-    index_t Z, Y, X;                                     // Window dimensions
-    index_t stride_d, stride_h, stride_w;                // Window strides
-    index_t dilation_d, dilation_h, dilation_w;          // Window dilations
-    index_t pad_d_left, pad_d_right;                     // Depth padding
-    index_t pad_h_left, pad_h_right;                     // Height padding
-    index_t pad_w_left, pad_w_right;                     // Width padding
-    std::string datatype;                                // Data type name
-    std::string reduce_op;                               // "max" or "avg"
+    index_t N, D, H, W, C;                      // Input dimensions (NDHWC)
+    index_t Z, Y, X;                            // Window dimensions
+    index_t stride_d, stride_h, stride_w;       // Window strides
+    index_t dilation_d, dilation_h, dilation_w; // Window dilations
+    index_t pad_d_left, pad_d_right;            // Depth padding
+    index_t pad_h_left, pad_h_right;            // Height padding
+    index_t pad_w_left, pad_w_right;            // Width padding
+    std::string datatype;                       // Data type name
+    std::string reduce_op;                      // "max" or "avg"
 
     index_t Do() const
     {
@@ -100,8 +99,8 @@ struct PoolProblem3D
     std::string to_string() const
     {
         std::ostringstream oss;
-        oss << "N" << N << "_D" << D << "_H" << H << "_W" << W << "_C" << C << "_Z" << Z
-            << "_Y" << Y << "_X" << X;
+        oss << "N" << N << "_D" << D << "_H" << H << "_W" << W << "_C" << C << "_Z" << Z << "_Y"
+            << Y << "_X" << X;
         return oss.str();
     }
 };
@@ -123,11 +122,10 @@ struct PoolPerformanceResult
 /// @brief Benchmark settings
 struct PoolBenchmarkSetting
 {
-    int warmup  = 5;
-    int repeat  = 20;
-    bool verify = true;
-    int init_method =
-        0; // 0: uniform random, 1: integer sequence, 2: constant, 3: special
+    int warmup      = 5;
+    int repeat      = 20;
+    bool verify     = true;
+    int init_method = 0; // 0: uniform random, 1: integer sequence, 2: constant, 3: special
 };
 
 } // namespace ck_tile
