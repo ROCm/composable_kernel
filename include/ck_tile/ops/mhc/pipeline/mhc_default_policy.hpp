@@ -14,17 +14,33 @@ namespace ck_tile {
 struct MHCDefaultPolicy
 {
 
-    // Provide warp gemm configuration for float data types
+    // Provide warp gemm configuration for various data types
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetWarpGemmMWarpNWarp()
     {
-        // For float x float -> float, provide a simple configuration
-        if constexpr(std::is_same_v<typename Problem::ADataType, float> &&
-                     std::is_same_v<typename Problem::BDataType, float> &&
+        // For bf16 x bf16 -> float (our case), use MFMA-optimized configuration
+        if constexpr(std::is_same_v<typename Problem::ADataType, bf16_t> &&
+                     std::is_same_v<typename Problem::BDataType, bf16_t> &&
                      std::is_same_v<typename Problem::CDataType, float>)
         {
-            // Use a simple warp gemm configuration for float
-            // This is a basic configuration - can be optimized later
+            // Use MFMA warp gemm for bf16 inputs with float accumulation
+            using WG = WarpGemmDispatcher<bf16_t,
+                                          bf16_t,
+                                          float,
+                                          16,
+                                          16,
+                                          16, // M, N, K per warp (MFMA 16x16x16)
+                                          true,
+                                          false,
+                                          false,
+                                          WGAttrNumAccessEnum::Single>;
+            return make_tuple(WG{}, 1, 1); // 1 warp in M, 1 warp in N (K warps handled separately)
+        }
+        // For float x float -> float, provide a simple configuration
+        else if constexpr(std::is_same_v<typename Problem::ADataType, float> &&
+                          std::is_same_v<typename Problem::BDataType, float> &&
+                          std::is_same_v<typename Problem::CDataType, float>)
+        {
             using WG = WarpGemmDispatcher<float,
                                           float,
                                           float,

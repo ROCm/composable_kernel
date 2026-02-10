@@ -10,6 +10,7 @@
 #include "ck_tile/ops/mhc/pipeline/mhc_default_policy.hpp"
 #include "ck_tile/ops/mhc/pipeline/mhc_gemm_shape.hpp"
 #include "ck_tile/ops/mhc/pipeline/mhc_problem.hpp"
+#include "ck_tile/ops/mhc/pipeline/mhc_problem_v4.hpp"
 #include "ck_tile/ops/mhc/pipeline/mhc_shape.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/load_interleaved_pk_type.hpp"

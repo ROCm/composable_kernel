@@ -92,108 +92,158 @@ struct MHCKernelV4
         PhiDataType* phi_lds =
             reinterpret_cast<PhiDataType*>(smem_ptr + kMTile * kKTile * sizeof(XDataType));
 
-        // Shared memory for norm accumulation (one per batch element in tile)
-        __shared__ ComputeDataType sum_squares_shared[kMTile];
-
-        // Shared memory for GEMM result accumulation
-        __shared__ ComputeDataType result_shared[kMTile * kNTile];
-
-        // Initialize shared norm accumulators and result
-        for(index_t i = tid; i < kMTile; i += get_block_size())
+        // Thread-local norm accumulation (one per batch element in tile)
+        // Each thread accumulates for the elements it processes
+        ComputeDataType thread_sum_squares[kMTile];
+        for(index_t i = 0; i < kMTile; ++i)
         {
-            sum_squares_shared[i] = 0.0f;
+            thread_sum_squares[i] = 0.0f;
         }
-        for(index_t i = tid; i < kMTile * kNTile; i += get_block_size())
-        {
-            result_shared[i] = 0.0f;
-        }
-        block_sync_lds();
+
+        // Create BlockGemm instance and result tile (distributed tensor in registers)
+        using BlockGemm  = BlockGemmASmemBSmemCRegV1<Problem, Policy>;
+        auto result_tile = BlockGemm::MakeCBlockTile();
+        set_tile(result_tile, 0.0f);
 
         // Number of K-tile iterations
         const index_t num_k_tiles = (nC + kKTile - 1) / kKTile;
 
-        // Main loop: load tiles, compute norms incrementally, and accumulate GEMM
+        // Create tensor views for X and Phi
+        auto x_tensor_full = make_naive_tensor_view<address_space_enum::global>(
+            p_x, make_tuple(batch, nC), make_tuple(nC, 1), number<1>{}, number<1>{});
+
+        auto x_tensor_padded = pad_tensor_view(x_tensor_full,
+                                               make_tuple(number<kMTile>{}, number<kKTile>{}),
+                                               sequence<false, Problem::kPadK>{});
+
+        // Create X DRAM window with tile distribution for vectorized loading
+        constexpr auto x_load_tile_dist = Problem::MakeXLoadTileDistribution();
+        auto x_dram_window              = make_tile_window(x_tensor_padded,
+                                              make_tuple(number<kMTile>{}, number<kKTile>{}),
+                                                           {batch_start, 0},
+                                              x_load_tile_dist);
+
+        // Create X LDS tensor view and window
+        auto x_lds_tensor = make_naive_tensor_view<address_space_enum::lds>(
+            x_lds,
+            make_tuple(number<kMTile>{}, number<kKTile>{}),
+            make_tuple(number<kKTile>{}, number<1>{}),
+            number<1>{},
+            number<1>{});
+
+        auto x_lds_window =
+            make_tile_window(x_lds_tensor, make_tuple(number<kMTile>{}, number<kKTile>{}), {0, 0});
+
+        // Create Phi tensor view and window with tile distribution
+        auto phi_tensor_full = make_naive_tensor_view<address_space_enum::global>(
+            p_phi, make_tuple(output_dim, nC), make_tuple(1, output_dim), number<1>{}, number<1>{});
+
+        auto phi_tensor_padded = pad_tensor_view(phi_tensor_full,
+                                                 make_tuple(number<kNTile>{}, number<kKTile>{}),
+                                                 sequence<false, Problem::kPadK>{});
+
+        constexpr auto phi_load_tile_dist = Problem::MakePhiLoadTileDistribution();
+        auto phi_dram_window              = make_tile_window(phi_tensor_padded,
+                                                make_tuple(number<kNTile>{}, number<kKTile>{}),
+                                                             {out_start, 0},
+                                                phi_load_tile_dist);
+
+        // Create Phi LDS tensor view and window
+        auto phi_lds_tensor = make_naive_tensor_view<address_space_enum::lds>(
+            phi_lds,
+            make_tuple(number<kNTile>{}, number<kKTile>{}),
+            make_tuple(number<kKTile>{}, number<1>{}),
+            number<1>{},
+            number<1>{});
+
+        auto phi_lds_window = make_tile_window(
+            phi_lds_tensor, make_tuple(number<kNTile>{}, number<kKTile>{}), {0, 0});
+
+        // Main loop: load tiles with vectorization, compute norms, and accumulate GEMM
         for(index_t k_tile_idx = 0; k_tile_idx < num_k_tiles; ++k_tile_idx)
         {
-            const index_t k_start = k_tile_idx * kKTile;
-            const index_t k_end   = min(k_start + kKTile, nC);
-            const index_t k_len   = k_end - k_start;
+            // Load X tile using vectorized load_tile
+            auto x_tile = make_static_distributed_tensor<XDataType>(x_load_tile_dist);
+            load_tile(x_tile, x_dram_window);
 
-            // Load X tile from global to LDS and accumulate norm
-            for(index_t i = tid; i < kMTile * kKTile; i += get_block_size())
-            {
-                const index_t local_m  = i / kKTile;
-                const index_t local_k  = i % kKTile;
-                const index_t global_m = batch_start + local_m;
-                const index_t global_k = k_start + local_k;
+            // Accumulate norms from the loaded tile into thread-local storage
+            constexpr auto x_tile_spans = decltype(x_tile)::get_distributed_spans();
+            sweep_tile_span(x_tile_spans[number<0>{}], [&](auto idx0) {
+                sweep_tile_span(x_tile_spans[number<1>{}], [&](auto idx1) {
+                    const auto tile_idx = get_x_indices_from_distributed_indices(
+                        x_tile.get_tile_distribution(), make_tuple(idx0, idx1));
 
-                XDataType x_val = 0;
-                if(global_m < batch && local_k < k_len)
-                {
-                    x_val = p_x[global_m * nC + global_k];
+                    const index_t local_m  = tile_idx.at(number<0>{});
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                    // Accumulate norm for this batch element using atomics
-                    ComputeDataType x_compute = type_convert<ComputeDataType>(x_val);
-                    ComputeDataType sq        = x_compute * x_compute;
-                    atomicAdd(&sum_squares_shared[local_m], sq);
-                }
-                x_lds[i] = x_val;
-            }
+                    ComputeDataType x_val = type_convert<ComputeDataType>(x_tile[i_j_idx]);
+                    thread_sum_squares[local_m] += x_val * x_val;
+                });
+            });
 
-            // Load Phi tile from global to LDS in column-major format (K x N)
-            // phi is stored in global memory as [nC, output_dim] row-major
-            // We need to transpose it to [K, N] column-major for BlockGemm
-            for(index_t i = tid; i < kKTile * kNTile; i += get_block_size())
-            {
-                const index_t local_k  = i / kNTile;
-                const index_t local_n  = i % kNTile;
-                const index_t global_k = k_start + local_k;
-                const index_t global_n = out_start + local_n;
+            // Store X tile to LDS
+            store_tile(x_lds_window, x_tile);
 
-                PhiDataType phi_val = 0;
-                if(local_k < k_len && global_n < output_dim)
-                {
-                    phi_val = p_phi[global_k * output_dim + global_n];
-                }
-                // Store in column-major: phi_lds[n * kKTile + k]
-                phi_lds[local_n * kKTile + local_k] = phi_val;
-            }
+            // Load Phi tile using vectorized load_tile
+            auto phi_tile = make_static_distributed_tensor<PhiDataType>(phi_load_tile_dist);
+            load_tile(phi_tile, phi_dram_window);
+
+            // Store Phi tile to LDS
+            store_tile(phi_lds_window, phi_tile);
 
             block_sync_lds();
 
-            // Perform manual GEMM: result_acc += x_lds * phi_lds^T
-            // Distribute work: each thread computes a subset of output elements
-            // With 64 threads and 16x16 output, each thread handles 4 elements
-            const index_t total_elements = kMTile * kNTile;
-            const index_t elements_per_thread =
-                (total_elements + get_block_size() - 1) / get_block_size();
+            // Move windows for next iteration
+            move_tile_window(x_dram_window, {0, kKTile});
+            move_tile_window(phi_dram_window, {0, kKTile});
 
-            for(index_t elem_idx = 0; elem_idx < elements_per_thread; ++elem_idx)
-            {
-                const index_t global_elem = tid * elements_per_thread + elem_idx;
-                if(global_elem < total_elements)
-                {
-                    const index_t m_idx = global_elem / kNTile;
-                    const index_t n_idx = global_elem % kNTile;
-
-                    ComputeDataType acc = 0.0f;
-                    for(index_t k_idx = 0; k_idx < kKTile; ++k_idx)
-                    {
-                        ComputeDataType x_val =
-                            type_convert<ComputeDataType>(x_lds[m_idx * kKTile + k_idx]);
-                        ComputeDataType phi_val =
-                            type_convert<ComputeDataType>(phi_lds[n_idx * kKTile + k_idx]);
-                        acc += x_val * phi_val;
-                    }
-                    // Accumulate to shared memory using atomics
-                    atomicAdd(&result_shared[m_idx * kNTile + n_idx], acc);
-                }
-            }
+            // Perform GEMM using BlockGemm with MFMA: result_tile += x_lds * phi_lds^T
+            BlockGemm{}(result_tile, x_lds_window, phi_lds_window);
 
             block_sync_lds();
         }
 
-        // Ensure all norm accumulations are complete
+        // Reduce thread-local norm accumulators using warp shuffle + shared memory
+        __shared__ ComputeDataType sum_squares_shared[kMTile];
+
+        // Initialize shared memory
+        if(tid < kMTile)
+        {
+            sum_squares_shared[tid] = 0.0f;
+        }
+        block_sync_lds();
+
+        // Warp-level reduction for each batch element
+        // Since we have 64 threads (1 warp) and kMTile=16, multiple threads contribute to each
+        // element
+        constexpr index_t threads_per_element =
+            kBlockSize / kMTile; // 64/16 = 4 threads per batch element
+
+        for(index_t local_m = 0; local_m < kMTile; ++local_m)
+        {
+            ComputeDataType my_sum = thread_sum_squares[local_m];
+
+            // Warp shuffle reduction within threads handling this batch element
+            // Threads [local_m*4, local_m*4+1, local_m*4+2, local_m*4+3] reduce together
+            const index_t my_group      = tid / threads_per_element;
+            const index_t lane_in_group = tid % threads_per_element;
+
+            if(my_group == local_m)
+            {
+// Reduce within this group of 4 threads using warp shuffle
+#pragma unroll
+                for(index_t offset = threads_per_element / 2; offset > 0; offset /= 2)
+                {
+                    my_sum += __shfl_down(my_sum, offset);
+                }
+
+                // First thread in group writes to shared memory
+                if(lane_in_group == 0)
+                {
+                    sum_squares_shared[local_m] = my_sum;
+                }
+            }
+        }
         block_sync_lds();
 
         // Compute inverse norms after all K-tiles processed
@@ -213,42 +263,71 @@ struct MHCKernelV4
             }
         }
 
-        // Apply normalization, activation, and write output
-        for(index_t i = tid; i < kMTile * kNTile; i += get_block_size())
-        {
-            const index_t local_m = i / kNTile;
-            const index_t local_n = i % kNTile;
+        // Apply normalization and activation in-place on result_tile
+        constexpr auto result_spans = decltype(result_tile)::get_distributed_spans();
+        sweep_tile_span(result_spans[number<0>{}], [&](auto idx0) {
+            sweep_tile_span(result_spans[number<1>{}], [&](auto idx1) {
+                const auto tile_idx = get_x_indices_from_distributed_indices(
+                    result_tile.get_tile_distribution(), make_tuple(idx0, idx1));
 
-            const index_t global_m = batch_start + local_m;
-            const index_t global_n = out_start + local_n;
+                const index_t local_m  = tile_idx.at(number<0>{});
+                const index_t local_n  = tile_idx.at(number<1>{});
+                const index_t global_m = batch_start + local_m;
+                const index_t global_n = out_start + local_n;
 
-            if(global_m >= batch || global_n >= output_dim)
-                continue;
+                if(global_m < batch && global_n < output_dim)
+                {
+                    constexpr auto i_j_idx         = make_tuple(idx0, idx1);
+                    const ComputeDataType inv_norm = inv_norms[local_m];
+                    ComputeDataType value          = result_tile[i_j_idx];
 
-            const ComputeDataType inv_norm = inv_norms[local_m];
-            ComputeDataType value          = result_shared[i];
+                    // Apply normalization and activation based on output section
+                    if(global_n < n)
+                    {
+                        ComputeDataType activated_value;
+                        Activation{}(activated_value, value);
+                        result_tile(i_j_idx) = alpha_pre * inv_norm * activated_value + bias;
+                    }
+                    else if(global_n < 2 * n)
+                    {
+                        ComputeDataType activated_value;
+                        Activation{}(activated_value, value);
+                        result_tile(i_j_idx) =
+                            alpha_post * inv_norm * 2.0f * activated_value + bias;
+                    }
+                    else
+                    {
+                        result_tile(i_j_idx) = alpha_res * inv_norm * value + bias;
+                    }
+                }
+            });
+        });
 
-            // Apply normalization and activation based on output section
-            if(global_n < n)
-            {
-                ComputeDataType activated_value;
-                Activation{}(activated_value, value);
-                value = alpha_pre * inv_norm * activated_value + bias;
-            }
-            else if(global_n < 2 * n)
-            {
-                ComputeDataType activated_value;
-                Activation{}(activated_value, value);
-                value = alpha_post * inv_norm * 2.0f * activated_value + bias;
-            }
-            else
-            {
-                value = alpha_res * inv_norm * value + bias;
-            }
+        // Cast result to output data type
+        auto result_output = cast_tile<YDataType>(result_tile);
 
-            // Write to global memory
-            p_output[global_m * output_dim + global_n] = type_convert<YDataType>(value);
-        }
+        // Create output tensor view with vectorization for efficient writes
+        constexpr index_t output_vector_size = 16 / sizeof(YDataType);
+
+        auto output_tensor_full =
+            make_naive_tensor_view<address_space_enum::global>(p_output,
+                                                               make_tuple(batch, output_dim),
+                                                               make_tuple(output_dim, 1),
+                                                               number<output_vector_size>{},
+                                                               number<1>{});
+
+        // Pad output tensor for boundary handling
+        auto output_tensor_padded = pad_tensor_view(output_tensor_full,
+                                                    make_tuple(number<kMTile>{}, number<kNTile>{}),
+                                                    sequence<false, Problem::kPadN>{});
+
+        // Create tile window and store using vectorized store_tile
+        auto output_window = make_tile_window(output_tensor_padded,
+                                              make_tuple(number<kMTile>{}, number<kNTile>{}),
+                                              {batch_start, out_start},
+                                              result_output.get_tile_distribution());
+
+        store_tile(output_window, result_output);
     }
 };
 

@@ -77,6 +77,69 @@ struct MHCProblem
     };
 
     CK_TILE_HOST static const std::string GetName() { return "MHCProblem"; }
+
+    // Helper to derive Generic2dBlockShape from BlockGemmShape
+    // This ensures BlockShape parameters match our tile sizes
+    using DerivedBlockShape =
+        Generic2dBlockShape<sequence<BlockGemmShape::kM, BlockGemmShape::kK>, // BlockTile [M, K]
+                            sequence<BlockGemmShape::kM / VectorSizeA, // ThreadPerBlock [M, K]
+                                     BlockGemmShape::kK / VectorSizeA>,
+                            sequence<1, VectorSizeA>>; // Vector [1, VectorSizeA]
+
+    // Tile distribution for loading X (input matrix) from global memory
+    // X is [Batch, nC] row-major, we load kM×kK tiles
+    // Use BlockShape parameters to ensure consistency
+    CK_TILE_HOST_DEVICE static constexpr auto MakeXLoadTileDistribution()
+    {
+        using namespace ck_tile;
+        using S = BlockShape;
+
+        // For a 2D tile [M, K], we need to define distribution for both dimensions
+        // Using BlockShape's Repeat, WarpPerBlock, ThreadPerWarp, Vector parameters
+        using XTileDistEncoding =
+            tile_distribution_encoding<sequence<>, // R: No replication
+                                       tuple<sequence<S::Repeat_M,
+                                                      S::WarpPerBlock_M,
+                                                      S::ThreadPerWarp_M,
+                                                      S::Vector_M>, // H0 (M/Batch dimension)
+                                             sequence<S::Repeat_N,
+                                                      S::WarpPerBlock_N,
+                                                      S::ThreadPerWarp_N,
+                                                      S::Vector_N>>, // H1 (K/nC dimension) - using
+                                                                     // N params for K
+                                       tuple<sequence<1, 2>>,        // P→RH major
+                                       tuple<sequence<2, 2>>,        // P→RH minor
+                                       sequence<2, 2, 1, 1>,         // Y→RH major
+                                       sequence<0, 3, 0, 3>>;        // Y→RH minor
+
+        return make_static_tile_distribution(XTileDistEncoding{});
+    }
+
+    // Tile distribution for loading Phi (weight matrix) from global memory
+    // Phi is [output_dim, nC] row-major, we load kN×kK tiles
+    CK_TILE_HOST_DEVICE static constexpr auto MakePhiLoadTileDistribution()
+    {
+        using namespace ck_tile;
+        using S = BlockShape;
+
+        // For Phi [N, K] tile
+        using PhiTileDistEncoding =
+            tile_distribution_encoding<sequence<>,                 // R: No replication
+                                       tuple<sequence<S::Repeat_N, // H0 (N/output_dim dimension)
+                                                      S::WarpPerBlock_N,
+                                                      S::ThreadPerWarp_N,
+                                                      S::Vector_N>,
+                                             sequence<S::Repeat_N, // H1 (K/nC dimension)
+                                                      S::WarpPerBlock_N,
+                                                      S::ThreadPerWarp_N,
+                                                      S::Vector_N>>,
+                                       tuple<sequence<1, 2>>, // P→RH major
+                                       tuple<sequence<2, 2>>, // P→RH minor
+                                       sequence<2, 2, 1, 1>,  // Y→RH major
+                                       sequence<0, 3, 0, 3>>; // Y→RH minor
+
+        return make_static_tile_distribution(PhiTileDistEncoding{});
+    }
 };
 
 } // namespace ck_tile

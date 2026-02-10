@@ -94,13 +94,8 @@ bool run_mhc_benchmark(const ck_tile::ArgParser& arg_parser)
     d_phi_mem.ToDevice(h_phi.data());
     d_output_mem.ToDevice(h_output.data());
 
-    // Define block shape - 64 threads (1 warp) to match BlockGemmShape configuration
-    // This matches a 16x16 block tile with 1 warp (1x1 warp layout)
-    using BlockShape = ck_tile::Generic2dBlockShape<ck_tile::sequence<1, 64>,
-                                                    ck_tile::sequence<1, 64>,
-                                                    ck_tile::sequence<1, 1>>;
-
-    using Problem = ck_tile::MHCProblem<XDataType, ComputeDataType, YDataType, BlockShape>;
+    // Use MHCProblemV4 which automatically derives BlockShape from BlockGemmShape
+    using Problem = ck_tile::MHCProblemV4<XDataType, ComputeDataType, YDataType>;
 
     // V4 kernel - optimized with single-pass data loading
     using KernelV4 = ck_tile::MHCKernelV4<Problem, ck_tile::MHCDefaultPolicy, ActivationFunc>;
