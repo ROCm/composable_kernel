@@ -732,7 +732,7 @@ using ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffle_V3 =
 using ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
                           BwdDataXdlGemm_,
-                          Transfer_<4>,
+                          Transfer_<>,
                           ConvSpecializationBwdData_,
                           MultipleDSpecialization_,
                           Prefetch_,

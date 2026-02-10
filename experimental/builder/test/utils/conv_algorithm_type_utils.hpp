@@ -525,7 +525,7 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Xdl
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << ","
         << to_string(static_cast<BwdDataXdlGemm_>(t)) << ","
-        << to_string(static_cast<Transfer_<4>>(t));
+        << to_string(static_cast<Transfer_<>>(t));
     return oss.str();
 }
 

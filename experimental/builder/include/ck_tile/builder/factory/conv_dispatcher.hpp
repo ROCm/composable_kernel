@@ -146,25 +146,25 @@ constexpr auto make_conv_instance()
                 false,
                 "No suitable forward convolution kernel factory found for the provided ALGORITHM. "
                 "The ALGORITHM must satisfy requirements for one of: Reference, Tile, XDL V3, XDL, "
-                "WMMA, DL (NHWC layout), or Large Tensor variant.");
+                "WMMA, DL (NHWC layout)");
         }
     }
     // Backward data direction (will expand with more algorithms in the future)
     else if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
     {
-        if constexpr(BwdMultiDXdlAlgorithm<AlgoType>)
-        {
-            return typename ConvBwdDataMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
-        }
-        else
-        {
-            static_assert(
-                false,
-                "No suitable backward data convolution kernel factory found for the provided "
-                "ALGORITHM. "
-                "The ALGORITHM must satisfy requirements for one of: Reference, Tile, XDL V3, XDL, "
-                "WMMA, DL (NHWC layout), or Large Tensor variant.");
-        }
+        // if constexpr(BwdMultiDXdlAlgorithm<AlgoType>)
+        // {
+        return typename ConvBwdDataMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        // }
+        // else
+        // {
+        //     static_assert(
+        //         false,
+        //         "No suitable backward data convolution kernel factory found for the provided "
+        //         "ALGORITHM. "
+        //         "The ALGORITHM must satisfy requirements for one of: Reference, Tile, XDL V3,
+        //         XDL, " "WMMA, DL (NHWC layout), or Large Tensor variant.");
+        // }
     }
     // Backward weight direction (will expand with more algorithms in the future)
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)

@@ -49,10 +49,10 @@ struct ConvBwdDataMultiDXdlFactory
     static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
     static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
     static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
-    static_assert(AccessOrderLimits4D<A_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits4D<B_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits4D<A_BLOCK_TRANSFER.src_access_order>);
-    static_assert(AccessOrderLimits4D<B_BLOCK_TRANSFER.src_access_order>);
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits3D<A_BLOCK_TRANSFER.src_access_order>);
+    static_assert(AccessOrderLimits3D<B_BLOCK_TRANSFER.src_access_order>);
 
     // The backward convolution kernel class instance.
     using Instance =

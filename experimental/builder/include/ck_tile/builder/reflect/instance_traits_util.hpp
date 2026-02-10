@@ -138,6 +138,18 @@ constexpr std::string_view conv_bwd_weight_spec_name(
     }
 }
 
+// Convert ConvolutionBackwardDataSpecialization enum to string
+constexpr std::string_view
+conv_bwd_data_spec_name(ck::tensor_operation::device::ConvolutionBackwardDataSpecialization spec)
+{
+    using enum ck::tensor_operation::device::ConvolutionBackwardDataSpecialization;
+    switch(spec)
+    {
+    case Default: return "Default";
+    case Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
+    }
+}
+
 // Convert GemmSpecialization enum to string
 constexpr std::string_view gemm_spec_name(ck::tensor_operation::device::GemmSpecialization spec)
 {
