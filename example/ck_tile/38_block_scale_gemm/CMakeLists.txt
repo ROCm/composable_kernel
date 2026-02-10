@@ -10,10 +10,6 @@ list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -Wno-global-constructors) # use global 
 list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS "SHELL: -mllvm -enable-noalias-to-md-conversion=1")
 list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1")
 
-if(GPU_TARGETS MATCHES "gfx95")
-    list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_EIGHTWARP_SUP)
-endif()
-
 if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     set(EXE_NAME tile_example_gemm_quant)
     add_executable(${EXE_NAME}

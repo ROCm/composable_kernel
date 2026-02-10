@@ -26,6 +26,11 @@ struct ABQuantGemmPipelineAgBgCrAsync : public BaseGemmPipelineAgBgCrCompV3<Prob
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmABQuantPipelineAgBgCrImplBase<Problem, Policy>;
+#if defined(__gfx950__)
+    static constexpr bool kIsAvailable = true;
+#else
+    static constexpr bool kIsAvailable = false;
+#endif
 
     using ADataType       = remove_cvref_t<typename Problem::ADataType>;
     using AQDataType      = remove_cvref_t<typename Problem::AQDataType>;
