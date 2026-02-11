@@ -51,12 +51,13 @@ struct MHCKernelV4
         return a_lds_size + b_lds_size;
     }
 
-    // Grid configuration: 2D grid over (batch, output_dim)
-    CK_TILE_HOST static constexpr auto GetGridSize(index_t batch, index_t output_dim)
+    // Grid configuration: 1D grid over batch dimension only
+    // Each block processes full output dimension (kNTile=32 covers output_dim=24)
+    CK_TILE_HOST static constexpr auto GetGridSize(index_t batch,
+                                                   [[maybe_unused]] index_t output_dim)
     {
         const index_t grid_m = (batch + kMTile - 1) / kMTile;
-        const index_t grid_n = (output_dim + kNTile - 1) / kNTile;
-        return make_tuple(grid_m, grid_n);
+        return make_tuple(grid_m, 1); // 1D grid: only tile in M dimension
     }
 
     CK_TILE_DEVICE void operator()(const XDataType* p_x,
@@ -72,16 +73,12 @@ struct MHCKernelV4
                                    [[maybe_unused]] float alpha_res  = 1.0f,
                                    [[maybe_unused]] float bias       = 0.0f) const
     {
-        // 2D block indexing
-        const index_t grid_n_size = (output_dim + kNTile - 1) / kNTile;
+        // 1D block indexing: only tile in M (batch) dimension
         const index_t block_id    = get_block_id();
-        const index_t block_m     = block_id / grid_n_size;
-        const index_t block_n     = block_id % grid_n_size;
+        const index_t batch_start = block_id * kMTile;
+        const index_t out_start   = 0; // Always process from output index 0
 
-        const index_t batch_start = block_m * kMTile;
-        const index_t out_start   = block_n * kNTile;
-
-        if(batch_start >= batch || out_start >= output_dim)
+        if(batch_start >= batch)
             return;
 
         const index_t tid = get_thread_id();
@@ -213,31 +210,62 @@ struct MHCKernelV4
         }
         block_sync_lds();
 
-        // Warp-level reduction for each batch element
-        // Since we have 64 threads (1 warp) and kMTile=16, multiple threads contribute to each
-        // element
-        constexpr index_t threads_per_element =
-            kBlockSize / kMTile; // 64/16 = 4 threads per batch element
+        // Adaptive block-level reduction for each batch element
+        // Current: 128 threads, kMTile=16 → 8 threads per batch element
+        constexpr index_t threads_per_element = kBlockSize / kMTile;
+        constexpr index_t warp_size           = 64; // AMD warp size
 
         for(index_t local_m = 0; local_m < kMTile; ++local_m)
         {
             ComputeDataType my_sum = thread_sum_squares[local_m];
 
-            // Warp shuffle reduction within threads handling this batch element
-            // Threads [local_m*4, local_m*4+1, local_m*4+2, local_m*4+3] reduce together
             const index_t my_group      = tid / threads_per_element;
             const index_t lane_in_group = tid % threads_per_element;
 
             if(my_group == local_m)
             {
-// Reduce within this group of 4 threads using warp shuffle
+                // Step 1: Warp-level reduction (works within a single warp)
+                constexpr index_t warp_reduce_size =
+                    (threads_per_element <= warp_size) ? threads_per_element : warp_size;
+
 #pragma unroll
-                for(index_t offset = threads_per_element / 2; offset > 0; offset /= 2)
+                for(index_t offset = warp_reduce_size / 2; offset > 0; offset /= 2)
                 {
                     my_sum += __shfl_down(my_sum, offset);
                 }
 
-                // First thread in group writes to shared memory
+                // Step 2: Cross-warp reduction if needed (threads_per_element > warp_size)
+                if constexpr(threads_per_element > warp_size)
+                {
+                    __shared__ ComputeDataType
+                        warp_partial_sums[kMTile]
+                                         [(threads_per_element + warp_size - 1) / warp_size];
+
+                    const index_t warp_id = lane_in_group / warp_size;
+                    const index_t lane_id = lane_in_group % warp_size;
+
+                    // First thread in each warp writes partial sum
+                    if(lane_id == 0)
+                    {
+                        warp_partial_sums[local_m][warp_id] = my_sum;
+                    }
+                    block_sync_lds();
+
+                    // First warp does final reduction across warp partial sums
+                    constexpr index_t num_warps_per_element =
+                        (threads_per_element + warp_size - 1) / warp_size;
+                    if(lane_in_group < num_warps_per_element)
+                    {
+                        my_sum = warp_partial_sums[local_m][lane_in_group];
+#pragma unroll
+                        for(index_t offset = num_warps_per_element / 2; offset > 0; offset /= 2)
+                        {
+                            my_sum += __shfl_down(my_sum, offset);
+                        }
+                    }
+                }
+
+                // First thread in group writes final result
                 if(lane_in_group == 0)
                 {
                     sum_squares_shared[local_m] = my_sum;
