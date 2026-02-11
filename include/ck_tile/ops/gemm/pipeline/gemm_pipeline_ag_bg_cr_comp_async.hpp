@@ -44,15 +44,20 @@ struct BaseGemmPipelineAgBgCrCompAsync
     CK_TILE_HOST_DEVICE static auto
     TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
     {
+        // Use amd_wave_read_first_lane to avoid higher resource usage.
+        // It forces to store these values in SGPR.
+        // Compiler cannot deduce if one path is used for all threads
+        const bool has_hot_loop_first_lane      = amd_wave_read_first_lane(has_hot_loop);
+        const TailNumber tail_number_first_lane = amd_wave_read_first_lane(tail_number);
         // Handle all the valid cases.
-        if(has_hot_loop)
+        if(has_hot_loop_first_lane)
         {
-            if(tail_number == TailNumber::Three)
+            if(tail_number_first_lane == TailNumber::Three)
             {
                 return run_func(bool_constant<true>{},
                                 integral_constant<TailNumber, TailNumber::Three>{});
             }
-            else if(tail_number == TailNumber::Two)
+            else if(tail_number_first_lane == TailNumber::Two)
             {
                 return run_func(bool_constant<true>{},
                                 integral_constant<TailNumber, TailNumber::Two>{});
@@ -60,12 +65,12 @@ struct BaseGemmPipelineAgBgCrCompAsync
         }
         else
         {
-            if(tail_number == TailNumber::Three)
+            if(tail_number_first_lane == TailNumber::Three)
             {
                 return run_func(bool_constant<false>{},
                                 integral_constant<TailNumber, TailNumber::Three>{});
             }
-            else if(tail_number == TailNumber::Two)
+            else if(tail_number_first_lane == TailNumber::Two)
             {
                 return run_func(bool_constant<false>{},
                                 integral_constant<TailNumber, TailNumber::Two>{});
@@ -430,7 +435,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             Base::GlobalPrefetchAsync(
                 b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
 
-            if(HasHotLoop)
+            if constexpr(HasHotLoop)
             {
                 // we have had 3 global prefetches so far, indexed (0, 1, 2).
                 index_t i_global_read = amd_wave_read_first_lane(3);
