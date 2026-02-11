@@ -5,7 +5,6 @@
 #define CK_STATICALLY_INDEXED_ARRAY_HPP
 
 #include "functional2.hpp"
-#include "sequence.hpp"
 #include "tuple.hpp"
 
 namespace ck {

@@ -43,7 +43,7 @@
                 "CMAKE_PREFIX_PATH": "/opt/rocm/",
                 "CMAKE_CXX_COMPILER": "/opt/rocm/llvm/bin/clang++",
                 "CMAKE_HIP_COMPILER": "/opt/rocm/llvm/bin/clang++",
-                "CMAKE_CXX_FLAGS": "-ftemplate-backtrace-limit=0 -fPIE -Wno-gnu-line-marker -fbracket-depth=512",
+                "CMAKE_CXX_FLAGS": "-ftemplate-backtrace-limit=0 -fPIE -Wno-gnu-line-marker -fbracket-depth=1024",
                 "CMAKE_BUILD_TYPE": "Release",
                 "BUILD_DEV": "ON",
                 "CMAKE_VERBOSE_MAKEFILE": "ON",
