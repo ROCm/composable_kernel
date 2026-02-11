@@ -83,10 +83,22 @@ struct config
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
     static constexpr ck_tile::index_t K_Warp = 1;
+};
 
+template <typename Datatype>
+struct config_mn_32x32 : public config<Datatype>
+{
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(Datatype) == 2 ? 16 : 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<Datatype, M_Warp_Tile>();
+};
+
+template <typename Datatype>
+struct config_mn_16x16 : public config<Datatype>
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<Datatype, M_Warp_Tile>();
 };
 
 template <typename Datatype>
@@ -252,7 +264,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
             RunSingle<config_wmma<ADataType>, PadM, PadN, PadK, Preshuffle>(
                 M, N, K, StrideA, StrideB, StrideC, kb);
 #else
-            RunSingle<config<ADataType>, PadM, PadN, PadK, Preshuffle>(
+            RunSingle<config_mn_16x16<ADataType>, PadM, PadN, PadK, Preshuffle>(
+                M, N, K, StrideA, StrideB, StrideC, kb);
+            RunSingle<config_mn_32x32<ADataType>, PadM, PadN, PadK, Preshuffle>(
                 M, N, K, StrideA, StrideB, StrideC, kb);
 #endif
         }
