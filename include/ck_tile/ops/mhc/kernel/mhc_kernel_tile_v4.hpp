@@ -81,21 +81,11 @@ struct MHCKernelV4
         if(batch_start >= batch)
             return;
 
-        const index_t tid = get_thread_id();
-
-        // Allocate shared memory for A and B tiles + norm accumulators + GEMM results
+        // Allocate shared memory for A and B tiles
         __shared__ char smem_ptr[GetSmemSize()];
         XDataType* x_lds = reinterpret_cast<XDataType*>(smem_ptr);
         PhiDataType* phi_lds =
             reinterpret_cast<PhiDataType*>(smem_ptr + kMTile * kKTile * sizeof(XDataType));
-
-        // Thread-local norm accumulation (one per batch element in tile)
-        // Each thread accumulates for the elements it processes
-        ComputeDataType thread_sum_squares[kMTile];
-        for(index_t i = 0; i < kMTile; ++i)
-        {
-            thread_sum_squares[i] = 0.0f;
-        }
 
         // Create BlockGemm instance and result tile (distributed tensor in registers)
         using BlockGemm  = BlockGemmASmemBSmemCRegV1<Problem, Policy>;
@@ -156,27 +146,104 @@ struct MHCKernelV4
         auto phi_lds_window = make_tile_window(
             phi_lds_tensor, make_tuple(number<kNTile>{}, number<kKTile>{}), {0, 0});
 
-        // Main loop: load tiles with vectorization, compute norms, and accumulate GEMM
+        // Compute norms BEFORE GEMM loop with ALL threads participating
+        // With kMTile=16 and kBlockSize=64: 4 threads per batch element
+        const index_t thread_id = get_thread_id();
+        constexpr index_t threads_per_row =
+            kBlockSize / kMTile; // 64/16 = 4 threads per batch element
+        const index_t row_id        = thread_id / threads_per_row; // Which batch element (0-15)
+        const index_t thread_in_row = thread_id % threads_per_row; // Which thread within row (0-3)
+
+        __shared__ ComputeDataType norm_reduction[kMTile][threads_per_row];
+
+        // Each thread computes partial sum for its assigned portion
+        if(row_id < kMTile)
+        {
+            const index_t global_m      = batch_start + row_id;
+            ComputeDataType partial_sum = 0.0f;
+
+            if(global_m < batch)
+            {
+                const XDataType* row_ptr = p_x + global_m * nC;
+
+                // Divide work: each thread processes every threads_per_row elements
+                constexpr index_t kVecSize = 4;
+                for(index_t k = thread_in_row * kVecSize; k < nC; k += threads_per_row * kVecSize)
+                {
+                    if(k + kVecSize <= nC)
+                    {
+                        using VecType = ext_vector_t<XDataType, kVecSize>;
+                        VecType vec   = *c_style_pointer_cast<const VecType*>(row_ptr + k);
+
+#pragma unroll
+                        for(index_t i = 0; i < kVecSize; ++i)
+                        {
+                            ComputeDataType val = type_convert<ComputeDataType>(vec[i]);
+                            partial_sum += val * val;
+                        }
+                    }
+                    else
+                    {
+                        // Handle remainder elements
+                        for(index_t i = 0; i < kVecSize && k + i < nC; ++i)
+                        {
+                            ComputeDataType val = type_convert<ComputeDataType>(row_ptr[k + i]);
+                            partial_sum += val * val;
+                        }
+                    }
+                }
+            }
+
+            norm_reduction[row_id][thread_in_row] = partial_sum;
+        }
+
+        block_sync_lds();
+
+        // Reduce within each row and compute final norms
+        ComputeDataType norms[kMTile];
+        const ComputeDataType sqrt_nC = ck_tile::sqrt(static_cast<ComputeDataType>(nC));
+
+        if(thread_in_row == 0 && row_id < kMTile)
+        {
+            const index_t global_m = batch_start + row_id;
+
+            if(global_m < batch)
+            {
+                ComputeDataType sum_squares = 0.0f;
+#pragma unroll
+                for(index_t t = 0; t < threads_per_row; ++t)
+                {
+                    sum_squares += norm_reduction[row_id][t];
+                }
+
+                ComputeDataType norm = ck_tile::sqrt(sum_squares) / sqrt_nC;
+                norms[row_id]        = (norm > 1e-12f) ? norm : 1.0f;
+            }
+            else
+            {
+                norms[row_id] = 1.0f;
+            }
+        }
+
+        // Broadcast norms to all threads
+        __shared__ ComputeDataType norms_shared[kMTile];
+        if(thread_in_row == 0 && row_id < kMTile)
+        {
+            norms_shared[row_id] = norms[row_id];
+        }
+        block_sync_lds();
+
+        for(index_t local_m = 0; local_m < kMTile; ++local_m)
+        {
+            norms[local_m] = norms_shared[local_m];
+        }
+
+        // Main GEMM loop: load tiles with vectorization and accumulate GEMM
         for(index_t k_tile_idx = 0; k_tile_idx < num_k_tiles; ++k_tile_idx)
         {
             // Load X tile using vectorized load_tile
             auto x_tile = make_static_distributed_tensor<XDataType>(x_load_tile_dist);
             load_tile(x_tile, x_dram_window);
-
-            // Accumulate norms from the loaded tile into thread-local storage
-            constexpr auto x_tile_spans = decltype(x_tile)::get_distributed_spans();
-            sweep_tile_span(x_tile_spans[number<0>{}], [&](auto idx0) {
-                sweep_tile_span(x_tile_spans[number<1>{}], [&](auto idx1) {
-                    const auto tile_idx = get_x_indices_from_distributed_indices(
-                        x_tile.get_tile_distribution(), make_tuple(idx0, idx1));
-
-                    const index_t local_m  = tile_idx.at(number<0>{});
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
-
-                    ComputeDataType x_val = type_convert<ComputeDataType>(x_tile[i_j_idx]);
-                    thread_sum_squares[local_m] += x_val * x_val;
-                });
-            });
 
             // Store X tile to LDS
             store_tile(x_lds_window, x_tile);
@@ -200,97 +267,6 @@ struct MHCKernelV4
             block_sync_lds();
         }
 
-        // Reduce thread-local norm accumulators using warp shuffle + shared memory
-        __shared__ ComputeDataType sum_squares_shared[kMTile];
-
-        // Initialize shared memory
-        if(tid < kMTile)
-        {
-            sum_squares_shared[tid] = 0.0f;
-        }
-        block_sync_lds();
-
-        // Adaptive block-level reduction for each batch element
-        // Current: 128 threads, kMTile=16 → 8 threads per batch element
-        constexpr index_t threads_per_element = kBlockSize / kMTile;
-        constexpr index_t warp_size           = 64; // AMD warp size
-
-        for(index_t local_m = 0; local_m < kMTile; ++local_m)
-        {
-            ComputeDataType my_sum = thread_sum_squares[local_m];
-
-            const index_t my_group      = tid / threads_per_element;
-            const index_t lane_in_group = tid % threads_per_element;
-
-            if(my_group == local_m)
-            {
-                // Step 1: Warp-level reduction (works within a single warp)
-                constexpr index_t warp_reduce_size =
-                    (threads_per_element <= warp_size) ? threads_per_element : warp_size;
-
-#pragma unroll
-                for(index_t offset = warp_reduce_size / 2; offset > 0; offset /= 2)
-                {
-                    my_sum += __shfl_down(my_sum, offset);
-                }
-
-                // Step 2: Cross-warp reduction if needed (threads_per_element > warp_size)
-                if constexpr(threads_per_element > warp_size)
-                {
-                    __shared__ ComputeDataType
-                        warp_partial_sums[kMTile]
-                                         [(threads_per_element + warp_size - 1) / warp_size];
-
-                    const index_t warp_id = lane_in_group / warp_size;
-                    const index_t lane_id = lane_in_group % warp_size;
-
-                    // First thread in each warp writes partial sum
-                    if(lane_id == 0)
-                    {
-                        warp_partial_sums[local_m][warp_id] = my_sum;
-                    }
-                    block_sync_lds();
-
-                    // First warp does final reduction across warp partial sums
-                    constexpr index_t num_warps_per_element =
-                        (threads_per_element + warp_size - 1) / warp_size;
-                    if(lane_in_group < num_warps_per_element)
-                    {
-                        my_sum = warp_partial_sums[local_m][lane_in_group];
-#pragma unroll
-                        for(index_t offset = num_warps_per_element / 2; offset > 0; offset /= 2)
-                        {
-                            my_sum += __shfl_down(my_sum, offset);
-                        }
-                    }
-                }
-
-                // First thread in group writes final result
-                if(lane_in_group == 0)
-                {
-                    sum_squares_shared[local_m] = my_sum;
-                }
-            }
-        }
-        block_sync_lds();
-
-        // Compute inverse norms after all K-tiles processed
-        ComputeDataType inv_norms[kMTile];
-        for(index_t local_m = 0; local_m < kMTile; ++local_m)
-        {
-            const index_t global_m = batch_start + local_m;
-            if(global_m < batch)
-            {
-                const ComputeDataType norm = ck_tile::sqrt(sum_squares_shared[local_m]) /
-                                             ck_tile::sqrt(static_cast<ComputeDataType>(nC));
-                inv_norms[local_m] = 1.0f / norm;
-            }
-            else
-            {
-                inv_norms[local_m] = 1.0f;
-            }
-        }
-
         // Apply normalization and activation in-place on result_tile
         constexpr auto result_spans = decltype(result_tile)::get_distributed_spans();
         sweep_tile_span(result_spans[number<0>{}], [&](auto idx0) {
@@ -305,27 +281,26 @@ struct MHCKernelV4
 
                 if(global_m < batch && global_n < output_dim)
                 {
-                    constexpr auto i_j_idx         = make_tuple(idx0, idx1);
-                    const ComputeDataType inv_norm = inv_norms[local_m];
-                    ComputeDataType value          = result_tile[i_j_idx];
+                    constexpr auto i_j_idx     = make_tuple(idx0, idx1);
+                    const ComputeDataType norm = norms[local_m];
+                    ComputeDataType value      = result_tile[i_j_idx];
 
                     // Apply normalization and activation based on output section
                     if(global_n < n)
                     {
                         ComputeDataType activated_value;
                         Activation{}(activated_value, value);
-                        result_tile(i_j_idx) = alpha_pre * inv_norm * activated_value + bias;
+                        result_tile(i_j_idx) = (alpha_pre / norm) * activated_value + bias;
                     }
                     else if(global_n < 2 * n)
                     {
                         ComputeDataType activated_value;
                         Activation{}(activated_value, value);
-                        result_tile(i_j_idx) =
-                            alpha_post * inv_norm * 2.0f * activated_value + bias;
+                        result_tile(i_j_idx) = (alpha_post / norm) * 2.0f * activated_value + bias;
                     }
                     else
                     {
-                        result_tile(i_j_idx) = alpha_res * inv_norm * value + bias;
+                        result_tile(i_j_idx) = (alpha_res / norm) * value + bias;
                     }
                 }
             });

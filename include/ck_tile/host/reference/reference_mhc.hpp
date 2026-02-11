@@ -43,6 +43,9 @@ CK_TILE_HOST void reference_mhc(const HostTensor<XDataType>& x_b_nc,       // [B
             sum_squares += val * val;
         }
         ComputeDataType norm = std::sqrt(sum_squares) / std::sqrt(static_cast<ComputeDataType>(nC));
+        // Avoid division by zero
+        if(norm < 1e-12f)
+            norm = 1.0f;
 
         // Step 2 & 3: Perform GEMM and apply elementwise operations
 

@@ -27,18 +27,19 @@ struct MHCProblemV4
     using CDataType = ComputeDataType; // Output/accumulator matrix C
 
     // BlockGemmShape with kM, kN, kK members for BlockGemm
-    // Phase 2 Simplified: 1D grid with 1 warp, process full output (N=32)
-    // Use 2 MFMA calls per warp to cover 32 outputs (2 × 16 = 32)
-    using BlockGemmShape = TileGemmShape<sequence<16, 32, 16>,  // BlockTile (M=16, N=32, K=16)
+    // Simple 1-warp configuration using 16x16x16 MFMA (MI300 bf16 support)
+    // M=16, N=32, K=64: Larger K (4x vs V3 baseline) reduces loop iterations
+    // 1 warp total: proven to work correctly
+    using BlockGemmShape = TileGemmShape<sequence<16, 32, 64>,  // BlockTile (M=16, N=32, K=64)
                                          sequence<1, 1, 1>,     // BlockWarps (1 warp total)
-                                         sequence<16, 32, 16>>; // WarpTile (16x32x16)
+                                         sequence<16, 32, 64>>; // WarpTile (matches BlockTile)
 
     // Vector sizes for loading
     static constexpr index_t VectorSizeA = 4;
     static constexpr index_t VectorSizeB = 4;
 
     // Derive BlockShape from BlockGemmShape
-    // Back to 1 warp (64 threads) for proven norm reduction
+    // 1 warp × 64 threads/warp = 64 threads
     using BlockShape =
         Generic2dBlockShape<sequence<1, 64>, // BlockTile [1, 64] - layout for 1 warp
                             sequence<1, 64>, // ThreadPerBlock [1, 64] = 64 threads (1 warp)
@@ -85,24 +86,22 @@ struct MHCProblemV4
     CK_TILE_HOST static const std::string GetName() { return "MHCProblemV4"; }
 
     // Tile distribution for loading X (input matrix) from global memory
-    // X is [Batch, nC] row-major, we load kM×kK tiles (16×16)
+    // X is [Batch, nC] row-major, we load kM×kK tiles (16×64)
     // With 1 warp (64 threads):
     // M: 1 repeat × 1 warp × 16 threads × 1 vector = 16
-    // K: 1 repeat × 1 warp × 4 threads × 4 vector = 16
-    // Total threads: 1 warp × 64 threads = 64 threads ✓
+    // K: 1 repeat × 1 warp × 4 threads × 16 vector = 64
     CK_TILE_HOST_DEVICE static constexpr auto MakeXLoadTileDistribution()
     {
         using namespace ck_tile;
 
         // H0 (M dimension): [repeat=1, warp=1, thread=16, vector=1] = 16
-        // H1 (K dimension): [repeat=1, warp=1, thread=4, vector=4] = 16
-        // P→RH: Warp layout = 1 warp in M × 1 warp in K = 1 warp total
-        //       Thread layout = 16 threads in M × 4 threads in K = 64 threads/warp
-        // Y→RH: Access order = M_repeat → M_vector → K_repeat → K_vector (vectorized)
+        // H1 (K dimension): [repeat=1, warp=1, thread=4, vector=16] = 64
+        // Warp layout: 1 warp in M × 1 warp in K = 1 warp total
+        // Thread layout: 16 threads in M × 4 threads in K = 64 threads/warp
         using XTileDistEncoding = tile_distribution_encoding<
             sequence<>,                            // R: No replication
             tuple<sequence<1, 1, 16, 1>,           // H0 (M): repeat=1, warp=1, thread=16, vector=1
-                  sequence<1, 1, 4, 4>>,           // H1 (K): repeat=1, warp=1, thread=4, vector=4
+                  sequence<1, 1, 4, 16>>,          // H1 (K): repeat=1, warp=1, thread=4, vector=16
             tuple<sequence<1, 2>, sequence<1, 2>>, // P→RH major
             tuple<sequence<1, 1>, sequence<2, 2>>, // P→RH minor
             sequence<1, 1, 2, 2>,                  // Y→RH major
@@ -112,28 +111,22 @@ struct MHCProblemV4
     }
 
     // Tile distribution for loading Phi (weight matrix) from global memory
-    // Phi is [output_dim, nC] row-major, we load kN×kK tiles (32×16)
-    // With 1 warp (64 threads), use 2 repeats in N to cover 32 elements:
-    // N: 2 repeat × 1 warp × 8 threads × 2 vector = 32
-    // K: 1 repeat × 1 warp × 4 threads × 4 vector = 16
-    // Total threads: 1 warp × 64 threads = 64 threads ✓
+    // Phi is [output_dim, nC] row-major, we load kN×kK tiles (32×64)
+    // With 1 warp (64 threads):
+    // N: 1 repeat × 1 warp × 16 threads × 2 vector = 32
+    // K: 1 repeat × 1 warp × 4 threads × 16 vector = 64
     CK_TILE_HOST_DEVICE static constexpr auto MakePhiLoadTileDistribution()
     {
         using namespace ck_tile;
 
-        // H0 (N dimension): [repeat=2, warp=1, thread=8, vector=2] = 32
-        // H1 (K dimension): [repeat=1, warp=1, thread=4, vector=4] = 16
-        // P→RH: Warp layout = 1 warp in N × 1 warp in K = 1 warp total
-        //       Thread layout = 8 threads in N × 4 threads in K = 32 threads/warp... wait that's
-        //       only 32!
-        // Need to recalculate: 8×4=32 threads, but we have 64 threads/warp
-        // Better: N: 1 repeat × 1 warp × 16 threads × 2 vector = 32
-        //         K: 1 repeat × 1 warp × 4 threads × 4 vector = 16
-        //         Thread layout: 16×4 = 64 threads ✓
+        // H0 (N dimension): [repeat=1, warp=1, thread=16, vector=2] = 32
+        // H1 (K dimension): [repeat=1, warp=1, thread=4, vector=16] = 64
+        // Warp layout: 1 warp in N × 1 warp in K = 1 warp total
+        // Thread layout: 16 threads in N × 4 threads in K = 64 threads/warp
         using PhiTileDistEncoding = tile_distribution_encoding<
             sequence<>,                            // R: No replication
             tuple<sequence<1, 1, 16, 2>,           // H0 (N): repeat=1, warp=1, thread=16, vector=2
-                  sequence<1, 1, 4, 4>>,           // H1 (K): repeat=1, warp=1, thread=4, vector=4
+                  sequence<1, 1, 4, 16>>,          // H1 (K): repeat=1, warp=1, thread=4, vector=16
             tuple<sequence<1, 2>, sequence<1, 2>>, // P→RH major
             tuple<sequence<1, 1>, sequence<2, 2>>, // P→RH minor
             sequence<1, 1, 2, 2>,                  // Y→RH major
