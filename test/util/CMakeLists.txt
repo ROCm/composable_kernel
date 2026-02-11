@@ -5,3 +5,9 @@ add_gtest_executable(unit_sequence unit_sequence.cpp)
 if(result EQUAL 0)
   target_link_libraries(unit_sequence PRIVATE utility)
 endif()
+
+add_gtest_executable(unit_ford unit_ford.cpp)
+if(result EQUAL 0)
+  target_link_libraries(unit_ford PRIVATE utility)
+endif()
+ 

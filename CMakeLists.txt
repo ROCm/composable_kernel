@@ -125,6 +125,9 @@ add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 add_compile_options(-Wno-unique-object-duplication)
 
+# Increase the number of max elements in fold expressions
+add_compile_options(-fbracket-depth=1024)
+
 # add -Og -gdwarf64 for debug builds
 add_compile_options(
     "$<$<CONFIG:Debug>:-Og>"
