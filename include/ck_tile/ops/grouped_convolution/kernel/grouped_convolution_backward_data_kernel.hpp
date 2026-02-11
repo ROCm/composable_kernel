@@ -1135,6 +1135,7 @@ struct GroupedConvolutionBackwardDataKernel
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
+        // Disable Async for other archs than gfx950
         if constexpr(GemmPipeline_::Async)
         {
 #if defined(__gfx950__)

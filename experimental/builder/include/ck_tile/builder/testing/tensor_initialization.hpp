@@ -53,7 +53,7 @@ void init_tensor_buffer_uniform_int(void* buf,
     using ck_type = factory::internal::DataTypeToCK<DT>::type;
 
     // we might be asked to generate int values on fp data types that don't have the required
-    // precision
+    // precision. Check using >= and <= because == is not allowed for floats.
     if(static_cast<ck_type>(max_value - 1) <= static_cast<ck_type>(min_value) &&
        static_cast<ck_type>(max_value - 1) >= static_cast<ck_type>(min_value))
     {

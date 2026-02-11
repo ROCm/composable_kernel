@@ -7,6 +7,7 @@
 
 #include "../../experimental/builder/test/utils/conv_algorithm_type_utils.hpp"
 #include "grouped_convolution_signatures.hpp"
+#include "common.hpp"
 #include "ck_tile/ref/naive_grouped_conv_fwd_gpu.hpp"
 
 #include "ck_tile/builder/testing/filter_extent.hpp"
@@ -96,6 +97,29 @@ auto parse_conv_args(int arg_idx, char* const argv[])
     return args;
 }
 
+template <auto SIGNATURE>
+void run_cpu_validation(const ckt::Args<SIGNATURE>& args,
+                        const ckt::Outputs<SIGNATURE>& outputs,
+                        const ckt::Outputs<SIGNATURE>& reference)
+{
+    using DataType =
+        std::conditional_t<SIGNATURE.data_type == ckb::DataType::FP32,
+                           float,
+                           std::conditional_t<SIGNATURE.data_type == ckb::DataType::FP16,
+                                              ck_tile::half_t,
+                                              ck_tile::bfloat16_t>>;
+    const auto conv_param = args.to_ck_tile_conv_param();
+
+    const std::size_t output_bytes_num = conv_param.template GetOutputByte<DataType>();
+    std::vector<DataType> out(output_bytes_num / sizeof(DataType));
+    std::vector<DataType> ref(output_bytes_num / sizeof(DataType));
+    HIP_CHECK_ERROR(
+        hipMemcpy(&ref.data()[0], reference.output, output_bytes_num, hipMemcpyDeviceToHost));
+    HIP_CHECK_ERROR(
+        hipMemcpy(&out.data()[0], outputs.output, output_bytes_num, hipMemcpyDeviceToHost));
+    ck_tile::check_err(out, ref, "Error: Incorrect results!");
+}
+
 /// @brief `run_grouped_conv_forward_tile_algs()` run all grouped conv fwd instances.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
@@ -114,39 +138,19 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
     float avg_time;
     bool valid = true;
 
-    auto reference = ckt::alloc_outputs(args);
-    using ReferenceInstance =
-        typename ckb::ConvBuilder<SIGNATURE, ckt::ConvAlgorithm_Reference{}>::Instance;
-    auto ref_conv                    = ReferenceInstance{};
-    [[maybe_unused]] auto ref_result = ckt::run(ref_conv, args, inputs, reference.get());
-
-#if ENABLE_BUILDER_VALIDATE == 0
     using DataType =
         std::conditional_t<SIGNATURE.data_type == ckb::DataType::FP32,
                            float,
                            std::conditional_t<SIGNATURE.data_type == ckb::DataType::FP16,
                                               ck_tile::half_t,
                                               ck_tile::bfloat16_t>>;
-    const auto conv_param = args.to_ck_tile_conv_param();
 
-    const std::size_t output_bytes_num = conv_param.template GetOutputByte<DataType>();
-    std::vector<DataType> out(output_bytes_num / sizeof(DataType));
-    std::vector<DataType> ref(output_bytes_num / sizeof(DataType));
-    HIP_CHECK_ERROR(
-        hipMemcpy(&ref.data()[0], reference.get().output, output_bytes_num, hipMemcpyDeviceToHost));
-
-    const ck_tile::index_t GemmK = std::accumulate(conv_param.filter_spatial_lengths_.cbegin(),
-                                                   conv_param.filter_spatial_lengths_.cend(),
-                                                   1,
-                                                   std::multiplies<ck_tile::index_t>()) *
-                                   conv_param.C_;
-    float max_accumulated_value = *std::max_element(ref.begin(), ref.end());
-    const auto rtol             = ck_tile::get_relative_threshold<DataType, DataType, float>(GemmK);
-    const auto atol =
-        ck_tile::get_absolute_threshold<DataType, DataType, float>(max_accumulated_value, GemmK);
-#endif
-
-    [[maybe_unused]] auto run_alg = [&](auto&& run_alg_func) {
+    auto reference = ckt::alloc_outputs(args);
+    using ReferenceInstance =
+        typename ckb::ConvBuilder<SIGNATURE, ckt::ConvAlgorithm_Reference{}>::Instance;
+    auto ref_conv   = ReferenceInstance{};
+    auto ref_result = ckt::run(ref_conv, args, inputs, reference.get());
+    auto run_alg    = [&](auto&& run_alg_func) {
         std::tie(is_supported, avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
         if(is_supported)
         {
@@ -155,20 +159,27 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
             std::cout << "Perf: " << std::setw(10) << avg_time << " ms," << " " << op_name
                       << std::endl;
 
-#if ENABLE_BUILDER_VALIDATE
-            const auto errors = ckt::validate(args, outputs, reference.get()).get_errors();
-            for(const auto& error : errors)
+            ckt::ValidationReport report;
+            ckt::Outputs<SIGNATURE>::reflect(
+                args,
+                [&](std::string_view name, const auto& desc, void* ckt::Outputs<SIGNATURE>::*ptr) {
+                    report.check(name,
+                                 desc,
+                                 outputs.*ptr,
+                                 reference.get().*ptr,
+                                 ck::profiler::get_rtol<DataType>(),
+                                 ck::profiler::get_atol<DataType>());
+                });
+
+            for(const auto& error : report.get_errors())
             {
                 valid = false;
                 std::cout << "Number of incorrect values: " << error.wrong_elements
                           << " Is all zero:" << error.is_all_zero()
                           << " max err: " << error.max_error << std::endl;
+                // Check with cpu verification to get a values
+                run_cpu_validation<SIGNATURE>(args, outputs, reference.get());
             }
-#else
-            HIP_CHECK_ERROR(
-                hipMemcpy(&out.data()[0], outputs.output, output_bytes_num, hipMemcpyDeviceToHost));
-            valid = ck_tile::check_err(out, ref, "Error: Incorrect results!");
-#endif
         }
         else
         {

@@ -16,6 +16,7 @@ namespace ck_tile {
 template <typename Problem, typename Policy = GemmPipelineAgBgCrCompAsyncDefaultPolicy>
 struct GemmPipelineAGmemBGmemCRegAsyncV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Problem>
 {
+    using Base             = BaseGemmPipelineAGmemBGmemCRegV1<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
     using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
@@ -117,7 +118,8 @@ struct GemmPipelineAGmemBGmemCRegAsyncV1 : public BaseGemmPipelineAGmemBGmemCReg
     {
         using Base = PipelineImplBase;
 
-        template <typename AsDramBlockWindowTmp,
+        template <bool HasHotLoop,
+                  typename AsDramBlockWindowTmp,
                   typename BsDramBlockWindowTmp,
                   typename AElementFunction,
                   typename BElementFunction,
@@ -268,25 +270,28 @@ struct GemmPipelineAGmemBGmemCRegAsyncV1 : public BaseGemmPipelineAGmemBGmemCReg
 
             block_sync_lds_direct_load();
 
-            index_t iCounter = num_loop - 1;
-            while(iCounter > 0)
+            if constexpr(HasHotLoop)
             {
-                Base::LocalPrefetch(a_block_tile, a_lds_ld_window, is_a_load_tr_v);
-                Base::LocalPrefetch(b_block_tile, b_lds_ld_window, is_b_load_tr_v);
+                index_t iCounter = num_loop - 1;
+                while(iCounter > 0)
+                {
+                    Base::LocalPrefetch(a_block_tile, a_lds_ld_window, is_a_load_tr_v);
+                    Base::LocalPrefetch(b_block_tile, b_lds_ld_window, is_b_load_tr_v);
 
-                block_sync_lds();
+                    block_sync_lds();
 
-                Base::GlobalPrefetchAsync(
-                    a_copy_lds_window, a_tile_windows, a_dram_tile_window_step);
-                Base::GlobalPrefetchAsync(
-                    b_copy_lds_window, b_tile_windows, b_dram_tile_window_step);
+                    Base::GlobalPrefetchAsync(
+                        a_copy_lds_window, a_tile_windows, a_dram_tile_window_step);
+                    Base::GlobalPrefetchAsync(
+                        b_copy_lds_window, b_tile_windows, b_dram_tile_window_step);
 
-                // GEMM i
-                block_gemm(c_block_tile, a_block_tile, b_block_tile);
+                    // GEMM i
+                    block_gemm(c_block_tile, a_block_tile, b_block_tile);
 
-                block_sync_lds_direct_load();
+                    block_sync_lds_direct_load();
 
-                iCounter--;
+                    iCounter--;
+                }
             }
 
             // tail
@@ -311,12 +316,18 @@ struct GemmPipelineAGmemBGmemCRegAsyncV1 : public BaseGemmPipelineAGmemBGmemCReg
                                    index_t num_loop,
                                    void* p_smem) const
     {
-        return PipelineImpl<Scheduler>{}.operator()(a_dram_block_window_tmp,
-                                                    element_wise::PassThrough{},
-                                                    b_dram_block_window_tmp,
-                                                    element_wise::PassThrough{},
-                                                    num_loop,
-                                                    p_smem);
+        const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
+        const auto RunPipeline  = [&](auto hot_loop_) {
+            constexpr bool hot_loop = hot_loop_.value;
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop>(
+                a_dram_block_window_tmp,
+                element_wise::PassThrough{},
+                b_dram_block_window_tmp,
+                element_wise::PassThrough{},
+                num_loop,
+                p_smem);
+        };
+        return Base::TailHandler(RunPipeline, has_hot_loop);
     }
 
     template <typename ADramBlockWindowTmp,
@@ -349,12 +360,17 @@ struct GemmPipelineAGmemBGmemCRegAsyncV1 : public BaseGemmPipelineAGmemBGmemCReg
                                         index_t num_loop,
                                         void* p_smem) const
     {
-        return PipelineImpl<Scheduler>{}.operator()(a_dram_block_window_tmp,
-                                                    a_element_func,
-                                                    b_dram_block_window_tmp,
-                                                    b_element_func,
-                                                    num_loop,
-                                                    p_smem);
+        const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
+        const auto RunPipeline  = [&](auto hot_loop_) {
+            constexpr bool hot_loop = hot_loop_.value;
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop>(a_dram_block_window_tmp,
+                                                                           a_element_func,
+                                                                           b_dram_block_window_tmp,
+                                                                           b_element_func,
+                                                                           num_loop,
+                                                                           p_smem);
+        };
+        return Base::TailHandler(RunPipeline, has_hot_loop);
     }
 };
 
