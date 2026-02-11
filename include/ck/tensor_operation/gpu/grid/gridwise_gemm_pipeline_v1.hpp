@@ -276,6 +276,135 @@ struct GridwiseGemmPipeline_v1<2, true, true>
                                const ABlockDesc& a_block_desc,
                                ABlockTransfer& a_blockwise_copy,
                                const AGridBuffer& a_grid_buf,
+                               ABlockBuffer& a_block_buf,
+                               const ABlockTransferStep& a_block_copy_step,
+                               const BGridDesc& b_grid_desc,
+                               const BBlockDesc& b_block_desc,
+                               BBlockTransfer& b_blockwise_copy,
+                               const BGridBuffer& b_grid_buf,
+                               BBlockBuffer& b_block_buf,
+                               const BBlockTransferStep& b_block_copy_step,
+                               const BlockwiseGemm& blockwise_gemm,
+                               CThreadBuffer& c_thread_buf,
+                               index_t num_loop)
+    {
+        // preload data into LDS
+        {
+            // Read 0
+            a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
+            b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I0);
+
+            // Move
+            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+            // Read 1
+            a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I1);
+            b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I1);
+        }
+
+        // Initialize C
+        c_thread_buf.Clear();
+
+        // main body
+        if constexpr(HasMainLoop)
+        {
+            index_t i = 0;
+
+            do
+            {
+                // Move
+                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+                // Write i
+                a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, I0);
+                b_blockwise_copy.RunWrite(b_block_desc, b_block_buf, I0);
+
+                // Read i+2
+                a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
+                b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I0);
+
+                // Sync
+                block_sync_lds();
+
+                // Gemm i
+                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+
+                // Sync
+                block_sync_lds();
+
+                // Move
+                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+                // Write i+1
+                a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, I1);
+                b_blockwise_copy.RunWrite(b_block_desc, b_block_buf, I1);
+
+                // Read i+3
+                a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I1);
+                b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I1);
+
+                // Sync
+                block_sync_lds();
+
+                // Gemm i+1
+                blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+
+                // Sync
+                block_sync_lds();
+
+                i += 2;
+            } while(i < (num_loop - 2));
+        }
+
+        // tail
+        {
+            // Write num_loop - 2
+            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, I0);
+            b_blockwise_copy.RunWrite(b_block_desc, b_block_buf, I0);
+
+            // Sync
+            block_sync_lds();
+
+            // Gemm num_loop - 2
+            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+
+            // Sync
+            block_sync_lds();
+
+            // Write num_loop - 1
+            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf, I1);
+            b_blockwise_copy.RunWrite(b_block_desc, b_block_buf, I1);
+
+            // Sync
+            block_sync_lds();
+
+            // Gemm num_loop - 1
+            blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
+        }
+    }
+
+    template <bool HasMainLoop,
+              typename AGridDesc,
+              typename ABlockDesc,
+              typename ABlockTransfer,
+              typename AGridBuffer,
+              typename ABlockBuffer,
+              typename ABlockTransferStep,
+              typename BGridDesc,
+              typename BBlockDesc,
+              typename BBlockTransfer,
+              typename BGridBuffer,
+              typename BBlockBuffer,
+              typename BBlockTransferStep,
+              typename BlockwiseGemm,
+              typename CThreadBuffer>
+    static __device__ void Run(const AGridDesc& a_grid_desc,
+                               const ABlockDesc& a_block_desc,
+                               ABlockTransfer& a_blockwise_copy,
+                               const AGridBuffer& a_grid_buf,
                                ABlockBuffer& a_block_buf_0,
                                ABlockBuffer& a_block_buf_1,
                                const ABlockTransferStep& a_block_copy_step,
@@ -404,6 +533,197 @@ struct GridwiseGemmPipeline_v1<2, true, true>
         }
 
         // Final barrier to complete pipeline
+        __builtin_amdgcn_sched_barrier(0);
+    }
+};
+
+// 3-stage prefetch (triple buffering)
+template <>
+struct GridwiseGemmPipeline_v1<3, true, true>
+{
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+
+    __host__ __device__ static constexpr bool IsSupported(index_t)
+    {
+        return true;
+    }
+
+    __host__ __device__ static constexpr bool CalculateHasMainLoop(index_t num_loop)
+    {
+        return num_loop > 3;
+    }
+
+    template <bool HasMainLoop,
+              typename AGridDesc,
+              typename ABlockDesc,
+              typename ABlockTransfer,
+              typename AGridBuffer,
+              typename ABlockBuffer,
+              typename ABlockTransferStep,
+              typename BGridDesc,
+              typename BBlockDesc,
+              typename BBlockTransfer,
+              typename BGridBuffer,
+              typename BBlockBuffer,
+              typename BBlockTransferStep,
+              typename BlockwiseGemm,
+              typename CThreadBuffer>
+    static __device__ void Run(const AGridDesc& a_grid_desc,
+                               const ABlockDesc& a_block_desc,
+                               ABlockTransfer& a_blockwise_copy,
+                               const AGridBuffer& a_grid_buf,
+                               ABlockBuffer& a_block_buf_0,
+                               ABlockBuffer& a_block_buf_1,
+                               ABlockBuffer& a_block_buf_2,
+                               const ABlockTransferStep& a_block_copy_step,
+                               const BGridDesc& b_grid_desc,
+                               const BBlockDesc& b_block_desc,
+                               BBlockTransfer& b_blockwise_copy,
+                               const BGridBuffer& b_grid_buf,
+                               BBlockBuffer& b_block_buf_0,
+                               BBlockBuffer& b_block_buf_1,
+                               BBlockBuffer& b_block_buf_2,
+                               const BBlockTransferStep& b_block_copy_step,
+                               const BlockwiseGemm& blockwise_gemm,
+                               CThreadBuffer& c_thread_buf,
+                               index_t num_loop)
+    {
+        // Three-way pipeline for maximum overlap:
+        // - One buffer is being computed on
+        // - One buffer is being loaded
+        // - One buffer is idle/ready for next use
+
+        __builtin_amdgcn_sched_barrier(0);
+
+        // Prologue - fill all three buffers
+        // Load buffer 0
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
+        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I0);
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+        // Load buffer 1
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I1);
+        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I1);
+        a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+        b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+        // Load buffer 2
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I2);
+        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I2);
+
+        // Initialize C
+        c_thread_buf.Clear();
+
+        // Write to LDS buffer 0
+        a_blockwise_copy.RunWrite(a_block_desc, a_block_buf_0, I0);
+        b_blockwise_copy.RunWrite(b_block_desc, b_block_buf_0, I0);
+
+        // Main body
+        if constexpr(HasMainLoop)
+        {
+            index_t i = 1;
+
+            do
+            {
+                // Sync and compute on buffer 0
+                __builtin_amdgcn_sched_barrier(0);
+                block_sync_lds();
+                __builtin_amdgcn_sched_barrier(0);
+
+                blockwise_gemm.Run(a_block_buf_0, b_block_buf_0, c_thread_buf);
+
+                // Write to buffer 1 (from I1)
+                a_blockwise_copy.RunWrite(a_block_desc, a_block_buf_1, I1);
+                b_blockwise_copy.RunWrite(b_block_desc, b_block_buf_1, I1);
+
+                // Move and read next data to I0
+                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+                a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
+                b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I0);
+
+                // Sync and compute on buffer 1
+                __builtin_amdgcn_sched_barrier(0);
+                block_sync_lds();
+                __builtin_amdgcn_sched_barrier(0);
+
+                blockwise_gemm.Run(a_block_buf_1, b_block_buf_1, c_thread_buf);
+
+                // Write to buffer 2 (from I2)
+                a_blockwise_copy.RunWrite(a_block_desc, a_block_buf_2, I2);
+                b_blockwise_copy.RunWrite(b_block_desc, b_block_buf_2, I2);
+
+                // Move and read next data to I1
+                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+                a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I1);
+                b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I1);
+
+                // Sync and compute on buffer 2
+                __builtin_amdgcn_sched_barrier(0);
+                block_sync_lds();
+                __builtin_amdgcn_sched_barrier(0);
+
+                blockwise_gemm.Run(a_block_buf_2, b_block_buf_2, c_thread_buf);
+
+                // Write to buffer 0 (from I0)
+                a_blockwise_copy.RunWrite(a_block_desc, a_block_buf_0, I0);
+                b_blockwise_copy.RunWrite(b_block_desc, b_block_buf_0, I0);
+
+                // Move and read next data to I2
+                a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
+                b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+                a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I2);
+                b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I2);
+
+                i += 3;
+            } while(i <= (num_loop - 3));
+        }
+
+        // Tail - drain the pipeline
+        index_t remaining = num_loop % 3;
+        
+        if(remaining >= 1)
+        {
+            // Compute on buffer 0
+            __builtin_amdgcn_sched_barrier(0);
+            block_sync_lds();
+            __builtin_amdgcn_sched_barrier(0);
+            
+            blockwise_gemm.Run(a_block_buf_0, b_block_buf_0, c_thread_buf);
+            
+            // Write to buffer 1
+            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf_1, I1);
+            b_blockwise_copy.RunWrite(b_block_desc, b_block_buf_1, I1);
+        }
+        
+        if(remaining >= 2)
+        {
+            // Compute on buffer 1
+            __builtin_amdgcn_sched_barrier(0);
+            block_sync_lds();
+            __builtin_amdgcn_sched_barrier(0);
+            
+            blockwise_gemm.Run(a_block_buf_1, b_block_buf_1, c_thread_buf);
+            
+            // Write to buffer 2
+            a_blockwise_copy.RunWrite(a_block_desc, a_block_buf_2, I2);
+            b_blockwise_copy.RunWrite(b_block_desc, b_block_buf_2, I2);
+        }
+        
+        if(remaining == 0 || remaining >= 2)
+        {
+            // Compute on buffer 2 (or buffer 2 from prologue if remaining==0)
+            __builtin_amdgcn_sched_barrier(0);
+            block_sync_lds();
+            __builtin_amdgcn_sched_barrier(0);
+            
+            blockwise_gemm.Run(a_block_buf_2, b_block_buf_2, c_thread_buf);
+        }
+
         __builtin_amdgcn_sched_barrier(0);
     }
 };
