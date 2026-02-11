@@ -357,8 +357,26 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
         if(ck::get_device_name() == "gfx950")
         {
-            // Double buffering -> 2 times shared memory
-            return 2*Base::GetSharedMemoryNumberOfByte(gfx950_t{});
+            //const auto shared_mem = Base::template GetSharedMemoryNumberOfByte<false, NumGemmKPrefetchStage>(gfx950_t{});
+
+            constexpr auto a_block_desc_ak0_m_ak1 =
+                GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch());
+
+            constexpr auto b_block_desc_bk0_n_bk1 =
+                GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch());
+
+            // lds max alignment
+            constexpr auto max_lds_align = math::lcm(AK1, BK1);
+
+            constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
+                a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
+            constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
+                b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
+
+            const auto shared_mem_in_bytes = NumGemmKPrefetchStage * 
+                (a_block_space_size_aligned * sizeof(AComputeDataType) + 2 * b_block_space_size_aligned * sizeof(BComputeDataType));
+
+            return shared_mem_in_bytes;
         }
         else
 #endif
@@ -595,6 +613,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                DsGridPointer p_ds_grid,
                                EDataType* __restrict__ p_e_grid,
                                void* __restrict__ p_shared,
+                               void* __restrict__ p_shared_1,
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const CDEElementwiseOperation& cde_element_op,
@@ -756,24 +775,22 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
             a_block_desc_ak0_m_ak1.GetElementSpaceSize(), max_lds_align);
-        constexpr auto b_block_space_size_aligned = math::integer_least_multiple(
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize(), max_lds_align);
 
-        // Double buffers for A and B in LDS
+        //Double buffers for A and B in LDS
         auto a_block_buf_0 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<AComputeDataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
-
-        auto a_block_buf_1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<AComputeDataType*>(p_shared)  + a_block_space_size_aligned, 
+            static_cast<AComputeDataType*>(p_shared), 
             a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         auto b_block_buf_0 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BComputeDataType*>(p_shared) + 2*a_block_space_size_aligned,
+            static_cast<BComputeDataType*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
+        auto a_block_buf_1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<AComputeDataType*>(p_shared_1), 
+            a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+
         auto b_block_buf_1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BComputeDataType*>(p_shared) + 2*a_block_space_size_aligned + 
-                b_block_space_size_aligned,
+            static_cast<BComputeDataType*>(p_shared_1) + a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
@@ -804,6 +821,24 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                                blockwise_gemm,
                                                                c_thread_buf,
                                                                num_k_block_main_loop);
+
+        // (void) a_block_buf_0;
+        // (void) b_block_buf_0;
+        // gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
+        //                                                        a_block_desc_ak0_m_ak1,
+        //                                                        a_blockwise_copy,
+        //                                                        a_grid_buf,
+        //                                                        a_block_buf_1,
+        //                                                        a_block_slice_copy_step,
+        //                                                        b_grid_desc_bk0_n_bk1,
+        //                                                        b_block_desc_bk0_n_bk1,
+        //                                                        b_blockwise_copy,
+        //                                                        b_grid_buf,
+        //                                                        b_block_buf_1,
+        //                                                        b_block_slice_copy_step,
+        //                                                        blockwise_gemm,
+        //                                                        c_thread_buf,
+        //                                                        num_k_block_main_loop);
 
         // Shuffle C and write out.
         Base::template RunMultiDEpilogue<EGlobalMemoryDataOperation, false, false, true>(

@@ -121,6 +121,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
             amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
 
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
+        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         DsPointer p_ds_grid_grp;
 
@@ -169,6 +170,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
                 p_ds_grid_grp,
                 p_e_grid + e_group_offset + e_n_offset,
                 p_shared,
+                p_shared_1,
                 a_element_op,
                 b_element_op,
                 cde_element_op,
@@ -201,6 +203,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
                 p_ds_grid_grp,
                 p_e_grid + e_group_offset + e_n_offset,
                 p_shared,
+                p_shared_1,
                 a_element_op,
                 b_element_op,
                 cde_element_op,
