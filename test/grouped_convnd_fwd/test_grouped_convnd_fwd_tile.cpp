@@ -11,11 +11,6 @@
 #include "ck_tile/host/device_prop.hpp"
 #include "profiler/grouped_convolution_forward_tile_algs.hpp"
 
-// TODO: Remove limitation of conv fwd gpu reference which does not support right pad
-#define CK_CONV_FWD_REF_SKIP_RIGHT_PAD_CASES 1
-// TODO: Remove this limitation after gpu reference fix
-#define ENABLE_BHALF_GROUPED_CONV_FWD_TESTS 0
-
 static ck::index_t args_mask      = 0xffff;
 static ck::index_t instance_index = -1;
 
@@ -103,17 +98,6 @@ class TestGroupedConvndFwdTile : public ::testing::Test
                           const std::vector<std::size_t>& input_left_pads,
                           const std::vector<std::size_t>& input_right_pads)
     {
-#if CK_CONV_FWD_REF_SKIP_RIGHT_PAD_CASES
-        bool without_right_pad = true;
-        for(const std::size_t& right_pad : input_right_pads)
-        {
-            without_right_pad &= right_pad == 0;
-        }
-        if(!without_right_pad)
-        {
-            return;
-        }
-#endif
         ckt::Args<SIGNATURE> args = {
             .lengths =
                 {
@@ -155,12 +139,13 @@ using KernelTypes2d = ::testing::Types<SignatureDetails<2,
                                                         ckb::DataType::FP32,
                                                         ckb::TensorLayout::NHWGC,
                                                         ckb::TensorLayout::GKYXC,
+                                                        ckb::TensorLayout::NHWGK>,
+                                       SignatureDetails<2,
+                                                        ckb::DataType::BF16,
+                                                        ckb::DataType::FP32,
+                                                        ckb::TensorLayout::NHWGC,
+                                                        ckb::TensorLayout::GKYXC,
                                                         ckb::TensorLayout::NHWGK>>;
-#if ENABLE_BHALF_GROUPED_CONV_FWD_TESTS
-SignatureDetails < 2, ckb::DataType::BF16, ckb::DataType::FP32, ckb::TensorLayout::NHWGC,
-    ckb::TensorLayout::GKYXC, ckb::TensorLayout::NHWGK >>
-    ;
-#endif
 
 using KernelTypes3d = ::testing::Types<SignatureDetails<3,
                                                         ckb::DataType::FP32,
@@ -173,12 +158,13 @@ using KernelTypes3d = ::testing::Types<SignatureDetails<3,
                                                         ckb::DataType::FP32,
                                                         ckb::TensorLayout::NDHWGC,
                                                         ckb::TensorLayout::GKZYXC,
+                                                        ckb::TensorLayout::NDHWGK>,
+                                       SignatureDetails<3,
+                                                        ckb::DataType::BF16,
+                                                        ckb::DataType::FP32,
+                                                        ckb::TensorLayout::NDHWGC,
+                                                        ckb::TensorLayout::GKZYXC,
                                                         ckb::TensorLayout::NDHWGK>>;
-#if ENABLE_BHALF_GROUPED_CONV_FWD_TESTS
-SignatureDetails < 3, ckb::DataType::BF16, ckb::DataType::FP32, ckb::TensorLayout::NDHWGC,
-    ckb::TensorLayout::GKZYXC, ckb::TensorLayout::NDHWGK >>
-    ;
-#endif
 
 template <typename SignatureDetailsType>
 class TestGroupedConvndFwdTile2d : public TestGroupedConvndFwdTile<SignatureDetailsType>

@@ -46,6 +46,12 @@ struct BaseGemmPipelineAgBgCrCompV3
     CK_TILE_HOST_DEVICE static auto
     TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
     {
+        // Use amd_wave_read_first_lane to avoid higher resource usage.
+        // It forces to store these values in SGPR.
+        // Compiler cannot deduce if one path is used for all threads
+        const bool has_hot_loop_first_lane      = amd_wave_read_first_lane(has_hot_loop);
+        const TailNumber tail_number_first_lane = amd_wave_read_first_lane(tail_number);
+
         constexpr auto scenarios = []() {
             if constexpr(Problem::BlockGemmShape::NumWarps == 8)
                 return std::array<std::pair<bool, ck_tile::TailNumber>, 5>{
@@ -62,7 +68,8 @@ struct BaseGemmPipelineAgBgCrCompV3
                     std::make_pair(false, TailNumber::Even),
                 };
         }();
-        if(has_hot_loop == scenarios[I].first && tail_number == scenarios[I].second)
+        if(has_hot_loop_first_lane == scenarios[I].first &&
+           tail_number_first_lane == scenarios[I].second)
             return run_func(bool_constant<scenarios[I].first>{}, constant<scenarios[I].second>{});
         else if constexpr(I + 1 < scenarios.size())
             return TailHandler<I + 1>(run_func, has_hot_loop, tail_number);
