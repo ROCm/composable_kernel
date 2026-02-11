@@ -291,6 +291,10 @@ struct GridwiseGemmPipeline_v1<2, true, true>
                                index_t num_loop)
     {
         // We have two thread scratches indexed by I0, I1 for double buffering.
+        // Optimized with IGLP scheduling for better instruction-level parallelism
+
+        // Scheduling barrier to mark pipeline start
+        __builtin_amdgcn_sched_barrier(0);
 
         // Prologue - load data into buffer 0
         // Read from global mem to registers (I0 scratch)
@@ -308,9 +312,6 @@ struct GridwiseGemmPipeline_v1<2, true, true>
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf_0, I0);
         b_blockwise_copy.RunWrite(b_block_desc, b_block_buf_0, I0);
 
-        // DEBUG
-        block_sync_lds();
-
         // Main body
         if constexpr(HasMainLoop)
         {
@@ -327,7 +328,9 @@ struct GridwiseGemmPipeline_v1<2, true, true>
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
                 // Sync LDS to ensure buffer 0 is ready
+                __builtin_amdgcn_sched_barrier(0);
                 block_sync_lds();
+                __builtin_amdgcn_sched_barrier(0);
 
                 // Run GEMM on buffer 0 while buffer 1 is loading
                 blockwise_gemm.Run(a_block_buf_0, b_block_buf_0, c_thread_buf);
@@ -335,9 +338,6 @@ struct GridwiseGemmPipeline_v1<2, true, true>
                 // Write from registers (I1 scratch) to LDS buffer 1
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf_1, I1);
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf_1, I1);
-
-                // DEBUG
-                block_sync_lds();
 
                 // Read from global mem to registers (I0 scratch)
                 a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I0);
@@ -348,34 +348,33 @@ struct GridwiseGemmPipeline_v1<2, true, true>
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
                 // Sync LDS to ensure buffer 1 is ready
+                __builtin_amdgcn_sched_barrier(0);
                 block_sync_lds();
+                __builtin_amdgcn_sched_barrier(0);
 
                 // Run GEMM on buffer 1 while buffer 0 is loading
                 blockwise_gemm.Run(a_block_buf_1, b_block_buf_1, c_thread_buf);
 
-                // Write from registers (I1 scratch) to LDS buffer 0
+                // Write from registers (I0 scratch) to LDS buffer 0
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf_0, I0);
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf_0, I0);
-
-                // DEBUG
-                block_sync_lds();
 
                 i += 2;
             } while(i <= (num_loop - 2));
         }
 
-        // Debug
-        block_sync_lds();
-
-        // tail
+        // tail - handle remaining iterations
         if (num_loop % 2 == 0)
         {
+            // Even number of loops: need to process 2 more iterations
             // Read from global mem to registers (I1 scratch)
             a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf, I1);
             b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf, I1);
 
             // Sync LDS to ensure buffer 0 is ready
+            __builtin_amdgcn_sched_barrier(0);
             block_sync_lds();
+            __builtin_amdgcn_sched_barrier(0);
 
             // Run GEMM on buffer 0
             blockwise_gemm.Run(a_block_buf_0, b_block_buf_0, c_thread_buf);
@@ -385,19 +384,27 @@ struct GridwiseGemmPipeline_v1<2, true, true>
             b_blockwise_copy.RunWrite(b_block_desc, b_block_buf_1, I1);
 
             // Sync LDS to ensure buffer 1 is ready
+            __builtin_amdgcn_sched_barrier(0);
             block_sync_lds();
+            __builtin_amdgcn_sched_barrier(0);
 
             // Run GEMM on buffer 1
             blockwise_gemm.Run(a_block_buf_1, b_block_buf_1, c_thread_buf);
         }
         else
         {
+            // Odd number of loops: need to process 1 more iteration
             // Sync LDS to ensure buffer 0 is ready
+            __builtin_amdgcn_sched_barrier(0);
             block_sync_lds();
+            __builtin_amdgcn_sched_barrier(0);
 
             // Run GEMM on buffer 0
             blockwise_gemm.Run(a_block_buf_0, b_block_buf_0, c_thread_buf);
         }
+
+        // Final barrier to complete pipeline
+        __builtin_amdgcn_sched_barrier(0);
     }
 };
 
