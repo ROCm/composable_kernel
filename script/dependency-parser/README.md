@@ -8,166 +8,200 @@ The parser:
 - Identifies all executables in the Ninja build.
 - Maps object files to their source and header dependencies using `ninja -t deps`.
 - Constructs a reverse mapping from each file to all dependent executables.
-- Handles multi-executable dependencies and supports parallel processing for scalability.
+- Automatically detects monorepo structure (`projects/<name>/`) and scopes analysis accordingly.
 - Exports results in CSV and JSON formats for integration with other tools.
 
 ## Features
 
 - **Comprehensive Dependency Tracking**: Captures direct source file dependencies and, critically, all included header files via `ninja -t deps`.
 - **Executable to Object Mapping**: Parses the `build.ninja` file to understand how executables are linked from object files.
-- **Object to Source/Header Mapping**: Uses `ninja -t deps` for each object file to get a complete list of its dependencies.
+- **Batch Dependency Extraction**: Runs a single `ninja -t deps` call (no arguments) to dump all dependency information at once, then filters in-memory. This avoids the massive overhead of per-object subprocess calls on large build files (e.g., a 246MB `build.ninja` with 29K+ objects completes in ~2 seconds instead of ~54 minutes).
+- **Monorepo Awareness**: Automatically detects `projects/<project>/` paths, strips them to project-relative paths, and scopes `git diff` to only the relevant subtree.
 - **File to Executable Inversion**: Inverts the dependency graph to map each file to the set of executables that depend on it.
-- **Parallel Processing**: Utilizes a `ThreadPoolExecutor` to run `ninja -t deps` commands in parallel, significantly speeding up analysis for projects with many object files.
-- **Filtering**: Option to filter out system files and focus on project-specific dependencies.
+- **Filtering**: Filters out system files (`/usr/`, `/opt/rocm/`, etc.) and focuses on project-specific dependencies.
 - **Multiple Output Formats**:
-    - **CSV**: `enhanced_file_executable_mapping.csv` - A comma-separated values file where each row lists a file and a semicolon-separated list of executables that depend on it.
-    - **JSON**: `enhanced_dependency_mapping.json` - A JSON file representing a dictionary where keys are file paths and values are lists of dependent executables.
+    - **CSV**: `enhanced_file_executable_mapping.csv` - Each row lists a file and a semicolon-separated list of dependent executables.
+    - **JSON**: `enhanced_dependency_mapping.json` - Includes file-to-executable mapping, executable-to-file mapping, repo metadata, and statistics.
 - **Robust Error Handling**: Includes error handling for missing files and failed subprocess commands.
 
 ## Prerequisites
 
 - **Python 3.7+**
 - **Ninja build system**: The `ninja` executable must be in the system's PATH or its path provided as an argument.
-- A **Ninja build directory** containing a `build.ninja` file and the compiled object files. The project should have been built at least once.
+- A **Ninja build directory** containing a `build.ninja` file. The project should have been built at least once (even partially) so that `ninja -t deps` has dependency data.
+
+## Quick Start with launch_tests.sh
+
+The easiest way to use this tool is via the `launch_tests.sh` wrapper script:
+
+```bash
+# From the monorepo root (or anywhere):
+script/launch_tests.sh /path/to/build-dir
+
+# Uses default build dir (<CK_ROOT>/build) if no argument given:
+script/launch_tests.sh
+```
+
+This script:
+1. Discovers the git root (monorepo root) automatically.
+2. Runs the dependency parser against `build.ninja`.
+3. Runs `git diff` between `origin/develop` and the current branch (scoped to CK files only).
+4. Maps changed files to affected tests/examples.
+5. Runs the affected tests via `ctest` in chunks.
+
+Environment variables:
+- `CTEST_CHUNK_SIZE`: Number of tests per ctest invocation (default: 10).
+- `CTEST_FAIL_FAST`: Set to `true` to stop on first failure (default: `false`).
 
 ## Using CMake with Ninja
 
-To use this tool effectively, your C++ project should be configured with CMake to generate Ninja build files and dependency information. Follow these steps:
+To use this tool effectively, your C++ project should be configured with CMake to generate Ninja build files:
 
-1. **Configure CMake to use Ninja and generate dependencies:**
+1. **Configure CMake to use Ninja:**
     ```bash
-    cmake -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Release /path/to/your/source
+    cmake -G Ninja \
+      -DCMAKE_PREFIX_PATH=/opt/rocm \
+      -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DGPU_TARGETS="gfx942" \
+      /path/to/composablekernel
     ```
-    - The `-G Ninja` flag tells CMake to generate Ninja build files.
-    - `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON` is optional but useful for other tooling.
-    - Ensure your CMakeLists.txt uses `target_include_directories` and proper dependency declarations for accurate results.
 
-2. **Build your project with Ninja:**
+2. **Build your project (full or partial):**
     ```bash
+    # Full build
     ninja
-    ```
-    - This step is required to generate all object files and dependency information (`.d` files) that the parser relies on.
 
-3. **Run the dependency parser tool:**
+    # Or build specific targets
+    ninja example_gemm_xdl_fp16 example_gemm_xdl_fp16_v3
+    ```
+    The parser only extracts dependencies for objects that were actually built.
+
+3. **Run the dependency parser:**
     ```bash
-    python main.py parse /path/to/build.ninja --workspace-root /path/to/your/workspace
+    python main.py parse /path/to/build/build.ninja --workspace-root /path/to/monorepo-root
     ```
 
-**Note:** Always run Ninja to ensure all dependencies are up to date before invoking the parser. If you change source files or headers, re-run Ninja first.
+**Note:** `--workspace-root` should point to the **git root** (monorepo root) for correct monorepo detection. If omitted, it defaults to `..` relative to the build directory.
 
 ## Usage
 
-All features are available via the unified main.py CLI:
+All features are available via the unified `main.py` CLI:
 
 ```bash
-# Dependency parsing (now supports --workspace-root)
-python main.py parse examples/build-ninja/build.ninja --workspace-root /path/to/your/workspace
+# Dependency parsing
+python main.py parse /path/to/build.ninja --workspace-root /path/to/monorepo-root
 
-# Selective test filtering
+# Selective test filtering (between git refs)
 python main.py select enhanced_dependency_mapping.json <ref1> <ref2> [--all | --test-prefix] [--output <output_json>]
 
-# Code auditing
+# Code auditing (list all files and their dependent executables)
 python main.py audit enhanced_dependency_mapping.json
 
-# Build optimization
+# Build optimization (list affected executables for specific changed files)
 python main.py optimize enhanced_dependency_mapping.json <changed_file1> [<changed_file2> ...]
 ```
 
-**Arguments:**
+### Parse arguments
 
-1.  `<path_to_build.ninja>`: (Required) The full path to the `build.ninja` file within your Ninja build directory.
-2.  `[--workspace-root <workspace_root>]`: (Optional, recommended) The root directory of your workspace.
-3.  `[path_to_ninja_executable]`: (Optional) The path to the `ninja` executable if it's not in your system's PATH. Defaults to `ninja`.
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `build_ninja` | Yes | Path to the `build.ninja` file |
+| `--workspace-root` | No | Root of the workspace/monorepo (default: `..`) |
+| `--ninja` | No | Path to the ninja executable (default: `ninja`) |
 
-**Example:**
+### Select arguments
 
-```bash
-# Assuming your build directory is 'build-ninja' and it contains 'build.ninja'
-python src/enhanced_ninja_parser.py build-ninja/build.ninja
-
-# With custom workspace root
-python src/enhanced_ninja_parser.py build-ninja/build.ninja ninja /path/to/your/workspace
-
-# If ninja is installed in a custom location
-python src/enhanced_ninja_parser.py /path/to/project/build/build.ninja /usr/local/bin/ninja
-```
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `depmap_json` | Yes | Path to `enhanced_dependency_mapping.json` |
+| `ref1` | Yes | Source git ref (branch or commit SHA) |
+| `ref2` | Yes | Target git ref (branch or commit SHA) |
+| `--all` | No | Include all affected executables (default) |
+| `--test-prefix` | No | Only include executables starting with `test_` |
+| `--output` | No | Output JSON file (default: `tests_to_run.json`) |
 
 ## How It Works
 
-1.  **Initialization**:
-    *   Takes the path to `build.ninja` and optionally the `ninja` executable.
-    *   Sets up internal data structures to store mappings.
+1.  **Build File Parsing (`_parse_build_file`)**:
+    *   Reads the `build.ninja` file (~246MB for the full CK monorepo build).
+    *   Uses regular expressions to identify executable link rules and object compilation rules.
+    *   Populates `executable_to_objects` and `object_to_source` mappings.
 
-2.  **Build File Parsing (`_parse_build_file`)**:
-    *   Reads the `build.ninja` file.
-    *   Uses regular expressions to identify rules for linking executables (e.g., `build my_exe: link main.o utils.o`) and compiling object files (e.g., `build main.o: cxx ../src/main.cpp`).
-    *   Populates `executable_to_objects` (mapping an executable name to a list of its .o files) and `object_to_source` (mapping an object file to its primary source file).
+2.  **Batch Dependency Extraction (`_extract_object_dependencies`)**:
+    *   Runs a single `ninja -t deps` command (no arguments) which dumps all dependency information for every built object file.
+    *   Parses the output and filters to only the objects found in `object_to_source`.
+    *   Strips the workspace root prefix from absolute paths to produce project-relative paths.
 
-3.  **Object Dependency Extraction (`_extract_all_object_dependencies`)**:
-    *   Iterates through all unique object files identified in the previous step.
-    *   For each object file, it calls `_get_object_dependencies`.
-    *   This process is parallelized using `ThreadPoolExecutor` for efficiency. Each call to `ninja -t deps` runs in a separate thread.
+3.  **Monorepo Path Detection (`_build_file_to_executable_mapping`)**:
+    *   Applies a regex to detect `projects/<project_name>/` in dependency paths.
+    *   Strips the monorepo prefix so paths are relative to the CK project root (e.g., `include/ck/ck.hpp`).
+    *   Records the detected project name for use by the selective test filter.
 
-4.  **Individual Object Dependencies (`_get_object_dependencies`)**:
-    *   For a given object file (e.g., `main.o`), it runs the command: `ninja -t deps main.o` in the build directory.
-    *   This command outputs a list of all files that `main.o` depends on, including its primary source (`main.cpp`) and all headers (`*.h`, `*.hpp`) it includes directly or indirectly.
-    *   The output is parsed, cleaned, and returned as a list of file paths.
+4.  **File Filtering (`_is_project_file`)**:
+    *   Excludes system files (`/usr/`, `/opt/rocm/`, etc.).
+    *   Includes files in known CK directories (`include/`, `library/`, `test/`, `example/`, etc.).
+    *   Also recognizes monorepo-prefixed paths (`projects/composablekernel/include/`, etc.).
 
-5.  **Building Final File-to-Executable Mapping (`_build_file_to_executable_mapping`)**:
-    *   This is the core inversion step. It iterates through each executable and its associated object files.
-    *   For each object file, it looks up the full list of its dependencies (source and headers) obtained in step 3 & 4.
-    *   For every dependent file found, it adds the current executable to that file's entry in the `file_to_executables` dictionary.
-    *   If `filter_project_files` is enabled, it checks each dependency against a list of common system paths (e.g., `/usr/include`, `_deps/`) and excludes them if they match.
-
-6.  **Filtering (`_is_project_file`)**:
-    *   A helper function to determine if a given file path is likely a project file or a system/external library file. This helps in focusing the dependency map on the user's own codebase.
-
-7.  **Output Generation**:
-    *   **`export_to_csv(csv_file)`**: Writes the `file_to_executables` mapping to a CSV file. Each row contains a file path and a semicolon-delimited string of executable names.
-    *   **`export_to_json(json_file)`**: Dumps the `file_to_executables` mapping (where the set of executables is converted to a list) into a JSON file.
-    *   **`print_summary()`**: Prints a summary of the findings, including the number of executables, object files, source files, and header files mapped.
+5.  **Selective Test Filtering (`selective_test_filter.py`)**:
+    *   Loads the dependency mapping JSON.
+    *   Runs `git diff --name-only` between two refs, scoped to `projects/<project>/` when in monorepo mode.
+    *   Strips the monorepo prefix from changed file paths.
+    *   Looks up each changed file in the dependency map to find affected executables.
+    *   Exports the list of tests to run as JSON.
 
 ## Output Files
 
-Running the script will generate two files in the same directory as the input `build.ninja` file:
+Running the parser generates two files in the build directory:
 
 -   **`enhanced_file_executable_mapping.csv`**:
     ```csv
-    File,Executables
-    /path/to/project/src/main.cpp,my_exe_1;my_exe_2
-    /path/to/project/include/utils.h,my_exe_1;another_test
-    ...
+    source_file,executables
+    "include/ck/ck.hpp","bin/example_gemm_xdl_fp16;bin/example_gemm_xdl_fp16_v3"
+    "example/01_gemm/gemm_xdl_fp16.cpp","bin/example_gemm_xdl_fp16"
     ```
 
 -   **`enhanced_dependency_mapping.json`**:
     ```json
     {
-      "/path/to/project/src/main.cpp": ["my_exe_1", "my_exe_2"],
-      "/path/to/project/include/utils.h": ["my_exe_1", "another_test"],
-      ...
+      "repo": {
+        "type": "monorepo",
+        "project": "composablekernel"
+      },
+      "file_to_executables": {
+        "include/ck/ck.hpp": ["bin/example_gemm_xdl_fp16", "bin/example_gemm_xdl_fp16_v3"],
+        "example/01_gemm/gemm_xdl_fp16.cpp": ["bin/example_gemm_xdl_fp16"]
+      },
+      "executable_to_files": {
+        "bin/example_gemm_xdl_fp16": ["include/ck/ck.hpp", "example/01_gemm/gemm_xdl_fp16.cpp"]
+      },
+      "statistics": {
+        "total_files": 180,
+        "total_executables": 20403,
+        "total_object_files": 29530,
+        "files_with_multiple_executables": 140
+      }
     }
     ```
 
 ## Use Cases
 
--   **Impact Analysis**: Determine which executables (especially tests) need to be rebuilt or re-run when a specific source or header file changes.
--   **Build Optimization**: Understand the dependency structure to potentially optimize build times.
+-   **Selective CI/CD Testing**: Run only the tests affected by a PR's changes, cutting CI time dramatically.
+-   **Impact Analysis**: Determine which executables need to be rebuilt when a header changes.
+-   **Build Optimization**: Identify which targets are affected by a set of file changes.
 -   **Code Auditing**: Get a clear overview of how files are used across different executables.
--   **Selective Testing**: Integrate with CI/CD systems to run only the tests affected by a given set of changes.
 
 ## Limitations
 
 -   Relies on the accuracy of Ninja's dependency information (`ninja -t deps`). If the build system doesn't correctly generate `.d` (dependency) files, the header information might be incomplete.
--   The definition of "project file" vs. "system file" is based on a simple path-based heuristic and might need adjustment for specific project structures.
--   Performance for extremely large projects (tens of thousands of object files) might still be a consideration, though parallelization helps significantly.
+-   Only objects that have been **actually built** will have dependency data. A partial build means partial coverage of the dependency map.
+-   The definition of "project file" vs. "system file" is based on a path-based heuristic and might need adjustment for other project structures.
 
 ## Troubleshooting
 
--   **"ninja: command not found"**: Ensure `ninja` is installed and in your PATH, or provide the full path to the executable as the second argument.
+-   **"ninja: command not found"**: Ensure `ninja` is installed and in your PATH, or provide the full path via `--ninja`.
 -   **"build.ninja not found"**: Double-check the path to your `build.ninja` file.
 -   **Empty or Incomplete Output**:
     *   Make sure the project has been successfully built at least once. `ninja -t deps` relies on information generated during the build.
-    *   Verify that your CMake (or other meta-build system) is configured to generate dependency files for Ninja.
--   **Slow Performance**: For very large projects, the number of `ninja -t deps` calls can be substantial. While parallelized, it can still take time. Consider if all object files truly need to be analyzed or if a subset is sufficient for your needs.
-
-This tool provides a powerful way to gain deep insights into your Ninja project's dependency structure, enabling more intelligent build and test workflows.
+    *   Verify that your CMake is configured to generate dependency files for Ninja (`-G Ninja`).
+-   **JSON shows `"type": "component"` instead of `"monorepo"`**: Ensure `--workspace-root` points to the **git/monorepo root**, not the CK project root. The parser needs to see `projects/<name>/` in the dependency paths to detect monorepo mode.
