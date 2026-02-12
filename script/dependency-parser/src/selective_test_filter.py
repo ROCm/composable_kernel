@@ -34,15 +34,12 @@ import os
 def get_changed_files(ref1, ref2, project: str = None):
     """Return a set of files changed between two git refs."""
     try:
+        cmd = ["git", "diff", "--name-only", ref1, ref2]
+        if project:
+            # Scope git diff to only this project's subtree for efficiency
+            cmd += ["--", f"projects/{project}/"]
         result = subprocess.run(
-            ["pwd"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        print("cwd:", result.stdout)
-        result = subprocess.run(
-            ["git", "diff", "--name-only", ref1, ref2],
+            cmd,
             capture_output=True,
             text=True,
             check=True,
@@ -105,7 +102,7 @@ def main():
         if not os.path.exists(depmap_json):
             print(f"Dependency map JSON not found: {depmap_json}")
             sys.exit(1)
-        file_to_executables = load_depmap(depmap_json)
+        file_to_executables, _ = load_depmap(depmap_json)
         for f, exes in file_to_executables.items():
             print(f"{f}: {', '.join(exes)}")
         print(f"Total files: {len(file_to_executables)}")
@@ -122,7 +119,7 @@ def main():
         if not os.path.exists(depmap_json):
             print(f"Dependency map JSON not found: {depmap_json}")
             sys.exit(1)
-        file_to_executables = load_depmap(depmap_json)
+        file_to_executables, _ = load_depmap(depmap_json)
         affected_executables = set()
         for f in changed_files:
             if f in file_to_executables:

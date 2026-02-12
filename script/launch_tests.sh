@@ -2,26 +2,30 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
+# Usage: launch_tests.sh [BUILD_DIR]
+#   BUILD_DIR: Path to the Ninja build directory (default: <CK_ROOT>/build)
+
 # Get the directory where the script is located
-BUILD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Go one level up to PACKAGE_HOME
-PACKAGE_HOME="$(dirname "$BUILD_DIR")"
+# Go one level up to PACKAGE_HOME (the CK project root)
+PACKAGE_HOME="$(dirname "$SCRIPT_DIR")"
 
-SCRIPT_DIR="$PACKAGE_HOME/script/"
+# Discover the monorepo root (git toplevel), falling back to PACKAGE_HOME
+GIT_ROOT="$(git -C "$PACKAGE_HOME" rev-parse --show-toplevel 2>/dev/null)" || GIT_ROOT="$PACKAGE_HOME"
 
-# Search for build.ninja under PACKAGE_HOME
-BUILD_NINJA_FILE="$PACKAGE_HOME/build/build.ninja"
+# Accept an optional build directory argument; default to $PACKAGE_HOME/build
+BUILD_DIR="${1:-$PACKAGE_HOME/build}"
+BUILD_NINJA_FILE="$BUILD_DIR/build.ninja"
 
-if [ -z "$BUILD_NINJA_FILE" ]; then
-    echo "Error: build.ninja not found under $PACKAGE_HOME"
+if [ ! -f "$BUILD_NINJA_FILE" ]; then
+    echo "Error: build.ninja not found at $BUILD_NINJA_FILE"
+    echo "Usage: $0 [BUILD_DIR]"
+    echo "Please build the project first (e.g., cmake -G Ninja ... && ninja)"
     exit 1
 fi
 
-python3 "$SCRIPT_DIR/dependency-parser/main.py" parse "$BUILD_NINJA_FILE" --workspace-root "$PACKAGE_HOME"
-
-# Get the directory containing build.ninja
-BUILD_DIR=$(dirname "$BUILD_NINJA_FILE")
+python3 "$SCRIPT_DIR/dependency-parser/main.py" parse "$BUILD_NINJA_FILE" --workspace-root "$GIT_ROOT"
 
 # Path to enhanced_dependency_mapping.json in the same directory
 JSON_FILE="$BUILD_DIR/enhanced_dependency_mapping.json"
@@ -32,10 +36,11 @@ if [ ! -f "$JSON_FILE" ]; then
     exit 1
 fi
 
-branch=$(git rev-parse --abbrev-ref HEAD)
+branch=$(git -C "$GIT_ROOT" rev-parse --abbrev-ref HEAD)
 
-# Run the command
-python3 "$SCRIPT_DIR/dependency-parser/main.py" select "$JSON_FILE" origin/develop $branch
+# Run the command from the git root so that git diff paths are correct
+cd "$GIT_ROOT"
+python3 "$SCRIPT_DIR/dependency-parser/main.py" select "$JSON_FILE" origin/develop "$branch"
 
 # Path to tests_to_run.json in the same directory
 TEST_FILE="tests_to_run.json"
