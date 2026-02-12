@@ -35,6 +35,12 @@ else()
     set(CMAKE_INSTALL_PREFIX "C:/dist/TheRock" CACHE PATH "")
 endif()
 
+# Enable ASAN  when THEROCK_SANITIZER is set to ASAN or HOST_ASAN
+if(THEROCK_SANITIZER STREQUAL "ASAN" OR THEROCK_SANITIZER STREQUAL "HOST_ASAN")
+  set(ENABLE_ASAN_PACKAGING ON)
+  message(STATUS "Enabling ASAN for Composable Kernel (THEROCK_SANITIZER=${THEROCK_SANITIZER})")
+endif()
+
 set(version 1.2.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX)
 include(CTest)
@@ -228,7 +234,7 @@ if(NOT ENABLE_ASAN_PACKAGING)
     endif()
 else()
     #build CK only for xnack-supported targets when using ASAN
-    set(CK_GPU_TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx942:xnack+")
+    set(CK_GPU_TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx942:xnack+;gfx950:xnack+")
 endif()
 
 #if user set GPU_ARCHS on the cmake command line, overwrite default target list with user's list
