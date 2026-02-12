@@ -13,6 +13,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/host/reference/reference_mhc.hpp"
 #include "ck_tile/host/check_err.hpp"
+#include "ck_tile/ops/mhc/pipeline/mhc_problem_v5_4warp.hpp"
 
 // Parse command-line arguments for MHC benchmark
 auto create_args(int argc, char* argv[])
@@ -95,6 +96,8 @@ bool run_mhc_benchmark_impl(const ck_tile::ArgParser& arg_parser)
     d_phi_mem.ToDevice(h_phi.data());
     d_output_mem.ToDevice(h_output.data());
 
+    // Reverted to adaptive 2-warp (4-warp produced incorrect results)
+    // using Problem = ck_tile::MHCProblemV5_4Warp<XDataType, ComputeDataType, YDataType>;
     using Problem = ck_tile::MHCProblemV5<XDataType, ComputeDataType, YDataType, MTile>;
 
     // V5 kernel - split-K implementation with adaptive problem

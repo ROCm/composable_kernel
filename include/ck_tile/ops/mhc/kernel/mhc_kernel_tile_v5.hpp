@@ -62,7 +62,7 @@ struct MHCKernelV5
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        // LDS for BlockGemm with padding: A[kMTile, kKTile+8] + B[kNTile, kKTile+8]
+        // LDS for BlockGemm with padding: A[kMTile, kKTile+2] + B[kNTile, kKTile+2]
         constexpr index_t a_lds_size = kMTile * kKTilePadded * sizeof(XDataType);
         constexpr index_t b_lds_size = kNTile * kKTilePadded * sizeof(PhiDataType);
         return a_lds_size + b_lds_size;
@@ -176,7 +176,8 @@ struct MHCKernelV5
         const index_t row_id              = thread_id / threads_per_row;
         const index_t thread_in_row       = thread_id % threads_per_row;
 
-        __shared__ ComputeDataType norm_reduction[kMTile][threads_per_row];
+        // Use maximum possible threads_per_row for array size (kBlockSize for safety)
+        __shared__ ComputeDataType norm_reduction[kMTile][kBlockSize];
 
         if(row_id < kMTile)
         {

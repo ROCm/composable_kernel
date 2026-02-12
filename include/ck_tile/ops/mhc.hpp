@@ -13,6 +13,7 @@
 #include "ck_tile/ops/mhc/pipeline/mhc_problem.hpp"
 #include "ck_tile/ops/mhc/pipeline/mhc_problem_v4.hpp"
 #include "ck_tile/ops/mhc/pipeline/mhc_problem_v5.hpp"
+#include "ck_tile/ops/mhc/pipeline/mhc_problem_v5_4warp.hpp"
 #include "ck_tile/ops/mhc/pipeline/mhc_shape.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
