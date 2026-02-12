@@ -738,4 +738,15 @@ using ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle =
                           Prefetch_,
                           TransposeParams_,
                           GemmPad_>;
+
+// Bwd Data algorithm types
+using ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle =
+    ConvAlgorithmTemplate<ThreadBlock_,
+                          WmmaGemm_,
+                          Transfer_<>,
+                          ConvSpecializationBwdData_,
+                          GridGemm_,
+                          MultipleDSpecialization_,
+                          Prefetch_>;
+
 } // namespace ck_tile::builder::test

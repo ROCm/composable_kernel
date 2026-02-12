@@ -279,36 +279,39 @@ struct InstanceTraits<
 
         // Template parameters in exact order
         oss << "<" << kSpatialDim;                      // 1. NDimSpatial
-        oss << "," << detail::layout_name<InLayout>();  // 2. InLayout
+        oss << "," << detail::layout_name<OutLayout>(); // 2. OutLayout
         oss << "," << detail::layout_name<WeiLayout>(); // 3. WeiLayout
-        oss << "," << detail::layout_name<OutLayout>(); // 4. OutLayout
-        oss << "," << detail::tuple_name<DsLayout>();   // 5. DsLayout
-        oss << "," << detail::type_name<InDataType>();  // 6. InDataType
+        oss << "," << detail::tuple_name<DsLayout>();   // 4. DsLayout
+        oss << "," << detail::layout_name<InLayout>();  // 5. InLayout
+        oss << "," << detail::type_name<OutDataType>(); // 6. OutDataType
         oss << "," << detail::type_name<WeiDataType>(); // 7. WeiDataType
-        oss << "," << detail::type_name<OutDataType>(); // 8. OutDataType
-        oss << "," << detail::type_name<AccDataType>(); // 9. AccDataType
-        oss << "," << detail::tuple_name<DsDataType>(); // 10. DsDataType
+        oss << "," << detail::type_name<AccDataType>(); // 8. AccDataType
+        oss << "," << detail::tuple_name<DsDataType>(); // 9. DsDataType
+        oss << "," << detail::type_name<InDataType>();  // 10. InDataType
         oss << ","
-            << detail::elementwise_op_name<InElementwiseOperation>(); // 11. InElementwiseOperation
+            << detail::elementwise_op_name<OutElementwiseOperation>(); // 11.
+                                                                       // OutElementwiseOperation
         oss << ","
             << detail::elementwise_op_name<WeiElementwiseOperation>(); // 12.
                                                                        // WeiElementwiseOperation
         oss << ","
-            << detail::elementwise_op_name<OutElementwiseOperation>(); // 13.
-                                                                       // OutElementwiseOperation
+            << detail::elementwise_op_name<InElementwiseOperation>(); // 13. InElementwiseOperation
         oss << ","
             << detail::conv_bwd_data_spec_name(
                    kConvBwdDataSpecialization); // 14. ConvBackwardDataSpecialization
-        oss << "," << kBlockSize;               // 15. BlockSize
-        oss << "," << kMPerBlock;               // 16. MPerBlock
-        oss << "," << kNPerBlock;               // 17. NPerBlock
-        oss << "," << kK0PerBlock;              // 18. K0PerBlock
-        oss << "," << kAK1;                     // 19. AK1
-        oss << "," << kBK1;                     // 19,5. BK1
-        oss << "," << kMPerXDL;                 // 20. MPerXDL
-        oss << "," << kNPerXDL;                 // 21. NPerXDL
-        oss << "," << kMXdlPerWave;             // 22. MXdlPerWave
-        oss << "," << kNXdlPerWave;             // 23. NXdlPerWave
+        oss << "," << kDoPadGemmM;
+        oss << "," << kDoPadGemmN;
+        oss << "," << kNumGemmKPrefetchStage;
+        oss << "," << kBlockSize;   // 15. BlockSize
+        oss << "," << kMPerBlock;   // 16. MPerBlock
+        oss << "," << kNPerBlock;   // 17. NPerBlock
+        oss << "," << kK0PerBlock;  // 18. K0PerBlock
+        oss << "," << kAK1;         // 19. AK1
+        oss << "," << kBK1;         // 19,5. BK1
+        oss << "," << kMPerXDL;     // 20. MPerXDL
+        oss << "," << kNPerXDL;     // 21. NPerXDL
+        oss << "," << kMXdlPerWave; // 22. MXdlPerWave
+        oss << "," << kNXdlPerWave; // 23. NXdlPerWave
         oss << "," << detail::sequence_name<ABlockTransferThreadClusterLengths_K0_M_K1>(); // 24.
         oss << "," << detail::sequence_name<ABlockTransferThreadClusterArrangeOrder>();    // 25.
         oss << "," << detail::sequence_name<ABlockTransferSrcAccessOrder>();               // 26.
@@ -328,10 +331,13 @@ struct InstanceTraits<
         oss << ","
             << detail::sequence_name<
                    CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>(); // 40.
-        oss << "," << kCBlockTransferScalarPerVector_NWaveNPerXdl;                    // 41.
-        oss << "," << detail::type_name<ComputeTypeA>();                              // 42.
-        oss << "," << detail::type_name<ComputeTypeB>();                              // 43.
-        oss << "," << detail::loop_scheduler_name(kLoopScheduler); // 44. LoopSched
+        oss << "," << kCBlockTransferScalarPerVector_NWaveNPerXdl;                    // 42.
+        oss << "," << kNumGemmKPrefetchStage;                                         // 41.
+        oss << "," << detail::loop_scheduler_name(kLoopScheduler); // 43. LoopSched
+        oss << "," << detail::type_name<ComputeTypeA>();           // 44.
+        oss << "," << detail::type_name<ComputeTypeB>();           // 45.
+        oss << "," << kMaxTransposeTransferSrcScalarPerVector;     // 46.
+        oss << "," << kMaxTransposeTransferDstScalarPerVector;     // 47.
 
         oss << ">";
 

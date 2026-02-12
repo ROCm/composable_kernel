@@ -28,7 +28,8 @@ concept FwdXdlAlgorithmBase =
 
 template <typename T>
 concept BwdXdlAlgorithmBase =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters4D<T> &&
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> &&
+    (SpecifiesTileTransferParameters4D<T> || SpecifiesTileTransferParameters3D<T>) &&
     (SpecifiesGridwiseBwdXdlGemm<T> || SpecifiesGridwiseBwdDataXdlGemm<T>) &&
     (SpecifiesBwdWeightConvSpecialization<T> || SpecifiesBwdDataConvSpecialization<T>);
 
@@ -110,6 +111,9 @@ template <typename T>
 concept BwdWmmaAlgorithm =
     BwdWmmaAlgorithmBase<T> && SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T> &&
     SpecifiesGridwiseGemmPipeline<T> && SpecifiesGenericInstance<T>;
+
+template <typename T>
+concept BwdMultiDWmmaAlgorithm = BwdWmmaAlgorithmBase<T> && SpecifiesMultipleDSupport<T>;
 
 template <typename T>
 concept BwdMultiDWmmaV3Algorithm = BwdWmmaV3AlgorithmBase<T> && SpecifiesMultipleDSupport<T>;

@@ -19,23 +19,22 @@ constexpr auto SIGNATURE =
                        .weight                 = {.config = {.layout = ckb::TensorLayout::GKYXC}},
                        .output                 = {.config = {.layout = ckb::TensorLayout::GNHWK}}};
 
-constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle{}
-                               .with_thread_block(cku::ThreadBlock_256_256x128x32)
-                               .with_gemm_config(cku::BwdDataGemmParams_Xdl_4x4_per_wave)
-                               .with_transfer(cku::Transfer_4x64x1)
-                               .with_prefetch_config(1, ckb::PipelineScheduler::DEFAULT)
+constexpr auto ALGORITHM = cku::ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle{}
+                               .with_thread_block(cku::ThreadBlock_64_32x32x32)
+                               .with_gemm_config(cku::GemmParams_Wmma_16x16_2x1_per_wave)
+                               .with_transfer(cku::BwdTransfer_4x8x1_4x16x1_v3)
                                .with_bwd_data_specialization(ckb::ConvSpecialization::DEFAULT)
-                               .with_gemm_pad_params(0, 0)
-                               .with_transpose_params(2, 2);
+                               .with_prefetch_config(1, ckb::PipelineScheduler::DEFAULT)
+                               .with_gridwise_gemm_pipeline(ckb::PipelineVersion::V1);
 
 using Builder  = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 using Instance = Builder::Instance;
 
-TEST(BwdData_2DFp16_MultiD_Xdl_CShuffle_GNHWC, Create)
+TEST(BwdData_2DFp16_MultiD_Wmma_CShuffle_GNHWC, Create)
 {
     const auto expected_transfer_parameters = to_string(ALGORITHM);
     std::cout << "Expected Transfer Parameters: " << expected_transfer_parameters << std::endl;
-    cku::run_test<Builder>({"DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle",
+    cku::run_test<Builder>({"DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle",
                             expected_transfer_parameters,
                             "Default",
                             "GNHWK,GKYXC,EmptyTuple,GNHWC",
