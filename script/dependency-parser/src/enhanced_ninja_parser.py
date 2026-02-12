@@ -16,8 +16,6 @@ import sys
 import subprocess
 from collections import defaultdict
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
 
 
 class EnhancedNinjaDependencyParser:
@@ -31,9 +29,6 @@ class EnhancedNinjaDependencyParser:
         self.object_to_source = {}  # object -> primary_source
         self.object_to_all_deps = {}  # object -> [all_dependencies]
         self.file_to_executables = defaultdict(set)  # file -> {executables}
-
-        # Thread safety
-        self.lock = threading.Lock()
 
     def parse_dependencies(self):
         """Main method to parse all dependencies."""
@@ -92,80 +87,98 @@ class EnhancedNinjaDependencyParser:
         print(f"Found {len(self.object_to_source)} object-to-source mappings")
 
     def _extract_object_dependencies(self):
-        """Extract detailed dependencies for all object files using ninja -t deps."""
-        object_files = list(self.object_to_source.keys())
-        # Process object files in parallel for better performance
+        """Extract detailed dependencies for all object files using a single ninja -t deps call.
+
+        Previous implementation spawned ninja -t deps per object file (29K+ subprocesses),
+        each re-parsing the full build.ninja. For large monorepo builds (246MB+ build.ninja),
+        each call takes 2-14 seconds, making the total ~54 minutes.
+
+        This implementation calls ninja -t deps once (no args) to dump ALL deps in ~2 seconds,
+        then parses the output and filters to only the objects we care about.
+        """
+        object_files = set(self.object_to_source.keys())
         if not object_files:
             print("No object files found - skipping dependency extraction")
             return
 
-        max_workers = min(128, len(object_files))  # Limit concurrent processes
+        print(f"Running single 'ninja -t deps' call for all built objects...")
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all object files for processing
-            future_to_obj = {
-                executor.submit(self._get_object_dependencies, obj): obj
-                for obj in object_files
-            }
-            # Process completed futures
-            completed = 0
-            for future in as_completed(future_to_obj):
-                obj_file = future_to_obj[future]
-                try:
-                    dependencies = future.result()
-                    with self.lock:
-                        self.object_to_all_deps[obj_file] = dependencies
-                        completed += 1
-                        if completed % 100 == 0:
-                            print(
-                                f"Processed {completed}/{len(object_files)} object files..."
-                            )
-                except Exception as e:
-                    print(f"Error processing {obj_file}: {e}")
-
-        print(
-            f"Completed dependency extraction for {len(self.object_to_all_deps)} object files"
-        )
-
-    def _get_object_dependencies(self, object_file):
-        """Get all dependencies for a single object file using ninja -t deps."""
         try:
-            # Run ninja -t deps for this object file
-            cmd = [self.ninja_executable, "-t", "deps", object_file]
+            cmd = [self.ninja_executable, "-t", "deps"]
             result = subprocess.run(
-                cmd, cwd=self.build_dir, capture_output=True, text=True, timeout=30
+                cmd, cwd=self.build_dir, capture_output=True, text=True, timeout=120
             )
 
-            if result.returncode != 0:
-                return []
+            if result.returncode != 0 and not result.stdout:
+                print(f"Warning: ninja -t deps returned code {result.returncode}")
+                if result.stderr:
+                    print(f"  stderr: {result.stderr.strip()}")
+                return
 
-            dependencies = []
-            lines = result.stdout.strip().split("\n")
+            # Parse the combined output: each block starts with an object name line,
+            # followed by indented dependency lines
+            ws_root = getattr(self, "workspace_root", "..")
+            ws_prefix = ws_root.rstrip("/") + "/"
 
-            for line in lines[1:]:  # Skip first line with metadata
-                line = line.strip()
-                if line and not line.startswith("#"):
-                    # Convert absolute paths to relative paths from workspace root
-                    dep_file = line
-                    ws_root = getattr(self, "workspace_root", "..")
-                    ws_prefix = ws_root.rstrip("/") + "/"
-                    if dep_file.startswith(ws_prefix):
-                        dep_file = dep_file[len(ws_prefix) :]
-                    dependencies.append(dep_file)
+            current_obj = None
+            current_deps = []
+            matched = 0
 
-            return dependencies
+            for line in result.stdout.split("\n"):
+                if not line:
+                    continue
+                if not line.startswith(" ") and not line.startswith("\t"):
+                    # This is an object header line like:
+                    #   some/path/foo.cpp.o: #deps 42, deps mtime ... (VALID)
+                    # Save the previous block if it was relevant
+                    if current_obj and current_obj in object_files:
+                        self.object_to_all_deps[current_obj] = current_deps
+                        matched += 1
+                        if matched % 100 == 0:
+                            print(f"  Matched {matched} objects so far...")
+                    # Parse the new object name (everything before the colon)
+                    colon_pos = line.find(":")
+                    if colon_pos > 0:
+                        current_obj = line[:colon_pos].strip()
+                        current_deps = []
+                    else:
+                        current_obj = None
+                        current_deps = []
+                else:
+                    # Indented dependency line
+                    if current_obj is not None:
+                        dep_file = line.strip()
+                        if dep_file and not dep_file.startswith("#"):
+                            # Strip workspace root prefix from absolute paths
+                            if dep_file.startswith(ws_prefix):
+                                dep_file = dep_file[len(ws_prefix):]
+                            current_deps.append(dep_file)
 
+            # Don't forget the last block
+            if current_obj and current_obj in object_files:
+                self.object_to_all_deps[current_obj] = current_deps
+                matched += 1
+
+        except subprocess.TimeoutExpired:
+            print("Error: ninja -t deps timed out after 120 seconds")
+            return
         except Exception as e:
-            print(f"Error getting dependencies for {object_file}: {e}")
-            return []
+            print(f"Error running ninja -t deps: {e}")
+            return
+
+        print(
+            f"Completed dependency extraction for {len(self.object_to_all_deps)} "
+            f"of {len(object_files)} object files"
+        )
 
     def _build_file_to_executable_mapping(self):
         """Build the final mapping from files to executables."""
         print("Building file-to-executable mapping...")
 
         # For monorepo, truncate the path before and including projects/<project_name>
+        # This regex matches both absolute and relative monorepo paths
         self.project = None
-        rl_regex = rf"rocm-libraries[\\/]+projects[\\/]+([^\\/]+)[\\/]+(.*)"
+        rl_regex = rf"(?:^|.*[\\/])projects[\\/]+([^\\/]+)[\\/]+(.*)"
         for exe, object_files in self.executable_to_objects.items():
             for obj_file in object_files:
                 # Add all dependencies of this object file
@@ -195,34 +208,51 @@ class EnhancedNinjaDependencyParser:
                 print(f"  {f}: {len(exes)} executables")
 
     def _is_project_file(self, file_path):
-        """Determine if a file is part of the project (not system files)."""
-        # Include files that are clearly part of the project
-        if any(
-            file_path.startswith(prefix)
-            for prefix in [
-                "projects/composablekernel/include/",
-                "projects/composablekernel/library/",
-                "projects/composablekernel/test/",
-                "projects/composablekernel/example/",
-                "projects/composablekernel/src/",
-                "projects/composablekernel/profiler/",
-                "projects/composablekernel/build/include/",
-                "projects/composablekernel/build/_deps/gtest",
-                "projects/composablekernel/client_example",
-                "projects/composablekernel/codegen",
-                "projects/composablekernel/tile_engine",
-            ]
-        ):
-            return True
+        """Determine if a file is part of the project (not system files).
 
-        # Exclude system files
+        Handles both standalone-style paths (e.g., include/ck/...) and
+        monorepo-style paths (e.g., projects/composablekernel/include/ck/...).
+        """
+        # Exclude system files first (absolute paths to system dirs)
         if any(
             file_path.startswith(prefix)
             for prefix in ["/usr/", "/opt/rocm", "/lib/", "/system/", "/local/"]
         ):
             return False
 
-        # Include files with common source/header extensions
+        # Project directory prefixes (without monorepo prefix).
+        # These match paths relative to the CK project root.
+        project_dirs = [
+            "include/",
+            "library/",
+            "test/",
+            "example/",
+            "src/",
+            "profiler/",
+            "build/include/",
+            "build/_deps/gtest",
+            "client_example",
+            "codegen",
+            "tile_engine",
+            "dispatcher",
+            "experimental",
+            "tutorial",
+        ]
+
+        # Check both stripped paths (relative to CK root) and
+        # monorepo-prefixed paths (relative to monorepo root)
+        if any(file_path.startswith(prefix) for prefix in project_dirs):
+            return True
+
+        # Also check monorepo-style paths (projects/composablekernel/...)
+        if any(
+            file_path.startswith(f"projects/composablekernel/{prefix}")
+            for prefix in project_dirs
+        ):
+            return True
+
+        # Include files with common source/header extensions that weren't
+        # excluded as system files above
         if file_path.endswith(
             (".cpp", ".hpp", ".h", ".c", ".cc", ".cxx", ".cu", ".hip", ".inc")
         ):
@@ -344,7 +374,7 @@ def main():
         sys.exit(1)
 
     parser = EnhancedNinjaDependencyParser(build_file, ninja_path)
-    parser.workspace_root = workspace_root  # Attach for use in _get_object_dependencies
+    parser.workspace_root = workspace_root  # Attach for use in _extract_object_dependencies
     parser.parse_dependencies()
     parser.print_summary()
 
