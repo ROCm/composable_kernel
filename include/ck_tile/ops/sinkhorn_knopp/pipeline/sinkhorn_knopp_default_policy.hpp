@@ -35,23 +35,39 @@ struct SinkhornKnoppDefaultPolicy : public Reduce2dDefaultPolicy
                                        sequence<1, 1>>{});
     }
 
-    // template <typename Problem>
-    // CK_TILE_DEVICE static constexpr auto MakeInputBlockTileDistribution()
-    // {
-    //     using S = typename Problem::BlockShape;
-    //     return make_static_tile_distribution(
-    //         tile_distribution_encoding<
-    //             sequence<>,
-    //             tuple<
-    //                 sequence<S::Repeat_M, S::WarpPerBlock_M, S::ThreadPerWarp_M,
-    //                 S::ThreadTile_M>, sequence<S::Repeat_N, S::WarpPerBlock_N,
-    //                 S::ThreadPerWarp_N, S::ThreadTile_N>>,
-    //             tuple<sequence<1, 2>, sequence<1, 2>>,
-    //             tuple<sequence<1, 1>, sequence<1, 2>>,
-    //             // WarpPerBlock_M, WarpPerBlock_N, ThreadPerWarp_M, ThreadPerWarp_N
-    //             sequence<2, 1>,
-    //             sequence<3, 3>>{});
-    // }
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeLogUBlockTileDistribution()
+    {
+        using S = typename Problem::BlockShape;
+        return make_static_tile_distribution(tile_distribution_encoding<sequence<>,
+                                                                        tuple<sequence<S::Block_M>>,
+                                                                        tuple<sequence<1>>,
+                                                                        tuple<sequence<0>>,
+                                                                        sequence<1>,
+                                                                        sequence<0>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeLogVBlockTileDistribution()
+    {
+        using S = typename Problem::BlockShape;
+        return make_static_tile_distribution(tile_distribution_encoding<sequence<>,
+                                                                        tuple<sequence<S::Block_N>>,
+                                                                        tuple<sequence<1>>,
+                                                                        tuple<sequence<0>>,
+                                                                        sequence<1>,
+                                                                        sequence<0>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    {
+        // For the LSE implementation, both log_u and log_v are stored in LDS,
+        // requiring M + N elements
+        using S = typename Problem::BlockShape;
+
+        return (S::Block_M + S::Block_N) * sizeof(typename Problem::ComputeDataType);
+    }
 };
 
 } // namespace ck_tile

@@ -216,4 +216,238 @@ struct SinkhornKnoppKernelReduce
     }
 };
 
+template <typename Problem, typename Policy>
+struct SinkhornKnoppKernelLSE
+{
+    // static_assert(!std::is_same_v<typename Problem::ComputeDataType, double>,
+    //               "Doubles are not supported for compute data type");
+
+    static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
+
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? kBlockSize / 2 : kBlockSize;
+    }
+
+    CK_TILE_HOST static bool IsSupportedArgument([[maybe_unused]] const SinkhornKnoppArgs& args)
+    {
+        return true;
+    }
+
+    CK_TILE_DEVICE void operator()(const SinkhornKnoppArgs& args) const
+    {
+
+        // Creating tensor descriptors, views and windows for inputs and outputs
+        using S               = Problem::BlockShape;
+        using InDataType      = typename Problem::InDataType;
+        using ComputeDataType = typename Problem::ComputeDataType;
+        using OutDataType     = typename Problem::OutDataType;
+
+        static_assert(S::Block_M == S::Block_N, "Input must be a square matrix!");
+
+        auto* p_in  = static_cast<const Problem::InDataType*>(args.p_in);
+        auto* p_out = static_cast<Problem::OutDataType*>(args.p_out);
+
+        auto acc_op = ck_tile::ReduceOp::Add{};
+
+        const auto in_out_desc =
+            make_naive_tensor_descriptor(make_tuple(args.input_m, args.input_m),
+                                         make_tuple(args.input_m, 1),
+                                         number<4>{}, // TODO: Hardcoded
+                                         // vectorization, //we should calculate it!
+                                         number<1>{});
+
+        const auto input_window = [&]() {
+            // We require exp(input) > 0, and exp(padding) == 0
+            const InDataType input_padding_value = -ck_tile::numeric<InDataType>::infinity();
+
+            auto buffer_view = make_buffer_view<address_space_enum::global>(
+                p_in, in_out_desc.get_element_space_size(), input_padding_value);
+
+            const auto in_tensor =
+                tensor_view<decltype(buffer_view), decltype(in_out_desc)>{buffer_view, in_out_desc};
+
+            return make_tile_window(in_tensor,
+                                    make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                    {0, 0},
+                                    Policy::template MakeInputBlockTileDistribution<Problem>());
+        }();
+
+        const auto input_window_t = [&]() {
+            // We require exp(input) > 0, and exp(padding) == 0
+            const InDataType input_padding_value = -ck_tile::numeric<InDataType>::infinity();
+
+            auto buffer_view = make_buffer_view<address_space_enum::global>(
+                p_in, in_out_desc.get_element_space_size(), input_padding_value);
+
+            const auto in_tensor =
+                tensor_view<decltype(buffer_view), decltype(in_out_desc)>{buffer_view, in_out_desc};
+
+            return make_tile_window(
+                in_tensor,
+                make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                {0, 0},
+                Policy::template MakeTransposedInputBlockTileDistribution<Problem>());
+        }();
+
+        auto out_window = [&]() {
+            const OutDataType out_padding_value = acc_op.template GetIdentityValue<OutDataType>();
+            auto out_buffer_view                = make_buffer_view<address_space_enum::global>(
+                p_out, in_out_desc.get_element_space_size(), out_padding_value);
+
+            auto out_tensor = tensor_view<decltype(out_buffer_view), decltype(in_out_desc)>{
+                out_buffer_view, in_out_desc};
+
+            return make_tile_window(out_tensor,
+                                    make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                                    {0, 0},
+                                    Policy::template MakeInputBlockTileDistribution<Problem>());
+        }();
+
+        // Load data normally, and transposed
+        auto input_tile   = load_tile(input_window);
+        auto input_tile_t = load_tile(input_window_t);
+
+        print_tile(input_tile);
+        print_tile(input_tile_t);
+
+        // Create n x n intermediate tiles for row & column sweeps
+        auto compute_tile = make_static_distributed_tensor<ComputeDataType>(
+            Policy::template MakeInputBlockTileDistribution<Problem>());
+        constexpr auto c_spans = compute_tile.get_distributed_spans();
+
+        auto compute_tile_t = make_static_distributed_tensor<ComputeDataType>(
+            Policy::template MakeTransposedInputBlockTileDistribution<Problem>());
+        constexpr auto c_t_spans = compute_tile_t.get_distributed_spans();
+
+        // Create scale arrays for rows and columns (n x 1 and 1 x n)
+
+        __shared__ char smem[Policy::template GetSmemSize<Problem>()];
+
+        auto log_u_window = [](ComputeDataType* smem_ptr) {
+            const auto desc =
+                make_naive_tensor_descriptor(make_tuple(number<S::Block_M>{}),
+                                             make_tuple(1),
+                                             number<4>{}, // TODO: Hardcoded
+                                             // vectorization, //we should calculate it!
+                                             number<1>{});
+
+            // log_u is stored in LDS starting from 0 (i.e. just the pointer)
+            auto log_tensor = make_tensor_view<address_space_enum::lds>(smem_ptr, desc);
+
+            constexpr auto dstr = Policy::template MakeLogUBlockTileDistribution<Problem>();
+
+            return make_tile_window(
+                log_tensor, make_tuple(number<S::Block_M>{}, number<1>{}), {0, 0}, dstr);
+        }(reinterpret_cast<ComputeDataType*>(smem));
+
+        auto log_v_window = [](ComputeDataType* smem_ptr) {
+            const auto desc =
+                make_naive_tensor_descriptor(make_tuple(number<S::Block_N>{}),
+                                             make_tuple(1),
+                                             number<4>{}, // TODO: Hardcoded
+                                             // vectorization, //we should calculate it!
+                                             number<1>{});
+
+            // log_v is stored in LDS after log_u (i.e. starting from Block_M)
+            auto log_tensor = make_tensor_view<address_space_enum::lds>(
+                smem_ptr + S::Block_M * sizeof(ComputeDataType), desc);
+
+            constexpr auto dstr = Policy::template MakeLogVBlockTileDistribution<Problem>();
+
+            return make_tile_window(
+                log_tensor, make_tuple(number<S::Block_N>{}, number<1>{}), {0, 0}, dstr);
+        }(reinterpret_cast<ComputeDataType*>(smem));
+
+        auto log_u = load_tile(log_u_window);
+        auto log_v = load_tile(log_v_window);
+
+        set_tile(log_u, type_convert<ComputeDataType>(0.0));
+        set_tile(log_v, type_convert<ComputeDataType>(0.0));
+
+        for(int i = 0; i < args.iterations; i++)
+        {
+            // For each row
+            sweep_tile_span(c_spans[number<0>{}], [&](const auto idx0) {
+                ComputeDataType max_value = 0.0;
+                // 1. Add the corresponding column scaling to each value and compute the max
+                sweep_tile_span(c_spans[number<1>{}], [&](const auto idx1) {
+                    constexpr auto idx     = make_tuple(idx0, idx1);
+                    constexpr auto col_idx = make_tuple(idx1);
+
+                    compute_tile(idx) =
+                        type_convert<ComputeDataType>(input_tile(idx)) + log_v(col_idx);
+                    if(max_value < compute_tile(idx))
+                    {
+                        max_value = compute_tile(idx);
+                    }
+                });
+
+                // 2. Exponentiate and compute the sum
+                ComputeDataType expsum = 0.0;
+                sweep_tile_span(c_spans[number<1>{}], [&](const auto idx1) {
+                    constexpr auto idx = make_tuple(idx0, idx1);
+                    expsum += ck_tile::exp(compute_tile(idx) - max_value);
+                });
+
+                // 3. Update the row scaling factors
+                constexpr auto row_idx = make_tuple(idx0);
+                log_u(row_idx)         = -(max_value + ck_tile::log(expsum));
+            });
+
+            print_tile(log_u);
+            // Propagate log_u across the thread block
+            block_sync_lds();
+
+            print_tile(log_u);
+            // Repeat for each column (rows for transposed tiles)
+            sweep_tile_span(c_t_spans[number<0>{}], [&](const auto idx0) {
+                ComputeDataType max_value = 0.0;
+                // 1. Add the corresponding row scaling to each value and compute the max
+                sweep_tile_span(c_t_spans[number<1>{}], [&](const auto idx1) {
+                    constexpr auto idx     = make_tuple(idx0, idx1);
+                    constexpr auto row_idx = make_tuple(idx1);
+
+                    compute_tile_t(idx) =
+                        type_convert<ComputeDataType>(input_tile_t(idx)) + log_u(row_idx);
+                    if(max_value < compute_tile_t(idx))
+                    {
+                        max_value = compute_tile_t(idx);
+                    }
+                });
+
+                // 2. Exponentiate and compute the sum
+                ComputeDataType expsum = 0.0;
+                sweep_tile_span(c_t_spans[number<1>{}], [&](const auto idx1) {
+                    constexpr auto idx = make_tuple(idx0, idx1);
+                    expsum += ck_tile::exp(compute_tile_t(idx) - max_value);
+                });
+
+                // 3. Update the column scaling factors
+                constexpr auto col_idx = make_tuple(idx0);
+                log_v(col_idx)         = -(max_value + ck_tile::log(expsum));
+            });
+
+            // Propagate log_v across the thread block
+            block_sync_lds();
+        }
+
+        // Apply the final scaling factors
+        sweep_tile_span(c_spans[number<0>{}], [&](const auto idx0) {
+            sweep_tile_span(c_spans[number<1>{}], [&](const auto idx1) {
+                constexpr auto idx     = make_tuple(idx0, idx1);
+                constexpr auto row_idx = make_tuple(idx0);
+                constexpr auto col_idx = make_tuple(idx1);
+                compute_tile(idx)      = type_convert<ComputeDataType>(input_tile(idx)) +
+                                    log_u(row_idx) + log_v(col_idx);
+            });
+        });
+        auto exp_func = [](ComputeDataType x) -> OutDataType {
+            return type_convert<OutDataType>(ck_tile::exp(x));
+        };
+        // Exponentiate and copy the final values to the output
+        store_tile(out_window, tile_elementwise_in(exp_func, input_tile));
+    }
+};
+
 } // namespace ck_tile

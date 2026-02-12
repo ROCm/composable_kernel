@@ -70,7 +70,8 @@ class TestCkTileSinkHorn : public ::testing::Test
         ck_tile::HostTensor<XDataType> h_x(input_shape, default_stride);
         ck_tile::HostTensor<YDataType> h_y(input_shape, default_stride);
 
-        ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(h_x);
+        // ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(h_x);
+        ck_tile::FillMonotonicSeq<XDataType>{0, 1}(h_x);
 
         ck_tile::DeviceMem d_x_mem(h_x.get_element_space_size_in_bytes());
         ck_tile::DeviceMem d_y_mem(h_y.get_element_space_size_in_bytes());
@@ -86,7 +87,8 @@ class TestCkTileSinkHorn : public ::testing::Test
         using Problem =
             ck_tile::SinkhornKnoppProblem<XDataType, YDataType, TestSinkhornShape, ComputeDataType>;
         using Kernel =
-            ck_tile::SinkhornKnoppKernelReduce<Problem, ck_tile::SinkhornKnoppDefaultPolicy>;
+            // ck_tile::SinkhornKnoppKernelReduce<Problem, ck_tile::SinkhornKnoppDefaultPolicy>;
+            ck_tile::SinkhornKnoppKernelLSE<Problem, ck_tile::SinkhornKnoppDefaultPolicy>;
 
         // Launch configuration
         const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
@@ -95,10 +97,10 @@ class TestCkTileSinkHorn : public ::testing::Test
         ck_tile::index_t kGridSize = 1; // TODO
 
         // TODO
-        //  if(!Kernel::IsSupportedArgument())
-        //  {
-        //      throw std::runtime_error("Wrong! Arguments not supported!\n");
-        //  }
+        if(!Kernel::IsSupportedArgument(args))
+        {
+            throw std::runtime_error("Wrong! Arguments not supported!\n");
+        }
 
         auto timer = ck_tile::launch_kernel(
             //     hipStream_t stream_id_ = nullptr;
@@ -109,15 +111,14 @@ class TestCkTileSinkHorn : public ::testing::Test
             // bool is_gpu_timer_     = true; // keep compatible
             // bool flush_cache_      = false;
             // int rotating_count_    = 1;
-            ck_tile::stream_config{nullptr, true, 0},
+            ck_tile::stream_config{nullptr, false, 0},
             ck_tile::make_kernel<kBlockPerCu>(Kernel{}, kGridSize, kBlockSize, 0, args));
 
-        printf("Time: %f", timer);
+        printf("Average time: %f ms\n", timer);
 
         // Reference computation
         ck_tile::HostTensor<YDataType> h_y_ref(input_shape, default_stride);
-        sinkhorn_knopp_naive_ref<XDataType, ComputeDataType, YDataType>(
-            h_x, h_y_ref, max_iterations);
+        sinkhorn_knopp_lse_ref<XDataType, ComputeDataType, YDataType>(h_x, h_y_ref, max_iterations);
 
         // TODO: Refine tolerances
         const float rtol = 1e-7;
@@ -146,6 +147,15 @@ class TestCkTileSinkHorn : public ::testing::Test
 
         // Transfer data from device and check that it matches reference
         d_y_mem.FromDevice(h_y.data());
+
+        auto rows = row_sum(h_y);
+        auto cols = col_sum(h_y);
+
+        result &=
+            ck_tile::check_err(rows, unit_n, "Error: Result rows do not sum to 1!", rtol, atol);
+
+        result &=
+            ck_tile::check_err(cols, unit_n, "Error: Result cols do not sum to 1!", rtol, atol);
 
         result &= ck_tile::check_err(
             h_y, h_y_ref, "Error: Sinkhorn-Knopp doesn't match CPU reference!", rtol, atol);
