@@ -220,8 +220,8 @@ struct InstanceTraits<
         max_transpose_transfer_src_scalar_per_vector;
     static constexpr ck::index_t kMaxTransposeTransferDstScalarPerVector =
         max_transpose_transfer_dst_scalar_per_vector;
-    static constexpr bool kDoPadGemmM           = do_pad_gemm_n;
-    static constexpr bool kDoPadGemmN           = do_pad_gemm_m;
+    static constexpr bool kDoPadGemmM           = do_pad_gemm_m;
+    static constexpr bool kDoPadGemmN           = do_pad_gemm_n;
     static constexpr int kNumGemmKPrefetchStage = num_gemm_k_prefetch_stages;
 
     using ABlockTransferThreadClusterLengths_K0_M_K1 = ABlockTransferThreadClusterLengths_K0_M_K1_;
@@ -307,7 +307,7 @@ struct InstanceTraits<
         oss << "," << kNPerBlock;   // 17. NPerBlock
         oss << "," << kK0PerBlock;  // 18. K0PerBlock
         oss << "," << kAK1;         // 19. AK1
-        oss << "," << kBK1;         // 19,5. BK1
+        oss << "," << kBK1;         // 19. BK1
         oss << "," << kMPerXDL;     // 20. MPerXDL
         oss << "," << kNPerXDL;     // 21. NPerXDL
         oss << "," << kMXdlPerWave; // 22. MXdlPerWave

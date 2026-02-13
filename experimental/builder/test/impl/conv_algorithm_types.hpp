@@ -72,6 +72,16 @@ struct GridwiseWmmaGemm
     size_t n_wmma_per_wave = 0;
 };
 static_assert(ckb::GridwiseWmmaGemmDescriptor<GridwiseWmmaGemm>);
+struct GridwiseWmmaGemmABK1
+{
+    size_t ak1             = 0;
+    size_t bk1             = 0;
+    size_t m_per_wmma      = 0;
+    size_t n_per_wmma      = 0;
+    size_t m_wmma_per_wave = 0;
+    size_t n_wmma_per_wave = 0;
+};
+static_assert(ckb::GridwiseWmmaGemmDescriptor<GridwiseWmmaGemmABK1>);
 
 struct BlockGemmPipeline
 {
@@ -225,6 +235,11 @@ struct BwdDataXdlGemm_
 struct WmmaGemm_
 {
     GridwiseWmmaGemm gridwise_gemm;
+};
+
+struct WmmaGemmABK1_
+{
+    GridwiseWmmaGemmABK1 gridwise_gemm;
 };
 
 template <size_t ThreadSliceLength = 3>
@@ -423,6 +438,10 @@ struct ConvAlgorithmTemplate : Components...
             result.gridwise_gemm = gemm;
         }
         else if constexpr(std::is_base_of_v<WmmaGemm_, ConvAlgorithmTemplate>)
+        {
+            result.gridwise_gemm = gemm;
+        }
+        else if constexpr(std::is_base_of_v<WmmaGemmABK1_, ConvAlgorithmTemplate>)
         {
             result.gridwise_gemm = gemm;
         }
@@ -739,7 +758,6 @@ using ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle =
                           TransposeParams_,
                           GemmPad_>;
 
-// Bwd Data algorithm types
 using ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
                           WmmaGemm_,
@@ -748,5 +766,16 @@ using ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle =
                           GridGemm_,
                           MultipleDSpecialization_,
                           Prefetch_>;
+
+using ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle_V3 =
+    ConvAlgorithmTemplate<ThreadBlock_,
+                          WmmaGemmABK1_,
+                          Transfer_<>,
+                          ConvSpecializationBwdData_,
+                          BlockGemm_,
+                          MultipleDSpecialization_,
+                          Prefetch_,
+                          TransposeParams_,
+                          GemmPad_>;
 
 } // namespace ck_tile::builder::test

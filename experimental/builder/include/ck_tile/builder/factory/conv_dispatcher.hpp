@@ -79,6 +79,7 @@
 #include "ck_tile/builder/factory/conv_bwd_weight_multi_d_wmma_v3_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_data_multi_d_xdl_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_data_multi_d_wmma_factory.hpp"
+#include "ck_tile/builder/factory/conv_bwd_data_multi_d_wmma_cshuffle_v3_factory.hpp"
 
 namespace ck_tile::builder::factory {
 
@@ -157,6 +158,11 @@ constexpr auto make_conv_instance()
         {
             return typename ConvBwdDataMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
         }
+        else if constexpr(BwdMultiDWmmaV3Algorithm<AlgoType>)
+        {
+            return
+                typename ConvBwdDataMultiDWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
         else if constexpr(BwdMultiDWmmaAlgorithm<AlgoType>)
         {
             return typename ConvBwdDataMultiDWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
@@ -167,8 +173,9 @@ constexpr auto make_conv_instance()
                 false,
                 "No suitable backward data convolution kernel factory found for the provided "
                 "ALGORITHM. "
-                "The ALGORITHM must satisfy requirements for one of: Reference, Tile, XDL V3, XDL, "
-                "WMMA, DL (NHWC layout), or Large Tensor variant.");
+                "The ALGORITHM must satisfy requirements for one of: Reference, XDL multiple d, "
+                "Wmma multiple d, "
+                "or WMMA multiple d v3.");
         }
     }
     // Backward weight direction (will expand with more algorithms in the future)

@@ -47,11 +47,17 @@ concept BlockGemmPipelineDescriptor = requires(T t) {
 // Concept for parameters that describe a gridwise WMMA GEMM problem.
 template <typename T>
 concept GridwiseWmmaGemmDescriptor = requires(T t) {
-    { t.k1 } -> SizeType;
-    { t.m_per_wmma } -> SizeType;
-    { t.n_per_wmma } -> SizeType;
-    { t.m_wmma_per_wave } -> SizeType;
-    { t.n_wmma_per_wave } -> SizeType;
+    (
+    requires { { T::k1 } -> SizeType; } ||
+    (requires { { T::ak1 } -> SizeType; } &&
+     requires { { T::bk1 } -> SizeType; })
+) &&
+requires {
+    { T::m_per_wmma } -> SizeType;
+    { T::n_per_wmma } -> SizeType;
+    { T::m_wmma_per_wave } -> SizeType;
+    { T::n_wmma_per_wave } -> SizeType;
+};
 };
 
 // Concept for vectorized data transfer for convolution input tensors.
