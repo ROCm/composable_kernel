@@ -176,7 +176,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                       "wrong!");
 
         constexpr auto I0 = number<0>{};
-        constexpr auto I1 = number<1>{};
 
         constexpr index_t n0_loops = kN0 / kN0Sub;
         constexpr index_t k1_loops = kN0 / kK1;
