@@ -243,7 +243,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdDataMult
 
     static constexpr ck::LoopScheduler kLoopScheduler = LoopSched;
 
-    static constexpr auto kCThreadClusterLengths = detail::SequenceToArray<
+    static constexpr auto kCDEThreadClusterLengths = detail::SequenceToArray<
         CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>::value;
 
     // Static member function to generate instance string

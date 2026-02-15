@@ -270,7 +270,7 @@ struct InstanceTraits<
     using CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
         CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_;
 
-    static constexpr auto kCThreadClusterLengths = detail::SequenceToArray<
+    static constexpr auto kCDEThreadClusterLengths = detail::SequenceToArray<
         CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>::value;
 
     using ComputeTypeA = ComputeTypeA_;

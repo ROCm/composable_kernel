@@ -90,6 +90,10 @@ class ConvDescription : public Description
                 2, "Gemm padding: ", traits_.gemm_padding.value_or(builder::GemmPadding::DEFAULT));
         else
             f.writeLine(2, "Struct does not contain optional gemm_padding argument");
+        if(traits_.do_pad_gemm_m)
+            f.writeLine(2, "Do Padd Gemm M: ", traits_.do_pad_gemm_m.value_or(false));
+        if(traits_.do_pad_gemm_n)
+            f.writeLine(2, "Do Padd Gemm N: ", traits_.do_pad_gemm_n.value_or(false));
         f.writeLine(2, "Convolution specialization: ", traits_.conv_specialization);
         // Pipeline section
         f.writeLine(2, "Pipeline version: ", traits_.pipeline_version);
@@ -215,10 +219,10 @@ class ConvDescription : public Description
             f.writeLine(2,
                         "Struct does not contain optional "
                         "max_transpose_transfer_src_scalar_per_vector parameter");
-        if(traits_.max_transpose_dst_scalar_per_vector)
+        if(traits_.max_transpose_transfer_dst_scalar_per_vector)
             f.writeLine(2,
                         "Max Transpose dst scalar per vector: ",
-                        traits_.max_transpose_dst_scalar_per_vector.value_or(0));
+                        traits_.max_transpose_transfer_dst_scalar_per_vector.value_or(0));
         else
             f.writeLine(
                 2,
