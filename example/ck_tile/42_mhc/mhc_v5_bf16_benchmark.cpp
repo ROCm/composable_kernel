@@ -278,27 +278,18 @@ bool run_mhc_benchmark(const ck_tile::ArgParser& arg_parser)
     const int B = arg_parser.get_int("B");
 
     // Adaptive tile selection based on batch size
-    if(B >= 4096)
-    {
-        std::cout << "[Adaptive] Using M=64 tile for large batch (B=" << B << ")" << std::endl;
-        return run_mhc_benchmark_impl<XDataType,
-                                      PhiDataType,
-                                      YDataType,
-                                      ComputeDataType,
-                                      ActivationFunc,
-                                      64>(arg_parser);
-    }
-    else
-    {
-        std::cout << "[Adaptive] Using M=16 tile for small/medium batch (B=" << B << ")"
-                  << std::endl;
-        return run_mhc_benchmark_impl<XDataType,
-                                      PhiDataType,
-                                      YDataType,
-                                      ComputeDataType,
-                                      ActivationFunc,
-                                      16>(arg_parser);
-    }
+    // Currently using M=16 (1 warp) for all batch sizes
+    // Note: Multi-warp configurations (M=64, M=128) have validation issues
+    // that need further investigation. The tile distribution appears correct
+    // mathematically but produces incorrect results for B≥4096.
+    // TODO: Debug multi-warp tile distribution for large batch sizes
+    std::cout << "[Adaptive] Using M=16 tile (1 warp) for batch (B=" << B << ")" << std::endl;
+    return run_mhc_benchmark_impl<XDataType,
+                                  PhiDataType,
+                                  YDataType,
+                                  ComputeDataType,
+                                  ActivationFunc,
+                                  16>(arg_parser);
 }
 
 int main(int argc, char* argv[])

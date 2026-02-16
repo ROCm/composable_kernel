@@ -176,8 +176,8 @@ struct MHCKernelV5
         const index_t row_id              = thread_id / threads_per_row;
         const index_t thread_in_row       = thread_id % threads_per_row;
 
-        // Use maximum possible threads_per_row for array size (kBlockSize for safety)
-        __shared__ ComputeDataType norm_reduction[kMTile][kBlockSize];
+        // Allocate only what we need: kMTile rows × threads_per_row columns
+        __shared__ ComputeDataType norm_reduction[kMTile][kBlockSize / kMTile];
 
         if(row_id < kMTile)
         {
