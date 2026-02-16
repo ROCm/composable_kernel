@@ -132,17 +132,17 @@ using DeviceConvFwdInstance =
         OutElementOp,
         ConvSpec,    // ConvForwardSpecialization
         GemmSpec,    // GemmSpecialization
-        1,
+        2,           // Num K prefetch
         256,         // BlockSize
-        256,         // MPerBlock
-        128,         // NPerBlock
+        128,         // MPerBlock
+        256,         // NPerBlock
         32,          // KPerBlock
         8,           // AK1
         8,           // BK1
         32,          // MPerXdl
         32,          // NPerXdl
-        4,           // MXdlPerWave
-        2,           // NXdlPerWave
+        2,           // MXdlPerWave
+        4,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -159,16 +159,12 @@ using DeviceConvFwdInstance =
         1,           // BBlockLdsExtraN
         1,           // CShuffleMXdlPerWavePerShuffle
         1,           // CShuffleNXdlPerWavePerShuffle
-        S<1, 32, 1, 8>, // CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock, must match with num merged groups
-        4>;          // Vector load/store size for output tensor = CDEBlockTransferScalarPerVector_NPerBlock
-       /*
-        ck::BlockGemmPipelineScheduler::Intrawave,
-        ck::BlockGemmPipelineVersion::v3,
-        InKernelDataType, 
+        S<1, 32, 1, 8>, // CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        8,          // Vector load/store size for output tensor = CDEBlockTransferScalarPerVector_NPerBlock
+        InKernelDataType,
         WeiKernelDataType,
-        false, // No direct load
-        1>; // Num groups to merge
-*/
+        ck::LoopScheduler::Default>;
+
 
 // Best instance for 2nd most difficult fwd case, increase the B block src vector size?
 /*

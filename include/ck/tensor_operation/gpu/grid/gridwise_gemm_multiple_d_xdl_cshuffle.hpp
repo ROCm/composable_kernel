@@ -785,14 +785,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             static_cast<BComputeDataType*>(p_shared) + a_block_space_size_aligned,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
-        auto a_block_buf_1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<AComputeDataType*>(p_shared_1), 
-            a_block_desc_ak0_m_ak1.GetElementSpaceSize());
-
-        auto b_block_buf_1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<BComputeDataType*>(p_shared_1) + a_block_space_size_aligned,
-            b_block_desc_bk0_n_bk1.GetElementSpaceSize());
-
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1, 0, 0);
 
@@ -804,7 +796,18 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
             (KPerBlock * k_batch));
 
-        gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
+        if constexpr (NumGemmKPrefetchStage == 2)
+        {
+            auto a_block_buf_1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+                static_cast<AComputeDataType*>(p_shared_1), 
+                a_block_desc_ak0_m_ak1.GetElementSpaceSize());
+
+            auto b_block_buf_1 = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+                static_cast<BComputeDataType*>(p_shared_1) + a_block_space_size_aligned,
+                b_block_desc_bk0_n_bk1.GetElementSpaceSize());
+
+
+            gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
                                                                a_block_desc_ak0_m_ak1,
                                                                a_blockwise_copy,
                                                                a_grid_buf,
@@ -821,24 +824,25 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                                blockwise_gemm,
                                                                c_thread_buf,
                                                                num_k_block_main_loop);
-
-        // (void) a_block_buf_0;
-        // (void) b_block_buf_0;
-        // gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
-        //                                                        a_block_desc_ak0_m_ak1,
-        //                                                        a_blockwise_copy,
-        //                                                        a_grid_buf,
-        //                                                        a_block_buf_1,
-        //                                                        a_block_slice_copy_step,
-        //                                                        b_grid_desc_bk0_n_bk1,
-        //                                                        b_block_desc_bk0_n_bk1,
-        //                                                        b_blockwise_copy,
-        //                                                        b_grid_buf,
-        //                                                        b_block_buf_1,
-        //                                                        b_block_slice_copy_step,
-        //                                                        blockwise_gemm,
-        //                                                        c_thread_buf,
-        //                                                        num_k_block_main_loop);
+        }
+        else 
+        {
+            gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
+                                                                a_block_desc_ak0_m_ak1,
+                                                                a_blockwise_copy,
+                                                                a_grid_buf,
+                                                                a_block_buf_0,
+                                                                a_block_slice_copy_step,
+                                                                b_grid_desc_bk0_n_bk1,
+                                                                b_block_desc_bk0_n_bk1,
+                                                                b_blockwise_copy,
+                                                                b_grid_buf,
+                                                                b_block_buf_0,
+                                                                b_block_slice_copy_step,
+                                                                blockwise_gemm,
+                                                                c_thread_buf,
+                                                                num_k_block_main_loop);
+        }
 
         // Shuffle C and write out.
         Base::template RunMultiDEpilogue<EGlobalMemoryDataOperation, false, false, true>(
