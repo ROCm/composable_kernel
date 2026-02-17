@@ -4,6 +4,9 @@
 pandas>=2.0.0
 orjson>=3.9.0
 
+# Statistical analysis
+statsmodels>=0.14.0
+
 # Jupyter notebook support
 nbformat>=4.2.0
 ipykernel>=6.0.0
@@ -16,3 +19,6 @@ kaleido>=0.2.0
 
 # Full Jupyter environment (if not using VSCode)
 jupyter>=1.0.0
+
+# Progress meter in notebook
+tqdm>=4.0.0
