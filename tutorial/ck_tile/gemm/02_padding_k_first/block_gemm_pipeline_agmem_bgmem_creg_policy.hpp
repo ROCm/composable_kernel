@@ -3,46 +3,32 @@
 
 #pragma once
 
-#include "ck_tile/host.hpp"
-#include "ck_tile/core.hpp"
+#include "block_gemm_asmem_bsmem_creg.hpp"
 
-#include "../warp_level/practice_gemm_warp_policy_asmem_bsmem_creg.hpp"
-#include "../warp_level/practice_gemm_warp_pipeline_asmem_bsmem_creg.hpp"
+#include "ck_tile/core.hpp"
+#include "ck_tile/core/tensor/tile_distribution.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_universal_gemm_as_bs_cr.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "ck_tile/ops/common/tensor_layout.hpp"
 
 namespace ck_tile {
 
-template <typename ADataType_,
-          typename BDataType_,
-          typename CDataType_,
-          typename AccDataType_,
-          typename Shape_>
-struct PracticeGemmBlockPipelineProblem
+// Policy for BlockGemmPipelineAGmemBGmemCReg with PADDING_K_FIRST optimization
+struct BlockGemmPipelineAGmemBGmemCRegPolicy
 {
-    using ADataType   = ADataType_;
-    using BDataType   = BDataType_;
-    using CDataType   = CDataType_;
-    using AccDataType = AccDataType_;
-    using Shape       = Shape_;
-};
-
-struct PracticeGemmBlockPolicy
-{
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetPracticeWaveGemmPipeline()
-    {
-        return PracticeGemmWarpPipelineASmemBSmemCreg<Problem>{};
-    }
-
+    // 3d + PADDING_K_FIRST - adds padding to K dimension to avoid bank conflicts
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
-        constexpr index_t kMPerBlock = Problem::Shape::BlockTile::at(number<0>{});
-        constexpr index_t kKPerBlock = Problem::Shape::BlockTile::at(number<2>{});
+        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t kKPack     = 8;
 
+        // PADDING_K_FIRST: stride is (kKPerBlock / kKPack + 1) * kKPack instead of kKPerBlock
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kMPerBlock>{}, number<kKPerBlock / kKPack>{}, number<kKPack>{}),
-            make_tuple(number<kKPerBlock>{}, number<kKPack>{}, number<1>{}),
+            make_tuple(number<(kKPerBlock / kKPack + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
             number<kKPack>{},
             number<1>{});
 
@@ -52,16 +38,19 @@ struct PracticeGemmBlockPolicy
                        make_merge_transform(make_tuple(kKPerBlock / kKPack, kKPack))),
             make_tuple(sequence<0>{}, sequence<1, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
+
         return a_lds_block_desc;
     }
 
+    // 3d + no padding for B (PADDING_K_FIRST only pads A in version2)
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        constexpr index_t kNPerBlock = Problem::Shape::BlockTile::at(number<1>{});
-        constexpr index_t kKPerBlock = Problem::Shape::BlockTile::at(number<2>{});
+        constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t kKPack     = 8;
 
+        // B uses same layout as NAIVE (no padding)
         constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kNPerBlock>{}, number<kKPerBlock / kKPack>{}, number<kKPack>{}),
             make_tuple(number<kKPerBlock>{}, number<kKPack>{}, number<1>{}),
@@ -81,14 +70,12 @@ struct PracticeGemmBlockPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
     {
-        using ADataType          = remove_cvref_t<typename Problem::ADataType>;
-        using BlockGemm          = remove_cvref_t<decltype(GetPracticeWaveGemmPipeline<Problem>())>;
-        constexpr index_t kMWarp = BlockGemm::MWarp;
-        constexpr index_t kNWarp = BlockGemm::NWarp;
-        constexpr index_t kBlockSize = kMWarp * kNWarp * get_warp_size();
+        using ADataType = remove_cvref_t<typename Problem::ADataType>;
 
-        constexpr index_t kMPerBlock = Problem::Shape::BlockTile::at(number<0>{});
-        constexpr index_t kKPerBlock = Problem::Shape::BlockTile::at(number<2>{});
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+
+        constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
         constexpr index_t K1 = 16 / sizeof(ADataType);
         constexpr index_t K0 = kKPerBlock / K1;
@@ -98,25 +85,23 @@ struct PracticeGemmBlockPolicy
         constexpr index_t M0 = kMPerBlock / (M2 * M1);
 
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<1>,                                   // replication
-                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>, // hierarchy
-                                       tuple<sequence<1>, sequence<1, 2>>,            // parallelism
-                                       tuple<sequence<1>, sequence<2, 0>>,            // paralleism
-                                       sequence<1, 2>,                                // yield
-                                       sequence<0, 1>>{});                            // yield
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<1>, sequence<2, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBDramTileDistribution()
     {
-        using BDataType          = remove_cvref_t<typename Problem::BDataType>;
-        using BlockGemm          = remove_cvref_t<decltype(GetPracticeWaveGemmPipeline<Problem>())>;
-        constexpr index_t kMWarp = BlockGemm::MWarp;
-        constexpr index_t kNWarp = BlockGemm::NWarp;
-        constexpr index_t kBlockSize = kMWarp * kNWarp * get_warp_size();
+        using BDataType = remove_cvref_t<typename Problem::BDataType>;
 
-        constexpr index_t kNPerBlock = Problem::Shape::BlockTile::at(number<1>{});
-        constexpr index_t kKPerBlock = Problem::Shape::BlockTile::at(number<2>{});
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+
+        constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
+        constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
         constexpr index_t K1 = 16 / sizeof(BDataType);
         constexpr index_t K0 = kKPerBlock / K1;
@@ -132,6 +117,12 @@ struct PracticeGemmBlockPolicy
                                        tuple<sequence<1>, sequence<2, 0>>,
                                        sequence<1, 2>,
                                        sequence<0, 1>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
+    {
+        return BlockGemmASmemBSmemCReg<Problem>{};
     }
 };
 
