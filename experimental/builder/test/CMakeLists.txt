@@ -72,19 +72,14 @@ endfunction()
 # These tests verify the builder's internal logic without compiling GPU kernels.
 # They should complete in under 10ms each and are suitable for frequent execution
 # during development.
+# CPU-only unit tests for the builder's internal logic
 add_ck_builder_test(test_ckb_conv_builder
     test_bwd_weight_instance_traits.cpp
     test_conv_builder.cpp
     test_fwd_instance_traits.cpp
     test_bwd_data_instance_traits.cpp
     test_instance_traits_util.cpp
-    unit_device_buffer.cpp
-    unit_tensor_descriptor.cpp
-    unit_tensor_foreach.cpp
     unit_error.cpp
-    unit_validation.cpp
-    unit_debug.cpp
-    unit_conv_fwd_testing.cpp
     unit_conv_elementwise_op.cpp
     unit_conv_tensor_layout.cpp
     unit_conv_tensor_type.cpp
@@ -94,16 +89,6 @@ target_link_libraries(test_ckb_conv_builder PRIVATE utility)
 
 # Tests the inline diff utility used for comparing strings in tests assertions
 add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
-
-# GPU reference validation tests (in validation/ folder)
-# 1. Reference kernel execution and InstanceTraits
-add_ck_builder_test(test_ckb_reference_execution
-    validation/test_reference_execution.cpp
-    validation/test_reference_instance_traits.cpp)
-target_link_libraries(test_ckb_reference_execution PRIVATE utility)
-
-# Note: Optimized kernel validation tests will be added after merging dev branch
-# with kernel Run() implementation from colleague's work
 
 # Tests convolution trait selection and configuration
 add_ck_builder_test(test_ckb_conv_traits
@@ -116,10 +101,28 @@ add_ck_builder_test(test_ckb_conv_description
     test_conv_description.cpp)
 
 ################################################################################
-# REGRESSION TESTS - Integration Tests (With Kernel Compilation)
+# REGRESSION TESTS - Integration Tests (With Kernel Compilation and GPU Validation)
 ################################################################################
-# These tests compile actual GPU kernels to verify the builder generates valid,
-# compilable code. They are more expensive but catch real-world issues.
+# These tests compile actual GPU kernels and/or validate GPU execution to verify
+# the builder generates valid, compilable, and executable code. They are more
+# expensive but catch real-world issues.
+
+# GPU-dependent unit tests that require device memory and execution
+add_ck_builder_test(test_ckb_conv_builder_gpu
+    unit_device_buffer.cpp
+    unit_tensor_descriptor.cpp
+    unit_tensor_foreach.cpp
+    unit_validation.cpp
+    unit_debug.cpp
+    unit_conv_fwd_testing.cpp)
+target_link_libraries(test_ckb_conv_builder_gpu PRIVATE utility)
+
+# GPU reference validation tests (in validation/ folder)
+# These tests require GPU execution to validate reference kernel behavior
+add_ck_builder_test(test_ckb_reference_execution
+    validation/test_reference_execution.cpp
+    validation/test_reference_instance_traits.cpp)
+target_link_libraries(test_ckb_reference_execution PRIVATE utility)
 
 
 # Verifies that GetInstanceString() methods and other functions produce valid kernel code.
@@ -232,13 +235,12 @@ add_ck_factory_test(test_ckb_testing_utils test_testing_utils.cpp)
 
 include(CTest)
 
-# Register all smoke tests (fast unit tests, no kernel compilation)
+# Register all smoke tests (fast unit tests, no kernel compilation, CPU-only)
 set(CKB_SMOKE_TESTS
     test_ckb_conv_builder
     test_ckb_inline_diff
     test_ckb_conv_traits
     test_ckb_conv_description
-    test_ckb_reference_execution
 )
 
 foreach(test_target ${CKB_SMOKE_TESTS})
@@ -246,8 +248,10 @@ foreach(test_target ${CKB_SMOKE_TESTS})
     set_tests_properties(${test_target} PROPERTIES LABELS "BUILDER_SMOKE")
 endforeach()
 
-# Register all regression tests (integration tests with kernel compilation)
+# Register all regression tests (integration tests with kernel compilation and GPU validation)
 set(CKB_REGRESSION_TESTS
+    test_ckb_conv_builder_gpu
+    test_ckb_reference_execution
     test_ckb_instance_string
     test_ckb_build_fwd_instances
     test_ckb_build_bwd_weight_instances
