@@ -22,13 +22,32 @@ from .phase_breakdown import (
     PhaseBreakdown,
 )
 
+from .parse_build import (
+    find_trace_files,
+    read_trace_files,
+)
+
+from .pipeline import (
+    Pipeline,
+)
+
+from .build_helpers import (
+    get_trace_file,
+)
+
 __all__ = [
     # Core parsing and filtering
     "parse_file",
     "get_metadata",
+    "find_trace_files",
+    "read_trace_files",
+    # Pipeline processing
+    "Pipeline",
     # Template analysis
     "get_template_instantiation_events",
     # Phase breakdown
     "get_phase_breakdown",
     "PhaseBreakdown",
+    # Build helpers
+    "get_trace_file",
 ]
