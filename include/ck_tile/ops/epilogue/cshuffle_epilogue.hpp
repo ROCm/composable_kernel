@@ -116,13 +116,13 @@ struct CShuffleEpilogue
     static constexpr index_t isCTransposed = Problem::isCTransposed;
     static constexpr bool FixedVectorSize  = Problem::FixedVectorSize;
     static constexpr bool TiledMMAPermuteN = Problem::TiledMMAPermuteN;
-#ifdef __gfx9__
-    static constexpr bool AsyncPipeline = (MWave * NWave == 8);
+#ifdef __gfx95__
+    static constexpr bool EightWave = (MWave * NWave == 8);
 #else
-    static constexpr bool AsyncPipeline = false;
+    static constexpr bool EightWave = false;
 #endif
     static constexpr index_t BlockedXDLN_PerWarp =
-        AsyncPipeline ? kNPerBlock / NWave / NPerXdl : Problem::BlockedXDLN_PerWarp;
+        EightWave ? kNPerBlock / NWave / NPerXdl : Problem::BlockedXDLN_PerWarp;
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
     static constexpr index_t VectorSizeC   = Problem::VectorSizeC;
     static constexpr index_t MPerIteration = MPerXdl * MWave;
@@ -447,7 +447,7 @@ struct CShuffleEpilogue
                 if constexpr(is_950 || is_any_of<ADataType, pk_int4_t, pk_fp4_t>::value ||
                              is_any_of<BDataType, pk_int4_t, pk_fp4_t>::value)
                 {
-                    if constexpr(AsyncPipeline)
+                    if constexpr(EightWave)
                     {
                         return tile_distribution_encoding<
                             sequence<>,
