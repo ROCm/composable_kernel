@@ -901,16 +901,25 @@ struct MoeFlatmmKernel
     template <class MoeFlatmmKernelArgs>
     CK_TILE_DEVICE void operator()(MoeFlatmmKernelArgs kargs) const
     {
-        int partition_idx       = blockIdx.x;
-        int total_work_tile_cnt = TilePartitioner::GridSize(kargs.M, kargs.N);
+        // total number of tokens: sorted tokens + delimiter tokens + trailing padding tokens
+        // we launch the grid based on the total number of tokens which needs to be static
+        int partition_idx        = blockIdx.x;
+        auto max_token_id        = kargs.p_max_token_id[0]; // sorted tokens + delimiter tokens
+        int total_valid_tile_cnt = TilePartitioner::GridSize(max_token_id, kargs.N);
+        auto tilePartitioner     = TilePartitioner{max_token_id, kargs.N};
         do
         {
+            if(partition_idx >= total_valid_tile_cnt)
+            {
+                return; // early exit for trailing padding tokens
+            }
+            partition_idx = tilePartitioner.RemapXCD(partition_idx, total_valid_tile_cnt);
             const auto [block_offset_m, block_offset_n] =
-                TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(partition_idx);
+                tilePartitioner.GetOutputTileIndex(partition_idx);
 
             this->operator()(kargs, block_offset_m, block_offset_n);
             partition_idx += gridDim.x;
-        } while(UsePersistentKernel && partition_idx < total_work_tile_cnt);
+        } while(UsePersistentKernel && partition_idx < total_valid_tile_cnt);
     }
 
     template <class MoeFlatmmKernelArgs>
@@ -920,7 +929,6 @@ struct MoeFlatmmKernel
         // const auto [iM, iN]   = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
         const index_t coord_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t coord_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
-        const index_t max_token_id = kargs.p_max_token_id[0];
         // allocate LDS
         __shared__ char smem_ptr_ping[GetSmemPingSize()];
         __shared__ char smem_ptr_pong[GetSmemPongSize()];
@@ -948,8 +956,6 @@ struct MoeFlatmmKernel
             return gather_token_id;
         };
 
-        if(coord_m >= max_token_id)
-            return;
         static_for<0, DramMRepeat, 1>{}([&](auto m0) {
             const auto row_idx =
                 coord_m + m0 * (TilePartitioner::MPerBlock / DramMRepeat) + a_coord[I0];
