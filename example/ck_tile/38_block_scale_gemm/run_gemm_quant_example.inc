@@ -35,16 +35,19 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 {
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
     constexpr bool IS_FP8BLOCKSCALE =
-        QuantMode == ck_tile::QuantType::ABQuantGrouped && BQuantGroupSize::kN == 128 &&
+        QuantMode == ck_tile::QuantType::ABQuantGrouped &&
         (std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t> ||
          std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf8_t>) &&
         (std::is_same_v<typename TypeConfig::BDataType, ck_tile::fp8_t> ||
          std::is_same_v<typename TypeConfig::BDataType, ck_tile::bf8_t>);
     constexpr bool transpose_c = GemmConfig::TransposeC;
     constexpr bool eight_warps =
-        IS_FP8BLOCKSCALE && BQuantGroupSize::kN == 128 &&
-        (GemmConfig::M_Warp * GemmConfig::N_Warp * GemmConfig::K_Warp == 8) &&
+#ifdef CK_GFX950_SUPPORT
+        IS_FP8BLOCKSCALE && (GemmConfig::M_Warp * GemmConfig::N_Warp * GemmConfig::K_Warp == 8) &&
         GemmConfig::K_Warp_Tile == 128;
+#else
+        false;
+#endif
 
     using ComputeDataType =
         std::conditional_t<IS_FP8BLOCKSCALE, typename TypeConfig::ADataType, void>;

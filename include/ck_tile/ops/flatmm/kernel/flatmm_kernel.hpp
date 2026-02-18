@@ -780,29 +780,31 @@ struct FlatmmKernel
                                                 const SplitKBatchOffset& splitk_batch_offset,
                                                 const index_t block_idx_m)
     {
-        constexpr int ScaleGranularityM  = decltype(kargs.scale_m_ptr)::GranularityMN;
-        constexpr int ScaleGranularityKA = decltype(kargs.scale_m_ptr)::GranularityK;
+        constexpr int GM = decltype(kargs.scale_m_ptr)::GranularityMN;
+        constexpr int GK = decltype(kargs.scale_m_ptr)::GranularityK;
 
-        auto scale_stride_m = ScaleGranularityM == 0 ? 0  // per-tensor scale
-                                                     : 1; // per-token scale
+        static_assert(GM != -1,
+                      "MakeScaleMWindow should only be instantiated when scale is enabled");
 
-        // Step 1: Create tensor view
+        // per-tensor (GM==0) -> Mdim = 1, stride 0
+        const index_t m_dim    = (GM == 0) ? 1 : (kargs.M / GM);
+        const index_t m_stride = (GM == 0) ? 0 : 1;
+
+        const index_t k_dim    = (GK == 0) ? 1 : (splitk_batch_offset.splitted_k / GK);
+        const index_t k_stride = 0; // your original code keeps K stride 0
+
         const auto scale_m_view = make_naive_tensor_view<address_space_enum::global>(
             kargs.scale_m_ptr.ptr,
-            make_tuple(kargs.M / ScaleGranularityM,
-                       ScaleGranularityKA == 0
-                           ? 1
-                           : (splitk_batch_offset.splitted_k / ScaleGranularityKA)),
-            make_tuple(scale_stride_m, 0),
-            number < ScaleGranularityM == 1 ? FlatmmPipeline::GetVectorSizeA() : 1 > {},
+            make_tuple(m_dim, k_dim),
+            make_tuple(m_stride, k_stride),
+            number < (GM == 1) ? FlatmmPipeline::GetVectorSizeA() : 1 > {},
             number<1>{});
 
-        // Step 2: Create tile window
+        // Window extents: if GM==0, we still just broadcast from [0,*]
         return make_tile_window(scale_m_view,
                                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                                           number < ScaleGranularityKA == 0
-                                               ? TilePartitioner::NPerBlock
-                                               : TilePartitioner::KPerBlock > {}),
+                                           number < (GK == 0) ? TilePartitioner::NPerBlock
+                                                              : TilePartitioner::KPerBlock > {}),
                                 {block_idx_m, 0});
     }
 
@@ -811,27 +813,29 @@ struct FlatmmKernel
                                                 const SplitKBatchOffset& splitk_batch_offset,
                                                 const index_t block_idx_n)
     {
-        constexpr int ScaleGranularityN  = decltype(kargs.scale_n_ptr)::GranularityMN;
-        constexpr int ScaleGranularityKB = decltype(kargs.scale_n_ptr)::GranularityK;
+        constexpr int GN = decltype(kargs.scale_n_ptr)::GranularityMN;
+        constexpr int GK = decltype(kargs.scale_n_ptr)::GranularityK;
 
-        auto scale_stride_n = ScaleGranularityN == 0 ? 0  // per-tensor scale
-                                                     : 1; // per-channel scale
+        static_assert(GN != -1,
+                      "MakeScaleNWindow should only be instantiated when scale is enabled");
 
-        // Step 1: Create tensor view
+        // per-tensor (GN==0) -> Ndim = 1, stride 0
+        const index_t n_dim    = (GN == 0) ? 1 : (kargs.N / GN);
+        const index_t n_stride = (GN == 0) ? 0 : 1;
+
+        const index_t k_dim    = (GK == 0) ? 1 : (splitk_batch_offset.splitted_k / GK);
+        const index_t k_stride = 0;
+
         const auto scale_n_view = make_naive_tensor_view<address_space_enum::global>(
             kargs.scale_n_ptr.ptr,
-            make_tuple(
-                ScaleGranularityKB == 0 ? 1 : (splitk_batch_offset.splitted_k / ScaleGranularityKB),
-                kargs.N / ScaleGranularityN),
-            make_tuple(0, scale_stride_n),
-            number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
+            make_tuple(k_dim, n_dim),
+            make_tuple(k_stride, n_stride),
+            number < (GN == 1) ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
             number<1>{});
 
-        // Step 2: Create tile window
         return make_tile_window(scale_n_view,
-                                make_tuple(number < ScaleGranularityKB == 0
-                                               ? TilePartitioner::MPerBlock
-                                               : TilePartitioner::KPerBlock > {},
+                                make_tuple(number < (GK == 0) ? TilePartitioner::MPerBlock
+                                                              : TilePartitioner::KPerBlock > {},
                                            number<TilePartitioner::NPerBlock>{}),
                                 {0, block_idx_n});
     }
@@ -854,8 +858,6 @@ struct FlatmmKernel
             MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
         const auto& b_flat_block_window = MakeBFlatBlockWindow(b_flat_ptr, kargs, block_idx_n);
         const auto& ds_block_window = MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n);
-        const auto& scale_m_window  = MakeScaleMWindow(kargs, splitk_batch_offset, block_idx_m);
-        const auto& scale_n_window  = MakeScaleNWindow(kargs, splitk_batch_offset, block_idx_n);
 
         const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
 
@@ -866,6 +868,8 @@ struct FlatmmKernel
         // Run Epilogue Pipeline with k_batch dispatching
         if constexpr(ScaleM::GranularityMN != -1 || ScaleN::GranularityMN != -1)
         {
+            const auto& scale_m_window = MakeScaleMWindow(kargs, splitk_batch_offset, block_idx_m);
+            const auto& scale_n_window = MakeScaleNWindow(kargs, splitk_batch_offset, block_idx_n);
             if(kargs.k_batch == 1)
             {
                 auto e_block_window = MakeEBlockWindow<memory_operation_enum::set>(

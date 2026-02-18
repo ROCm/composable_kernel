@@ -137,7 +137,7 @@ CK_TILE_HOST double get_absolute_threshold(const double max_possible_num,
                             int>::value,
                   "Warning: Unhandled ComputeDataType for setting up the absolute threshold!");
 
-    auto expo            = std::log2(std::abs(max_possible_num));
+    auto expo            = std::floor(std::log2(std::abs(max_possible_num)));
     double compute_error = 0;
     if constexpr(is_any_of<ComputeDataType, pk_int4_t, I8, I32, int>::value)
     {
@@ -158,7 +158,7 @@ CK_TILE_HOST double get_absolute_threshold(const double max_possible_num,
     }
     else
     {
-        output_error = std::pow(2, expo - numeric_traits<OutDataType>::mant) * 0.5;
+        output_error = std::pow(2, expo - numeric_traits<OutDataType>::mant) * 1.0;
     }
     double midway_error = std::max(compute_error, output_error);
 
