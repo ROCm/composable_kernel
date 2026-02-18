@@ -48,6 +48,10 @@ TEST(DeviceBuffer, AutoFree)
     const auto size = 12345;
     std::byte* ptr  = nullptr;
 
+    // In this test we are explicitly testing a pointer that is out of scope, so
+    // we have to disable the clang compiler's lifestime safety checks.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-permissive"
     {
         auto buffer = ckt::alloc_buffer(size);
         ptr         = buffer.get();
@@ -55,6 +59,7 @@ TEST(DeviceBuffer, AutoFree)
 
     // Trying to use a pointer after freeing should return en error in HIP.
     EXPECT_THAT(hipMemset(ptr, 0xFF, size), HipError(hipErrorInvalidValue));
+#pragma clang diagnostic pop
 
     // Reset internal HIP error state.
     // Otherwise, the error may leak into other tests, triggering anything that
