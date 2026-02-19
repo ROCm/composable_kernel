@@ -196,7 +196,31 @@ class PoolProfiler
             input_right_pads};
 
         // Run reference if verification is enabled
-        // (Reference computation would be added here based on pool dimension)
+        //
+        // Note:
+        // A host-side reference implementation is not invoked here. Although
+        // `ck_tile/host/reference/reference_pool.hpp` is available, this
+        // profiler operates directly on device buffers with generic
+        // TensorShape/WindowShape types, and a matching reference path has
+        // not yet been wired up for this configuration. Verification of
+        // pooling results is therefore expected to be performed by the
+        // caller or by a higher-level test harness.
+        //
+        // To make this limitation visible, emit a one-time warning if
+        // verification was requested for this profiler.
+        if(setting_.verify_)
+        {
+            static bool warned = false;
+            if(!warned)
+            {
+                warned = true;
+                std::cerr << "Warning: PoolProfiler verification requested, but no "
+                             "host reference pooling implementation is invoked in "
+                             "this configuration. Results are not being verified "
+                             "by PoolProfiler."
+                          << std::endl;
+            }
+        }
 
         for(auto& callable : callables)
         {
