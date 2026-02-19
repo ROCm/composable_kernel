@@ -565,6 +565,101 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
                                                NumCoord>& __restrict__ tile_window,
     index_t offset)
 {
+    using OutputDataType = typename DistributedTensor_::DataType;
+
+    auto trans_tensor           = tile_window.template load_transpose_with_offset<Policy>(offset);
+    using TransTensor_          = remove_cvref_t<decltype(trans_tensor)>;
+    constexpr auto input_distr  = typename TransTensor_::StaticTileDistribution{};
+    constexpr auto output_distr = typename DistributedTensor_::StaticTileDistribution{};
+
+    constexpr auto y_in_desc  = input_distr.get_ys_to_d_descriptor();
+    constexpr auto y_out_desc = output_distr.get_ys_to_d_descriptor();
+
+    constexpr index_t NDimYIn  = input_distr.get_num_of_dimension_y();
+    constexpr index_t NDimYOut = output_distr.get_num_of_dimension_y();
+
+    constexpr auto y_in_lengths  = to_sequence(y_in_desc.get_lengths());
+    constexpr auto y_out_lengths = to_sequence(y_out_desc.get_lengths());
+
+    constexpr auto y_in_element_space_size  = y_in_desc.get_element_space_size();
+    constexpr auto y_out_element_space_size = y_out_desc.get_element_space_size();
+
+    // For mixed precision: element space size must be the same (total bytes match)
+    static_assert(y_in_element_space_size == y_out_element_space_size,
+                  "For mixed precision transpose, input and output element space size must match!");
+
+    constexpr index_t total_elems_in =
+        reduce_on_sequence(y_in_lengths, multiplies<>{}, number<1>{});
+    constexpr index_t total_elems_out =
+        reduce_on_sequence(y_out_lengths, multiplies<>{}, number<1>{});
+    static_assert(total_elems_in == total_elems_out,
+                  "For mixed precision transpose, input/output element counts must match!");
+
+    static_assert(NDimYIn == NDimYOut,
+                  "Mixed precision transpose conversion requires same Y rank for remapping.");
+
+    using InDstrEncode  = typename decltype(input_distr)::DstrEncode;
+    using OutDstrEncode = typename decltype(output_distr)::DstrEncode;
+
+    constexpr auto get_rh_major_minor_to_y = [](auto dstr_encode) {
+        using DstrEncode = remove_cvref_t<decltype(dstr_encode)>;
+
+        map<array<index_t, 2>, index_t> rh_major_minor_to_y_;
+
+        static_for<0, DstrEncode::NDimY, 1>{}([&](auto i) {
+            constexpr index_t rh_major = DstrEncode::ys_to_rhs_major_[i];
+            constexpr index_t rh_minor = DstrEncode::ys_to_rhs_minor_[i];
+
+            rh_major_minor_to_y_({rh_major, rh_minor}) = i;
+        });
+
+        return rh_major_minor_to_y_;
+    };
+
+    constexpr auto rh_major_minor_to_y_in  = get_rh_major_minor_to_y(InDstrEncode{});
+    constexpr auto rh_major_minor_to_y_out = get_rh_major_minor_to_y(OutDstrEncode{});
+
+    constexpr auto y_dim_out_to_in = [&] {
+        map<index_t, index_t> y_dim_out_to_in_;
+
+        for(const auto& [rh_major_minor, y_out] : rh_major_minor_to_y_out)
+        {
+            y_dim_out_to_in_(y_out) = rh_major_minor_to_y_in[rh_major_minor];
+        }
+
+        return y_dim_out_to_in_;
+    }();
+
+    constexpr auto y_dim_in_to_out = [&] {
+        map<index_t, index_t> y_dim_in_to_out_;
+
+        static_for<0, NDimYOut, 1>{}([&](auto y_out) {
+            y_dim_in_to_out_(y_dim_out_to_in[y_out]) = y_out;
+        });
+
+        return y_dim_in_to_out_;
+    }();
+
+    using DimAccessOrderY = typename arithmetic_sequence_gen<0, NDimYOut, 1>::type;
+    using ScalarsPerElemY = typename uniform_sequence_gen<NDimYOut, 1>::type;
+    using OutputSFC =
+        space_filling_curve<decltype(y_out_lengths), DimAccessOrderY, ScalarsPerElemY, false>;
+
+    static_assert(OutputSFC::get_num_of_access() == total_elems_out,
+                  "OutputSFC access count must match total output elements.");
+
+    static_for<0, total_elems_out, 1>{}([&](auto iScalar) {
+        constexpr auto idx_y_out = OutputSFC::get_index(iScalar);
+        constexpr auto idx_y_in  = generate_tuple(
+            [&](auto i_in) { return idx_y_out[number<y_dim_in_to_out[i_in]>{}]; },
+            number<NDimYIn>{});
+
+        constexpr index_t in_off  = y_in_desc.calculate_offset(idx_y_in);
+        constexpr index_t out_off = y_out_desc.calculate_offset(idx_y_out);
+
+        out_tensor.get_thread_buffer()[number<out_off>{}] =
+            type_convert<OutputDataType>(trans_tensor.get_thread_buffer()[number<in_off>{}]);
+    });
 }
 
 /**
