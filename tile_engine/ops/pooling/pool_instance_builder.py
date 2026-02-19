@@ -35,7 +35,7 @@ def get_reduce_op_string(reduce_op):
         "max": "ck_tile::ReduceOp::Max",
         "min": "ck_tile::ReduceOp::Min",
         "add": "ck_tile::ReduceOp::Add",
-        "avg": "ck_tile::ReduceOp::Add",  # Average uses Add and divides later
+        "avg": "ck_tile::ReduceOp::Add",  # Average pooling uses Add here; division by the element count is performed elsewhere in the pooling kernel/reference implementation.
     }
     return reduce_op_map.get(reduce_op.lower(), "ck_tile::ReduceOp::Max")
 
