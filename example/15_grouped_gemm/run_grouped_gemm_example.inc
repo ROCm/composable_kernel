@@ -272,6 +272,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                          ComputeDataType>(c_device_tensors[i], c_host_tensors[i]);
 #endif
         }
+
+        std::cout << "Verification: " << (pass ? "SUCCESS" : "FAILURE") << "!" << std::endl;
     }
 
     if(config.time_kernel)

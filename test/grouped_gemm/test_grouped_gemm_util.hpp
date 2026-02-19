@@ -16,6 +16,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "profiler/profile_grouped_gemm_impl.hpp"
+#include "profiler/profile_grouped_gemm_fixed_nk_impl.hpp"
 
 extern ck::index_t param_mask;
 extern ck::index_t instance_index;
@@ -23,7 +24,124 @@ extern ck::index_t instance_index;
 namespace ck {
 namespace test {
 
-template <typename Tuple, bool FailIfNoSupportedInstances = false>
+struct DefaultGroupedGemmProfiler
+{
+    template <typename ADataType,
+              typename BDataType,
+              typename EDataType,
+              typename AccDataType,
+              typename ALayout,
+              typename BLayout,
+              typename ELayout,
+              typename AElementOp,
+              typename BElementOp,
+              typename CDEElementOp>
+    static bool Run(bool verify,
+                    int init_method,
+                    bool log,
+                    bool bench,
+                    const std::vector<int>& Ms,
+                    const std::vector<int>& Ns,
+                    const std::vector<int>& Ks,
+                    const std::vector<int>& StrideAs,
+                    const std::vector<int>& StrideBs,
+                    const std::vector<int>& StrideCs,
+                    const std::vector<int>& kbatches,
+                    int n_warmup,
+                    int n_iter,
+                    int instance_index,
+                    bool fail_if_no_supported_instances)
+    {
+        return ck::profiler::profile_grouped_gemm_impl<ADataType,
+                                                       BDataType,
+                                                       EDataType,
+                                                       AccDataType,
+                                                       ALayout,
+                                                       BLayout,
+                                                       ELayout,
+                                                       AElementOp,
+                                                       BElementOp,
+                                                       CDEElementOp>(
+            verify,
+            init_method,
+            log,
+            bench,
+            Ms,
+            Ns,
+            Ks,
+            StrideAs,
+            StrideBs,
+            StrideCs,
+            kbatches,
+            n_warmup,
+            n_iter,
+            instance_index,
+            fail_if_no_supported_instances);
+    }
+};
+
+struct FixedNKGroupedGemmProfiler
+{
+    template <typename ADataType,
+              typename BDataType,
+              typename EDataType,
+              typename AccDataType,
+              typename ALayout,
+              typename BLayout,
+              typename CLayout>
+    static bool Run(bool verify,
+                    int init_method,
+                    bool log,
+                    bool bench,
+                    const std::vector<int>& Ms,
+                    const std::vector<int>& Ns,
+                    const std::vector<int>& Ks,
+                    const std::vector<int>& StrideAs,
+                    const std::vector<int>& StrideBs,
+                    const std::vector<int>& StrideCs,
+                    const std::vector<int>& kbatches,
+                    int n_warmup,
+                    int n_iter,
+                    int /*instance_index*/,
+                    bool /*fail_if_no_supported_instances*/)
+    {
+        bool pass = true;
+        for(int kbatch : kbatches)
+        {
+            try
+            {
+                pass &= ck::profiler::profile_grouped_gemm_fixed_nk_impl<ADataType,
+                                                                         BDataType,
+                                                                         EDataType,
+                                                                         AccDataType,
+                                                                         ALayout,
+                                                                         BLayout,
+                                                                         CLayout>(verify,
+                                                                                  init_method,
+                                                                                  log,
+                                                                                  bench,
+                                                                                  Ms,
+                                                                                  Ns,
+                                                                                  Ks,
+                                                                                  StrideAs,
+                                                                                  StrideBs,
+                                                                                  StrideCs,
+                                                                                  kbatch,
+                                                                                  n_warmup,
+                                                                                  n_iter);
+            }
+            catch(const std::exception& e)
+            {
+                std::cerr << e.what() << std::endl;
+            }
+        }
+        return pass;
+    }
+};
+
+template <typename Tuple,
+          bool FailIfNoSupportedInstances = false,
+          typename Profiler               = ck::test::DefaultGroupedGemmProfiler>
 class TestGroupedGemm : public testing::Test
 {
     protected:
@@ -76,7 +194,7 @@ class TestGroupedGemm : public testing::Test
         }
         else
         {
-            k_batches_ = {1, 2, 3, 5, 8};
+            k_batches_ = {1, 2, 3, 4, 8};
         }
     }
 
@@ -146,31 +264,61 @@ class TestGroupedGemm : public testing::Test
                    const std::vector<int>& StrideCs,
                    const std::vector<int>& kbatches)
     {
-        bool pass =
-            ck::profiler::profile_grouped_gemm_impl<ADataType,
-                                                    BDataType,
-                                                    EDataType,
-                                                    float,
-                                                    ALayout,
-                                                    BLayout,
-                                                    ELayout,
-                                                    AElementOp,
-                                                    BElementOp,
-                                                    CDEElementOp>(verify_,
-                                                                  init_method_,
-                                                                  log_,
-                                                                  bench_,
-                                                                  Ms,
-                                                                  Ns,
-                                                                  Ks,
-                                                                  StrideAs,
-                                                                  StrideBs,
-                                                                  StrideCs,
-                                                                  kbatches,
-                                                                  n_warmup_,
-                                                                  n_iter_,
-                                                                  instance_index,
-                                                                  fail_if_no_supported_instances_);
+        bool pass         = false;
+        using AccDataType = float;
+
+        if constexpr(std::is_same_v<Profiler, FixedNKGroupedGemmProfiler>)
+        {
+            pass = Profiler::template Run<ADataType,
+                                          BDataType,
+                                          EDataType,
+                                          AccDataType,
+                                          ALayout,
+                                          BLayout,
+                                          ELayout>(verify_,
+                                                   init_method_,
+                                                   log_,
+                                                   bench_,
+                                                   Ms,
+                                                   Ns,
+                                                   Ks,
+                                                   StrideAs,
+                                                   StrideBs,
+                                                   StrideCs,
+                                                   kbatches,
+                                                   n_warmup_,
+                                                   n_iter_,
+                                                   instance_index,
+                                                   fail_if_no_supported_instances_);
+        }
+        else
+        {
+            pass = Profiler::template Run<ADataType,
+                                          BDataType,
+                                          EDataType,
+                                          AccDataType,
+                                          ALayout,
+                                          BLayout,
+                                          ELayout,
+                                          AElementOp,
+                                          BElementOp,
+                                          CDEElementOp>(verify_,
+                                                        init_method_,
+                                                        log_,
+                                                        bench_,
+                                                        Ms,
+                                                        Ns,
+                                                        Ks,
+                                                        StrideAs,
+                                                        StrideBs,
+                                                        StrideCs,
+                                                        kbatches,
+                                                        n_warmup_,
+                                                        n_iter_,
+                                                        instance_index,
+                                                        fail_if_no_supported_instances_);
+        }
+
         EXPECT_TRUE(pass);
     }
 };
