@@ -14,6 +14,7 @@
 #include "ck_tile/core/container/statically_indexed_array.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/tensor/sweep_tile.hpp"
 
 namespace ck_tile {
 
@@ -567,77 +568,58 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
 {
     using OutputDataType = typename DistributedTensor_::DataType;
 
-    auto trans_tensor           = tile_window.template load_transpose_with_offset<Policy>(offset);
-    using TransTensor_          = remove_cvref_t<decltype(trans_tensor)>;
-    constexpr auto input_distr  = typename TransTensor_::StaticTileDistribution{};
-    constexpr auto output_distr = typename DistributedTensor_::StaticTileDistribution{};
+    auto trans_tensor = tile_window.template load_transpose_with_offset<Policy>(offset);
 
-    constexpr auto y_in_desc  = input_distr.get_ys_to_d_descriptor();
-    constexpr auto y_out_desc = output_distr.get_ys_to_d_descriptor();
+    using InTensor  = remove_cvref_t<decltype(trans_tensor)>;
+    using OutTensor = remove_cvref_t<DistributedTensor_>;
 
-    constexpr index_t NDimYIn  = input_distr.get_num_of_dimension_y();
-    constexpr index_t NDimYOut = output_distr.get_num_of_dimension_y();
+    using InDstrEncode  = typename InTensor::StaticTileDistribution::DstrEncode;
+    using OutDstrEncode = typename OutTensor::StaticTileDistribution::DstrEncode;
+
+    constexpr auto y_in_desc  = InTensor::get_tile_distribution().get_ys_to_d_descriptor();
+    constexpr auto y_out_desc = OutTensor::get_tile_distribution().get_ys_to_d_descriptor();
+
+    constexpr index_t NDimYIn  = InTensor::get_tile_distribution().get_num_of_dimension_y();
+    constexpr index_t NDimYOut = OutTensor::get_tile_distribution().get_num_of_dimension_y();
+
+    static_assert(NDimYIn == NDimYOut,
+                  "Mixed precision transpose conversion requires same Y rank.");
 
     constexpr auto y_in_lengths  = to_sequence(y_in_desc.get_lengths());
     constexpr auto y_out_lengths = to_sequence(y_out_desc.get_lengths());
-
-    constexpr auto y_in_element_space_size  = y_in_desc.get_element_space_size();
-    constexpr auto y_out_element_space_size = y_out_desc.get_element_space_size();
-
-    // For mixed precision: element space size must be the same (total bytes match)
-    static_assert(y_in_element_space_size == y_out_element_space_size,
-                  "For mixed precision transpose, input and output element space size must match!");
 
     constexpr index_t total_elems_in =
         reduce_on_sequence(y_in_lengths, multiplies<>{}, number<1>{});
     constexpr index_t total_elems_out =
         reduce_on_sequence(y_out_lengths, multiplies<>{}, number<1>{});
+
     static_assert(total_elems_in == total_elems_out,
-                  "For mixed precision transpose, input/output element counts must match!");
+                  "Input/output Y element counts must match for mixed precision transpose.");
 
-    static_assert(NDimYIn == NDimYOut,
-                  "Mixed precision transpose conversion requires same Y rank for remapping.");
+    constexpr auto y_in_to_y_out = [&] {
+        map<index_t, index_t> y_in_to_y_out_;
 
-    using InDstrEncode  = typename decltype(input_distr)::DstrEncode;
-    using OutDstrEncode = typename decltype(output_distr)::DstrEncode;
+        static_for<0, NDimYIn, 1>{}([&](auto i_in) {
+            constexpr index_t rh_major = InDstrEncode::ys_to_rhs_major_[i_in];
+            constexpr index_t rh_minor = InDstrEncode::ys_to_rhs_minor_[i_in];
 
-    constexpr auto get_rh_major_minor_to_y = [](auto dstr_encode) {
-        using DstrEncode = remove_cvref_t<decltype(dstr_encode)>;
+            constexpr index_t i_out = [&] {
+                index_t out = -1;
+                static_for<0, NDimYOut, 1>{}([&](auto j_out) {
+                    if constexpr(OutDstrEncode::ys_to_rhs_major_[j_out] == rh_major &&
+                                 OutDstrEncode::ys_to_rhs_minor_[j_out] == rh_minor)
+                    {
+                        out = j_out;
+                    }
+                });
+                return out;
+            }();
 
-        map<array<index_t, 2>, index_t> rh_major_minor_to_y_;
-
-        static_for<0, DstrEncode::NDimY, 1>{}([&](auto i) {
-            constexpr index_t rh_major = DstrEncode::ys_to_rhs_major_[i];
-            constexpr index_t rh_minor = DstrEncode::ys_to_rhs_minor_[i];
-
-            rh_major_minor_to_y_({rh_major, rh_minor}) = i;
+            static_assert(i_out >= 0, "Cannot map input Y dim to output Y dim via RH indices.");
+            y_in_to_y_out_(i_in) = i_out;
         });
 
-        return rh_major_minor_to_y_;
-    };
-
-    constexpr auto rh_major_minor_to_y_in  = get_rh_major_minor_to_y(InDstrEncode{});
-    constexpr auto rh_major_minor_to_y_out = get_rh_major_minor_to_y(OutDstrEncode{});
-
-    constexpr auto y_dim_out_to_in = [&] {
-        map<index_t, index_t> y_dim_out_to_in_;
-
-        for(const auto& [rh_major_minor, y_out] : rh_major_minor_to_y_out)
-        {
-            y_dim_out_to_in_(y_out) = rh_major_minor_to_y_in[rh_major_minor];
-        }
-
-        return y_dim_out_to_in_;
-    }();
-
-    constexpr auto y_dim_in_to_out = [&] {
-        map<index_t, index_t> y_dim_in_to_out_;
-
-        static_for<0, NDimYOut, 1>{}([&](auto y_out) {
-            y_dim_in_to_out_(y_dim_out_to_in[y_out]) = y_out;
-        });
-
-        return y_dim_in_to_out_;
+        return y_in_to_y_out_;
     }();
 
     using DimAccessOrderY = typename arithmetic_sequence_gen<0, NDimYOut, 1>::type;
@@ -646,12 +628,13 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
         space_filling_curve<decltype(y_out_lengths), DimAccessOrderY, ScalarsPerElemY, false>;
 
     static_assert(OutputSFC::get_num_of_access() == total_elems_out,
-                  "OutputSFC access count must match total output elements.");
+                  "Output SFC access count must match total output elements.");
 
     static_for<0, total_elems_out, 1>{}([&](auto iScalar) {
         constexpr auto idx_y_out = OutputSFC::get_index(iScalar);
-        constexpr auto idx_y_in  = generate_tuple(
-            [&](auto i_in) { return idx_y_out[number<y_dim_in_to_out[i_in]>{}]; },
+
+        constexpr auto idx_y_in = generate_tuple(
+            [&](auto i_in) { return idx_y_out[number<y_in_to_y_out[i_in]>{}]; },
             number<NDimYIn>{});
 
         constexpr index_t in_off  = y_in_desc.calculate_offset(idx_y_in);
