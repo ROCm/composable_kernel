@@ -565,56 +565,6 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
                                                NumCoord>& __restrict__ tile_window,
     index_t offset)
 {
-    using InputDataType  = typename BottomTensorView_::DataType;
-    using OutputDataType = typename DistributedTensor_::DataType;
-
-    auto trans_tensor           = tile_window.template load_transpose_with_offset<Policy>(offset);
-    constexpr auto input_distr  = TileDistribution_{};
-    constexpr auto output_distr = typename DistributedTensor_::StaticTileDistribution{};
-
-    constexpr auto y_in_desc  = input_distr.get_ys_to_d_descriptor();
-    constexpr auto y_out_desc = output_distr.get_ys_to_d_descriptor();
-
-    constexpr index_t NDimYIn = input_distr.get_num_of_dimension_y();
-    // constexpr index_t NDimYOut = output_distr.get_num_of_dimension_y();
-
-    constexpr auto y_in_lengths  = to_sequence(y_in_desc.get_lengths());
-    constexpr auto y_out_lengths = to_sequence(y_out_desc.get_lengths());
-
-    constexpr auto y_in_element_space_size  = y_in_desc.get_element_space_size();
-    constexpr auto y_out_element_space_size = y_out_desc.get_element_space_size();
-
-    // For mixed precision: element space size must be the same (total bytes match)
-    static_assert(y_in_element_space_size == y_out_element_space_size,
-                  "For mixed precision transpose, input and output element space size must match!");
-
-    // Allow different vector lengths (e.g., fp8 may vectorize 8 elems, fp16 may vectorize 4).
-    // Ensure total element counts are consistent and divisible by the input vector length.
-    constexpr index_t vecLoadSize = y_in_lengths[NDimYIn - 1];
-    constexpr index_t total_elems_in =
-        reduce_on_sequence(y_in_lengths, multiplies<>{}, number<1>{});
-    constexpr index_t total_elems_out =
-        reduce_on_sequence(y_out_lengths, multiplies<>{}, number<1>{});
-    static_assert(total_elems_in == total_elems_out,
-                  "For mixed precision transpose, input/output element counts must match!");
-    static_assert(total_elems_in % vecLoadSize == 0,
-                  "Input vector length must evenly divide total elements.");
-
-    constexpr index_t num_of_access = total_elems_in / vecLoadSize;
-
-    // Read as input type, convert to output type
-    using InputDataVec = array<InputDataType, vecLoadSize>;
-    static_for<0, num_of_access, 1>{}([&](auto iAccess) {
-        auto input_vec =
-            trans_tensor.get_thread_buffer().template get_as<InputDataVec>(number<iAccess>{});
-
-        // Element-wise type conversion
-        // This will be unrolled by the compiler for each element in the vector
-        static_for<0, vecLoadSize, 1>{}([&](auto iElem) {
-            auto output_elem = type_convert<OutputDataType>(input_vec[iElem]);
-            out_tensor.get_thread_buffer()[number<iAccess * vecLoadSize + iElem>{}] = output_elem;
-        });
-    });
 }
 
 /**
