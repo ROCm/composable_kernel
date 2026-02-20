@@ -604,56 +604,66 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
     constexpr auto out_ndims_span_minor = OutDstrEncode::detail::ndims_span_minor_;
 
     constexpr auto find_in_y_dim = [&](auto span_major, auto span_minor) {
-        index_t y = -1;
-        static_for<0, NDimYIn, 1>{}([&](auto i) {
-            if constexpr(InDstrEncode::detail::ys_to_span_major_[i] == span_major &&
-                         InDstrEncode::detail::ys_to_span_minor_[i] == span_minor)
-            {
-                y = i;
-            }
-        });
+        constexpr index_t y = [&] {
+            index_t found = -1;
+            static_for<0, NDimYIn, 1>{}([&](auto i) {
+                if constexpr(InDstrEncode::detail::ys_to_span_major_[i] == span_major &&
+                             InDstrEncode::detail::ys_to_span_minor_[i] == span_minor)
+                {
+                    found = i;
+                }
+            });
+            return found;
+        }();
+        static_assert(y >= 0, "Input span mapping is incomplete.");
         return y;
     };
 
     constexpr auto find_out_y_dim = [&](auto span_major, auto span_minor) {
-        index_t y = -1;
-        static_for<0, NDimYOut, 1>{}([&](auto i) {
-            if constexpr(OutDstrEncode::detail::ys_to_span_major_[i] == span_major &&
-                         OutDstrEncode::detail::ys_to_span_minor_[i] == span_minor)
-            {
-                y = i;
-            }
-        });
+        constexpr index_t y = [&] {
+            index_t found = -1;
+            static_for<0, NDimYOut, 1>{}([&](auto i) {
+                if constexpr(OutDstrEncode::detail::ys_to_span_major_[i] == span_major &&
+                             OutDstrEncode::detail::ys_to_span_minor_[i] == span_minor)
+                {
+                    found = i;
+                }
+            });
+            return found;
+        }();
+        static_assert(y >= 0, "Output span mapping is incomplete.");
         return y;
     };
 
-    static_for<0, NSpan, 1>{}([&](auto s) {
-        constexpr index_t in_minor_ndim  = in_ndims_span_minor[s];
-        constexpr index_t out_minor_ndim = out_ndims_span_minor[s];
+    constexpr auto in_y_order = [&] {
+        array<index_t, NDimYIn> order{0};
+        index_t k = 0;
 
-        constexpr index_t in_span_len = [&] {
-            index_t p = 1;
+        static_for<0, NSpan, 1>{}([&](auto s) {
+            constexpr index_t in_minor_ndim = in_ndims_span_minor[s];
             static_for<0, in_minor_ndim, 1>{}([&](auto m) {
                 constexpr index_t y = find_in_y_dim(s, m);
-                static_assert(y >= 0, "Input span mapping is incomplete.");
-                p *= y_in_lengths[number<y>{}];
+                order(k++)          = y;
             });
-            return p;
-        }();
+        });
 
-        constexpr index_t out_span_len = [&] {
-            index_t p = 1;
+        return order;
+    }();
+
+    constexpr auto out_y_order = [&] {
+        array<index_t, NDimYOut> order{0};
+        index_t k = 0;
+
+        static_for<0, NSpan, 1>{}([&](auto s) {
+            constexpr index_t out_minor_ndim = out_ndims_span_minor[s];
             static_for<0, out_minor_ndim, 1>{}([&](auto m) {
                 constexpr index_t y = find_out_y_dim(s, m);
-                static_assert(y >= 0, "Output span mapping is incomplete.");
-                p *= y_out_lengths[number<y>{}];
+                order(k++)          = y;
             });
-            return p;
-        }();
+        });
 
-        static_assert(in_span_len == out_span_len,
-                      "Input/output span lengths must match for mixed precision transpose.");
-    });
+        return order;
+    }();
 
     using DimAccessOrderY = typename arithmetic_sequence_gen<0, NDimYOut, 1>::type;
     using ScalarsPerElemY = typename uniform_sequence_gen<NDimYOut, 1>::type;
@@ -670,23 +680,21 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
             array<index_t, NDimYIn> y_in_idx{0};
 
             static_for<0, NSpan, 1>{}([&](auto s) {
-                constexpr index_t in_minor_ndim  = in_ndims_span_minor[s];
-                constexpr index_t out_minor_ndim = out_ndims_span_minor[s];
+                (void)s;
+            });
 
-                index_t span_linear = 0;
-                static_for<0, out_minor_ndim, 1>{}([&](auto m) {
-                    constexpr index_t y = find_out_y_dim(s, m);
-                    span_linear = span_linear * y_out_lengths[number<y>{}] +
-                                  idx_y_out[number<y>{}];
-                });
+            index_t linear = 0;
+            static_for<0, NDimYOut, 1>{}([&](auto k) {
+                constexpr index_t y = out_y_order[k];
+                linear              = linear * y_out_lengths[number<y>{}] + idx_y_out[number<y>{}];
+            });
 
-                index_t remain = span_linear;
-                static_for<in_minor_ndim - 1, -1, -1>{}([&](auto m_rev) {
-                    constexpr index_t y = find_in_y_dim(s, m_rev);
-                    constexpr index_t l = y_in_lengths[number<y>{}];
-                    y_in_idx[y]         = remain % l;
-                    remain /= l;
-                });
+            index_t remain = linear;
+            static_for<NDimYIn - 1, -1, -1>{}([&](auto k_rev) {
+                constexpr index_t y = in_y_order[k_rev];
+                constexpr index_t l = y_in_lengths[number<y>{}];
+                y_in_idx[y]         = remain % l;
+                remain /= l;
             });
 
             return y_in_idx;
