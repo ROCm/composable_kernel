@@ -596,55 +596,37 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
     static_assert(total_elems_in == total_elems_out,
                   "Input/output Y element counts must match for mixed precision transpose.");
 
-    constexpr index_t NSpan = InDstrEncode::NDimX;
-    static_assert(NSpan == OutDstrEncode::NDimX,
-                  "Input/output span major dimension count must match.");
-
-    constexpr auto in_ndims_span_minor  = InDstrEncode::detail::ndims_span_minor_;
-    constexpr auto out_ndims_span_minor = OutDstrEncode::detail::ndims_span_minor_;
-
-    constexpr auto find_in_y_dim = [&](auto span_major, auto span_minor) {
-        constexpr index_t y = [&] {
-            index_t found = -1;
-            static_for<0, NDimYIn, 1>{}([&](auto i) {
-                if constexpr(InDstrEncode::detail::ys_to_span_major_[i] == span_major &&
-                             InDstrEncode::detail::ys_to_span_minor_[i] == span_minor)
-                {
-                    found = i;
-                }
-            });
-            return found;
-        }();
-        static_assert(y >= 0, "Input span mapping is incomplete.");
-        return y;
-    };
-
-    constexpr auto find_out_y_dim = [&](auto span_major, auto span_minor) {
-        constexpr index_t y = [&] {
-            index_t found = -1;
-            static_for<0, NDimYOut, 1>{}([&](auto i) {
-                if constexpr(OutDstrEncode::detail::ys_to_span_major_[i] == span_major &&
-                             OutDstrEncode::detail::ys_to_span_minor_[i] == span_minor)
-                {
-                    found = i;
-                }
-            });
-            return found;
-        }();
-        static_assert(y >= 0, "Output span mapping is incomplete.");
-        return y;
-    };
+    static_assert(NDimYIn <= 63 && NDimYOut <= 63,
+                  "Mixed precision transpose conversion supports up to 63 Y dimensions.");
 
     constexpr auto in_y_order = [&] {
         array<index_t, NDimYIn> order{0};
-        index_t k = 0;
+        index_t used_mask = 0;
 
-        static_for<0, NSpan, 1>{}([&](auto s) {
-            constexpr index_t in_minor_ndim = in_ndims_span_minor[s];
-            static_for<0, in_minor_ndim, 1>{}([&](auto m) {
-                constexpr index_t y = find_in_y_dim(s, m);
-                order(k++)          = y;
+        static_for<0, NDimYIn, 1>{}([&](auto pos) {
+            index_t best_y     = -1;
+            index_t best_major = numeric<index_t>::max();
+            index_t best_minor = numeric<index_t>::max();
+
+            static_for<0, NDimYIn, 1>{}([&](auto y) {
+                constexpr index_t y_major = InDstrEncode::ys_to_rhs_major_[y];
+                constexpr index_t y_minor = InDstrEncode::ys_to_rhs_minor_[y];
+
+                if(((used_mask >> y) & 1) == 0)
+                {
+                    if(best_y < 0 || y_major < best_major ||
+                       (y_major == best_major &&
+                        (y_minor < best_minor || (y_minor == best_minor && y < best_y))))
+                    {
+                        best_y     = y;
+                        best_major = y_major;
+                        best_minor = y_minor;
+                    }
+                }
             });
+
+            order[pos] = best_y;
+            used_mask |= (index_t{1} << best_y);
         });
 
         return order;
@@ -652,14 +634,32 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
 
     constexpr auto out_y_order = [&] {
         array<index_t, NDimYOut> order{0};
-        index_t k = 0;
+        index_t used_mask = 0;
 
-        static_for<0, NSpan, 1>{}([&](auto s) {
-            constexpr index_t out_minor_ndim = out_ndims_span_minor[s];
-            static_for<0, out_minor_ndim, 1>{}([&](auto m) {
-                constexpr index_t y = find_out_y_dim(s, m);
-                order(k++)          = y;
+        static_for<0, NDimYOut, 1>{}([&](auto pos) {
+            index_t best_y     = -1;
+            index_t best_major = numeric<index_t>::max();
+            index_t best_minor = numeric<index_t>::max();
+
+            static_for<0, NDimYOut, 1>{}([&](auto y) {
+                constexpr index_t y_major = OutDstrEncode::ys_to_rhs_major_[y];
+                constexpr index_t y_minor = OutDstrEncode::ys_to_rhs_minor_[y];
+
+                if(((used_mask >> y) & 1) == 0)
+                {
+                    if(best_y < 0 || y_major < best_major ||
+                       (y_major == best_major &&
+                        (y_minor < best_minor || (y_minor == best_minor && y < best_y))))
+                    {
+                        best_y     = y;
+                        best_major = y_major;
+                        best_minor = y_minor;
+                    }
+                }
             });
+
+            order[pos] = best_y;
+            used_mask |= (index_t{1} << best_y);
         });
 
         return order;
@@ -678,10 +678,6 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
 
         constexpr auto idx_y_in_arr = [&] {
             array<index_t, NDimYIn> y_in_idx{0};
-
-            static_for<0, NSpan, 1>{}([&](auto s) {
-                (void)s;
-            });
 
             index_t linear = 0;
             static_for<0, NDimYOut, 1>{}([&](auto k) {
