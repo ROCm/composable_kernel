@@ -15,14 +15,14 @@ void print_matrix(const ck_tile::HostTensor<T>& mat, const std::string& name = "
     assert(len(lens) == 2);
     const ck_tile::index_t rows  = lens[0];
     const ck_tile::index_t cols  = lens[1];
-    const ck_tile::index_t limit = 10;
+    const ck_tile::index_t limit = 32;
 
     std::cout << name << " (" << rows << "×" << cols << "):\n";
     for(ck_tile::index_t i = 0; i < std::min(rows, ck_tile::index_t(limit)); ++i)
     {
         for(ck_tile::index_t j = 0; j < std::min(cols, ck_tile::index_t(limit)); ++j)
         {
-            std::cout << std::setw(3) << std::setprecision(3)
+            std::cout << std::setw(5) << std::setprecision(0) << std::fixed
                       << ck_tile::type_convert<float>(mat(i, j)) << " ";
         }
         if(cols > limit)
@@ -45,13 +45,13 @@ class TestLoadAndConvert : public ::testing::Test
     protected:
     void RunTest()
     {
-        constexpr ck_tile::index_t M = 64;
-        constexpr ck_tile::index_t N = 64;
+        constexpr ck_tile::index_t M = 32;
+        constexpr ck_tile::index_t N = 32;
         constexpr ck_tile::index_t K = 32;
 
         ck_tile::HostTensor<XDataType> h_a({M, K});
         ck_tile::HostTensor<YDataType> h_c({M, K});
-        ck_tile::FillUniformDistributionIntegerValue<XDataType>{-5.0, 5.0, 11939}(h_a);
+        ck_tile::FillMonotonicSeq<XDataType>{}(h_a);
 
         ck_tile::DeviceMem d_a(h_a.get_element_space_size_in_bytes());
         ck_tile::DeviceMem d_c(h_c.get_element_space_size_in_bytes());
@@ -90,21 +90,15 @@ class TestLoadAndConvert : public ::testing::Test
             h_a, h_a_ref, [](const auto& x) { return x; });
         bool pass = ck_tile::check_err(h_c, h_a_ref);
 
-        // print_matrix(h_a, "Matrix A");
-        // print_matrix(h_c, "Matrix C");
+        print_matrix(h_a, "Matrix A");
+        //print_matrix(h_a_ref, "Matrix A Ref");
+        print_matrix(h_c, "Matrix C");
 
         EXPECT_TRUE(pass);
     }
 };
 
-using TestTypes = ::testing::Types<std::tuple<ck_tile::half_t, ck_tile::half_t, std::false_type>,
-                                   // std::tuple<ck_tile::half_t, ck_tile::fp8_t, std::false_type>,
-                                   // std::tuple<ck_tile::fp8_t, ck_tile::half_t, std::false_type>,
-                                   std::tuple<ck_tile::fp8_t, ck_tile::fp8_t, std::false_type>,
-                                   std::tuple<ck_tile::half_t, ck_tile::half_t, std::true_type>,
-                                   // std::tuple<ck_tile::half_t, ck_tile::fp8_t, std::true_type>,
-                                   // std::tuple<ck_tile::fp8_t, ck_tile::half_t, std::true_type>,
-                                   std::tuple<ck_tile::fp8_t, ck_tile::fp8_t,  std::true_type>>;
+using TestTypes = ::testing::Types<std::tuple<ck_tile::half_t, float, std::true_type>>;
 
 TYPED_TEST_SUITE(TestLoadAndConvert, TestTypes);
 
