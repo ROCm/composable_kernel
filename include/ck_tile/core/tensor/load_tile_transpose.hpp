@@ -13,8 +13,8 @@
 #include "ck_tile/core/container/thread_buffer.hpp"
 #include "ck_tile/core/container/statically_indexed_array.hpp"
 #include "ck_tile/core/numeric/math.hpp"
-#include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/tensor/sweep_tile.hpp"
+#include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
 
@@ -566,6 +566,7 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
                                                NumCoord>& __restrict__ tile_window,
     index_t offset)
 {
+    using InputDataType  = typename BottomTensorView_::DataType;
     using OutputDataType = typename DistributedTensor_::DataType;
 
     auto trans_tensor = tile_window.template load_transpose_with_offset<Policy>(offset);
@@ -576,11 +577,14 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
     using InDstrEncode  = typename InTensor::StaticTileDistribution::DstrEncode;
     using OutDstrEncode = typename OutTensor::StaticTileDistribution::DstrEncode;
 
-    constexpr auto y_in_desc  = InTensor::get_tile_distribution().get_ys_to_d_descriptor();
-    constexpr auto y_out_desc = OutTensor::get_tile_distribution().get_ys_to_d_descriptor();
+    constexpr auto input_distr  = typename InTensor::StaticTileDistribution{};
+    constexpr auto output_distr = typename OutTensor::StaticTileDistribution{};
 
-    constexpr index_t NDimYIn  = InTensor::get_tile_distribution().get_num_of_dimension_y();
-    constexpr index_t NDimYOut = OutTensor::get_tile_distribution().get_num_of_dimension_y();
+    constexpr auto y_in_desc  = input_distr.get_ys_to_d_descriptor();
+    constexpr auto y_out_desc = output_distr.get_ys_to_d_descriptor();
+
+    constexpr index_t NDimYIn  = input_distr.get_num_of_dimension_y();
+    constexpr index_t NDimYOut = output_distr.get_num_of_dimension_y();
 
     static_assert(NDimYIn == NDimYOut,
                   "Mixed precision transpose conversion requires same Y rank.");
@@ -588,121 +592,68 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
     constexpr auto y_in_lengths  = to_sequence(y_in_desc.get_lengths());
     constexpr auto y_out_lengths = to_sequence(y_out_desc.get_lengths());
 
+    constexpr auto y_in_element_space_size  = y_in_desc.get_element_space_size();
+    constexpr auto y_out_element_space_size = y_out_desc.get_element_space_size();
+
+    // For mixed precision: element space size must be the same (total bytes match)
+    static_assert(y_in_element_space_size == y_out_element_space_size,
+                  "For mixed precision transpose, input and output element space size must match!");
+
     constexpr index_t total_elems_in =
         reduce_on_sequence(y_in_lengths, multiplies<>{}, number<1>{});
     constexpr index_t total_elems_out =
         reduce_on_sequence(y_out_lengths, multiplies<>{}, number<1>{});
-
     static_assert(total_elems_in == total_elems_out,
-                  "Input/output Y element counts must match for mixed precision transpose.");
+                  "For mixed precision transpose, input/output element counts must match!");
 
-    static_assert(NDimYIn <= 63 && NDimYOut <= 63,
-                  "Mixed precision transpose conversion supports up to 63 Y dimensions.");
+    constexpr index_t in_rh_major_count  = InDstrEncode::NDimX + 1;
+    constexpr index_t out_rh_major_count = OutDstrEncode::NDimX + 1;
 
-    constexpr auto in_y_order = [&] {
-        array<index_t, NDimYIn> order{0};
-        index_t used_mask = 0;
+    static_assert(in_rh_major_count == out_rh_major_count,
+                  "Input/output RH major dimension count must match.");
 
-        static_for<0, NDimYIn, 1>{}([&](auto pos) {
-            index_t best_y     = -1;
-            index_t best_major = numeric<index_t>::max();
-            index_t best_minor = numeric<index_t>::max();
+    static_for<1, in_rh_major_count, 1>{}([&](auto rh_major) {
+        constexpr index_t in_ndim_rh_minor  = InDstrEncode::detail::ndims_rhs_minor_[rh_major];
+        constexpr index_t out_ndim_rh_minor = OutDstrEncode::detail::ndims_rhs_minor_[rh_major];
 
-            static_for<0, NDimYIn, 1>{}([&](auto y) {
-                constexpr index_t y_major = InDstrEncode::ys_to_rhs_major_[y];
-                constexpr index_t y_minor = InDstrEncode::ys_to_rhs_minor_[y];
+        static_assert(in_ndim_rh_minor == out_ndim_rh_minor,
+                      "Input/output RH minor dimension count must match per RH major.");
 
-                if(((used_mask >> y) & 1) == 0)
-                {
-                    if(best_y < 0 || y_major < best_major ||
-                       (y_major == best_major &&
-                        (y_minor < best_minor || (y_minor == best_minor && y < best_y))))
-                    {
-                        best_y     = y;
-                        best_major = y_major;
-                        best_minor = y_minor;
-                    }
-                }
-            });
+        static_for<0, in_ndim_rh_minor, 1>{}([&](auto rh_minor) {
+            constexpr index_t i_in = InDstrEncode::detail::rhs_major_minor_to_ys_[rh_major]
+                                                                                [rh_minor];
+            constexpr index_t i_out = OutDstrEncode::detail::rhs_major_minor_to_ys_[rh_major]
+                                                                                  [rh_minor];
 
-            order[pos] = best_y;
-            used_mask |= (index_t{1} << best_y);
+            static_assert(i_in >= 0 && i_out >= 0,
+                          "Every H-space RH coordinate must map to valid Y dims.");
+            static_assert(y_in_lengths[number<i_in>{}] == y_out_lengths[number<i_out>{}],
+                          "Mapped Y dimensions must have equal lengths.");
         });
+    });
 
-        return order;
-    }();
+    sweep_tile<InTensor>([&](auto idx_in) {
+        constexpr auto idx_y_in = InTensor::get_tile_distribution().get_y_indices_from_distributed_indices(
+            decltype(idx_in){});
 
-    constexpr auto out_y_order = [&] {
-        array<index_t, NDimYOut> order{0};
-        index_t used_mask = 0;
+        constexpr auto idx_y_out = generate_sequence_v2(
+            [&](auto i_out) {
+                constexpr index_t rh_major = OutDstrEncode::ys_to_rhs_major_[i_out];
+                constexpr index_t rh_minor = OutDstrEncode::ys_to_rhs_minor_[i_out];
+                constexpr index_t i_in =
+                    InDstrEncode::detail::rhs_major_minor_to_ys_[rh_major][rh_minor];
 
-        static_for<0, NDimYOut, 1>{}([&](auto pos) {
-            index_t best_y     = -1;
-            index_t best_major = numeric<index_t>::max();
-            index_t best_minor = numeric<index_t>::max();
+                static_assert(i_in >= 0, "Input Y dim for output RH coordinate was not found.");
 
-            static_for<0, NDimYOut, 1>{}([&](auto y) {
-                constexpr index_t y_major = OutDstrEncode::ys_to_rhs_major_[y];
-                constexpr index_t y_minor = OutDstrEncode::ys_to_rhs_minor_[y];
+                return number<idx_y_in[number<i_in>{}]>{};
+            },
+            number<NDimYOut>{});
 
-                if(((used_mask >> y) & 1) == 0)
-                {
-                    if(best_y < 0 || y_major < best_major ||
-                       (y_major == best_major &&
-                        (y_minor < best_minor || (y_minor == best_minor && y < best_y))))
-                    {
-                        best_y     = y;
-                        best_major = y_major;
-                        best_minor = y_minor;
-                    }
-                }
-            });
-
-            order[pos] = best_y;
-            used_mask |= (index_t{1} << best_y);
-        });
-
-        return order;
-    }();
-
-    using DimAccessOrderY = typename arithmetic_sequence_gen<0, NDimYOut, 1>::type;
-    using ScalarsPerElemY = typename uniform_sequence_gen<NDimYOut, 1>::type;
-    using OutputSFC =
-        space_filling_curve<decltype(y_out_lengths), DimAccessOrderY, ScalarsPerElemY, false>;
-
-    static_assert(OutputSFC::get_num_of_access() == total_elems_out,
-                  "Output SFC access count must match total output elements.");
-
-    static_for<0, total_elems_out, 1>{}([&](auto iScalar) {
-        constexpr auto idx_y_out = OutputSFC::get_index(iScalar);
-
-        constexpr auto idx_y_in_arr = [&] {
-            array<index_t, NDimYIn> y_in_idx{0};
-
-            index_t linear = 0;
-            static_for<0, NDimYOut, 1>{}([&](auto k) {
-                constexpr index_t y = out_y_order[k];
-                linear              = linear * y_out_lengths[number<y>{}] + idx_y_out[number<y>{}];
-            });
-
-            index_t remain = linear;
-            static_for<NDimYIn - 1, -1, -1>{}([&](auto k_rev) {
-                constexpr index_t y = in_y_order[k_rev];
-                constexpr index_t l = y_in_lengths[number<y>{}];
-                y_in_idx[y]         = remain % l;
-                remain /= l;
-            });
-
-            return y_in_idx;
-        }();
-
-        constexpr auto idx_y_in = TO_SEQUENCE(idx_y_in_arr, NDimYIn);
-
-        constexpr index_t in_off  = y_in_desc.calculate_offset(idx_y_in);
+        //constexpr index_t in_off  = y_in_desc.calculate_offset(idx_y_in);
         constexpr index_t out_off = y_out_desc.calculate_offset(idx_y_out);
 
         out_tensor.get_thread_buffer()[number<out_off>{}] =
-            type_convert<OutputDataType>(trans_tensor.get_thread_buffer()[number<in_off>{}]);
+            type_convert<OutputDataType>(trans_tensor(idx_in));
     });
 }
 
