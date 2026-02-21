@@ -73,6 +73,7 @@ struct mask_info
                 tmp.x     = r.at(ck_tile::number<1>{});
                 tmp.left  = left_size;
                 tmp.right = right_size;
+                tmp.sink  = 0;
             }
             else if(t == "t" || t == "b" || t == "g")
             {
@@ -147,7 +148,10 @@ struct mask_info
         }
         else if(str == "0")
         {
-            tmp.type = mask_enum::no_mask;
+            tmp.type  = mask_enum::no_mask;
+            tmp.left  = -1;
+            tmp.right = -1;
+            tmp.sink  = 0;
         }
         else if(str == "1" || str == "t")
         {
