@@ -33,6 +33,42 @@ namespace ck_tile {
 namespace detail {
 // The number of Philox 4x32 results required to fill 32x32 tile of 8-bit values
 constexpr index_t philox_per_tile = 64;
+
+// C distribution of gfx11 WMMA differs from C distribution of gfx9 MFMA and gfx12 WMMA.
+// This function deinterleaves the generated random values to make them compatible with other
+// architectures and verification code on host.
+template <index_t N>
+CK_TILE_DEVICE void PermuteBlockDropoutRandval(uint8_t (&random_uint8_t)[N])
+{
+#if defined(__gfx11__)
+    static_for<0, N, 8>{}([&](auto i_offset) {
+        array<uint8_t, 8> rs;
+        static_for<0, 8, 1>{}([&](auto i) { rs.data[i] = random_uint8_t[i_offset + i]; });
+
+        const uint32_t r0 = rs.template get_as<uint32_t>(number<0>{});
+        const uint32_t r1 = rs.template get_as<uint32_t>(number<1>{});
+
+        // Deinterleave values (even and odd indices)
+        const uint32_t v0 = __builtin_amdgcn_perm(r1, r0, 0x06'04'02'00);
+        const uint32_t v1 = __builtin_amdgcn_perm(r1, r0, 0x07'05'03'01);
+
+        // Swap rows (lane <-> lane ^ 16)
+        const uint32_t w0 =
+            __builtin_amdgcn_permlanex16(0, v0, 0x76543210, 0xfedcba98, false, true);
+        const uint32_t w1 =
+            __builtin_amdgcn_permlanex16(0, v1, 0x76543210, 0xfedcba98, false, true);
+
+        rs.template set_as<uint32_t>(number<0>{}, get_lane_id() < 16 ? v0 : w1);
+        rs.template set_as<uint32_t>(number<1>{}, get_lane_id() < 16 ? w0 : v1);
+
+        static_for<0, 8, 1>{}([&](auto i) { random_uint8_t[i_offset + i] = rs.data[i]; });
+    });
+#else
+    static_assert(false, "PermuteBlockDropoutRandval is only for gfx11");
+    ignore = random_uint8_t;
+#endif
+}
+
 } // namespace detail
 
 struct NullBlockDropout
@@ -295,6 +331,9 @@ struct BlockDropout
                         static_assert(randval_dist_generated.kThreadElementSpaceSize == 16);
                         ph.get_random_16x8(random_uint8_t, ph_subsequence);
                     }
+#if defined(__gfx11__)
+                    detail::PermuteBlockDropoutRandval(random_uint8_t);
+#endif
                 }
                 else
                 {
@@ -566,6 +605,9 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
                         static_assert(randval_dist_generated.kThreadElementSpaceSize == 16);
                         ph.get_random_16x8(random_uint8_t, ph_subsequence);
                     }
+#if defined(__gfx11__)
+                    detail::PermuteBlockDropoutRandval(random_uint8_t);
+#endif
                 }
                 else
                 {

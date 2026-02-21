@@ -1094,6 +1094,50 @@ class KernelComponentFactoryGfx950(
         return pipelines
 
 
+class KernelComponentFactoryGfx11(CompatibilityRuleFactory):
+    arch = ArchTrait("gfx11")
+
+    _DT_FP16_BF16 = ("fp16", "bf16")
+
+    @classmethod
+    def supported_dtypes(cls) -> Tuple[str]:
+        return cls._DT_FP16_BF16
+
+    @classmethod
+    def get_hdim_tile_size_dict(cls, dtype: str) -> Optional[dict]:
+        if dtype in cls._DT_FP16_BF16:
+            return {
+                #                             bm0, bn0, bk0, bn1, bk1,
+                ( 32,  32) : [FmhaFwdTileSize( 64,  64,  16,  32,  32,   32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                ( 64,  64) : [FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (128, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (192, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (256, 256) : [FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+            }  # fmt: skip
+        else:
+            raise ValueError(f"unsupported dtype={dtype}")
+
+    @classmethod
+    def get_pipelines(
+        cls, dtype, hdim, hdim_v, receipt, mask_impl
+    ) -> List[FmhaFwdPipeline]:
+        pipelines = []
+        if dtype in cls._DT_FP16_BF16:
+            qscale = "no"
+            for logits, mask, bias, lse, dropout, skip, sink in itertools.product(
+                ["t", "f"],
+                get_mask_map(mask_impl).keys(),
+                BIAS_MAP.keys(),
+                ["t", "f"],
+                ["t", "f"],
+                ["t", "f"],
+                ["t", "f"],
+            ):
+                pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
+        return pipelines
+
+
 class KernelComponentFactoryGfx12(CompatibilityRuleFactory):
     arch = ArchTrait("gfx12")
 
@@ -1183,6 +1227,8 @@ def get_factory(target: str):
     if target.startswith("gfx9"):
         return KernelComponentFactoryGfx9
 
+    if target.startswith("gfx11"):
+        return KernelComponentFactoryGfx11
     if target.startswith("gfx12"):
         return KernelComponentFactoryGfx12
 

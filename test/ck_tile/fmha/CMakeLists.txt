@@ -1,11 +1,6 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-# Keep in sync with example/ck_tile/01_fmha/CMakeLists.txt
-if(NOT SUPPORTED_GPU_TARGETS MATCHES "gfx9|gfx12")
-    return()
-endif()
-
 set(FMHA_BWD_INSTANCES "tile_fmha_bwd_instances")
 set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
 
@@ -18,9 +13,19 @@ function(add_gtest_fwd test_group)
     set(CPP_TYPE_fp8bf16 "FmhaFwdFp8Bf16")
     set(CPP_TYPE_fp32 "FmhaFwdFp32")
 
+    set(sources)
+    if(TARGET ${FMHA_FWD_INSTANCES})
+        get_target_property(sources ${FMHA_FWD_INSTANCES} SOURCES)
+        message(VERBOSE "${FMHA_FWD_INSTANCES} SOURCES ${sources}")
+    endif()
+
     set(all_tests)
     foreach(type ${V_TYPES})
         set(name "${test_group}_${type}")
+        if(NOT sources MATCHES "_${type}_")
+            message(STATUS "No FMHA FWD instances for ${type}, skip ${name}")
+            continue()
+        endif()
         add_gtest_executable(${name} test_fmha_fwd.cpp)
         get_test_property(${name} LABELS COMMON_LABELS)
         set_tests_properties(${name} PROPERTIES LABELS "${COMMON_LABELS};${TEST_NAME};${test_group}")
@@ -38,9 +43,19 @@ function(add_gtest_bwd test_group)
     set(CPP_TYPE_bf16 "FmhaBwdBf16")
     set(CPP_TYPE_fp32 "FmhaBwdFp32")
 
+    set(sources)
+    if(TARGET ${FMHA_BWD_INSTANCES})
+        get_target_property(sources ${FMHA_BWD_INSTANCES} SOURCES)
+        message(VERBOSE "${FMHA_BWD_INSTANCES} SOURCES ${sources}")
+    endif()
+
     set(all_tests)
     foreach(type ${V_TYPES})
         set(name "${test_group}_${type}")
+        if(NOT sources MATCHES "_${type}_")
+            message(STATUS "No FMHA BWD instances for ${type}, skip ${name}")
+            continue()
+        endif()
         add_gtest_executable(${name} test_fmha_bwd.cpp)
         get_test_property(${name} LABELS COMMON_LABELS)
         set_tests_properties(${name} PROPERTIES LABELS "${COMMON_LABELS};${TEST_NAME};${test_group}")

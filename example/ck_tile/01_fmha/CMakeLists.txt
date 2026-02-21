@@ -3,9 +3,9 @@
 
 set(INST_TARGETS ${SUPPORTED_GPU_TARGETS})
 # Currently only gfx9 and gfx12 archs are supported by FMHA
-list(FILTER INST_TARGETS INCLUDE REGEX "gfx9|gfx12")
+list(FILTER INST_TARGETS INCLUDE REGEX "gfx9|gfx1[12]")
 if(NOT INST_TARGETS)
-  message(WARNING "Skipping Tile Engine FMHA compilation: No supported GPU targets (gfx9, gfx12) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+  message(WARNING "Skipping Tile Engine FMHA compilation: No supported GPU targets (gfx9, gfx11, gfx12) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
   return()
 endif()
 
