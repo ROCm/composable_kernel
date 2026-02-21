@@ -361,7 +361,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                         const auto tile_idx = get_x_indices_from_distributed_indices(
-                            pcomp_tile.get_tile_distribution(), make_tuple(idx0, idx1));
+                            pcomp_tile.get_tile_distribution(),
+                            make_tuple(idx0, idx1),
+                            partition_index);
 
                         const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                         const auto col = seqlen_k_curr + tile_idx.at(number<1>{});

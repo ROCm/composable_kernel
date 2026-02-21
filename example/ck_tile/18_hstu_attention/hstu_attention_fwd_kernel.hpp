@@ -519,7 +519,8 @@ struct HstuAttentionFwdKernel
                 seqlen_in_first_split = kargs.seqlen_q - num_target - kargs.min_full_attn_seqlen;
 
                 index_t num_tile_in_first_split =
-                    ck_tile::integer_divide_ceil(seqlen_in_first_split, HstuAttentionPipeline::kM0);
+                    __builtin_amdgcn_readfirstlane(ck_tile::integer_divide_ceil(
+                        seqlen_in_first_split, HstuAttentionPipeline::kM0));
 
                 is_tile_in_first_split = (i_tile_m < num_tile_in_first_split);
 
