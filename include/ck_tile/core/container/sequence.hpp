@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/core/container/static_array.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/numeric/math.hpp"
@@ -35,6 +36,7 @@ template <typename Seq>
 CK_TILE_HOST_DEVICE constexpr auto sequence_pop_back(Seq);
 
 namespace impl {
+
 // static_assert(__has_builtin(__type_pack_element), "can't find __type_pack_element");
 template <index_t I, typename... Ts>
 using at_index_t = __type_pack_element<I, Ts...>;
@@ -331,30 +333,66 @@ struct uniform_sequence_gen
     using type = typename sequence_gen<NSize, F>::type;
 };
 
-// reverse inclusive scan (with init) sequence
-template <typename, typename, index_t>
-struct sequence_reverse_inclusive_scan;
+// inclusive scan (with init) sequence
+namespace impl {
 
-template <index_t I, index_t... Is, typename Reduce, index_t Init>
-struct sequence_reverse_inclusive_scan<sequence<I, Is...>, Reduce, Init>
+template <typename Seq, typename Reduce, index_t Init, bool Reverse>
+struct sequence_inclusive_scan_impl;
+
+template <index_t... Is, typename Reduce, index_t Init, bool Reverse>
+struct sequence_inclusive_scan_impl<sequence<Is...>, Reduce, Init, Reverse>
 {
-    using old_scan = typename sequence_reverse_inclusive_scan<sequence<Is...>, Reduce, Init>::type;
+    template <index_t... Indices>
+    static constexpr auto compute(sequence<Indices...>)
+    {
+        constexpr index_t size = sizeof...(Is);
+        if constexpr(size == 0)
+        {
+            return sequence<>{};
+        }
+        else
+        {
+            constexpr auto arr = []() {
+                static_array<index_t, size> values = {Is...};
+                static_array<index_t, size> result = {0};
+                if constexpr(Reverse)
+                {
+                    // Reverse scan: right to left
+                    result[size - 1] = Reduce{}(values[size - 1], Init);
+                    for(index_t i = size - 1; i > 0; --i)
+                    {
+                        result[i - 1] = Reduce{}(values[i - 1], result[i]);
+                    }
+                }
+                else
+                {
+                    // Forward scan: left to right
+                    result[0] = Reduce{}(values[0], Init);
+                    for(index_t i = 1; i < size; ++i)
+                    {
+                        result[i] = Reduce{}(values[i], result[i - 1]);
+                    }
+                }
+                return result;
+            }();
+            return sequence<arr[Indices]...>{};
+        }
+    }
 
-    static constexpr index_t new_reduce = Reduce{}(I, old_scan{}.front());
+    using type = decltype(compute(make_index_sequence<sizeof...(Is)>{}));
+};
+} // namespace impl
 
-    using type = typename sequence_merge<sequence<new_reduce>, old_scan>::type;
+template <typename Seq, typename Reduce, index_t Init>
+struct sequence_reverse_inclusive_scan
+{
+    using type = typename impl::sequence_inclusive_scan_impl<Seq, Reduce, Init, true>::type;
 };
 
-template <index_t I, typename Reduce, index_t Init>
-struct sequence_reverse_inclusive_scan<sequence<I>, Reduce, Init>
+template <typename Seq, typename Reduce, index_t Init>
+struct sequence_inclusive_scan
 {
-    using type = sequence<Reduce{}(I, Init)>;
-};
-
-template <typename Reduce, index_t Init>
-struct sequence_reverse_inclusive_scan<sequence<>, Reduce, Init>
-{
-    using type = sequence<>;
+    using type = typename impl::sequence_inclusive_scan_impl<Seq, Reduce, Init, false>::type;
 };
 
 // split sequence
@@ -880,7 +918,7 @@ CK_TILE_HOST_DEVICE constexpr auto reverse_exclusive_scan_sequence(Seq, Reduce, 
 template <typename Seq, typename Reduce, index_t Init>
 CK_TILE_HOST_DEVICE constexpr auto inclusive_scan_sequence(Seq, Reduce, number<Init>)
 {
-    return reverse_inclusive_scan_sequence(Seq{}.reverse(), Reduce{}, number<Init>{}).reverse();
+    return typename sequence_inclusive_scan<Seq, Reduce, Init>::type{};
 }
 
 // e.g. Seq<2, 3, 4> --> Seq<0, 2, 5>, Init=0, Reduce=Add
