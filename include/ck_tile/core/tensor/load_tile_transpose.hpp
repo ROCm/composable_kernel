@@ -602,12 +602,6 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
     static_assert(total_elems_in == total_elems_out,
                   "For mixed precision transpose, input/output element counts must match!");
 
-    constexpr auto in_ps_ys_to_xs  = input_distr.get_ps_ys_to_xs_adaptor();
-    constexpr auto out_ps_ys_to_xs = output_distr.get_ps_ys_to_xs_adaptor();
-
-    const auto in_ps_idx  = input_distr.get_partition_index();
-    const auto out_ps_idx = output_distr.get_partition_index();
-
     using InDimAccessOrderY  = typename arithmetic_sequence_gen<0, NDimYIn, 1>::type;
     using OutDimAccessOrderY = typename arithmetic_sequence_gen<0, NDimYOut, 1>::type;
     using InScalarsPerElemY  = typename uniform_sequence_gen<NDimYIn, 1>::type;
@@ -625,55 +619,35 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
     static_assert(OutSFC_Y::get_num_of_access() == total_elems_out,
                   "Unexpected output SFC access count for mixed precision transpose.");
 
-    static_for<0, total_elems_in, 1>{}([&](auto i_in) {
-        constexpr auto in_idx_y        = InSFC_Y::get_index(i_in);
-        constexpr index_t in_offset    = y_in_desc.calculate_offset(in_idx_y);
-        array<index_t, NDimYIn> in_idx_y_arr{};
-        static_for<0, NDimYIn, 1>{}([&](auto iy) {
-            in_idx_y_arr(iy) = in_idx_y[iy];
-        });
-        const auto in_ps_ys_idx        = container_concat(in_ps_idx, in_idx_y_arr);
-        const auto in_adaptor_coord    = make_tensor_adaptor_coordinate(in_ps_ys_to_xs, in_ps_ys_idx);
-        const auto in_x_idx            = in_adaptor_coord.get_bottom_index();
+    static_for<0, total_elems_out, 1>{}([&](auto i_out) {
+        constexpr auto out_idx_y = OutSFC_Y::get_index(i_out);
 
-        index_t out_offset = -1;
-        bool found         = false;
-
-        static_for<0, total_elems_out, 1>{}([&](auto i_out) {
-            if(found)
-            {
-                return;
-            }
-
-            constexpr auto out_idx_y     = OutSFC_Y::get_index(i_out);
-            array<index_t, NDimYOut> out_idx_y_arr{};
+        constexpr index_t linear = [&] {
+            index_t value = 0;
             static_for<0, NDimYOut, 1>{}([&](auto iy) {
-                out_idx_y_arr(iy) = out_idx_y[iy];
+                value = value * y_out_lengths[iy] + out_idx_y[iy];
             });
-            const auto out_ps_ys_idx     = container_concat(out_ps_idx, out_idx_y_arr);
-            const auto out_adaptor_coord =
-                make_tensor_adaptor_coordinate(out_ps_ys_to_xs, out_ps_ys_idx);
-            const auto out_x_idx = out_adaptor_coord.get_bottom_index();
+            return value;
+        }();
 
-            bool same_x = true;
-            static_for<0, input_distr.get_num_of_dimension_x(), 1>{}([&](auto ix) {
-                same_x = same_x && (in_x_idx[ix] == out_x_idx[ix]);
+        const auto in_idx_y = [&] {
+            array<index_t, NDimYIn> idx_in{};
+            index_t remain = linear;
+
+            static_for<NDimYIn - 1, -1, -1>{}([&](auto iy) {
+                constexpr index_t len = y_in_lengths[iy];
+                idx_in(iy)            = remain % len;
+                remain /= len;
             });
 
-            if(same_x)
-            {
-                out_offset = y_out_desc.calculate_offset(out_idx_y);
-                found      = true;
-            }
-        });
+            return idx_in;
+        }();
 
-        if(!found)
-        {
-            out_offset = in_offset;
-        }
+        const index_t in_offset  = y_in_desc.calculate_offset(in_idx_y);
+        constexpr index_t out_offset = y_out_desc.calculate_offset(out_idx_y);
 
         out_tensor.get_thread_buffer()[out_offset] =
-            type_convert<OutputDataType>(trans_tensor.get_thread_buffer()[number<in_offset>{}]);
+            type_convert<OutputDataType>(trans_tensor.get_thread_buffer()[in_offset]);
     });
 }
 
