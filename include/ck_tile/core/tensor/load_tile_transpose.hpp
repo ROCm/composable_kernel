@@ -572,6 +572,8 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
 
     using InTensor  = remove_cvref_t<decltype(trans_tensor)>;
     using OutTensor = remove_cvref_t<DistributedTensor_>;
+    using InDstrEncode  = typename InTensor::StaticTileDistribution::DstrEncode;
+    using OutDstrEncode = typename OutTensor::StaticTileDistribution::DstrEncode;
 
     constexpr auto input_distr  = typename InTensor::StaticTileDistribution{};
     constexpr auto output_distr = typename OutTensor::StaticTileDistribution{};
@@ -619,62 +621,100 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
     static_assert(OutSFC_Y::get_num_of_access() == total_elems_out,
                   "Unexpected output SFC access count for mixed precision transpose.");
 
-    constexpr auto in_ps_ys_to_xs  = input_distr.get_ps_ys_to_xs_adaptor();
-    constexpr auto out_ps_ys_to_xs = output_distr.get_ps_ys_to_xs_adaptor();
+    constexpr auto in_ys_rhs_major  = InDstrEncode::ys_to_rhs_major_;
+    constexpr auto in_ys_rhs_minor  = InDstrEncode::ys_to_rhs_minor_;
+    constexpr auto out_ys_rhs_major = OutDstrEncode::ys_to_rhs_major_;
+    constexpr auto out_ys_rhs_minor = OutDstrEncode::ys_to_rhs_minor_;
 
-    constexpr index_t NDimXIn  = input_distr.get_num_of_dimension_x();
-    constexpr index_t NDimXOut = output_distr.get_num_of_dimension_x();
-    static_assert(NDimXIn == NDimXOut,
-                  "Input/output X rank must match for canonical X-coordinate mapping.");
-
-    const auto in_ps_idx  = input_distr.get_partition_index();
-    const auto out_ps_idx = output_distr.get_partition_index();
-
-    static_for<0, total_elems_in, 1>{}([&](auto i_in) {
-        constexpr auto in_idx_y_seq = InSFC_Y::get_index(i_in);
-
-        array<index_t, NDimYIn> in_idx_y{};
-        static_for<0, NDimYIn, 1>{}([&](auto iy) { in_idx_y(iy) = in_idx_y_seq[iy]; });
-
-        const auto in_ps_ys_idx     = container_concat(in_ps_idx, in_idx_y);
-        const auto in_adaptor_coord = make_tensor_adaptor_coordinate(in_ps_ys_to_xs, in_ps_ys_idx);
-        const auto in_x_idx         = in_adaptor_coord.get_bottom_index();
-
-        const index_t in_offset = y_in_desc.calculate_offset(in_idx_y);
-
-        index_t out_offset = -1;
-
-        static_for<0, total_elems_out, 1>{}([&](auto i_out) {
-            if(out_offset >= 0)
-            {
-                return;
-            }
-
-            constexpr auto out_idx_y_seq = OutSFC_Y::get_index(i_out);
-
-            array<index_t, NDimYOut> out_idx_y{};
-            static_for<0, NDimYOut, 1>{}([&](auto iy) { out_idx_y(iy) = out_idx_y_seq[iy]; });
-
-            const auto out_ps_ys_idx = container_concat(out_ps_idx, out_idx_y);
-            const auto out_adaptor_coord =
-                make_tensor_adaptor_coordinate(out_ps_ys_to_xs, out_ps_ys_idx);
-            const auto out_x_idx = out_adaptor_coord.get_bottom_index();
-
-            bool same_x = true;
-            static_for<0, NDimXIn, 1>{}([&](auto ix) {
-                same_x = same_x && (in_x_idx[ix] == out_x_idx[ix]);
+    constexpr auto in_rank = [&] {
+        array<index_t, NDimYIn> rank{};
+        static_for<0, NDimYIn, 1>{}([&](auto d) {
+            index_t r = 0;
+            static_for<0, NDimYIn, 1>{}([&](auto e) {
+                constexpr bool less =
+                    (in_ys_rhs_major[e] < in_ys_rhs_major[d]) ||
+                    ((in_ys_rhs_major[e] == in_ys_rhs_major[d]) &&
+                     (in_ys_rhs_minor[e] < in_ys_rhs_minor[d])) ||
+                    ((in_ys_rhs_major[e] == in_ys_rhs_major[d]) &&
+                     (in_ys_rhs_minor[e] == in_ys_rhs_minor[d]) && (e < d));
+                if constexpr(less)
+                {
+                    ++r;
+                }
             });
+            rank(d) = r;
+        });
+        return rank;
+    }();
 
-            if(same_x)
-            {
-                out_offset = y_out_desc.calculate_offset(out_idx_y);
-            }
+    constexpr auto out_rank = [&] {
+        array<index_t, NDimYOut> rank{};
+        static_for<0, NDimYOut, 1>{}([&](auto d) {
+            index_t r = 0;
+            static_for<0, NDimYOut, 1>{}([&](auto e) {
+                constexpr bool less =
+                    (out_ys_rhs_major[e] < out_ys_rhs_major[d]) ||
+                    ((out_ys_rhs_major[e] == out_ys_rhs_major[d]) &&
+                     (out_ys_rhs_minor[e] < out_ys_rhs_minor[d])) ||
+                    ((out_ys_rhs_major[e] == out_ys_rhs_major[d]) &&
+                     (out_ys_rhs_minor[e] == out_ys_rhs_minor[d]) && (e < d));
+                if constexpr(less)
+                {
+                    ++r;
+                }
+            });
+            rank(d) = r;
+        });
+        return rank;
+    }();
+
+    constexpr auto in_order = [&] {
+        array<index_t, NDimYIn> order{};
+        static_for<0, NDimYIn, 1>{}([&](auto d) { order(in_rank[d]) = d; });
+        return order;
+    }();
+
+    constexpr auto out_order = [&] {
+        array<index_t, NDimYOut> order{};
+        static_for<0, NDimYOut, 1>{}([&](auto d) { order(out_rank[d]) = d; });
+        return order;
+    }();
+
+    constexpr auto y_in_lens = [&] {
+        array<index_t, NDimYIn> lens{};
+        static_for<0, NDimYIn, 1>{}([&](auto i) { lens(i) = y_in_lengths[i]; });
+        return lens;
+    }();
+
+    constexpr auto y_out_lens = [&] {
+        array<index_t, NDimYOut> lens{};
+        static_for<0, NDimYOut, 1>{}([&](auto i) { lens(i) = y_out_lengths[i]; });
+        return lens;
+    }();
+
+    static_for<0, total_elems_out, 1>{}([&](auto i_out) {
+        constexpr auto out_idx_y_seq = OutSFC_Y::get_index(i_out);
+
+        array<index_t, NDimYOut> out_idx_y{};
+        static_for<0, NDimYOut, 1>{}([&](auto iy) { out_idx_y(iy) = out_idx_y_seq[iy]; });
+
+        index_t linear = 0;
+        static_for<0, NDimYOut, 1>{}([&](auto k) {
+            const index_t y = out_order[k];
+            linear          = linear * y_out_lens[y] + out_idx_y[y];
         });
 
-        if(out_offset < 0)
-        {
-            out_offset = in_offset;
-        }
+        array<index_t, NDimYIn> in_idx_y{};
+        index_t remain = linear;
+        static_for<NDimYIn - 1, -1, -1>{}([&](auto k_rev) {
+            const index_t y = in_order[k_rev];
+            const index_t l = y_in_lens[y];
+            in_idx_y[y]     = remain % l;
+            remain /= l;
+        });
+
+        const index_t in_offset  = y_in_desc.calculate_offset(in_idx_y);
+        const index_t out_offset = y_out_desc.calculate_offset(out_idx_y);
 
         out_tensor.get_thread_buffer()[out_offset] =
             type_convert<OutputDataType>(trans_tensor.get_thread_buffer()[in_offset]);
