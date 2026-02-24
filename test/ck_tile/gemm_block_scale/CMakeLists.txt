@@ -190,6 +190,47 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_bquant_preshuffleQuant_prefill_2d PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
+    # BQuant microscale tests
+    add_gtest_executable(test_tile_gemm_quant_bquant_microscale_rcr_1d_64 
+        test_gemm_quant_bquant_microscale_rcr_1d_64.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_microscale_rcr_1d_64 PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_microscale_crr_1d_64 
+        test_gemm_quant_bquant_microscale_crr_1d_64.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_microscale_crr_1d_64 PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_microscale_rrr_1d_64 
+        test_gemm_quant_bquant_microscale_rrr_1d_64.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_microscale_rrr_1d_64 PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_microscale_ccr_1d_64 
+        test_gemm_quant_bquant_microscale_ccr_1d_64.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_microscale_ccr_1d_64 PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_microscale_rcr_1d_128 
+        test_gemm_quant_bquant_microscale_rcr_1d_128.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_microscale_rcr_1d_128 PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_microscale_crr_1d_128 
+        test_gemm_quant_bquant_microscale_crr_1d_128.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_microscale_crr_1d_128 PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_microscale_rrr_1d_128 
+        test_gemm_quant_bquant_microscale_rrr_1d_128.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_microscale_rrr_1d_128 PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
+    add_gtest_executable(test_tile_gemm_quant_bquant_microscale_ccr_1d_128 
+        test_gemm_quant_bquant_microscale_ccr_1d_128.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_bquant_microscale_ccr_1d_128 PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
     # RowColQuant tests
     add_gtest_executable(test_tile_gemm_quant_rowcol 
         test_gemm_quant_rowcol.cpp

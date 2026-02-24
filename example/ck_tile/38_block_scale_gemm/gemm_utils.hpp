@@ -45,7 +45,7 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
                          const float max_accumulated_value)
 {
     using ComputeType = std::conditional_t<
-        std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>,
+        std::is_same_v<BDataType, ck_tile::pk_fp4_t>,
         ADataType,
         std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>>;
     // Calculate thresholds
@@ -276,6 +276,24 @@ struct GemmConfigABQuantPrefill : public GemmConfigQuantPrefill<PrecType>
 {
     static constexpr bool kPadK      = false;
     static constexpr bool TransposeC = true;
+};
+
+// Used for A=16bit and B=8bit. The warp tile has KPack=16
+// Matrix A: Vectorsize =  8, KPack=16 -> LDS read/write vectorsize =  8 (128bit)
+// Matrix B: Vectorsize = 16, KPack=16 -> LDS read/write vectorsize = 16 (128bit)
+struct GemmConfigMixedPrecision : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 64;
 };
 
 template <typename PrecType>
