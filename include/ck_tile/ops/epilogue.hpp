@@ -1,8 +1,11 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
-
 #pragma once
 
+#include "ck_tile/ops/epilogue/chainer/common_epilogue_ops.hpp"
+#include "ck_tile/ops/epilogue/chainer/cshuffle_epilogue_chainer_ops.hpp"
+#include "ck_tile/ops/epilogue/chainer/cshuffle_epilogue_schedule.hpp"
+#include "ck_tile/ops/epilogue/chainer/epilogue_chainer.hpp"
 #include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
 #include "ck_tile/ops/epilogue/default_2d_and_dynamic_quant_epilogue.hpp"
 #include "ck_tile/ops/epilogue/default_2d_epilogue.hpp"

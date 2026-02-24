@@ -26,17 +26,26 @@ namespace ck_tile {
  *
  * @tparam BottomTensorView_        Class describing & holding device tensor memory.
  * @tparam WindowLengths_           Spatial sizes of windowed view on tensor.
- * @tparam StaticTileDistribution_  Thread distribution (mapping) into Tile dimensions
- * @tparam NumCoord                 TBD
+ * @tparam StaticTileDistribution_  Thread distribution (mapping) into Tile dimensions.
+ * @tparam StaticPageIndexArray_    Array type holding page indices for scatter/gather.
+ * @tparam StaticValidArray_        Array type holding validity flags (nullptr_t if unused).
+ * @tparam HsGatherDim              H-space dimension index used for gather lookup (default: 0).
+ * @tparam NumCoord                 Number of pre-computed coordinates for pipelining (default: 1).
+ * @tparam YsGatherDims             Sequence of Y-space dimension indices used for page lookup.
+ *                                  For single dimension: sequence<0> (default).
+ *                                  For multiple dimensions: sequence<dim0, dim1, ...> where
+ *                                  the combined index is computed as:
+ *                                  idx[dim0] + idx[dim1] * len[dim0] + idx[dim2] * len[dim0] *
+ * len[dim1] + ...
  */
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
           typename StaticPageIndexArray_,
           typename StaticValidArray_,
-          index_t HsGatherDim = 0,
-          index_t NumCoord    = 1,
-          index_t YsGatherDim = 0>
+          index_t HsGatherDim   = 0,
+          index_t NumCoord      = 1,
+          typename YsGatherDims = sequence<0>>
 struct tile_scatter_gather
 {
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
@@ -76,6 +85,75 @@ struct tile_scatter_gather
 
     using BottomTensorCoord =
         decltype(make_tensor_coordinate(BottomTensorDesc{}, BottomTensorIndex{}));
+
+    /**
+     * @brief Check if a given Y-space dimension index is a gather dimension.
+     *
+     * Gather dimensions are those specified in YsGatherDims template parameter.
+     * When computing forward_step_scatter, gather dimensions are set to 0
+     * because page offset lookup handles address calculation for these dimensions.
+     *
+     * @param i Y-space dimension index to check
+     * @return true if dimension i is in YsGatherDims, false otherwise
+     */
+    CK_TILE_DEVICE static constexpr bool is_gather_dim(index_t i)
+    {
+        return sequence_any_of(YsGatherDims{}, [i](auto k) { return i == k; });
+    }
+
+    /**
+     * @brief Compute the linearized gather index from Y-space indices for page lookup.
+     *
+     * This function converts multi-dimensional Y-space indices (specified by YsGatherDims)
+     * into a single linearized index used to look up the page offset in page_idx_ array.
+     *
+     * For single gather dimension (YsGatherDims::size() == 1):
+     *   Simply returns idx_ys_start[YsGatherDims::at(0)]
+     *
+     * For multiple gather dimensions (e.g., YsGatherDims = sequence<0, 2>):
+     *   Computes: idx[dim0] + idx[dim1] * len[dim0] + idx[dim2] * len[dim0] * len[dim1] + ...
+     *   This is row-major linearization where earlier dimensions are inner (faster-varying).
+     *
+     * @tparam YsIndex Type of the Y-space index tuple/array
+     * @param idx_ys_start Current Y-space indices from space-filling curve iteration
+     * @return Linearized index for page_idx_ array lookup
+     */
+    template <typename YsIndex>
+    CK_TILE_DEVICE static constexpr auto get_gather_index(const YsIndex& idx_ys_start)
+    {
+        // TODO: Consider making ys_lengths_ part of public API or adding accessor
+        static_assert(sizeof(TileDstr::DstrEncode::detail::ys_lengths_) > 0,
+                      "Relies on internal detail::ys_lengths_");
+
+        constexpr index_t num_gather_dims = YsGatherDims::size();
+
+        if constexpr(num_gather_dims == 1)
+        {
+            return idx_ys_start[number<YsGatherDims::at(0)>{}];
+        }
+        else
+        {
+            // Recursive lambda to compute index as a compile-time number
+            // Uses row-major linearization: idx[0] + idx[1] * len[0] + idx[2] * len[0] * len[1] +
+            // ...
+            auto recurse = [&](auto self, auto i_constant) {
+                constexpr index_t i   = decltype(i_constant)::value;
+                constexpr index_t dim = YsGatherDims::at(i);
+                auto current_val      = idx_ys_start[number<dim>{}];
+
+                if constexpr(i + 1 < num_gather_dims)
+                {
+                    constexpr index_t len = TileDstr::DstrEncode::detail::ys_lengths_[dim];
+                    return current_val + self(self, number<i + 1>{}) * number<len>{};
+                }
+                else
+                {
+                    return current_val;
+                }
+            };
+            return recurse(recurse, number<0>{});
+        }
+    }
 
     struct load_store_traits
     {
@@ -218,6 +296,44 @@ struct tile_scatter_gather
             pre_computed_coords_(iCoord) =
                 make_tuple(window_adaptor_thread_coord, bottom_tensor_thread_coord);
         });
+        if constexpr(BottomTensorView::buffer_view::get_address_space() ==
+                     address_space_enum::global)
+        {
+            auto partition_index = get_partition_index(tile_distribution);
+
+            auto use_lane_id_0                              = partition_index;
+            use_lane_id_0[1]                                = 0;
+            const auto window_adaptor_thread_coord_tmp_warp = make_tensor_adaptor_coordinate(
+                tile_distribution.get_ps_ys_to_xs_adaptor(),
+                container_concat(use_lane_id_0, array<index_t, NDimY>{0}));
+
+            BottomTensorIndex bottom_tensor_thread_origin_idx_tmp_warp =
+                window_origin + window_adaptor_thread_coord_tmp_warp.get_bottom_index();
+            bottom_tensor_thread_origin_idx_tmp_warp(HsGatherDim) = 0;
+            const auto bottom_tensor_thread_coord_tmp_warp =
+                make_tensor_coordinate(bottom_tensor_view_.get_tensor_descriptor(),
+                                       bottom_tensor_thread_origin_idx_tmp_warp);
+
+            // pre-compute NumCoord (WindowAdaptorCoord, BottomTensorCoord) bundles to speed up
+            // future load/store() calls (might allocate more registers)
+            static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+                auto window_adaptor_thread_coord = window_adaptor_thread_coord_tmp_warp;
+                auto bottom_tensor_thread_coord  = bottom_tensor_thread_coord_tmp_warp;
+
+                constexpr auto idx_diff_ys =
+                    SFC_Ys::get_step_between(number<0>{}, number<iCoord * NumAccessPerCoord>{});
+
+                constexpr auto idx_diff_ps_ys = container_concat(
+                    generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+                    idx_diff_ys);
+
+                move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                    window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+
+                pre_computed_warp_coords_(iCoord) =
+                    make_tuple(window_adaptor_thread_coord, bottom_tensor_thread_coord);
+            });
+        }
     }
 
     CK_TILE_DEVICE static constexpr index_t get_num_of_dimension() { return NDimBottomTensor; }
@@ -337,7 +453,7 @@ struct tile_scatter_gather
 
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_gather   = idx_ys_start[number<YsGatherDim>{}];
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
                 const auto page_offset      = page_idx_[idx_gather];
 
                 // read from bottom tensor
@@ -389,7 +505,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
                         number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
@@ -447,7 +563,7 @@ struct tile_scatter_gather
 
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_gather   = idx_ys_start[number<YsGatherDim>{}];
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
                 const auto page_offset      = page_idx_[idx_gather];
 
                 // merge page_offset into bottom_coord
@@ -475,7 +591,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
                         number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
@@ -533,7 +649,8 @@ struct tile_scatter_gather
             size_per_buf;
 
         const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
-        m0_set_with_memory(m0_init_value); // This should be wave independent
+        m0_set_with_memory(
+            amd_wave_read_first_lane(m0_init_value)); // This should be wave independent
 
         using Traits = load_store_traits;
 
@@ -559,7 +676,7 @@ struct tile_scatter_gather
                 }();
 
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_gather   = idx_ys_start[number<YsGatherDim>{}];
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
                 const auto page_offset      = page_idx_[idx_gather];
 
                 // read from bottom tensor
@@ -585,7 +702,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
                         number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
@@ -596,6 +713,135 @@ struct tile_scatter_gather
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
 
                     m0_inc_with_memory(size_per_issue);
+                }
+            });
+        });
+    }
+
+    // TODO: fix with swizzle
+    template <typename LdsTileWindow_,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true,
+              bool static_move_ys         = false,
+              typename = std::enable_if_t<std::is_class_v<remove_cvref_t<LdsTileWindow_>>>>
+    CK_TILE_DEVICE void async_load_with_offset(index_t offset,
+                                               LdsTileWindow_&& lds_tile,
+                                               number<i_access_unsupport_>          = {},
+                                               bool_constant<oob_conditional_check> = {},
+                                               bool_constant<static_move_ys>        = {}) const
+    {
+        using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
+        using LdsDataType   = typename LdsTileWindow::DataType;
+
+        using Traits = load_store_traits;
+
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
+
+        // Precompute invariant values outside loops
+        const auto window_origin       = lds_tile.get_window_origin();
+        const auto& bottom_tensor_view = lds_tile.get_bottom_tensor_view();
+        const auto& tensor_descriptor  = bottom_tensor_view.get_tensor_descriptor();
+        auto lds_base_ptr              = bottom_tensor_view.get_buffer_view().p_data_;
+
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+
+            auto window_adaptor_warp_coord = pre_computed_warp_coords_[iCoord][I0];
+            auto bottom_tensor_warp_coord  = pre_computed_warp_coords_[iCoord][I1];
+
+            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+
+                constexpr auto idx_ys_offset = [&]() {
+                    constexpr auto idx_off_ys = SFC_Ys::get_step_between(number<0>{}, iAccess);
+                    constexpr auto adapter_ys_offset = make_tensor_adaptor_coordinate(
+                        StaticTileDistribution_{}.get_ps_ys_to_xs_adaptor(),
+                        container_concat(array<index_t, NDimP>{0},
+                                         to_array<index_t, idx_off_ys.size()>(idx_off_ys)));
+                    return adapter_ys_offset.get_bottom_index();
+                }();
+                const auto lds_ys_offset = [&]() {
+                    if constexpr(static_move_ys)
+                    {
+                        const auto coord_ys_offset =
+                            make_tensor_coordinate(tensor_descriptor, idx_ys_offset);
+                        return coord_ys_offset.get_offset();
+                    }
+                    else
+                        return 0;
+                }();
+
+                // Use precomputed window origin & tensor descriptor
+                auto lds_bottom_tensor_thread_idx =
+                    window_origin + window_adaptor_warp_coord.get_bottom_index();
+                const auto lds_coord =
+                    make_tensor_coordinate(tensor_descriptor, lds_bottom_tensor_thread_idx);
+
+                // Calculate SMEM address using base pointer
+                CK_TILE_LDS_ADDR LdsDataType* smem = lds_base_ptr +
+                                                     lds_coord.get_offset() / Traits::PackedSize +
+                                                     lds_ys_offset / Traits::PackedSize;
+
+                const auto dram_ys_offset = [&]() {
+                    if constexpr(static_move_ys)
+                    {
+                        const auto coord_ys_offset = make_tensor_coordinate(
+                            this->get_bottom_tensor_view().get_tensor_descriptor(), idx_ys_offset);
+                        return coord_ys_offset.get_offset();
+                    }
+                    else
+                        return 0;
+                }();
+
+                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
+                const auto page_offset      = page_idx_[idx_gather];
+
+                auto mixed_bottom_thread_coord = bottom_tensor_thread_coord;
+                mixed_bottom_thread_coord.get_hidden_index()[number<0>{}] += page_offset;
+
+                if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
+                {
+                    this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
+                        smem,
+                        mixed_bottom_thread_coord,
+                        offset + dram_ys_offset,
+                        bool_constant<oob_conditional_check>{});
+                }
+                else
+                {
+                    this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
+                        smem,
+                        mixed_bottom_thread_coord,
+                        offset + dram_ys_offset,
+                        valids_[idx_gather],
+                        bool_constant<oob_conditional_check>{});
+                }
+
+                // Move thread coordinate if not last access
+                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+                {
+                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+                    constexpr auto forward_step_scatter = generate_tuple(
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
+                        number<NDimY>{});
+
+                    constexpr auto idx_diff_ps_ys = container_concat(
+                        generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+                        forward_step_scatter);
+
+                    if constexpr(!static_move_ys)
+                        move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                            window_adaptor_thread_coord,
+                            bottom_tensor_thread_coord,
+                            idx_diff_ps_ys);
+
+                    if constexpr(!static_move_ys)
+                        move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                            window_adaptor_warp_coord, bottom_tensor_warp_coord, idx_diff_ps_ys);
                 }
             });
         });
@@ -623,7 +869,7 @@ struct tile_scatter_gather
 
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_gather   = idx_ys_start[number<0>{}];
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
                 const auto page_offset      = page_idx_[idx_gather];
 
                 // read from distributed tensor
@@ -669,7 +915,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
                         number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
@@ -706,11 +952,11 @@ struct tile_scatter_gather
 
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
-                constexpr auto idx_gather   = idx_ys_start[number<0>{}];
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
                 const auto page_offset      = page_idx_[idx_gather];
 
                 // printf("idx_ys_start[0], idx_ys_start[1](%d, %d) \n",
-                // idx_ys_start[number<0>{}]+0, idx_ys_start[number<1>{}]+0);
+                // get_gather_index(idx_ys_start)+0, idx_ys_start[number<1>{}]+0);
 
                 // read from distributed tensor
                 // vector_type_t vec;
@@ -760,7 +1006,7 @@ struct tile_scatter_gather
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 
                     constexpr auto forward_step_scatter = generate_tuple(
-                        [&](auto i) { return i == YsGatherDim ? 0 : idx_diff_ys[i]; },
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
                         number<NDimY>{});
 
                     constexpr auto idx_diff_ps_ys = container_concat(
@@ -787,6 +1033,15 @@ struct tile_scatter_gather
                                    pre_computed_coords_(iCoord)(I1),
                                    step_new);
         });
+        if constexpr(BottomTensorView::buffer_view::get_address_space() ==
+                     address_space_enum::global)
+        {
+            static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+                move_tensor_coordinate(bottom_tensor_view_.get_tensor_descriptor(),
+                                       pre_computed_warp_coords_(iCoord)(I1),
+                                       step_new);
+            });
+        }
     }
 
     CK_TILE_DEVICE void update_page_idx(const PageIdxArray& new_idx) { page_idx_ = new_idx; }
@@ -891,9 +1146,61 @@ struct tile_scatter_gather
     //   per-thread coordinate for window adaptor
     //   per-thread coordinate for bottom tensor
     array<tuple<WindowAdaptorCoord, BottomTensorCoord>, NumCoord> pre_computed_coords_;
+    std::conditional_t<BottomTensorView::buffer_view::get_address_space() ==
+                           address_space_enum::global,
+                       array<tuple<WindowAdaptorCoord, BottomTensorCoord>, NumCoord>,
+                       std::byte>
+        pre_computed_warp_coords_;
 };
 
 // TODO: use strategy
+/**
+ * @brief Factory function to create tile_scatter_gather with multi-dimensional gather support.
+ *
+ * This overload accepts a sequence<YsGatherDims...> to specify multiple Y-space dimensions
+ * for page lookup. Use this when the tile distribution decomposes the paged dimension
+ * into multiple Y-space dimensions (e.g., VECTORIZED_LAYOUT V tensor with K decomposition
+ * {K2, K0, K1} where both Y0 and Y2 contribute to page index).
+ *
+ * @tparam HsGatherDim      H-space dimension for gather
+ * @tparam NumCoord         Number of pre-computed coordinates
+ * @tparam YsGatherDims     Parameter pack specifying which Y-dimensions are used for page lookup
+ *
+ * @param tensor_view       The underlying tensor view for device memory access
+ * @param window_lengths    Static window sizes for each dimension
+ * @param origin            Window origin coordinates on the bottom tensor
+ * @param tile_distribution Thread-to-tile mapping distribution
+ * @param page_idx          Array of page offsets (in bytes) for scatter/gather
+ */
+template <typename TensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_,
+          typename StaticPageIndexArray_,
+          index_t HsGatherDim,
+          index_t NumCoord,
+          index_t... YsGatherDims>
+CK_TILE_DEVICE constexpr auto
+make_tile_scatter_gather(const TensorView_& tensor_view,
+                         const WindowLengths_& window_lengths,
+                         const multi_index<TensorView_::get_num_of_dimension()>& origin,
+                         const StaticTileDistribution_& tile_distribution,
+                         const StaticPageIndexArray_& page_idx,
+                         number<HsGatherDim>,
+                         number<NumCoord>,
+                         sequence<YsGatherDims...>)
+{
+    return tile_scatter_gather<remove_cvref_t<TensorView_>,
+                               remove_cvref_t<WindowLengths_>,
+                               remove_cvref_t<StaticTileDistribution_>,
+                               remove_cvref_t<StaticPageIndexArray_>,
+                               std::nullptr_t,
+                               HsGatherDim,
+                               NumCoord,
+                               sequence<YsGatherDims...>>{
+        tensor_view, window_lengths, origin, tile_distribution, page_idx, nullptr};
+}
+
+// Legacy overload (compatible with original API)
 template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
@@ -915,7 +1222,8 @@ make_tile_scatter_gather(const TensorView_& tensor_view,
                                remove_cvref_t<StaticPageIndexArray_>,
                                std::nullptr_t,
                                HsGatherDim,
-                               NumCoord>{
+                               NumCoord,
+                               sequence<0>>{
         tensor_view, window_lengths, origin, tile_distribution, page_idx, nullptr};
 }
 

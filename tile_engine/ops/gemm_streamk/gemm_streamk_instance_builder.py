@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 
 import os
 import json
@@ -304,6 +307,7 @@ class GemmKernelBuilder:
             "fp16": "ck_tile::fp16_t",
             "fp8": "ck_tile::fp8_t",
             "bf16": "ck_tile::bf16_t",
+            "bf8": "ck_tile::bf8_t",
             "fp32": "float",
             "fp64": "double",
         }
@@ -372,7 +376,8 @@ class GemmKernelBuilder:
 
         reduction_strategy_map = {
             "atomic": "ck_tile::StreamKReductionStrategy::Atomic",
-            "reduction": "ck_tile::StreamKReductionStrategy::Reduction",
+            "linear": "ck_tile::StreamKReductionStrategy::Linear",
+            "tree": "ck_tile::StreamKReductionStrategy::Tree",
         }
 
         # Determine accumulator type based on datatype
@@ -444,7 +449,7 @@ struct SelectedKernel {{
     static constexpr bool UsePersistentKernel = {"true" if str(persistent).lower() == "true" else "false"};
     static constexpr bool UseStructuredSparsity = false;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr ck_tile::StreamKReductionStrategy reduction_strategy = {reduction_strategy_map.get(reduction_strategy, "ck_tile::StreamKReductionStrategy::Reduction")};
+    static constexpr ck_tile::StreamKReductionStrategy reduction_strategy = {reduction_strategy_map.get(reduction_strategy, "ck_tile::StreamKReductionStrategy::Linear")};
 
     // Tile shape
     using TileShape = ck_tile::TileGemmShape<
@@ -476,10 +481,9 @@ struct SelectedKernel {{
         AccDataType,
         TileShape,
         GemmUniversalTraits>;
-    
-    static float launch(const ck_tile::StreamKHostArgs& args, const ck_tile::stream_config& stream) {{
-        const auto Run = [&](const auto memory_operation_) {{
-            constexpr auto memory_operation = memory_operation_.value;
+
+    static std::tuple<float, ck_tile::index_t> launch(const ck_tile::StreamKHostArgs& args,
+                                                      const ck_tile::stream_config& stream) {{
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
 
             using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
@@ -509,7 +513,6 @@ struct SelectedKernel {{
                 WarpTileN,                   // NPerXdl_
                 WarpTileK,                   // KPerXdl_
                 TransposeC,                  // isCTransposed_
-                memory_operation,            // MemoryOperation_
                 NumWaveGroups>;              // kNumWaveGroups_
         
             using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
@@ -549,36 +552,27 @@ struct SelectedKernel {{
                     hipGetErrorString(hipMemsetAsync(
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
                 }}
-                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction)
+                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Linear)
+                {{
+                    // Reset sk flags to zero before each repetition of the kernel
+                    workspace_data.SetZero();
+                }}
+                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Tree)
                 {{
                     // Reset sk flags to zero before each repetition of the kernel
                     workspace_data.SetZero();
                 }}
             }};
 
-            
+            const ck_tile::index_t num_wgs_per_tile = kargs.tile_partitioner.estimate_num_wgs_per_tile();
+     
             // Launch kernel
-            float ave_time = ck_tile::launch_kernel_time_mask(
+            const float time = ck_tile::launch_kernel_time_mask(
                 stream,
                 reset_data_buffers,
                 ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
-            return ave_time;
             
-            // ck_tile::index_t num_wgs_per_tile = kargs.tile_partitioner.estimate_num_wgs_per_tile();
-            // return std::make_tuple(ave_time, num_wgs_per_tile);
-        }};
-
-
-        if constexpr(ck_tile::StreamKReductionStrategy::Atomic == reduction_strategy)
-        {{
-            return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                                  ck_tile::memory_operation_enum::atomic_add>{{}});
-        }}
-        else // We are using ck_tile::StreamKReductionStrategy::Reduction
-        {{
-            return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                                  ck_tile::memory_operation_enum::set>{{}});
-        }}
+            return std::tuple<float, ck_tile::index_t>{{time, num_wgs_per_tile}};
     }}
 }};
 """
@@ -794,7 +788,7 @@ def main():
     parser.add_argument(
         "--datatype",
         required=True,
-        choices=["fp16", "fp8", "bf16", "fp32", "fp64"],
+        choices=["fp16", "fp8", "bf16", "bf8", "fp32", "fp64"],
         help="Data type",
     )
     parser.add_argument(

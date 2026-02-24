@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 cmake_minimum_required(VERSION 3.16)
 project(composable_kernel_host)
 
@@ -12,6 +15,7 @@ configure_file(${CK_ROOT}/include/ck/config.h.in ${CK_ROOT}/include/ck/config.h)
 find_package(ROCM)
 include(ROCMInstallTargets)
 include(ROCMTest)
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm $ENV{ROCM_PATH})
 find_package(hiprtc REQUIRED)
 
 rocm_setup_version(VERSION 1.0)

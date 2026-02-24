@@ -19,7 +19,7 @@ template <typename TensorLengths,
 struct space_filling_curve
 {
     static constexpr index_t TensorSize =
-        reduce_on_sequence(TensorLengths{}, multiplies{}, number<1>{});
+        reduce_on_sequence(TensorLengths{}, multiplies<>{}, number<1>{});
     static_assert(0 < TensorSize,
                   "space_filling_curve should be used to access a non-empty tensor");
 
@@ -28,7 +28,7 @@ struct space_filling_curve
     using Index = multi_index<nDim>;
 
     static constexpr index_t ScalarPerVector =
-        reduce_on_sequence(ScalarsPerAccess{}, multiplies{}, number<1>{});
+        reduce_on_sequence(ScalarsPerAccess{}, multiplies<>{}, number<1>{});
 
     static constexpr auto access_lengths   = TensorLengths{} / ScalarsPerAccess{};
     static constexpr auto dim_access_order = DimAccessOrder{};
@@ -49,7 +49,7 @@ struct space_filling_curve
         static_assert(TensorLengths{} % ScalarsPerAccess{} ==
                       typename uniform_sequence_gen<TensorLengths::size(), 0>::type{});
 
-        return reduce_on_sequence(TensorLengths{}, multiplies{}, number<1>{}) / ScalarPerVector;
+        return reduce_on_sequence(TensorLengths{}, multiplies<>{}, number<1>{}) / ScalarPerVector;
     }
 
     template <index_t AccessIdx1dHead, index_t AccessIdx1dTail>
@@ -94,7 +94,7 @@ struct space_filling_curve
 #else
 
         constexpr auto access_strides =
-            container_reverse_exclusive_scan(ordered_access_lengths, multiplies{}, number<1>{});
+            container_reverse_exclusive_scan(ordered_access_lengths, multiplies<>{}, number<1>{});
 
         constexpr auto idx_1d = number<AccessIdx1d>{};
         // Given tensor strides \p access_lengths, and 1D index of space-filling-curve, compute the

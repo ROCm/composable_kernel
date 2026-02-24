@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,6 +16,9 @@
 
 // Data types and Layouts are defined by the generated kernel headers
 // No hardcoded type definitions here to avoid conflicts
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 
 enum class Metric
 {
@@ -199,3 +202,4 @@ void gemm_host_reference(int verify,
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_host_result.data());
     }
 }
+#pragma clang diagnostic pop

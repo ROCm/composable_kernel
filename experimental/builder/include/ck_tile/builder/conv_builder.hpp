@@ -6,7 +6,7 @@
 #include <concepts>
 #include <type_traits>
 
-#include "ck_tile/builder/conv_factory.hpp"
+#include "ck_tile/builder/factory/conv_dispatcher.hpp"
 #include "ck_tile/builder/versions.hpp"
 
 namespace ck_tile::builder {
@@ -15,7 +15,7 @@ namespace ck_tile::builder {
  * @brief Top-level builder for creating convolution kernel instances.
  *
  * This struct serves as the main entry point for generating a convolution kernel.
- * It uses a factory pattern based on the provided signature, algorithm, and version
+ * It uses a dispatcher function based on the provided signature, algorithm, and version
  * to construct the appropriate kernel instance.
  *
  * @tparam SIGNATURE The convolution signature, which describes the mathematical functionality of
@@ -30,9 +30,8 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvBuilder
 {
     static constexpr auto kVersion = VERSION;
-    using Factory                  = ConvFactory<SIGNATURE, ALGORITHM, VERSION>;
-    // Output: The kernel class.
-    using Instance = Factory::Instance;
+    // Output: The kernel class instance created via the dispatcher.
+    using Instance = decltype(factory::make_conv_instance<SIGNATURE, ALGORITHM, VERSION>());
 };
 
 } // namespace ck_tile::builder

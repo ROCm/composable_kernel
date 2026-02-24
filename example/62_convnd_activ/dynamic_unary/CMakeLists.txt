@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 add_custom_target(example_convnd_activ_dynamic_unary_xdl)
 # Sigmoid
 add_example_executable(example_convnd_fwd_xdl_dynamic_sigmoid_fp16 convnd_fwd_xdl_dynamic_sigmoid_fp16.cpp)
@@ -35,3 +38,9 @@ add_example_dependencies(example_convnd_activ_dynamic_unary_xdl example_convnd_f
 # Logistic
 add_example_executable(example_convnd_fwd_xdl_dynamic_logistic_fp16 convnd_fwd_xdl_dynamic_logistic_fp16.cpp)
 add_example_dependencies(example_convnd_activ_dynamic_unary_xdl example_convnd_fwd_xdl_dynamic_logistic_fp16)
+
+# WMMA
+add_custom_target(example_convnd_activ_dynamic_unary_wmma)
+# PassThrough
+add_example_executable(example_convnd_fwd_wmma_dynamic_passthrough_fp16 convnd_fwd_wmma_dynamic_passthrough_fp16.cpp)
+add_example_dependencies(example_convnd_activ_dynamic_unary_wmma example_convnd_fwd_wmma_dynamic_passthrough_fp16)

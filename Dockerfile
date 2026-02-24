@@ -1,7 +1,7 @@
 
 FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
-ARG ROCMVERSION=7.0.1
+ARG ROCMVERSION=7.1.1
 ARG compiler_version=""
 ARG compiler_commit=""
 ARG CK_SCCACHE=""
@@ -13,8 +13,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN set -xe && \
     apt-get update && apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl
 
-RUN wget https://repo.radeon.com/amdgpu-install/7.0.1/ubuntu/noble/amdgpu-install_7.0.1.70001-1_all.deb && \
-    apt install ./amdgpu-install_7.0.1.70001-1_all.deb -y && \
+RUN wget https://repo.radeon.com/amdgpu-install/7.1.1/ubuntu/noble/amdgpu-install_7.1.1.70101-1_all.deb && \
+    apt install ./amdgpu-install_7.1.1.70101-1_all.deb -y && \
     apt update && \
     apt install python3-setuptools python3-wheel -y && \
     apt install rocm-dev -y

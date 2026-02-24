@@ -277,7 +277,7 @@ struct tile_window_linear
     {
         constexpr auto linear_coord = get_bottom_linear_coordinate(number<i_access>{});
         constexpr auto is_pure_linear_tensor =
-            reduce_on_sequence(LinearBottomDims{}, multiplies{}, number<1>{});
+            reduce_on_sequence(LinearBottomDims{}, multiplies<>{}, number<1>{});
         if constexpr(is_pure_linear_tensor)
         {
             // this case usually is a LDS window, everything is known at compile tile.
@@ -517,7 +517,8 @@ struct tile_window_linear
             size_per_buf;
 
         const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
-        m0_set_with_memory(m0_init_value); // This should be wave independent
+        m0_set_with_memory(
+            amd_wave_read_first_lane(m0_init_value)); // This should be wave independent
 
         using vector_t = typename Base::Traits::vector_t;
 

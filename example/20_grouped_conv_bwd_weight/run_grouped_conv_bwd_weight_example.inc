@@ -5,7 +5,7 @@ template <ck::index_t NDimSpatial>
 bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_param)
 {
-    // Dl and WMMA ops don't support split_k > 1
+    // Dl ops don't support split_k > 1
     constexpr ck::index_t split_k = 1;
 
     const auto in_g_n_c_wis_desc =
@@ -106,8 +106,11 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
 
     invoker.Run(argument, StreamConfig{nullptr, false});
 
-    if(config.do_verification)
+    std::cout << "do_verification = " << config.do_verification << std::endl;
+
+    if(config.do_verification == 1)
     {
+        // CPU verification
         auto ref_conv     = HostConvBwdWeightInstance<NDimSpatial>{};
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in,
@@ -128,7 +131,74 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
 
         wei_device_buf.FromDevice(wei_device_result.mData.data());
 
-        return ck::utils::check_err(wei_device_result.mData, wei_host_result.mData);
+        float max_accumulated_value =
+            *std::max_element(wei_host_result.mData.begin(), wei_host_result.mData.end());
+
+        const ck::index_t num_accums         = out.GetElementSize() / conv_param.K_;
+        const ck::index_t num_accums_split_k = split_k;
+        double rtol = ck::utils::get_relative_threshold<InDataType, WeiDataType, AccDataType>(
+            num_accums / num_accums_split_k);
+        double atol = ck::utils::get_absolute_threshold<InDataType, WeiDataType, AccDataType>(
+            max_accumulated_value / num_accums_split_k, num_accums / num_accums_split_k);
+
+        return ck::utils::check_err(wei_device_result.mData,
+                                    wei_host_result.mData,
+                                    "Error: Incorrect results!",
+                                    rtol,
+                                    atol);
+    }
+    else if(config.do_verification == 2)
+    {
+        // GPU verification using naive GPU reference
+        std::cout << "Running GPU verification..." << std::endl;
+
+        // Allocate and ZERO GPU memory for reference weights
+        DeviceMem wei_device_ref_buf(sizeof(WeiDataType) *
+                                     wei_device_result.mDesc.GetElementSpaceSize());
+        wei_device_ref_buf.SetZero();
+
+        // Call GPU reference function with ConvParam and layout types
+        using InLayout  = InputLayout<NDimSpatial>;
+        using WeiLayout = WeightLayout<NDimSpatial>;
+        using OutLayout = OutputLayout<NDimSpatial>;
+
+        ck::ref::naive_conv_bwd_weight<InLayout,
+                                       WeiLayout,
+                                       OutLayout,
+                                       InDataType,
+                                       WeiDataType,
+                                       OutDataType,
+                                       InElementOp,
+                                       WeiElementOp,
+                                       OutElementOp>(
+            reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<WeiDataType*>(wei_device_ref_buf.GetDeviceBuffer()),
+            reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
+            conv_param);
+
+        HIP_CHECK_ERROR(hipDeviceSynchronize());
+
+        std::cout << "GPU reference function completed successfully, copying results..."
+                  << std::endl;
+
+        // Copy GPU reference result to host
+        wei_device_ref_buf.FromDevice(wei_host_result.mData.data());
+
+        // Copy GPU kernel result to host
+        wei_device_buf.FromDevice(wei_device_result.mData.data());
+
+        std::cout << "Comparing GPU kernel output vs GPU reference..." << std::endl;
+
+        // Compare: Optimized kernel result vs GPU reference result
+        bool pass = ck::utils::check_err(wei_device_result.mData,
+                                         wei_host_result.mData,
+                                         "Error: Incorrect results!",
+                                         get_rtol<WeiDataType, float>(),
+                                         get_atol<WeiDataType, float>());
+
+        std::cout << "GPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
+
+        return pass;
     }
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});

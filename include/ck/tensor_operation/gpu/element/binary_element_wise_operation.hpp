@@ -348,9 +348,7 @@ struct Bilinear
     __host__ __device__ constexpr void
     operator()<bhalf_t, float, bhalf_t>(bhalf_t& y, const float& x0, const bhalf_t& x1) const
     {
-        const float x1_tmp = ck::type_convert<float>(x1);
-        const float y_tmp  = alpha_ * x0 + beta_ * x1_tmp;
-        y                  = y_tmp;
+        y = type_convert<bhalf_t>(alpha_ * x0 + beta_ * ck::type_convert<float>(x1));
     };
 
     template <>

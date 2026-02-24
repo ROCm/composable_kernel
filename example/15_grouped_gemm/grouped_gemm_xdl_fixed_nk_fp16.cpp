@@ -291,6 +291,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         }
     }
 
+    std::cout << "Verification: " << (pass ? "SUCCESS" : "FAILURE") << "!" << std::endl;
     return pass;
 }
 
@@ -329,7 +330,7 @@ int main(int argc, char* argv[])
 
     for(int i = 0; i < problem_size.group_count; i++)
     {
-        problem_size.Ms.push_back(128 + rand() % 128);
+        problem_size.Ms.push_back(128 + i * 128);
         problem_size.Ns.push_back(1024);
         problem_size.Ks.push_back(1024);
 

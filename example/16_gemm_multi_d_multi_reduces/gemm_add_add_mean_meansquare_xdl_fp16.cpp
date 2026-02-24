@@ -268,7 +268,7 @@ int main()
         pass &= ck::utils::check_err(r1_m, r1_m_host, "Error: Incorrect results d1", 1e-2, 1e-2);
     }
 
-    bool time_kernel = true;
+    bool time_kernel = false;
     if(time_kernel)
     {
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});

@@ -71,12 +71,18 @@ template <index_t NDimSpatial,
           ck::BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename AComputeDataType,
           typename BComputeDataType,
-          bool DirectLoad>
+          bool DirectLoad,
+          index_t NumGroupsToMerge>
 struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
 
 } // namespace ck::tensor_operation::device
 
 namespace ck_tile::reflect {
+
+/// @brief Tag type for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 device kernel
+struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Tag
+{
+};
 
 // Specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 template <ck::index_t NDimSpatial,
@@ -127,7 +133,8 @@ template <ck::index_t NDimSpatial,
           ck::BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename AComputeDataType_,
           typename BComputeDataType_,
-          bool DirectLoad>
+          bool DirectLoad,
+          index_t NumGroupsToMerge>
 struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
     NDimSpatial,
     ALayout_,
@@ -177,8 +184,12 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
     BlkGemmPipelineVer,
     AComputeDataType_,
     BComputeDataType_,
-    DirectLoad>>
+    DirectLoad,
+    NumGroupsToMerge>>
 {
+    /// @brief Tag type identifying this device kernel variant
+    using device_kernel_tag = DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Tag;
+
     // Spatial dimension
     static constexpr int kSpatialDim = NDimSpatial;
 
@@ -262,6 +273,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
 
     static constexpr bool kDirectLoad = DirectLoad;
 
+    static constexpr int kNumGroupsToMerge = NumGroupsToMerge;
+
     // Static member function to generate instance string
     static std::string instance_string()
     {
@@ -316,7 +329,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
         oss << "," << kABlockTransferSrcScalarPerVector; // 31. ABlockTransferSrcScalarPerVector
         oss << ","
             << kABlockTransferDstScalarPerVectorK1; // 32. ABlockTransferDstScalarPerVector_AK1
-        oss << "," << kABlockLdsExtraM;             // 33. ABlockLdsExtraM
+        oss << "," << (kABlockLdsExtraM ? "true" : "false"); // 33. ABlockLdsExtraM
         oss << ","
             << detail::array_to_string(
                    kBThreadClusterLengths); // 34. BBlockTransferThreadClusterLengths
@@ -329,10 +342,10 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
         oss << "," << kBBlockTransferSrcVectorDim;       // 37. BBlockTransferSrcVectorDim
         oss << "," << kBBlockTransferSrcScalarPerVector; // 38. BBlockTransferSrcScalarPerVector
         oss << ","
-            << kBBlockTransferDstScalarPerVectorK1;   // 39. BBlockTransferDstScalarPerVector_BK1
-        oss << "," << kBBlockLdsExtraN;               // 40. BBlockLdsExtraN
-        oss << "," << kCShuffleMXdlPerWavePerShuffle; // 41. CShuffleMXdlPerWavePerShuffle
-        oss << "," << kCShuffleNXdlPerWavePerShuffle; // 42. CShuffleNXdlPerWavePerShuffle
+            << kBBlockTransferDstScalarPerVectorK1; // 39. BBlockTransferDstScalarPerVector_BK1
+        oss << "," << (kBBlockLdsExtraN ? "true" : "false"); // 40. BBlockLdsExtraN
+        oss << "," << kCShuffleMXdlPerWavePerShuffle;        // 41. CShuffleMXdlPerWavePerShuffle
+        oss << "," << kCShuffleNXdlPerWavePerShuffle;        // 42. CShuffleNXdlPerWavePerShuffle
         oss << ","
             << detail::array_to_string(
                    kCThreadClusterLengths); // 43. CDEBlockTransferClusterLengths
@@ -343,6 +356,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
         oss << "," << detail::type_name<AComputeDataType>();               // 47. AComputeDataType
         oss << "," << detail::type_name<BComputeDataType>();               // 48. BComputeDataType
         oss << "," << (DirectLoad ? "true" : "false");                     // 49. DirectLoad
+        oss << "," << kNumGroupsToMerge;                                   // 50. NumGroupsToMerge
         oss << ">";
 
         return oss.str();

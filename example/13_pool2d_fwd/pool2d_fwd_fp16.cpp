@@ -53,7 +53,7 @@ int main(int argc, char* argv[])
     {
         do_verification = true;
         init_method     = 1;
-        time_kernel     = true;
+        time_kernel     = false;
     }
     else if(argc == 4)
     {

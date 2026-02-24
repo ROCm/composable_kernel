@@ -1,11 +1,14 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
-
 #pragma once
 
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce2d.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce2d_problem.hpp"
+#include "ck_tile/ops/reduce/kernel/multi_reduce2d_kernel.hpp"
+#include "ck_tile/ops/reduce/kernel/multi_reduce2d_multiblock_kernel.hpp"
+#include "ck_tile/ops/reduce/kernel/multi_reduce2d_threadwise_kernel.hpp"
+#include "ck_tile/ops/reduce/kernel/multi_reduce2d_tile_partitioner.hpp"
 #include "ck_tile/ops/reduce/kernel/reduce2d_kernel.hpp"
 #include "ck_tile/ops/reduce/pipeline/reduce2d_default_policy.hpp"
 #include "ck_tile/ops/reduce/pipeline/reduce2d_problem.hpp"

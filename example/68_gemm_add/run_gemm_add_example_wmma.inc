@@ -6,6 +6,7 @@
 bool run_gemm_add(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
     using namespace ck::literals;
+    using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
     auto& [M, N, K, StrideA, StrideB, StrideD, StrideE] = problem_size;
 
@@ -13,11 +14,11 @@ bool run_gemm_add(const ProblemSize& problem_size, const ExecutionConfig& config
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, Bypass{});
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, Bypass{});
             }
         };
 

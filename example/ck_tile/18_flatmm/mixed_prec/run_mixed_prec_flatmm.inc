@@ -85,8 +85,9 @@ int run_mixed_prec_flatmm_with_layouts(int argc,
     c_rslt_host.SetZero();
     scale_b_dev_buf.ToDevice(scale_b_shuffle.data());
 
-    auto scale_b_dev_ptr = ck_tile::FlatmmScalePointer<DequantGranularityN, DequantGranularityK>{
-        static_cast<float*>(scale_b_dev_buf.GetDeviceBuffer()), N / DequantGranularityN};
+    auto scale_b_dev_ptr =
+        ck_tile::FlatmmScalePointer<DequantGranularityN, DequantGranularityK, ScaleType>{
+            static_cast<ScaleType*>(scale_b_dev_buf.GetDeviceBuffer()), N / DequantGranularityN};
 
     invoke_mixed_prec_flatmm<FlatmmConfig,
                              ADataType,

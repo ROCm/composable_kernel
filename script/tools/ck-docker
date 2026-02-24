@@ -1,0 +1,231 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK Docker Tool - Build and test composable_kernel in Docker with ROCm support
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(get_project_root "${SCRIPT_DIR}")
+CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
+
+# Help message
+show_help() {
+    cat << EOF
+CK Docker Tool - Build and test composable_kernel in Docker
+
+Usage: ck-docker <command> [options]
+
+Container Management:
+  start [name]            Start Docker container
+  stop [name]             Stop and remove container
+  status [name]           Check container status
+  shell [name]            Open shell in container
+
+Build/Test (delegates to core tools inside container):
+  configure [opts]        Run ck-configure in container
+  build [opts]            Run ck-build in container
+  test [opts]             Run ck-test in container
+  exec <cmd>              Run arbitrary command in container
+
+Examples:
+  ck-docker start
+  ck-docker configure --preset dev-gfx950
+  ck-docker build test_amdgcn_mma
+  ck-docker test test_amdgcn_mma --filter '*Fp16*'
+  ck-docker shell
+  ck-docker exec rocminfo
+
+Environment:
+  CK_CONTAINER_NAME - Override default container name (default: ck_<username>_<branch>)
+  CK_DOCKER_IMAGE   - Override Docker image (default: rocm/composable_kernel:ck_ub24.04_rocm7.0.1)
+EOF
+}
+
+# Start container
+cmd_start() {
+    local name="${1:-${CONTAINER_NAME}}"
+    local docker_image=$(get_docker_image)
+
+    # Check if container exists and is running
+    if container_exists "${name}"; then
+        if container_is_running "${name}"; then
+            echo "Container '${name}' is already running"
+            return 0
+        else
+            echo "Starting existing container '${name}'..."
+            docker start "${name}"
+            echo "Container started"
+            return 0
+        fi
+    fi
+
+    echo "Creating new Docker container '${name}'..."
+    docker run -d \
+        --name "${name}" \
+        --device=/dev/kfd --device=/dev/dri \
+        --security-opt seccomp=unconfined \
+        --group-add video \
+        -v "${PROJECT_ROOT}":/workspace \
+        -w /workspace \
+        "${docker_image}" \
+        tail -f /dev/null
+
+    echo "Container '${name}' started successfully"
+    docker exec "${name}" bash -c "echo 'Working directory:' && pwd"
+}
+
+# Configure (delegate to ck-configure in container)
+cmd_configure() {
+    ensure_container_running "${CONTAINER_NAME}" "${SCRIPT_DIR}"
+    docker exec "${CONTAINER_NAME}" /workspace/script/tools/ck-configure "$@"
+}
+
+# Build (delegate to ck-build in container)
+cmd_build() {
+    ensure_container_running "${CONTAINER_NAME}" "${SCRIPT_DIR}"
+    docker exec "${CONTAINER_NAME}" /workspace/script/tools/ck-build "$@"
+}
+
+# Test (delegate to ck-test in container)
+cmd_test() {
+    ensure_container_running "${CONTAINER_NAME}" "${SCRIPT_DIR}"
+    docker exec "${CONTAINER_NAME}" /workspace/script/tools/ck-test "$@"
+}
+
+# Execute arbitrary command in container
+cmd_exec() {
+    if [ $# -eq 0 ]; then
+        error "command required"
+        echo "Usage: ck-docker exec <command>"
+        return 1
+    fi
+
+    ensure_container_running "${CONTAINER_NAME}" "${SCRIPT_DIR}"
+
+    local docker_flags=()
+    [ -t 0 ] && [ -t 1 ] && docker_flags+=("-it")
+
+    # Auto-detect Python commands and enable unbuffered output for live streaming
+    local is_python=false
+    for arg in "$@"; do
+        if [[ "$arg" == "python" || "$arg" == "python3" || "$arg" == *.py ]]; then
+            is_python=true
+            break
+        fi
+    done
+
+    if [ "$is_python" = true ]; then
+        docker_flags+=("-e" "PYTHONUNBUFFERED=1")
+    fi
+
+    docker exec "${docker_flags[@]}" "${CONTAINER_NAME}" "$@"
+}
+
+# Shell
+cmd_shell() {
+    local name="${1:-${CONTAINER_NAME}}"
+
+    # Check if container is running
+    if ! container_is_running "${name}"; then
+        echo "Container '${name}' not running. Starting..."
+        cmd_start "${name}"
+    fi
+
+    echo "Opening shell in '${name}' (type 'exit' to leave)..."
+    docker exec -it "${name}" bash
+}
+
+# Status
+cmd_status() {
+    local name="${1:-}"
+    local docker_image=$(get_docker_image)
+
+    if [ -z "$name" ]; then
+        echo "Composable Kernel Docker Containers:"
+        echo "---"
+        docker ps -a --filter "ancestor=${docker_image}" \
+            --format "table {{.Names}}\t{{.Status}}\t{{.CreatedAt}}" || echo "No containers found"
+    else
+        # Check container status
+        if container_is_running "${name}"; then
+            echo "Container '${name}' is RUNNING"
+            docker ps --filter "name=^${name}$" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+            echo ""
+            echo "GPU Information:"
+            docker exec "${name}" bash -c "rocm-smi --showproductname 2>/dev/null | head -10 || echo 'No GPU detected'"
+        elif container_exists "${name}"; then
+            echo "Container '${name}' exists but is STOPPED"
+            echo "Start with: ck-docker start ${name}"
+        else
+            echo "Container '${name}' does NOT exist"
+            echo "Create with: ck-docker start ${name}"
+        fi
+    fi
+}
+
+# Stop
+cmd_stop() {
+    local name="${1:-${CONTAINER_NAME}}"
+
+    # Check if container exists
+    if container_exists "${name}"; then
+        echo "Stopping and removing container '${name}'..."
+        docker stop "${name}" 2>/dev/null || true
+        docker rm "${name}" 2>/dev/null || true
+        echo "Container stopped and removed"
+    else
+        echo "Container '${name}' does not exist"
+    fi
+}
+
+# Main command dispatcher
+case "${1:-}" in
+    start)
+        shift
+        cmd_start "$@"
+        ;;
+    configure)
+        shift
+        cmd_configure "$@"
+        ;;
+    build)
+        shift
+        cmd_build "$@"
+        ;;
+    test)
+        shift
+        cmd_test "$@"
+        ;;
+    exec)
+        shift
+        cmd_exec "$@"
+        ;;
+    shell)
+        shift
+        cmd_shell "$@"
+        ;;
+    status)
+        shift
+        cmd_status "$@"
+        ;;
+    stop)
+        shift
+        cmd_stop "$@"
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        echo "Unknown command: ${1:-}"
+        echo ""
+        show_help
+        exit 1
+        ;;
+esac

@@ -220,6 +220,30 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm
     }
 
     //
+    // D0
+    //
+    static auto MakeD0GridDescriptorPair(const std::vector<index_t>& d0_gs_ms_ns_lengths_vec,
+                                         const std::vector<index_t>& d0_gs_ms_ns_strides_vec)
+    {
+        return MakeGridDescriptorPair<NumDimG, NumDimM, NumDimN, CSpec>(d0_gs_ms_ns_lengths_vec,
+                                                                        d0_gs_ms_ns_strides_vec);
+    }
+
+    // TODO: rename to G_MRaw_NRaw
+    static auto MakeD0GridDescriptor_G_M_N(const std::vector<index_t>& d0_gs_ms_ns_lengths_vec,
+                                           const std::vector<index_t>& d0_gs_ms_ns_strides_vec)
+    {
+        return MakeD0GridDescriptorPair(d0_gs_ms_ns_lengths_vec, d0_gs_ms_ns_strides_vec).first;
+    }
+
+    static auto MakeD0GridDescriptor_M_N(const std::vector<index_t>& d0_gs_ms_ns_lengths_vec,
+                                         const std::vector<index_t>& d0_gs_ms_ns_strides_vec)
+    {
+        return matrix_padder.PadD0Descriptor_M_N(
+            MakeD0GridDescriptorPair(d0_gs_ms_ns_lengths_vec, d0_gs_ms_ns_strides_vec).second);
+    }
+
+    //
     // B1
     //
     static auto MakeB1GridDescriptorPair(const std::vector<index_t>& b1_gs_os_ns_lengths_vec,

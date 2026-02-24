@@ -12,23 +12,21 @@ namespace ck_tile {
 template <typename Problem, typename Policy>
 struct GemmAQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Problem, Policy>
 {
-    using Base           = GemmPipelineAgBgCrImplBase<Problem, Policy>;
-    using ADataType      = typename Base::ADataType;
-    using ALayout        = typename Base::ALayout;
-    using BDataType      = typename Base::BDataType;
-    using BLayout        = typename Base::BLayout;
-    using BlockGemmShape = typename Base::BlockGemmShape;
-    using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
-
-    using AQLayout = remove_cvref_t<typename Problem::AQLayout>;
+    using Base            = GemmPipelineAgBgCrImplBase<Problem, Policy>;
+    using ADataType       = typename Base::ADataType;
+    using ALayout         = typename Base::ALayout;
+    using BDataType       = typename Base::BDataType;
+    using BLayout         = typename Base::BLayout;
+    using BlockGemmShape  = typename Base::BlockGemmShape;
+    using AQuantGroupSize = remove_cvref_t<typename Problem::AQuantGroupSize>;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t KPerBlockAQ = KPerBlock / QuantGroupSize::kK;
+    static constexpr index_t KPerBlockAQ = KPerBlock / AQuantGroupSize::kK;
 
-    static_assert(KPerBlock % QuantGroupSize::kK == 0,
+    static_assert(KPerBlock % AQuantGroupSize::kK == 0,
                   "KPerBlock must be a multiple of QuantGroupSize");
 
     // Create DRAM tile window for AQ
@@ -36,8 +34,6 @@ struct GemmAQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     CK_TILE_DEVICE constexpr auto
     GetAQDramLoadWindow(const AQDramBlockWindowTmp& aq_dram_block_window_tmp) const
     {
-        static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
-
         auto aq_copy_dram_window =
             make_tile_window(aq_dram_block_window_tmp.get_bottom_tensor_view(),
                              aq_dram_block_window_tmp.get_window_lengths(),

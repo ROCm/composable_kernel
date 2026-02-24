@@ -232,7 +232,7 @@ struct BatchedGemmKernel
 
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
-            __shared__ char smem_ptr1[GetSmemSize()];
+            __shared__ char smem_ptr1[GemmPipeline::GetSmemSize()];
             UniversalGemmKernel::RunGemm2LDS({a_ptr},
                                              {b_ptr},
                                              {/*ds_ptr*/},

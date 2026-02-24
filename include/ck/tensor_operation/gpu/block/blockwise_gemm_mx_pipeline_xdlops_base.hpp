@@ -113,7 +113,10 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                               true>
         c_thread_buf_;
 
-    __host__ __device__ constexpr auto& GetCThreadBuffer() { return c_thread_buf_; }
+    __host__ __device__ constexpr auto& GetCThreadBuffer() [[clang::lifetimebound]]
+    {
+        return c_thread_buf_;
+    }
 
     __device__ static auto GetWaveIdx()
     {

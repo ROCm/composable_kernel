@@ -54,36 +54,3 @@ Advanced examples:
 * `Image to column <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_img2col.cpp>`_
 * `Basic gemm <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_basic_gemm.cpp>`_
 * `Optimized gemm <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_optimized_gemm.cpp>`_
-
--------------------------------------
-Layout
--------------------------------------
-
-.. doxygenstruct:: Layout
-
--------------------------------------
-Layout helpers
--------------------------------------
-
-.. doxygenfile:: include/ck/wrapper/utils/layout_utils.hpp
-
--------------------------------------
-Tensor
--------------------------------------
-
-.. doxygenstruct:: Tensor
-
--------------------------------------
-Tensor helpers
--------------------------------------
-
-.. doxygenfile:: include/ck/wrapper/utils/tensor_utils.hpp
-
-.. doxygenfile:: include/ck/wrapper/utils/tensor_partition.hpp
-
--------------------------------------
-Operations
--------------------------------------
-
-.. doxygenfile:: include/ck/wrapper/operations/copy.hpp
-.. doxygenfile:: include/ck/wrapper/operations/gemm.hpp

@@ -86,7 +86,7 @@ using DeviceGroupedConvNDFwdInstance =
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     if(argc == 1)
     {

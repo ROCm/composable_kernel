@@ -8,10 +8,16 @@
 #include <sstream>
 #include <regex>
 #include <optional>
+#include <memory>
 
 #include "ck/stream_config.hpp"
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/description.hpp"
+#endif
 #endif
 #include "ck/utility/get_id.hpp"
+#include "ck/utility/sequence.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -54,7 +60,7 @@ template <index_t BlockSize_,
           index_t NPerXDL_,
           index_t MXdlPerWave_,
           bool IsWave64>
-static constexpr auto GetNXdlPerWave2()
+static constexpr auto GetXdlPerWave2()
 {
     constexpr index_t Waves  = IsWave64 ? BlockSize_ / 64 : BlockSize_ / 32;
     constexpr index_t MWaves = MPerBlock_ / (MXdlPerWave_ * MPerXDL_);
@@ -78,18 +84,85 @@ static constexpr auto GetNXdlPerWave2()
     }
 }
 
-#define GET_NXDL_PER_WAVE_IMPL              \
-    template <bool IsWave64>                \
-    static constexpr auto GetNXdlPerWave()  \
-    {                                       \
-        return GetNXdlPerWave2<BlockSize,   \
-                               MPerBlock,   \
-                               NPerBlock,   \
-                               MPerXDL,     \
-                               NPerXDL,     \
-                               MXdlPerWave, \
-                               IsWave64>(); \
+#define GET_NXDL_PER_WAVE_IMPL             \
+    template <bool IsWave64>               \
+    static constexpr auto GetNXdlPerWave() \
+    {                                      \
+        return GetXdlPerWave2<BlockSize,   \
+                              MPerBlock,   \
+                              NPerBlock,   \
+                              MPerXDL,     \
+                              NPerXDL,     \
+                              MXdlPerWave, \
+                              IsWave64>(); \
     }
+
+#define GET_MXDL_PER_WAVE_IMPL                          \
+    template <bool IsWave64,                            \
+              index_t MPerXDLAligned     = MPerXDL,     \
+              index_t NPerXDLAligned     = NPerXDL,     \
+              index_t NXdlPerWaveAligned = NXdlPerWave> \
+    static constexpr auto GetMXdlPerWave()              \
+    {                                                   \
+        return GetXdlPerWave2<BlockSize,                \
+                              NPerBlock,                \
+                              MPerBlock,                \
+                              NPerXDLAligned,           \
+                              MPerXDLAligned,           \
+                              NXdlPerWaveAligned,       \
+                              IsWave64>();              \
+    }
+
+template <index_t BlockSize_,
+          index_t MPerBlock_,
+          index_t NPerBlock_,
+          index_t MPerXDL_,
+          index_t NPerXDL_,
+          index_t MXdlPerWave_,
+          index_t CShuffleMXdlPerWavePerShuffle_,
+          index_t CShuffleNXdlPerWavePerShuffle_,
+          bool IsWave64>
+static constexpr auto GetWarpTileConfig()
+{
+    constexpr auto MXdlPerWave64                   = MXdlPerWave_;
+    constexpr auto MXdlPerWave32                   = MXdlPerWave_ * MPerXDL_ / 16;
+    constexpr auto CShuffleMXdlPerWavePerShuffle32 = CShuffleMXdlPerWavePerShuffle_ * MPerXDL_ / 16;
+
+    constexpr auto NXdlPerWave =
+        IsWave64
+            ? GetXdlPerWave2<BlockSize_,
+                             MPerBlock_,
+                             NPerBlock_,
+                             MPerXDL_,
+                             NPerXDL_,
+                             MXdlPerWave_,
+                             true>()
+            : GetXdlPerWave2<BlockSize_, MPerBlock_, NPerBlock_, 16, 16, MXdlPerWave32, false>();
+
+    if constexpr(IsWave64 == false && NXdlPerWave != 0)
+    {
+        constexpr auto CShuffleNXdlPerWavePerShuffle32 =
+            NXdlPerWave >= CShuffleNXdlPerWavePerShuffle_ * NPerXDL_ / 16
+                ? CShuffleNXdlPerWavePerShuffle_ * NPerXDL_ / 16
+                : CShuffleNXdlPerWavePerShuffle_;
+        static_assert(CShuffleNXdlPerWavePerShuffle32 > 0);
+        return Sequence<16,
+                        16,
+                        MXdlPerWave32,
+                        NXdlPerWave,
+                        CShuffleMXdlPerWavePerShuffle32,
+                        CShuffleNXdlPerWavePerShuffle32>{};
+    }
+    else
+    {
+        return Sequence<MPerXDL_,
+                        NPerXDL_,
+                        MXdlPerWave64,
+                        NXdlPerWave,
+                        CShuffleMXdlPerWavePerShuffle_,
+                        CShuffleNXdlPerWavePerShuffle_>{};
+    }
+}
 
 #define INVOKER_RUN_IMPL                                                               \
     float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{}) \
@@ -199,7 +272,7 @@ struct BaseArgument
     BaseArgument(const BaseArgument&)            = default;
     BaseArgument& operator=(const BaseArgument&) = default;
 
-    virtual ~BaseArgument() {}
+    virtual __host__ __device__ ~BaseArgument() {}
 
     void* p_workspace_ = nullptr;
 };
@@ -227,6 +300,12 @@ struct BaseOperator
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
     virtual std::string GetTypeString() const { return ""; }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    // Return a description object for this operator, or nullptr if not supported.
+    virtual std::unique_ptr<ck_tile::reflect::Description> describe() const { return nullptr; }
+#endif
+
     virtual std::string GetInstanceString() const { return ""; }
 
     virtual std::string GetTypeIdName() const { return typeid(*this).name(); }

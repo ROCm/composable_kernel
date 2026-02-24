@@ -121,7 +121,7 @@ void reference_scale_permute_amax(Tensor<InputDataType>& input,
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     const float scale = 2.f;
 

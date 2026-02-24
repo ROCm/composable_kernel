@@ -1,0 +1,103 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK Start - Start Docker container for Composable Kernel testing
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(get_project_root "${SCRIPT_DIR}")
+CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
+
+# Help message
+show_help() {
+    cat << EOF
+CK Start - Start Docker container for Composable Kernel testing
+
+Usage: ck-start [options] [container_name]
+
+Options:
+  -h, --help              Show this help message
+  --image <image>         Specify Docker image (overrides CK_DOCKER_IMAGE)
+
+Arguments:
+  container_name          Optional container name (default: ck_<username>_<branch>)
+
+Environment:
+  CK_CONTAINER_NAME - Override default container name
+  CK_DOCKER_IMAGE   - Override Docker image (default: rocm/composable_kernel:ck_ub24.04_rocm7.0.1)
+
+Examples:
+  ck-start                    # Start container with default name
+  ck-start my_ck_container    # Start container with custom name
+  ck-start --image rocm/composable_kernel:latest
+
+EOF
+}
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --image)
+            export CK_DOCKER_IMAGE="$2"
+            shift 2
+            ;;
+        *)
+            CONTAINER_NAME="$1"
+            shift
+            ;;
+    esac
+done
+
+# Get Docker image
+DOCKER_IMAGE=$(get_docker_image)
+
+# Check if container exists and is running
+if container_exists "${CONTAINER_NAME}"; then
+    if container_is_running "${CONTAINER_NAME}"; then
+        echo "Container '${CONTAINER_NAME}' is already running"
+        docker exec "${CONTAINER_NAME}" bash -c "echo 'Working directory:' && pwd"
+        exit 0
+    else
+        echo "Starting existing container '${CONTAINER_NAME}'..."
+        docker start "${CONTAINER_NAME}"
+        echo "Container started"
+        docker exec "${CONTAINER_NAME}" bash -c "echo 'Working directory:' && pwd"
+        exit 0
+    fi
+fi
+
+# Create new container
+echo "Creating new Docker container '${CONTAINER_NAME}'..."
+echo "Docker image: ${DOCKER_IMAGE}"
+echo "Project root: ${PROJECT_ROOT}"
+echo ""
+
+docker run -d \
+    --name "${CONTAINER_NAME}" \
+    --device=/dev/kfd --device=/dev/dri \
+    --security-opt seccomp=unconfined \
+    --group-add video \
+    -v "${PROJECT_ROOT}":/workspace \
+    -w /workspace \
+    "${DOCKER_IMAGE}" \
+    tail -f /dev/null
+
+echo ""
+echo "Container '${CONTAINER_NAME}' started successfully"
+docker exec "${CONTAINER_NAME}" bash -c "echo 'Working directory:' && pwd"
+
+# Show GPU info
+echo ""
+echo "GPU Information:"
+docker exec "${CONTAINER_NAME}" bash -c "rocm-smi --showproductname 2>/dev/null | head -5 || echo 'No GPU detected'"

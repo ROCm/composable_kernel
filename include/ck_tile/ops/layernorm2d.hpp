@@ -1,6 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
-
 #pragma once
 
 #include "ck_tile/ops/layernorm2d/kernel/layernorm2d_fwd_kernel.hpp"

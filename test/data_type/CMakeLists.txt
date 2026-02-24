@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # temporarily disable flaky test for all architectures
 add_definitions(-DCK_SKIP_FLAKY_F8_TEST)
 set(CK_SKIP_FLAKY_F8_TEST "ON")

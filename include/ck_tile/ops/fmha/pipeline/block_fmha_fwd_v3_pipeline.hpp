@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_v3_pipeline_default_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
@@ -246,6 +248,8 @@ CK_TILE_DEVICE fp32x2_t pk_mul_f32(fp32x2_t lhs, fp32x2_t rhs)
 }
 } // namespace detail
 
+/// NOTICE: This pipeline is a work in progress and is awaiting upcoming compiler fixes and
+/// instruction scheduling optimizations.
 template <typename Problem_, typename Policy_ = BlockFmhaV3PipelineDefaultPolicy>
 struct BlockFmhaFwdV3Pipeline
 {
@@ -260,12 +264,17 @@ struct BlockFmhaFwdV3Pipeline
     using PDataType           = ck_tile::remove_cvref_t<typename Problem::PDataType>;
     using OaccDataType        = ck_tile::remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType           = ck_tile::remove_cvref_t<typename Problem::ODataType>;
+    using AttentionVariant    = ck_tile::remove_cvref_t<typename Problem::AttentionVariant>;
     using FmhaMask            = ck_tile::remove_cvref_t<typename Problem::FmhaMask>;
+    static_assert(is_generic_attention_mask_v<FmhaMask>);
 
     static_assert(std::is_same_v<SaccDataType, SMPLComputeDataType>,
                   "we will the same dist tensor 'sp_compute' for both gemm0 & softmax");
 
     using BlockFmhaShape = ck_tile::remove_cvref_t<typename Problem::BlockFmhaShape>;
+
+    using VLayout = remove_cvref_t<typename BlockFmhaShape::VLayout>;
+    static_assert(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>);
 
     static constexpr ck_tile::index_t kBlockSize = Problem::kBlockSize;
 
@@ -277,14 +286,23 @@ struct BlockFmhaFwdV3Pipeline
     static constexpr ck_tile::index_t kQKHeaddim    = BlockFmhaShape::kQKHeaddim;
     static constexpr ck_tile::index_t kSubQKHeaddim = BlockFmhaShape::kSubQKHeaddim;
 
-    static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
+    static_assert(kQKHeaddim == 128 && kSubQKHeaddim == 128, "only supports hdim=hdim_v=128");
 
-    static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
-    static constexpr bool kStoreLSE    = Problem::kStoreLSE;
+    static constexpr bool kIsGroupMode      = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ       = Problem::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK       = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ      = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV      = Problem::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
+    static constexpr auto BiasEnum          = Problem::BiasEnum;
+    static constexpr bool kStoreLSE         = Problem::kStoreLSE;
+    static constexpr bool kHasDropout       = Problem::kHasDropout;
+    static constexpr auto QScaleEnum        = Problem::QScaleEnum;
+    static constexpr bool kSkipMinSeqlenQ   = Problem::kSkipMinSeqlenQ;
+    static_assert((BiasEnum == BlockAttentionBiasEnum::NO_BIAS && !kStoreLSE && !kHasDropout &&
+                   (QScaleEnum == ck_tile::BlockAttentionQuantScaleEnum::NO_SCALE) &&
+                   !kSkipMinSeqlenQ),
+                  "enable unsupported features");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -383,7 +401,9 @@ struct BlockFmhaFwdV3Pipeline
               typename LSEElementFunction,
               typename SAccElementFunction,
               typename PComputeElementFunction,
-              typename OAccElementFunction>
+              typename OAccElementFunction,
+              typename AttentionVariantParams,
+              typename BlockIndices>
     CK_TILE_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                                    const QElementFunction& q_element_func,
                                    const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
@@ -397,6 +417,9 @@ struct BlockFmhaFwdV3Pipeline
                                    const OAccElementFunction& o_acc_element_func,
                                    FmhaMask mask,
                                    float scale_s,
+                                   const AttentionVariant& variant,
+                                   const AttentionVariantParams& variant_params,
+                                   const BlockIndices& block_indices,
                                    void* smem_ptr) const
     {
         using namespace ck_tile;
@@ -703,6 +726,22 @@ struct BlockFmhaFwdV3Pipeline
         /// TODO: remove the sp_delta and use sp_compute directly
         statically_indexed_array<decltype(sp(number<0>{}).sp_compute), 2> sp_delta;
 
+        auto fmha_logits_trans = [&](auto sp_reg_idx) {
+            if constexpr(kHasLogitsSoftCap)
+            {
+                auto apply_logits_transform = [&variant, &variant_params, &block_indices](
+                                                  auto& logits) {
+                    logits = variant.LogitsTransform(variant_params,
+                                                     variant.QueryTransform(variant_params, logits),
+                                                     block_indices.batch_idx,
+                                                     block_indices.qo_head_idx,
+                                                     block_indices.kv_head_idx);
+                };
+
+                tile_elementwise_inout(apply_logits_transform, sp(sp_reg_idx).sp_compute);
+            }
+        };
+
         auto fmha_alu0 = [&](auto sp_reg_idx) {
             m_old = m; // m{j-1}
             static_assert(m.thread_buf_.size() == 1,
@@ -728,9 +767,17 @@ struct BlockFmhaFwdV3Pipeline
                 std::decay_t<decltype(sp(sp_reg_idx).sp_compute)>::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx        = make_tuple(idx0, idx1);
-                    sp_delta(sp_reg_idx)(i_j_idx) = detail::fma_impl_vsv(
-                        sp(sp_reg_idx).sp_compute(i_j_idx), scale_s, -scale_s * m(i_j_idx));
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    if constexpr(kHasLogitsSoftCap)
+                    {
+                        sp_delta(sp_reg_idx)(i_j_idx) =
+                            sp(sp_reg_idx).sp_compute(i_j_idx) - m(i_j_idx);
+                    }
+                    else
+                    {
+                        sp_delta(sp_reg_idx)(i_j_idx) = detail::fma_impl_vsv(
+                            sp(sp_reg_idx).sp_compute(i_j_idx), scale_s, -scale_s * m(i_j_idx));
+                    }
                 });
             });
             /// TODO: move some fmha_alu1() code here if necessary
@@ -775,8 +822,16 @@ struct BlockFmhaFwdV3Pipeline
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-                const auto tmp       = ck_tile::exp2(scale_s * (m_old[i_idx] - m[i_idx]));
-
+                const auto tmp       = [&] {
+                    if constexpr(kHasLogitsSoftCap)
+                    {
+                        return ck_tile::exp2(m_old[i_idx] - m[i_idx]);
+                    }
+                    else
+                    {
+                        return ck_tile::exp2(scale_s * (m_old[i_idx] - m[i_idx]));
+                    }
+                }();
                 l(i_idx) = detail::add_impl_vv(tmp * l[i_idx], rowsum_p[i_idx]);
             });
 
@@ -862,7 +917,16 @@ struct BlockFmhaFwdV3Pipeline
         };
 
         auto fmha_alu_D_upd = [&] {
-            o_acc_scale = ck_tile::exp2(scale_s * (m_old.thread_buf_[0] - m.thread_buf_[0]));
+            o_acc_scale = [&] {
+                if constexpr(kHasLogitsSoftCap)
+                {
+                    return ck_tile::exp2(m_old.thread_buf_[0] - m.thread_buf_[0]);
+                }
+                else
+                {
+                    return ck_tile::exp2(scale_s * (m_old.thread_buf_[0] - m.thread_buf_[0]));
+                }
+            }();
 
             fp32x2_t pk_o_acc_scale;
             pk_o_acc_scale.x = o_acc_scale;
@@ -910,7 +974,12 @@ struct BlockFmhaFwdV3Pipeline
                                     const auto row =
                                         q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                                     const auto col = kv_token_start + tile_idx.at(number<1>{});
-                                    return mask.IsOutOfBound(row, col);
+                                    return !variant.LogitsMask(variant_params,
+                                                               block_indices.batch_idx,
+                                                               row,
+                                                               col,
+                                                               block_indices.qo_head_idx,
+                                                               block_indices.kv_head_idx);
                                 });
                 }
             }
@@ -974,6 +1043,7 @@ struct BlockFmhaFwdV3Pipeline
                     __builtin_amdgcn_sched_barrier(0);
                     cl_calc(xdl_SP_p01_reg_idx, gemm0);
                     fmha_alu1(xdl_SP_p23_reg_idx);
+                    fmha_logits_trans(xdl_SP_p01_reg_idx);
 
                     Scheduler::schedule(cl_p, number<0>{});
                     __builtin_amdgcn_sched_barrier(0);
@@ -1048,6 +1118,7 @@ struct BlockFmhaFwdV3Pipeline
                     __builtin_amdgcn_sched_barrier(0);
                     cl_calc(xdl_SP_p01_reg_idx, gemm0);
                     fmha_alu1(xdl_SP_p23_reg_idx);
+                    fmha_logits_trans(xdl_SP_p01_reg_idx);
 
                     Scheduler::schedule(cl_p, number<1>{});
                     __builtin_amdgcn_sched_barrier(0);
@@ -1131,7 +1202,7 @@ struct BlockFmhaFwdV3Pipeline
 
             // (3) mfma (Q*K0) + softmax
             gemm(number<0>{}, /*gemm_idx=*/number<0>{});
-
+            fmha_logits_trans(number<0>{});
             fmha_mask(number<0>{});
             /// TODO: find better way to map fmha_alu(0,96) call
             fmha_alu0(number<0>{});
@@ -1226,13 +1297,18 @@ struct BlockFmhaFwdV3Pipeline
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
-              typename LSEDramBlockWindowTmp>
+              typename LSEDramBlockWindowTmp,
+              typename AttentionVariantParams,
+              typename BlockIndices>
     CK_TILE_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                                    const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
                                    const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
                                    LSEDramBlockWindowTmp& lse_dram_block_window_tmp,   // M0*1 tile
                                    FmhaMask mask,
                                    float scale_s,
+                                   const AttentionVariant& variant,
+                                   const AttentionVariantParams& variant_params,
+                                   const BlockIndices& block_indices,
                                    void* smem_ptr) const
     {
         using namespace ck_tile;
@@ -1250,6 +1326,9 @@ struct BlockFmhaFwdV3Pipeline
                           identity{},
                           mask,
                           scale_s,
+                          variant,
+                          variant_params,
+                          block_indices,
                           smem_ptr);
     }
 };

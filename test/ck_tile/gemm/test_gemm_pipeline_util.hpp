@@ -159,8 +159,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
-
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
@@ -174,104 +172,68 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      NumWaveGroup,
                                                                      preshuffle>;
 
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
+        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                           BDataType,
+                                                                           AccDataType,
+                                                                           GemmShape,
+                                                                           GemmUniversalTraits,
+                                                                           Scheduler>;
 
-        using BaseGemmPipeline =
-            typename GemmPipelineTypeSelector<PipelineType, GemmPipelineProblem>::base_pipeline;
+        using GemmPipeline =
+            typename GemmPipelineTypeSelector<PipelineType, UniversalGemmProblem>::pipeline;
 
-        const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
-        const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
-        const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
-        const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
-        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+            ck_tile::CShuffleEpilogueProblem<ADataType,
+                                             BDataType,
+                                             DsDataType,
+                                             AccDataType,
+                                             CDataType,
+                                             DsLayout,
+                                             CLayout,
+                                             ck_tile::element_wise::PassThrough,
+                                             TilePartitioner::MPerBlock,
+                                             TilePartitioner::NPerBlock,
+                                             M_Warp,
+                                             N_Warp,
+                                             M_Warp_Tile,
+                                             N_Warp_Tile,
+                                             K_Warp_Tile,
+                                             UniversalGemmProblem::TransposeC,
+                                             1,     /*kNumWaveGroups_*/
+                                             false, /*FixedVectorSize_*/
+                                             1,     /*VectorSizeC_*/
+                                             false, /*TiledMMAPermuteN_*/
+                                             1,     /*BlockedXDLN_PerWarp_*/
+                                             DoubleSmemBuffer /*DoubleSmemBuffer*/>>;
 
-        const auto Run = [&](const auto has_hot_loop_,
-                             const auto tail_number_,
-                             const auto memory_operation_) {
-            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-            constexpr auto tail_number_v    = tail_number_.value;
-            constexpr auto memory_operation = memory_operation_.value;
+        using Kernel     = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        const auto kargs = Kernel::MakeKernelArgs(args);
 
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                               BDataType,
-                                                                               AccDataType,
-                                                                               GemmShape,
-                                                                               GemmUniversalTraits,
-                                                                               Scheduler,
-                                                                               has_hot_loop_v,
-                                                                               tail_number_v>;
+        const dim3 blocks = Kernel::BlockSize();
+        dim3 grids;
+        if constexpr(Persistent)
+        {
+            grids = Kernel::MaxOccupancyGridSize(s);
+        }
+        else
+        {
+            grids = Kernel::GridSize(args.M, args.N, args.k_batch);
+        }
 
-            using GemmPipeline =
-                typename GemmPipelineTypeSelector<PipelineType, UniversalGemmProblem>::pipeline;
+        if(!Kernel::IsSupportedArgument(kargs))
+        {
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+        }
 
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
-                                                 DsDataType,
-                                                 AccDataType,
-                                                 CDataType,
-                                                 DsLayout,
-                                                 CLayout,
-                                                 ck_tile::element_wise::PassThrough,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 M_Warp,
-                                                 N_Warp,
-                                                 M_Warp_Tile,
-                                                 N_Warp_Tile,
-                                                 K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation>>;
+        if(s.log_level_ > 0)
+        {
+            std::cout << "Launching kernel with args:" << " grid: {" << grids.x << ", " << grids.y
+                      << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y
+                      << ", " << blocks.z << "}" << std::endl;
+        }
 
-            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs   = Kernel::MakeKernelArgs(args);
-
-            dim3 grids;
-            if constexpr(Persistent)
-            {
-                grids = Kernel::MaxOccupancyGridSize(s);
-            }
-            else
-            {
-                grids = Kernel::GridSize(args.M, args.N, args.k_batch);
-            }
-            const dim3 blocks = Kernel::BlockSize();
-
-            if(!Kernel::IsSupportedArgument(kargs))
-            {
-                throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
-            }
-
-            if(s.log_level_ > 0)
-            {
-                std::cout << "Launching kernel with args:" << " grid: {" << grids.x << ", "
-                          << grids.y << ", " << grids.z << "}" << ", blocks: {" << blocks.x << ", "
-                          << blocks.y << ", " << blocks.z << "}" << std::endl;
-            }
-
-            ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-        };
-
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-            if(args.k_batch == 1)
-            {
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               ck_tile::memory_operation_enum::set>{});
-            }
-            else
-            {
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               ck_tile::memory_operation_enum::atomic_add>{});
-            }
-        };
-
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        ck_tile::ignore = ck_tile::launch_kernel(
+            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
     }
 
     public:

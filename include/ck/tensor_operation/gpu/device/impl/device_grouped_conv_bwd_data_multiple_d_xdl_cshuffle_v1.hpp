@@ -80,7 +80,7 @@ template <typename GridwiseGemm,
           bool CTranspose>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
 #endif
     kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle(
         const ABDataType* __restrict__ p_a_grid,
@@ -124,7 +124,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const long_index_t e_n_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
 
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         DsPointer p_ds_grid_grp;
 
@@ -1698,6 +1698,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         valid = false;
                     }
                 }
+                else
+                {
+                    valid = false;
+                }
             }
             else
             {
@@ -1715,6 +1719,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                     {
                         valid = false;
                     }
+                }
+                else
+                {
+                    valid = false;
                 }
             }
             if(!valid)

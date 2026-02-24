@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 function(add_tile_topk_softmax_test SUFFIX)
     set(TEST_NAME "test_ck_tile_topk_softmax_${SUFFIX}")
     add_test_executable(${TEST_NAME} test_topk_softmax_${SUFFIX}.cpp test_topk_softmax_api.cpp)

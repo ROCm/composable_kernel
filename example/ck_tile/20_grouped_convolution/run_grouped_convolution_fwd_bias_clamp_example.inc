@@ -230,7 +230,11 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
     }
     else if(arg_parser.get_int("v") == 2)
     {
-        throw std::runtime_error("Unsupported gpu verification !!!");
+        // GPU verification for fused operation (Conv + Bias + Clamp) is complex
+        // For now, we only support GPU verification for basic convolution operations
+        // The bias+clamp fused variant can use CPU verification (-v=1) or no verification (-v=0)
+        throw std::runtime_error("GPU verification not yet supported for fused operations! Use "
+                                 "-v=1 for CPU verification.");
     }
 
     return pass;

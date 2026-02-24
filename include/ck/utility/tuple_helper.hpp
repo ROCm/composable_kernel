@@ -14,7 +14,7 @@ namespace ck {
 template <typename F, index_t... ids>
 __host__ __device__ constexpr auto generate_tuple_for(F&& f, Sequence<ids...>)
 {
-    return make_tuple(f(Number<ids>{})...);
+    return ck::make_tuple(f(Number<ids>{})...);
 }
 
 template <typename F, index_t N>

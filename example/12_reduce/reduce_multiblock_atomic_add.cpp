@@ -31,7 +31,7 @@ class SimpleAppArgs
     bool do_verification = true;
     int data_type        = 1;
     int init_method      = 2;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     public:
     void show_usage(const char* cmd)

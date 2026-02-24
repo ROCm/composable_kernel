@@ -96,7 +96,7 @@ struct TopkSoftmaxWarpPerRowPipeline
                         w_(idx) = WeightType(1) / (WeightType(1) + exp(-w_(idx)));
                     }
                 };
-                tile_sweeper ts{w_, w_f};
+                tile_sweeper<decltype(w_), decltype(w_f)> ts{w_, w_f};
                 ts();
                 return w_;
 #endif

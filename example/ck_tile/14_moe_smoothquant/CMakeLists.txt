@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 function (add_moe_smoothquant_example TARGET_NAME MAIN_SRC)
     message(DEBUG "adding ${TARGET_NAME}")
     # not using add_example_executable() to add target, since we don't want this to have

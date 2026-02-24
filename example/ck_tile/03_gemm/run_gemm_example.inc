@@ -63,14 +63,17 @@ void permute_tensor_b(Tensor& tensor)
                                                                  GemmConfig::TransposeC,
                                                                  GemmConfig::UseStructuredSparsity>;
 
-    using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                       BDataType,
-                                                                       AccDataType,
-                                                                       GemmShape,
-                                                                       GemmUniversalTraits,
-                                                                       GemmConfig::Scheduler,
-                                                                       true,
-                                                                       ck_tile::TailNumber::Full>;
+    using UniversalGemmProblem =
+        ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                              BDataType,
+                                              AccDataType,
+                                              GemmShape,
+                                              GemmUniversalTraits,
+                                              GemmConfig::Scheduler,
+                                              ck_tile::element_wise::PassThrough,
+                                              ck_tile::element_wise::PassThrough,
+                                              ADataType,
+                                              true>;
 
     using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
         UniversalGemmProblem>;
@@ -194,8 +197,8 @@ bool do_verify(const ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
     return pass;
 }
 
-std::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t>
-parse_gemm_size(ck_tile::ArgParser& arg_parser)
+std::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t> inline parse_gemm_size(
+    ck_tile::ArgParser& arg_parser)
 {
     ck_tile::index_t M = arg_parser.get_int("m");
     ck_tile::index_t N = arg_parser.get_int("n");

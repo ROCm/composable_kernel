@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 function(create_tile_add_rmsnorm2d_rdquant_fwd SUFFIX)
     set(TILE_ADD_RMSNORM2D_RDQUANT_FWD "test_ck_tile_add_rmsnorm2d_rdquant_fwd_${SUFFIX}")
     message(DEBUG "adding ${TILE_ADD_RMSNORM2D_RDQUANT_FWD}")

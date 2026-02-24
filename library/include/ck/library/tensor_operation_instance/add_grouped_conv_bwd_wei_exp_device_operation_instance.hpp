@@ -7,7 +7,7 @@
 #include <type_traits>
 
 #include "ck/utility/functional2.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_explicit_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_explicit.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -32,17 +32,17 @@ void add_explicit_gemm_device_operation_instances(
     ck::static_for<0, std::tuple_size_v<DeviceGemmV3Ops>, 1>{}([&](auto i) {
         using DeviceGemmOp = std::tuple_element_t<i, DeviceGemmV3Ops>;
 
-        using NewOpInstance = DeviceGroupedConvBwdWeight_Explicit_Xdl<NDimSpatial,
-                                                                      InLayout,
-                                                                      WeiLayout,
-                                                                      OutLayout,
-                                                                      InDataType,
-                                                                      WeiDataType,
-                                                                      OutDataType,
-                                                                      InElementwiseOperation,
-                                                                      WeiElementwiseOperation,
-                                                                      OutElementwiseOperation,
-                                                                      DeviceGemmOp>;
+        using NewOpInstance = DeviceGroupedConvBwdWeight_Explicit<NDimSpatial,
+                                                                  InLayout,
+                                                                  WeiLayout,
+                                                                  OutLayout,
+                                                                  InDataType,
+                                                                  WeiDataType,
+                                                                  OutDataType,
+                                                                  InElementwiseOperation,
+                                                                  WeiElementwiseOperation,
+                                                                  OutElementwiseOperation,
+                                                                  DeviceGemmOp>;
 
         static_assert(std::is_base_of_v<BaseOp, NewOpInstance>,
                       "wrong! NewOpInstance should be derived from BaseOp");

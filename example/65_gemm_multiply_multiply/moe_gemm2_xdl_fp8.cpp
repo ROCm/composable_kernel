@@ -185,7 +185,7 @@ int main(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     // per expert:
     // GEMM shape

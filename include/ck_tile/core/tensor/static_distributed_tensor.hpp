@@ -14,6 +14,9 @@
 #include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/container/thread_buffer.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 template <typename DataType_, typename StaticTileDistribution_>
@@ -229,7 +232,7 @@ set_tile_if(static_distributed_tensor<DataType, StaticTileDistribution>& out_ten
 template <typename YLengths, index_t XUnpacks>
 CK_TILE_HOST_DEVICE constexpr auto get_y_unpacks_from_x_unpacks(YLengths, number<XUnpacks>)
 {
-    constexpr auto y_size  = reduce_on_sequence(YLengths{}, multiplies{}, number<1>{});
+    constexpr auto y_size  = reduce_on_sequence(YLengths{}, multiplies<>{}, number<1>{});
     constexpr auto y_packs = number<XUnpacks>{};
     static_assert(y_size % y_packs == 0);
     constexpr auto y_slice_size = y_size / y_packs;
@@ -266,3 +269,4 @@ inline constexpr bool is_similiar_distributed_tensor_v =
 } // namespace detail
 
 } // namespace ck_tile
+#pragma clang diagnostic pop

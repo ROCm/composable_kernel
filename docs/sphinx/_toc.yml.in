@@ -6,40 +6,38 @@ subtrees:
 - caption: Install
   entries:
   - file: install/Composable-Kernel-prerequisites.rst
-    title: Composable Kernel prerequisites
+    title: Prerequisites
   - file: install/Composable-Kernel-install.rst
     title: Build and install Composable Kernel
   - file: install/Composable-Kernel-Docker.rst
-    title: Composable Kernel Docker images
+    title: Docker images
 
 - caption: Conceptual
   entries:
   - file: conceptual/Composable-Kernel-structure.rst
-    title: Composable Kernel structure
+    title: Structure
   - file: conceptual/Composable-Kernel-math.rst
-    title: Composable Kernel mathematical basis
+    title: Mathematical basis
+  - file: conceptual/CK-Tile-intra-inter-wave.rst
+    title: Intrawave and interwave scheduling  
+  - file: conceptual/ck_tile/CK-tile-index.rst
+    title: CK Tile conceptual documentation
 
 - caption: Tutorial
   entries:
   - file: tutorial/Composable-Kernel-examples.rst
-    title: Composable Kernel examples
+    title: Examples
 
 - caption: Reference
   entries:
   - file: reference/Composable_Kernel_supported_scalar_types.rst
-    title: Composable Kernel scalar types
+    title: Scalar types
   - file: reference/Composable_Kernel_custom_types.rst
-    title: Composable Kernel custom types
+    title: Custom types
   - file: reference/Composable_Kernel_vector_utilities.rst
-    title: Composable Kernel vector utilities
+    title: Vector utilities
   - file: reference/Composable-Kernel-wrapper.rst
-    title: Composable Kernel wrapper
-  - file: doxygen/html/namespace_c_k.rst
-    title: CK API reference 
-  - file: doxygen/html/namespaceck__tile.rst
-    title: CK Tile API reference
-  - file: doxygen/html/annotated.rst
-    title: Full API class list
+    title: Wrapper
   - file: reference/Composable-Kernel-Glossary.rst
     title: Glossary
 

@@ -107,7 +107,7 @@ __device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
             static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
         const auto& ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
 
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         DsPointer p_ds_grid_grp;
 

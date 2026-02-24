@@ -59,6 +59,8 @@ struct EpilogueCShuffleBase
                  1,
                  CShuffleNRepeatPerShuffle * BlockwiseGemmPipe::NWaves * NPerWmma>>;
 
+    __device__ static constexpr bool IsLDSNeeded() { return true; }
+
     // *Caution Here repeat is shuffle repeat
     __device__ static constexpr auto
     GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat()

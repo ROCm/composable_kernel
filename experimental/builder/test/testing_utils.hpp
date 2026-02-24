@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include <ck/library/tensor_operation_instance/device_operation_instance_factory.hpp>
+#include "ck_tile/builder/testing/testing.hpp"
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <string>
@@ -10,6 +11,26 @@
 #include <set>
 #include <vector>
 #include <array>
+
+/// @brief ostream-overload for hipError
+///
+/// Google Test likes to print errors to ostream, and this provides integration
+/// with that. Since we only expect to use this with CK-Builder's own tests,
+/// providing this implementation seems not problematic, but if it starts to
+/// clash with another implementation then we will need to provide this
+/// implementation another way. Unfortunately Google Test does not have a
+/// dedicated function to override to provide printing support.
+std::ostream& operator<<(std::ostream& os, hipError_t status);
+
+namespace ck_tile::builder::test {
+
+template <auto SIGNATURE>
+std::ostream& operator<<(std::ostream& os, [[maybe_unused]] Outputs<SIGNATURE> outputs)
+{
+    return os << "<tensor outputs>";
+}
+
+} // namespace ck_tile::builder::test
 
 namespace ck_tile::test {
 
@@ -108,5 +129,112 @@ struct InstanceMatcher : public ::testing::MatcherInterface<InstanceSet>
 };
 
 ::testing::Matcher<InstanceSet> InstancesMatch(const InstanceSet& expected);
+
+/// @brief Google Test hipError_t matcher.
+///
+/// This is a custom Google Test matcher implementation which can be used to
+/// compare HIP status codes. Use `HipSuccess()` or `HipError()` to obtain
+/// an instance.
+///
+/// @see HipSuccess
+/// @see HipError
+/// @see ::testing::MatcherInterface
+struct HipStatusMatcher : public ::testing::MatcherInterface<hipError_t>
+{
+    HipStatusMatcher(hipError_t expected) : expected_(expected) {}
+
+    bool MatchAndExplain(hipError_t actual,
+                         ::testing::MatchResultListener* listener) const override;
+    void DescribeTo(std::ostream* os) const override;
+    void DescribeNegationTo(std::ostream* os) const override;
+
+    hipError_t expected_;
+};
+
+/// @brief Construct a Google Test matcher that checks that a HIP operation
+/// was successful.
+::testing::Matcher<hipError_t> HipSuccess();
+
+/// @brief Construct a Google Test matcher that checks that a HIP operation
+/// returned a particular error code.
+///
+/// @param error The error to expect.
+::testing::Matcher<hipError_t> HipError(hipError_t error);
+
+/// @brief RunResult matcher
+///
+/// `ckt::run` returns a RunResult which indicates whether there was any
+/// problem while running the algorithm. This matcher is used to match those
+/// values.
+struct RunResultMatcher : public ::testing::MatcherInterface<builder::test::RunResult>
+{
+    bool MatchAndExplain(builder::test::RunResult actual,
+                         ::testing::MatchResultListener* listener) const override;
+    void DescribeTo(std::ostream* os) const override;
+    void DescribeNegationTo(std::ostream* os) const override;
+};
+
+/// @brief Construct a Google Test matcher that checks that a ckt::run result
+/// was successful.
+::testing::Matcher<builder::test::RunResult> SuccessfulRun();
+
+template <auto SIGNATURE>
+struct ReferenceOutputMatcher
+    : public ::testing::MatcherInterface<builder::test::Outputs<SIGNATURE>>
+{
+    ReferenceOutputMatcher(const builder::test::Args<SIGNATURE>& args,
+                           builder::test::Outputs<SIGNATURE> expected)
+        : args_(&args), expected_(expected)
+    {
+    }
+
+    bool MatchAndExplain(builder::test::Outputs<SIGNATURE> actual,
+                         [[maybe_unused]] ::testing::MatchResultListener* listener) const override
+    {
+        const auto report = ck_tile::builder::test::validate(*args_, actual, expected_);
+        const auto errors = report.get_errors();
+
+        if(listener->IsInterested() && !errors.empty())
+        {
+            *listener << errors.size() << " tensors failed to validate";
+
+            for(const auto& e : errors)
+            {
+                *listener << "\n    - " << e.tensor_name << ": ";
+
+                if(e.is_all_zero())
+                    *listener << "all elements in actual and expected tensors are zero";
+                else
+                {
+                    // Round to 2 digits
+                    const float percentage = e.wrong_elements * 10000 / e.total_elements / 100.f;
+                    *listener << e.wrong_elements << "/" << e.total_elements
+                              << " incorrect elements (~" << percentage << "%)," << " max error "
+                              << e.max_error;
+                }
+            }
+        }
+
+        return errors.empty();
+    }
+
+    void DescribeTo(std::ostream* os) const override { *os << "<tensor outputs>"; }
+
+    void DescribeNegationTo(std::ostream* os) const override
+    {
+        *os << "isn't equal to <tensor outputs>";
+    }
+
+    const builder::test::Args<SIGNATURE>* args_;
+    builder::test::Outputs<SIGNATURE> expected_;
+};
+
+template <auto SIGNATURE>
+::testing::Matcher<builder::test::Outputs<SIGNATURE>>
+MatchesReference(const builder::test::Args<SIGNATURE>& args,
+                 builder::test::Outputs<SIGNATURE> expected)
+{
+    return ::testing::MakeMatcher(new ReferenceOutputMatcher<SIGNATURE>(args, expected));
+}
 
 } // namespace ck_tile::test

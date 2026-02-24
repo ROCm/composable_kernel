@@ -986,6 +986,8 @@ struct MoeSortingKernel
                 p_sorted_expert_ids[unit_size_mdiv.div(i)] = expert_id;
             }
         }
+        __syncthreads();
+
         smem_cumdup(num_experts) = smem_cumsum(num_experts);
 
         // fill the p_sorted_token_ids/p_sorted_weights

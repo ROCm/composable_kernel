@@ -16,6 +16,7 @@
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
+#include "ck_tile/core/arch/amd_buffer_coherence.hpp"
 
 using as3_uint32_ptr = uint32_t __attribute__((address_space(3)))*;
 
@@ -41,6 +42,11 @@ __device__ inline uint32_t amd_wave_read_first_lane(uint32_t value)
 __device__ inline int32_t amd_wave_read_first_lane(int32_t value)
 {
     return __builtin_amdgcn_readfirstlane(value);
+}
+
+__device__ inline uint32_t amd_wave_read_first_lane(uintptr_t value)
+{
+    return __builtin_amdgcn_readfirstlane(static_cast<uint32_t>(value));
 }
 
 template <typename Object, std::enable_if_t<std::is_trivially_copyable_v<Object>, int> = 0>
@@ -75,6 +81,13 @@ __device__ inline auto amd_wave_read_first_lane(const Object& obj)
     return out;
 }
 
+// Overload for host to return the same value
+template <typename T>
+__host__ inline T amd_wave_read_first_lane(T v)
+{
+    return v;
+}
+
 // 128 bit SGPRs to supply buffer resource in buffer instructions
 // https://rocm-documentation.readthedocs.io/en/latest/GCN_ISA_Manuals/testdocbook.html#vector-memory-buffer-instructions
 struct __attribute__((packed)) buffer_resource
@@ -96,6 +109,12 @@ CK_TILE_DEVICE int32x4_t make_wave_buffer_resource(const void* ptr,
         r = amd_wave_read_first_lane(r);
     }
     return r;
+}
+CK_TILE_DEVICE __amdgpu_buffer_rsrc_t make_builtin_buffer_resource(const void* ptr,
+                                                                   uint32_t size = 0xffffffff)
+{
+    return __builtin_amdgcn_make_buffer_rsrc(
+        const_cast<void*>(ptr), /*stride*/ 0, size, CK_TILE_BUFFER_RESOURCE_3RD_DWORD);
 }
 
 namespace impl {
@@ -989,6 +1008,20 @@ llvm_amdgcn_raw_buffer_load_i32x2(int32x4_t srsrc,
                                   index_t soffset,
                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v2i32");
 
+// dwordx3 - use union to convert between int32x3 and fp16/bf16 types
+union dwordx3_union
+{
+    int32_t as_i32[3];
+    fp16_t as_fp16[6];
+    bf16_t as_bf16[6];
+};
+
+CK_TILE_DEVICE_EXTERN int32x3_t
+llvm_amdgcn_raw_buffer_load_i32x3(int32x4_t srsrc,
+                                  index_t voffset,
+                                  index_t soffset,
+                                  index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.load.v3i32");
+
 CK_TILE_DEVICE_EXTERN int32x4_t
 llvm_amdgcn_raw_buffer_load_i32x4(int32x4_t srsrc,
                                   index_t voffset,
@@ -1113,6 +1146,25 @@ llvm_amdgcn_raw_buffer_store_i32x2(int32x2_t vdata,
                                    index_t voffset,
                                    index_t soffset,
                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v2i32");
+
+CK_TILE_DEVICE_EXTERN void
+llvm_amdgcn_raw_buffer_store_i32x3_(int32x3_t vdata,
+                                    int32x4_t rsrc,
+                                    index_t voffset,
+                                    index_t soffset,
+                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v3i32");
+
+CK_TILE_DEVICE_EXTERN void llvm_amdgcn_raw_buffer_store_i32x3(dwordx3_union vdata,
+                                                              int32x4_t rsrc,
+                                                              index_t voffset,
+                                                              index_t soffset)
+{
+    int32x3_t v_reg;
+    v_reg[0] = vdata.as_i32[0];
+    v_reg[1] = vdata.as_i32[1];
+    v_reg[2] = vdata.as_i32[2];
+    llvm_amdgcn_raw_buffer_store_i32x3_(v_reg, rsrc, voffset, soffset, 0);
+};
 
 CK_TILE_DEVICE_EXTERN void
 llvm_amdgcn_raw_buffer_store_i32x4(int32x4_t vdata,
@@ -1263,30 +1315,6 @@ CK_TILE_DEVICE void async_buffer_load_fence(index_t cnt = 0)
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
 }
 
-// memory coherency bit for buffer store/load instruction
-// check ISA manual for each GFX target
-// e.g. for
-// https://www.amd.com/system/files/TechDocs/instinct-mi200-cdna2-instruction-set-architecture.pdf,
-// page 67~68
-enum struct amd_buffer_coherence_enum
-{
-    coherence_default = 0, // default value
-    glc               = 1,
-    slc               = 2,
-    glc_slc           = 3,
-    // gfx94: bit 0 = sc0, bit 1 = nt, bit 3 = swz, bit 4 = sc1
-    // SC[1:0] System Cache level: 0=wave, 1=group, 2=device, 3=system
-    // NT Non-Temporal: 0=expect temporal reuse; 1=do not expect temporal reuse
-    WAVE_NT0   = 0,
-    WAVE_NT1   = 2,
-    GROUP_NT0  = 1,
-    GROUP_NT1  = 3,
-    DEVICE_NT0 = 8,
-    DEVICE_NT1 = 10,
-    SYSTEM_NT0 = 9,
-    SYSTEM_NT1 = 11,
-};
-
 template <index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default>
 CK_TILE_DEVICE thread_buffer<int8_t, N>
@@ -1294,7 +1322,7 @@ amd_buffer_load_impl_with_bytes(int32x4_t src_wave_buffer_resource,
                                 index_t src_thread_addr_offset,
                                 index_t src_wave_addr_offset)
 {
-    static_assert(N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32 || N == 64,
+    static_assert(N == 1 || N == 2 || N == 4 || N == 8 || N == 12 || N == 16 || N == 32 || N == 64,
                   "wrong! not implemented");
 
     using rtn_type = thread_buffer<int8_t, N>;
@@ -1333,6 +1361,18 @@ amd_buffer_load_impl_with_bytes(int32x4_t src_wave_buffer_resource,
                                                           static_cast<index_t>(coherence));
 
         return bit_cast<rtn_type>(tmp);
+    }
+    else if constexpr(N == 12)
+    {
+        auto tmp = llvm_amdgcn_raw_buffer_load_i32x3(src_wave_buffer_resource,
+                                                     src_thread_addr_offset,
+                                                     src_wave_addr_offset,
+                                                     static_cast<index_t>(coherence));
+        dwordx3_union ret;
+        ret.as_i32[0] = tmp[0];
+        ret.as_i32[1] = tmp[1];
+        ret.as_i32[2] = tmp[2];
+        return bit_cast<rtn_type>(ret);
     }
     else if constexpr(N == 16)
     {
@@ -1408,22 +1448,26 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
         (std::is_same<T, double>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (std::is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, fp16_t>::value &&
-             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32)) ||
+             (N == 1 || N == 2 || N == 4 || N == 6 || N == 8 || N == 16 || N == 32)) ||
             (std::is_same<T, bf16_t>::value &&
-             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32)) ||
+             (N == 1 || N == 2 || N == 4 || N == 6 || N == 8 || N == 16 || N == 32)) ||
             (std::is_same<T, int32_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, fp8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, bf8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (std::is_same<T, int8_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 12 || N == 16)) ||
+            (std::is_same<T, uint8_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 12 || N == 16)) ||
             (std::is_same<T, e8m0_bexp_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, pk_fp4_raw_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, pk_int4_t>::value &&
-                 (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32) ||
-             (std::is_same<T, pk_fp4_t>::value &&
-              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16))),
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32)) ||
+            (std::is_same<T, pk_fp4_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32)) ||
+            (std::is_same<T, pk_fp6x16_t>::value && (N == 1)),
         "wrong! not implemented");
 
     using rtn_type = thread_buffer<T, N>;
@@ -1529,6 +1573,26 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
                                                    src_wave_addr_offset,
                                                    static_cast<index_t>(coherence)));
         }
+        else if constexpr(N == 6)
+        {
+            // N = 6: load as dwordx3 (12 bytes = 6 fp16), using buffer_load_dwordx3 instruction
+            int32x3_t tmp_i32x3 =
+                llvm_amdgcn_raw_buffer_load_i32x3(src_wave_buffer_resource,
+                                                  src_thread_addr_offset,
+                                                  src_wave_addr_offset,
+                                                  static_cast<index_t>(coherence));
+
+            // Use union to reinterpret int32x3 as fp16x6
+            dwordx3_union tmp_union;
+            tmp_union.as_i32[0] = tmp_i32x3[0];
+            tmp_union.as_i32[1] = tmp_i32x3[1];
+            tmp_union.as_i32[2] = tmp_i32x3[2];
+
+            thread_buffer<fp16_t, N> result;
+            static_for<0, N, 1>{}([&](auto i) { result[i] = tmp_union.as_fp16[i]; });
+
+            return result;
+        }
         else
         {
             // N >= 8: build from fp32x4 chunks
@@ -1570,6 +1634,26 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
                                                   src_thread_addr_offset,
                                                   src_wave_addr_offset,
                                                   static_cast<index_t>(coherence)));
+        }
+        else if constexpr(N == 6)
+        {
+            // N = 6: load as dwordx3 (12 bytes = 6 bf16), using buffer_load_dwordx3 instruction
+            int32x3_t tmp_i32x3 =
+                llvm_amdgcn_raw_buffer_load_i32x3(src_wave_buffer_resource,
+                                                  src_thread_addr_offset,
+                                                  src_wave_addr_offset,
+                                                  static_cast<index_t>(coherence));
+
+            // Use union to reinterpret int32x3 as bf16x6
+            dwordx3_union tmp_union;
+            tmp_union.as_i32[0] = tmp_i32x3[0];
+            tmp_union.as_i32[1] = tmp_i32x3[1];
+            tmp_union.as_i32[2] = tmp_i32x3[2];
+
+            thread_buffer<bf16_t, N> result;
+            static_for<0, N, 1>{}([&](auto i) { result[i] = tmp_union.as_bf16[i]; });
+
+            return result;
         }
         else
         {
@@ -1664,27 +1748,22 @@ CK_TILE_DEVICE void amd_async_buffer_load_impl(T* smem,
 template <typename T,
           index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
-          bool oob_conditional_check          = true>
+          bool oob_conditional_check          = true,
+          index_t IMM                         = 0>
 CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
-                                          int32x4_t src_wave_buffer_resource,
+                                          const __amdgpu_buffer_rsrc_t rsrc,
                                           index_t src_thread_addr_offset,
-                                          index_t src_wave_addr_offset,
-                                          index_t src_immediate_addr_offset    = 0,
-                                          index_t flag                         = 0,
-                                          bool_constant<oob_conditional_check> = {})
+                                          index_t src_wave_addr_offset              = 0,
+                                          number<IMM> /*src_immediate_addr_offset*/ = {},
+                                          index_t flag                              = 0,
+                                          bool_constant<oob_conditional_check>      = {})
 {
     constexpr index_t bytes = sizeof(T) * N;
-
-    // Used to catch the cases when src_immediate_addr_offset is NOT 0.
-    // Remove this assert once other sizes are implemented.
-    assert(src_immediate_addr_offset == 0 &&
-           "wrong! not implemented src_immediate_addr_offset size, only 0 supported");
-    ignore = src_immediate_addr_offset;
+    static_assert(IMM < (1 << 12), "wrong! immediate offset too large");
 
 #if defined(__gfx950__)
     static_assert(bytes == 4 || bytes == 12 || bytes == 16,
                   "wrong! only support in dword, dwordx3, dwordx4");
-    src_wave_addr_offset = 0;
 #else
     static_assert(bytes == 4, "wrong! not implemented vector size");
 #endif
@@ -1692,18 +1771,18 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
     // Set up v_offset:
     index_t v_offset = src_thread_addr_offset;
     if constexpr(oob_conditional_check)
-        v_offset = flag ? v_offset : src_wave_buffer_resource[2];
+        v_offset = flag ? v_offset : 0x7fffffff; // large offset to cause OOB access
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"
     // Use C-style cast to change address space without dropping llvm noalias attribute
-    llvm_amdgcn_raw_buffer_load_lds(src_wave_buffer_resource,
-                                    (as3_uint32_ptr)(smem),
-                                    bytes,
-                                    v_offset,
-                                    src_wave_addr_offset,
-                                    /*src_immediate_addr_offset*/ 0,
-                                    static_cast<index_t>(coherence));
+    __builtin_amdgcn_raw_ptr_buffer_load_lds(rsrc,
+                                             smem,
+                                             bytes,
+                                             v_offset,
+                                             src_wave_addr_offset,
+                                             /*imm*/ IMM,
+                                             static_cast<index_t>(coherence));
 #pragma clang diagnostic pop
 }
 
@@ -1714,7 +1793,7 @@ CK_TILE_DEVICE void amd_buffer_store_impl_with_bytes(const thread_buffer<int8_t,
                                                      index_t dst_thread_addr_offset,
                                                      index_t dst_wave_addr_offset)
 {
-    static_assert(N == 1 || N == 2 || N == 4 || N == 8 || N == 16 || N == 32 || N == 64,
+    static_assert(N == 1 || N == 2 || N == 4 || N == 8 || N == 12 || N == 16 || N == 32 || N == 64,
                   "wrong! not implemented");
 
     if constexpr(N == 1)
@@ -1749,6 +1828,13 @@ CK_TILE_DEVICE void amd_buffer_store_impl_with_bytes(const thread_buffer<int8_t,
                                            dst_thread_addr_offset,
                                            dst_wave_addr_offset,
                                            static_cast<index_t>(coherence));
+    }
+    else if constexpr(N == 12)
+    {
+        llvm_amdgcn_raw_buffer_store_i32x3(bit_cast<dwordx3_union>(src_thread_data),
+                                           dst_wave_buffer_resource,
+                                           dst_thread_addr_offset,
+                                           dst_wave_addr_offset);
     }
     else if constexpr(N == 16)
     {
@@ -1823,10 +1909,13 @@ CK_TILE_DEVICE void amd_buffer_store_impl(const thread_buffer<T, N> src_thread_d
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, fp8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, bf8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (std::is_same<T, int8_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 12 || N == 16)) ||
             (std::is_same<T, uint16_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (std::is_same<T, uint8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
+            (std::is_same<T, uint8_t>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            std::is_same<T, pk_fp6x16_t>::value && (N == 1),
         "wrong! not implemented");
 
     if constexpr(std::is_same<T, float>::value) // fp32
@@ -2345,12 +2434,23 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
     return amd_buffer_load_impl<T, N, coherence>(
         src_wave_buffer_resource, src_addr_shift + src_thread_addr_offset, 0);
 #else
-    thread_buffer<T, N> tmp =
-        amd_buffer_load_impl<T, N, coherence>(src_wave_buffer_resource, src_thread_addr_offset, 0);
     if constexpr(oob_conditional_check)
-        return src_thread_element_valid ? tmp : thread_buffer<T, N>{numeric<T>::zero()};
+    {
+        if(src_thread_element_valid)
+        {
+            return amd_buffer_load_impl<T, N, coherence>(
+                src_wave_buffer_resource, src_thread_addr_offset, 0);
+        }
+        else
+        {
+            return thread_buffer<T, N>{numeric<T>::zero()};
+        }
+    }
     else
-        return tmp;
+    {
+        return amd_buffer_load_impl<T, N, coherence>(
+            src_wave_buffer_resource, src_thread_addr_offset, 0);
+    }
 #endif
 }
 
@@ -2493,22 +2593,24 @@ CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
 template <typename T,
           index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
-          bool oob_conditional_check          = false>
+          bool oob_conditional_check          = false,
+          typename linear_offset_t>
 CK_TILE_DEVICE void amd_async_buffer_load_with_oob(CK_TILE_LDS_ADDR T* smem,
-                                                   const int32x4_t src_wave_buffer_resource,
+                                                   const __amdgpu_buffer_rsrc_t rsrc,
                                                    index_t src_thread_element_offset,
-                                                   index_t src_linear_element_offset,
+                                                   index_t src_wave_addr_offset,
+                                                   linear_offset_t,
                                                    bool is_valid_element,
                                                    bool_constant<oob_conditional_check> = {})
 {
-    index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
-    index_t src_linear_addr_offset = src_linear_element_offset * sizeof(T);
+    index_t src_thread_addr_offset           = src_thread_element_offset * sizeof(T);
+    constexpr index_t src_linear_addr_offset = static_cast<index_t>(linear_offset_t{}) * sizeof(T);
 
     amd_async_buffer_load<T, N, coherence>(smem,
-                                           src_wave_buffer_resource,
+                                           rsrc,
                                            src_thread_addr_offset,
-                                           0,
-                                           src_linear_addr_offset,
+                                           src_wave_addr_offset,
+                                           number<src_linear_addr_offset>{},
                                            is_valid_element,
                                            bool_constant<oob_conditional_check>{});
 }

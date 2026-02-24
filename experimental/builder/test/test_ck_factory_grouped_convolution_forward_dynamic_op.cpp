@@ -85,9 +85,9 @@ struct DyOp_F32_2
 
     constexpr static auto expected = {
         // clang-format off
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp32,fp32,fp32,fp32,EmptyTuple,fp32,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,16,4,4,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,4,1,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,4,1,1,1,Seq(1,16,1,16),4,fp32,fp32,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp32,fp32,fp32,fp32,EmptyTuple,fp32,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,16,4,4,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,4,4,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,4,4,1,1,1,Seq(1,8,1,8),1,fp32,fp32,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp32,fp32,fp32,fp32,EmptyTuple,fp32,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,16,4,4,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,4,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,4,1,1,1,Seq(1,8,1,8),1,fp32,fp32,Default,1>"
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp32,fp32,fp32,fp32,EmptyTuple,fp32,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,16,4,4,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,4,true,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,4,true,1,1,Seq(1,16,1,16),4,fp32,fp32,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp32,fp32,fp32,fp32,EmptyTuple,fp32,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,16,4,4,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,4,4,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,4,4,true,1,1,Seq(1,8,1,8),1,fp32,fp32,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp32,fp32,fp32,fp32,EmptyTuple,fp32,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,16,4,4,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,4,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,4,true,1,1,Seq(1,8,1,8),1,fp32,fp32,Default,1>"
         // clang-format on
     };
 };
@@ -98,9 +98,9 @@ struct DyOp_F32_3
 
     constexpr static auto expected = {
         // clang-format off
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,fp32,fp32,fp32,fp32,EmptyTuple,fp32,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,16,4,4,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,4,1,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,4,1,1,1,Seq(1,16,1,16),4,fp32,fp32,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,fp32,fp32,fp32,fp32,EmptyTuple,fp32,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,16,4,4,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,4,4,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,4,4,1,1,1,Seq(1,8,1,8),1,fp32,fp32,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,fp32,fp32,fp32,fp32,EmptyTuple,fp32,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,16,4,4,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,4,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,4,1,1,1,Seq(1,8,1,8),1,fp32,fp32,Default,1>"
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,fp32,fp32,fp32,fp32,EmptyTuple,fp32,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,16,4,4,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,4,true,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,4,true,1,1,Seq(1,16,1,16),4,fp32,fp32,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,fp32,fp32,fp32,fp32,EmptyTuple,fp32,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,16,4,4,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,4,4,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,4,4,true,1,1,Seq(1,8,1,8),1,fp32,fp32,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,fp32,fp32,fp32,fp32,EmptyTuple,fp32,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,16,4,4,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,4,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,4,true,1,1,Seq(1,8,1,8),1,fp32,fp32,Default,1>"
         // clang-format on
     };
 };
@@ -111,9 +111,9 @@ struct DyOp_F16_2
 
     constexpr static auto expected = {
         // clang-format off
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp16,fp16,fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,32,8,8,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,1,1,Seq(1,32,1,8),8,fp16,fp16,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp16,fp16,fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,32,8,8,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,1,1,Seq(1,16,1,4),1,fp16,fp16,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp16,fp16,fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,32,8,8,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,1,1,Seq(1,16,1,4),1,fp16,fp16,Default,1>"
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp16,fp16,fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,32,8,8,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,1,1,Seq(1,32,1,8),8,fp16,fp16,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp16,fp16,fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,32,8,8,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,1,1,Seq(1,16,1,4),1,fp16,fp16,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,fp16,fp16,fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,32,8,8,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,1,1,Seq(1,16,1,4),1,fp16,fp16,Default,1>"
         // clang-format on
     };
 };
@@ -124,9 +124,9 @@ struct DyOp_F16_3
 
     constexpr static auto expected = {
         // clang-format off
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,fp16,fp16,fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,32,8,8,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,1,1,Seq(1,32,1,8),8,fp16,fp16,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,fp16,fp16,fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,32,8,8,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,1,1,Seq(1,16,1,4),1,fp16,fp16,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,fp16,fp16,fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,32,8,8,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,1,1,Seq(1,16,1,4),1,fp16,fp16,Default,1>"
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,fp16,fp16,fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,32,8,8,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,1,1,Seq(1,32,1,8),8,fp16,fp16,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,fp16,fp16,fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,32,8,8,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,1,1,Seq(1,16,1,4),1,fp16,fp16,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,fp16,fp16,fp32,fp16,EmptyTuple,fp16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,32,8,8,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,1,1,Seq(1,16,1,4),1,fp16,fp16,Default,1>"
         // clang-format on
     };
 };
@@ -137,9 +137,9 @@ struct DyOp_BF16_2
 
     constexpr static auto expected = {
         // clang-format off
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,bf16,bf16,fp32,bf16,EmptyTuple,bf16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,32,8,8,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,1,1,Seq(1,32,1,8),8,bf16,bf16,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,bf16,bf16,fp32,bf16,EmptyTuple,bf16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,32,8,8,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,1,1,Seq(1,16,1,4),1,bf16,bf16,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,bf16,bf16,fp32,bf16,EmptyTuple,bf16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,32,8,8,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,1,1,Seq(1,16,1,4),1,bf16,bf16,Default,1>"
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,bf16,bf16,fp32,bf16,EmptyTuple,bf16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,32,8,8,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,1,1,Seq(1,32,1,8),8,bf16,bf16,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,bf16,bf16,fp32,bf16,EmptyTuple,bf16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,32,8,8,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,1,1,Seq(1,16,1,4),1,bf16,bf16,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,bf16,bf16,fp32,bf16,EmptyTuple,bf16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,32,8,8,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,1,1,Seq(1,16,1,4),1,bf16,bf16,Default,1>"
         // clang-format on
     };
 };
@@ -150,9 +150,9 @@ struct DyOp_BF16_3
 
     constexpr static auto expected = {
         // clang-format off
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,bf16,bf16,fp32,bf16,EmptyTuple,bf16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,32,8,8,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,1,1,Seq(1,32,1,8),8,bf16,bf16,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,bf16,bf16,fp32,bf16,EmptyTuple,bf16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,32,8,8,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,1,1,Seq(1,16,1,4),1,bf16,bf16,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,bf16,bf16,fp32,bf16,EmptyTuple,bf16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,32,8,8,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,1,1,Seq(1,16,1,4),1,bf16,bf16,Default,1>"
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,bf16,bf16,fp32,bf16,EmptyTuple,bf16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,32,8,8,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,1,1,Seq(1,32,1,8),8,bf16,bf16,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,bf16,bf16,fp32,bf16,EmptyTuple,bf16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,32,8,8,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,1,1,Seq(1,16,1,4),1,bf16,bf16,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,bf16,bf16,fp32,bf16,EmptyTuple,bf16,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,32,8,8,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,1,1,Seq(1,16,1,4),1,bf16,bf16,Default,1>"
         // clang-format on
     };
 };
@@ -163,9 +163,9 @@ struct DyOp_INT8_2
 
     constexpr static auto expected = {
         // clang-format off
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,s8,s8,s32,s8,EmptyTuple,s8,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,32,8,8,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,1,1,Seq(1,32,1,8),8,s8,s8,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,s8,s8,s32,s8,EmptyTuple,s8,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,32,8,8,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,1,1,Seq(1,16,1,4),1,s8,s8,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,s8,s8,s32,s8,EmptyTuple,s8,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,32,8,8,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,1,1,Seq(1,16,1,4),1,s8,s8,Default,1>"
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,s8,s8,s32,s8,EmptyTuple,s8,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,32,8,8,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,1,1,Seq(1,32,1,8),8,s8,s8,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,s8,s8,s32,s8,EmptyTuple,s8,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,32,8,8,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,1,1,Seq(1,16,1,4),1,s8,s8,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<2,NHWGC,GKYXC,EmptyTuple,NHWGK,s8,s8,s32,s8,EmptyTuple,s8,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,32,8,8,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,1,1,Seq(1,16,1,4),1,s8,s8,Default,1>"
         // clang-format on
     };
 };
@@ -176,9 +176,9 @@ struct DyOp_INT8_3
 
     constexpr static auto expected = {
         // clang-format off
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,s8,s8,s32,s8,EmptyTuple,s8,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,32,8,8,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,1,1,Seq(1,32,1,8),8,s8,s8,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,s8,s8,s32,s8,EmptyTuple,s8,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,32,8,8,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,1,1,1,Seq(1,16,1,4),1,s8,s8,Default,1>",
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,s8,s8,s32,s8,EmptyTuple,s8,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,32,8,8,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,1,1,1,Seq(1,16,1,4),1,s8,s8,Default,1>"
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,s8,s8,s32,s8,EmptyTuple,s8,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,256,128,128,32,8,8,32,32,2,2,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,Seq(4,64,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,1,1,Seq(1,32,1,8),8,s8,s8,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,s8,s8,s32,s8,EmptyTuple,s8,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,32,32,8,8,32,32,2,1,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,8,8,true,1,1,Seq(1,16,1,4),1,s8,s8,Default,1>",
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<3,NDHWGC,GKZYXC,EmptyTuple,NDHWGK,s8,s8,s32,s8,EmptyTuple,s8,PassThrough,PassThrough,DynamicUnaryOp,Default,MNKPadding,1,64,64,64,32,8,8,32,32,2,2,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,Seq(4,16,1),Seq(1,0,2),Seq(1,0,2),2,1,8,true,1,1,Seq(1,16,1,4),1,s8,s8,Default,1>"
         // clang-format on
     };
 };

@@ -29,7 +29,7 @@ void preShuffleBuffer(const InOutDataType* src, InOutDataType* dst, int N, int K
 {
     int KPack = 16;
     int NLane = NXdl;
-    int KLane = 64 / NLane;
+    int KLane = ck::get_warp_size() / NLane;
 
     int K0 = K / (KLane * KPack);
     // K -> K0 KLane KPack
@@ -167,8 +167,8 @@ bool profile_gemm_blockscale_weightpreshuffle_impl(int do_verification,
     case 1:
         a0_m_k.GenerateTensorValue(GeneratorTensor_2<A0DataType>{-2, 2});
         b0_k_n.GenerateTensorValue(GeneratorTensor_2<B0DataType>{-2, 2});
-        a1_m_k.GenerateTensorValue(GeneratorTensor_3<A1DataType>{0, 1.0});
-        b1_k_n.GenerateTensorValue(GeneratorTensor_3<B1DataType>{0, 1.0});
+        a1_m_k.GenerateTensorValue(GeneratorTensor_2<A1DataType>{-2, 2});
+        b1_k_n.GenerateTensorValue(GeneratorTensor_2<B1DataType>{-2, 2});
         break;
     default:
         a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});

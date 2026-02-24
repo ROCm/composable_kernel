@@ -23,10 +23,14 @@
 
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#pragma clang diagnostic ignored "-Wlifetime-safety-cross-tu-suggestions"
+
 namespace ck {
 
 template <typename Range>
-std::ostream& LogRange(std::ostream& os, Range&& range, std::string delim)
+std::ostream& LogRange([[clang::lifetimebound]] std::ostream& os, Range&& range, std::string delim)
 {
     bool first = true;
     for(auto&& v : range)
@@ -298,9 +302,12 @@ struct HostTensorDescriptor
             if constexpr(!(std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ||
                            std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>))
             {
-                std::cerr << "Only RowMajor and ColumnMajor layouts are supported for empty "
-                             "strides, got "
-                          << layout << ". Will calculate strides as RowMajor." << std::endl;
+                if(dbg)
+                {
+                    std::cerr << "Only RowMajor and ColumnMajor layouts are supported for empty "
+                                 "strides, got "
+                              << layout << ". Will calculate strides as RowMajor." << std::endl;
+                }
             }
 
             mStrides.clear();
@@ -443,9 +450,14 @@ struct HostTensorDescriptor
         {
             // TBD: implement verification for Conv layouts
             // For now, just print warning and return
-            std::cerr << "Warning: Tensor layout verification for ck::tensor_layout::convolution "
-                         "layouts is not supported yet. Skipping..."
-                      << std::endl;
+            if(dbg)
+            {
+
+                std::cerr
+                    << "Warning: Tensor layout verification for ck::tensor_layout::convolution "
+                       "layouts is not supported yet. Skipping..."
+                    << std::endl;
+            }
             return;
         }
         else
@@ -572,8 +584,9 @@ struct HostTensorDescriptor
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc);
-    friend std::ostream& operator<<(std::ostream& os, ChosenLayout tag);
+    friend std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                                    const HostTensorDescriptor& desc);
+    friend std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os, ChosenLayout tag);
 
     private:
     std::vector<std::size_t> mLens;
@@ -1163,3 +1176,4 @@ struct Tensor
 };
 
 } // namespace ck
+#pragma clang diagnostic pop

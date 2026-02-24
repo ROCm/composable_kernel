@@ -113,13 +113,10 @@ float a16w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
     float ave_time{0};
 
-    const auto Run = [&](const auto has_hot_loop_,
-                         const auto tail_number_,
-                         const auto memory_operation_) {
-        constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-        constexpr auto tail_number_v    = tail_number_.value;
-        constexpr auto scheduler        = FlatmmConfig::Scheduler;
-        constexpr auto memory_operation = memory_operation_.value;
+    const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
+        constexpr bool has_hot_loop_v = has_hot_loop_.value;
+        constexpr auto tail_number_v  = tail_number_.value;
+        constexpr auto scheduler      = FlatmmConfig::Scheduler;
 
         using CodegenPipelineProblem =
             std::conditional_t<MXFP4_Pipeline,
@@ -159,7 +156,6 @@ float a16w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config
                                              FlatmmConfig::N_Warp_Tile,
                                              FlatmmConfig::K_Warp_Tile,
                                              CodegenPipelineProblem::TransposeC,
-                                             memory_operation,
                                              FlatmmConfig::NumWaveGroups,
                                              false,
                                              1,
@@ -191,13 +187,15 @@ float a16w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config
 
         if(s.log_level_ > 0)
         {
-            std::cout << "Launching kernel with args:" << CodegenFlatmmShape::GetName() << "\n"
+            std::cout << "Launching kernel " << Kernel::GetName() << "\n"
+                      << "with args:" << CodegenFlatmmShape::GetName() << "\n"
                       << "Shape: " << CodegenFlatmmShape::GetName() << "\n"
                       << "problem: " << CodegenPipelineProblem::GetName() << "\n"
                       << "pipeline: " << CodegenFlatmmPipeline::GetName() << "\n"
                       << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                      << std::endl;
+                      << "\n"
+                      << "k_batch: " << kargs.k_batch << std::endl;
         }
 
         if(s.flush_cache_)
@@ -263,23 +261,7 @@ float a16w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config
         return ave_time;
     };
 
-    const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-        if(args.k_batch == 1)
-        {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
-        }
-        else
-        {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
-        }
-    };
-    BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+    BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
     return ave_time;
 }
 
@@ -471,10 +453,33 @@ int run_a16w4_moe_flatmm_example(int argc, char* argv[])
                 throw std::runtime_error("Unsupported precision type for gemm2!");
             }
         }
+        else if(gemm_kind == "gemm1_split_k")
+        {
+            if(mixed_prec == "fp16xfp4")
+            {
+                return run_a16w4_moe_gemm_example_with_layouts<
+                    ck_tile::half_t,
+                    ck_tile::pk_fp4_t,
+                    FlatmmConfig,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_split_k>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(mixed_prec == "bf16xfp4")
+            {
+                return run_a16w4_moe_gemm_example_with_layouts<
+                    ck_tile::bfloat16_t,
+                    ck_tile::pk_fp4_t,
+                    FlatmmConfig,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_split_k>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported precision type for gemm1_split_k!");
+            }
+        }
         else
         {
             throw std::runtime_error("Unrecoginized gemm_kind parameter, only accept value "
-                                     "[gemm1_gate_up | gemm2]");
+                                     "[gemm1_gate_up | gemm1_split_k | gemm2]");
         }
     }
     else

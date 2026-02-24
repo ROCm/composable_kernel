@@ -205,7 +205,7 @@ int main(int argc, char* argv[])
 {
     bool do_verification = true;
     int init_method      = 1;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     // GEMM shape
     ck::index_t N               = 4096;

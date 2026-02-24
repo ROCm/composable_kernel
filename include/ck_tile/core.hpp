@@ -1,6 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
-
 #pragma once
 
 #include "ck_tile/core/algorithm/cluster_descriptor.hpp"
@@ -10,6 +9,7 @@
 #include "ck_tile/core/algorithm/static_encoding_pattern.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
+#include "ck_tile/core/arch/amd_buffer_coherence.hpp"
 #include "ck_tile/core/arch/amd_transpose_load_encoding.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
@@ -54,6 +54,7 @@
 #include "ck_tile/core/numeric/null_type.hpp"
 #include "ck_tile/core/numeric/numeric.hpp"
 #include "ck_tile/core/numeric/pk_fp4.hpp"
+#include "ck_tile/core/numeric/pk_fp6.hpp"
 #include "ck_tile/core/numeric/pk_int4.hpp"
 #include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
@@ -91,6 +92,8 @@
 #include "ck_tile/core/utility/ignore.hpp"
 #include "ck_tile/core/utility/literals.hpp"
 #include "ck_tile/core/utility/magic_div.hpp"
+#include "ck_tile/core/utility/mixed_prec_compute_type.hpp"
+#include "ck_tile/core/utility/persistent_async_input_scheduler.hpp"
 #include "ck_tile/core/utility/philox_rand.hpp"
 #include "ck_tile/core/utility/print.hpp"
 #include "ck_tile/core/utility/random.hpp"

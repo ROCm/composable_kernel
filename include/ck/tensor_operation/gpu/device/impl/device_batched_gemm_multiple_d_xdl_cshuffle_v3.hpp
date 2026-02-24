@@ -33,14 +33,14 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
 #endif
     kernel_batched_gemm_xdl_cshuffle_v3_multi_d(BatchedGemmArg karg)
 {
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         const index_t g_idx = blockIdx.z % karg.Batch;
         const index_t k_idx = blockIdx.z / karg.Batch;
@@ -82,7 +82,7 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
 #endif
     kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds(BatchedGemmArg karg)
 {
@@ -91,8 +91,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     {
         // Pass two lds pointer is the key to tell compiler that ds_read/write
         // operate on different lds chunk at same time without order dependecy
-        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
+        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         const index_t g_idx = blockIdx.z % karg.Batch;
         const index_t k_idx = blockIdx.z / karg.Batch;
@@ -349,6 +349,11 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
               compute_ptr_offset_of_batch{
                   BatchStrideA_, BatchStrideB_, BatchStrideDs_, BatchStrideE_}
         {
+        }
+        template <typename EType>
+        void SetEPointer(void* ptr)
+        {
+            this->p_c_grid = static_cast<EType*>(ptr);
         }
     };
     using Argument = ArgumentBase<GridwiseGemm64>;

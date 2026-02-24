@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(EXAMPLE_POOL_3D "tile_example_pool3d")
 message(DEBUG "adding example ${EXAMPLE_POOL_3D}")
 

@@ -20,6 +20,52 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+#ifdef CK_USE_WMMA
+#ifdef CK_ENABLE_FP16
+void add_device_batched_gemm_add_relu_gemm_add_wmma_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
+    std::vector<std::unique_ptr<DeviceBatchedGemmMultipleDGemmMultipleD<Row,
+                                                                        Col,
+                                                                        ck::Tuple<Row>,
+                                                                        Row,
+                                                                        ck::Tuple<Row>,
+                                                                        Row,
+                                                                        F16,
+                                                                        F16,
+                                                                        ck::Tuple<F16>,
+                                                                        F16,
+                                                                        ck::Tuple<F16>,
+                                                                        F16,
+                                                                        PassThrough,
+                                                                        PassThrough,
+                                                                        CDE0ElementOp,
+                                                                        PassThrough,
+                                                                        CDE1ElementOp>>>&
+        instances);
+
+void add_device_batched_gemm_add_relu_gemm_add_wmma_cshuffle_f16_f16_f16_f16_gmk_gnk_gon_gmo_instance(
+    std::vector<std::unique_ptr<DeviceBatchedGemmMultipleDGemmMultipleD<Row,
+                                                                        Col,
+                                                                        ck::Tuple<Row>,
+                                                                        Col,
+                                                                        ck::Tuple<Row>,
+                                                                        Row,
+                                                                        F16,
+                                                                        F16,
+                                                                        ck::Tuple<F16>,
+                                                                        F16,
+                                                                        ck::Tuple<F16>,
+                                                                        F16,
+                                                                        PassThrough,
+                                                                        PassThrough,
+                                                                        CDE0ElementOp,
+                                                                        PassThrough,
+                                                                        CDE1ElementOp>>>&
+        instances);
+#endif // CK_ENABLE_FP16
+#endif // CK_USE_WMMA
+
+#ifdef CK_USE_XDL
+#ifdef CK_ENABLE_FP16
 void add_device_batched_gemm_add_relu_gemm_add_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
     std::vector<std::unique_ptr<DeviceBatchedGemmMultipleDGemmMultipleD<Row,
                                                                         Col,
@@ -59,7 +105,8 @@ void add_device_batched_gemm_add_relu_gemm_add_xdl_cshuffle_f16_f16_f16_f16_gmk_
                                                                         PassThrough,
                                                                         CDE1ElementOp>>>&
         instances);
-
+#endif // CK_ENABLE_FP16
+#endif // CK_USE_XDL
 template <typename A0Layout,
           typename B0Layout,
           typename D0sLayout,
@@ -113,22 +160,36 @@ struct DeviceOperationInstanceFactory<
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
+#ifdef CK_ENABLE_FP16
         if constexpr(is_same_v<A0DataType, half_t> && is_same_v<B0DataType, half_t> &&
                      is_same_v<B1DataType, half_t> && is_same_v<E1DataType, half_t>)
         {
             if constexpr(is_same_v<A0Layout, Row> && is_same_v<B0Layout, Col> &&
                          is_same_v<B1Layout, Row> && is_same_v<E1Layout, Row>)
             {
+#ifdef CK_USE_XDL
                 add_device_batched_gemm_add_relu_gemm_add_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
                     op_ptrs);
+#endif
+#ifdef CK_USE_WMMA
+                add_device_batched_gemm_add_relu_gemm_add_wmma_cshuffle_f16_f16_f16_f16_gmk_gnk_gno_gmo_instance(
+                    op_ptrs);
+#endif
             }
             else if constexpr(is_same_v<A0Layout, Row> && is_same_v<B0Layout, Col> &&
                               is_same_v<B1Layout, Col> && is_same_v<E1Layout, Row>)
             {
+#ifdef CK_USE_XDL
                 add_device_batched_gemm_add_relu_gemm_add_xdl_cshuffle_f16_f16_f16_f16_gmk_gnk_gon_gmo_instance(
                     op_ptrs);
+#endif
+#ifdef CK_USE_WMMA
+                add_device_batched_gemm_add_relu_gemm_add_wmma_cshuffle_f16_f16_f16_f16_gmk_gnk_gon_gmo_instance(
+                    op_ptrs);
+#endif
             }
         }
+#endif
         return op_ptrs;
     }
 };

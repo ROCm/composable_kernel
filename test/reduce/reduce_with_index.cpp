@@ -193,7 +193,7 @@ TYPED_TEST(ReduceWithIndexHalf, ReduceWithIndexTestHalf_MAX)
     this->template Run<ReduceTensorOp::MAX>();
 }
 
-TYPED_TEST(ReduceWithIndexBHalfFloat, ReduceWithIndexTesBtHalfFloat_AMAX)
+TYPED_TEST(ReduceWithIndexBHalfFloat, ReduceWithIndexTesBHalfFloat_AMAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::AMAX>();

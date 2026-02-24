@@ -84,7 +84,7 @@ void host_elementwise2D(HostTensorC& C,
 int main(int argc, char* argv[])
 {
     bool do_verification = true;
-    bool time_kernel     = true;
+    bool time_kernel     = false;
 
     ck::index_t M = 48 * 256;
     ck::index_t N = 1024;

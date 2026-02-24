@@ -19,6 +19,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+#ifdef CK_USE_XDL
 void add_device_batched_contraction_bias_permute_m2_n3_k1_xdl_c_shuffle_f16_f16_f16_f16_mnnm_instance(
     std::vector<std::unique_ptr<
         DeviceBatchedContractionMultipleD<1,
@@ -32,6 +33,23 @@ void add_device_batched_contraction_bias_permute_m2_n3_k1_xdl_c_shuffle_f16_f16_
                                           ck::tensor_operation::element_wise::PassThrough,
                                           ck::tensor_operation::element_wise::PassThrough,
                                           ck::tensor_operation::element_wise::Add>>>& instances);
+#endif
+
+#ifdef CK_USE_WMMA
+void add_device_batched_contraction_bias_permute_m2_n3_k1_wmma_c_shuffle_f16_f16_f16_f16_mnnm_instance(
+    std::vector<std::unique_ptr<
+        DeviceBatchedContractionMultipleD<1,
+                                          2,
+                                          3,
+                                          1,
+                                          F16,
+                                          F16,
+                                          F16_Tuple,
+                                          F16,
+                                          ck::tensor_operation::element_wise::PassThrough,
+                                          ck::tensor_operation::element_wise::PassThrough,
+                                          ck::tensor_operation::element_wise::Add>>>& instances);
+#endif
 
 // Contraction + add
 template <index_t NumDimG,
@@ -76,10 +94,17 @@ struct DeviceOperationInstanceFactory<
         if constexpr(is_same_v<ADataType, ck::half_t> && is_same_v<BDataType, ck::half_t> &&
                      is_same_v<DDataType, ck::half_t> && is_same_v<EDataType, ck::half_t>)
         {
+
             if constexpr(NumDimG == 1 && NumDimM == 2 && NumDimN == 3 && NumDimK == 1)
             {
+#ifdef CK_USE_XDL
                 add_device_batched_contraction_bias_permute_m2_n3_k1_xdl_c_shuffle_f16_f16_f16_f16_mnnm_instance(
                     op_ptrs);
+#endif
+#ifdef CK_USE_WMMA
+                add_device_batched_contraction_bias_permute_m2_n3_k1_wmma_c_shuffle_f16_f16_f16_f16_mnnm_instance(
+                    op_ptrs);
+#endif
             }
         }
 

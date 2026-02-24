@@ -56,7 +56,7 @@ template<> struct emb_kernel<ck::half_t, 8192> { using kernel_type = DeviceInsta
 
 int main(int argc, char* argv[])
 {
-    bool time_kernel = true;
+    bool time_kernel = false;
 
     ck::index_t num_rows          = 65536;
     constexpr auto dims           = ck::Sequence<256, 512, 768, 1024, 1536, 2048, 4096, 8192>{};

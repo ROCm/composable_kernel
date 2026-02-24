@@ -189,7 +189,7 @@ struct fmha_bwd_args
     ck_tile::index_t nhead_stride_randval;
     ck_tile::index_t nhead_stride_do;
     ck_tile::index_t nhead_stride_lsed;
-    ck_tile::index_t nhead_stride_dq_acc;
+    ck_tile::long_index_t nhead_stride_dq_acc;
     ck_tile::index_t nhead_stride_dq;
     ck_tile::index_t nhead_stride_dk;
     ck_tile::index_t nhead_stride_dv;
@@ -202,7 +202,7 @@ struct fmha_bwd_args
     ck_tile::index_t batch_stride_randval;
     ck_tile::index_t batch_stride_do;
     ck_tile::index_t batch_stride_lsed;
-    ck_tile::index_t batch_stride_dq_acc;
+    ck_tile::long_index_t batch_stride_dq_acc;
     ck_tile::index_t batch_stride_dq;
     ck_tile::index_t batch_stride_dk;
     ck_tile::index_t batch_stride_dv;

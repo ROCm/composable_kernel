@@ -1068,6 +1068,14 @@ CK_TILE_HOST_DEVICE constexpr auto to_sequence(tuple<number<Is>...>)
     return sequence<Is...>{};
 }
 
+template <index_t... Is>
+using number_tuple = tuple<number<Is>...>;
+template <index_t... Is>
+CK_TILE_HOST_DEVICE constexpr auto to_number_tuple(sequence<Is...> = {})
+{
+    return number_tuple<Is...>{};
+}
+
 namespace detail {
 template <index_t h_idx, typename SeqSortedSamples, typename SeqRange>
 struct sorted_sequence_histogram;
@@ -1237,10 +1245,11 @@ constexpr auto reverse_slice_sequence(Seq,
 {
     static_assert(Seq::size() == Mask::size());
     static_assert(SliceSize != 0, "slice size zero is invalid");
-    static_assert(container_reduce(pick_sequence_elements_by_mask(Seq{}, Mask{}), multiplies{}, 1) %
-                          SliceSize ==
-                      0,
-                  "slice size can't evenly divide input sizes");
+    static_assert(
+        container_reduce(pick_sequence_elements_by_mask(Seq{}, Mask{}), multiplies<>{}, 1) %
+                SliceSize ==
+            0,
+        "slice size can't evenly divide input sizes");
     using sliced_type =
         impl::reverse_slice_sequence_impl<Seq,
                                           Mask,

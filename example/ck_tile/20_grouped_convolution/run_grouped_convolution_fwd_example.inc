@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ck_tile/ref/naive_grouped_conv_fwd_gpu.hpp"
+
 template <ck_tile::index_t NDimSpatial,
           typename ConvConfig,
           typename Invoker,
@@ -187,7 +189,49 @@ int run_grouped_conv_fwd_example_with_layouts(
     }
     else if(arg_parser.get_int("v") == 2)
     {
-        throw std::runtime_error("Unsupported gpu verification !!!");
+        // GPU reference verification
+        ck_tile::DeviceMem output_ref_dev_buf(output.get_element_space_size_in_bytes());
+        output_ref_dev_buf.SetZero();
+
+        // GPU reference uses conv_param vectors directly (they are already long_index_t)
+
+        // Launch GPU reference kernel
+        std::cout << "Run GPU reference kernel..." << std::endl;
+        ck_tile::naive_grouped_conv_fwd<NDimSpatial, InDataType, WeiDataType, OutDataType>(
+            reinterpret_cast<const InDataType*>(input_dev_buf.GetDeviceBuffer()),
+            reinterpret_cast<const WeiDataType*>(weight_dev_buf.GetDeviceBuffer()),
+            reinterpret_cast<OutDataType*>(output_ref_dev_buf.GetDeviceBuffer()),
+            conv_param.G_,
+            conv_param.N_,
+            conv_param.K_,
+            conv_param.C_,
+            conv_param.input_spatial_lengths_,
+            conv_param.filter_spatial_lengths_,
+            conv_param.output_spatial_lengths_,
+            conv_param.conv_filter_strides_,
+            conv_param.conv_filter_dilations_,
+            conv_param.input_left_pads_);
+
+        // Copy GPU reference result to host for comparison
+        ck_tile::HostTensor<OutDataType> output_gpu_ref(out_g_n_k_wos_desc);
+        output_ref_dev_buf.FromDevice(output_gpu_ref.data());
+
+        const ck_tile::index_t GemmK = weight.get_element_size() / (conv_param.G_ * conv_param.K_);
+        const float max_accumulated_value =
+            *std::max_element(output_gpu_ref.mData.begin(), output_gpu_ref.mData.end());
+        const auto rtol_atol =
+            calculate_rtol_atol<InDataType, WeiDataType, AccDataType, OutDataType>(
+                GemmK, kbatch, max_accumulated_value);
+        pass = ck_tile::check_err(output,
+                                  output_gpu_ref,
+                                  "Error: Incorrect results!",
+                                  rtol_atol.at(ck_tile::number<0>{}),
+                                  rtol_atol.at(ck_tile::number<1>{}));
+
+        std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                  << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                  << std::endl;
+        std::cout << "The GPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
 
     return pass;

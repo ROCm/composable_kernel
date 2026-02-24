@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 set(RMSNORM2D_FWD_KNOWN_APIS "fwd;bwd")
 set(RMSNORM2D_FWD_ENABLE_APIS  "fwd" CACHE STRING
     "semicolon-separated list of APIs to generate (${RMSNORM2D_FWD_KNOWN_APIS}) & link, or \"all\".")

@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # Elementwise example targets 2D inputs
 set(TARGET_NAME_2D_INPUT tile_example_elementwise)
 add_executable(${TARGET_NAME_2D_INPUT} elementwise_example.cpp)

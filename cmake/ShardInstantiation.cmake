@@ -35,7 +35,7 @@ function(generate_sharded_instantiations)
     set(GENERATED_SOURCE_FILES "")
     set(EXTERN_TEMPLATE_STATEMENTS "")
     set(CALL_STATEMENTS "")
-    message(STATUS "Generating sharded instantiations for target: ${GEN_SHARDED_INSTANCES_NAME}")
+    message(DEBUG "Generating sharded instantiations for target: ${GEN_SHARDED_INSTANCES_NAME}")
 
     set(INSTANCES "${GEN_SHARDED_INSTANCES_NAME}")
     

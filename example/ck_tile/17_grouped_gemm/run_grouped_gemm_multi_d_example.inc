@@ -95,8 +95,7 @@ float invoke_gemm(int n_warmup,
     else
     {
         std::vector<ck_tile::GemmTransKernelArg<NumDTensor>> kargs;
-        void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
-        const bool splitk = args[0].k_batch > 1;
+        void* kargs_ptr = gemm_workspace.GetDeviceBuffer();
         for(const auto& arg : args)
         {
             kargs.emplace_back(ck_tile::UniversalGemmKernelArgs<1, 1, NumDTensor>{{arg.a_ptr},
@@ -119,18 +118,17 @@ float invoke_gemm(int n_warmup,
                                 kargs.size() * sizeof(ck_tile::GemmTransKernelArg<NumDTensor>),
                                 hipMemcpyHostToDevice,
                                 stream.stream_id_));
-        ave_time =
-            grouped_gemm_multi_d_tileloop<GemmConfig,
-                                          ADataType,
-                                          BDataType,
-                                          DsDataType,
-                                          AccDataType,
-                                          EDataType,
-                                          ALayout,
-                                          BLayout,
-                                          DsLayout,
-                                          ELayout,
-                                          CDEElementWise>(stream, group_count, kargs_ptr, splitk);
+        ave_time = grouped_gemm_multi_d_tileloop<GemmConfig,
+                                                 ADataType,
+                                                 BDataType,
+                                                 DsDataType,
+                                                 AccDataType,
+                                                 EDataType,
+                                                 ALayout,
+                                                 BLayout,
+                                                 DsLayout,
+                                                 ELayout,
+                                                 CDEElementWise>(stream, group_count, kargs_ptr);
     }
     return ave_time;
 }

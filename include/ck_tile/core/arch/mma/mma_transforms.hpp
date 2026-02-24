@@ -1,6 +1,8 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 #pragma once
+#include "ck_tile/core/arch/arch.hpp"
+
 namespace ck_tile::core::arch::mma {
 
 /**
@@ -27,7 +29,7 @@ template <typename MmaOp, typename CompilerTarget, typename Enable = void>
 // TODO: c++20 template <MmaOpI MmaOp, amdgcn_target_arch_id CompilerTarget, typename Enable = void>
 struct MmaTransformsDefaultSelector;
 
-#if defined(__cpp_concepts) && __cpp_concepts >= 201907L
+#if CK_TILE_CONCEPTS
 
 /**
  * @concept MmaTransformsI
@@ -42,6 +44,6 @@ concept MmaTransformsI = requires(MmaTransforms transforms) {
     typename MmaTransforms::DTransform;
 };
 
-#endif // defined(__cpp_concepts) && __cpp_concepts >= 201907L
+#endif // CK_TILE_CONCEPTS
 
 } // namespace ck_tile::core::arch::mma

@@ -148,7 +148,7 @@ auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("m", "32", "m dimension")
-        .insert("n", "128", "n dimension")
+        .insert("n", "512", "n dimension")
         .insert("k", "256", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Row by default")
@@ -158,7 +158,7 @@ auto create_args(int argc, char* argv[])
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert(
-            "mx_prec", "fp4xfp4", "data type for activation and weight, support: fp6xfp6, fp8xfp8")
+            "mx_prec", "fp4xfp4", "data type for activation and weight, support: fp4xfp4, fp8xfp8")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
@@ -179,10 +179,11 @@ auto preShuffleWeight(ck_tile::HostTensor<dtype>& src)
     const int K               = src_lengths[0];
     const int N               = src_lengths[1];
     constexpr int packed_size = ck_tile::numeric_traits<dtype>::PackedSize;
-    int KPack                 = 16 * packed_size; // fp4:32 or fp8:16
-    int NLane                 = N_Warp_Tile;
-    int KLane                 = 64 / NLane;
-    int K0                    = K / (KLane * KPack);
+    int KPack =
+        std::is_same_v<dtype, ck_tile::pk_fp6x16_t> ? 32 : 16 * packed_size; // fp4/fp6:32 or fp8:16
+    int NLane = N_Warp_Tile;
+    int KLane = 64 / NLane;
+    int K0    = K / (KLane * KPack);
 
     ck_tile::HostTensor<dtype> shuffled(ck_tile::HostTensorDescriptor({N * K}, {1}));
 
@@ -295,7 +296,14 @@ int run_mx_flatmm_example(int argc, char* argv[])
         }
         else if(mx_prec == "fp6" || mx_prec == "fp6xfp6")
         {
-            throw std::runtime_error("fp6xfp6 is not supported.");
+            if(persistent_opt == 0)
+                return run_mx_flatmm_with_layouts<ck_tile::pk_fp6x16_t,
+                                                  ck_tile::pk_fp6x16_t,
+                                                  ck_tile::fp16_t,
+                                                  MXfp6_FlatmmConfig16,
+                                                  false>(argc, argv, Row{}, Col{}, Row{});
+            else
+                throw std::runtime_error("Only support non-persistent kernel now!");
         }
         else if(mx_prec == "fp8" || mx_prec == "fp8xfp8")
         {
@@ -304,6 +312,28 @@ int run_mx_flatmm_example(int argc, char* argv[])
                                                   ck_tile::fp8_t,
                                                   ck_tile::fp16_t,
                                                   MXfp8_FlatmmConfig16,
+                                                  false>(argc, argv, Row{}, Col{}, Row{});
+            else
+                throw std::runtime_error("Only support non-persistent kernel now!");
+        }
+        else if(mx_prec == "fp8xfp4")
+        {
+            if(persistent_opt == 0)
+                return run_mx_flatmm_with_layouts<ck_tile::fp8_t,
+                                                  ck_tile::pk_fp4_t,
+                                                  ck_tile::fp16_t,
+                                                  MXf8f4_FlatmmConfig16,
+                                                  false>(argc, argv, Row{}, Col{}, Row{});
+            else
+                throw std::runtime_error("Only support non-persistent kernel now!");
+        }
+        else if(mx_prec == "fp4xfp8")
+        {
+            if(persistent_opt == 0)
+                return run_mx_flatmm_with_layouts<ck_tile::pk_fp4_t,
+                                                  ck_tile::fp8_t,
+                                                  ck_tile::fp16_t,
+                                                  MXf4f8_FlatmmConfig16,
                                                   false>(argc, argv, Row{}, Col{}, Row{});
             else
                 throw std::runtime_error("Only support non-persistent kernel now!");

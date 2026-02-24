@@ -1,0 +1,27 @@
+{
+  "tile_config": {
+    "tile_m": [128, 256],
+    "tile_n": [128, 256],
+    "tile_k": [32, 64],
+    "warp_m": [2, 4],
+    "warp_n": [2, 4],
+    "warp_k": [1],
+    "warp_tile_m": [16, 32],
+    "warp_tile_n": [16, 32],
+    "warp_tile_k": [16]
+  },
+  "trait_config": {
+    "pipeline": ["compv4"],
+    "epilogue": ["cshuffle"],
+    "scheduler": ["intrawave"],
+    "pad_m": [false],
+    "pad_n": [false],
+    "pad_k": [false],
+    "persistent": [false, true]
+  },
+  "multi_d_config": {
+    "elementwise_ops": ["MultiDAdd", "Relu", "Gelu"],
+    "num_d_tensors": [1, 2]
+  }
+}
+

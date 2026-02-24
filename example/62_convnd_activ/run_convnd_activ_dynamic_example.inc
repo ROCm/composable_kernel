@@ -47,6 +47,12 @@ bool run_convnd_example(int argc, char* argv[], const OutElementOp& out_element_
         conv_param = ck::utils::conv::parse_conv_param(num_dim_spatial, 5, argv);
     }
 
+    if(std::is_same_v<OutElementOp, ck::tensor_operation::element_wise::SoftRelu> &&
+       init_method != 2)
+    {
+        std::cout << "Running SoftRelu op with int initialization. Risk of overflow.\n\n";
+    }
+
     const auto in_element_op  = InElementOp{};
     const auto wei_element_op = WeiElementOp{};
 

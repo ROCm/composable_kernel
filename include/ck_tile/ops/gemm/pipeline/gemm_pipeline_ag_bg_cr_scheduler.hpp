@@ -41,7 +41,8 @@ enum struct TailNumber
 
 } // namespace ck_tile
 
-inline std::ostream& operator<<(std::ostream& os, const ck_tile::GemmPipelineScheduler& s)
+inline std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                                const ck_tile::GemmPipelineScheduler& s)
 {
     switch(s)
     {
@@ -53,7 +54,8 @@ inline std::ostream& operator<<(std::ostream& os, const ck_tile::GemmPipelineSch
     return os;
 }
 
-inline std::ostream& operator<<(std::ostream& os, const ck_tile::TailNumber& s)
+inline std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                                const ck_tile::TailNumber& s)
 {
     switch(s)
     {

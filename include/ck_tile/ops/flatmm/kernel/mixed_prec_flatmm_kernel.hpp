@@ -100,21 +100,19 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
 
     using SplitKBatchOffset = typename Underlying::SplitKBatchOffset;
 
-    template <memory_operation_enum DstInMemOp = memory_operation_enum::set, class KernelArgs>
-    CK_TILE_DEVICE static auto
-    MakeGemmTensorViews(const ADataType* a_ptr,
-                        const BDataType* b_flat_ptr,
-                        const std::array<const void*, NumDTensor>& ds_ptr,
-                        EDataType* e_ptr,
-                        const KernelArgs& kargs,
-                        const SplitKBatchOffset& splitk_batch_offset)
+    template <typename KernelArgs>
+    CK_TILE_DEVICE static auto MakeABlockWindow(const ADataType* a_ptr,
+                                                const KernelArgs& kargs,
+                                                const index_t k_size,
+                                                const index_t block_idx_m)
     {
+        // Step 1: Create tensor view
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     a_ptr,
-                    make_tuple(kargs.M, splitk_batch_offset.splitted_k),
+                    make_tuple(kargs.M, k_size),
                     make_tuple(kargs.stride_A, 1),
                     number<FlatmmPipeline::GetVectorSizeA()>{},
                     number<1>{});
@@ -123,25 +121,80 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     a_ptr,
-                    make_tuple(splitk_batch_offset.splitted_k, kargs.M),
+                    make_tuple(k_size, kargs.M),
                     make_tuple(kargs.stride_A, 1),
                     number<FlatmmPipeline::GetVectorSizeA()>{},
                     number<1>{});
             }
         }();
 
+        // Step 2: Create padded view
+        const auto& a_pad_view = [&]() {
+            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+            {
+                return pad_tensor_view(a_tensor_view,
+                                       make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                  number<TilePartitioner::KPerBlock>{}),
+                                       sequence<false, FlatmmPipeline::kPadK>{});
+            }
+            else
+            {
+                return pad_tensor_view(a_tensor_view,
+                                       make_tuple(number<TilePartitioner::KPerBlock>{},
+                                                  number<TilePartitioner::MPerBlock>{}),
+                                       sequence<false, FlatmmPipeline::kPadM>{});
+            }
+        }();
+
+        // Step 3: Create tile window
+        if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
+        {
+            return make_tile_window(a_pad_view,
+                                    make_tuple(number<TilePartitioner::MPerBlock>{},
+                                               number<TilePartitioner::KPerBlock>{}),
+                                    {block_idx_m, 0});
+        }
+        else
+        {
+            return make_tile_window(a_pad_view,
+                                    make_tuple(number<TilePartitioner::KPerBlock>{},
+                                               number<TilePartitioner::MPerBlock>{}),
+                                    {0, block_idx_m});
+        }
+    }
+
+    template <typename KernelArgs>
+    CK_TILE_DEVICE static auto MakeBFlatBlockWindow(const BDataType* b_flat_ptr,
+                                                    const KernelArgs& kargs,
+                                                    const index_t block_idx_n)
+    {
+        // Step 1: Create tensor view
         index_t kFlatK = kargs.K * BlockGemmShape::WarpTile::at(I1);
         index_t kFlatN = kargs.N * kargs.K / kFlatK;
 
-        const auto& b_flat_tensor_view = [&]() {
-            return make_naive_tensor_view<address_space_enum::global>(
-                b_flat_ptr,
-                make_tuple(kFlatN, kFlatK),
-                make_tuple(kFlatK, 1),
-                number<FlatmmPipeline::GetVectorSizeB()>{},
-                number<1>{});
-        }();
+        const auto& b_flat_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+            b_flat_ptr,
+            make_tuple(kFlatN, kFlatK),
+            make_tuple(kFlatK, 1),
+            number<FlatmmPipeline::GetVectorSizeB()>{},
+            number<1>{});
 
+        // Step 2: No padding needed for b_flat
+        // Step 3: Create tile window
+        return make_tile_window(
+            b_flat_tensor_view,
+            make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
+                       number<FlatmmPipeline::flatKPerWarp>{}),
+            {static_cast<int>(block_idx_n / BlockGemmShape::WarpTile::at(I1)), 0});
+    }
+
+    template <typename KernelArgs>
+    CK_TILE_DEVICE static auto MakeDBlockWindows(const std::array<const void*, NumDTensor>& ds_ptr,
+                                                 const KernelArgs& kargs,
+                                                 const index_t block_idx_m,
+                                                 const index_t block_idx_n)
+    {
+        // Step 1: Create tensor views
         const auto& ds_tensor_view = generate_tuple(
             [&](auto i) {
                 using DiLayout   = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
@@ -167,7 +220,56 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
             },
             number<NumDTensor>{});
 
-        // TODO: enable vector write for C in ColMajor
+        // Step 2: Create padded views
+        const auto& ds_pad_view = generate_tuple(
+            [&](auto i) {
+                using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    return pad_tensor_view(ds_tensor_view[i],
+                                           make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                      number<TilePartitioner::NPerBlock>{}),
+                                           sequence<false, FlatmmPipeline::kPadN>{});
+                }
+                else
+                {
+                    return pad_tensor_view(ds_tensor_view[i],
+                                           make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                      number<TilePartitioner::MPerBlock>{}),
+                                           sequence<false, FlatmmPipeline::kPadM>{});
+                }
+            },
+            number<NumDTensor>{});
+
+        // Step 3: Create tile windows
+        return generate_tuple(
+            [&](auto i) {
+                using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
+                {
+                    return make_tile_window(ds_pad_view[i],
+                                            make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                       number<TilePartitioner::NPerBlock>{}),
+                                            {block_idx_m, block_idx_n});
+                }
+                else
+                {
+                    return make_tile_window(ds_pad_view[i],
+                                            make_tuple(number<TilePartitioner::NPerBlock>{},
+                                                       number<TilePartitioner::MPerBlock>{}),
+                                            {block_idx_n, block_idx_m});
+                }
+            },
+            number<NumDTensor>{});
+    }
+
+    template <memory_operation_enum DstInMemOp = memory_operation_enum::set, typename KernelArgs>
+    CK_TILE_DEVICE static auto MakeEBlockWindow(EDataType* e_ptr,
+                                                const KernelArgs& kargs,
+                                                const index_t block_idx_m,
+                                                const index_t block_idx_n)
+    {
+        // Step 1: Create tensor view
         const auto& e_tensor_view = [&]() {
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
@@ -189,70 +291,8 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
             }
         }();
 
-        auto scale_n = kargs.scale_n_ptr;
-
-        index_t FlatScaleK =
-            (kargs.K / decltype(scale_n)::GranularityK) * N_Pack * BlockGemmShape::WarpTile::at(I1);
-        index_t FlatScaleN = kargs.N / N_Pack / BlockGemmShape::WarpTile::at(I1);
-
-        const auto scale_b_flat_view = make_naive_tensor_view<address_space_enum::global>(
-            reinterpret_cast<const e8m0_t*>(scale_n.ptr),
-            make_tuple(FlatScaleN, FlatScaleK),
-            make_tuple(FlatScaleK, 1),
-            number<8>{},
-            number<1>{});
-
-        return make_tuple(
-            a_tensor_view, b_flat_tensor_view, ds_tensor_view, e_tensor_view, scale_b_flat_view);
-    }
-
-    template <typename TensorView>
-    CK_TILE_DEVICE static auto MakeGemmPadViews(const TensorView& views)
-    {
-        const auto& a_pad_view = [&]() {
-            const auto& a_tensor_view = views.at(I0);
-            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
-            {
-                return pad_tensor_view(a_tensor_view,
-                                       make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                  number<TilePartitioner::KPerBlock>{}),
-                                       sequence<false, FlatmmPipeline::kPadK>{});
-            }
-            else
-            {
-                return pad_tensor_view(a_tensor_view,
-                                       make_tuple(number<TilePartitioner::KPerBlock>{},
-                                                  number<TilePartitioner::MPerBlock>{}),
-                                       sequence<false, FlatmmPipeline::kPadM>{});
-            }
-        }();
-
-        const auto& b_flat_tensor_view = views.at(I1);
-
-        const auto& ds_pad_view = generate_tuple(
-            [&](auto i) {
-                const auto& d_tensor_view = views.at(I2);
-                using DiLayout            = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
-                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
-                {
-                    return pad_tensor_view(d_tensor_view[i],
-                                           make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                      number<TilePartitioner::NPerBlock>{}),
-                                           sequence<false, FlatmmPipeline::kPadN>{});
-                }
-                else
-                {
-                    return pad_tensor_view(d_tensor_view[i],
-                                           make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                      number<TilePartitioner::MPerBlock>{}),
-                                           sequence<false, FlatmmPipeline::kPadM>{});
-                }
-            },
-            number<NumDTensor>{});
-
-        // TODO vector write in for C in ColMajor
+        // Step 2: Create padded view
         const auto& e_pad_view = [&]() {
-            const auto& e_tensor_view = views.at(I3);
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
                 return pad_tensor_view(e_tensor_view,
@@ -269,77 +309,37 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
             }
         }();
 
-        return make_tuple(a_pad_view, b_flat_tensor_view, ds_pad_view, e_pad_view, views.at(I4));
-    }
-
-    template <typename PadView>
-    CK_TILE_DEVICE static auto
-    MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
-    {
-        const auto& a_pad_view      = views.at(I0);
-        const auto& b_flat_pad_view = views.at(I1);
-        const auto& ds_pad_view     = views.at(I2);
-        const auto& e_pad_view      = views.at(I3);
-
-        const auto& a_block_window = [&]() {
-            if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
-            {
-                return make_tile_window(a_pad_view,
-                                        make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                   number<TilePartitioner::KPerBlock>{}),
-                                        {i_m, 0});
-            }
-            else
-            {
-                return make_tile_window(a_pad_view,
-                                        make_tuple(number<TilePartitioner::KPerBlock>{},
-                                                   number<TilePartitioner::MPerBlock>{}),
-                                        {0, i_m});
-            }
-        }();
-
-        const auto& b_flat_block_window =
-            make_tile_window(b_flat_pad_view,
-                             make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
-                                        number<FlatmmPipeline::flatKPerWarp>{}),
-                             {static_cast<int>(i_n / BlockGemmShape::WarpTile::at(I1)), 0});
-
-        const auto ds_block_window = generate_tuple(
-            [&](auto i) {
-                using DiLayout = remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
-                if constexpr(std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor>)
-                {
-                    return make_tile_window(ds_pad_view[i],
-                                            make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                       number<TilePartitioner::NPerBlock>{}),
-                                            {i_m, i_n});
-                }
-                else
-                {
-                    return make_tile_window(ds_pad_view[i],
-                                            make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                       number<TilePartitioner::MPerBlock>{}),
-                                            {i_n, i_m});
-                }
-            },
-            number<NumDTensor>{});
-
-        auto e_block_window = make_tile_window(
+        // Step 3: Create tile window
+        return make_tile_window(
             e_pad_view,
             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-            {i_m, i_n});
+            {block_idx_m, block_idx_n});
+    }
 
-        auto scale_block_window =
-            make_tile_window(views.at(I4),
-                             make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
-                                        number<FlatmmPipeline::flatKPerWarp * N_Pack * 4 / 32>{}),
-                             {i_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
+    template <typename KernelArgs>
+    CK_TILE_DEVICE static auto MakeScaleBBlockWindow(const KernelArgs& kargs,
+                                                     const index_t block_idx_n)
+    {
+        auto scale_n = kargs.scale_n_ptr;
 
-        return make_tuple(a_block_window,
-                          b_flat_block_window,
-                          ds_block_window,
-                          e_block_window,
-                          scale_block_window);
+        // Step 1: Create tensor view
+        index_t FlatScaleK =
+            (kargs.K / decltype(scale_n)::GranularityK) * N_Pack * BlockGemmShape::WarpTile::at(I1);
+        index_t FlatScaleN = kargs.N / N_Pack / BlockGemmShape::WarpTile::at(I1);
+
+        const auto scale_b_flat_view = make_naive_tensor_view<address_space_enum::global>(
+            reinterpret_cast<const e8m0_t*>(scale_n.ptr),
+            make_tuple(FlatScaleN, FlatScaleK),
+            make_tuple(FlatScaleK, 1),
+            number<8>{},
+            number<1>{});
+
+        // Step 2: Create tile window
+        return make_tile_window(
+            scale_b_flat_view,
+            make_tuple(number<FlatmmPipeline::flatNPerWarp>{},
+                       number<FlatmmPipeline::flatKPerWarp * N_Pack * 4 / 32>{}),
+            {block_idx_n / BlockGemmShape::WarpTile::at(I1) / N_Pack, 0});
     }
 
     template <class ScaleM, class ScaleN, bool UseDefaultScheduler = true>
@@ -355,20 +355,14 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
               const index_t block_idx_m,
               const index_t block_idx_n)
     {
-        // Create Gemm tensor views, pad views and tile windows
-        const auto& gemm_tensor_views_tuple =
-            MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                a_ptr, b_flat_ptr, ds_ptr, e_ptr, kargs, splitk_batch_offset);
-        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
-        auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+        // Create block windows using specialized methods
+        const auto& a_block_window =
+            MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
+        const auto& b_flat_block_window = MakeBFlatBlockWindow(b_flat_ptr, kargs, block_idx_n);
+        const auto& ds_block_window    = MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n);
+        const auto& scale_block_window = MakeScaleBBlockWindow(kargs, block_idx_n);
 
         const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
-
-        // Run GEMM cooperatively by whole workgroup.
-        const auto& a_block_window      = gemm_tile_windows.at(I0);
-        const auto& b_flat_block_window = gemm_tile_windows.at(I1);
-        const auto& d_block_window      = gemm_tile_windows.at(I2);
-        const auto& scale_block_window  = gemm_tile_windows.at(I4);
 
         static_assert(ScaleM::GranularityK == ScaleN::GranularityK // have the same granK
                           || ScaleM::GranularityMN == -1           // or ScaleA is disable
@@ -378,6 +372,7 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
             (ScaleM::GranularityMN != -1 && ScaleM::GranularityK == 0) || // per token
             (ScaleN::GranularityMN != -1 && ScaleN::GranularityK == 0);   // per channel
 
+        // Run GEMM cooperatively by whole workgroup.
         auto a_block_window_with_distr =
             ck_tile::make_tile_window(a_block_window.get_bottom_tensor_view(),
                                       a_block_window.get_window_lengths(),
@@ -390,22 +385,46 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
                                                     smem_ptr_ping,
                                                     smem_ptr_pong);
 
-        // Run Epilogue Pipeline
+        // Run Epilogue Pipeline with k_batch dispatching
         if constexpr(DoEpiScale)
         {
-            auto& c_block_window = gemm_tile_windows.at(I3);
-            EpiloguePipeline{}(c_block_window,
-                               c_block_tile,
-                               d_block_window,
-                               smem_ptr_ping,
-                               kargs.scale_m_ptr + block_idx_m,
-                               kargs.scale_n_ptr + block_idx_n);
+            if(kargs.k_batch == 1)
+            {
+                auto e_block_window = MakeEBlockWindow<memory_operation_enum::set>(
+                    e_ptr, kargs, block_idx_m, block_idx_n);
+                EpiloguePipeline{}(e_block_window,
+                                   c_block_tile,
+                                   ds_block_window,
+                                   smem_ptr_ping,
+                                   kargs.scale_m_ptr + block_idx_m,
+                                   kargs.scale_n_ptr + block_idx_n);
+            }
+            else
+            {
+                auto e_block_window = MakeEBlockWindow<memory_operation_enum::atomic_add>(
+                    e_ptr, kargs, block_idx_m, block_idx_n);
+                EpiloguePipeline{}(e_block_window,
+                                   c_block_tile,
+                                   ds_block_window,
+                                   smem_ptr_ping,
+                                   kargs.scale_m_ptr + block_idx_m,
+                                   kargs.scale_n_ptr + block_idx_n);
+            }
         }
         else if(UseDefaultScheduler || (get_warp_id() == 0))
         {
-            // Run Epilogue Pipeline
-            auto& c_block_window = gemm_tile_windows.at(I3);
-            EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_ping);
+            if(kargs.k_batch == 1)
+            {
+                auto e_block_window = MakeEBlockWindow<memory_operation_enum::set>(
+                    e_ptr, kargs, block_idx_m, block_idx_n);
+                EpiloguePipeline{}(e_block_window, c_block_tile, ds_block_window, smem_ptr_ping);
+            }
+            else
+            {
+                auto e_block_window = MakeEBlockWindow<memory_operation_enum::atomic_add>(
+                    e_ptr, kargs, block_idx_m, block_idx_n);
+                EpiloguePipeline{}(e_block_window, c_block_tile, ds_block_window, smem_ptr_ping);
+            }
         }
     }
 
@@ -434,8 +453,7 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
             __shared__ char smem_ptr_ping[Underlying::GetSmemPingSize()];
             __shared__ char smem_ptr_pong[Underlying::GetSmemPongSize()];
 
-            if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
-                           EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+            if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                            is_any_of<EDataType, fp16_t, bf16_t>::value))
             {
                 constexpr auto scheduler_type = (FlatmmPipeline::NumWaveGroups == 1);

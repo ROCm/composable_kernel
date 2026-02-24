@@ -61,7 +61,7 @@ class TestBatchedGemmMultiD : public ::testing::Test
                 true,  // do_verification
                 1,     // init_method
                 false, // do_log
-                1,     // time_kernel,
+                false, // time_kernel,
                 M,
                 N,
                 K,

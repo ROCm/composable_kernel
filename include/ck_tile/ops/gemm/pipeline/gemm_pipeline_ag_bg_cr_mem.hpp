@@ -36,17 +36,13 @@ struct BaseGemmPipelineAgBgCrMem
     // TODO: Is this 32K value gfx9 arch specific?
     static constexpr index_t MinMemInFlyBytes = 32768;
 
-    static constexpr index_t WgpPerCU =
-        (4 * get_warp_size() / BlockSize) >= 1 ? 4 * get_warp_size() / BlockSize : 1;
+    static constexpr index_t WgpPerCU = ck_tile::max(4 * get_warp_size() / BlockSize, 1);
     static constexpr index_t FullMemBandPrefetchStages =
         integer_divide_ceil(MinMemInFlyBytes / WgpPerCU,
                             (MPerBlock * sizeof(ADataType) / APackedSize +
                              NPerBlock * sizeof(BDataType) / BPackedSize) *
                                 KPerBlock);
-    static constexpr index_t PrefetchStages =
-        FullMemBandPrefetchStages >= 2
-            ? FullMemBandPrefetchStages <= 8 ? FullMemBandPrefetchStages : 8
-            : 2;
+    static constexpr index_t PrefetchStages = ck_tile::clamp(FullMemBandPrefetchStages, 2, 8);
 
     static constexpr index_t LocalPrefillStages = 1;
     static constexpr index_t GlobalBufferNum    = PrefetchStages;
@@ -97,9 +93,14 @@ struct BaseGemmPipelineAgBgCrMem
     CK_TILE_HOST_DEVICE static auto
     TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
     {
+        // Use amd_wave_read_first_lane to avoid higher resource usage.
+        // It forces to store these values in SGPR.
+        // Compiler cannot deduce if one path is used for all threads
+        const bool has_hot_loop_first_lane      = amd_wave_read_first_lane(has_hot_loop);
+        const TailNumber tail_number_first_lane = amd_wave_read_first_lane(tail_number);
         // Wrap the hot_loop dispatch first.
         auto tail_dispatch = [&](auto tail_num_constant) {
-            if(has_hot_loop)
+            if(has_hot_loop_first_lane)
             {
                 return run_func(bool_constant<true>{}, tail_num_constant);
             }
@@ -110,7 +111,7 @@ struct BaseGemmPipelineAgBgCrMem
         };
 
 #define CHECK_TAIL_NUMBER(TAIL_NUMBER, PREFETCH_VALUE)                                      \
-    else if(tail_number == TailNumber::TAIL_NUMBER)                                         \
+    else if(tail_number_first_lane == TailNumber::TAIL_NUMBER)                              \
     {                                                                                       \
         if constexpr(PrefetchStages > PREFETCH_VALUE)                                       \
         {                                                                                   \
@@ -118,11 +119,11 @@ struct BaseGemmPipelineAgBgCrMem
         }                                                                                   \
     }
         // Handle all the valid cases.
-        if(tail_number == TailNumber::One)
+        if(tail_number_first_lane == TailNumber::One)
         {
             return tail_dispatch(integral_constant<TailNumber, TailNumber::One>{});
         }
-        else if(tail_number == TailNumber::Full)
+        else if(tail_number_first_lane == TailNumber::Full)
         {
             return tail_dispatch(integral_constant<TailNumber, TailNumber::Full>{});
         }
@@ -183,6 +184,8 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+    static constexpr bool Async = false;
+
     template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeA()
     {
@@ -206,10 +209,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
     static constexpr index_t Preshuffle    = Problem::Preshuffle;
 
-    // Where is the right place for HasHotLoop and TailNum ???
-    static constexpr bool HasHotLoop = Problem::HasHotLoop;
-    static constexpr auto TailNum    = Problem::TailNum;
-    static constexpr auto Scheduler  = Problem::Scheduler;
+    static constexpr auto Scheduler = Problem::Scheduler;
 
     static constexpr auto is_a_load_tr_v = bool_constant<PipelineImplBase::is_a_load_tr>{};
     static constexpr auto is_b_load_tr_v = bool_constant<PipelineImplBase::is_b_load_tr>{};
@@ -887,13 +887,20 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                    index_t num_loop,
                                    void* p_smem) const
     {
-        return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
-            a_dram_block_window_tmp,
-            a_element_func,
-            b_dram_block_window_tmp,
-            b_element_func,
-            num_loop,
-            p_smem);
+        const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
+        const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
+
+        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop_.value, tail_num_.value>(
+                a_dram_block_window_tmp,
+                a_element_func,
+                b_dram_block_window_tmp,
+                b_element_func,
+                num_loop,
+                p_smem);
+        };
+
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
     }
 
     template <typename AsDramBlockWindowTmp,
@@ -933,13 +940,20 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
                                    index_t num_loop,
                                    void* p_smem) const
     {
-        return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
-            a_dram_block_window_tmp,
-            [](auto& e, const ADataType& a) { e = a; },
-            b_dram_block_window_tmp,
-            [](auto& e, const ADataType& a) { e = a; },
-            num_loop,
-            p_smem);
+        const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
+        const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
+
+        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop_.value, tail_num_.value>(
+                a_dram_block_window_tmp,
+                [](auto& e, const ADataType& a) { e = a; },
+                b_dram_block_window_tmp,
+                [](auto& e, const BDataType& b) { e = b; },
+                num_loop,
+                p_smem);
+        };
+
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
     }
 
     template <typename ADramBlockWindowTmp,

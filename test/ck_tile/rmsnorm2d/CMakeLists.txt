@@ -1,3 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 function(create_tile_rmsnorm2d_fwd SUFFIX)
     set(TILE_RMSNORM2D_FWD "test_ck_tile_rmsnorm2d_fwd_${SUFFIX}")
 

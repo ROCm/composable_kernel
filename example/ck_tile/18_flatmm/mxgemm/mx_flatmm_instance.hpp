@@ -61,8 +61,7 @@ float mx_flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
                   "mixed_prec_flatmm requires ADataType is a wider type than BDataType");
 
     constexpr auto scheduler = FlatmmConfig::Scheduler;
-    constexpr auto memory_operation =
-        Splitk ? ck_tile::memory_operation_enum::atomic_add : ck_tile::memory_operation_enum::set;
+    ck_tile::ignore          = Splitk;
 
     constexpr int BlockedXDLN_PerWarp = 2; // determined by scale shuffle pattern
 
@@ -75,7 +74,7 @@ float mx_flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
                                                                HasHotLoop,
                                                                TailNum>;
 
-    using MXFlatmmPipeline = ck_tile::MXF4FlatmmPipelineAGmemBGmemCRegV1<MXPipelineProblem>;
+    using MXFlatmmPipeline = ck_tile::MXFlatmmPipelineAGmemBGmemCRegV1<MXPipelineProblem>;
 
     using TilePartitioner =
         ck_tile::GemmSpatiallyLocalTilePartitioner<FlatmmShape,
@@ -98,7 +97,6 @@ float mx_flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
                                                                    FlatmmConfig::N_Warp_Tile,
                                                                    FlatmmConfig::K_Warp_Tile,
                                                                    MXPipelineProblem::TransposeC,
-                                                                   memory_operation,
                                                                    FlatmmConfig::NumWaveGroups,
                                                                    false, // FixedVectorSize
                                                                    1,     // VectorSizeC
