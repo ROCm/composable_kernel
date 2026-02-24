@@ -119,7 +119,7 @@ std::tuple<float, ck_tile::index_t> invokeGemm(ck_tile::DeviceMem& a_m_k_device_
                                       DsLayout,
                                       CLayout,
                                       CDEElementWise,
-                                      ck_tile::StreamKReductionStrategy::Reduction>(
+                                      ck_tile::StreamKReductionStrategy::Linear>(
             args,
             ck_tile::stream_config{
                 nullptr, true, 1, warmup_iterations, repeat_iterations, true, flush_cache});
@@ -155,9 +155,9 @@ ck_tile::StreamKReductionStrategy getReductionStrategyValue(const std::string& s
     {
         return ck_tile::StreamKReductionStrategy::Atomic;
     }
-    else if(strategy == "reduction")
+    else if(strategy == "linear")
     {
-        return ck_tile::StreamKReductionStrategy::Reduction;
+        return ck_tile::StreamKReductionStrategy::Linear;
     }
     else
     {

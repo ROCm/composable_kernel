@@ -72,7 +72,7 @@ class TestVariant(Enum):
     )
     REDUCTION_SMOKE = (
         2,
-        ["reduction", "tree"],
+        ["linear", "tree"],
         [True, False],
         ["fp16", "bf16", "fp8", "bf8"],
         "Stream-K reduction smoke tests",
