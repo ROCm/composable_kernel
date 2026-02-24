@@ -39,7 +39,7 @@ CK_TILE_HOST_DEVICE static constexpr auto GetMaxVectorSize()
         return 1;
     }
     else
-        static_assert(false, "The data type is not supported!");
+        return 1;
 };
 
 template <typename DataType,

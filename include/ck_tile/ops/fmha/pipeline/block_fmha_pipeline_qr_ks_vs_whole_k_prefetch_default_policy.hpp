@@ -153,18 +153,18 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentV()
     {
+        using VDataType              = remove_cvref_t<typename Problem::VDataType>;
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
+        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+
         // special consideration when shuffling is required before storing V to LDS
         if constexpr(!Problem::kUseTrLoad)
         {
-            using VDataType = remove_cvref_t<typename Problem::VDataType>;
-
-            constexpr index_t kBlockSize = Problem::kBlockSize;
-            constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
-            constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
-
             constexpr index_t ElemPerThread = kNPerBlock * kKPerBlock / kBlockSize;
 
-            constexpr index_t kMaxVecLoad = Problem::GetVDramTileAccessMaxVectorSize();
+            constexpr index_t kMaxVecLoad = detail::
+                GetDramTileAccessMaxVectorSize<VDataType, kBlockSize, kNPerBlock, kKPerBlock>();
             constexpr index_t kMinVecLoad = 4 / sizeof(VDataType);
 
             // try to avoid writing sub-dword to LDS due to poor performance
@@ -176,7 +176,8 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
         }
         else
         {
-            return Problem::GetVDramTileAccessMaxVectorSize();
+            return detail::
+                GetDramTileAccessMaxVectorSize<VDataType, kBlockSize, kNPerBlock, kKPerBlock>();
         };
     }
 
@@ -615,8 +616,8 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
 
         auto warp_gemm = [&]() {
             if constexpr((std::is_same_v<typename Problem::QDataType, half_t> ||
-                          std::is_same_v<typename Problem::QDataType, bf16_t>)&&std::
-                             is_same_v<typename Problem::SaccDataType, float>)
+                          std::is_same_v<typename Problem::QDataType, bf16_t>) &&
+                         std::is_same_v<typename Problem::SaccDataType, float>)
             {
                 constexpr index_t WarpGemmM =
                     Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
@@ -681,8 +682,8 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
 
         auto warp_gemm = [&]() {
             if constexpr((std::is_same_v<typename Problem::VDataType, half_t> ||
-                          std::is_same_v<typename Problem::VDataType, bf16_t>)&&std::
-                             is_same_v<typename Problem::OaccDataType, float>)
+                          std::is_same_v<typename Problem::VDataType, bf16_t>) &&
+                         std::is_same_v<typename Problem::OaccDataType, float>)
             {
                 constexpr index_t WarpGemmM =
                     Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{});
