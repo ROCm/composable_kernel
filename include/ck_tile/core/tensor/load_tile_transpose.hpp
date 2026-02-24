@@ -13,7 +13,6 @@
 #include "ck_tile/core/container/thread_buffer.hpp"
 #include "ck_tile/core/container/statically_indexed_array.hpp"
 #include "ck_tile/core/numeric/math.hpp"
-#include "ck_tile/core/tensor/sweep_tile.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
@@ -566,63 +565,130 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
                                                NumCoord>& __restrict__ tile_window,
     index_t offset)
 {
+    using InputDataType  = typename BottomTensorView_::DataType;
     using OutputDataType = typename DistributedTensor_::DataType;
-    using OutTensor      = remove_cvref_t<DistributedTensor_>;
 
-    auto trans_tensor = tile_window.template load_transpose_with_offset<Policy>(offset);
+    auto trans_tensor           = tile_window.template load_transpose_with_offset<Policy>(offset);
+    constexpr auto input_distr  = TileDistribution_{};
+    constexpr auto output_distr = typename DistributedTensor_::StaticTileDistribution{};
 
-    using InTensor = remove_cvref_t<decltype(trans_tensor)>;
-
-    constexpr auto input_distr  = typename InTensor::StaticTileDistribution{};
-    constexpr auto output_distr = typename OutTensor::StaticTileDistribution{};
-
-    constexpr auto y_in_desc   = input_distr.get_ys_to_d_descriptor();
-    constexpr auto y_out_desc  = output_distr.get_ys_to_d_descriptor();
-    constexpr auto y_in_lengths  = to_sequence(y_in_desc.get_lengths());
-    constexpr auto y_out_lengths = to_sequence(y_out_desc.get_lengths());
+    constexpr auto y_in_desc  = input_distr.get_ys_to_d_descriptor();
+    constexpr auto y_out_desc = output_distr.get_ys_to_d_descriptor();
 
     constexpr index_t NDimYIn  = input_distr.get_num_of_dimension_y();
     constexpr index_t NDimYOut = output_distr.get_num_of_dimension_y();
 
-    constexpr index_t total_elems_in = reduce_on_sequence(y_in_lengths, multiplies<>{}, number<1>{});
-    constexpr index_t total_elems_out = reduce_on_sequence(y_out_lengths, multiplies<>{}, number<1>{});
+    constexpr auto y_in_lengths  = to_sequence(y_in_desc.get_lengths());
+    constexpr auto y_out_lengths = to_sequence(y_out_desc.get_lengths());
 
+    constexpr auto y_in_element_space_size  = y_in_desc.get_element_space_size();
+    constexpr auto y_out_element_space_size = y_out_desc.get_element_space_size();
+
+    // For mixed precision: element space size must be the same (total bytes match)
+    static_assert(y_in_element_space_size == y_out_element_space_size,
+                  "For mixed precision transpose, input and output element space size must match!");
+
+    // Allow different vector lengths (e.g., fp8 may vectorize 8 elems, fp16 may vectorize 4).
+    // Ensure total element counts are consistent and divisible by the input vector length.
+    constexpr index_t vecLoadSize = y_in_lengths[NDimYIn - 1];
+    constexpr index_t total_elems_in =
+        reduce_on_sequence(y_in_lengths, multiplies<>{}, number<1>{});
+    constexpr index_t total_elems_out =
+        reduce_on_sequence(y_out_lengths, multiplies<>{}, number<1>{});
     static_assert(total_elems_in == total_elems_out,
                   "For mixed precision transpose, input/output element counts must match!");
+    static_assert(total_elems_in % vecLoadSize == 0,
+                  "Input vector length must evenly divide total elements.");
 
-    using OutDimAccessOrderY = typename arithmetic_sequence_gen<0, NDimYOut, 1>::type;
-    using OutScalarsPerElemY = typename uniform_sequence_gen<NDimYOut, 1>::type;
-    using OutSFC_Y =
-        space_filling_curve<decltype(y_out_lengths), OutDimAccessOrderY, OutScalarsPerElemY, false>;
+    constexpr index_t num_of_access = total_elems_in / vecLoadSize;
 
-    static_for<0, total_elems_out, 1>{}([&](auto i_out) {
-        constexpr auto idx_out = OutSFC_Y::get_index(i_out);
-        constexpr index_t out_off = y_out_desc.calculate_offset(idx_out);
+    // Internal Y-subdimension correction for fp16->fp32 transpose path.
+    // Apply remap on RHS-major=2 low minors (typically the lane-group subdims)
+    // instead of row-linear remapping.
+    if constexpr(sizeof(InputDataType) == 2 && std::is_same_v<OutputDataType, float>)
+    {
+        using InDstrEncode = typename remove_cvref_t<TileDistribution_>::DstrEncode;
+        constexpr auto rhs2_to_ys = InDstrEncode::detail::rhs_major_minor_to_ys_[2];
+        constexpr bool has_rhs2_pair = decltype(rhs2_to_ys)::size() >= 2;
+        constexpr bool valid_rhs2_pair =
+            has_rhs2_pair && (rhs2_to_ys[0] >= 0) && (rhs2_to_ys[0] < NDimYIn) &&
+            (rhs2_to_ys[1] >= 0) && (rhs2_to_ys[1] < NDimYIn);
 
-        constexpr index_t linear = [&] {
-            index_t v = 0;
-            static_for<0, NDimYOut, 1>{}([&](auto d) {
-                v = v * y_out_lengths[d] + idx_out[d];
+        auto unflatten_out = [&](index_t linear) {
+            array<index_t, NDimYOut> idx{};
+            index_t remain = linear;
+            static_for<NDimYOut - 1, -1, -1>{}([&](auto d) {
+                constexpr index_t len = y_out_lengths[d];
+                idx(d)                = remain % len;
+                remain /= len;
             });
-            return v;
-        }();
+            return idx;
+        };
 
-        const auto idx_in = [&] {
+        auto unflatten_in = [&](index_t linear) {
             array<index_t, NDimYIn> idx{};
             index_t remain = linear;
             static_for<NDimYIn - 1, -1, -1>{}([&](auto d) {
                 constexpr index_t len = y_in_lengths[d];
-                idx(d) = remain % len;
+                idx(d)                = remain % len;
                 remain /= len;
             });
             return idx;
-        }();
+        };
 
-        const index_t in_off = y_in_desc.calculate_offset(idx_in);
+        static_for<0, total_elems_out, 1>{}([&](auto iOutLinear) {
+            constexpr index_t out_linear = iOutLinear;
 
-        out_tensor.get_thread_buffer()[out_off] =
-            type_convert<OutputDataType>(trans_tensor.get_thread_buffer()[in_off]);
-    });
+            const auto idx_out = unflatten_out(out_linear);
+            auto idx_in        = unflatten_in(out_linear);
+
+            if constexpr(valid_rhs2_pair)
+            {
+                constexpr index_t y0   = rhs2_to_ys[0];
+                constexpr index_t y1   = rhs2_to_ys[1];
+                constexpr index_t len0 = y_in_lengths[number<y0>{}];
+                constexpr index_t len1 = y_in_lengths[number<y1>{}];
+
+                if constexpr(len0 == 2 && len1 == 4)
+                {
+                    const index_t a = idx_in(y0);
+                    const index_t b = idx_in(y1);
+
+                    idx_in(y0) = b / 2;
+                    idx_in(y1) = a * 2 + (b % 2);
+                }
+                else if constexpr(len0 == 4 && len1 == 2)
+                {
+                    const index_t a = idx_in(y0);
+                    const index_t b = idx_in(y1);
+
+                    idx_in(y0) = b * 2 + (a % 2);
+                    idx_in(y1) = a / 2;
+                }
+            }
+
+            const index_t out_off = y_out_desc.calculate_offset(idx_out);
+            const index_t in_off  = y_in_desc.calculate_offset(idx_in);
+
+            out_tensor.get_thread_buffer()[out_off] =
+                type_convert<OutputDataType>(trans_tensor.get_thread_buffer()[in_off]);
+        });
+    }
+    else
+    {
+        // Generic fallback: element-wise conversion preserving descriptor-defined linear layout.
+        using InputDataVec = array<InputDataType, vecLoadSize>;
+        static_for<0, num_of_access, 1>{}([&](auto iAccess) {
+            auto input_vec =
+                trans_tensor.get_thread_buffer().template get_as<InputDataVec>(number<iAccess>{});
+
+            static_for<0, vecLoadSize, 1>{}([&](auto iElem) {
+                auto output_elem = type_convert<OutputDataType>(input_vec[iElem]);
+                out_tensor.get_thread_buffer()[number<iAccess * vecLoadSize + iElem>{}] = output_elem;
+            });
+        });
+    }
+
 }
 
 /**
