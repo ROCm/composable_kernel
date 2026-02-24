@@ -12,22 +12,24 @@
 // Type aliases for readability
 using RowMajor      = ck_tile::tensor_layout::gemm::RowMajor;
 using ColumnMajor   = ck_tile::tensor_layout::gemm::ColumnMajor;
-using FP8           = ck_tile::fp8_t;
 using BF8           = ck_tile::bf8_t;
-using Half          = ck_tile::half_t;
-using PkInt4        = ck_tile::pk_int4_t;
+using BF16          = ck_tile::bf16_t;
+using PkFP4         = ck_tile::pk_fp4_t;
+using E8M0          = ck_tile::e8m0_t;
 using BQuantGrouped = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::BQuantGrouped>;
-using GroupSize     = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
+using GroupSize128  = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
 
 // Type combinations for BQuant tests - 1D GroupSize 128
 // Tuple format: <ALayout, BLayout, CLayout, BQLayout, ADataType, BDataType, QDataType, CDataType,
 // QuantType, GemmConfig, QuantGroupSize>
 // clang-format off
 using BQuant1D128Types = ::testing::Types<
-    // 1d cases with grouping only on k axis
-    std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8,  FP8,    float, Half, BQuantGrouped, GemmConfigBase, GroupSize>,
-    std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8,  PkInt4, FP8,   Half, BQuantGrouped, GemmConfigBase, GroupSize>,
-    std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, BF8,  PkInt4, BF8,   Half, BQuantGrouped, GemmConfigBase, GroupSize>
+    // RRR BQ: C
+    std::tuple< RowMajor, RowMajor, RowMajor, ColumnMajor, BF16,   BF8, E8M0, BF16, BQuantGrouped,    GemmConfigMx, GroupSize128>,
+    std::tuple< RowMajor, RowMajor, RowMajor, ColumnMajor, BF16, PkFP4, E8M0, BF16, BQuantGrouped, GemmConfigMxFP4, GroupSize128>,
+    std::tuple< RowMajor, RowMajor, RowMajor, ColumnMajor, BF16,  BF16, E8M0, BF16, BQuantGrouped,    GemmConfigMx, GroupSize128>,
+    // RRR BQ: R
+    std::tuple< RowMajor, RowMajor, RowMajor,    RowMajor, BF16,  BF16, E8M0, BF16, BQuantGrouped,    GemmConfigMx, GroupSize128>
 >;
 // clang-format on
 

@@ -24,7 +24,8 @@ template <typename ADataType_,
           typename ComputeDataType_        = void,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
-          TailNumber TailNum_              = TailNumber::Full>
+          TailNumber TailNum_              = TailNumber::Full,
+          CastPolicy BCastPolicy_          = CastPolicy::AfterLDSRead>
 struct GemmQuantPipelineProblemBase
     : public GemmPipelineProblemBase<
           ADataType_,
@@ -81,6 +82,20 @@ struct GemmQuantPipelineProblemBase
     static constexpr auto Scheduler  = Scheduler_;
     static constexpr auto HasHotLoop = HasHotLoop_;
     static constexpr auto TailNum    = TailNum_;
+
+    // gfx950 supports load with transpose for 4bit types, so we can transpose
+    // pk_fp4_t from LDS in registers. But without this instruction,
+    // the transpose is done in register between Vmem read and LDS write and
+    // the implementation does not support 4 bit types
+#ifdef __gfx950__
+    static constexpr auto BCastPolicy = BCastPolicy_;
+#else
+    static constexpr auto BCastPolicy =
+        std::is_same_v<BDataType, pk_fp4_t> &&
+                std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>
+            ? CastPolicy::BeforeLDSWrite
+            : BCastPolicy_;
+#endif
 
     static_assert(BlockGemmShape::kM % AQuantGroupSize::kM == 0);
     static_assert(BlockGemmShape::kK % AQuantGroupSize::kK == 0);
@@ -155,7 +170,8 @@ template <typename ADataType_,
           typename ComputeDataType_        = ADataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
-          TailNumber TailNum_              = TailNumber::Full>
+          TailNumber TailNum_              = TailNumber::Full,
+          CastPolicy BCastPolicy_          = CastPolicy::AfterLDSRead>
 using GemmBQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                void, // no AQDataType for BQuant
                                                                BDataType_,
@@ -169,7 +185,8 @@ using GemmBQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                ComputeDataType_,
                                                                Scheduler_,
                                                                HasHotLoop_,
-                                                               TailNum_>;
+                                                               TailNum_,
+                                                               BCastPolicy_>;
 
 template <typename ADataType_,
           typename AQDataType_,

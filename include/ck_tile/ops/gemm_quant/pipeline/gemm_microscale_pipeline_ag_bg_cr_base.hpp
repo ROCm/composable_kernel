@@ -10,7 +10,7 @@
 namespace ck_tile {
 
 template <typename Problem, typename Policy>
-struct GemmMxFp4PipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Problem, Policy>
+struct GemmMicroscalePipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Problem, Policy>
 {
     using Base            = GemmPipelineAgBgCrImplBase<Problem, Policy>;
     using ADataType       = typename Base::ADataType;
@@ -42,10 +42,14 @@ struct GemmMxFp4PipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Probl
     CK_TILE_DEVICE constexpr auto
     GetBQDramLoadWindow(const BQDramBlockWindowTmp& bq_dram_block_window_tmp) const
     {
-        static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
-
-        using YPerTile = number<NPerBlockBQ>;
-        using XPerTile = number<KPerBlockBQ>;
+        using YPerTile =
+            std::conditional_t<std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>,
+                               number<NPerBlockBQ>,
+                               number<KPerBlockBQ>>;
+        using XPerTile =
+            std::conditional_t<std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>,
+                               number<KPerBlockBQ>,
+                               number<NPerBlockBQ>>;
 
         auto bq_copy_dram_window =
             make_tile_window(bq_dram_block_window_tmp.get_bottom_tensor_view(),
