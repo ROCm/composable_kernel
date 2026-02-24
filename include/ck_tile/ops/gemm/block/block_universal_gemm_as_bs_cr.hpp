@@ -97,7 +97,8 @@ struct BlockUniversalGemmAsBsCr
     using ATypeToUse =
         std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
     using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
-                                              std::is_same_v<BDataType, pk_fp4_raw_t>,
+                                              std::is_same_v<BDataType, pk_fp4_t> ||
+                                              sizeof(BDataType) < sizeof(ADataType),
                                           ADataType,
                                           BDataType>;
 

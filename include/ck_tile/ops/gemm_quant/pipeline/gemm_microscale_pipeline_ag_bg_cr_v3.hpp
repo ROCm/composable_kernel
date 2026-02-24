@@ -9,7 +9,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
-#include "ck_tile/ops/gemm_quant/pipeline/gemm_mxfp4_pipeline_ag_bg_cr_base.hpp"
+#include "ck_tile/ops/gemm_quant/pipeline/gemm_microscale_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/host/concat.hpp"
 
 namespace ck_tile {
@@ -18,15 +18,21 @@ namespace ck_tile {
 //  B Tile Window: global memory
 //  C Distributed tensor: register
 
-template <typename Problem, typename Policy = GemmMxFp4PipelineAgBgCrPolicy>
-struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
+template <typename Problem, typename Policy = GemmMicroscalePipelineAgBgCrPolicy>
+struct MicroscaleGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
-    using PipelineImplBase = GemmMxFp4PipelineAgBgCrImplBase<Problem, Policy>;
+    using PipelineImplBase = GemmMicroscalePipelineAgBgCrImplBase<Problem, Policy>;
 
-    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
-    using BDqDataType     = remove_cvref_t<typename Problem::ADataType>;
+    using ADataType = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType = remove_cvref_t<typename Problem::BDataType>;
+
+    using BDqDataType = remove_cvref_t<typename Problem::ADataType>;
+
+    static constexpr bool IsCastBeforeLDS = Problem::BCastPolicy == CastPolicy::BeforeLDSWrite;
+
+    using BLDSType = std::conditional_t<IsCastBeforeLDS, BDqDataType, BDataType>;
+
     using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
@@ -40,11 +46,15 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
 
     static constexpr index_t APackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
+
     static constexpr index_t BPackedSize =
-        ck_tile::numeric_traits<remove_cvref_t<BDqDataType>>::PackedSize;
+        ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
 
     static constexpr index_t BQPackedSize =
         ck_tile::numeric_traits<remove_cvref_t<BQDataType>>::PackedSize;
+
+    static constexpr index_t BLDSPackedSize =
+        ck_tile::numeric_traits<remove_cvref_t<BLDSType>>::PackedSize;
 
     using ALayout  = remove_cvref_t<typename Problem::ALayout>;
     using BQLayout = remove_cvref_t<typename Problem::BQLayout>;
@@ -81,6 +91,9 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
     static constexpr auto Scheduler  = Problem::Scheduler;
+
+    static constexpr auto is_a_load_tr_v = bool_constant<PipelineImplBase::is_a_load_tr>{};
+    static constexpr auto is_b_load_tr_v = bool_constant<PipelineImplBase::is_b_load_tr>{};
 
     using Base::PrefetchStages;
 
@@ -165,6 +178,11 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
     {
         using Base = PipelineImplBase;
 
+        static constexpr bool is_a_col_major =
+            std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+        static constexpr bool is_b_row_major =
+            std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+
         CK_TILE_DEVICE static constexpr auto HotLoopScheduler()
         {
             constexpr index_t MPerXDL = BlockGemm::WarpGemm::kM;
@@ -207,7 +225,7 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                 A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? A_LDS_Read_Inst_Num
                                                                          : A_LDS_Read_Inst_Num / 2;
             constexpr auto num_ds_read_inst_b =
-                B_LDS_Read_Width * sizeof(BDqDataType) / BPackedSize == 16
+                B_LDS_Read_Width * sizeof(BLDSType) / BLDSPackedSize == 16
                     ? B_LDS_Read_Inst_Num
                     : B_LDS_Read_Inst_Num / 2;
 
@@ -223,7 +241,7 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
             constexpr auto ds_read_a_issue_cycle =
                 A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? 8 : 4;
             constexpr auto ds_read_b_issue_cycle =
-                B_LDS_Read_Width * sizeof(BDqDataType) / BPackedSize == 16 ? 8 : 4;
+                B_LDS_Read_Width * sizeof(BLDSType) / BLDSPackedSize == 16 ? 8 : 4;
             constexpr auto ds_read_a_mfma_rate =
                 (mfma_cycle - 4 + 2 * ds_read_a_issue_cycle - 1) / (2 * ds_read_a_issue_cycle);
             constexpr auto ds_read_b_mfma_rate =
@@ -306,6 +324,197 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
             });
         }
 
+        template <typename TileType, typename CastTileType, typename ScaleTileType>
+        CK_TILE_DEVICE static void ScaleTile(const TileType& block_tile,
+                                             CastTileType& block_tile_cast,
+                                             const ScaleTileType& scale_tile)
+        {
+            if constexpr(IsCastBeforeLDS)
+            {
+                constexpr auto b_block = TileType::get_distributed_spans();
+
+                // Internally this is using V_CVT_SCALEF32_PK_BF16_FP4 or V_CVT_SCALEF32_PK_FP16_FP4
+                // on gfx950
+                auto pk_mxfp4_to_compute_v2 = [](auto pk_mxfp4, float fscale) {
+                    if constexpr(std::is_same_v<BDqDataType, half_t>)
+                    {
+                        return pk_fp4_to_fp16x2(pk_mxfp4, fscale);
+                    }
+                    else if constexpr(std::is_same_v<BDqDataType, bf16_t>)
+                    {
+                        return pk_fp4_to_bf16x2(pk_mxfp4, fscale);
+                    }
+                    else
+                    {
+                        static_assert(false, "unsupported compute type");
+                    }
+                };
+
+                constexpr index_t BQuantGroupSizeIdx0 =
+                    std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>
+                        ? BQuantGroupSize::kN
+                        : BQuantGroupSize::kK;
+                constexpr index_t BQuantGroupSizeIdx1 =
+                    std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>
+                        ? BQuantGroupSize::kK
+                        : BQuantGroupSize::kN;
+
+                // The input indices are with respect to B block tile. If B and Bq have different
+                // layouts, the indices must be swapped
+                auto make_bq_index = [](auto idx0, auto idx1) {
+                    if constexpr(std::is_same_v<BLayout, BQLayout>)
+                    {
+                        return make_tuple(
+                            tile_distributed_index<idx0.impl_.at(0) / BQuantGroupSizeIdx0>{},
+                            tile_distributed_index<idx1.impl_.at(0) / BQuantGroupSizeIdx1>{});
+                    }
+                    else
+                    {
+                        return make_tuple(
+                            tile_distributed_index<idx1.impl_.at(0) / BQuantGroupSizeIdx0>{},
+                            tile_distributed_index<idx0.impl_.at(0) / BQuantGroupSizeIdx1>{});
+                    }
+                };
+
+                sweep_tile_span(b_block[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(b_block[number<1>{}], [&](auto idx1) {
+                        if constexpr(std::is_same_v<BDataType, ck_tile::pk_fp4_t>)
+                        {
+                            if constexpr(idx1.impl_.at(0) % BPackedSize == 0)
+                            {
+                                constexpr auto idx1_lo = tile_distributed_index<idx1.impl_.at(0)>{};
+                                constexpr auto idx1_hi =
+                                    tile_distributed_index<idx1.impl_.at(0) + 1>{};
+
+                                constexpr auto i_j_idx_lo = make_tuple(idx0, idx1_lo);
+                                constexpr auto i_j_idx_hi = make_tuple(idx0, idx1_hi);
+
+                                constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                                auto b_pack            = block_tile[i_j_idx];
+
+                                constexpr auto i_j_idx_scale_lo = make_bq_index(idx0, idx1_lo);
+                                constexpr auto i_j_idx_scale_hi = make_bq_index(idx0, idx1_hi);
+
+                                // If the scale is the same for packed values, use pk cvt scale
+                                // instructions, otherwise scale and cast element by element
+                                if constexpr(i_j_idx_scale_lo[I0{}].impl_.at(0) ==
+                                                 i_j_idx_scale_hi[I0{}].impl_.at(0) &&
+                                             i_j_idx_scale_lo[I1{}].impl_.at(0) ==
+                                                 i_j_idx_scale_hi[I1{}].impl_.at(0))
+                                {
+                                    float scale = float(scale_tile[i_j_idx_scale_lo]);
+                                    auto cvt    = pk_mxfp4_to_compute_v2(b_pack, scale);
+
+                                    block_tile_cast(i_j_idx_lo) = cvt.x;
+                                    block_tile_cast(i_j_idx_hi) = cvt.y;
+                                }
+                                else
+                                {
+                                    float scale_lo = float(scale_tile[i_j_idx_scale_lo]);
+                                    auto b_f4_lo =
+                                        type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
+                                    block_tile_cast(i_j_idx_lo) = type_convert<BDqDataType>(
+                                        type_convert<float>(b_f4_lo) * scale_lo);
+
+                                    float scale_hi = float(scale_tile[i_j_idx_scale_hi]);
+                                    auto b_f4_hi =
+                                        type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
+                                    block_tile_cast(i_j_idx_hi) = type_convert<BDqDataType>(
+                                        type_convert<float>(b_f4_hi) * scale_hi);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            constexpr auto i_j_idx       = make_tuple(idx0, idx1);
+                            constexpr auto i_j_idx_scale = make_bq_index(idx0, idx1);
+                            float scale                  = float(scale_tile[i_j_idx_scale]);
+
+                            auto b_pack = block_tile[i_j_idx];
+                            block_tile_cast(i_j_idx) =
+                                type_convert<BDqDataType>(type_convert<float>(b_pack) * scale);
+                        }
+                    });
+                });
+            }
+        }
+
+        template <typename WindowType, typename TileType, typename ElementwiseFunc>
+        CK_TILE_DEVICE void ALocalPrefill(WindowType& lds_window,
+                                          const TileType& block_tile,
+                                          const ElementwiseFunc& element_func) const
+        {
+            if constexpr(is_a_col_major && !is_a_load_tr_v())
+            {
+                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                    Policy::template MakeShuffledARegTileDistribution<Problem>());
+                transpose_tile2d(a_shuffle_tmp, block_tile);
+                Base::LocalPrefill(lds_window, a_shuffle_tmp, element_func);
+            }
+            else
+            {
+                Base::LocalPrefill(lds_window, block_tile, element_func);
+            }
+        }
+
+        template <typename WindowType,
+                  typename TileType,
+                  typename TileTypeCast,
+                  typename ElementwiseFunc>
+        CK_TILE_DEVICE void BLocalPrefill(WindowType& lds_window,
+                                          const TileType& block_tile,
+                                          const TileTypeCast& block_tile_cast,
+                                          const ElementwiseFunc& element_func) const
+        {
+            // Fill LDS and apply the scale if IsCastBeforeLDS
+            auto get_b_block_tile = [](auto& b_block_tile_orig, auto& b_block_tile_cast) {
+                if constexpr(IsCastBeforeLDS)
+                {
+                    return b_block_tile_cast;
+                }
+                else
+                {
+                    return b_block_tile_orig;
+                }
+            };
+
+            if constexpr(is_b_row_major && !is_b_load_tr_v())
+            {
+                auto b_shuffle_tmp = make_static_distributed_tensor<BLDSType>(
+                    Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                transpose_tile2d(b_shuffle_tmp, get_b_block_tile(block_tile, block_tile_cast));
+                Base::LocalPrefill(lds_window, b_shuffle_tmp, element_func);
+            }
+            else
+            {
+                Base::LocalPrefill(
+                    lds_window, get_b_block_tile(block_tile, block_tile_cast), element_func);
+            }
+        }
+
+        template <typename BlockGemmType,
+                  typename AWindowType,
+                  typename BWindowType,
+                  typename QTileType>
+        CK_TILE_DEVICE void LocalPrefetch(BlockGemmType& block_gemm,
+                                          const AWindowType& a_lds_window,
+                                          const BWindowType& b_lds_window,
+                                          const QTileType& q_block_tile) const
+        {
+            // Load from LDS
+            // It can apply the scale and cast if we scale after reading from LDS
+            if constexpr(IsCastBeforeLDS)
+            {
+                block_gemm.LocalPrefetch(
+                    a_lds_window, b_lds_window, is_a_load_tr_v, is_b_load_tr_v);
+            }
+            else
+            {
+                block_gemm.LocalPrefetch(
+                    a_lds_window, b_lds_window, q_block_tile, is_a_load_tr_v, is_b_load_tr_v);
+            }
+        }
+
         template <bool HasHotLoop,
                   TailNumber TailNum,
                   typename ADramBlockWindowTmp,
@@ -321,6 +530,8 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                                        index_t num_loop,
                                        void* p_smem) const
         {
+            // -----------------------------------------------------------------------------------------
+            // Pipeline checks
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
@@ -330,15 +541,14 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                 "A/B/BQ Dram block window should have the same data type as appropriate "
                 "([A|B|BQ]DataType) defined in Problem definition!");
 
-            constexpr bool is_a_col_major =
-                std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
             constexpr bool is_bq_col_major =
                 std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>;
-            constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
-            static_assert(is_bq_col_major, "Bq must be col major (row major not supported yet)");
-            static_assert(NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                              KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
+            static_assert(is_bq_col_major
+                              ? (NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                              : (KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                           "Bq block window has incorrect lengths for defined BqLayout!");
 
             static_assert(is_a_col_major
@@ -347,13 +557,12 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                               : (MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                                  KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                           "A block window has incorrect lengths for defined ALayout!");
-            static_assert(
-                is_b_row_major
-                    ? (KPerBlock / 2 == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                       NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}])
-                    : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                       KPerBlock / 2 == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
-                "B block window has incorrect lengths for defined BLayout!");
+            static_assert(is_b_row_major
+                              ? (KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                              : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                                 KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                          "B block window has incorrect lengths for defined BLayout!");
 
             // ------------------------------------------------------------------------------------
             // Definitions of all needed tiles
@@ -380,20 +589,19 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                 Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
 
             // B scale DRAM tile window for load
-            // auto b_scale_copy_dram_window =
-            //     make_tile_window(bq_dram_block_window_tmp.get_bottom_tensor_view(),
-            //                      bq_dram_block_window_tmp.get_window_lengths(),
-            //                      bq_dram_block_window_tmp.get_window_origin(),
-            //                      Policy::template GetBQDramLoadWindow<Problem>());
             auto bq_copy_dram_window = Base::GetBQDramLoadWindow(bq_dram_block_window_tmp);
 
             auto bq_block_tile = decltype(load_tile(bq_copy_dram_window)){};
+
+            // This defines the scaled and casted block tile for B matrix.
+            // Effectively, it is used only if we scale and cast before writing to LDS.
+            auto bdq_block_tile = make_static_distributed_tensor<BDqDataType>(
+                Policy::template MakeBRegTileDistribution<Problem>());
 
             // Block GEMM
             auto block_gemm       = BlockGemm();
             auto c_block_tile     = block_gemm.MakeCBlockTile();
             using ABlockTileDistr = decltype(a_copy_dram_window.get_tile_distribution());
-            // using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
             using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
 
             using ABlockTile =
@@ -402,114 +610,61 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                 decltype(make_static_distributed_tensor<BDataType>(BBlockTileDistr{}));
 
             ABlockTile a_block_tile;
-            BBlockTile b_fp4_block_tile;
+            BBlockTile b_block_tile;
 
-            using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
-            using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
+            using ADramTileWindowStep  = typename ADramBlockWindowTmp::BottomTensorIndex;
+            using BDramTileWindowStep  = typename BDramBlockWindowTmp::BottomTensorIndex;
+            using BQDramTileWindowStep = typename BQDramBlockWindowTmp::BottomTensorIndex;
 
             constexpr ADramTileWindowStep a_dram_tile_window_step =
                 is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             constexpr BDramTileWindowStep b_dram_tile_window_step =
-                is_b_row_major ? make_array(KPerBlock / 2, 0) : make_array(0, KPerBlock / 2);
+                is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
 
-            constexpr index_t b_scale_dram_tile_window_step = KPerBlock / BQuantGroupSize::kK;
+            constexpr BQDramTileWindowStep b_scale_dram_tile_window_step =
+                std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>
+                    ? make_array(0, KPerBlock / BQuantGroupSize::kK)
+                    : make_array(KPerBlock / BQuantGroupSize::kK, 0);
             // -----------------------------------------------------------------------------------------
             // Gemm pipeline start
 
-            // prefetch
-            // global read 0
-            // auto a_scale_block_tile  = decltype(load_tile(a_scale_copy_dram_window)){};
+            // prefetch stages
+
+            // Vmem -> Vgpr 0
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            Base::GlobalPrefetch(b_fp4_block_tile, b_copy_dram_window, b_dram_tile_window_step);
-            // BDataType
-            auto b_block_tile = make_static_distributed_tensor<BDqDataType>(
-                Policy::template MakeBRegTileDistribution<Problem>());
+            Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
+            // Vmem -> Vgpr 0 (Q matrix)
+            // Scale and cast tile before writing to LDS (if IsCastBeforeLDS)
             bq_block_tile = load_tile(bq_copy_dram_window);
-            move_tile_window(bq_copy_dram_window, {0, b_scale_dram_tile_window_step});
+            move_tile_window(bq_copy_dram_window, b_scale_dram_tile_window_step);
+            ScaleTile(b_block_tile, bdq_block_tile, bq_block_tile);
 
-            constexpr auto idx1_js = tile_distributed_index<0>{};
-            constexpr auto b_block = decltype(b_fp4_block_tile)::get_distributed_spans();
-            sweep_tile_span(b_block[number<0>{}], [&](auto idx0) {
-                sweep_tile_span(b_block[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx       = make_tuple(idx0, idx1);
-                    constexpr auto i_j_idx_scale = make_tuple(idx0, idx1_js);
-                    auto b_scale_uint = type_convert<int32_t>(bq_block_tile(i_j_idx_scale)) - 127;
-                    auto b_scale      = type_convert<float>(std::pow(2.0f, b_scale_uint));
-                    constexpr auto idx1_lo    = tile_distributed_index<idx1.impl_.at(0) * 2>{};
-                    constexpr auto idx1_hi    = tile_distributed_index<idx1.impl_.at(0) * 2 + 1>{};
-                    constexpr auto i_j_idx_lo = make_tuple(idx0, idx1_lo);
-                    constexpr auto i_j_idx_hi = make_tuple(idx0, idx1_hi);
-
-                    auto b_pack  = type_convert<pk_fp4_t>(b_fp4_block_tile(i_j_idx));
-                    auto b_f4_lo = type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
-                    auto b_f4_hi = type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
-                    b_block_tile(i_j_idx_lo) =
-                        type_convert<bf16_t>(type_convert<float>(b_f4_lo) * b_scale);
-                    b_block_tile(i_j_idx_hi) =
-                        type_convert<bf16_t>(type_convert<float>(b_f4_hi) * b_scale);
-                });
-            });
-
-            // initialize C
+            // initialize C tile to zero
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
             block_sync_lds();
 
-            // LDS write 0
-            if constexpr(is_a_col_major)
-            {
-                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                    Policy::template MakeShuffledARegTileDistribution<Problem>());
-                transpose_tile2d(a_shuffle_tmp, a_block_tile);
-                Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-            }
-            else
-            {
-                Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
-            }
+            // Vgpr -> LDS 0
+            ALocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+            BLocalPrefill(b_copy_lds_window, b_block_tile, bdq_block_tile, b_element_func);
 
-            if constexpr(is_b_row_major)
-            {
-                auto b_shuffle_tmp = make_static_distributed_tensor<BDqDataType>(
-                    Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                transpose_tile2d(b_shuffle_tmp, b_block_tile);
-                Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
-            }
-            else
-            {
-                Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
-            }
-
+            // Vmem -> Vgpr 1
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-            Base::GlobalPrefetch(b_fp4_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+            Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
-            bq_block_tile = load_tile(bq_copy_dram_window);
-            move_tile_window(bq_copy_dram_window, {0, b_scale_dram_tile_window_step});
-
-            sweep_tile_span(b_block[number<0>{}], [&](auto idx0) {
-                sweep_tile_span(b_block[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx       = make_tuple(idx0, idx1);
-                    constexpr auto i_j_idx_scale = make_tuple(idx0, idx1_js);
-
-                    auto b_scale_uint = type_convert<int32_t>(bq_block_tile(i_j_idx_scale)) - 127;
-                    auto b_scale      = type_convert<float>(std::pow(2.0f, b_scale_uint));
-                    constexpr auto idx1_lo    = tile_distributed_index<idx1.impl_.at(0) * 2>{};
-                    constexpr auto idx1_hi    = tile_distributed_index<idx1.impl_.at(0) * 2 + 1>{};
-                    constexpr auto i_j_idx_lo = make_tuple(idx0, idx1_lo);
-                    constexpr auto i_j_idx_hi = make_tuple(idx0, idx1_hi);
-
-                    auto b_pack  = type_convert<pk_fp4_t>(b_fp4_block_tile(i_j_idx));
-                    auto b_f4_lo = type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
-                    auto b_f4_hi = type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
-                    b_block_tile(i_j_idx_lo) =
-                        type_convert<bf16_t>(type_convert<float>(b_f4_lo) * b_scale);
-                    b_block_tile(i_j_idx_hi) =
-                        type_convert<bf16_t>(type_convert<float>(b_f4_hi) * b_scale);
-                });
-            });
+            // If we scale and cast before writing to LDS,
+            // we need to read another tile of Q matrix from Vmem, then scale and cast tile
+            if constexpr(IsCastBeforeLDS)
+            {
+                bq_block_tile = load_tile(bq_copy_dram_window);
+                move_tile_window(bq_copy_dram_window, b_scale_dram_tile_window_step);
+            }
+            ScaleTile(b_block_tile, bdq_block_tile, bq_block_tile);
 
             block_sync_lds();
-            block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+
+            // LDS -> Vgpr 0
+            LocalPrefetch(block_gemm, a_lds_gemm_window, b_lds_gemm_window, bq_block_tile);
 
             __builtin_amdgcn_sched_barrier(0);
 
@@ -521,72 +676,34 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
                 {
                     block_sync_lds();
 
-                    if constexpr(is_a_col_major)
-                    {
-                        auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                            Policy::template MakeShuffledARegTileDistribution<Problem>());
-                        transpose_tile2d(a_shuffle_tmp, a_block_tile);
-                        Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-                    }
-                    else
-                    {
-                        Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
-                    }
-                    if constexpr(is_b_row_major)
-                    {
-                        auto b_shuffle_tmp = make_static_distributed_tensor<BDqDataType>(
-                            Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                        transpose_tile2d(b_shuffle_tmp, b_block_tile);
-                        Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
-                    }
-                    else
-                    {
-                        Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
-                    }
+                    // Vgpr -> LDS
+                    ALocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+                    BLocalPrefill(b_copy_lds_window, b_block_tile, bdq_block_tile, b_element_func);
 
+                    // Vmem -> Vgpr
                     Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-                    Base::GlobalPrefetch(
-                        b_fp4_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+                    Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
+                    // Vmem -> Vgpr (Q matrix)
+                    // Scale and cast tile before writing to LDS (if IsCastBeforeLDS)
                     bq_block_tile = load_tile(bq_copy_dram_window);
-                    move_tile_window(bq_copy_dram_window, {0, b_scale_dram_tile_window_step});
+                    move_tile_window(bq_copy_dram_window, b_scale_dram_tile_window_step);
+                    ScaleTile(b_block_tile, bdq_block_tile, bq_block_tile);
 
-                    sweep_tile_span(b_block[number<0>{}], [&](auto idx0) {
-                        sweep_tile_span(b_block[number<1>{}], [&](auto idx1) {
-                            constexpr auto i_j_idx       = make_tuple(idx0, idx1);
-                            constexpr auto i_j_idx_scale = make_tuple(idx0, idx1_js);
-
-                            auto b_scale_uint =
-                                type_convert<int32_t>(bq_block_tile(i_j_idx_scale)) - 127;
-                            auto b_scale = type_convert<float>(std::pow(2.0f, b_scale_uint));
-                            constexpr auto idx1_lo = tile_distributed_index<idx1.impl_.at(0) * 2>{};
-                            constexpr auto idx1_hi =
-                                tile_distributed_index<idx1.impl_.at(0) * 2 + 1>{};
-                            constexpr auto i_j_idx_lo = make_tuple(idx0, idx1_lo);
-                            constexpr auto i_j_idx_hi = make_tuple(idx0, idx1_hi);
-
-                            auto b_pack  = type_convert<pk_fp4_t>(b_fp4_block_tile(i_j_idx));
-                            auto b_f4_lo = type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
-                            auto b_f4_hi = type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
-                            b_block_tile(i_j_idx_lo) =
-                                type_convert<bf16_t>(type_convert<float>(b_f4_lo) * b_scale);
-                            b_block_tile(i_j_idx_hi) =
-                                type_convert<bf16_t>(type_convert<float>(b_f4_hi) * b_scale);
-                        });
-                    });
-
+                    // Consume tile
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
                     block_sync_lds();
 
-                    block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                    // LDS -> Vgpr
+                    LocalPrefetch(block_gemm, a_lds_gemm_window, b_lds_gemm_window, bq_block_tile);
+
                     HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
 
                     i += 1;
-                    // b_block_stride +=1;
                 } while(i < (num_loop - 1));
             }
-            // tile_elementwise_inout([](auto& c) { c = 0; }, acc_block_tile);
+
             // tail
             if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
             {
@@ -596,35 +713,31 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
             }
             else
             {
+                // If we scale and cast after reading from LDS,
+                // we didn't read the second tile of Q matrix from Vmem during prefetch stages,
+                // so we need to read the last tile here.
+                // This is not a problem because we have all block_gemm instructions to hide the
+                // latency.
+                if constexpr(!IsCastBeforeLDS)
+                {
+                    bq_block_tile = load_tile(bq_copy_dram_window);
+                    move_tile_window(bq_copy_dram_window, b_scale_dram_tile_window_step);
+                }
+
+                // Consume second to last tile
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
                 block_sync_lds();
 
-                if constexpr(is_a_col_major)
-                {
-                    auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                        Policy::template MakeShuffledARegTileDistribution<Problem>());
-                    transpose_tile2d(a_shuffle_tmp, a_block_tile);
-                    Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-                }
-                else
-                {
-                    Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
-                }
-                if constexpr(is_b_row_major)
-                {
-                    auto b_shuffle_tmp = make_static_distributed_tensor<BDqDataType>(
-                        Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                    transpose_tile2d(b_shuffle_tmp, b_block_tile);
-                    Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
-                }
-                else
-                {
-                    Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
-                }
+                // Vgpr -> LDS last tile
+                ALocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
+                BLocalPrefill(b_copy_lds_window, b_block_tile, bdq_block_tile, b_element_func);
 
                 block_sync_lds();
-                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
 
+                // LDS -> Vgpr last tile
+                LocalPrefetch(block_gemm, a_lds_gemm_window, b_lds_gemm_window, bq_block_tile);
+
+                // Consume last tile
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
                 block_sync_lds();
             }
@@ -653,9 +766,9 @@ struct MxFp4GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Probl
         ck_tile::ignore = n;
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
+            identity{},
             b_dram_block_window_tmp,
-            [](const BDqDataType& b) { return b; },
+            identity{},
             bq_dram_block_window_tmp,
             num_loop,
             p_smem);
