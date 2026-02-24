@@ -137,7 +137,7 @@ struct BlockGemmARegBSmemCRegV2PrefetchN
                         load_tile(b_warp_windows(number<nIter + 1>{})(kIter));
                 };
 
-                __builtin_amdgcn_sched_barrier(0x0000001);
+                __builtin_amdgcn_sched_barrier(0x00000001);
 
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     // read A warp tensor from A block tensor
