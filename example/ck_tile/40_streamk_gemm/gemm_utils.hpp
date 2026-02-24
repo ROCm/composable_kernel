@@ -65,7 +65,7 @@ auto createArgs(int argc, char* argv[])
         .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("reduction_strategy",
                 "atomic",
-                "strategy for storing results in C tensor - atomic/reduction")
+                "strategy for storing results in C tensor - atomic/linear")
         .insert("persistent_dp",
                 "0",
                 "0. Non-persistent data-parallel section, 1 Fully persistent kernel.")

@@ -56,7 +56,7 @@ TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsLessThan128Bytes)
     using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
 
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
-                                        ck_tile::StreamKReductionStrategy::Reduction>
+                                        ck_tile::StreamKReductionStrategy::Linear>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 128);
@@ -67,7 +67,7 @@ TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsEqual128Bytes)
     using Config = StreamKTilePartitionerBaseConfigFlagsSizeEqual128Bytes;
 
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
-                                        ck_tile::StreamKReductionStrategy::Reduction>
+                                        ck_tile::StreamKReductionStrategy::Linear>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 128);
@@ -78,7 +78,7 @@ TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsGreaterThan128Bytes)
     using Config = StreamKTilePartitionerBaseConfigFlagsSizeGreaterThan128Bytes;
 
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
-                                        ck_tile::StreamKReductionStrategy::Reduction>
+                                        ck_tile::StreamKReductionStrategy::Linear>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 256);
@@ -99,7 +99,7 @@ TEST(StreamKTilePartitionerBaseGetWorkSpaceSize, ReductionStrategy)
     using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
 
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
-                                        ck_tile::StreamKReductionStrategy::Reduction>
+                                        ck_tile::StreamKReductionStrategy::Linear>
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     ck_tile::index_t expected_partials_size =

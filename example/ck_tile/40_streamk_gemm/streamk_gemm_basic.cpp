@@ -112,7 +112,7 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
             hipGetErrorString(hipMemsetAsync(
                 args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream_config.stream_id_));
         }
-        else if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Reduction)
+        else if constexpr(ReductionStrategy == ck_tile::StreamKReductionStrategy::Linear)
         {
             // Reset sk flags to zero before each repetition of the kernel
             workspace_data.SetZero();
