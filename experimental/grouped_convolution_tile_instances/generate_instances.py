@@ -197,7 +197,21 @@ def parse_fwd_instances(instances, problem_name):
         dtype = get_dtype(problem_name)
         # TODO: Make it more flexible
         # k_per_xdl = f"ck_tile::get_k_warp_tile<{dtype}, {m_per_xdl}>()"
-        k_per_xdl = 8 if dtype == "float" else 16
+        if dtype == "float":
+            if m_per_xdl == 32:
+                if instance.find("BlkGemmPipelineVersion") == -1:
+                    k_per_xdl = 4
+                else:
+                    # Increase for universal gemm
+                    k_per_xdl = 8
+            else:
+                k_per_xdl = 8
+        else:
+            if m_per_xdl == 32:
+                k_per_xdl = 16
+            else:
+                k_per_xdl = 32
+        k_per_xdl = min(k_per_xdl, k_per_block)
 
         conv = ConvInstanceTemplateParams(
             spec,
