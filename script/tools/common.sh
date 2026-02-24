@@ -5,7 +5,7 @@
 # Common utilities for CK Docker tools
 # Shared configuration and helper functions
 
-# Find project root (where .git directory is)
+# Find project root using relative path (fallback)
 get_project_root() {
     local script_dir="$1"
     cd "${script_dir}/../.." && pwd
@@ -149,11 +149,11 @@ is_build_configured() {
     [ -f "${build_dir}/build.ninja" ]
 }
 
-# Find project root from any subdirectory (walks up to find .git)
+# Find project root from any subdirectory (walks up to find .ck-project-root)
 find_project_root() {
     local dir="${1:-$(pwd)}"
     while [ "$dir" != "/" ]; do
-        if [ -d "$dir/.git" ]; then
+        if [ -f "$dir/.ck-project-root" ]; then
             echo "$dir"
             return 0
         fi
