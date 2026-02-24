@@ -38,7 +38,7 @@ CK_TILE_HOST_DEVICE static constexpr auto GetMaxVectorSize()
         return 1;
     }
     else
-        static_assert(false, "The data type is not supported!");
+        return 1;
 };
 
 template <typename DataType,
@@ -108,33 +108,6 @@ struct BlockFmhaPipelineProblem
     static constexpr bool kHasDropout       = Traits::kHasDropout;
     static constexpr auto QScaleEnum        = Traits::QScaleEnum;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
-
-    CK_TILE_HOST_DEVICE static constexpr auto GetQDramTileAccessMaxVectorSize()
-    {
-        constexpr index_t kMPerBlock = BlockFmhaShape::kM0;
-        constexpr index_t kKPerBlock = BlockFmhaShape::kQKHeaddim;
-
-        return detail::
-            GetDramTileAccessMaxVectorSize<QDataType, kBlockSize, kMPerBlock, kKPerBlock>();
-    }
-
-    CK_TILE_HOST_DEVICE static constexpr auto GetKDramTileAccessMaxVectorSize()
-    {
-        constexpr index_t kNPerBlock = BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = BlockFmhaShape::kK0;
-
-        return detail::
-            GetDramTileAccessMaxVectorSize<KDataType, kBlockSize, kNPerBlock, kKPerBlock>();
-    }
-
-    CK_TILE_HOST_DEVICE static constexpr auto GetVDramTileAccessMaxVectorSize()
-    {
-        constexpr index_t kNPerBlock = BlockFmhaShape::kN1;
-        constexpr index_t kKPerBlock = BlockFmhaShape::kK1;
-
-        return detail::
-            GetDramTileAccessMaxVectorSize<VDataType, kBlockSize, kNPerBlock, kKPerBlock>();
-    };
 };
 
 template <typename QDataType_,
