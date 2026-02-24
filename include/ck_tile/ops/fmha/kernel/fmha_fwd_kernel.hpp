@@ -78,7 +78,7 @@ struct has_naive_hdim_load_flag<
 template <typename T>
 static inline constexpr bool is_naive_hdim_load_v = has_naive_hdim_load_flag<T>::value;
 
-// A helper struct for detechting kUseTrLoad
+// A helper struct for detecting kUseTrLoad
 template <typename T, typename = void>
 struct has_use_trload_flag : std::false_type
 {
