@@ -39,6 +39,7 @@
 #include "ck_tile/core/container/multi_index.hpp"
 #include "ck_tile/core/container/sequence.hpp"
 #include "ck_tile/core/container/span.hpp"
+#include "ck_tile/core/container/static_array.hpp"
 #include "ck_tile/core/container/statically_indexed_array.hpp"
 #include "ck_tile/core/container/thread_buffer.hpp"
 #include "ck_tile/core/container/tuple.hpp"
