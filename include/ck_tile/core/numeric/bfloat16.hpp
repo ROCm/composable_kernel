@@ -174,7 +174,7 @@ uint16_t float_to_bf16_rtn_asm(float f)
 #else
     uint32_t check_nan;
 #endif
-    uint32_t tmp;
+    uint32_t tmp = 0;
     asm volatile("\n \
             v_cmp_u_f32 %0, %2, %2 \n \
             v_bfe_u32 %1, %2, 16, 1 \n \
