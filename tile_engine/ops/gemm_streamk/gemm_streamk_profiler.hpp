@@ -169,9 +169,9 @@ class GemmProfiler
         auto reduction_strategy =
             SelectedKernel::reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic
                 ? "Atomic"
-            : SelectedKernel::reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction
-                ? "Reduction"
-                : "TreeReduction";
+            : SelectedKernel::reduction_strategy == ck_tile::StreamKReductionStrategy::Linear
+                ? "Linear"
+                : "Tree";
 
         KernelInstance kernel_instance{
             name, dp_persistent, reduction_strategy, gemm_problem, {-1.0f, -1.0f, -1.0f}};

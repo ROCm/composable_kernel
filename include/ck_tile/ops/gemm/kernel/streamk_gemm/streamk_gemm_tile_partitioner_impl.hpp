@@ -153,8 +153,8 @@ CK_TILE_HOST_DEVICE index_t
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_workspace_size(
     index_t acc_element_bytes) const noexcept
 {
-    if constexpr(ReductionStrategy == StreamKReductionStrategy::Reduction ||
-                 ReductionStrategy == StreamKReductionStrategy::TreeReduction)
+    if constexpr(ReductionStrategy == StreamKReductionStrategy::Linear ||
+                 ReductionStrategy == StreamKReductionStrategy::Tree)
     {
 
         return get_partials_buffer_size(acc_element_bytes) + get_flags_buffer_size();

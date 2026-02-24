@@ -376,8 +376,8 @@ class GemmKernelBuilder:
 
         reduction_strategy_map = {
             "atomic": "ck_tile::StreamKReductionStrategy::Atomic",
-            "reduction": "ck_tile::StreamKReductionStrategy::Reduction",
-            "tree": "ck_tile::StreamKReductionStrategy::TreeReduction",
+            "linear": "ck_tile::StreamKReductionStrategy::Linear",
+            "tree": "ck_tile::StreamKReductionStrategy::Tree",
         }
 
         # Determine accumulator type based on datatype
@@ -449,7 +449,7 @@ struct SelectedKernel {{
     static constexpr bool UsePersistentKernel = {"true" if str(persistent).lower() == "true" else "false"};
     static constexpr bool UseStructuredSparsity = false;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr ck_tile::StreamKReductionStrategy reduction_strategy = {reduction_strategy_map.get(reduction_strategy, "ck_tile::StreamKReductionStrategy::Reduction")};
+    static constexpr ck_tile::StreamKReductionStrategy reduction_strategy = {reduction_strategy_map.get(reduction_strategy, "ck_tile::StreamKReductionStrategy::Linear")};
 
     // Tile shape
     using TileShape = ck_tile::TileGemmShape<
@@ -552,12 +552,12 @@ struct SelectedKernel {{
                     hipGetErrorString(hipMemsetAsync(
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
                 }}
-                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction)
+                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Linear)
                 {{
                     // Reset sk flags to zero before each repetition of the kernel
                     workspace_data.SetZero();
                 }}
-                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::TreeReduction)
+                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Tree)
                 {{
                     // Reset sk flags to zero before each repetition of the kernel
                     workspace_data.SetZero();
