@@ -602,17 +602,16 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
 
     constexpr index_t num_of_access = total_elems_in / vecLoadSize;
 
-    // Internal Y-subdimension correction for fp16->fp32 transpose path.
-    // Apply remap on RHS-major=2 low minors (typically the lane-group subdims)
-    // instead of row-linear remapping.
+    // Local compile-time remap for fp16 -> fp32: swap 2x4 subfactorization on RHS-major=2
+    // if present in the distribution metadata. Fallback remains generic conversion.
     if constexpr(sizeof(InputDataType) == 2 && std::is_same_v<OutputDataType, float>)
     {
         using InDstrEncode = typename remove_cvref_t<TileDistribution_>::DstrEncode;
         constexpr auto rhs2_to_ys = InDstrEncode::detail::rhs_major_minor_to_ys_[2];
-        constexpr bool has_rhs2_pair = decltype(rhs2_to_ys)::size() >= 2;
-        constexpr bool valid_rhs2_pair =
-            has_rhs2_pair && (rhs2_to_ys[0] >= 0) && (rhs2_to_ys[0] < NDimYIn) &&
-            (rhs2_to_ys[1] >= 0) && (rhs2_to_ys[1] < NDimYIn);
+
+        constexpr bool has_pair = decltype(rhs2_to_ys)::size() >= 2;
+        constexpr bool valid_pair = has_pair && (rhs2_to_ys[0] >= 0) && (rhs2_to_ys[0] < NDimYIn) &&
+                                    (rhs2_to_ys[1] >= 0) && (rhs2_to_ys[1] < NDimYIn);
 
         auto unflatten_out = [&](index_t linear) {
             array<index_t, NDimYOut> idx{};
@@ -642,7 +641,7 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
             const auto idx_out = unflatten_out(out_linear);
             auto idx_in        = unflatten_in(out_linear);
 
-            if constexpr(valid_rhs2_pair)
+            if constexpr(valid_pair)
             {
                 constexpr index_t y0   = rhs2_to_ys[0];
                 constexpr index_t y1   = rhs2_to_ys[1];
@@ -676,7 +675,7 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
     }
     else
     {
-        // Generic fallback: element-wise conversion preserving descriptor-defined linear layout.
+        // Generic conversion path
         using InputDataVec = array<InputDataType, vecLoadSize>;
         static_for<0, num_of_access, 1>{}([&](auto iAccess) {
             auto input_vec =
@@ -684,11 +683,11 @@ CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
 
             static_for<0, vecLoadSize, 1>{}([&](auto iElem) {
                 auto output_elem = type_convert<OutputDataType>(input_vec[iElem]);
-                out_tensor.get_thread_buffer()[number<iAccess * vecLoadSize + iElem>{}] = output_elem;
+                out_tensor.get_thread_buffer()[number<iAccess * vecLoadSize + iElem>{}] =
+                    output_elem;
             });
         });
     }
-
 }
 
 /**
