@@ -287,8 +287,8 @@ struct tensor_view
     get_transpose_vectorized_elements(const TensorCoord& coord, index_t linear_offset) const
     {
         return buf_.template transpose_get<X>(
-            coord.get_offset(),
-            linear_offset,
+            coord.get_offset() / PackedSize,
+            linear_offset / PackedSize,
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord));
     }
 
@@ -303,7 +303,8 @@ struct tensor_view
                                       bool is_valid_element // flag
     ) const
     {
-        return buf_.template transpose_get<X>(coord.get_offset(), linear_offset, is_valid_element);
+        return buf_.template transpose_get<X>(
+            coord.get_offset() / PackedSize, linear_offset / PackedSize, is_valid_element);
     }
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X

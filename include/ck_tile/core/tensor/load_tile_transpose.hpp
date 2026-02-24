@@ -50,60 +50,61 @@ constexpr bool is_sequence_suffix_v = is_sequence_suffix<Suffix, Sequence>::valu
 template <typename DataType>
 struct DefaultTranspose
 {
-    template <index_t LaneGroupSize>
-    struct Quad16
+    template <index_t LaneGroupSize, index_t NumBitType>
+    struct Quad
     {
         static_assert(LaneGroupSize == 64 || LaneGroupSize == 32 || LaneGroupSize == 16,
                       "LaneGroupSize must be 64, 32, or 16");
-        using InputEncoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<4>, sequence<LaneGroupSize / 16, 4, 4>>,
-                                       tuple<sequence<2, 1, 2>>,
-                                       tuple<sequence<0, 0, 1>>,
-                                       sequence<2>,
-                                       sequence<2>>;
 
-        using OutputEncoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<LaneGroupSize>, sequence<4>>,
-                                       tuple<sequence<1>>,
-                                       tuple<sequence<0>>,
-                                       sequence<2>,
-                                       sequence<0>>;
+        // The tile is defined by the LaneGroupSize, which defines the number of lanes in the M/N
+        // dimensions for the MMA instruction defined by warp gemm.
+        // The LaneGroupSize is subdivided into groups of 16 (finer granularity of MMA
+        // instructions), we define these as major subtiles. Each of these major subtile is divided
+        // into minor subtiles which group the lanes exchanging data during the transpose Example
+        // LaneGroupSize = 16, 16 bit type:
+        //  - There is 1 group of 16 lanes (1 major subtile)
+        //  - Each major subtile is divided into 4 minor subtiles of (4x4) -> 4 lanes transpose
+        //    the minor subtile and each lane holds 4 elements
+
+        // all load transpose instructions use 64 bit right now
+        static constexpr index_t InstructionBits = 64;
+        // Subtile major dimension is fixed
+        static constexpr index_t SubtileMajorDimension = 16;
+        // Number of subtile major
+        static constexpr index_t NumSubtilesMajor = LaneGroupSize / 16;
+        // number of elements loaded by each lane with single instruction, but also number
+        // of consecutive lanes in a subtile. Subtile is squared (NLanes x NElementsPerLane)
+        static constexpr index_t SubtileMinorDimension = InstructionBits / NumBitType;
+        // Number of subtiles minor inside each subtile major
+        static constexpr index_t NumSubtilesMinor = 16 / SubtileMinorDimension;
+
+        using InputEncoding = tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<SubtileMinorDimension>,
+                  sequence<NumSubtilesMajor, NumSubtilesMinor, SubtileMinorDimension>>,
+            tuple<sequence<2, 1, 2>>,
+            tuple<sequence<0, 0, 1>>,
+            sequence<2>,
+            sequence<2>>;
+
+        using OutputEncoding = tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<LaneGroupSize>, sequence<SubtileMinorDimension>>,
+            tuple<sequence<1>>,
+            tuple<sequence<0>>,
+            sequence<2>,
+            sequence<0>>;
     };
 
-    template <index_t LaneGroupSize>
-    struct Quad8
-    {
-        static_assert(LaneGroupSize == 64 || LaneGroupSize == 32 || LaneGroupSize == 16,
-                      "LaneGroupSize must be 64, 32, or 16");
-        using InputEncoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<8>, sequence<LaneGroupSize / 16, 2, 8>>,
-                                       tuple<sequence<2, 1, 2>>,
-                                       tuple<sequence<0, 0, 1>>,
-                                       sequence<2>,
-                                       sequence<2>>;
-
-        using OutputEncoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<LaneGroupSize>, sequence<8>>,
-                                       tuple<sequence<1>>,
-                                       tuple<sequence<0>>,
-                                       sequence<2>,
-                                       sequence<0>>;
-    };
+    static constexpr index_t PackedSize      = numeric_traits<remove_cvref_t<DataType>>::PackedSize;
+    static constexpr index_t NumBitsDataType = (sizeof(DataType) * 8) / PackedSize;
 
     // Select based on data size
     template <index_t LaneGroupSize>
-    using QuadInputEncoding = std::conditional_t<sizeof(DataType) == 2,
-                                                 typename Quad16<LaneGroupSize>::InputEncoding,
-                                                 typename Quad8<LaneGroupSize>::InputEncoding>;
+    using QuadInputEncoding = typename Quad<LaneGroupSize, NumBitsDataType>::InputEncoding;
 
     template <index_t LaneGroupSize>
-    using QuadOutputEncoding = std::conditional_t<sizeof(DataType) == 2,
-                                                  typename Quad16<LaneGroupSize>::OutputEncoding,
-                                                  typename Quad8<LaneGroupSize>::OutputEncoding>;
+    using QuadOutputEncoding = typename Quad<LaneGroupSize, NumBitsDataType>::OutputEncoding;
 
     // Always swap last two dimensions
     static constexpr auto transpose_dims = sequence<1, 0>{};

@@ -99,7 +99,7 @@ struct CShuffleEpilogue
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
                                               std::is_same_v<BDataType, pk_fp4_t> ||
-                                              std::is_same_v<BDataType, pk_fp4_raw_t>,
+                                              sizeof(BDataType) < sizeof(ADataType),
                                           ADataType,
                                           BDataType>;
 
