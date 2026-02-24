@@ -8,8 +8,8 @@
 namespace ck_tile {
 enum StreamKReductionStrategy : uint32_t
 {
-    Atomic        = 0u,
-    Reduction     = 1u,
-    TreeReduction = 2u
+    Atomic = 0u,
+    Linear = 1u,
+    Tree   = 2u
 };
 } // namespace ck_tile

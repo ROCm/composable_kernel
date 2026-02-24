@@ -247,17 +247,15 @@ class TestCkTileStreamK : public ::testing::Test
             num_accumulations_per_tile = invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(
                 args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
         }
-        else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction)
+        else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Linear)
         {
-            num_accumulations_per_tile =
-                invoke_streamk<ck_tile::StreamKReductionStrategy::Reduction>(
-                    args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
+            num_accumulations_per_tile = invoke_streamk<ck_tile::StreamKReductionStrategy::Linear>(
+                args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
         }
         else
         {
-            num_accumulations_per_tile =
-                invoke_streamk<ck_tile::StreamKReductionStrategy::TreeReduction>(
-                    args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
+            num_accumulations_per_tile = invoke_streamk<ck_tile::StreamKReductionStrategy::Tree>(
+                args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
         }
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
