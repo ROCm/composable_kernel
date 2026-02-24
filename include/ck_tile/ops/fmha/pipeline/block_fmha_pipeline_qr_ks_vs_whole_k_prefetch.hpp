@@ -522,7 +522,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 });
             }
 
-            __builtin_amdgcn_sched_barrier(0x000000001);
+            __builtin_amdgcn_sched_barrier(0x00000001);
 
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
 
