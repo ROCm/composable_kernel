@@ -318,7 +318,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                              Policy::template MakeBiasDramTileDistribution<Problem>());
 
         // assuming no random values need be saved, this is true when the pipeline is called from
-        // xformers, since we have a separate kernel to generated randomm values
+        // xformers, since we have a separate kernel to generatd random values
         auto null_randval_window = [&]() {
             if constexpr(kHasDropout)
             {
