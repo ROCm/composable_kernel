@@ -6,6 +6,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
+#include <chrono>
 #include "contraction_utils.hpp"
 #include "ck_tile/host/reference/reference_batched_contraction.hpp"
 
