@@ -134,7 +134,7 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         float max_accumulated_value =
             *std::max_element(wei_host_result.mData.begin(), wei_host_result.mData.end());
 
-        const ck::index_t num_accums         = out.GetElementSize() / conv_param.K_;
+        const ck::index_t num_accums = out.GetElementSize() / (conv_param.K_ * conv_param.G_);
         const ck::index_t num_accums_split_k = split_k;
         double rtol = ck::utils::get_relative_threshold<InDataType, WeiDataType, AccDataType>(
             num_accums / num_accums_split_k);

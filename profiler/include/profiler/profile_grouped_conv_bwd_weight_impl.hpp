@@ -364,7 +364,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     using AccDataType =
                         std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
 
-                    const index_t num_accums         = output.GetElementSize() / conv_param.K_;
+                    const index_t num_accums =
+                        output.GetElementSize() / (conv_param.K_ * conv_param.G_);
                     const index_t num_accums_split_k = split_k_value;
                     // Get maximum accumulated value from reference
                     const std::size_t tensor_size =
@@ -437,7 +438,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                            ComputeTypeB>;
                     using AccDataType =
                         std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
-                    const index_t num_accums         = output.GetElementSize() / conv_param.K_;
+                    const index_t num_accums =
+                        output.GetElementSize() / (conv_param.K_ * conv_param.G_);
                     const index_t num_accums_split_k = split_k_value;
                     // Calculate thresholds
                     auto rtol =
