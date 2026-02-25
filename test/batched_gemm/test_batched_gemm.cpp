@@ -214,6 +214,13 @@ TEST_F(TestBatchedGemm, bf16)
     this->params.push_back({68, 68, 68, 2});
     this->params.push_back({40, 40, 40, 2});
     this->params.push_back({256, 256, 128, 3});
+
+    // Tests with larger MNK
+    this->params.push_back({512, 256, 128, 1});
+    this->params.push_back({256, 240, 192, 2});
+    this->params.push_back({256, 256, 128, 3});
+    this->params.push_back({240, 128, 128, 5});
+
     this->template Run<ck::bhalf_t>();
 }
 #endif
@@ -226,7 +233,13 @@ TEST_F(TestBatchedGemm, fp16)
     this->params.push_back({60, 60, 60, 2});
     this->params.push_back({68, 68, 68, 2});
     this->params.push_back({40, 40, 40, 2});
+
+    // Tests with larger MNK
+    this->params.push_back({512, 256, 128, 1});
+    this->params.push_back({256, 240, 192, 2});
     this->params.push_back({256, 256, 128, 3});
+    this->params.push_back({240, 128, 128, 5});
+
     this->template Run<ck::half_t>();
 }
 #endif

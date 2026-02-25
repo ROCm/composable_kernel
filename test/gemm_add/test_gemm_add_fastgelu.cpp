@@ -27,7 +27,11 @@ class TestGemmAddFastgelu : public TestGemmD0Common<Tuple>
 };
 
 using KernelTypes = ::testing::Types<std::tuple<F16, I8, F32, F16, F16, Row, Row, Row, Row>,
-                                     std::tuple<BF16, I8, F32, BF16, BF16, Row, Row, Row, Row>>;
+                                     std::tuple<BF16, I8, F32, BF16, BF16, Row, Row, Row, Row>,
+                                     std::tuple<F16, F16, F32, F16, F16, Row, Row, Row, Row>,
+                                     std::tuple<F16, F16, F32, F16, F16, Row, Col, Row, Row>,
+                                     std::tuple<F16, F16, F32, F16, F16, Col, Row, Row, Row>,
+                                     std::tuple<F16, F16, F32, F16, F16, Col, Col, Row, Row>>;
 
 TYPED_TEST_SUITE(TestGemmAddFastgelu, KernelTypes);
-TYPED_TEST(TestGemmAddFastgelu, Test_BF16FP16) { this->Run(); }
+TYPED_TEST(TestGemmAddFastgelu, Test_BF16FP16_FP16FP16_INT8) { this->Run(); }

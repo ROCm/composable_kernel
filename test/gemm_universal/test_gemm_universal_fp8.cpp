@@ -8,6 +8,8 @@
 #include "test_gemm_universal_util.hpp"
 ck::index_t param_mask     = 0xffff;
 ck::index_t instance_index = -1;
+using F8                   = ck::f8_t;
+using F16                  = ck::half_t;
 using BF16                 = ck::bhalf_t;
 using F32                  = float;
 
@@ -28,59 +30,49 @@ struct tuple_concat<std::tuple<Xs...>, std::tuple<Ys...>>
 } // namespace
 
 template <typename Tuple>
-class TestGemmUniversal_BF16_MK_KN
+class TestGemmUniversal_FP8_MK_KN
     : public ck::test::TestGemmUniversal<typename tuple_concat<std::tuple<Row, Row>, Tuple>::type>
 {
 };
 
 template <typename Tuple>
-class TestGemmUniversal_BF16_MK_NK
+class TestGemmUniversal_FP8_MK_NK
     : public ck::test::TestGemmUniversal<typename tuple_concat<std::tuple<Row, Col>, Tuple>::type>
-{
-};
-
-template <typename Tuple>
-class TestGemmUniversal_BF16_KM_KN
-    : public ck::test::TestGemmUniversal<typename tuple_concat<std::tuple<Col, Row>, Tuple>::type>
-{
-};
-
-template <typename Tuple>
-class TestGemmUniversal_BF16_KM_NK
-    : public ck::test::TestGemmUniversal<typename tuple_concat<std::tuple<Col, Col>, Tuple>::type>
 {
 };
 
 // clang-format off
 using KernelTypes_MK_KN = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
-
-    std::tuple<     BF16,      BF16,            BF16,    BF16>
-    >;
+#if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)) && !defined(CK_USE_WMMA_FP8)
+    std::tuple<      F16,        F8,             F16,     F16>,
+    std::tuple<       F8,       F16,             F16,     F16>>;
+#elif defined(CK_USE_WMMA_FP8)
+    // Fallback test type when WMMA FP8 is used
+    std::tuple<       F8,        F8,              F8,    BF16>>;
+#else
+    // Fallback test type when FP8 is not enabled
+    std::tuple<      F16,       F16,             F16,     F16>>;
+#endif
 using KernelTypes_MK_NK = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
 
-    std::tuple<     BF16,      BF16,            BF16,    BF16>
-    >;
-
-using KernelTypes_KM_NK = ::testing::Types<
-    //         ADataType, BDataType, ComputeDataType, CDataType
-    std::tuple<     BF16,      BF16,            BF16,    BF16>
-    >;
-
-using KernelTypes_KM_KN = ::testing::Types<
-    //         ADataType, BDataType, ComputeDataType, CDataType
-    std::tuple<     BF16,      BF16,            BF16,    BF16>
-    >;
-
+#if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94)) && !defined(CK_USE_WMMA_FP8)
+    std::tuple<      F16,        F8,             F16,     F16>,
+    std::tuple<       F8,       F16,             F16,     F16>>;
+#elif defined(CK_USE_WMMA_FP8)
+    // Fallback test type when WMMA FP8 is used
+    std::tuple<       F8,        F8,              F8,    BF16>>;
+#else
+    // Fallback test type when FP8 is not enabled
+    std::tuple<      F16,       F16,             F16,     F16>>;
+#endif
 // clang-format on
 
-TYPED_TEST_SUITE(TestGemmUniversal_BF16_MK_KN, KernelTypes_MK_KN);
-TYPED_TEST_SUITE(TestGemmUniversal_BF16_MK_NK, KernelTypes_MK_NK);
-TYPED_TEST_SUITE(TestGemmUniversal_BF16_KM_KN, KernelTypes_KM_KN);
-TYPED_TEST_SUITE(TestGemmUniversal_BF16_KM_NK, KernelTypes_KM_NK);
+TYPED_TEST_SUITE(TestGemmUniversal_FP8_MK_KN, KernelTypes_MK_KN);
+TYPED_TEST_SUITE(TestGemmUniversal_FP8_MK_NK, KernelTypes_MK_NK);
 
-#include "test_gemm_universal_ut_cases_bf16.inc"
+#include "test_gemm_universal_ut_cases_fp8.inc"
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
