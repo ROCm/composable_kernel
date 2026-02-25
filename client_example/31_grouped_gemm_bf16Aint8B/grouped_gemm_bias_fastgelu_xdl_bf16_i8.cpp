@@ -15,6 +15,8 @@
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_gemm_multi_abd_fixed_nk.hpp"
 
+#include "ck/host_utility/hip_check_error.hpp"
+
 using ::ck::hip_check_error;
 
 template <ck::index_t... Is>
