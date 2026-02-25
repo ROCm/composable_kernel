@@ -199,7 +199,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 float max_accumulated_value =
                     *std::max_element(wei_host.mData.begin(), wei_host.mData.end());
 
-                const ck::index_t num_accums         = out.GetElementSize() / conv_param.K_;
+                const ck::index_t num_accums =
+                    out.GetElementSize() / (conv_param.K_ * conv_param.G_);
                 const ck::index_t num_accums_split_k = split_k;
                 double rtol =
                     ck::utils::get_relative_threshold<InDataType, WeiDataType, AccDataType>(
