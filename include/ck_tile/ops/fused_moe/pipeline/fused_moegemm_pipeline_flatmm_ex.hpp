@@ -109,8 +109,8 @@ struct FusedMoeGemmPipeline_FlatmmEx
         constexpr auto NEG1  = number<-1>{};
         constexpr auto I0    = number<0>{};
         constexpr auto I1    = number<1>{};
-        constexpr auto TRUE  = bool_constant<true>{};
-        constexpr auto FALSE = bool_constant<false>{};
+        constexpr auto True  = bool_constant<true>{};
+        constexpr auto False = bool_constant<false>{};
 
         CK_TILE_LDS_ADDR ADataType* smem_0 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(smem);
         CK_TILE_LDS_ADDR ADataType* smem_1 = reinterpret_cast<CK_TILE_LDS_ADDR ADataType*>(
@@ -291,7 +291,7 @@ struct FusedMoeGemmPipeline_FlatmmEx
                         g_win.bottom_tensor_view_ = u_view;
                     }
                 }
-                load_tile_raw(g_, g_win, i_access, FALSE, PreNop{});
+                load_tile_raw(g_, g_win, i_access, False, PreNop{});
             };
         auto move_g = [&]() {
             move_tile_window(g_win, {number<0>{}, number<BlockShape::Block_Kr0>{}, number<0>{}});
@@ -300,7 +300,7 @@ struct FusedMoeGemmPipeline_FlatmmEx
 
         auto gld_d =
             [&]<typename PreNop = bool_constant<false>>(auto& d_, auto i_access, PreNop = {}) {
-                load_tile_raw(d_, d_win, i_access, FALSE, PreNop{});
+                load_tile_raw(d_, d_win, i_access, False, PreNop{});
             };
         auto move_d = [&]() {
             // d move along gemm-n
@@ -309,7 +309,7 @@ struct FusedMoeGemmPipeline_FlatmmEx
 
         auto atomic_add_o =
             [&]<typename PreNop = bool_constant<false>>(auto& o_, auto i_access, PreNop = {}) {
-                update_tile_raw(o_win, o_, i_access, TRUE, PreNop{});
+                update_tile_raw(o_win, o_, i_access, True, PreNop{});
             };
 
         auto acc_0  = Policy::template MakeCBlockTile_Gemm0<Problem>();
@@ -502,9 +502,9 @@ struct FusedMoeGemmPipeline_FlatmmEx
             static_for<0, total_loops, 1>{}([&](auto i_issue) {
                 constexpr auto last_nop = [&]() {
                     if constexpr(i_issue == (total_loops - 1))
-                        return TRUE;
+                        return True;
                     else
-                        return FALSE;
+                        return False;
                 }();
                 gemm_0(acc_0, as[I1], gs[I1], i_issue, last_nop); // last gemm has nop
             });
@@ -607,8 +607,8 @@ struct FusedMoeGemmPipeline_FlatmmEx
 
         // start of pipeline
         // clang-format off
-        gld_a(a_sst_win0, NEG1, TRUE);
-        gld_g(gs[I0], NEG1, TRUE);
+        gld_a(a_sst_win0, NEG1, True);
+        gld_g(gs[I0], NEG1, True);
         move_a();
         move_g();
         clear_tile(acc_0);

@@ -4,6 +4,16 @@
 #pragma once
 
 #include <stdint.h>
+#if defined(_WIN32) || defined(_WIN64)
+// Windows
+#if !defined(WIN32_LEAN_AND_MEAN)
+#define WIN32_LEAN_AND_MEAN
+#endif
+#if !defined(NOMINMAX)
+#define NOMINMAX
+#endif
+#include <Windows.h>
+#endif
 
 namespace ck_tile {
 
@@ -15,8 +25,6 @@ struct timepoint_t
 
 // Platform-specific includes and implementation
 #if defined(_WIN32) || defined(_WIN64)
-// Windows
-#include <windows.h>
 
 static inline timepoint_t high_res_now()
 {
