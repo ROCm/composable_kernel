@@ -6,19 +6,34 @@
 Building and installing Composable Kernel with CMake
 ******************************************************
 
-Before you begin, clone the `Composable Kernel GitHub repository <https://github.com/ROCm/composable_kernel.git>`_ and create a ``build`` directory in its root:
+Before you begin, clone the `Composable Kernel project <https://github.com/ROCm/rocm-libraries/tree/develop/projects/composablekernel>`_.
+
+Use sparse checkout when cloning the Composable Kernel project:
+
+.. code::
+
+  git clone --no-checkout --filter=blob:none https://github.com/ROCm/rocm-libraries.git
+  cd rocm-libraries
+  git sparse-checkout init --cone
+  git sparse-checkout set projects/composablekernel
+
+Then use ``git checkout`` to check out the branch you need.
+
+The develop branch is intended for users who want to preview new features or contribute to the Composable Kernel codebase.
+
+If you don't intend to contribute to the codebase and won't be previewing features, use a branch that matches the version of ROCm installed on your system.
+
+Create the ``build`` directory under ``rocm-libraries/projects/composablekernel``:
 
 .. code:: shell
 
-  git clone https://github.com/ROCm/composable_kernel.git
-  cd composable_kernel
+  cd projects/composablekernel
   mkdir build
 
 Change directory to the ``build`` directory and generate the makefile using the ``cmake`` command. Two build options are required:
 
 * ``CMAKE_PREFIX_PATH``: The ROCm installation path. ROCm is installed in ``/opt/rocm`` by default.
 * ``CMAKE_CXX_COMPILER``: The path to the Clang compiler. Clang is found at ``/opt/rocm/llvm/bin/clang++`` by default.
-
 
 .. code:: shell
 
@@ -65,8 +80,9 @@ After running ``make install``, the Composable Kernel files will be saved to the
 * Header files: ``/opt/rocm/include/ck/`` and ``/opt/rocm/include/ck_tile/``
 * Examples, tests, and ckProfiler: ``/opt/rocm/bin/``
 
-For information about ckProfiler, see `the ckProfiler readme file <https://github.com/ROCm/composable_kernel/blob/develop/profiler/README.md>`_.
+For information about ckProfiler, see `the ckProfiler readme file <https://github.com/ROCm/rocm-libraries/tree/develop/projects/composablekernel/profiler/README.md>`_.
 
 For information about running the examples and tests, see :doc:`Composable Kernel examples and tests <../tutorial/Composable-Kernel-examples>`.
+
 
 

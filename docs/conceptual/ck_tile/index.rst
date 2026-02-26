@@ -45,7 +45,7 @@ Learning Path
    
    How to work with multi-dimensional data structures and memory layouts.
 
-4. **Core API**: :ref:`ck_tile_distribution`
+4. **Core API**: :ref:`ck_tile_tile_distribution`
    
    The tile distribution system that maps work to GPU threads.
 
@@ -105,4 +105,4 @@ Next Steps
 
 To dive deeper, start with :ref:`ck_tile_introduction` to understand the motivation and core concepts behind CK Tile.
 
-For practical examples, see the `example/ck_tile <https://github.com/ROCm/composable_kernel/tree/develop/example/ck_tile>`_ directory in the Composable Kernel repository.
+For practical examples, see the `example/ck_tile <https://github.com/ROCm/rocm-libraries/tree/develop/projects/composablekernel/example/ck_tile>`_ directory in the Composable Kernel repository.
