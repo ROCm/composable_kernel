@@ -317,7 +317,7 @@ Movement Through Adaptors
 Advanced Movement Patterns
 ==========================
 
-Real-world applications use advanced movement patterns for optimal memory access. These patterns often relate to :ref:`ck_tile_tile_window` operations and :ref:`ck_tile_distribution` concepts:
+Real-world applications use advanced movement patterns for optimal memory access. These patterns often relate to :ref:`ck_tile_tile_window` operations and :ref:`ck_tile_tile_distribution` concepts:
 
 Tiled Access Pattern
 --------------------
