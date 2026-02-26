@@ -47,10 +47,10 @@ Output::
 
 Tutorials:
 
-* `GEMM tutorial <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/README.md>`_
+* `GEMM tutorial <https://github.com/ROCm/rocm-libraries/tree/develop/projects/composablekernel/client_example/25_wrapper/README.md>`_
 
 Advanced examples:
 
-* `Image to column <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_img2col.cpp>`_
-* `Basic gemm <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_basic_gemm.cpp>`_
-* `Optimized gemm <https://github.com/ROCm/composable_kernel/blob/develop/client_example/25_wrapper/wrapper_optimized_gemm.cpp>`_
+* `Image to column <https://github.com/ROCm/rocm-libraries/tree/develop/projects/composablekernel/client_example/25_wrapper/wrapper_img2col.cpp>`_
+* `Basic gemm <https://github.com/ROCm/rocm-libraries/tree/develop/projects/composablekernel/client_example/25_wrapper/wrapper_basic_gemm.cpp>`_
+* `Optimized gemm <https://github.com/ROCm/rocm-libraries/tree/develop/projects/composablekernel/client_example/25_wrapper/wrapper_optimized_gemm.cpp>`_

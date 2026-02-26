@@ -9,7 +9,7 @@ Overview
 
 At the foundation of the CK Tile system lies BufferView, a compile-time abstraction that provides structured access to raw memory regions within GPU kernels. This serves as the bridge between the hardware's physical memory model and the higher-level abstractions that enable efficient GPU programming. BufferView encapsulates the complexity of GPU memory hierarchies while exposing a unified interface that works seamlessly across different memory address spaces including global memory shared across the entire device, local data share (LDS) memory shared within a workgroup, or the ultra-fast register files private to each thread.
 
-BufferView serves as the foundation for :ref:`ck_tile_tensor_views`, which add multi-dimensional structure on top of raw memory access. Understanding BufferView is essential before moving on to more complex abstractions like :ref:`ck_tile_distribution` and :ref:`ck_tile_tile_window`.
+BufferView serves as the foundation for :ref:`ck_tile_tensor_views`, which add multi-dimensional structure on top of raw memory access. Understanding BufferView is essential before moving on to more complex abstractions like :ref:`ck_tile_tile_distribution` and :ref:`ck_tile_tile_window`.
 
 By providing compile-time knowledge of buffer properties through template metaprogramming, BufferView enables the compiler to generate optimal machine code for each specific use case. This zero-overhead abstraction ensures that the convenience of a high-level interface comes with no runtime performance penalty.
 
@@ -456,7 +456,7 @@ Address spaces are encoded in types so that common errors are reported at compil
 
 BufferView supports configurable handling of invalid values, optional runtime bounds checks, and conditional access patterns. It also provides atomic operations for thread-safe updates. These features are intended to cover common edge cases without adding unnecessary overhead.
 
-By hiding the complexity of different memory spaces while exposing the operations needed for high-performance GPU computing, BufferView establishes a pattern that the rest of CK Tile follows: compile-time abstractions that enhance rather than compromise performance. The :ref:`ck_tile_tensor_views` and :ref:`ck_tile_distribution` add capability while maintaining the efficiency established at the base. For hardware-specific details about memory hierarchies, see :ref:`ck_tile_gpu_basics`.
+By hiding the complexity of different memory spaces while exposing the operations needed for high-performance GPU computing, BufferView establishes a pattern that the rest of CK Tile follows: compile-time abstractions that enhance rather than compromise performance. The :ref:`ck_tile_tensor_views` and :ref:`ck_tile_tile_distribution` add capability while maintaining the efficiency established at the base. For hardware-specific details about memory hierarchies, see :ref:`ck_tile_gpu_basics`.
 
 Next Steps
 ----------
