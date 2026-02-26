@@ -20,7 +20,7 @@ In intrawave scheduling, the full K dimension is loaded into each wave. Each wav
 
 Because the CU has flexibility in scheduling operations, intrawave scheduling is best for compute-bound workloads.
 
-An example of both interwave and intrawave scheduling can be found in |gemm_utils.hpp|_, which is part of the `GEMM with CK Tile example <https://github.com/ROCm/composable_kernel/blob/develop/example/ck_tile/03_gemm/README.md>`_.
+An example of both interwave and intrawave scheduling can be found in |gemm_utils.hpp|_, which is part of the `GEMM with CK Tile example <https://github.com/ROCm/rocm-libraries/tree/develop/projects/composablekernel/example/ck_tile/03_gemm/README.md>`_.
 
 .. |gemm_utils.hpp| replace:: ``gemm_utils.hpp``
-.. _gemm_utils.hpp: https://github.com/ROCm/composable_kernel/blob/develop/example/ck_tile/03_gemm/gemm_utils.hpp#L37
+.. _gemm_utils.hpp: https://github.com/ROCm/rocm-libraries/tree/develop/projects/composablekernel/example/ck_tile/03_gemm/gemm_utils.hpp#L37

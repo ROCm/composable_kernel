@@ -550,7 +550,7 @@ This example demonstrates how CK Tile transforms convolution from a memory-bound
 
 - **Sliding windows** can be efficiently represented using tensor descriptors with appropriate strides
 - **Im2col transformation** converts convolution to matrix multiplication without data copies  
-- **Tile distribution** enables optimal work distribution across GPU threads (see :ref:`ck_tile_distribution`)
+- **Tile distribution** enables optimal work distribution across GPU threads (see :ref:`ck_tile_tile_distribution`)
 - **Multi-channel support** extends naturally through higher-dimensional descriptors
 - **Performance optimizations** like vectorization and shared memory are seamlessly integrated (see :ref:`ck_tile_gemm_optimization` for similar techniques)
 
