@@ -108,8 +108,10 @@ struct ConvTraits
     builder::PipelineScheduler pipeline_scheduler;
 
     std::optional<int> max_transpose_transfer_src_scalar_per_vector = std::nullopt;
-    std::optional<int> max_transpose_dst_scalar_per_vector          = std::nullopt;
+    std::optional<int> max_transpose_transfer_dst_scalar_per_vector = std::nullopt;
     std::optional<int> num_groups_to_merge                          = std::nullopt;
+    std::optional<bool> do_pad_gemm_m                               = std::nullopt;
+    std::optional<bool> do_pad_gemm_n                               = std::nullopt;
 };
 
 } // namespace ck_tile::reflect::conv
