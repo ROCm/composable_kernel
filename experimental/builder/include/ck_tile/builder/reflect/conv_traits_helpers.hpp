@@ -796,7 +796,8 @@ constexpr WarpGemmParams conv_traits_xdl_warp_gemm_params()
 }
 
 template <typename InstTraits>
-constexpr OutputTileTransferInfo conv_traits_wmma_c_tile_transfer()
+constexpr OutputTileTransferInfo conv_traits_wmma_c_tile_transfer(
+    ck::index_t CDEBlockTansferScalarPerVector = InstTraits::kCDEBlockTransferScalarPerVector)
 {
     return OutputTileTransferInfo{
         .shuffle_params      = {.m_gemms_per_shuffle = InstTraits::kCShuffleMRepeatPerShuffle,
@@ -805,7 +806,7 @@ constexpr OutputTileTransferInfo conv_traits_wmma_c_tile_transfer()
                                 InstTraits::kCDEThreadClusterLengths[1],
                                 InstTraits::kCDEThreadClusterLengths[2],
                                 InstTraits::kCDEThreadClusterLengths[3]},
-        .scalar_per_vector   = InstTraits::kCDEBlockTransferScalarPerVector};
+        .scalar_per_vector   = CDEBlockTansferScalarPerVector};
 }
 
 template <typename InstTraits>
