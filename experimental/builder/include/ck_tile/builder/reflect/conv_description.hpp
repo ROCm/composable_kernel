@@ -90,6 +90,10 @@ class ConvDescription : public Description
                 2, "Gemm padding: ", traits_.gemm_padding.value_or(builder::GemmPadding::DEFAULT));
         else
             f.writeLine(2, "Struct does not contain optional gemm_padding argument");
+        if(traits_.do_pad_gemm_m)
+            f.writeLine(2, "Do Padd Gemm M: ", traits_.do_pad_gemm_m.value_or(false));
+        if(traits_.do_pad_gemm_n)
+            f.writeLine(2, "Do Padd Gemm N: ", traits_.do_pad_gemm_n.value_or(false));
         f.writeLine(2, "Convolution specialization: ", traits_.conv_specialization);
         // Pipeline section
         f.writeLine(2, "Pipeline version: ", traits_.pipeline_version);
@@ -103,7 +107,7 @@ class ConvDescription : public Description
                     traits_.warp_gemm.n_iter);
 
         // Memory Access section
-        f.writeLast(2, "Memory access:");
+        f.writeLine(2, "Memory access:");
 
         f.writeLine(3, "A Tile transfer: ");
         f.writeLine(4,
@@ -196,7 +200,7 @@ class ConvDescription : public Description
                     traits_.c_tile_transfer.thread_cluster_dims[2],
                     "×",
                     traits_.c_tile_transfer.thread_cluster_dims[3]);
-        f.writeLine(4,
+        f.writeLast(4,
                     "Vector access (GMEM write) instruction size: ",
                     traits_.c_tile_transfer.scalar_per_vector);
         if(traits_.num_gemm_k_prefetch_stage)
@@ -215,14 +219,14 @@ class ConvDescription : public Description
             f.writeLine(2,
                         "Struct does not contain optional "
                         "max_transpose_transfer_src_scalar_per_vector parameter");
-        if(traits_.max_transpose_dst_scalar_per_vector)
+        if(traits_.max_transpose_transfer_dst_scalar_per_vector)
             f.writeLine(2,
                         "Max Transpose dst scalar per vector: ",
-                        traits_.max_transpose_dst_scalar_per_vector.value_or(0));
+                        traits_.max_transpose_transfer_dst_scalar_per_vector.value_or(0));
         else
-            f.writeLine(
-                2,
-                "Struct does not contain optional max_transpose_dst_scalar_per_vector parameter");
+            f.writeLine(2,
+                        "Struct does not contain optional "
+                        "max_transpose_transfer_dst_scalar_per_vector parameter");
         if(traits_.num_groups_to_merge)
             f.writeLast(2, "Num groups to merge: ", traits_.num_groups_to_merge.value_or(0));
         else

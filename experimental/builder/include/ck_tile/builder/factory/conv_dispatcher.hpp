@@ -77,6 +77,9 @@
 #include "ck_tile/builder/factory/conv_bwd_weight_two_stage_wmma_v3_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_weight_wmma_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_weight_multi_d_wmma_v3_factory.hpp"
+#include "ck_tile/builder/factory/conv_bwd_data_multi_d_xdl_factory.hpp"
+#include "ck_tile/builder/factory/conv_bwd_data_multi_d_wmma_factory.hpp"
+#include "ck_tile/builder/factory/conv_bwd_data_multi_d_wmma_cshuffle_v3_factory.hpp"
 
 namespace ck_tile::builder::factory {
 
@@ -148,13 +151,32 @@ constexpr auto make_conv_instance()
                 "WMMA, DL (NHWC layout), or Large Tensor variant.");
         }
     }
-    // Backward data direction (will expand with more algorithms in the future)
+    // Backward data direction
     else if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
     {
-        static_assert(false,
-                      "Backward data convolution: Only reference and tile algorithms supported "
-                      "currently. "
-                      "Optimized kernels (XDL, WMMA, etc.) not yet implemented.");
+        if constexpr(BwdMultiDXdlAlgorithm<AlgoType>)
+        {
+            return typename ConvBwdDataMultiDXdlFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else if constexpr(BwdMultiDWmmaV3Algorithm<AlgoType>)
+        {
+            return
+                typename ConvBwdDataMultiDWmmaV3Factory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else if constexpr(BwdMultiDWmmaAlgorithm<AlgoType>)
+        {
+            return typename ConvBwdDataMultiDWmmaFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+        }
+        else
+        {
+            static_assert(
+                false,
+                "No suitable backward data convolution kernel factory found for the provided "
+                "ALGORITHM. "
+                "The ALGORITHM must satisfy requirements for one of: Reference, XDL multiple d, "
+                "Wmma multiple d, "
+                "or WMMA multiple d v3.");
+        }
     }
     // Backward weight direction (will expand with more algorithms in the future)
     else if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
