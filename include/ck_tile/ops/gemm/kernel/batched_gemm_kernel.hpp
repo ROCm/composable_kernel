@@ -228,34 +228,9 @@ struct BatchedGemmKernel
         CDataType* c_ptr          = static_cast<CDataType*>(kargs.e_ptr) + batch_offset_C;
 
         // allocate LDS
-        __shared__ char smem_ptr0[GetSmemSize()];
-
-        if constexpr(GemmPipeline::DoubleSmemBuffer == true)
-        {
-            __shared__ char smem_ptr1[GemmPipeline::GetSmemSize()];
-            UniversalGemmKernel::RunGemm2LDS({a_ptr},
-                                             {b_ptr},
-                                             {/*ds_ptr*/},
-                                             c_ptr,
-                                             smem_ptr0,
-                                             smem_ptr1,
-                                             kargs,
-                                             splitk_batch_offset,
-                                             i_m,
-                                             i_n);
-        }
-        else
-        {
-            UniversalGemmKernel::RunGemm({a_ptr},
-                                         {b_ptr},
-                                         {/*ds_ptr*/},
-                                         c_ptr,
-                                         smem_ptr0,
-                                         kargs,
-                                         splitk_batch_offset,
-                                         i_m,
-                                         i_n);
-        }
+        __shared__ char smem_ptr[GetSmemSize()];
+        UniversalGemmKernel::RunGemm(
+            {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
     }
 };
 
