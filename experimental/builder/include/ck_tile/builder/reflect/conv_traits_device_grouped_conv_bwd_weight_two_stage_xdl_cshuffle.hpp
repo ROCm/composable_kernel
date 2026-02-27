@@ -49,8 +49,9 @@ constexpr ConvTraits instance_to_conv_traits()
         .pipeline_scheduler = get_pipeline_scheduler<InstTraits>(),
         .max_transpose_transfer_src_scalar_per_vector =
             InstTraits::kTransposeTransferSrcScalarPerVector,
-        .max_transpose_dst_scalar_per_vector = InstTraits::kTransposeTransferDstScalarPerVector,
-        .num_groups_to_merge                 = InstTraits::kNumGroupsToMerge,
+        .max_transpose_transfer_dst_scalar_per_vector =
+            InstTraits::kTransposeTransferDstScalarPerVector,
+        .num_groups_to_merge = InstTraits::kNumGroupsToMerge,
     };
 }
 
