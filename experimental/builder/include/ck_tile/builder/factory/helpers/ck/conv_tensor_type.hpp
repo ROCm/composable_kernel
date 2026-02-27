@@ -65,33 +65,44 @@ consteval auto ConvertDataTypeToCK()
 }
 
 template <auto Config, DataType SignatureDataType>
-consteval auto GetTensorDataAndComputeTypes()
+consteval auto ExtractTensorDataType()
 {
-    constexpr auto data_type    = Config.data_type;
-    constexpr auto compute_type = Config.compute_type;
+    constexpr auto data_type = Config.data_type;
 
     using enum DataType;
-
-    if constexpr(data_type == UNDEFINED_DATA_TYPE && compute_type == UNDEFINED_DATA_TYPE)
+    if constexpr(data_type == UNDEFINED_DATA_TYPE)
     {
-        return std::make_pair(ConvertDataTypeToCK<SignatureDataType>(),
-                              ConvertDataTypeToCK<SignatureDataType>());
-    }
-    else if constexpr(data_type == UNDEFINED_DATA_TYPE)
-    {
-        return std::make_pair(ConvertDataTypeToCK<SignatureDataType>(),
-                              ConvertDataTypeToCK<compute_type>());
-    }
-    else if constexpr(compute_type == UNDEFINED_DATA_TYPE)
-    {
-        return std::make_pair(ConvertDataTypeToCK<data_type>(),
-                              ConvertDataTypeToCK<SignatureDataType>());
+        return SignatureDataType;
     }
     else
     {
-        return std::make_pair(ConvertDataTypeToCK<data_type>(),
-                              ConvertDataTypeToCK<compute_type>());
+        return data_type;
     }
+}
+
+template <auto Config, DataType SignatureDataType>
+consteval auto ExtractTensorComputeType()
+{
+    constexpr auto compute_type = Config.compute_type;
+
+    using enum DataType;
+    if constexpr(compute_type == UNDEFINED_DATA_TYPE)
+    {
+        return SignatureDataType;
+    }
+    else
+    {
+        return compute_type;
+    }
+}
+
+template <auto Config, DataType SignatureDataType>
+consteval auto GetTensorDataAndComputeTypes()
+{
+    constexpr auto data_type    = ExtractTensorDataType<Config, SignatureDataType>();
+    constexpr auto compute_type = ExtractTensorComputeType<Config, SignatureDataType>();
+
+    return std::make_pair(data_type, compute_type);
 }
 
 template <DataType SignatureAccDataType, DataType SignatureDataType>
@@ -158,6 +169,7 @@ consteval auto GetAuxiliaryTensorDataTypes()
 template <auto Signature>
 struct ConvTensorDataTypes
 {
+    // Builder enumerator types
     static constexpr auto input_types =
         GetTensorDataAndComputeTypes<Signature.input.config, Signature.data_type>();
     static constexpr auto weight_types =
@@ -165,12 +177,12 @@ struct ConvTensorDataTypes
     static constexpr auto output_types =
         GetTensorDataAndComputeTypes<Signature.output.config, Signature.data_type>();
 
-    using InDataType     = typename decltype(input_types.first)::type;
-    using InComputeType  = typename decltype(input_types.second)::type;
-    using WeiDataType    = typename decltype(weight_types.first)::type;
-    using WeiComputeType = typename decltype(weight_types.second)::type;
-    using OutDataType    = typename decltype(output_types.first)::type;
-    using OutComputeType = typename decltype(output_types.second)::type;
+    using InDataType     = typename DataTypeToCK<input_types.first>::type;
+    using InComputeType  = typename DataTypeToCK<input_types.second>::type;
+    using WeiDataType    = typename DataTypeToCK<weight_types.first>::type;
+    using WeiComputeType = typename DataTypeToCK<weight_types.second>::type;
+    using OutDataType    = typename DataTypeToCK<output_types.first>::type;
+    using OutComputeType = typename DataTypeToCK<output_types.second>::type;
     using AccDataType =
         typename decltype(GetTensorAccumulationType<Signature.accumulation_data_type,
                                                     Signature.data_type>())::type;
