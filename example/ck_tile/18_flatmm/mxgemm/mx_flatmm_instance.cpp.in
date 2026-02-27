@@ -4,7 +4,7 @@
 #include "mx_flatmm_instance.hpp"
 
 // clang-format off
-#define FLATMM_CONFIG @FLATMM_CONFIG@
+#define MXFLATMM_ARCH_TRAITS @MXFLATMM_ARCH_TRAITS@
 #define A_DATA_TYPE @A_DATA_TYPE@
 #define B_DATA_TYPE @B_DATA_TYPE@
 #define C_DATA_TYPE @C_DATA_TYPE@
@@ -37,7 +37,7 @@ inline constexpr int ScaleGranularityK = 32;
 using ScaleM = ck_tile::FlatmmScalePointer<ScaleGranularityM, ScaleGranularityK, ScaleType>;
 using ScaleN = ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK, ScaleType>;
 
-template float mx_flatmm_calc<FLATMM_CONFIG,
+template float mx_flatmm_calc<MXFLATMM_ARCH_TRAITS,
                               A_DATA_TYPE,
                               B_DATA_TYPE,
                               /*DsDatatype*/ ck_tile::tuple<>,
