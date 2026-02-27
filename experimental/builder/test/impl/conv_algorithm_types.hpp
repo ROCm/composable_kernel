@@ -133,7 +133,7 @@ static_assert(LdsTransferDescriptor<LdsTransfer>);
 struct Epilogue
 {
     size_t m_xdl_per_wave_per_shuffle;
-    size_t n_per_wave_per_shuffle;
+    size_t n_xdl_per_wave_per_shuffle;
     size_t scalar_per_vector;
 };
 static_assert(EpilogueDescriptor<Epilogue>);
