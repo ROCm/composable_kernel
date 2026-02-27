@@ -104,7 +104,7 @@ concept LdsTransferDescriptor = requires(T t) {
 template <typename T>
 concept EpilogueDescriptor = requires(T t) {
     { t.m_xdl_per_wave_per_shuffle } -> SizeType;
-    { t.n_per_wave_per_shuffle } -> SizeType;
+    { t.n_xdl_per_wave_per_shuffle } -> SizeType;
     { t.scalar_per_vector } -> SizeType;
 };
 

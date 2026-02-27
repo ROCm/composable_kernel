@@ -194,8 +194,8 @@ template <>
 inline std::string to_string<OutputTransfer>(OutputTransfer t)
 {
     std::ostringstream oss;
-    oss << t.epilogue.m_xdl_per_wave_per_shuffle << "," << t.epilogue.n_per_wave_per_shuffle << ","
-        << to_string(t.thread_cluster_dims) << "," << t.epilogue.scalar_per_vector;
+    oss << t.epilogue.m_xdl_per_wave_per_shuffle << "," << t.epilogue.n_xdl_per_wave_per_shuffle
+        << "," << to_string(t.thread_cluster_dims) << "," << t.epilogue.scalar_per_vector;
     return oss.str();
 }
 

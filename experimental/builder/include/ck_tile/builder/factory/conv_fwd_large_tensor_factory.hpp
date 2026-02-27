@@ -48,15 +48,17 @@ struct ConvFwdLargeTensorFactory
 
     // Check limits for the data transfer parameters.
     static_assert(ValidABlockTransfer<A_BLOCK_TRANSFER,
-                                      typename Types::InDataType,
+                                      Types::input_types.first,
+                                      sizeof(typename Types::InDataType),
                                       BLOCK.block_size,
                                       BLOCK.per_block>);
     static_assert(ValidBBlockTransfer<B_BLOCK_TRANSFER,
-                                      typename Types::WeiDataType,
+                                      Types::weight_types.first,
+                                      sizeof(typename Types::WeiDataType),
                                       BLOCK.block_size,
                                       BLOCK.per_block>);
     static_assert(ValidCBlockTransfer<C_BLOCK_TRANSFER,
-                                      typename Types::OutDataType,
+                                      Types::output_types.first,
                                       BLOCK.block_size,
                                       BLOCK.per_block>);
 

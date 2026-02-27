@@ -31,7 +31,7 @@ TEST(FwdConvInstances,
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle{}
             .with_thread_block(ThreadBlock_128_64x64x64)
             .with_gemm_config(GemmParams_Wmma_2x1_per_wave)
-            .with_transfer(Transfer_4x32x1)
+            .with_transfer(Transfer_4x16x1)
             .with_fwd_specializations(ConvSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
             .with_prefetch_config(1, PipelineScheduler::DEFAULT)
             .with_num_conv_groups_to_merge(2)
