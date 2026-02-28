@@ -293,8 +293,7 @@ make_local_partition(TensorType& tensor,
         },
         Number<remove_reference_t<decltype(tensor_shape)>::Size()>{});
     const auto lower_upper_dims =
-        generate_tuple([&](auto i) { return Sequence<i.value>{}; },
-                       Number<remove_reference_t<decltype(tensor_shape)>::Size()>{});
+        generate_identity_sequences<remove_reference_t<decltype(tensor_shape)>::Size()>();
     auto sliced_desc =
         transform_tensor_descriptor(unrolled_desc, transforms, lower_upper_dims, lower_upper_dims);
     // Create layout

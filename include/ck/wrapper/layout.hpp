@@ -245,8 +245,7 @@ struct Layout
         const auto lower_dims =
             generate_tuple([&](auto i) { return GenerateLowerDim<Number<i>>(shape); },
                            Number<Tuple<ShapeDims...>::Size()>{});
-        const auto upper_dims = generate_tuple([&](auto i) { return Sequence<i.value>{}; },
-                                               Number<Tuple<ShapeDims...>::Size()>{});
+        const auto upper_dims = generate_identity_sequences<Tuple<ShapeDims...>::Size()>();
 
         return transform_tensor_descriptor(desc, transforms, lower_dims, upper_dims);
     }
