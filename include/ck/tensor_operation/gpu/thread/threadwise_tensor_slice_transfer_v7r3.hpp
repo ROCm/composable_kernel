@@ -657,8 +657,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3
             },
             Number<nDim>{});
 
-        constexpr auto up_dim_idss =
-            generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<nDim>{});
+        constexpr auto up_dim_idss = generate_identity_sequences<nDim>();
 
         return transform_tensor_descriptor(desc0, transforms, low_dim_idss, up_dim_idss);
     }
@@ -707,8 +706,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3
             },
             Number<nDim>{});
 
-        constexpr auto up_dim_idss =
-            generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<nDim>{});
+        constexpr auto up_dim_idss = generate_identity_sequences<nDim>();
 
         return transform_tensor_descriptor(desc0, transforms, low_dim_idss, up_dim_idss);
     }
