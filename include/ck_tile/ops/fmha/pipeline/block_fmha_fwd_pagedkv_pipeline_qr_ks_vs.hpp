@@ -275,16 +275,7 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                 {
                     auto lse =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
-
-                    if(__builtin_isinf_sign(sink_v) >= 0)
-                    {
-                        set_tile(lse, SMPLComputeDataType{sink_v * scale_s});
-                    }
-                    else
-                    {
-                        set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
-                    }
-
+                    set_tile(lse, SMPLComputeDataType{sink_v * scale_s});
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
 
