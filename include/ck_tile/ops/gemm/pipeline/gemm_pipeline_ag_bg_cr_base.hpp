@@ -79,9 +79,7 @@ struct GemmPipelineAgBgCrImplBase
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
-    template <typename SrcDataType = void,
-              typename DstDataType = void,
-              index_t UnaryOpSize  = 8,
+    template <index_t UnaryOpSize = 8,
               typename DstBlockTile,
               typename SrcTileWindow,
               typename DramTileWindowStep>
@@ -89,7 +87,7 @@ struct GemmPipelineAgBgCrImplBase
                                        SrcTileWindow& dram_tile_window,
                                        const DramTileWindowStep& dram_tile_window_step) const
     {
-        load_int4_tile<SrcDataType, DstDataType, UnaryOpSize>(dst_block_tile, dram_tile_window);
+        load_and_convert_tile<UnaryOpSize>(dst_block_tile, dram_tile_window);
         move_tile_window(dram_tile_window, dram_tile_window_step);
     }
 
@@ -124,7 +122,7 @@ struct GemmPipelineAgBgCrImplBase
                                       bool_constant<LoadTranspose> = {}) const
     {
         if constexpr(LoadTranspose)
-            dst_block_tile = load_tile_transpose(lds_tile_window);
+            load_tile_transpose(dst_block_tile, lds_tile_window);
         else
             load_tile(dst_block_tile, lds_tile_window);
     }
@@ -241,12 +239,6 @@ struct GemmPipelineAgBgCrImplBase
     CK_TILE_DEVICE constexpr auto MakeALdsWindows(const ALdsTensorView& a_lds_block_view,
                                                   const ALdsLoadTileDistr&) const
     {
-        // with pk_int4_t load transpose the LDS type is always BDataType
-        using ADataTypeLDS =
-            std::conditional_t<std::is_same_v<typename Problem::ADataType, pk_int4_t>,
-                               typename Problem::BDataType,
-                               typename Problem::ADataType>;
-
         auto a_lds_shape = []() {
             if constexpr(is_a_load_tr)
                 return make_tuple(number<KPerBlock>{}, number<MPerBlock>{});
@@ -258,11 +250,16 @@ struct GemmPipelineAgBgCrImplBase
 
         auto a_lds_load_tile_distr = []() {
             if constexpr(is_a_load_tr)
+            {
                 return make_static_tile_distribution(
-                    typename InputTileDistributionTraits<typename ALdsLoadTileDistr::DstrEncode,
-                                                         ADataTypeLDS>::TransposedDstrEncode{});
+                    typename InputTileDistributionTraits<
+                        typename ALdsLoadTileDistr::DstrEncode,
+                        typename ALdsTensorView::DataType>::TransposedDstrEncode{});
+            }
             else
+            {
                 return ALdsLoadTileDistr{};
+            }
         }();
 
         auto a_lds_gemm_window =
@@ -333,18 +330,18 @@ struct GemmPipelineAgBgCrImplBase
 
         auto b_copy_lds_window = make_tile_window(b_lds_block_view, b_lds_shape, {0, 0});
 
-        using BLdsDataType = std::conditional_t<IsBCastPolicyBeforeLDSWrite,
-                                                typename Problem::ADataType,
-                                                typename Problem::BDataType>;
-
         auto b_lds_load_tile_distr = []() {
             if constexpr(is_b_load_tr)
+            {
                 return make_static_tile_distribution(
-                    typename InputTileDistributionTraits<typename BLdsLoadTileDistr::DstrEncode,
-                                                         BLdsDataType>::TransposedDstrEncode{});
-
+                    typename InputTileDistributionTraits<
+                        typename BLdsLoadTileDistr::DstrEncode,
+                        typename BLdsTensorView::DataType>::TransposedDstrEncode{});
+            }
             else
+            {
                 return BLdsLoadTileDistr{};
+            }
         }();
 
         auto b_lds_gemm_window =

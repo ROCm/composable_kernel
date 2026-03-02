@@ -268,10 +268,8 @@ struct ABQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase
                                           bool_constant<BLoadTranspose> = {})
         {
             // If A/B datatype were pkint4/pkfp4 it would be converted prior to storing in LDS
-            load_int4_tile<OverrideADataType, ComputeDataType, UnaryOpSize_, ALoadTranspose>(
-                a_warp_tile_, a_block_window);
-            load_int4_tile<OverrideBDataType, ComputeDataType, UnaryOpSize_, BLoadTranspose>(
-                b_warp_tile_, b_block_window);
+            load_and_convert_tile<UnaryOpSize_, ALoadTranspose>(a_warp_tile_, a_block_window);
+            load_and_convert_tile<UnaryOpSize_, BLoadTranspose>(b_warp_tile_, b_block_window);
         }
 
         // C += A * B

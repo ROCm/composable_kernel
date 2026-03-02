@@ -582,7 +582,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
                     // loop over along the [V]alue Sequence length
                     move_tile_window(v_lds_read_window, {kK1, 0});
-                    v_tile = load_tile_transpose(v_lds_read_window);
+                    load_tile_transpose(v_tile, v_lds_read_window);
                 });
                 // move back to the origin
                 move_tile_window(v_lds_read_window, {-kK1 * (k1_loops - 1), 0});
