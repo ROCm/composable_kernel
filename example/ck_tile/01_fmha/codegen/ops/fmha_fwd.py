@@ -1254,6 +1254,7 @@ def get_product(receipt: int) -> Product:
             cond &= kernel_ctx.pipeline.F_bias in ["no", "alibi"]
             cond &= kernel_ctx.pipeline.F_qscale == "no"
             cond &= kernel_ctx.pipeline.F_skip == "f"
+            cond &= kernel_ctx.pipeline.F_sink == "f"
             return cond
 
         return Product(name="Flash attention integration", rule=fit)
