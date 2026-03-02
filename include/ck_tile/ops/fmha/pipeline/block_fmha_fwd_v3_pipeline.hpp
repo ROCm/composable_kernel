@@ -718,7 +718,7 @@ struct BlockFmhaFwdV3Pipeline
         };
 
         auto V_lds_load = [&](auto v_lds_read_idx) {
-            kv_tile.v_tile = load_tile_transpose(v_lds_window_load(v_lds_read_idx));
+            load_tile_transpose(kv_tile.v_tile, v_lds_window_load(v_lds_read_idx));
         };
 
         decltype(m) m_old;
