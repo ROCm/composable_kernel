@@ -203,6 +203,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         std::string qscale_str,
                         bool is_rotary_interleaved,
                         ck_tile::index_t num_splits,
+                        const std::string& kernel_filter,
+                        bool list_kernels,
+                        bool run_all_kernels,
                         std::string init_method,
                         uint32_t seed,
                         int do_validation,
@@ -974,11 +977,27 @@ fwd_result fmha_fwd_run(mode_enum mode,
             {
                 traits.has_dropout = (p_drop > 0.0f);
                 traits.qscale_type = qscale.type;
+                traits.kernel_filter = kernel_filter;
+                traits.list_kernels  = list_kernels;
+                traits.run_all_kernels = run_all_kernels;
+                traits.perf_flop      = flop;
+                traits.perf_num_byte  = num_byte;
             }
             else if constexpr(std::is_same_v<fmha_fwd_pagedkv_traits,
                                              std::decay_t<decltype(traits)>>)
             {
                 traits.use_pagedkv = (0 < page_block_size);
+                traits.do_fp8_static_quant = (data_type == "fp8");
+            }
+            else if constexpr(std::is_same_v<fmha_fwd_splitkv_traits,
+                                             std::decay_t<decltype(traits)>>)
+            {
+                traits.kernel_filter = kernel_filter;
+                traits.list_kernels = list_kernels;
+                traits.run_all_kernels = run_all_kernels;
+                traits.perf_flop = flop;
+                traits.perf_num_byte = num_byte;
+                traits.do_fp8_static_quant = (data_type == "fp8");
             }
         }
     };
@@ -1363,9 +1382,19 @@ fwd_result fmha_fwd_run(mode_enum mode,
         fmha_fwd_args fmha_args;
         init_args(fmha_args);
 
+        if(fmha_traits.list_kernels || fmha_traits.run_all_kernels)
+        {
+            std::cout << std::endl;
+        }
+
         return fmha_fwd(fmha_traits, fmha_args, sc);
     };
     const float fwd_ave_time = run_fwd(stream_config);
+    if(list_kernels)
+    {
+        std::cout << std::flush << std::endl;
+        return fwd_result::success;
+    }
     if(fwd_ave_time < 0.0f)
     {
         std::cout << ", not supported yet" << std::flush << std::endl;

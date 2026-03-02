@@ -1598,6 +1598,11 @@ struct fmha_fwd_traits
     quant_scale_enum qscale_type;
     bool skip_min_seqlen_q = false;
     bool has_sink          = false;
+    std::string kernel_filter = "";
+    bool list_kernels         = false;
+    bool run_all_kernels      = false;
+    std::size_t perf_flop     = 0;
+    std::size_t perf_num_byte = 0;
     // TODO: padding check is inside this api
 };
 float fmha_fwd(fmha_fwd_traits, fmha_fwd_args, const ck_tile::stream_config&);
@@ -1637,6 +1642,11 @@ struct fmha_fwd_splitkv_traits
     bool has_lse;
     bool do_fp8_static_quant;
     bool has_sink = false;
+    std::string kernel_filter = "";
+    bool list_kernels = false;
+    bool run_all_kernels = false;
+    std::size_t perf_flop     = 0;
+    std::size_t perf_num_byte = 0;
     // TODO: padding check is inside this api
 };
 float fmha_fwd_splitkv(fmha_fwd_splitkv_traits,

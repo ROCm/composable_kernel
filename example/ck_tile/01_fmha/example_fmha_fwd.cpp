@@ -77,6 +77,15 @@ auto create_args(int argc, char* argv[])
         .insert("vlayout", "r", "r for row-major(seqlen*hdim), c for col-major(hdim*seqlen)")
         .insert("lse", "0", "0 not store lse, 1 store lse")
         .insert("kname", "0", "if set to 1 will print kernel name")
+        .insert("kernel_filter",
+                "",
+                "optional substring filter for selecting a specific prebuilt fmha_fwd kernel")
+        .insert("list_kernels",
+                "0",
+                "if set to 1, list compatible fmha_fwd kernels and do not launch")
+        .insert("run_all_kernels",
+                "0",
+                "if set to 1, run all compatible fmha_fwd kernels and report the best time")
         .insert("init",
                 "uf",
                 "init method:\n  ui or 0 - uniform random int\n  ni - normalized random int"
@@ -146,19 +155,22 @@ auto run(const ck_tile::ArgParser& arg_parser)
     bool is_v_rowmajor               = arg_parser.get_str("vlayout") == "r";
     bool lse                         = arg_parser.get_bool("lse");
     ck_tile::index_t page_block_size = arg_parser.get_int("page_block_size");
-    bool use_cache_batch_idx         = arg_parser.get_bool("cache_batch_idx");
-    std::string bias_str             = arg_parser.get_str("bias");
-    std::string qscale_str           = arg_parser.get_str("qscale");
-    float p_drop                     = arg_parser.get_float("p_drop");
-    uint64_t drop_seed               = arg_parser.get_uint64("drop_seed");
-    uint64_t drop_offset             = arg_parser.get_uint64("drop_offset");
-    bool drop_prefs                  = arg_parser.get_bool("drop_prefs");
-    std::string mask_str             = arg_parser.get_str("mask");
-    bool is_rotary_interleaved       = arg_parser.get_bool("rotary_interleaved");
-    ck_tile::index_t num_splits      = arg_parser.get_int("num_splits");
-    std::string init_method          = arg_parser.get_str("init");
-    uint32_t seed                    = arg_parser.get_uint32("seed");
-    int init_sink_value              = arg_parser.get_int("init_sink");
+        bool use_cache_batch_idx         = arg_parser.get_bool("cache_batch_idx");
+        std::string bias_str             = arg_parser.get_str("bias");
+        std::string qscale_str           = arg_parser.get_str("qscale");
+        float p_drop                     = arg_parser.get_float("p_drop");
+        uint64_t drop_seed               = arg_parser.get_uint64("drop_seed");
+        uint64_t drop_offset             = arg_parser.get_uint64("drop_offset");
+        bool drop_prefs                  = arg_parser.get_bool("drop_prefs");
+        std::string mask_str             = arg_parser.get_str("mask");
+        bool is_rotary_interleaved       = arg_parser.get_bool("rotary_interleaved");
+        ck_tile::index_t num_splits      = arg_parser.get_int("num_splits");
+        std::string kernel_filter        = arg_parser.get_str("kernel_filter");
+        bool list_kernels                = arg_parser.get_bool("list_kernels");
+        bool run_all_kernels             = arg_parser.get_bool("run_all_kernels");
+        std::string init_method          = arg_parser.get_str("init");
+        uint32_t seed                    = arg_parser.get_uint32("seed");
+        int init_sink_value              = arg_parser.get_int("init_sink");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -202,6 +214,9 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         qscale_str,
                                         is_rotary_interleaved,
                                         num_splits,
+                                        kernel_filter,
+                                        list_kernels,
+                                        run_all_kernels,
                                         init_method,
                                         seed,
                                         do_validation,
