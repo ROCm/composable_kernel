@@ -239,11 +239,9 @@ struct BQuantBlockUniversalGemmAsBsCr
                                           bool_constant<ALoadTranspose> = {},
                                           bool_constant<BLoadTranspose> = {})
         {
-            load_int4_tile<ADataType, ComputeDataType, UnaryOpSize_, ALoadTranspose>(
-                a_warp_tile_, a_block_window);
+            load_and_convert_tile<UnaryOpSize_, ALoadTranspose>(a_warp_tile_, a_block_window);
             // If B datatype were pkint4 it would be converted prior to storing in LDS
-            load_int4_tile<OverrideBDataType, ComputeDataType, UnaryOpSize_, BLoadTranspose>(
-                b_warp_tile_, b_block_window);
+            load_and_convert_tile<UnaryOpSize_, BLoadTranspose>(b_warp_tile_, b_block_window);
         }
 
         // Load from LDS and scale (then the tile can directly be consumed in the block gemm)

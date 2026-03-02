@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
+#include "ck_tile/ops/common/load_and_convert_tile.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/elementwise.hpp"
@@ -218,10 +218,8 @@ struct BlockUniversalGemmAsBsCr
                                           bool_constant<ALoadTranspose> = {},
                                           bool_constant<BLoadTranspose> = {})
         {
-            load_int4_tile<ADataType, ATypeToUse, UnaryOpSize_, ALoadTranspose>(a_warp_tile_,
-                                                                                a_block_window);
-            load_int4_tile<BDataType, BTypeToUse, UnaryOpSize_, BLoadTranspose>(b_warp_tile_,
-                                                                                b_block_window);
+            load_and_convert_tile<UnaryOpSize_, ALoadTranspose>(a_warp_tile_, a_block_window);
+            load_and_convert_tile<UnaryOpSize_, BLoadTranspose>(b_warp_tile_, b_block_window);
         }
 
         // C += A * B
@@ -290,9 +288,9 @@ struct BlockUniversalGemmAsBsCr
         static constexpr index_t KInnerLoopIter = KPerInnerLoop / WarpGemm::kKPerThread;
 
         static constexpr auto ALdsTileDistr =
-            make_static_tile_distribution(MakeABlockDistributionEncode());
+            decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
         static constexpr auto BLdsTileDistr =
-            make_static_tile_distribution(MakeBBlockDistributionEncode());
+            decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
 
         using ALdsTile = decltype(make_static_distributed_tensor<ATypeToUse>(ALdsTileDistr));
         using BLdsTile = decltype(make_static_distributed_tensor<BTypeToUse>(BLdsTileDistr));
@@ -349,10 +347,8 @@ struct BlockUniversalGemmAsBsCr
             auto b_lds_gemm_window = make_tile_window(
                 b_block_window.get_bottom_tensor_view(), b_lds_shape, b_offset, b_lds_load_distr);
 
-            load_int4_tile<ADataType, ATypeToUse, UnaryOpSize_, ALoadTranspose>(a_warp_tile_,
-                                                                                a_lds_gemm_window);
-            load_int4_tile<BDataType, BTypeToUse, UnaryOpSize_, BLoadTranspose>(b_warp_tile_,
-                                                                                b_lds_gemm_window);
+            load_and_convert_tile<UnaryOpSize_, ALoadTranspose>(a_warp_tile_, a_lds_gemm_window);
+            load_and_convert_tile<UnaryOpSize_, BLoadTranspose>(b_warp_tile_, b_lds_gemm_window);
         }
 
         // C += A * B
