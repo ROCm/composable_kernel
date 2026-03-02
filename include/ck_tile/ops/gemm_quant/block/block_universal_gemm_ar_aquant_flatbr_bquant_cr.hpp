@@ -238,7 +238,7 @@ struct BlockGemmWeightPreshuffleABQuantARegBRegCReg : public BlockGemmQuantBase
                         constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
                         constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
 
-                        load_int4_tile<ADataType, ComputeDataType, UnaryOpSize>(
+                        load_and_convert_tile<UnaryOpSize>(
                             a_warp_tensor(number<AwarpIter>{}),
                             a_warp_windows(number<AmIter>{})(number<AkIter>{}));
                     }

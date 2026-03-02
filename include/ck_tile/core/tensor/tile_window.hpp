@@ -190,11 +190,11 @@ struct tile_window_with_static_distribution
      *       The same thread, during vectorized reading, accesses the same set of
      *       data from A0, A1, A2, … AN.
      */
-    template <typename TileWindow_,
+    template <typename... TileWindow_,
               typename ElementWise_,
               index_t i_access_unsupport_ = -1,
               bool oob_conditional_check  = true>
-    CK_TILE_DEVICE auto load(const TileWindow_& tile_window,
+    CK_TILE_DEVICE auto load(const ck_tile::tuple<TileWindow_...>& tile_windows,
                              ElementWise_ elementwise,
                              number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
@@ -202,7 +202,7 @@ struct tile_window_with_static_distribution
         constexpr auto tile_dstr = typename Base::TileDstr{};
         auto dst_tensor = make_static_distributed_tensor<typename Base::DataType>(tile_dstr);
         load(dst_tensor,
-             tile_window,
+             tile_windows,
              elementwise,
              number<i_access_unsupport_>{},
              bool_constant<oob_conditional_check>{});
@@ -210,12 +210,12 @@ struct tile_window_with_static_distribution
     }
 
     template <typename DistributedTensor,
-              typename TileWindow_,
+              typename... TileWindow_,
               typename ElementWise_,
               index_t i_access_unsupport_ = -1,
               bool oob_conditional_check  = true>
     CK_TILE_DEVICE void load(DistributedTensor& dst_tensor,
-                             const TileWindow_& tile_window,
+                             const ck_tile::tuple<TileWindow_...>& tile_windows,
                              ElementWise_ elementwise,
                              number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
@@ -226,14 +226,14 @@ struct tile_window_with_static_distribution
         using SFC_Ys   = typename Traits::SFC_Ys;
 
         constexpr auto tile_dstr   = typename Base::TileDstr{};
-        constexpr auto sizeOfTuple = TileWindow_::size();
+        constexpr auto sizeOfTuple = remove_cvref_t<decltype(tile_windows)>::size();
         //  loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
             /// TODO: use structure binding (to be captured later) if compiled in C++20
             auto window_adaptor_thread_coord =
-                tile_window[number<0>{}].pre_computed_coords_[iCoord][I0];
+                tile_windows[number<0>{}].pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord =
-                tile_window[number<0>{}].pre_computed_coords_[iCoord][I1];
+                tile_windows[number<0>{}].pre_computed_coords_[iCoord][I1];
 
             static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
                 constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
@@ -244,7 +244,7 @@ struct tile_window_with_static_distribution
                 // read from bottom tensor
                 const auto idx_vec_value = generate_tuple(
                     [&](auto jj) {
-                        return tile_window[number<jj>{}]
+                        return tile_windows[number<jj>{}]
                             .get_bottom_tensor_view()
                             .template get_vectorized_elements<vector_t>(
                                 bottom_tensor_thread_coord,
