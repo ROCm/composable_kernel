@@ -21,9 +21,9 @@ class TileConfig:
     warp_m: List[int] = field(default_factory=lambda: [2])
     warp_n: List[int] = field(default_factory=lambda: [2])
     warp_k: List[int] = field(default_factory=lambda: [1])
-    warp_tile_m: List[int] = field(default_factory=lambda: [32])
-    warp_tile_n: List[int] = field(default_factory=lambda: [32])
-    warp_tile_k: List[int] = field(default_factory=lambda: [16])
+    warp_tile_m: List[int] = field(default_factory=lambda: [16, 32])
+    warp_tile_n: List[int] = field(default_factory=lambda: [16, 32])
+    warp_tile_k: List[int] = field(default_factory=lambda: [8, 16, 32])
 
     def to_dict(self) -> Dict:
         return {k: {"values": v} for k, v in asdict(self).items()}
