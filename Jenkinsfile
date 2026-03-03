@@ -259,26 +259,40 @@ def runShell(String command){
 }
 
 def shouldRunCICheck() {
-    // Define patterns for files that should not trigger CI
+    // File patterns that should not trigger CI
     def skipFilePatterns = [
-        /^\.github\/.*/, // GitHub workflow files
-        /^docs\/.*/, // Documentation files
-        /^LICENSE$/, // License file
-        /^.*\.gitignore$/, // Git ignore files
-        /.*\.md$/ // Markdown files
+        /^projects\/composablekernel\/\.github\/.*/, // GitHub workflow files
+        /^projects\/composablekernel\/docs\/.*/, // Documentation files
+        /^projects\/composablekernel\/LICENSE$/, // License file
+        /^projects\/composablekernel\/.*\.gitignore$/, // Git ignore files
+        /^projects\/composablekernel\/.*\.md$/ // Markdown files
     ]
     
     try {
-        // Get the list of changed files
+        // Always run if this is a base branch build
+        def baseBranch = "develop"
+        def isBaseBranchBuild = (env.CHANGE_ID == null && env.BRANCH_NAME == baseBranch)
+
+        if (isBaseBranchBuild) {
+            echo "Base branch (${baseBranch}) build detected - always running CI for safety"
+            return true
+        }
+
+        // Get the list of changed files (all files touched in any commit, even if reverted)
         def changedFiles = sh(
             returnStdout: true,
             script: '''
+                BASE_BRANCH="develop"
+
                 if [ "$CHANGE_ID" != "" ]; then
-                    # For PR builds, compare against target branch
-                    git diff --name-only origin/$CHANGE_TARGET...HEAD -- projects/composablekernel/
+                    # For PR builds, get all files touched in any commit
+                    echo "PR build detected, checking all touched files against origin/$CHANGE_TARGET" >&2
+                    git log --name-only --pretty=format: origin/$CHANGE_TARGET..HEAD -- projects/composablekernel/ | sort -u | grep -v '^$'
                 else
-                    # For regular builds, compare against previous commit
-                    git diff --name-only HEAD~1..HEAD -- projects/composablekernel/
+                    # For feature branch builds, compare against merge-base with base branch
+                    MERGE_BASE=$(git merge-base HEAD origin/$BASE_BRANCH 2>/dev/null || echo "HEAD~1")
+                    echo "Branch build detected, checking all touched files since merge-base: $MERGE_BASE" >&2
+                    git log --name-only --pretty=format: $MERGE_BASE..HEAD -- projects/composablekernel/ | sort -u | grep -v '^$'
                 fi
             '''
         ).trim().split('\n')
@@ -290,20 +304,36 @@ def shouldRunCICheck() {
         
         echo "Changed files: ${changedFiles.join(', ')}"
         
-        // Check if any changed files are not in the skip patterns
-        def hasFilesRequiringCI = changedFiles.any { file ->
-            !skipFilePatterns.any { pattern ->
+        // Separate files into those requiring CI and those that can be skipped
+        def filesRequiringCI = []
+        def skippedFiles = []
+
+        changedFiles.each { file ->
+            def shouldSkip = skipFilePatterns.any { pattern ->
                 file ==~ pattern
             }
+
+            if (shouldSkip) {
+                skippedFiles.add(file)
+            } else {
+                filesRequiringCI.add(file)
+            }
         }
-        
-        if (hasFilesRequiringCI) {
-            echo "Found files that require CI"
+
+        // Debug output
+        if (skippedFiles.size() > 0) {
+            echo "Files that don't require CI (${skippedFiles.size()}):"
+            skippedFiles.each { echo "  - ${it}" }
+        }
+
+        if (filesRequiringCI.size() > 0) {
+            echo "Files that require CI (${filesRequiringCI.size()}):"
+            filesRequiringCI.each { echo "  - ${it}" }
             return true
         } else {
             echo "Only non-relevant files changed, skipping CI"
             return false
-        } 
+        }
     } catch (Exception e) {
         echo "Error checking changed files: ${e.getMessage()}, running CI by default"
         return true
