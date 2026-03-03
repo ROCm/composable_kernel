@@ -51,9 +51,8 @@ The signature system is organized into a hierarchical structure:
               │ ╔═════════════════════════════════════╗ │
               │ ║ TensorConfig (required)             ║ │
               │ ╠═════════════════════════════════════╣ │
-              │ ║  • layout: ConvLayout               ║ │
+              │ ║  • layout: TensorLayout              ║ │
               │ ║  • data_type: DataType (optional)   ║ │
-              │ ║  • compute_type: DataType (optional)║ │
               │ ╚═════════════════════════════════════╝ │
               │                                         │
               │ ┌─────────────────────────────────────┐ │
@@ -127,7 +126,7 @@ Describes the memory layout and data types:
 ```cpp
 template <typename T>
 concept TensorConfigDescriptor = requires(T t) {
-    { t.layout } -> std::convertible_to<ConvLayout>;
+    { t.layout } -> std::convertible_to<TensorLayout>;
     requires detail::DataTypeWellDefinedIfProvided<T>; // Override data type (Optional, default provided by ConvSignatureDescriptor)
 };
 ```
@@ -175,11 +174,15 @@ concept TensorOperatorDescriptor = requires(T t) {
 ```
 
 **Supported Operations:**
-- `PASS_THROUGH`: No operation (identity)
-- `SCALE`: Multiply by a scalar
-- `CLAMP`: Clamp values to a range
-- `BIAS_BNORM_CLAMP`: Bias addition + batch normalization + clamp
-- `SCALEADD_SCALEADD_RELU`: Fused scale-add operations + ReLU activation
+
+The `ElementwiseOperation` enum in `types.hpp` defines 35 operations:
+
+- **Identity**: `PASS_THROUGH`
+- **Scaling and arithmetic**: `SCALE`, `SCALE_ADD`, `CLAMP`, `ADD_CLAMP`, `BILINEAR`
+- **Convolution-specific scaling**: `CONV_SCALE`, `CONV_SCALE_ADD`, `CONV_SCALE_RELU`, `CONV_INVSCALE`
+- **Activations**: `RELU`, `LEAKY_RELU`, `CLIPPED_RELU`, `SOFT_RELU`, `GELU`, `SILU`, `SIGMOID`, `TANH`, `ELU`, `SWISH`, `LOGISTIC`, `POWER`, `UNARY_ABS`
+- **Composite fused operations**: `BIAS_BNORM_CLAMP`, `SCALEADD_SCALEADD_RELU`, `ADD_RELU_ADD`, `ACTIVATION_MUL_CLAMP`, `ACTIVATION_MUL2_CLAMP`, `ADD_ACTIVATION_MUL_CLAMP`, `ADD_ACTIVATION_MUL2_CLAMP`, `ADD_MUL_ACTIVATION_MUL_CLAMP`, `ADD_MUL2_ACTIVATION_MUL_CLAMP`
+- **Dynamic and generic**: `DYNAMIC_UNARY_OP`, `UNARY_COMBINED_OP`, `UNARY_CONVERT`
 
 **Auxiliary Operands:**
 Some operations require additional tensor inputs (e.g., bias tensors, scaling factors). These are specified through `auxiliary_operand_configs`, which is an array of `TensorConfigDescriptor` objects describing the layout and data type of each auxiliary input.
@@ -232,7 +235,43 @@ This design follows the principle of "make the common case simple, the complex c
 
 ## Convolution Algorithm
 
+The algorithm descriptor specifies **how** a convolution is computed — the implementation strategy including tile sizes, hardware instruction variant, pipeline scheduling, and memory access patterns. It is the complement to the signature, which specifies **what** is computed.
+
+### Algorithm Descriptor Concept
+
+An algorithm descriptor is any struct satisfying the `ConvAlgorithmDescriptor` concept (`conv_algorithm_concepts.hpp`). The required fields depend on the target kernel variant. The dispatcher (`conv_dispatcher.hpp`) uses predicate concepts to classify each algorithm descriptor into one of the supported variants:
+
+- **ReferenceAlgorithm**: Requires only a `specialization` field set to `REFERENCE`. Used for correctness validation.
+- **TileAlgorithm**: CK Tile backend. Requires tile-level configuration: block shape, warp tile, block GEMM pipeline, transfer vectorization, and optimizations.
+- **Forward-specific** (old CK): XDL V3, XDL, WMMA, DL, Large Tensor. Each requires progressively different fields (thread block, GEMM config, transfer, scheduling, prefetch stages).
+- **Backward weight-specific** (old CK): XDL, XDL V3, Two-Stage XDL, DL, Multi-D XDL, WMMA V3, Two-Stage WMMA V3, WMMA, Multi-D WMMA V3.
+
+The `ConvAlgorithmSpecialization` enum provides broad algorithm classes (`REFERENCE`, `LARGE_TENSOR`, `TWO_STAGE`, `MULTIPLE_D`) for requesting a category of algorithm without specifying the full descriptor.
+
+### Algorithm Descriptor Fragmentation
+
+The builder currently requires a different algorithm descriptor shape for each kernel variant. This fragmentation exists along three axes:
+
+1. **Backend** (CK vs CK Tile): The old CK backend flattens ~49 template parameters into a single device operation type (explicit thread block dimensions, block transfer descriptors with LDS configurations, thread cluster arrangements, per-tensor access orders). The CK Tile backend composes higher-level objects — tile partitioner, GEMM pipeline, epilogue pipeline — with ~31 parameters distributed across four composed types.
+
+2. **Instruction set** (MFMA vs WMMA): Within the old CK backend, XDL (MFMA) and WMMA variants require different algorithm descriptor fields. The dispatcher uses separate predicate concepts (`FwdXdlAlgorithm` vs `FwdWmmaAlgorithm`) to classify them, and separate factories to instantiate them.
+
+3. **Direction** (forward vs backward weight vs backward data): Each direction has its own set of factories. Backward weight alone has 9 old CK factory variants (XDL, XDL V3, two-stage XDL, DL, multi-D XDL, WMMA V3, two-stage WMMA V3, WMMA, multi-D WMMA V3).
+
+The result is 16+ per-variant factories, each accepting a different algorithm descriptor shape. MIOpen must currently know which variant it wants and construct the matching descriptor — the builder dispatches but does not unify.
+
+The path toward a single algorithm descriptor runs through the reflection system. `ConvTraits` already provides a common representation for old CK instances across both MFMA and WMMA. Extending this to CK Tile instances will reveal which parameters are genuinely variant-specific versus which can be expressed in a single descriptor and mapped to multiple backends by the dispatcher. See the [reflection documentation](reflect/README.md) for the current state of this bridge.
+
 ## Convolution Factory
 
-Convolution factory builds the instance based on the convolution signature and convolution algorithm.
-The signature and the algorithm descriptions are dispatched to the relevant algorithm specific factory for instance creation. The convolution factory design is described in a separate [Readme](factory/README.md).
+The factory system translates a (signature, algorithm) pair into a concrete kernel instance. The entry point is `make_conv_instance<SIGNATURE, ALGORITHM, VERSION>()` in `conv_dispatcher.hpp`.
+
+The dispatch proceeds in two phases:
+
+1. **Algorithm classification**: Predicate concepts (`ReferenceAlgorithm`, `TileAlgorithm`, `FwdXdlV3Algorithm`, etc.) inspect the algorithm descriptor's structure to determine which kernel variant it satisfies.
+
+2. **Direction routing**: An `if constexpr` chain routes to the appropriate factory based on convolution direction (forward, backward data, backward weight) and classified algorithm type.
+
+Each factory (e.g., `ConvFwdXdlV3Factory`, `ConvBwdWeightWmmaV3Factory`) transforms builder descriptors into the underlying device operation's template parameters and instantiates the kernel.
+
+The factory design is described in detail in the [factory README](factory/README.md).

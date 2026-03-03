@@ -41,34 +41,27 @@ The "signature" defines the **mathematical contract** that the kernel must satis
 - Data types (FP32, FP16, BF16, etc.)
 - Fused element-wise operations (e.g., Bias, ReLU)
 
-The format of the signature struct is enforced at compile time using C++20 concepts by the CK-Builder API, ensuring type safety and enabling compile-time optimizations. The design of these concepts and the required constraints are discussed in the [CK Builder design description](../include/ck_tile/builder/README.md).
+The format of the signature struct is enforced at compile time using C++20 concepts by the CK-Builder API, ensuring type safety and enabling compile-time optimizations. The design of these concepts and the required constraints are discussed in the [CK Builder design description](../README.md).
 
 ```cpp
-// Define our custom signature struct.
-struct ConvSignature {
-    int spatial_dim = 2;
-    ck_tile::builder::ConvDirection direction =
-        ck_tile::builder::ConvDirection::FORWARD;
-    ck_tile::builder::GroupConvLayout2D layout =
-        ck_tile::builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK;
-    ck_tile::builder::DataType data_type =
-        ck_tile::builder::DataType::FP16;
-    ck_tile::builder::ElementwiseOperation elementwise_operation =
-        ck_tile::builder::ElementwiseOperation::PASS_THROUGH;
-};
+namespace ckb = ck_tile::builder;
+namespace ckt = ck_tile::builder::test;
 
-// Double-check that out structure is well-defined according to the CK-Builder API.
-static_assert(ck_tile::builder::ConvSignatureDescriptor<ConvSignature>);
+// A signature specifies per-tensor layouts via ConvTensorDescriptor fields.
+// Each tensor has a config (with layout and optional data type override)
+// and an optional operation (with elementwise op and auxiliary operands).
+// See test/impl/conv_signature_types.hpp for a reusable ConvSignature template.
+constexpr auto SIGNATURE =
+    ckt::ConvSignature{.spatial_dim            = 2,
+                  .direction              = ckb::ConvDirection::FORWARD,
+                  .data_type              = ckb::DataType::FP16,
+                  .accumulation_data_type = ckb::DataType::FP32,
+                  .input  = {.config = {.layout = ckb::TensorLayout::GNHWC}},
+                  .weight = {.config = {.layout = ckb::TensorLayout::GKYXC}},
+                  .output = {.config = {.layout = ckb::TensorLayout::GNHWK}}};
 
-// Instantiate the signature with a configuration. These values are again checked
-// by the CK-Builder API when a device operation is built.
-constexpr auto SIGNATURE = ConvSignature{
-    .spatial_dim = 2,
-    .direction = ck_tile::builder::ConvDirection::FORWARD,
-    .layout = ck_tile::builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
-    .data_type = ck_tile::builder::DataType::FP16,
-    .elementwise_operation = ck_tile::builder::ElementwiseOperation::PASS_THROUGH,
-};
+// The ConvSignatureDescriptor concept validates the structure at compile time.
+static_assert(ckb::ConvSignatureDescriptor<decltype(SIGNATURE)>);
 ```
 
 #### Run-time Arguments
@@ -122,7 +115,7 @@ The "algorithm" defines the **implementation strategy** for the kernel. It speci
 - Data transfer vectorization
 - Pipeline scheduling
 
-As with the signature struct, the format of the algorithm struct is enforced at compile time using C++20 concepts by the CK-Builder API. The design of these concepts and the required constraints are discussed in the [CK Builder factory design description](../include/ck_tile/builder/factory/README.md).
+As with the signature struct, the format of the algorithm struct is enforced at compile time using C++20 concepts by the CK-Builder API. The design of these concepts and the required constraints are discussed in the [CK Builder factory design description](../factory/README.md).
 
 
 ```cpp
@@ -198,7 +191,7 @@ This instance can then be invoked using `ck_tile::builder::test::run()`, the sam
 
 ```cpp
 auto reference_outputs = ck_tile::builder::test::allocate_outputs(args);
-ck_tile::builder::test::run(conv, args, inputs.get(), reference_outputs.get());
+ck_tile::builder::test::run(reference_conv, args, inputs.get(), reference_outputs.get());
 ```
 
 #### Validating Results
@@ -236,50 +229,33 @@ Here's a complete test that demonstrates the Given-When-Then pattern:
 #include "ck_tile/testing/validator.hpp"
 #include "testing_utils.hpp"
 
-// Define the convolution signature
-struct ConvSignature {
-    int spatial_dim = 2;
-    ck_tile::builder::ConvDirection direction =
-        ck_tile::builder::ConvDirection::FORWARD;
-    ck_tile::builder::GroupConvLayout2D layout =
-        ck_tile::builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK;
-    ck_tile::builder::DataType data_type =
-        ck_tile::builder::DataType::FP16;
-    ck_tile::builder::ElementwiseOperation elementwise_operation =
-        ck_tile::builder::ElementwiseOperation::PASS_THROUGH;
-};
-static_assert(ck_tile::builder::ConvSignatureDescriptor<ConvSignature>);
-constexpr auto SIGNATURE = ConvSignature{
-    .spatial_dim = 2,
-    .direction = ck_tile::builder::ConvDirection::FORWARD,
-    .layout = ck_tile::builder::GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
-    .data_type = ck_tile::builder::DataType::FP16,
-    .elementwise_operation = ck_tile::builder::ElementwiseOperation::PASS_THROUGH,
-};
+namespace ckb = ck_tile::builder;
+namespace ckt = ck_tile::builder::test;
 
-// Define the convolution algorithm
-struct ConvAlgorithm {
-    // Algorithm configuration details...
-    // (Omitted for brevity)
-};
-static_assert(ck_tile::builder::ConvAlgorithmDescriptor<ConvAlgorithm>);
-constexpr auto ALGORITHM = ConvAlgorithm{/* ... */};
+// Define the convolution signature with per-tensor layout specification
+constexpr auto SIGNATURE =
+    ckt::ConvSignature{.spatial_dim            = 2,
+                       .direction              = ckb::ConvDirection::FORWARD,
+                       .data_type              = ckb::DataType::FP16,
+                       .accumulation_data_type = ckb::DataType::FP32,
+                       .input  = {.config = {.layout = ckb::TensorLayout::GNHWC}},
+                       .weight = {.config = {.layout = ckb::TensorLayout::GKYXC}},
+                       .output = {.config = {.layout = ckb::TensorLayout::GNHWK}}};
+static_assert(ckb::ConvSignatureDescriptor<decltype(SIGNATURE)>);
 
-// Define the reference convolution algorithm
-struct ReferenceAlgorithm {
-    ck_tile::builder::ConvAlgorithmSpecialization specialization;
-};
-static_assert(ck_tile::builder::ConvAlgorithmDescriptor<ReferenceAlgorithm>);
-constexpr auto REFERENCE_ALGORITHM = ReferenceAlgorithm{
-    .specialization = ck_tile::builder::ConvAlgorithmSpecialization::REFERENCE;
-};
+// Define the convolution algorithm (omitted for brevity — see conv_algorithm_concepts.hpp
+// for the required fields and test/impl/conv_algorithm_types.hpp for examples)
+constexpr auto ALGORITHM = /* ... */;
+
+// Define the reference algorithm
+constexpr auto REFERENCE_ALGORITHM = ckt::ConvAlgorithm_Reference{};
 
 // The actual test
 TEST(ConvolutionTest, Forward2D_FP16) {
     // ===== GIVEN: Set up the test case =====
 
     // Define runtime parameters
-    ck_tile::builder::test::Args<ConvSignature> args = {
+    ckt::Args<SIGNATURE> args = {
         .lengths = {
             .batch_size      = 128,
             .groups          = 1,
@@ -295,30 +271,30 @@ TEST(ConvolutionTest, Forward2D_FP16) {
     };
 
     // Allocate GPU memory
-    auto inputs = ck_tile::builder::test::allocate_inputs(args);
-    auto outputs = ck_tile::builder::test::allocate_outputs(args);
-    auto reference_outputs = ck_tile::builder::test::allocate_outputs(args);
+    auto inputs = ckt::allocate_inputs(args);
+    auto outputs = ckt::allocate_outputs(args);
+    auto reference_outputs = ckt::allocate_outputs(args);
 
     // Initialize inputs
-    ck_tile::builder::test::init_inputs(args, inputs);
+    ckt::init_inputs(args, inputs);
 
     // ===== WHEN: Execute the kernel =====
 
     // Build the kernel
-    using Conv = ck_tile::builder::ConvBuilder<SIGNATURE, ALGORITHM>::Instance;
+    using Conv = ckb::ConvBuilder<SIGNATURE, ALGORITHM>::Instance;
     auto conv = Conv{};
 
     // Compute actual results
-    ck_tile::builder::test::run(conv, args, inputs.get(), outputs.get());
+    ckt::run(conv, args, inputs.get(), outputs.get());
 
     // ===== THEN: Verify the results =====
 
     // Build the reference kernel
-    using ReferenceConv = ck_tile::builder::ConvBuilder<SIGNATURE, REFERENCE_ALGORITHM>::Instance;
+    using ReferenceConv = ckb::ConvBuilder<SIGNATURE, REFERENCE_ALGORITHM>::Instance;
     auto reference_conv = ReferenceConv{};
 
     // Compute reference results
-    ck_tile::builder::test::run(conv, args, inputs.get(), reference_outputs.get());
+    ckt::run(reference_conv, args, inputs.get(), reference_outputs.get());
 
     // Check the results
     EXPECT_THAT(outputs.get(), ck_tile::test::MatchesReference(args, reference_outputs.get()));
