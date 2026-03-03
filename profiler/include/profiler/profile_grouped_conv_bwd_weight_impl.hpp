@@ -44,7 +44,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                           bool time_kernel,
                                           const ck::utils::conv::ConvParam& conv_param,
                                           const std::string& split_k,
-                                          index_t instance_index = -1)
+                                          index_t instance_index = -1,
+                                          bool list_instances    = false)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -82,6 +83,10 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     DeviceMem in_device_buf(sizeof(InDataType) * input_element_space_size);
     DeviceMem wei_device_buf(sizeof(WeiDataType) * weight_element_space_size);
     DeviceMem out_device_buf(sizeof(OutDataType) * output_element_space_size);
+
+    // Don't create reference if we're only listing instances
+    if(list_instances)
+        do_verification = 0;
 
     // Initialize tensors based on do_verification:
     // - do_verification=2: GPU-side initialization
@@ -213,6 +218,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
     std::string best_split_k("1");
+    index_t best_instance_index = 0;
+    index_t valid_instances     = 0;
 
     // profile device Conv instances
     bool all_pass = true;
@@ -255,6 +262,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             std::cerr << e.what() << '\n';
             exit(EXIT_FAILURE);
         }
+    }
+
+    if(list_instances)
+    {
+        std::cout << "\nValid instances for this problem:" << std::endl;
     }
 
     index_t num_kernel = 0;
@@ -316,11 +328,23 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
                 num_kernel++;
-                if((instance_index != -1) && (instance_index + 1 != num_kernel))
+
+                // List instances mode - just print and continue
+                if(list_instances)
                 {
-                    // skip test if instance_index is specified
+                    std::cout << "[" << (num_kernel - 1) << "] " << op_ptr->GetTypeString()
+                              << " (SplitK=" << split_k_param_str << ")" << std::endl;
                     continue;
                 }
+
+                // Skip if a specific instance was requested and this isn't it
+                const bool running_specific_instance = (instance_index != -1);
+                const bool current_is_target         = (num_kernel - 1 == instance_index);
+                if(running_specific_instance && !current_is_target)
+                {
+                    continue;
+                }
+                valid_instances++;
 
                 std::string op_name = op_ptr->GetTypeString();
 
@@ -341,11 +365,12 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
                 if(tflops > best_tflops)
                 {
-                    best_op_name    = op_name;
-                    best_tflops     = tflops;
-                    best_avg_time   = avg_time;
-                    best_gb_per_sec = gb_per_sec;
-                    best_split_k    = split_k_param_str;
+                    best_op_name        = op_name;
+                    best_tflops         = tflops;
+                    best_avg_time       = avg_time;
+                    best_gb_per_sec     = gb_per_sec;
+                    best_split_k        = split_k_param_str;
+                    best_instance_index = num_kernel - 1;
                 }
 
                 // Synchronize before verification to ensure kernel has completed
@@ -491,7 +516,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     }
                 }
             }
-            else
+            else if(list_instances || instance_index == -1)
             {
                 std::cout << op_ptr->GetTypeString() << " does not support this problem"
                           << std::endl;
@@ -499,11 +524,25 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
         }
     }
 
-    printf("\033[36mvalids: %d\033[0m\n", num_kernel);
+    if(list_instances)
+    {
+        std::cout << "\nTotal: " << num_kernel << " valid instances" << std::endl;
+        return true;
+    }
 
-    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
-              << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
-              << "\nGB/s: " << best_gb_per_sec << ", SplitK " << best_split_k << std::endl;
+    printf("\033[36mvalids: %ld\033[0m\n", static_cast<long>(valid_instances));
+
+    if(instance_index != -1 && valid_instances == 0)
+    {
+        std::cerr << "Error: instance_index " << instance_index
+                  << " exceeds the number of valid instances (" << num_kernel << ")" << std::endl;
+        return false;
+    }
+
+    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name << " (instance "
+              << best_instance_index << ")" << "\navg_time: " << best_avg_time
+              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << ", SplitK "
+              << best_split_k << std::endl;
 
     if(instance_index != -1)
     {
