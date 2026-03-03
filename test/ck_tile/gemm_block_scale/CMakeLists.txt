@@ -254,17 +254,8 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_tensor PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
-    # Target to build only AQuant memory pipeline tests
-    add_custom_target(test_tile_gemm_aquant_mem_all)
-    add_dependencies(test_tile_gemm_aquant_mem_all
-        test_tile_gemm_quant_aquant_mem_prefill_interwave
-        test_tile_gemm_quant_aquant_mem_decode_intrawave
-        test_tile_gemm_quant_aquant_mem_decode_interwave
-    )
-
-    # Umbrella target to build all gemm quant tests
-    add_custom_target(test_tile_gemm_quant_all)
-    add_dependencies(test_tile_gemm_quant_all
+    # Collect all test targets for umbrella label
+    set(CK_TILE_GEMM_BLOCK_SCALE_TEST_TARGETS
         # AQuant tests
         test_tile_gemm_quant_aquant_mem_prefill_interwave
         test_tile_gemm_quant_aquant_mem_decode_intrawave
@@ -311,6 +302,32 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         # Other quant tests
         test_tile_gemm_quant_rowcol
         test_tile_gemm_quant_tensor
+    )
+
+    # Label all ck_tile gemm_block_scale tests with CK_TILE_GEMM_BLOCK_SCALE_TESTS for selective execution
+    foreach(test_target ${CK_TILE_GEMM_BLOCK_SCALE_TEST_TARGETS})
+        set_tests_properties(${test_target} PROPERTIES LABELS "CK_TILE_GEMM_BLOCK_SCALE_TESTS")
+    endforeach()
+
+    # Target to build only AQuant memory pipeline tests
+    add_custom_target(test_tile_gemm_aquant_mem_all)
+    add_dependencies(test_tile_gemm_aquant_mem_all
+        test_tile_gemm_quant_aquant_mem_prefill_interwave
+        test_tile_gemm_quant_aquant_mem_decode_intrawave
+        test_tile_gemm_quant_aquant_mem_decode_interwave
+    )
+
+    # Umbrella target to build all gemm quant tests
+    add_custom_target(test_tile_gemm_quant_all)
+    add_dependencies(test_tile_gemm_quant_all ${CK_TILE_GEMM_BLOCK_SCALE_TEST_TARGETS})
+
+    # Umbrella target to build and run all ck_tile gemm_block_scale tests
+    # Usage: ninja ck_tile_gemm_block_scale_tests
+    add_custom_target(ck_tile_gemm_block_scale_tests
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "CK_TILE_GEMM_BLOCK_SCALE_TESTS"
+        DEPENDS ${CK_TILE_GEMM_BLOCK_SCALE_TEST_TARGETS}
+        USES_TERMINAL
+        COMMENT "Running all ck_tile gemm_block_scale tests..."
     )
 else()
     message(DEBUG "Skipping ck_tile quant gemm tests for current target")
