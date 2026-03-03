@@ -1739,7 +1739,7 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
-                                            -D GEMM_UNIVERSAL_DATATYPE="fp8;fp16" \
+                                            -D GEMM_UNIVERSAL_DATATYPE="fp8;fp16;bf8;bf16" \
                                             -D GEMM_UNIVERSAL_LAYOUT="rcr;rrr;crr;ccr" \
                                             -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
                                             -D GEMM_STREAMK_LAYOUT="rcr" \
