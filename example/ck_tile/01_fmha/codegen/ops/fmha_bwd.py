@@ -1195,9 +1195,9 @@ def list_blobs(
     )
     with file_path.open("a") as f:
         for k in kernels_dot_do_o:
-            f.write(str(file_path.parent / GEN_DIR / k.filename) + "\n")
+            f.write((file_path.parent / GEN_DIR / k.filename).as_posix() + "\n")
         for k in kernels_dq_dk_dv:
-            f.write(str(file_path.parent / GEN_DIR / k.filename) + "\n")
+            f.write((file_path.parent / GEN_DIR / k.filename).as_posix() + "\n")
         for k in kernels_convert_dq:
-            f.write(str(file_path.parent / GEN_DIR / k.filename) + "\n")
-        f.write(str(file_path.parent / GEN_DIR / FMHA_BWD_API_FILENAME) + "\n")
+            f.write((file_path.parent / GEN_DIR / k.filename).as_posix() + "\n")
+        f.write((file_path.parent / GEN_DIR / FMHA_BWD_API_FILENAME).as_posix() + "\n")

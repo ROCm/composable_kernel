@@ -326,7 +326,7 @@ struct MoeFlatmmKernel
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         return concat(
-            '_', "moe_flatmm", gemm_prec_str<ADataType, BDataType>, FlatmmPipeline::GetName());
+            '_', "moe_flatmm", gemm_prec_str<ADataType, BDataType>(), FlatmmPipeline::GetName());
     }
 
     static constexpr auto BlockSize() -> dim3 { return dim3(kBlockSize); }
