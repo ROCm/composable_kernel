@@ -282,7 +282,7 @@ struct FlatmmKernel
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "gemm", gemm_prec_str<ADataType, BDataType>, FlatmmPipeline::GetName());
+        return concat('_', "gemm", gemm_prec_str<ADataType, BDataType>(), FlatmmPipeline::GetName());
         // clang-format on
     }
 

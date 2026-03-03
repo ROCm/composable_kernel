@@ -227,8 +227,10 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
 
     CK_TILE_HOST static const std::string GetName()
     {
-        return concat(
-            '_', "grouped_flatmm", gemm_prec_str<ADataType, BDataType>, FlatmmPipeline::GetName());
+        return concat('_',
+                      "grouped_flatmm",
+                      gemm_prec_str<ADataType, BDataType>(),
+                      FlatmmPipeline::GetName());
     }
 
     template <class ScaleM       = FlatmmScalePointer<-1>,
