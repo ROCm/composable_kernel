@@ -7,6 +7,7 @@
 #include <numeric>
 
 #include "profiler/profile_grouped_conv_bwd_weight_impl.hpp"
+#include "profiler/profiler_arg_utils.hpp"
 #include "profiler_operation_registry.hpp"
 
 namespace {
@@ -61,6 +62,10 @@ static void print_helper_msg()
               << ck::utils::conv::get_conv_param_parser_helper_msg()
               << " SplitK (-1 for internally computed split-K value, positive value to set k "
                  "batches explicitly, or 'all' to test all internal split-K values)\n"
+              << "\nOptional arguments:\n"
+              << "  --instance <id>      Run only the specified instance (0-indexed among valid "
+                 "instances)\n"
+              << "  --list-instances     List all valid instances without running\n"
               << std::endl;
 }
 
@@ -68,8 +73,17 @@ static void print_helper_msg()
 
 int profile_grouped_conv_bwd_weight(int argc, char* argv[])
 {
+    // Parse optional named arguments first
+    ck::index_t instance_index = -1;
+    bool list_instances        = false;
+    ck::profiler::parse_named_args(argc, argv, instance_index, list_instances);
+    const int named_arg_count = ck::profiler::count_named_args(argc, argv);
+
+    // Adjust argc for positional argument checking
+    const int positional_argc = argc - named_arg_count;
+
     // 8 for control, 1 for num_dim_spatial
-    if(argc < 9)
+    if(positional_argc < 9)
     {
         print_helper_msg();
         return 1;
@@ -84,7 +98,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
     const int num_dim_spatial  = std::stoi(argv[8]);
 
     // 8 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial, 1 for split-K
-    if(argc != 8 + 1 + 4 + 6 * num_dim_spatial + 1)
+    if(positional_argc != 8 + 1 + 4 + 6 * num_dim_spatial + 1)
     {
         print_helper_msg();
         return 1;
@@ -129,16 +143,23 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         using ComputeTypeA = decltype(compute_type_a);
         using ComputeTypeB = decltype(compute_type_b);
 
-        bool pass = ck::profiler::profile_grouped_conv_bwd_weight_impl<NDimSpatial,
-                                                                       InLayout,
-                                                                       WeiLayout,
-                                                                       OutLayout,
-                                                                       InDataType,
-                                                                       WeiDataType,
-                                                                       OutDataType,
-                                                                       ComputeTypeA,
-                                                                       ComputeTypeB>(
-            do_verification, init_method, do_log, time_kernel, params, split_k);
+        bool pass =
+            ck::profiler::profile_grouped_conv_bwd_weight_impl<NDimSpatial,
+                                                               InLayout,
+                                                               WeiLayout,
+                                                               OutLayout,
+                                                               InDataType,
+                                                               WeiDataType,
+                                                               OutDataType,
+                                                               ComputeTypeA,
+                                                               ComputeTypeB>(do_verification,
+                                                                             init_method,
+                                                                             do_log,
+                                                                             time_kernel,
+                                                                             params,
+                                                                             split_k,
+                                                                             instance_index,
+                                                                             list_instances);
 
         return pass ? 0 : 1;
     };

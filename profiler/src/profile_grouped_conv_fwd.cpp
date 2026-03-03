@@ -5,8 +5,8 @@
 #include <numeric>
 #include <initializer_list>
 #include <cstdlib>
-
 #include "profiler/profile_grouped_conv_fwd_impl.hpp"
+#include "profiler/profiler_arg_utils.hpp"
 #include "profiler_operation_registry.hpp"
 
 namespace {
@@ -66,7 +66,10 @@ static void print_helper_msg()
         << "arg6: initialization (0: no init, 1: integer value, 2: decimal value)\n"
         << "arg7: print tensor value (0: no; 1: yes)\n"
         << "arg8: time kernel (0: no, 1: yes)\n"
-        << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
+        << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl
+        << "\nOptional arguments:\n"
+        << "  --instance <id>      Run only the specified instance (0-indexed among valid instances)\n"
+        << "  --list-instances     List all valid instances without running\n";
     // clang-format on
 }
 
@@ -74,8 +77,17 @@ static void print_helper_msg()
 
 int profile_grouped_conv_fwd(int argc, char* argv[])
 {
+    // Parse optional named arguments first
+    ck::index_t instance_index = -1;
+    bool list_instances        = false;
+    ck::profiler::parse_named_args(argc, argv, instance_index, list_instances);
+    const int named_arg_count = ck::profiler::count_named_args(argc, argv);
+
+    // Adjust argc for positional argument checking
+    const int positional_argc = argc - named_arg_count;
+
     // 8 for control, 1 for num_dim_spatial
-    if(argc < 10)
+    if(positional_argc < 10)
     {
         print_helper_msg();
         return 1;
@@ -91,7 +103,7 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
     const int num_dim_spatial  = std::stoi(argv[9]);
 
     // 9 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial
-    if(argc != 9 + 1 + 4 + 6 * num_dim_spatial)
+    if(positional_argc != 9 + 1 + 4 + 6 * num_dim_spatial)
     {
         print_helper_msg();
         return 1;
@@ -178,7 +190,14 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
                                                                     AComputeType,
                                                                     BComputeType,
                                                                     ck::index_t>(
-                do_verification, init_method, do_log, time_kernel, params);
+                do_verification,
+                init_method,
+                do_log,
+                time_kernel,
+                params,
+                ck::tensor_operation::element_wise::PassThrough{},
+                instance_index,
+                list_instances);
 
             return pass ? 0 : 1;
         }
@@ -194,7 +213,14 @@ int profile_grouped_conv_fwd(int argc, char* argv[])
                                                                     AComputeType,
                                                                     BComputeType,
                                                                     ck::long_index_t>(
-                do_verification, init_method, do_log, time_kernel, params);
+                do_verification,
+                init_method,
+                do_log,
+                time_kernel,
+                params,
+                ck::tensor_operation::element_wise::PassThrough{},
+                instance_index,
+                list_instances);
 
             return pass ? 0 : 1;
         }
