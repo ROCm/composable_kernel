@@ -178,11 +178,11 @@ struct mask_info
         return tmp;
     }
 
-    ck_tile::index_t get_unmaskarea() const
+    std::size_t get_unmaskarea() const
     {
         if(type == mask_enum::no_mask)
-            return seqlen_q * seqlen_k;
-        ck_tile::index_t area = 0;
+            return static_cast<std::size_t>(seqlen_q) * seqlen_k;
+        std::size_t area = 0;
         for(ck_tile::index_t i_y = 0; i_y < seqlen_q; ++i_y)
         {
             ck_tile::index_t x_start = std::max(-y + i_y + 1, static_cast<ck_tile::index_t>(0));
