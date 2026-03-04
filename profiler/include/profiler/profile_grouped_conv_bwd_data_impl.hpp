@@ -25,6 +25,58 @@
 namespace ck {
 namespace profiler {
 
+namespace bwd_data {
+template <ck::index_t NDimSpatial,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename InElementOp,
+          typename WeiElementOp,
+          typename OutElementOp,
+          typename ComputeDataType>
+void print_instances()
+{
+    using DeviceOp =
+        ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
+                                                                        OutLayout,
+                                                                        WeiLayout,
+                                                                        ck::Tuple<>,
+                                                                        InLayout,
+                                                                        OutDataType,
+                                                                        WeiDataType,
+                                                                        ck::Tuple<>,
+                                                                        InDataType,
+                                                                        OutElementOp,
+                                                                        WeiElementOp,
+                                                                        InElementOp,
+                                                                        ComputeDataType,
+                                                                        ComputeDataType>;
+
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    for(const auto& op_ptr : op_ptrs)
+    {
+#ifdef CK_EXPERIMENTAL_BUILDER
+        const auto& instance_str = op_ptr->GetInstanceString();
+        if(!instance_str.empty())
+        {
+            std::cout << instance_str << std::endl;
+        }
+        else
+        {
+            std::cout << op_ptr->GetTypeString() << std::endl;
+        }
+#else
+        std::cout << op_ptr->GetTypeString() << std::endl;
+#endif
+    }
+}
+} // namespace bwd_data
+
 template <ck::index_t NDimSpatial,
           typename OutLayout,
           typename WeiLayout,

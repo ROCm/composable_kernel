@@ -1,6 +1,6 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-#include "../instance_includes.inc"
+#include "../../instance_includes.inc"
 namespace ck_tile::builder::profiling {
 constexpr auto SIGNATURE = gen_signature;
 std::tuple<bool, float, std::string> run_gen_instance_name(const ckt::Args<SIGNATURE>& args,
@@ -14,6 +14,6 @@ std::tuple<bool, float, std::string> run_gen_instance_name(const ckt::Args<SIGNA
                                    .with_tile_block_gemm(gen_block_gemm_desc)
                                    .with_tile_transfer(gen_block_transfer)
                                    .with_tile_optimizations(gen_optimizations);
-#include "../instance_run.inc"
+#include "../../instance_run.inc"
 }
 } // namespace ck_tile::builder::profiling

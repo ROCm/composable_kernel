@@ -30,6 +30,46 @@
 namespace ck {
 namespace profiler {
 
+namespace fwd {
+template <ck::index_t NDimSpatial,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename InElementOp,
+          typename WeiElementOp,
+          typename OutElementOp,
+          typename ComputeTypeA,
+          typename ComputeTypeB>
+void print_instances()
+{
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                                   InLayout,
+                                                                                   WeiLayout,
+                                                                                   ck::Tuple<>,
+                                                                                   OutLayout,
+                                                                                   InDataType,
+                                                                                   WeiDataType,
+                                                                                   ck::Tuple<>,
+                                                                                   OutDataType,
+                                                                                   InElementOp,
+                                                                                   WeiElementOp,
+                                                                                   OutElementOp,
+                                                                                   ComputeTypeA,
+                                                                                   ComputeTypeB>;
+
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    for(const auto& op_ptr : op_ptrs)
+    {
+        std::cout << op_ptr->GetTypeString() << std::endl;
+    }
+}
+} // namespace fwd
+
 template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
