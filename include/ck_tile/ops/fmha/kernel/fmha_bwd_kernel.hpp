@@ -124,6 +124,13 @@ struct FmhaBwdDQDKDVKernel
         #undef _TS_
         // clang-format on
     }
+    CK_TILE_HOST static index_t GetDqAccSplits(index_t seqlen_k)
+    {
+        if constexpr(kIsDeterministic)
+            return integer_divide_ceil(seqlen_k, FmhaPipeline::BlockFmhaShape::kN0);
+        else
+            return 1;
+    }
 
     template <ck_tile::index_t I> // to avoid duplicated base class prblem, introduce an template
                                   // arg
