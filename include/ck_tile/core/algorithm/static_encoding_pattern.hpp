@@ -150,7 +150,7 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
     static constexpr index_t LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size);
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
-    static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
+    static constexpr index_t X0         = min(warp_size, XPerTile / X1); // # of threads in X dim
 
     // # of rows in Y dim accessed by single wavefront in one iteration
     static constexpr index_t Y1 = warp_size / X0;
@@ -234,7 +234,7 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
     static constexpr index_t LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size);
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
-    static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
+    static constexpr index_t X0         = min(warp_size, XPerTile / X1); // # of threads in X dim
 
     static constexpr index_t Y2 = warp_size / X0; // # of rows in Y dim to cover whole wavefront
     static_assert(X0 * Y2 == warp_size, "X0 * Y2 must cover whole wavefront!");
@@ -289,7 +289,7 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
     static constexpr index_t LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size);
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
-    static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
+    static constexpr index_t X0         = min(warp_size, XPerTile / X1); // # of threads in X dim
     static constexpr index_t Y2 = warp_size / X0; // # of rows in Y dim to cover whole wavefront
     static_assert(X0 * Y2 == warp_size, "X0 * Y2 must cover whole wavefront!");
     static constexpr index_t Y1 = num_warps;

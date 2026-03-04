@@ -60,21 +60,26 @@ template <>
 struct TilePipelineType<ck_tile::GemmPipeline::BASIC_V1>
 {
     template <typename PipelineProblem>
-    using GemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<PipelineProblem>;
+    using GemmPipeline =
+        ck_tile::GemmPipelineAGmemBGmemCRegV1<PipelineProblem,
+                                              GroupedConvUniversalPipelineAgBgCrPolicy>;
 };
 
 template <>
 struct TilePipelineType<ck_tile::GemmPipeline::MEMORY>
 {
     template <typename PipelineProblem>
-    using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<PipelineProblem>;
+    using GemmPipeline =
+        ck_tile::GemmPipelineAgBgCrMem<PipelineProblem, GroupedConvUniversalPipelineAgBgCrPolicy>;
 };
 
 template <>
 struct TilePipelineType<ck_tile::GemmPipeline::COMPUTE_V3>
 {
     template <typename PipelineProblem>
-    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>;
+    using GemmPipeline =
+        ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem,
+                                          GroupedConvUniversalPipelineAgBgCrPolicy>;
 };
 
 template <>

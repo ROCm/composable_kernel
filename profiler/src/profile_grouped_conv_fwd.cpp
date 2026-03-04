@@ -73,10 +73,338 @@ static void print_helper_msg()
     // clang-format on
 }
 
+void print_fwd_instances(ConvDataType data_type, ConvLayout layout, ck::index_t num_dim_spatial)
+{
+
+    auto print_available_instances = [&](auto num_dim_spatial_tmp,
+                                         auto in_layout,
+                                         auto wei_layout,
+                                         auto out_layout,
+                                         auto in_type,
+                                         auto wei_type,
+                                         auto out_type,
+                                         auto compute_type_a,
+                                         auto compute_type_b) {
+        constexpr ck::index_t NDimSpatial = num_dim_spatial_tmp.value;
+
+        using InLayout  = decltype(in_layout);
+        using WeiLayout = decltype(wei_layout);
+        using OutLayout = decltype(out_layout);
+
+        using InDataType  = decltype(in_type);
+        using WeiDataType = decltype(wei_type);
+        using OutDataType = decltype(out_type);
+
+        using ComputeTypeA = decltype(compute_type_a);
+        using ComputeTypeB = decltype(compute_type_b);
+
+        using PassThrough = ck::tensor_operation::element_wise::PassThrough;
+
+        ck::profiler::fwd::print_instances<NDimSpatial,
+                                           InLayout,
+                                           WeiLayout,
+                                           OutLayout,
+                                           InDataType,
+                                           WeiDataType,
+                                           OutDataType,
+                                           PassThrough,
+                                           PassThrough,
+                                           PassThrough,
+                                           ComputeTypeA,
+                                           ComputeTypeB>();
+    };
+
+    constexpr auto I1 = ck::Number<1>{};
+    constexpr auto I2 = ck::Number<2>{};
+    constexpr auto I3 = ck::Number<3>{};
+
+    using F32  = float;
+    using F16  = ck::half_t;
+    using BF16 = ck::bhalf_t;
+    using F8   = ck::f8_t;
+    using BF8  = ck::bf8_t;
+    using TF32 = ck::tf32_t;
+    using INT8 = int8_t;
+
+    using namespace ck::tensor_layout::convolution;
+
+    // GNHWC_GKYXC_GNHWK
+    if(num_dim_spatial == 1 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return print_available_instances(
+                I1, GNWC{}, GKXC{}, GNWK{}, F32{}, F32{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return print_available_instances(
+                I1, GNWC{}, GKXC{}, GNWK{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return print_available_instances(
+                I1, GNWC{}, GKXC{}, GNWK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::INT8_INT8_INT8)
+        {
+            return print_available_instances(
+                I1, GNWC{}, GKXC{}, GNWK{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
+        }
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
+        {
+            return print_available_instances(
+                I1, GNWC{}, GKXC{}, GNWK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+        }
+    }
+    else if(num_dim_spatial == 2 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return print_available_instances(
+                I2, GNHWC{}, GKYXC{}, GNHWK{}, F32{}, F32{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return print_available_instances(
+                I2, GNHWC{}, GKYXC{}, GNHWK{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return print_available_instances(
+                I2, GNHWC{}, GKYXC{}, GNHWK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::INT8_INT8_INT8)
+        {
+            return print_available_instances(
+                I2, GNHWC{}, GKYXC{}, GNHWK{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
+        }
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
+        {
+            return print_available_instances(
+                I2, GNHWC{}, GKYXC{}, GNHWK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+        }
+    }
+    else if(num_dim_spatial == 3 && layout == ConvLayout::GNHWC_GKYXC_GNHWK)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return print_available_instances(
+                I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, F32{}, F32{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return print_available_instances(
+                I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return print_available_instances(
+                I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::INT8_INT8_INT8)
+        {
+            return print_available_instances(
+                I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
+        }
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
+        {
+            return print_available_instances(
+                I3, GNDHWC{}, GKZYXC{}, GNDHWK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+        }
+    }
+    // NHWGC_GKYXC_NHWGK
+    else if(num_dim_spatial == 1 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return print_available_instances(
+                I1, NWGC{}, GKXC{}, NWGK{}, F32{}, F32{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return print_available_instances(
+                I1, NWGC{}, GKXC{}, NWGK{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return print_available_instances(
+                I1, NWGC{}, GKXC{}, NWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::INT8_INT8_INT8)
+        {
+            return print_available_instances(
+                I1, NWGC{}, GKXC{}, NWGK{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
+        }
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
+        {
+            return print_available_instances(
+                I1, NWGC{}, GKXC{}, NWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+        }
+    }
+    else if(num_dim_spatial == 2 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return print_available_instances(
+                I2, NHWGC{}, GKYXC{}, NHWGK{}, F32{}, F32{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return print_available_instances(
+                I2, NHWGC{}, GKYXC{}, NHWGK{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return print_available_instances(
+                I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::INT8_INT8_INT8)
+        {
+            return print_available_instances(
+                I2, NHWGC{}, GKYXC{}, NHWGK{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
+        }
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
+        {
+            return print_available_instances(
+                I2, NHWGC{}, GKYXC{}, NHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+        }
+    }
+    else if(num_dim_spatial == 2 && layout == ConvLayout::NGCHW_GKYXC_NGKHW)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return print_available_instances(
+                I2, NGCHW{}, GKYXC{}, NGKHW{}, F32{}, F32{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return print_available_instances(
+                I2, NGCHW{}, GKYXC{}, NGKHW{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return print_available_instances(
+                I2, NGCHW{}, GKYXC{}, NGKHW{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
+        {
+            return print_available_instances(
+                I2, NGCHW{}, GKYXC{}, NGKHW{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+        }
+    }
+    else if(num_dim_spatial == 2 && layout == ConvLayout::NGCHW_GKCYX_NGKHW)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return print_available_instances(
+                I2, NGCHW{}, GKCYX{}, NGKHW{}, F32{}, F32{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return print_available_instances(
+                I2, NGCHW{}, GKCYX{}, NGKHW{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return print_available_instances(
+                I2, NGCHW{}, GKCYX{}, NGKHW{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
+        {
+            return print_available_instances(
+                I2, NGCHW{}, GKCYX{}, NGKHW{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+        }
+    }
+    else if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return print_available_instances(
+                I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F32{}, F32{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return print_available_instances(
+                I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return print_available_instances(
+                I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::INT8_INT8_INT8)
+        {
+            return print_available_instances(
+                I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, INT8{}, INT8{}, INT8{}, INT8{}, INT8{});
+        }
+        else if(data_type == ConvDataType::F8_F8_F8)
+        {
+            return print_available_instances(
+                I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F8{}, F8{}, F8{}, F8{}, F8{});
+        }
+        else if(data_type == ConvDataType::BF8_BF8_F8)
+        {
+            return print_available_instances(
+                I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, BF8{}, BF8{}, F8{}, BF8{}, BF8{});
+        }
+        else if(data_type == ConvDataType::F8_BF8_F8)
+        {
+            return print_available_instances(
+                I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F8{}, BF8{}, F8{}, F8{}, BF8{});
+        }
+        else if(data_type == ConvDataType::BF8_F8_F8)
+        {
+            return print_available_instances(
+                I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, BF8{}, F8{}, F8{}, BF8{}, F8{});
+        }
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
+        {
+            return print_available_instances(
+                I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+        }
+    }
+    // NGCDHW_GKCZYX_NGKDHW
+    else if(num_dim_spatial == 3 && layout == ConvLayout::NGCHW_GKCYX_NGKHW)
+    {
+        if(data_type == ConvDataType::F32_F32_F32)
+        {
+            return print_available_instances(
+                I3, NGCDHW{}, GKCZYX{}, NGKDHW{}, F32{}, F32{}, F32{}, F32{}, F32{});
+        }
+        else if(data_type == ConvDataType::F16_F16_F16)
+        {
+            return print_available_instances(
+                I3, NGCDHW{}, GKCZYX{}, NGKDHW{}, F16{}, F16{}, F16{}, F16{}, F16{});
+        }
+        else if(data_type == ConvDataType::BF16_BF16_BF16)
+        {
+            return print_available_instances(
+                I3, NGCDHW{}, GKCZYX{}, NGKDHW{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
+        }
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
+        {
+            return print_available_instances(
+                I3, NGCDHW{}, GKCZYX{}, NGKDHW{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+        }
+    }
+
+    std::cout << "[CK_PROFILER] This data_type & layout is not implemented" << std::endl;
+}
+
 } // namespace
 
 int profile_grouped_conv_fwd(int argc, char* argv[])
 {
+    if(argc == 6 && std::string(argv[5]) == "--instances")
+    {
+        const auto data_type              = static_cast<ConvDataType>(std::stoi(argv[2]));
+        const auto layout                 = static_cast<ConvLayout>(std::stoi(argv[3]));
+        const ck::index_t num_dim_spatial = static_cast<ck::index_t>(std::stoi(argv[4]));
+
+        print_fwd_instances(data_type, layout, num_dim_spatial);
+        return 0;
+    }
     // Parse optional named arguments first
     ck::index_t instance_index = -1;
     bool list_instances        = false;

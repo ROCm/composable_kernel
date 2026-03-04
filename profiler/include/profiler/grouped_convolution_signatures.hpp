@@ -67,4 +67,62 @@ constexpr auto SIGNATURE_NDHWGC_FP16_FWD =
                        .weight                 = {.config = {.layout = ckb::TensorLayout::GKZYXC}},
                        .output                 = {.config = {.layout = ckb::TensorLayout::NDHWGK}}};
 
+/////////////////////////////////////////
+// BWD WEIGHT signatures
+//////////////////////////////////////////
+
+constexpr auto SIGNATURE_NHWGC_BF16_BWD_WEIGHT =
+    ckt::ConvSignature{.spatial_dim            = 2,
+                       .direction              = ckb::ConvDirection::BACKWARD_WEIGHT,
+                       .data_type              = ckb::DataType::BF16,
+                       .accumulation_data_type = ckb::DataType::FP32,
+                       .input                  = {.config = {.layout = ckb::TensorLayout::NHWGC}},
+                       .weight                 = {.config = {.layout = ckb::TensorLayout::GKYXC}},
+                       .output                 = {.config = {.layout = ckb::TensorLayout::NHWGK}}};
+
+constexpr auto SIGNATURE_NHWGC_FP16_BWD_WEIGHT =
+    ckt::ConvSignature{.spatial_dim            = 2,
+                       .direction              = ckb::ConvDirection::BACKWARD_WEIGHT,
+                       .data_type              = ckb::DataType::FP16,
+                       .accumulation_data_type = ckb::DataType::FP32,
+                       .input                  = {.config = {.layout = ckb::TensorLayout::NHWGC}},
+                       .weight                 = {.config = {.layout = ckb::TensorLayout::GKYXC}},
+                       .output                 = {.config = {.layout = ckb::TensorLayout::NHWGK}}};
+
+constexpr auto SIGNATURE_NHWGC_FP32_BWD_WEIGHT =
+    ckt::ConvSignature{.spatial_dim            = 2,
+                       .direction              = ckb::ConvDirection::BACKWARD_WEIGHT,
+                       .data_type              = ckb::DataType::FP32,
+                       .accumulation_data_type = ckb::DataType::FP32,
+                       .input                  = {.config = {.layout = ckb::TensorLayout::NHWGC}},
+                       .weight                 = {.config = {.layout = ckb::TensorLayout::GKYXC}},
+                       .output                 = {.config = {.layout = ckb::TensorLayout::NHWGK}}};
+
+constexpr auto SIGNATURE_NDHWGC_BF16_BWD_WEIGHT =
+    ckt::ConvSignature{.spatial_dim            = 3,
+                       .direction              = ckb::ConvDirection::BACKWARD_WEIGHT,
+                       .data_type              = ckb::DataType::BF16,
+                       .accumulation_data_type = ckb::DataType::FP32,
+                       .input                  = {.config = {.layout = ckb::TensorLayout::NDHWGC}},
+                       .weight                 = {.config = {.layout = ckb::TensorLayout::GKZYXC}},
+                       .output                 = {.config = {.layout = ckb::TensorLayout::NDHWGK}}};
+
+constexpr auto SIGNATURE_NDHWGC_FP16_BWD_WEIGHT =
+    ckt::ConvSignature{.spatial_dim            = 3,
+                       .direction              = ckb::ConvDirection::BACKWARD_WEIGHT,
+                       .data_type              = ckb::DataType::FP16,
+                       .accumulation_data_type = ckb::DataType::FP32,
+                       .input                  = {.config = {.layout = ckb::TensorLayout::NDHWGC}},
+                       .weight                 = {.config = {.layout = ckb::TensorLayout::GKZYXC}},
+                       .output                 = {.config = {.layout = ckb::TensorLayout::NDHWGK}}};
+
+constexpr auto SIGNATURE_NDHWGC_FP32_BWD_WEIGHT =
+    ckt::ConvSignature{.spatial_dim            = 3,
+                       .direction              = ckb::ConvDirection::BACKWARD_WEIGHT,
+                       .data_type              = ckb::DataType::FP32,
+                       .accumulation_data_type = ckb::DataType::FP32,
+                       .input                  = {.config = {.layout = ckb::TensorLayout::NDHWGC}},
+                       .weight                 = {.config = {.layout = ckb::TensorLayout::GKZYXC}},
+                       .output                 = {.config = {.layout = ckb::TensorLayout::NDHWGK}}};
+
 } // namespace ck_tile::builder::profiling

@@ -18,9 +18,11 @@ struct BlockGemmASmemBSmemCRegV1DefaultPolicy
     {
 #if defined(__gfx950__)
         constexpr bool is_a_load_tr = std::is_same_v<remove_cvref_t<typename Problem::ALayout>,
-                                                     tensor_layout::gemm::ColumnMajor>;
+                                                     tensor_layout::gemm::ColumnMajor> &&
+                                      !std::is_same_v<typename Problem::ADataType, float>;
         constexpr bool is_b_load_tr = std::is_same_v<remove_cvref_t<typename Problem::BLayout>,
-                                                     tensor_layout::gemm::RowMajor>;
+                                                     tensor_layout::gemm::RowMajor> &&
+                                      !std::is_same_v<typename Problem::BDataType, float>;
 #else
         constexpr bool is_a_load_tr = false;
         constexpr bool is_b_load_tr = false;
