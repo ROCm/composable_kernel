@@ -53,7 +53,9 @@ struct GemmPipelineAgBgCrImplBase
         using WarpTile                  = typename BlockGemmShape::WarpTile;
         constexpr index_t kKWarpTile    = WarpTile::at(number<2>{});
         constexpr index_t kMaxKWarpTile = (sizeof(ADataType) == 1) ? 64 : 32;
-        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+        if constexpr(std::is_same_v<ADataType, float>)
+            return false;
+        else if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             return false;
         else if constexpr(kKWarpTile > kMaxKWarpTile)
             return false;
@@ -65,7 +67,9 @@ struct GemmPipelineAgBgCrImplBase
         using WarpTile                  = typename BlockGemmShape::WarpTile;
         constexpr index_t kKWarpTile    = WarpTile::at(number<2>{});
         constexpr index_t kMaxKWarpTile = (sizeof(BDataType) == 1) ? 64 : 32;
-        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+        if constexpr(std::is_same_v<BDataType, float>)
+            return false;
+        else if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             return false;
         else if constexpr(kKWarpTile > kMaxKWarpTile)
             return false;

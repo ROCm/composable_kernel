@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck_tile/builder/testing/testing.hpp"
+#include "ck_tile/builder/testing/conv/fwd.hpp"
+#include "ck_tile/builder/testing/conv/bwd_weight.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/grouped_convolution.hpp"
