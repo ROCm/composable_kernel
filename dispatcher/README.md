@@ -16,8 +16,9 @@ A unified kernel dispatch system for AMD GPUs with C++ and Python frontends.
 5. [Running Examples](#running-examples)
 6. [External Integration](#external-integration)
 7. [Core Concepts](#core-concepts)
-8. [Troubleshooting](#troubleshooting)
-9. [File Structure](#file-structure)
+8. [Operation Support Matrix](#operation-support-matrix)
+9. [Troubleshooting](#troubleshooting)
+10. [File Structure](#file-structure)
 
 ---
 
@@ -617,6 +618,108 @@ auto problem = ProblemBuilder()
 ```
 
 ---
+
+## Operation Support Matrix
+
+This matrix shows all CK Tile operations with per-data-type, per-layout, and per-GPU support status. It uses a three-state convention: ✅ = supported by both CK Tile and the dispatcher, ❌ = supported by CK Tile but not yet in the dispatcher, blank = not supported by CK Tile itself.
+
+| | | | | | **Data Types** | | | | | **Layouts** | | | | **GPU Targets** | | |
+|:---:|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Op** | **CK Tile Kernel** | **fp16** | **fp8** | **bf16** | **bf8** | **int8** | **fp4** | **fp6** | **rcr** | **rrr** | **ccr** | **crr** | **90a** | **942** | **950** | **1201** |
+| GEMM | gemm_multi_d [5]<br>engine: `dispatcher/`<br>example: `19_gemm_multi_d/` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |  | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| GEMM | gemm_preshuffle [1][2]<br>engine: `dispatcher/` | ✅ | ✅ | ✅ | ✅ | ✅ |  |  | ✅ |  |  |  | ✅ | ✅ | ✅ | ❌ |
+| GEMM | gemm_universal [3][4][7][8]<br>engine: `dispatcher/`<br>example: `03_gemm/` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |  | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| GEMM | batched_contraction<br>example: `41_batched_contraction/` | ❌ |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| GEMM | batched_gemm<br>example: `16_batched_gemm/` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| GEMM | block_scale_gemm<br>example: `38_block_scale_gemm/` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| GEMM | flatmm<br>example: `18_flatmm/` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| GEMM | gemm_multi_abd<br>example: `22_gemm_multi_abd/` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| GEMM | gemm_quant |  | ❌ | ❌ | ❌ | ❌ | ❌ |  | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| GEMM | grouped_gemm<br>example: `17_grouped_gemm/` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| GEMM | grouped_gemm_quant |  | ❌ | ❌ | ❌ | ❌ | ❌ |  | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| GEMM | streamk_gemm<br>example: `40_streamk_gemm/` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Reduce | multi_reduce2d<br>example: `05_reduce/` | ❌ |  | ❌ |  |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Reduce | reduce2d<br>example: `05_reduce/` | ❌ |  | ❌ |  |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Attention | fmha<br>example: `01_fmha/` | ❌ | ❌ | ❌ | ❌ | ❌ |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Attention | sparse_attn<br>example: `50_sparse_attn/` | ❌ |  | ❌ |  | ❌ |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Activation | softmax | ❌ |  | ❌ |  |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Activation | topk_softmax<br>example: `09_topk_softmax/` | ❌ | ❌ | ❌ |  |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Conv | grouped_conv [6]<br>example: `20_grouped_convolution/` | ❌ | ❌ | ❌ | ❌ |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Data Move | batched_transpose<br>example: `35_batched_transpose/` | ❌ | ❌ | ❌ |  |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Data Move | image_to_column<br>example: `04_img2col/` | ❌ |  |  |  |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Data Move | permute<br>example: `06_permute/` | ❌ | ❌ | ❌ |  | ❌ |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Elementwise | elementwise<br>example: `21_elementwise/` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| MoE | fused_moe<br>example: `15_fused_moe/` | ❌ | ❌ | ❌ | ❌ | ❌ |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Norm | add_rmsnorm2d_rdquant<br>example: `11_add_rmsnorm2d_rdquant/` | ❌ | ❌ | ❌ | ❌ | ❌ |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Norm | layernorm2d<br>example: `02_layernorm2d/` | ❌ | ❌ | ❌ | ❌ | ❌ |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Norm | norm_reduce | ❌ |  | ❌ |  |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Norm | rmsnorm2d<br>example: `10_rmsnorm2d/` | ❌ | ❌ | ❌ | ❌ | ❌ |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Pooling | pooling<br>example: `36_pooling/` | ❌ |  |  |  |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Quant | smoothquant<br>example: `12_smoothquant/` | ❌ | ❌ | ❌ | ❌ | ❌ |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+
+**Notes:**
+
+- [1] **gemm_preshuffle:** Supports only `rcr` layout. Uses fixed `preshufflev2` pipeline, `Auto` scheduler, and `cshuffle` epilogue.
+- [2] **gemm_preshuffle:** `int8` preshuffle support is limited to gfx942 and gfx950 (entries in `preshuffle_warp_tile_combos`).
+- [3] **gemm_universal:** `fp4` (pk_fp4) support is only available on gfx950.
+- [4] **gemm_universal:** `fp32` GEMM is supported by the dispatcher (`fp32_fp32_fp32` warp tile combos exist) but is omitted from matrix columns for consistency with the tile engine matrix format.
+- [5] **gemm_multi_d:** Codegen supports `MultiDAdd` and `MultiDMultiply` element-wise ops. Preselected kernel sets also test `Relu`, `Gelu`, `FastGelu`.
+- [6] **grouped_conv:** `arch_filter.py` defines conv operator types (`CONV_FWD`, `CONV_BWD_DATA`, `CONV_BWD_WEIGHT`, `CONV3D_*`) but dispatcher infrastructure is incomplete (ctypes bindings are stubs, `conv_utils.hpp` does not exist).
+- [7] **(all dispatcher ops):** gfx908, gfx1100, and gfx1200 also have `warp_tile_combos` in `arch_specs.json` but are not shown in the matrix's 4 GPU columns.
+- [8] **(all dispatcher ops):** `int4`, `fp32`, `fp64` are valid dispatcher data types (defined in `kernel_key.hpp` `DataType` enum) but have no dedicated matrix columns.
+
+### Dispatcher GEMM Configuration Detail
+
+#### Per-Variant Configuration
+
+| GEMM Variant | Pipelines | Schedulers | Epilogues | Element-wise Ops | Output Dtype |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| gemm_universal | mem, compv3, compv4 | intrawave, interwave | cshuffle, default | PassThrough | Same as input (fp8/bf8 -> fp16) |
+| gemm_preshuffle | preshufflev2 | Auto | cshuffle | PassThrough | Same as input (fp8/bf8 -> fp16) |
+| gemm_multi_d | mem, compv3, compv4 | intrawave, interwave | cshuffle, default | MultiDAdd, MultiDMultiply | Same as input (fp8/bf8 -> fp16) |
+
+#### Warp Tile Combinations per GPU
+
+| GPU | fp16 | bf16 | fp8 | bf8 | int8 | pk_fp4 |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| gfx1100 | 16x16x16 | 16x16x16 | -- | -- | 16x16x16 | -- |
+| gfx1200 | 16x16x16 | 16x16x16 | 16x16x16 | 16x16x16 | 16x16x16 | -- |
+| gfx1201 | 16x16x16 | 16x16x16 | 16x16x16 | 16x16x16 | 16x16x16 | -- |
+| gfx908 | 32x32x8, 16x16x16, 32x32x16, 16x16x32 | 32x32x8, 16x16x16, 32x32x16, 16x16x32 | -- | -- | 32x32x16, 16x16x32 | -- |
+| gfx90a | 32x32x8, 16x16x16, 32x32x16, 16x16x32, 4x64x16, 64x4x16 | 32x32x8, 16x16x16, 32x32x16, 16x16x32, 4x64x16, 64x4x16 | 32x32x16, 32x32x32 | 32x32x16, 32x32x32 | 32x32x16, 16x16x32 | -- |
+| gfx942 | 32x32x8, 16x16x16, 32x32x16, 16x16x32, 4x64x16, 64x4x16 | 32x32x8, 16x16x16, 32x32x16, 16x16x32, 4x64x16, 64x4x16 | 32x32x16, 32x32x32, 16x16x32, 16x16x64 | 32x32x16, 32x32x32, 16x16x32, 16x16x64 | 32x32x16, 16x16x32 | -- |
+| gfx950 | 32x32x8, 16x16x16, 32x32x16, 16x16x32, 4x64x16, 64x4x16 | 32x32x8, 16x16x16, 32x32x16, 16x16x32, 4x64x16, 64x4x16 | 32x32x16, 32x32x32, 16x16x32, 16x16x64, 16x16x128, 32x32x64 | 32x32x16, 32x32x32, 16x16x32, 16x16x64, 16x16x128, 32x32x64 | 32x32x16, 16x16x32 | 16x16x128 |
+
+#### Preshuffle Warp Tile Combinations
+
+| GPU | fp16 | bf16 | fp8 | bf8 | int8 |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| gfx90a | 32x32x8, 16x16x16, 32x32x16, 16x16x32, 64x4x16 | 32x32x8, 16x16x16, 32x32x16, 16x16x32, 64x4x16 | 32x32x16, 32x32x32 | 32x32x16, 32x32x32 | -- |
+| gfx942 | 32x32x8, 16x16x16, 32x32x16, 16x16x32, 64x4x16 | 32x32x8, 16x16x16, 32x32x16, 16x16x32, 64x4x16 | 32x32x16, 32x32x32, 16x16x32, 16x16x64 | 32x32x16, 32x32x32, 16x16x64, 16x16x32 | 16x16x32, 32x32x16 |
+| gfx950 | 32x32x8, 16x16x16, 32x32x16, 16x16x32, 64x4x16 | 32x32x8, 16x16x16, 32x32x16, 16x16x32, 64x4x16 | 32x32x16, 32x32x32, 16x16x32, 16x16x64, 16x16x128, 32x32x64 | 32x32x16, 32x32x32, 16x16x64, 16x16x32, 16x16x128, 32x32x64 | -- |
+
+**Legend:**
+- **CK Tile Kernel column:** First line is the kernel name. Lines prefixed with "engine:" show the dispatcher directory. Lines prefixed with "example:" show the CK Tile example directory under `example/ck_tile/`.
+- **Green cell** (✅): CK Tile implementation exists **and** the dispatcher supports it.
+- **Red cell** (❌): CK Tile implementation exists **but** the dispatcher does **not** support it.
+- **Grey cell** (blank): No CK Tile implementation exists for this combination.
+
+**Layout codes:** Each 3-character layout code specifies the memory layout for tensors A, B, and C:
+- `r` = row-major, `c` = column-major
+- Example: `rcr` means A is row-major, B is column-major, C is row-major
+- `gemm_multi_d` uses 4-character codes internally (e.g., `rcrr`) where the 4th character is the D tensor layout (always `r`). The matrix shows only the 3-character A/B/C portion.
+
+**Data type mapping per config label:**
+
+| Config Label | A (source) | B (source) | Acc | C (output) |
+|:---:|:---:|:---:|:---:|:---:|
+| fp16 | fp16 | fp16 | fp32 | fp16 |
+| bf16 | bf16 | bf16 | fp32 | bf16 |
+| int8 | int8 | int8 | int32 | int32 |
+| fp8 | fp8 | fp8 | fp32 | fp16 |
+| bf8 | bf8 | bf8 | fp32 | fp16 |
+| fp6 | fp6 | fp6 | fp32 | fp32 |
+| fp4 | fp16 or bf16 | fp4 | fp32 | fp16 or bf16 |
 
 ## Troubleshooting
 
