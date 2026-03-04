@@ -5,7 +5,7 @@
 .. _ck_tile_lds_index_swapping:
 
 ********************************
-Load Datat Share Index Swapping
+Load Data Share Index Swapping
 ********************************
 
 Overview
@@ -70,9 +70,9 @@ The original K coordinate is split into K0 and K1, where K1 represents the threa
 
 The XOR transformation updates the K0 coordinate using the formula:
 
-.. code-block:: cpp
+.. math::
 
-    K0' = K0 ^ (M % (KPerBlock / KPack * MLdsLayer))
+    K0' = K0^{(M \% (KPerBlock / KPack * MLdsLayer))}
 
 This XOR operation redistributes accesses across memory banks by mixing bits from the M and K dimensions.
 
@@ -132,10 +132,10 @@ The transformed K0' is split into L and K0'' components, creating an intermediat
 
 The unmerge operation:
 
-.. code-block:: cpp
+.. math:: 
 
     L = K0' / (KPerBlock/KPack)
-    K0'' = K0' % (KPerBlock/KPack)
+    K0'' = K0' \% (KPerBlock/KPack)
 
 When MLdsLayer == 1, this simplifies to L=0 and K0''=K0'.
 

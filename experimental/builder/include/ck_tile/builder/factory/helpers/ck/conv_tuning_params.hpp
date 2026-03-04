@@ -5,6 +5,7 @@
 
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
@@ -58,6 +59,9 @@ consteval BlockGemmSpec SetBlockGemm()
     case PipelineVersion::V3: version = ck::BlockGemmPipelineVersion::v3; break;
     case PipelineVersion::V4: version = ck::BlockGemmPipelineVersion::v4; break;
     case PipelineVersion::V5: version = ck::BlockGemmPipelineVersion::v5; break;
+    case PipelineVersion::ASYNC_V1: throw "PipelineVersion::ASYNC can be used only for CK TILE.";
+    case PipelineVersion::ASYNC_V4: throw "PipelineVersion::ASYNC can be used only for CK TILE.";
+    case PipelineVersion::V6: throw "PipelineVersion::V6 is supported only for CK Tile.";
     case PipelineVersion::WEIGHT_ONLY:
         throw "PipelineVersion::WEIGHT_ONLY is not supported for block GEMM.";
     default: throw "Unknown PipelineVersion";
@@ -92,6 +96,9 @@ consteval ck::PipelineVersion SetGridwiseGemmPipelineVersion()
     case PipelineVersion::V3: throw "PipelineVersion::V3 is used only for stream-K.";
     case PipelineVersion::V4: return ck_pipeline::v4;
     case PipelineVersion::V5: throw "PipelineVersion::V5 cannot be used for gridwise GEMM.";
+    case PipelineVersion::ASYNC_V1: throw "PipelineVersion::ASYNC can be used only for CK TILE.";
+    case PipelineVersion::ASYNC_V4: throw "PipelineVersion::ASYNC can be used only for CK TILE.";
+    case PipelineVersion::V6: throw "PipelineVersion::V6 can be used only for CK TILE.";
     case PipelineVersion::WEIGHT_ONLY: return ck_pipeline::weight_only;
     default: throw "Unknown GridwiseGemmPipelineVersion";
     }
@@ -137,6 +144,9 @@ consteval ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
     case PipelineVersion::V3: return ck_pipeline::v3;
     case PipelineVersion::V4: return ck_pipeline::v4;
     case PipelineVersion::V5: return ck_pipeline::v5;
+    case PipelineVersion::ASYNC_V1: throw "PipelineVersion::ASYNC can be used only for CK TILE.";
+    case PipelineVersion::ASYNC_V4: throw "PipelineVersion::ASYNC can be used only for CK TILE.";
+    case PipelineVersion::V6: throw "PipelineVersion::V6 is supported only for CK Tile.";
     case PipelineVersion::WEIGHT_ONLY:
         throw "PipelineVersion::WEIGHT_ONLY is not supported for block GEMM pipeline version.";
     default: throw "Unknown block GEMM PipelineVersion";
@@ -173,6 +183,26 @@ SetBwdWeightConvSpecialization()
     case ConvSpecialization::ODD_C: return ck_conv_spec::OddC;
     case ConvSpecialization::FILTER_3x3:
         throw "FILTER_3x3 is not supported for backward weight convolution.";
+    default: throw "Unsupported ConvSpecialization";
+    }
+}
+
+template <ConvAlgorithmDescriptor auto ALGORITHM>
+consteval ck::tensor_operation::device::ConvolutionBackwardDataSpecialization
+SetBwdDataConvSpecialization()
+{
+    constexpr auto specialization = ALGORITHM.bwd_data_specialization;
+    using ck_conv_spec = ck::tensor_operation::device::ConvolutionBackwardDataSpecialization;
+    switch(specialization)
+    {
+    case ConvSpecialization::DEFAULT: return ck_conv_spec::Default;
+    case ConvSpecialization::FILTER_1X1_PAD0:
+        throw "FILTER_1x1_PAD0 is not supported for backward data convolution.";
+    case ConvSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
+    case ConvSpecialization::ODD_C:
+        throw "FILTER ODD_C is not supported for backward data convolution.";
+    case ConvSpecialization::FILTER_3x3:
+        throw "FILTER_3x3 is not supported for backward data convolution.";
     default: throw "Unsupported ConvSpecialization";
     }
 }

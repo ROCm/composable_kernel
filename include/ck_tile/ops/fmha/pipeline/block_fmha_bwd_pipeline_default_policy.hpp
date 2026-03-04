@@ -8,6 +8,7 @@
 #include "ck_tile/ops/gemm/block/block_gemm_problem.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "ck_tile/ops/gemm/warp/warp_wmma_gemm_gfx11_utils.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1_custom_policy.hpp"
@@ -1692,8 +1693,10 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
             using AWarpDstr = typename WarpGemm::AWarpDstr;
             using CWarpDstr = typename WarpGemm::CWarpDstr;
-            auto pt_warp_tensor =
+            auto p_warp_tensor =
                 make_static_distributed_tensor<typename Problem::GemmDataType>(CWarpDstr{});
+            auto pt_warp_tensor =
+                make_static_distributed_tensor<typename Problem::GemmDataType>(AWarpDstr{});
 
             constexpr auto a_warp_y_lengths =
                 to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
@@ -1705,10 +1708,15 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                    pt_warp_tensor.get_thread_buffer() = p_in.get_y_sliced_thread_data(
+                    p_warp_tensor.get_thread_buffer() = p_in.get_y_sliced_thread_data(
                         merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
+#if defined(__gfx11__)
+                    PermuteWarpGemmCToA(pt_warp_tensor, p_warp_tensor);
+#else
+                    pt_warp_tensor.get_thread_buffer() = p_warp_tensor.get_thread_buffer();
+#endif
                     pt_out.set_y_sliced_thread_data(
                         merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
@@ -1742,8 +1750,10 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
             using AWarpDstr = typename WarpGemm::AWarpDstr;
             using CWarpDstr = typename WarpGemm::CWarpDstr;
-            auto dst_warp_tensor =
+            auto ds_warp_tensor =
                 make_static_distributed_tensor<typename Problem::GemmDataType>(CWarpDstr{});
+            auto dst_warp_tensor =
+                make_static_distributed_tensor<typename Problem::GemmDataType>(AWarpDstr{});
 
             constexpr auto a_warp_y_lengths =
                 to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
@@ -1755,10 +1765,15 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                    dst_warp_tensor.get_thread_buffer() = ds_in.get_y_sliced_thread_data(
+                    ds_warp_tensor.get_thread_buffer() = ds_in.get_y_sliced_thread_data(
                         merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
+#if defined(__gfx11__)
+                    PermuteWarpGemmCToA(dst_warp_tensor, ds_warp_tensor);
+#else
+                    dst_warp_tensor.get_thread_buffer() = ds_warp_tensor.get_thread_buffer();
+#endif
                     dst_out.set_y_sliced_thread_data(
                         merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),

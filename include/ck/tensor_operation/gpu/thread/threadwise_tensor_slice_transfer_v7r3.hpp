@@ -293,7 +293,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3
                 // convolution forward. For some reason for that specific type there is an ambiguity
                 // in the type resolution for the ternary expression. I added an explicit cast to
                 // disambiguate and only use it for f8 just in case it affects performance.
-                if constexpr(std::is_same_v<scalar_t, ck::f8_ocp_t>)
+                // TODO: Add same exception for ck::f8_fnuz_t?
+                if constexpr(is_same_v<scalar_t, ck::f8_ocp_t>)
                 {
                     elm_vectors(i).template AsType<elm_vector_t>()(I0) =
                         oob_val ? elm_vector_t{elm_vectors(i).template AsType<elm_vector_t>()[I0]}
@@ -656,8 +657,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3
             },
             Number<nDim>{});
 
-        constexpr auto up_dim_idss =
-            generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<nDim>{});
+        constexpr auto up_dim_idss = generate_identity_sequences<nDim>();
 
         return transform_tensor_descriptor(desc0, transforms, low_dim_idss, up_dim_idss);
     }
@@ -706,8 +706,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3
             },
             Number<nDim>{});
 
-        constexpr auto up_dim_idss =
-            generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<nDim>{});
+        constexpr auto up_dim_idss = generate_identity_sequences<nDim>();
 
         return transform_tensor_descriptor(desc0, transforms, low_dim_idss, up_dim_idss);
     }

@@ -5,7 +5,6 @@
 #define CK_STATICALLY_INDEXED_ARRAY_HPP
 
 #include "functional2.hpp"
-#include "sequence.hpp"
 #include "tuple.hpp"
 
 namespace ck {
@@ -20,6 +19,7 @@ struct tuple_concat<Tuple<Xs...>, Tuple<Ys...>>
     using type = Tuple<Xs..., Ys...>;
 };
 
+// StaticallyIndexedArrayImpl uses binary split for O(log N) depth
 template <typename T, index_t N>
 struct StaticallyIndexedArrayImpl
 {

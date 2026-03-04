@@ -509,6 +509,7 @@ struct GroupedConvolutionForwardKernel
     static constexpr auto I1 = number<1>();
     static constexpr auto I2 = number<2>();
     static constexpr auto I3 = number<3>();
+    static constexpr auto I5 = number<5>();
 
     static_assert(GemmPipeline::kPadM && GemmPipeline::kPadN && GemmPipeline::kPadK,
                   "Not supported!");
@@ -654,6 +655,14 @@ struct GroupedConvolutionForwardKernel
 
     CK_TILE_HOST static bool IsSupportedArgument(const GroupedConvFwdKernelArgsSpecialized& kargs)
     {
+        if constexpr(GemmPipeline_::Async)
+        {
+            if(get_device_name() != "gfx950")
+            {
+                return false;
+            }
+        }
+
         if constexpr((GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
                       is_any_of<OutDataType, fp16_t, bf16_t>::value) ||
                      !IsSplitKSupported)
@@ -736,14 +745,37 @@ struct GroupedConvolutionForwardKernel
         if constexpr(std::is_same_v<InLayout, ctc::NWGC> || std::is_same_v<InLayout, ctc::NHWGC> ||
                      std::is_same_v<InLayout, ctc::NDHWGC>)
         {
-            // Check access per C
-            if(ConvC % GroupedConvTraitsType_::VectorSizeA != 0)
+            // Check access for A tensor
+            if(ConvC % GroupedConvTraitsType_::VectorSizeA != 0 &&
+               GroupedConvTraitsType_::NumGroupsToMerge == 1)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
                     CK_TILE_ERROR("Conv C is not a multiple of vector load size for input image!");
                 }
                 return false;
+            }
+            else if(GroupedConvTraitsType_::NumGroupsToMerge > 1)
+            {
+                if(ConvC != 1)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("ConvC must be equal to 1 for NumGroupsToMerge > 1 to allow "
+                                      "vector reads on group dimension!");
+                    }
+                    return false;
+                }
+
+                const index_t ConvG = kargs.wei_g_k_c_xs_lengths[number<0>{}];
+                if(ConvG % GroupedConvTraitsType_::NumGroupsToMerge != 0)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR("ConvG must be a multiple of NumGroupsToMerge!");
+                    }
+                    return false;
+                }
             }
         }
         else
@@ -786,12 +818,30 @@ struct GroupedConvolutionForwardKernel
         {
             if(ConvK % GroupedConvTraitsType_::VectorSizeC != 0)
             {
-                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                // Try to read over G
+                if(GroupedConvTraitsType_::NumGroupsToMerge > 1)
                 {
-                    CK_TILE_ERROR(
-                        "Conv K is not a multiple of vector store size for output image!");
+                    const index_t ConvG = kargs.wei_g_k_c_xs_lengths[number<0>{}];
+                    if(ConvG % GroupedConvTraitsType_::NumGroupsToMerge != 0 ||
+                       ConvG % GroupedConvTraitsType_::VectorSizeC != 0)
+                    {
+                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                        {
+                            CK_TILE_ERROR("ConvG must be a multiple of NumGroupsToMerge to allow "
+                                          "writing over G dimension");
+                        }
+                        return false;
+                    }
                 }
-                return false;
+                else
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                    {
+                        CK_TILE_ERROR(
+                            "ConvK is not a multiple of vector store size for output image!");
+                    }
+                    return false;
+                }
             }
         }
         else
@@ -805,6 +855,18 @@ struct GroupedConvolutionForwardKernel
 
         if constexpr(GroupedConvTraitsType_::NumGroupsToMerge > 1)
         {
+            // currently group merging works only for C == 1 due to tensor transformation
+            // limitations
+            if(ConvC != 1)
+            {
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("ConvC must be equal to 1 for NumGroupsToMerge > 1 to allow "
+                                  "vector reads on group dimension!");
+                }
+                return false;
+            }
+
             const index_t ConvG = kargs.wei_g_k_c_xs_lengths[number<0>{}];
             if(ConvG % GroupedConvTraitsType_::NumGroupsToMerge != 0)
             {
@@ -1141,19 +1203,41 @@ struct GroupedConvolutionForwardKernel
             // allocate LDS
             __shared__ char smem_ptr[GetSmemSize()];
 
-            RunGemm(a_ptr,
-                    b_ptr,
-                    ds_ptr_with_offsets,
-                    c_ptr,
-                    smem_ptr,
-                    a_desc,
-                    b_desc,
-                    c_desc,
-                    kargs.GemmK,
-                    kargs.k_batch,
-                    i_m,
-                    i_n,
-                    kargs.elfunc);
+            // Disable Async for other archs than gfx950
+            if constexpr(GemmPipeline_::Async)
+            {
+#if defined(__gfx950__)
+                RunGemm(a_ptr,
+                        b_ptr,
+                        ds_ptr_with_offsets,
+                        c_ptr,
+                        smem_ptr,
+                        a_desc,
+                        b_desc,
+                        c_desc,
+                        kargs.GemmK,
+                        kargs.k_batch,
+                        i_m,
+                        i_n,
+                        kargs.elfunc);
+#endif
+            }
+            else
+            {
+                RunGemm(a_ptr,
+                        b_ptr,
+                        ds_ptr_with_offsets,
+                        c_ptr,
+                        smem_ptr,
+                        a_desc,
+                        b_desc,
+                        c_desc,
+                        kargs.GemmK,
+                        kargs.k_batch,
+                        i_m,
+                        i_n,
+                        kargs.elfunc);
+            }
         }
     }
 };

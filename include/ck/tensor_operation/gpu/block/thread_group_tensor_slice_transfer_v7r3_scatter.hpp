@@ -144,7 +144,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3_scatter
     }
 
     template <typename T>
-    using is_tuple = decltype(std::declval<T&>().IsTuple());
+    using is_tuple = decltype(declval<T&>().IsTuple());
 
     template <typename DstBuffers, index_t ThreadScratchId = 0>
     __device__ void RunWrite(const DstDescs& dst_descs,

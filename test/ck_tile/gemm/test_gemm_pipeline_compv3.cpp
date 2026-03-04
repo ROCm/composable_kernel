@@ -13,13 +13,8 @@ class TestCkTileGemmPipelineCompV3
     static constexpr bool check_data_type()
     {
         using Base = TestCkTileGemmPipeline<T, TestCkTileGemmPipelineCompV3<T>>;
-        if constexpr(std::is_same_v<typename Base::ADataType, F8> &&
-                     std::is_same_v<typename Base::BDataType, BF8>)
-        {
-            return false;
-        }
-        else if constexpr(std::is_same_v<typename Base::BLayout, Row> &&
-                          std::is_same_v<typename Base::BDataType, I4>)
+        if constexpr(std::is_same_v<typename Base::BLayout, Row> &&
+                     std::is_same_v<typename Base::BDataType, I4>)
         {
             return false;
         }

@@ -21,23 +21,28 @@ template <typename ADataType_,
           typename AQuantGroupSize_,
           typename BQuantGroupSize_,
           bool TransposeC_,
-          typename ComputeDataType_        = BDataType_,
+          typename ComputeDataType_        = void,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
-          TailNumber TailNum_              = TailNumber::Full>
-struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
-                                                                     BDataType_,
-                                                                     CDataType_,
-                                                                     BlockGemmShape_,
-                                                                     Traits_,
-                                                                     ComputeDataType_>
+          TailNumber TailNum_              = TailNumber::Full,
+          CastPolicy BCastPolicy_          = CastPolicy::AfterLDSRead>
+struct GemmQuantPipelineProblemBase
+    : public GemmPipelineProblemBase<
+          ADataType_,
+          BDataType_,
+          CDataType_,
+          BlockGemmShape_,
+          Traits_,
+          mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>
 {
-    using Base = GemmPipelineProblemBase<ADataType_,
-                                         BDataType_,
-                                         CDataType_,
-                                         BlockGemmShape_,
-                                         Traits_,
-                                         ComputeDataType_>;
+
+    using Base = GemmPipelineProblemBase<
+        ADataType_,
+        BDataType_,
+        CDataType_,
+        BlockGemmShape_,
+        Traits_,
+        mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>;
 
     using Traits = typename Base::Traits;
 
@@ -77,6 +82,20 @@ struct GemmQuantPipelineProblemBase : public GemmPipelineProblemBase<ADataType_,
     static constexpr auto Scheduler  = Scheduler_;
     static constexpr auto HasHotLoop = HasHotLoop_;
     static constexpr auto TailNum    = TailNum_;
+
+    // gfx950 supports load with transpose for 4bit types, so we can transpose
+    // pk_fp4_t from LDS in registers. But without this instruction,
+    // the transpose is done in register between Vmem read and LDS write and
+    // the implementation does not support 4 bit types
+#ifdef __gfx950__
+    static constexpr auto BCastPolicy = BCastPolicy_;
+#else
+    static constexpr auto BCastPolicy =
+        std::is_same_v<BDataType, pk_fp4_t> &&
+                std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>
+            ? CastPolicy::BeforeLDSWrite
+            : BCastPolicy_;
+#endif
 
     static_assert(BlockGemmShape::kM % AQuantGroupSize::kM == 0);
     static_assert(BlockGemmShape::kK % AQuantGroupSize::kK == 0);
@@ -120,7 +139,7 @@ template <typename ADataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          typename QuantGroupSize_,
+          typename AQuantGroupSize_,
           bool TransposeC_,
           typename ComputeDataType_        = BDataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
@@ -133,7 +152,7 @@ using GemmAQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                CDataType_,
                                                                BlockGemmShape_,
                                                                Traits_,
-                                                               QuantGroupSize_,
+                                                               AQuantGroupSize_,
                                                                void,
                                                                TransposeC_,
                                                                ComputeDataType_,
@@ -147,11 +166,12 @@ template <typename ADataType_,
           typename CDataType_,
           typename BlockGemmShape_,
           typename Traits_,
-          typename QuantGroupSize_,
+          typename BQuantGroupSize_,
           typename ComputeDataType_        = ADataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
-          TailNumber TailNum_              = TailNumber::Full>
+          TailNumber TailNum_              = TailNumber::Full,
+          CastPolicy BCastPolicy_          = CastPolicy::AfterLDSRead>
 using GemmBQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                void, // no AQDataType for BQuant
                                                                BDataType_,
@@ -160,12 +180,13 @@ using GemmBQuantPipelineProblem = GemmQuantPipelineProblemBase<ADataType_,
                                                                BlockGemmShape_,
                                                                Traits_,
                                                                void,
-                                                               QuantGroupSize_,
+                                                               BQuantGroupSize_,
                                                                false, // no TransposeC
                                                                ComputeDataType_,
                                                                Scheduler_,
                                                                HasHotLoop_,
-                                                               TailNum_>;
+                                                               TailNum_,
+                                                               BCastPolicy_>;
 
 template <typename ADataType_,
           typename AQDataType_,

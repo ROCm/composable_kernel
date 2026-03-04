@@ -5,11 +5,14 @@
 
 #include "testing_utils.hpp"
 
+namespace ckt = ck_tile::builder::test;
+
 using ck_tile::test::HipError;
 using ck_tile::test::HipSuccess;
 using ck_tile::test::InstanceMatcher;
 using ck_tile::test::InstanceSet;
 using ck_tile::test::StringEqWithDiff;
+using ck_tile::test::SuccessfulRun;
 
 TEST(InstanceSet, FromFactory)
 {
@@ -106,4 +109,18 @@ TEST(HipStatusMatcher, Basic)
     EXPECT_THAT(hipErrorInvalidValue, Not(HipSuccess()));
     EXPECT_THAT(hipSuccess, Not(HipError(hipErrorInvalidValue)));
     EXPECT_THAT(hipErrorOutOfMemory, Not(HipError(hipErrorInvalidValue)));
+}
+
+TEST(RunResultMatcher, Basic)
+{
+    EXPECT_THAT(ckt::RunResult::from_runtime(0), SuccessfulRun());
+    EXPECT_THAT(ckt::RunResult::not_supported("test error"), Not(SuccessfulRun()));
+}
+
+TEST(RunResultMatcher, ExplainMatchResult)
+{
+    testing::StringMatchResultListener listener;
+    EXPECT_TRUE(!ExplainMatchResult(
+        SuccessfulRun(), ckt::RunResult::not_supported("test error"), &listener));
+    EXPECT_THAT(listener.str(), StringEqWithDiff("run failed: test error"));
 }

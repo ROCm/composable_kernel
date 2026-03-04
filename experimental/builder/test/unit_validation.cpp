@@ -74,7 +74,8 @@ TYPED_TEST(ValidationReportTests, SingleCorrect)
     ckt::fill_tensor(desc, b.get(), generator);
 
     ckt::ValidationReport report;
-    report.check("correct", desc, b.get(), a.get());
+    report.check("correct - explicit tolerance", desc, b.get(), a.get());
+    report.check_by_accumulations("correct - implicit tolerance", desc, b.get(), a.get(), 0);
 
     EXPECT_THAT(report.get_errors().size(), Eq(0));
 }
@@ -97,17 +98,22 @@ TYPED_TEST(ValidationReportTests, SingleIncorrect)
     });
 
     ckt::ValidationReport report;
-    report.check("incorrect", desc, b.get(), a.get());
+    report.check("incorrect - explicit tolerance", desc, b.get(), a.get());
+    report.check_by_accumulations("incorrect - implicit tolerance", desc, b.get(), a.get(), 0);
 
     const auto errors = report.get_errors();
 
     const auto flat_size       = desc.get_element_size();
     const auto expected_errors = flat_size >= 999999 ? 3 : flat_size >= 12345 ? 2 : 1;
 
-    ASSERT_THAT(errors.size(), Eq(1));
-    EXPECT_THAT(errors[0].tensor_name, StrEq("incorrect"));
-    EXPECT_THAT(errors[0].wrong_elements, Eq(expected_errors));
-    EXPECT_THAT(errors[0].total_elements, Eq(desc.get_element_size()));
+    ASSERT_THAT(errors.size(), Eq(2));
+    EXPECT_THAT(errors[0].tensor_name, StrEq("incorrect - explicit tolerance"));
+    EXPECT_THAT(errors[1].tensor_name, StrEq("incorrect - implicit tolerance"));
+    for(int i = 0; i < 2; ++i)
+    {
+        EXPECT_THAT(errors[i].wrong_elements, Eq(expected_errors));
+        EXPECT_THAT(errors[i].total_elements, Eq(desc.get_element_size()));
+    }
 }
 
 TYPED_TEST(ValidationReportTests, ZeroIsIncorrect)
@@ -121,14 +127,20 @@ TYPED_TEST(ValidationReportTests, ZeroIsIncorrect)
     ckt::clear_tensor_buffer(desc, b.get());
 
     ckt::ValidationReport report;
-    report.check("zero_is_incorrect", desc, b.get(), a.get());
+    report.check("zero_is_incorrect - explicit tolerance", desc, b.get(), a.get());
+    report.check_by_accumulations(
+        "zero_is_incorrect - implicit tolerance", desc, b.get(), a.get(), 0);
 
     const auto errors = report.get_errors();
-    ASSERT_THAT(errors.size(), Eq(1));
-    EXPECT_THAT(errors[0].tensor_name, StrEq("zero_is_incorrect"));
-    EXPECT_THAT(errors[0].wrong_elements, Eq(0));
-    EXPECT_THAT(errors[0].total_elements, Eq(desc.get_element_size()));
-    EXPECT_THAT(errors[0].zero_elements, Eq(desc.get_element_size()));
+    ASSERT_THAT(errors.size(), Eq(2));
+    EXPECT_THAT(errors[0].tensor_name, StrEq("zero_is_incorrect - explicit tolerance"));
+    EXPECT_THAT(errors[1].tensor_name, StrEq("zero_is_incorrect - implicit tolerance"));
+    for(int i = 0; i < 2; ++i)
+    {
+        EXPECT_THAT(errors[i].wrong_elements, Eq(0));
+        EXPECT_THAT(errors[i].total_elements, Eq(desc.get_element_size()));
+        EXPECT_THAT(errors[i].both_all_zero, Eq(true));
+    }
 }
 
 TEST(ValidationReportTests, MultipleSomeIncorrect)
@@ -143,11 +155,12 @@ TEST(ValidationReportTests, MultipleSomeIncorrect)
         auto b = ckt::alloc_tensor_buffer(desc);
 
         ckt::fill_tensor_buffer(
-            desc, a.get(), [](size_t i) { return ck::type_convert<ck::bhalf_t>(i % 100); });
+            desc, a.get(), [](size_t i) { return ck::type_convert<ck::bhalf_t>(float(i % 100)); });
         ckt::fill_tensor_buffer(
-            desc, b.get(), [](size_t i) { return ck::type_convert<ck::bhalf_t>(i % 101); });
+            desc, b.get(), [](size_t i) { return ck::type_convert<ck::bhalf_t>(float(i % 101)); });
 
-        report.check("incorrect 1", desc, b.get(), a.get());
+        report.check("incorrect 1 - explicit tolerance", desc, b.get(), a.get());
+        report.check("incorrect 1 - implicit tolerance", desc, b.get(), a.get(), 0);
     }
 
     {
@@ -169,7 +182,8 @@ TEST(ValidationReportTests, MultipleSomeIncorrect)
             }
         });
 
-        report.check("correct", desc, b.get(), a.get());
+        report.check("correct - explicit tolerance", desc, b.get(), a.get());
+        report.check("correct - implicit tolerance", desc, b.get(), a.get(), 0);
     }
 
     {
@@ -182,16 +196,21 @@ TEST(ValidationReportTests, MultipleSomeIncorrect)
         ckt::fill_tensor_buffer(desc, a.get(), []([[maybe_unused]] size_t i) { return 1; });
         ckt::fill_tensor_buffer(desc, b.get(), []([[maybe_unused]] size_t i) { return 555; });
 
-        report.check("incorrect 2", desc, b.get(), a.get());
+        report.check("incorrect 2 - explicit tolerance", desc, b.get(), a.get());
+        report.check("incorrect 2 - implicit tolerance", desc, b.get(), a.get(), 0);
     }
 
     const auto errors = report.get_errors();
 
-    ASSERT_THAT(errors.size(), Eq(2));
-    EXPECT_THAT(errors[0].tensor_name, StrEq("incorrect 1"));
+    ASSERT_THAT(errors.size(), Eq(4));
+    EXPECT_THAT(errors[0].tensor_name, StrEq("incorrect 1 - explicit tolerance"));
     EXPECT_THAT(errors[0].wrong_elements, Eq(46840334));
-    EXPECT_THAT(errors[1].tensor_name, StrEq("incorrect 2"));
-    EXPECT_THAT(errors[1].wrong_elements, Eq(482800));
+    EXPECT_THAT(errors[1].tensor_name, StrEq("incorrect 1 - implicit tolerance"));
+    EXPECT_THAT(errors[1].wrong_elements, Eq(46840334));
+    EXPECT_THAT(errors[2].tensor_name, StrEq("incorrect 2 - explicit tolerance"));
+    EXPECT_THAT(errors[2].wrong_elements, Eq(482800));
+    EXPECT_THAT(errors[3].tensor_name, StrEq("incorrect 2 - implicit tolerance"));
+    EXPECT_THAT(errors[3].wrong_elements, Eq(482800));
 }
 
 // MatchesReference operates on the types defined in testing.hpp, so just
@@ -234,7 +253,7 @@ ValidationReport validate<DUMMY_SIGNATURE>(const Args<DUMMY_SIGNATURE>& args,
 {
     ValidationReport report;
     report.check("a", args.make_a_descriptor(), actual.a, expected.a);
-    report.check("b", args.make_b_descriptor(), actual.b, expected.b);
+    report.check_by_accumulations("b", args.make_b_descriptor(), actual.b, expected.b, 0);
     return report;
 }
 
@@ -296,5 +315,8 @@ TEST(MatchesReference, Incorrect)
     testing::StringMatchResultListener listener;
     EXPECT_TRUE(!ExplainMatchResult(MatchesReference(args, expected), actual, &listener));
 
-    EXPECT_THAT(listener.str(), StringEqWithDiff("1 tensors failed to validate"));
+    EXPECT_THAT(listener.str(),
+                StringEqWithDiff( //
+                    "1 tensors failed to validate\n"
+                    "    - a: 625/625 incorrect elements (~100%), max error 1"));
 }

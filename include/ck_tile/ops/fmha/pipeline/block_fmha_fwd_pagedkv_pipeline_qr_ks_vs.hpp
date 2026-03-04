@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_pagedkv_pipeline_qr_ks_vs_default_policy.hpp"
+#include "ck_tile/ops/gemm/warp/warp_wmma_gemm_gfx11_utils.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 namespace ck_tile {
@@ -274,16 +275,7 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                 {
                     auto lse =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
-
-                    if(__builtin_isinf_sign(sink_v) >= 0)
-                    {
-                        set_tile(lse, SMPLComputeDataType{sink_v * scale_s});
-                    }
-                    else
-                    {
-                        set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
-                    }
-
+                    set_tile(lse, SMPLComputeDataType{sink_v * scale_s});
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
 
@@ -675,8 +667,15 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
             i_page_block_v = v_page_block_navigator.move_tile_window(
                 i_page_block_v, v_dram_window, {0, kK1}, physical_next_block_id_v);
 
+#if defined(__gfx11__)
+            auto p = make_static_distributed_tensor<PDataType>(
+                decltype(gemm_1)::template MakeABlockTileDistribution<kM0, kN0>());
+            PermuteWarpGemmCToA(
+                p, cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute)));
+#else
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
+#endif
 
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)

@@ -166,7 +166,7 @@ int run_contiguous_grouped_flatmm_example_with_layouts(
     }
 
     ck_tile::index_t M =
-        std::reduce(Ms.begin(), Ms.begin() + group_count, 0, [](auto acc, auto group_m) {
+        std::accumulate(Ms.begin(), Ms.begin() + group_count, 0, [](auto acc, auto group_m) {
             // round up to the multiple of BlockM
             return acc + (group_m + BlockM - 1) / BlockM * BlockM;
         });

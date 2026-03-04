@@ -8,27 +8,28 @@
 #include <ostream>
 #endif
 
-#include "ck/utility/env.hpp"
-#include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
-#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_wave_tiles.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_wave_tiles_interleave.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_thread_tiles.hpp"
-#include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_thread_tiles_preshuffle.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_wmma_selector.hpp"
+#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_global.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r2.hpp"
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v7r3.hpp"
-#include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_global.hpp"
-#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
-#include "ck/tensor_operation/gpu/grid/epilogue_direct_store.hpp"
-#include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_wmma.hpp"
-#include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_welford_wmma.hpp"
+#include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 #include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_reduce_wmma.hpp"
+#include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_welford_wmma.hpp"
+#include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_wmma.hpp"
+#include "ck/tensor_operation/gpu/grid/epilogue_direct_store.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_thread_tiles.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_thread_tiles_preshuffle.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_wave_tiles.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_wave_tiles_interleave.hpp"
+#include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
+#include "ck/utility/common_header.hpp"
+#include "ck/utility/env.hpp"
 
 namespace ck {
 
@@ -344,6 +345,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
+    using GemmSpecialization = ck::tensor_operation::device::GemmSpecialization;
+
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<LDSTypeA>, pk_i4_t>)
             return 2;
@@ -362,23 +365,25 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         WmmaSelector<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma>::selected_wmma
             .wave_size;
 
-    // Limitations of the current implementation:
-    //  - no multiAB
-    //  - GemmSpecialization Default with transpose
-#ifdef __gfx12__
-    static constexpr bool IsAWaveTransferApplicable =
-        !ForceThreadTileTransfer && NumATensor == 1 && APackedSize == 1 &&
-        ((GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
-          !is_same_v<ALayout, tensor_layout::gemm::RowMajor>) ||
-         is_same_v<ALayout, tensor_layout::gemm::RowMajor>) &&
-        BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && AK1Value == 8 && !IsBPreShuffled;
+    __host__ __device__ static constexpr bool AWaveTransferApplicable()
+    {
+        return !ForceThreadTileTransfer && APackedSize == 1 &&
+               ABlockTransferSrcScalarPerVector == 8 && ABlockTransferDstScalarPerVector_AK1 == 8 &&
+               BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && AK1Value == 8 &&
+               !IsBPreShuffled;
+    }
 
-    static constexpr bool IsBWaveTransferApplicable =
-        !ForceThreadTileTransfer && NumBTensor == 1 && BPackedSize == 1 &&
-        ((GemmSpec == tensor_operation::device::GemmSpecialization::Default &&
-          !is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>) ||
-         is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>) &&
-        BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && BK1Value == 8;
+    __host__ __device__ static constexpr bool BWaveTransferApplicable()
+    {
+        return !ForceThreadTileTransfer && BPackedSize == 1 &&
+               BBlockTransferSrcScalarPerVector == 8 && BBlockTransferDstScalarPerVector_BK1 == 8 &&
+               BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 && BK1Value == 8;
+    }
+
+#ifdef __gfx12__
+    static constexpr bool IsAWaveTransferApplicable = AWaveTransferApplicable();
+
+    static constexpr bool IsBWaveTransferApplicable = BWaveTransferApplicable();
 
     static constexpr bool IsWaveTileInterleavedFitting =
         (NPerBlock / NPerWmma / NRepeat) * (KPerBlock / KPack) >= (BlockSize / WaveSize);
@@ -625,8 +630,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                    const std::array<index_t, NumATensor>& StrideAs,
                                    const index_t AK0)
     {
-        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
-        constexpr bool padM      = GemmSpec == GemmSpecialization::MKPadding ||
+        constexpr bool padM = GemmSpec == GemmSpecialization::MKPadding ||
                               GemmSpec == GemmSpecialization::MNKPadding ||
                               GemmSpec == GemmSpecialization::MPadding ||
                               GemmSpec == GemmSpecialization::MNPadding;
@@ -694,8 +698,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                    const std::array<index_t, NumBTensor>& StrideBs,
                                    const index_t BK0)
     {
-        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
-        constexpr bool padN      = GemmSpec == GemmSpecialization::NKPadding ||
+        constexpr bool padN = GemmSpec == GemmSpecialization::NKPadding ||
                               GemmSpec == GemmSpecialization::MNKPadding ||
                               GemmSpec == GemmSpecialization::NPadding ||
                               GemmSpec == GemmSpecialization::MNPadding;
@@ -792,7 +795,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         // TODO: Investigate why this path is not used in the original
         // gridwise_gemm_xdl_cshuffle_v3.hpp
 #if 0
-        using GemmSpecialization = tensor_operation::device::GemmSpecialization;
 
         if constexpr(GemmSpec == GemmSpecialization::MNPadding ||
                      GemmSpec == GemmSpecialization::MNKPadding)
@@ -982,6 +984,98 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         return de_grid_desc_mblock_mperblock_nblock_nperblock;
     }
 
+    // Conditions for Wave Transfer with transpose:
+    // - 16 bit type: K % 8 == 0 (4 subtiles of 8x8)
+    // - 8 bit type: K % 8 == 0 and M % 16 == 0 (2 subtiles of 8x16)
+    __host__ static constexpr bool CheckValidityAWaveTransfer(const index_t& M, const index_t& K)
+    {
+        if constexpr(AWaveTransferApplicable() &&
+                     !(is_same<tensor_layout::gemm::RowMajor, ALayout>::value))
+        {
+            if(!(K % ABlockTransferDstScalarPerVector_AK1 == 0))
+            {
+                return false;
+            }
+            bool pass = true;
+            static_for<0, NumATensor, 1>{}([&](auto i) {
+                using ADataType_ = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
+                pass &= !(sizeof(ADataType_) == 1 &&
+                          !(M % (2 * ABlockTransferSrcScalarPerVector) == 0));
+            });
+            return pass;
+        }
+        else
+        {
+            return true;
+        }
+    }
+
+    __host__ static constexpr bool CheckValidityBWaveTransfer(const index_t& N, const index_t& K)
+    {
+        if constexpr(BWaveTransferApplicable() &&
+                     !(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value))
+        {
+            if(!(K % BBlockTransferDstScalarPerVector_BK1 == 0))
+            {
+                return false;
+            }
+            bool pass = true;
+            static_for<0, NumBTensor, 1>{}([&](auto i) {
+                using BDataType_ = remove_cvref_t<tuple_element_t<i.value, BsDataType>>;
+                pass &= !(sizeof(BDataType_) == 1 &&
+                          !(N % (2 * BBlockTransferSrcScalarPerVector) == 0));
+            });
+            return pass;
+        }
+        else
+        {
+            return true;
+        }
+    }
+
+    __host__ __device__ static constexpr bool
+    CheckValidity(const index_t M,
+                  const index_t N,
+                  const index_t K,
+                  const index_t StrideA,
+                  const index_t StrideB,
+                  const std::array<index_t, NumDTensor> StrideDs,
+                  const index_t StrideE,
+                  const index_t KBatch)
+    {
+
+        ignore              = StrideDs;
+        const auto M_padded = CalculateMPadded(M);
+        const auto N_padded = CalculateMPadded(N);
+        const auto K_padded = CalculateKPadded(K, KBatch);
+
+        const auto e_grid_desc_m_n =
+            MakeDEGridDescriptor_M_N<ELayout>(M, M_padded, N, N_padded, StrideE);
+
+        const index_t AK0 = CalculateAK0Padded(K, KBatch);
+        const index_t BK0 = CalculateBK0Padded(K, KBatch);
+
+        const auto a_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
+            M, M_padded, K, K_padded, std::array<index_t, 1>{StrideA}, AK0);
+
+        const auto b_grid_desc_bk0_n_bk1 = MakeBsGridDescriptor_BK0_N_BK1(
+            K, K_padded, N, N_padded, std::array<index_t, 1>{StrideB}, BK0);
+
+        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+
+        const auto& a_desc = a_grid_desc_ak0_m_ak1.At(I0);
+        const auto& b_desc = b_grid_desc_bk0_n_bk1.At(I0);
+
+        if(!(a_desc.GetElementSpaceSize() * sizeof(LDSTypeA) <= TwoGB &&
+             b_desc.GetElementSpaceSize() * sizeof(LDSTypeB) <= TwoGB &&
+             e_grid_desc_m_n.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Argument>
     __host__ static constexpr bool CheckValidity(const Argument& karg,
@@ -1038,9 +1132,11 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
-                    std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! K: "
-                              << karg.K << " " << __FILE__ << ":" << __LINE__
-                              << ", in function: " << __func__ << std::endl;
+                    std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! "
+                                 "K_Batch:"
+                              << karg.KBatch << " " << "K0PerBlock:" << KPerBlock << " "
+                              << "K1:" << AK1Number << " " << "K:" << karg.K << " " << __FILE__
+                              << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
                 }
                 return false;
             }
@@ -1266,19 +1362,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         }
     }
 
-    template <index_t numElements, typename Type>
-    __device__ __forceinline__ static auto get_first_element_workaround(Type& array)
-    {
-        if constexpr(numElements > 1)
-        {
-            return array;
-        }
-        else
-        {
-            return array[I0];
-        }
-    }
-
     // Note: arguments k_batch and k_id should be set if splitk is used
     // with implicit gemm (no pointer shift but shift using tensor descriptors)
     template <typename AGridDesc_AK0_M_K1,
@@ -1382,16 +1465,16 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             ATransfer::GetKDimension(as_grid_desc_ak0_m_ak1[I0]) / (KPerBlock * k_batch));
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
-            get_first_element_workaround<NumATensor>(as_grid_desc_ak0_m_ak1),
+            ATransfer::template get_first_element_workaround<NumATensor>(as_grid_desc_ak0_m_ak1),
             a_block_desc_ak0_m_ak1,
             a_blockwise_copy,
-            get_first_element_workaround<NumATensor>(as_grid_buf),
+            ATransfer::template get_first_element_workaround<NumATensor>(as_grid_buf),
             a_block_buf,
             a_block_slice_copy_step,
-            get_first_element_workaround<NumBTensor>(bs_grid_desc_bk0_n_bk1),
+            BTransfer::template get_first_element_workaround<NumBTensor>(bs_grid_desc_bk0_n_bk1),
             b_block_desc_bk0_n_bk1,
             b_blockwise_copy,
-            get_first_element_workaround<NumBTensor>(bs_grid_buf),
+            BTransfer::template get_first_element_workaround<NumBTensor>(bs_grid_buf),
             b_block_buf,
             b_block_slice_copy_step,
             c_thread_buf,

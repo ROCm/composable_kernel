@@ -4,15 +4,14 @@
 #include "run_gemm_quant_example.inc"
 
 template <typename T>
-using GemmConfig = GemmConfigQuantDecode<T>;
+using GemmConfig = GemmConfigQuantDecodeInterwave<T>;
 
 // GemmConfigQuantPrefill is also supported for aquant grouped quantization
 // template <typename T>
 // using GemmConfig = GemmConfigQuantPrefill<T>;
 
-void aquant_quantgrouped_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
-{
+static auto _ = []() {
+    auto& lut            = get_kernel_lut();
     using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
     lut[hash_multiple_strings(
         {"fp8", "aquant", "non-preshufflequant", "1x1x128"})] = [](const ck_tile::ArgParser&
@@ -56,4 +55,5 @@ void aquant_quantgrouped_instance_factory(
                                               QuantGroupSize,
                                               ck_tile::QuantType::AQuantGrouped>(arg_parser);
         };
-}
+    return 0;
+}();

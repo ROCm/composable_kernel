@@ -161,6 +161,23 @@ struct HipStatusMatcher : public ::testing::MatcherInterface<hipError_t>
 /// @param error The error to expect.
 ::testing::Matcher<hipError_t> HipError(hipError_t error);
 
+/// @brief RunResult matcher
+///
+/// `ckt::run` returns a RunResult which indicates whether there was any
+/// problem while running the algorithm. This matcher is used to match those
+/// values.
+struct RunResultMatcher : public ::testing::MatcherInterface<builder::test::RunResult>
+{
+    bool MatchAndExplain(builder::test::RunResult actual,
+                         ::testing::MatchResultListener* listener) const override;
+    void DescribeTo(std::ostream* os) const override;
+    void DescribeNegationTo(std::ostream* os) const override;
+};
+
+/// @brief Construct a Google Test matcher that checks that a ckt::run result
+/// was successful.
+::testing::Matcher<builder::test::RunResult> SuccessfulRun();
+
 template <auto SIGNATURE>
 struct ReferenceOutputMatcher
     : public ::testing::MatcherInterface<builder::test::Outputs<SIGNATURE>>
@@ -180,6 +197,22 @@ struct ReferenceOutputMatcher
         if(listener->IsInterested() && !errors.empty())
         {
             *listener << errors.size() << " tensors failed to validate";
+
+            for(const auto& e : errors)
+            {
+                *listener << "\n    - " << e.tensor_name << ": ";
+
+                if(e.is_all_zero())
+                    *listener << "all elements in actual and expected tensors are zero";
+                else
+                {
+                    // Round to 2 digits
+                    const float percentage = e.wrong_elements * 10000 / e.total_elements / 100.f;
+                    *listener << e.wrong_elements << "/" << e.total_elements
+                              << " incorrect elements (~" << percentage << "%)," << " max error "
+                              << e.max_error;
+                }
+            }
         }
 
         return errors.empty();

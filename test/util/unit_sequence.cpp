@@ -229,6 +229,32 @@ TEST(SequenceGen, UniformSequenceZeroSize)
     EXPECT_TRUE((is_same<Result, Expected>::value));
 }
 
+TEST(SequenceGen, UniformSequenceSingleElement)
+{
+    using Result   = typename uniform_sequence_gen<1, 99>::type;
+    using Expected = Sequence<99>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
+TEST(SequenceGen, UniformSequenceDifferentValues)
+{
+    using Result1   = typename uniform_sequence_gen<3, 0>::type;
+    using Expected1 = Sequence<0, 0, 0>;
+    EXPECT_TRUE((is_same<Result1, Expected1>::value));
+
+    using Result2   = typename uniform_sequence_gen<4, -5>::type;
+    using Expected2 = Sequence<-5, -5, -5, -5>;
+    EXPECT_TRUE((is_same<Result2, Expected2>::value));
+}
+
+TEST(SequenceGen, UniformSequenceLargeSize)
+{
+    // Test with larger size to verify __make_integer_seq implementation
+    using Result   = typename uniform_sequence_gen<16, 7>::type;
+    using Expected = Sequence<7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
 // Test make_index_sequence
 TEST(SequenceGen, MakeIndexSequence)
 {
@@ -241,6 +267,54 @@ TEST(SequenceGen, MakeIndexSequenceZero)
 {
     using Result   = make_index_sequence<0>;
     using Expected = Sequence<>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
+// Test sequence_gen with custom functors
+TEST(SequenceGen, SequenceGenWithDoubleFunctor)
+{
+    struct DoubleFunctor
+    {
+        __host__ __device__ constexpr index_t operator()(index_t i) const { return i * 2; }
+    };
+    using Result   = typename sequence_gen<5, DoubleFunctor>::type;
+    using Expected = Sequence<0, 2, 4, 6, 8>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
+TEST(SequenceGen, SequenceGenWithSquareFunctor)
+{
+    struct SquareFunctor
+    {
+        __host__ __device__ constexpr index_t operator()(index_t i) const { return i * i; }
+    };
+    using Result   = typename sequence_gen<5, SquareFunctor>::type;
+    using Expected = Sequence<0, 1, 4, 9, 16>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
+TEST(SequenceGen, SequenceGenZeroSize)
+{
+    struct IdentityFunctor
+    {
+        __host__ __device__ constexpr index_t operator()(index_t i) const { return i; }
+    };
+    using Result   = typename sequence_gen<0, IdentityFunctor>::type;
+    using Expected = Sequence<>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+    // Also verify non-zero size works with identity
+    using Result5 = typename sequence_gen<5, IdentityFunctor>::type;
+    EXPECT_TRUE((is_same<Result5, Sequence<0, 1, 2, 3, 4>>::value));
+}
+
+TEST(SequenceGen, SequenceGenSingleElement)
+{
+    struct ConstantFunctor
+    {
+        __host__ __device__ constexpr index_t operator()(index_t) const { return 42; }
+    };
+    using Result   = typename sequence_gen<1, ConstantFunctor>::type;
+    using Expected = Sequence<42>;
     EXPECT_TRUE((is_same<Result, Expected>::value));
 }
 
@@ -269,6 +343,66 @@ TEST(SequenceMerge, MergeSingleSequence)
     using Seq      = Sequence<1, 2, 3>;
     using Result   = typename sequence_merge<Seq>::type;
     using Expected = Sequence<1, 2, 3>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
+TEST(SequenceMerge, MergeFourSequences)
+{
+    // Test the 4-sequence specialization
+    using Seq1     = Sequence<1>;
+    using Seq2     = Sequence<2, 3>;
+    using Seq3     = Sequence<4, 5, 6>;
+    using Seq4     = Sequence<7, 8>;
+    using Result   = typename sequence_merge<Seq1, Seq2, Seq3, Seq4>::type;
+    using Expected = Sequence<1, 2, 3, 4, 5, 6, 7, 8>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
+TEST(SequenceMerge, MergeFiveSequences)
+{
+    // Test the binary tree reduction path (5+ sequences)
+    using Seq1     = Sequence<1>;
+    using Seq2     = Sequence<2>;
+    using Seq3     = Sequence<3>;
+    using Seq4     = Sequence<4>;
+    using Seq5     = Sequence<5>;
+    using Result   = typename sequence_merge<Seq1, Seq2, Seq3, Seq4, Seq5>::type;
+    using Expected = Sequence<1, 2, 3, 4, 5>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
+TEST(SequenceMerge, MergeManySequences)
+{
+    // Test with many sequences to stress the binary tree reduction
+    using Seq1     = Sequence<1>;
+    using Seq2     = Sequence<2>;
+    using Seq3     = Sequence<3, 4>;
+    using Seq4     = Sequence<5>;
+    using Seq5     = Sequence<6, 7>;
+    using Seq6     = Sequence<8>;
+    using Seq7     = Sequence<9, 10>;
+    using Seq8     = Sequence<11, 12>;
+    using Result   = typename sequence_merge<Seq1, Seq2, Seq3, Seq4, Seq5, Seq6, Seq7, Seq8>::type;
+    using Expected = Sequence<1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
+TEST(SequenceMerge, MergeEmptySequences)
+{
+    // Test merging empty sequences
+    using Seq1     = Sequence<>;
+    using Seq2     = Sequence<1, 2>;
+    using Seq3     = Sequence<>;
+    using Result   = typename sequence_merge<Seq1, Seq2, Seq3>::type;
+    using Expected = Sequence<1, 2>;
+    EXPECT_TRUE((is_same<Result, Expected>::value));
+}
+
+TEST(SequenceMerge, MergeZeroSequences)
+{
+    // Test the empty specialization
+    using Result   = typename sequence_merge<>::type;
+    using Expected = Sequence<>;
     EXPECT_TRUE((is_same<Result, Expected>::value));
 }
 

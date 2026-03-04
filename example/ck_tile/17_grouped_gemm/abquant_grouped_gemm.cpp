@@ -59,7 +59,8 @@ float grouped_gemm_abquant(const std::vector<grouped_gemm_kargs>& gemm_descs,
     using GemmUniversalTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
                                                              GemmConfig::kPadN,
                                                              GemmConfig::kPadK,
-                                                             false, // PreshuffleQuant
+                                                             false, // APreshuffleQuant
+                                                             false, // BPreshuffleQuant
                                                              GemmConfig::PreshuffleB,
                                                              ALayout,
                                                              BLayout,
@@ -74,8 +75,8 @@ float grouped_gemm_abquant(const std::vector<grouped_gemm_kargs>& gemm_descs,
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
 
     using BaseGemmPipeline =
-        GemmQuantConfig<QuantMode>::template BaseGemmPipeline<GemmPipelineProblem,
-                                                              GemmConfig::PreshuffleB>;
+        typename GemmQuantConfig<QuantMode>::template BaseGemmPipeline<GemmPipelineProblem,
+                                                                       GemmConfig::PreshuffleB>;
 
     const ck_tile::index_t k_grain = gemm_descs[0].k_batch * GemmConfig::K_Tile;
     const ck_tile::index_t K_split = (gemm_descs[0].K + k_grain - 1) / k_grain * GemmConfig::K_Tile;
@@ -107,8 +108,8 @@ float grouped_gemm_abquant(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                                                      tail_number_v>;
 
         using GemmPipeline =
-            GemmQuantConfig<QuantMode>::template GemmPipeline<QuantGemmProblem,
-                                                              GemmConfig::PreshuffleB>;
+            typename GemmQuantConfig<QuantMode>::template GemmPipeline<QuantGemmProblem,
+                                                                       GemmConfig::PreshuffleB>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -202,7 +203,8 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
     using GemmUniversalTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
                                                              GemmConfig::kPadN,
                                                              GemmConfig::kPadK,
-                                                             false, // PreshuffleQuant
+                                                             false, // APreshuffleQuant
+                                                             false, // BPreshuffleQuant
                                                              GemmConfig::PreshuffleB,
                                                              ALayout,
                                                              BLayout,
@@ -225,8 +227,9 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                                  BQuantGroupSize,
                                                                  GemmConfig::TransposeC>;
 
-    using GemmPipeline = GemmQuantConfig<QuantMode>::template GemmPipeline<QuantGemmProblem,
-                                                                           GemmConfig::PreshuffleB>;
+    using GemmPipeline =
+        typename GemmQuantConfig<QuantMode>::template GemmPipeline<QuantGemmProblem,
+                                                                   GemmConfig::PreshuffleB>;
 
     using GemmEpilogue = ck_tile::CShuffleEpilogue<
         ck_tile::CShuffleEpilogueProblem<ADataType,

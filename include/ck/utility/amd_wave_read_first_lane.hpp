@@ -44,7 +44,8 @@ struct get_carrier<3>
 
         // replacement of host std::copy_n()
         template <typename InputIterator, typename Size, typename OutputIterator>
-        __device__ static OutputIterator copy_n(InputIterator from, Size size, OutputIterator to)
+        __device__ static OutputIterator
+        copy_n(InputIterator from, Size size, [[clang::lifetimebound]] OutputIterator to)
         {
             if(0 < size)
             {

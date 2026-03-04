@@ -103,6 +103,7 @@ dispatcher/**/dispatcher_kernels.json
 test_data/*
 !test_data/*.py
 !test_data/*.sh
+!test_data/requirements.txt
 
 # Exceptions to build* patterns above
 # The experimental/builder directory should be tracked despite matching build*

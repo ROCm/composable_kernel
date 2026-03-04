@@ -24,6 +24,7 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
 
 using I8   = int8_t;
 using F16  = ck::half_t;
@@ -131,39 +132,34 @@ bool profile_grouped_conv_fwd_scaleadd_ab_impl(int do_verification,
     wei_device_buf.ToDevice(weight.mData.data());
     wei_bias_device_buf.ToDevice(weight_bias.mData.data());
 
-    // Run reference op
+    // Run GPU reference
     if(do_verification)
     {
-        const std::array<ck::Tensor<InDataType>, NumAs - 1> elementwise_a_tensors  = {input_bias};
-        const std::array<ck::Tensor<WeiDataType>, NumBs - 1> elementwise_b_tensors = {weight_bias};
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
-                                                                     InDataType,
-                                                                     WeiDataType,
-                                                                     OutDataType,
-                                                                     InElementOp,
-                                                                     WeiElementOp,
-                                                                     OutElementOp,
-                                                                     NumAs - 1,
-                                                                     NumBs - 1>();
+        std::array<const InDataType*, 2> in_ptrs = {
+            reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<const InDataType*>(in_bias_device_buf.GetDeviceBuffer())};
+        std::array<const WeiDataType*, 2> wei_ptrs = {
+            reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<const WeiDataType*>(wei_bias_device_buf.GetDeviceBuffer())};
+        std::array<const OutDataType*, 0> d_ptrs          = {};
+        std::array<std::vector<ck::index_t>, 0> d_lengths = {};
+        std::array<std::vector<ck::index_t>, 0> d_strides = {};
 
-        auto ref_invoker  = ref_conv.MakeInvoker();
-        auto ref_argument = ref_conv.MakeArgument(input,
-                                                  weight,
-                                                  host_output,
-                                                  conv_param.conv_filter_strides_,
-                                                  conv_param.conv_filter_dilations_,
-                                                  conv_param.input_left_pads_,
-                                                  conv_param.input_right_pads_,
-                                                  in_element_op,
-                                                  wei_element_op,
-                                                  out_element_op,
-                                                  elementwise_a_tensors,
-                                                  elementwise_b_tensors);
+        ck::ref::naive_conv_fwd_multi_abd<1, 1, 0, InLayout, WeiLayout, OutLayout>(
+            in_ptrs,
+            wei_ptrs,
+            d_ptrs,
+            reinterpret_cast<OutDataType*>(out_device_buf.GetDeviceBuffer()),
+            conv_param,
+            d_lengths,
+            d_strides,
+            in_element_op,
+            wei_element_op,
+            out_element_op);
 
-        // init host output to zero
-        host_output.SetZero();
+        HIP_CHECK_ERROR(hipDeviceSynchronize());
 
-        ref_invoker.Run(ref_argument);
+        out_device_buf.FromDevice(host_output.mData.data());
     }
 
     std::string best_op_name;

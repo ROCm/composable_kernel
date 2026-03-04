@@ -50,10 +50,8 @@ if ! python3 -c "import torch" 2>/dev/null; then
     
     # Install PyTorch in virtual environment with ROCm support
     echo "Installing PyTorch and torchvision with ROCm support in virtual environment..."
-    # Since we're in a ROCm 6.4.1 environment, we need compatible PyTorch
-    # PyTorch doesn't have 6.4 wheels yet, so we use 6.2 which should be compatible
-    echo "Installing PyTorch with ROCm 6.2 support (compatible with ROCm 6.4)..."
-    pip install torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/rocm6.2 || {
+    echo "Installing PyTorch with ROCm 7.1 support..."
+    pip install -r requirements.txt || {
         echo "ERROR: Failed to install PyTorch with ROCm support."
         echo "Creating empty CSV files as fallback..."
         echo "# 2D Convolution Test Cases" > conv_test_set_2d_dataset.csv

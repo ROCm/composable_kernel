@@ -22,21 +22,21 @@ repos:
     hooks:
     -   id: copyright-header-checker
         name: Check copyright headers
-        entry: script/check_copyright_year.sh
+        entry: projects/composablekernel/script/check_copyright_year.sh
         verbose: false
         language: script
         types_or: [c++, python, shell, cmake]
     -   id: remove-exec-bit
         name: Remove executable bit from non-executable files
-        entry: script/remove_exec_bit.sh
+        entry: projects/composablekernel/script/remove_exec_bit.sh
         language: script
         types_or: [c++, text]
         verbose: true
     -   id: remod-ck-tile
         name: Run ck_tile remod.py
-        entry: python script/remod_for_ck_tile.py
+        entry: python projects/composablekernel/script/remod_for_ck_tile.py
         language: python
-        files: '^(include|example)/ck_tile/.*$'
+        files: '^projects/composablekernel/(include|example)/ck_tile/.*$'
         additional_dependencies:
         - dos2unix
         - clang-format==18.1.3

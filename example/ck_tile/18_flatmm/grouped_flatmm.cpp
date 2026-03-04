@@ -8,6 +8,7 @@
 #include <ostream>
 #include <string>
 #include <tuple>
+#include <numeric>
 
 #include "flatmm_basic.hpp"
 

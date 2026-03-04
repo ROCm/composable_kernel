@@ -83,7 +83,7 @@ class GPUVerificationTest : public ::testing::Test
 
         // Use test fixture's RNG (rng_) for reproducibility
         // RNG is seeded in SetUp() with fixed seed or CK_TEST_SEED environment variable
-        if constexpr(std::is_integral<T>::value)
+        if constexpr(std::is_integral_v<T> && !std::is_same_v<T, ck::bhalf_t>)
         {
             std::uniform_int_distribution<int> dis(static_cast<int>(min_val),
                                                    static_cast<int>(max_val));

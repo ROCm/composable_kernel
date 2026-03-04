@@ -51,7 +51,7 @@ get_tuple_element_data_reference(const TupleElementKeyData<Key, Data>& x)
 // for write access of tuple element
 template <typename Key, typename Data>
 __host__ __device__ constexpr Data&
-get_tuple_element_data_reference(TupleElementKeyData<Key, Data>& x)
+get_tuple_element_data_reference([[clang::lifetimebound]] TupleElementKeyData<Key, Data>& x)
 {
     return x.mData;
 }
@@ -106,6 +106,7 @@ struct TupleImpl<Sequence<Is...>, Xs...> : TupleElementKeyData<TupleElementKey<I
 
     template <index_t I>
     __host__ __device__ constexpr auto& GetElementDataByKey(TupleElementKey<I>)
+        [[clang::lifetimebound]]
     {
         return get_tuple_element_data_reference<TupleElementKey<I>>(*this);
     }
@@ -147,7 +148,7 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
 
     // write access
     template <index_t I>
-    __host__ __device__ constexpr auto& At(Number<I>)
+    __host__ __device__ constexpr auto& At(Number<I>) [[clang::lifetimebound]]
     {
         static_assert(I < base::Size(), "wrong! out of range");
         return base::GetElementDataByKey(detail::TupleElementKey<I>{});
@@ -162,7 +163,7 @@ struct Tuple : detail::TupleImpl<typename arithmetic_sequence_gen<0, sizeof...(X
 
     // write access
     template <index_t I>
-    __host__ __device__ constexpr auto& operator()(Number<I> i)
+    __host__ __device__ constexpr auto& operator()(Number<I> i) [[clang::lifetimebound]]
     {
         return At(i);
     }

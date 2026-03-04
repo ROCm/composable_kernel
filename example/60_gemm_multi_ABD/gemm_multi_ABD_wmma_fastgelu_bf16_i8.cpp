@@ -94,11 +94,11 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleABD_Wmm
     8,
     8,
     0,
-    S<8, 32, 1>,
+    S<8, 16, 1>,
     S<0, 2, 1>,
     S<0, 2, 1>,
     1,
-    1,
+    8,
     8,
     0,
     1,
@@ -106,7 +106,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleABD_Wmm
     S<1, 32, 1, 8>,
     S<8, 8, 8>,
     ck::BlockGemmPipelineScheduler::Intrawave,
-    ck::BlockGemmPipelineVersion::v3>;
+    ck::BlockGemmPipelineVersion::v1>;
 
 int main(int argc, char* argv[])
 {
@@ -133,7 +133,7 @@ int main(int argc, char* argv[])
         init_method     = std::stoi(argv[2]);
         time_kernel     = std::stoi(argv[3]);
     }
-    else if(argc == 11)
+    else if(argc == 10)
     {
         do_verification = std::stoi(argv[1]);
         init_method     = std::stoi(argv[2]);
@@ -169,6 +169,28 @@ int main(int argc, char* argv[])
                 return HostTensorDescriptor({row, col}, {1_uz, stride}, Bypass{});
             }
         };
+
+    auto f_get_default_stride =
+        [](std::size_t row, std::size_t col, ck::index_t stride, auto layout) {
+            if(stride == -1 || stride == 0)
+            {
+                // give a chance if stride is -1, return a default packed stride
+                if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
+                {
+                    return static_cast<std::size_t>(col);
+                }
+                else
+                {
+                    return static_cast<std::size_t>(row);
+                }
+            }
+            else
+                return static_cast<std::size_t>(stride);
+        };
+
+    StrideA = f_get_default_stride(M, K, StrideA, A0Layout{});
+    StrideB = f_get_default_stride(K, N, StrideB, B0Layout{});
+    StrideE = f_get_default_stride(M, N, StrideE, ELayout{});
 
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, A0Layout{}));
     Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));

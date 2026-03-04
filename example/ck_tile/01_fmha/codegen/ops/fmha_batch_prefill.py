@@ -630,6 +630,7 @@ class KernelComponentFactory:
         if dtype in ["fp16", "bf16"]:
             return {
                 128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+                256 : [FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
             }  # fmt: skip
         elif dtype in ["fp8bf16"]:
             return {
@@ -676,7 +677,7 @@ class KernelComponentFactory:
                 kv_lookup_table,
             ) in itertools.product(
                 ["t", "f"],
-                ["pertensor"],
+                ["pertensor", "kv_blockscale"],
                 get_mask_map(mask_impl).keys(),
                 ["no"],
                 SUPPORTED_KV_MEMORY_LAYOUT,
@@ -738,6 +739,10 @@ def get_fwd_blobs(
                 # Generate kernels for both page_size=16 and page_size=1024
                 for page_size in SUPPORTED_PAGE_SIZE:
                     if page_size == 1 and pipeline.F_kv_memory_layout != "linear":
+                        continue
+                    # kv_blockscale requires page_size >= kN0 (tile.F_bn0)
+                    # This ensures all tokens in a main loop iteration belong to the same page
+                    if pipeline.F_qscale == "kv_blockscale" and page_size < tile.F_bn0:
                         continue
                     k = FmhaFwdKernel(
                         F_idx=0,
@@ -840,5 +845,5 @@ def list_blobs(
     with file_path.open("a") as f:
         _, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
         for kernel in kernels:
-            f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME) + "\n")
+            f.write((file_path.parent / GEN_DIR / kernel.filename).as_posix() + "\n")
+        f.write((file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME).as_posix() + "\n")

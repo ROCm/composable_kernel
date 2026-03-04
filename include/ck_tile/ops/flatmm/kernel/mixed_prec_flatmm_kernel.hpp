@@ -54,7 +54,7 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "mixed_prec_gemm", gemm_prec_str<ADataType, BDataType>, FlatmmPipeline::GetName());
+        return concat('_', "mixed_prec_gemm", gemm_prec_str<ADataType, BDataType>(), FlatmmPipeline::GetName());
         // clang-format on
     }
 

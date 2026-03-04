@@ -35,12 +35,19 @@ else()
     set(CMAKE_INSTALL_PREFIX "C:/dist/TheRock" CACHE PATH "")
 endif()
 
+# Enable ASAN  when THEROCK_SANITIZER is set to ASAN or HOST_ASAN
+if(THEROCK_SANITIZER STREQUAL "ASAN" OR THEROCK_SANITIZER STREQUAL "HOST_ASAN")
+  set(ENABLE_ASAN_PACKAGING ON)
+  message(STATUS "Enabling ASAN for Composable Kernel (THEROCK_SANITIZER=${THEROCK_SANITIZER})")
+endif()
+
 set(version 1.2.0)
 project(composable_kernel VERSION ${version} LANGUAGES CXX)
 include(CTest)
 
 option(ENABLE_CLANG_CPP_CHECKS "Enables clang tidy, cppcheck" ON)
 option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
+option(HIPTENSOR_REQ_LIBS_ONLY "Build only the HipTensor required libraries" OFF)
 option(CK_EXPERIMENTAL_BUILDER "Enable experimental builder" OFF)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 option(FORCE_DISABLE_XDL "Skip compiling XDL specific instances (even if supported GPUs are included in GPU_TARGETS)" OFF)
@@ -123,6 +130,9 @@ add_compile_options(-Wno-bit-int-extension)
 add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 add_compile_options(-Wno-unique-object-duplication)
+
+# Increase the number of max elements in fold expressions
+add_compile_options(-fbracket-depth=1024)
 
 # add -Og -gdwarf64 for debug builds
 add_compile_options(
@@ -207,24 +217,24 @@ message(STATUS "hip_version_flat=${hip_VERSION_FLAT}")
 
 message(STATUS "checking which targets are supported")
 #In order to build just the CK library (without tests and examples) for all supported GPU targets
-#use -D GPU_ARCHS="gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201"
+#use -D GPU_ARCHS="gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1103;gfx1200;gfx1201"
 #the GPU_TARGETS flag will be reset in this case in order to avoid conflicts.
 #
 #In order to build CK along with all tests and examples it should be OK to set GPU_TARGETS to just 1 or 2 similar architectures.
 if(NOT ENABLE_ASAN_PACKAGING)
     if(NOT WIN32 AND ${hip_VERSION_FLAT} LESS 600300000)
         # WORKAROUND: compiler does not yet fully support gfx12 targets, need to fix version above
-        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102")
+        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1103")
     elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600300000 AND ${hip_VERSION_FLAT} LESS 600400000)
-        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201")
+        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1103;gfx1200;gfx1201")
     elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600400000 AND ${hip_VERSION_FLAT} LESS 600443483)
-        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201;gfx950")
+        set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1103;gfx1200;gfx1201;gfx950")
     elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600443483)
         set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx12-generic")
     endif()
 else()
     #build CK only for xnack-supported targets when using ASAN
-    set(CK_GPU_TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx942:xnack+")
+    set(CK_GPU_TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx942:xnack+;gfx950:xnack+")
 endif()
 
 #if user set GPU_ARCHS on the cmake command line, overwrite default target list with user's list
@@ -258,6 +268,11 @@ if ((SUPPORTED_GPU_TARGETS MATCHES "gfx94" OR SUPPORTED_GPU_TARGETS MATCHES "gfx
     message(STATUS "Enabling XDL FP8 gemms on native architectures")
     add_definitions(-DCK_USE_GFX94)
     set(CK_USE_GFX94 "ON")
+endif()
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx950" AND NOT FORCE_DISABLE_XDL)
+    message(STATUS "Enabling XDL FP8 gemms on gfx950")
+    add_definitions(-DCK_USE_GFX950)
+    set(CK_USE_GFX950 "ON")
 endif()
 
 # new macro CK_TILE_USE_WMMA in order to separately compile examples for MFMA/WMMA
@@ -643,7 +658,7 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERS
     add_compile_options(-fdiagnostics-color=always)
 endif()
 
-if(NOT MIOPEN_REQ_LIBS_ONLY)
+if(NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY)
     # make check runs the entire set of examples and tests
     add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} USES_TERMINAL)
     # make smoke runs the tests and examples that runs within 30 seconds on gfx90a
@@ -701,6 +716,7 @@ ENDFOREACH()
 add_custom_target(instances DEPENDS utility;${CK_DEVICE_INSTANCES}  SOURCES ${INSTANCE_FILES})
 
 option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
+option(HIPTENSOR_REQ_LIBS_ONLY "Build only the HipTensor required libraries" OFF)
 option(DISABLE_OFFLOAD_COMPRESS "Disable offload compress compiler flag when building instances" OFF)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 
@@ -711,7 +727,7 @@ if (CK_EXPERIMENTAL_BUILDER)
   add_subdirectory(experimental/grouped_convolution_tile_instances)
 endif()
 
-if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY)
+if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY)
    rocm_package_setup_component(tests
         LIBRARY_NAME composablekernel
         PACKAGE_NAME tests # Prevent -static suffix on package name
@@ -734,7 +750,7 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY)
    endif()
 endif()
 
-if (NOT MIOPEN_REQ_LIBS_ONLY)
+if (NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY)
     rocm_package_setup_component(profiler
         LIBRARY_NAME composablekernel
         PACKAGE_NAME ckprofiler

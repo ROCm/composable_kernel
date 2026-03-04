@@ -47,11 +47,17 @@ concept BlockGemmPipelineDescriptor = requires(T t) {
 // Concept for parameters that describe a gridwise WMMA GEMM problem.
 template <typename T>
 concept GridwiseWmmaGemmDescriptor = requires(T t) {
-    { t.k1 } -> SizeType;
-    { t.m_per_wmma } -> SizeType;
-    { t.n_per_wmma } -> SizeType;
-    { t.m_wmma_per_wave } -> SizeType;
-    { t.n_wmma_per_wave } -> SizeType;
+    (
+    requires { { T::k1 } -> SizeType; } ||
+    (requires { { T::ak1 } -> SizeType; } &&
+     requires { { T::bk1 } -> SizeType; })
+) &&
+requires {
+    { T::m_per_wmma } -> SizeType;
+    { T::n_per_wmma } -> SizeType;
+    { T::m_wmma_per_wave } -> SizeType;
+    { T::n_wmma_per_wave } -> SizeType;
+};
 };
 
 // Concept for vectorized data transfer for convolution input tensors.
@@ -98,7 +104,7 @@ concept LdsTransferDescriptor = requires(T t) {
 template <typename T>
 concept EpilogueDescriptor = requires(T t) {
     { t.m_xdl_per_wave_per_shuffle } -> SizeType;
-    { t.n_per_wave_per_shuffle } -> SizeType;
+    { t.n_xdl_per_wave_per_shuffle } -> SizeType;
     { t.scalar_per_vector } -> SizeType;
 };
 
@@ -189,6 +195,14 @@ concept GridwiseBwdXdlGemmDescriptor = requires(T t) {
 
 // Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
+concept GridwiseBwdDataXdlGemmDescriptor = requires(T t) {
+    { t.ak1 } -> SizeType;
+    { t.bk1 } -> SizeType;
+    { t.xdl_params } -> GridwiseXdlGemmDescriptor;
+};
+
+// Concept to check if a struct specifies gridwise XDL GEMM info.
+template <typename T>
 concept SpecifiesGridwiseFwdXdlGemm = requires(T t) {
     { t.gridwise_gemm } -> GridwiseFwdXdlGemmDescriptor;
 };
@@ -197,6 +211,12 @@ concept SpecifiesGridwiseFwdXdlGemm = requires(T t) {
 template <typename T>
 concept SpecifiesGridwiseBwdXdlGemm = requires(T t) {
     { t.gridwise_gemm } -> GridwiseBwdXdlGemmDescriptor;
+};
+
+// Concept to check if a struct specifies gridwise XDL GEMM info.
+template <typename T>
+concept SpecifiesGridwiseBwdDataXdlGemm = requires(T t) {
+    { t.gridwise_gemm } -> GridwiseBwdDataXdlGemmDescriptor;
 };
 
 // Concept to check if a struct specifies gridwise WMMA GEMM info.
@@ -290,6 +310,11 @@ concept SpecifiesFwdConvSpecialization = requires {
 template <typename T>
 concept SpecifiesBwdWeightConvSpecialization = requires {
     { T::bwd_weight_specialization } -> std::convertible_to<ConvSpecialization>;
+};
+
+template <typename T>
+concept SpecifiesBwdDataConvSpecialization = requires {
+    { T::bwd_data_specialization } -> std::convertible_to<ConvSpecialization>;
 };
 
 template <typename T>

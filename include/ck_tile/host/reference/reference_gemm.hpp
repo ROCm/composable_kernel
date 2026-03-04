@@ -137,46 +137,54 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
                                          const BElementOp& b_element_op     = {},
                                          const ACCElementOp& acc_element_op = {})
 {
-    const std::size_t M = a_m_k.get_length(0);
-    const std::size_t N = b_k_n.get_length(1);
-    const std::size_t K = a_m_k.get_length(1);
+    constexpr auto A_TENSOR_M_DIM = 0;
+    constexpr auto A_TENSOR_K_DIM = 1;
+    constexpr auto B_TENSOR_K_DIM = 0;
+    constexpr auto B_TENSOR_N_DIM = 1;
+
+    const std::size_t M = a_m_k.get_length(A_TENSOR_M_DIM);
+    const std::size_t N = b_k_n.get_length(B_TENSOR_N_DIM);
+    const std::size_t K = a_m_k.get_length(A_TENSOR_K_DIM);
+
+    // Pre-convert A/B tensors to AccData type
+    // This prevents doing slow reconversions for each row/column
+    HostTensor<AccDataType> a_acc(a_m_k.mDesc);
+    HostTensor<AccDataType> b_acc(b_k_n.mDesc);
+
+    a_acc.ForEach([&](auto& self, auto index) {
+        if constexpr(std::is_same_v<ADataType, pk_int4_t> || std::is_same_v<ADataType, pk_fp4_t>)
+        {
+            const ADataType pk_val  = a_element_op(a_m_k(index));
+            const fp32x2_t fp32_val = pk_val.to_fp32x2();
+            self(index)             = (index[A_TENSOR_K_DIM] & 1) ? fp32_val.hi : fp32_val.lo;
+        }
+        else
+        {
+            self(index) = ck_tile::type_convert<AccDataType>(a_element_op(a_m_k(index)));
+        }
+    });
+
+    b_acc.ForEach([&](auto& self, auto index) {
+        if constexpr(std::is_same_v<BDataType, pk_int4_t> || std::is_same_v<BDataType, pk_fp4_t>)
+        {
+            const BDataType pk_val  = b_element_op(b_k_n(index));
+            const fp32x2_t fp32_val = pk_val.to_fp32x2();
+            self(index)             = (index[B_TENSOR_K_DIM] & 1) ? fp32_val.hi : fp32_val.lo;
+        }
+        else if constexpr(std::is_same_v<BDataType, fp8_t>)
+        {
+            self(index) = fp8_to_float_raw(b_element_op(b_k_n(index)));
+        }
+        else
+        {
+            self(index) = ck_tile::type_convert<AccDataType>(b_element_op(b_k_n(index)));
+        }
+    });
 
     auto f_mn = [&](auto m, auto n) {
         AccDataType v_acc = 0;
 
         constexpr std::size_t kGroupK = BQuantGroupSize::kK;
-
-        // ---- A loader: dequant A(m,k) into AccDataType ----
-        auto load_a = [&](std::size_t k) -> AccDataType {
-            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
-            {
-                const pk_int4_t pk_val  = a_element_op(a_m_k(m, k));
-                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
-                return (k & 1) ? fp32_val.hi : fp32_val.lo;
-            }
-            else
-            {
-                return ck_tile::type_convert<AccDataType>(a_element_op(a_m_k(m, k)));
-            }
-        };
-
-        // ---- B loader: dequant B(k,n) into AccDataType ----
-        auto load_b = [&](std::size_t k) -> AccDataType {
-            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-            {
-                const pk_int4_t pk_val  = b_element_op(b_k_n(k, n));
-                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
-                return (k & 1) ? fp32_val.hi : fp32_val.lo;
-            }
-            else if constexpr(std::is_same_v<BDataType, fp8_t>)
-            {
-                return fp8_to_float_raw(b_element_op(b_k_n(k, n)));
-            }
-            else
-            {
-                return ck_tile::type_convert<AccDataType>(b_element_op(b_k_n(k, n)));
-            }
-        };
 
         // ---- a scale loader for a given K-group index ----
         auto load_scale_a = [&](ck_tile::index_t k_group) -> float {
@@ -224,8 +232,8 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
             // unscaled accumulation within this K-group
             for(std::size_t k = k_begin; k < k_end; ++k)
             {
-                const AccDataType v_a = load_a(k);
-                const AccDataType v_b = load_b(k);
+                const AccDataType v_a = a_acc(m, k);
+                const AccDataType v_b = b_acc(k, n);
                 v_block_acc += v_a * v_b;
             }
 
@@ -380,49 +388,56 @@ template <typename ADataType,
           typename AccDataType,
           typename CDataType,
           typename QuantGroupSize,
+          typename BLayout,
           bool aquant,
           typename AElementOp   = ck_tile::identity,
           typename BElementOp   = ck_tile::identity,
           typename ACCElementOp = ck_tile::identity>
-CK_TILE_HOST void reference_mxfp4gemm_quant(const HostTensor<ADataType>& a_m_k,
-                                            const HostTensor<QDataType>& q,
-                                            const HostTensor<BDataType>& b_k_n,
-                                            HostTensor<CDataType>& c_m_n,
-                                            const AElementOp& a_element_op     = {},
-                                            const BElementOp& b_element_op     = {},
-                                            const ACCElementOp& acc_element_op = {})
+CK_TILE_HOST void reference_mx_gemm_bquant(const HostTensor<ADataType>& a_m_k,
+                                           const HostTensor<QDataType>& q,
+                                           const HostTensor<BDataType>& b_k_n,
+                                           HostTensor<CDataType>& c_m_n,
+                                           const AElementOp& a_element_op     = {},
+                                           const BElementOp& b_element_op     = {},
+                                           const ACCElementOp& acc_element_op = {})
 {
     const std::size_t M = a_m_k.get_length(0);
     const std::size_t N = b_k_n.get_length(1);
     const std::size_t K = a_m_k.get_length(1);
 
     auto f_mn = [&](auto m, auto n) {
-        AccDataType v_acc  = 0;
-        AccDataType pasual = 0;
-        for(std::size_t k = 0; k < (K / 2); k++)
-        {
-            using ComputeType = float;
-            auto b_scale      = type_convert<int32_t>(q((2 * k) / QuantGroupSize::kK, n)) - 127;
-            ComputeType v_a_0, v_a_1;
-            ComputeType v_b_0, v_b_1;
+        AccDataType v_acc = 0;
+        using ComputeType = float;
+        ComputeType v_a;
+        ComputeType v_b;
 
-            v_a_0 = ck_tile::type_convert<ComputeType>((a_element_op(a_m_k(m, 2 * k))));
-            v_a_1 = ck_tile::type_convert<ComputeType>((a_element_op(a_m_k(m, 2 * k + 1))));
-
-            if constexpr(std::is_same_v<BDataType, pk_fp4_raw_t>)
+        auto load_b = [&](std::size_t k) -> AccDataType {
+            if constexpr(std::is_same_v<BDataType, pk_fp4_t>)
             {
-                auto b_pack      = type_convert<pk_fp4_t>(b_element_op(b_k_n(k, n)));
-                auto b_scale_fp4 = type_convert<float>(std::pow(2.0f, b_scale));
-
-                auto b_f4_lo = type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
-                auto b_f4_hi = type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
-
-                v_b_0 = type_convert<ComputeType>(b_f4_lo) * b_scale_fp4;
-                v_b_1 = type_convert<ComputeType>(b_f4_hi) * b_scale_fp4;
+                const auto b_pack = type_convert<pk_fp4_t>(b_element_op(b_k_n(k, n)));
+                if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+                {
+                    return (n & 1) ? type_convert<ComputeType>(b_pack.unpack(number<1>{}))
+                                   : type_convert<ComputeType>(b_pack.unpack(number<0>{}));
+                }
+                else
+                {
+                    return (k & 1) ? type_convert<ComputeType>(b_pack.unpack(number<1>{}))
+                                   : type_convert<ComputeType>(b_pack.unpack(number<0>{}));
+                }
             }
+            else
+            {
+                return ck_tile::type_convert<ComputeType>(b_element_op(b_k_n(k, n)));
+            }
+        };
 
-            pasual = v_a_0 * v_b_0 + v_a_1 * v_b_1;
-            v_acc += pasual;
+        for(std::size_t k = 0; k < K; k++)
+        {
+            const auto b_scale = type_convert<float>(q(k / QuantGroupSize::kK, n));
+            v_a                = ck_tile::type_convert<ComputeType>(a_element_op(a_m_k(m, k)));
+            v_b                = load_b(k) * b_scale;
+            v_acc += v_a * v_b;
         }
         c_m_n(m, n) = ck_tile::type_convert<CDataType>(acc_element_op(v_acc));
     };
@@ -617,6 +632,17 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
                 a_m_k_scaled(m, k)     = a_f4_lo * a_scale;
                 a_m_k_scaled(m, k + 1) = a_f4_hi * a_scale;
             }
+            else if constexpr(std::is_same_v<ADataType, pk_fp6x16_t>)
+            {
+                if(k % pk_fp6x16_t::packed_size != 0)
+                    continue;
+                auto a_scale = ck_tile::type_convert<AccDataType>(scale_a(m, k / ScaleBlockSize));
+                for(std::size_t k_ = 0; k_ < pk_fp6x16_t::packed_size; k_++)
+                {
+                    a_m_k_scaled(m, k + k_) =
+                        pk_fp6x16_t::fp6_e2m3_to_float(a_m_k(m, k).unpack(k_)) * a_scale;
+                }
+            }
             else
             {
                 a_m_k_scaled(m, k) =
@@ -644,6 +670,17 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
 
                 b_k_n_scaled(k, n)     = b_f4_lo * b_scale;
                 b_k_n_scaled(k + 1, n) = b_f4_hi * b_scale;
+            }
+            else if constexpr(std::is_same_v<ADataType, pk_fp6x16_t>)
+            {
+                if(k % pk_fp6x16_t::packed_size != 0)
+                    continue;
+                auto b_scale = ck_tile::type_convert<AccDataType>(scale_b(k / ScaleBlockSize, n));
+                for(std::size_t k_ = 0; k_ < pk_fp6x16_t::packed_size; k_++)
+                {
+                    b_k_n_scaled(k + k_, n) =
+                        pk_fp6x16_t::fp6_e2m3_to_float(b_k_n(k, n).unpack(k_)) * b_scale;
+                }
             }
             else
             {

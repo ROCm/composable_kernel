@@ -59,6 +59,10 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle;
 
 namespace ck_tile {
 namespace reflect {
+/// @brief Tag type for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle device kernel
+struct DeviceGroupedConvBwdWeight_multiple_d_Xdl_CShuffle_Tag
+{
+};
 
 template <ck::index_t NDimSpatial,
           typename InLayout_,
@@ -152,7 +156,10 @@ struct InstanceTraits<
 {
     static constexpr auto kTensorOpName = "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle";
 
-    static constexpr ck::index_t kNDimSpatial = NDimSpatial;
+    /// @brief Tag type identifying this device kernel variant
+    using device_kernel_tag = DeviceGroupedConvBwdWeight_multiple_d_Xdl_CShuffle_Tag;
+
+    static constexpr ck::index_t kSpatialDim = NDimSpatial;
 
     using InLayout  = InLayout_;
     using WeiLayout = WeiLayout_;
@@ -169,7 +176,7 @@ struct InstanceTraits<
     using WeiElementwiseOperation = WeiElementwiseOperation_;
     using OutElementwiseOperation = OutElementwiseOperation_;
 
-    static constexpr auto kConvBackwardWeightSpecialization = ConvBackwardWeightSpecialization;
+    static constexpr auto kConvBwdWeightSpecialization = ConvBackwardWeightSpecialization;
 
     static constexpr ck::index_t kBlockSize                     = BlockSize;
     static constexpr ck::index_t kMPerBlock                     = MPerBlock;
@@ -188,28 +195,45 @@ struct InstanceTraits<
     using ABlockTransferThreadClusterLengths_K0_M_K1 = ABlockTransferThreadClusterLengths_K0_M_K1_;
     using ABlockTransferThreadClusterArrangeOrder    = ABlockTransferThreadClusterArrangeOrder_;
     using ABlockTransferSrcAccessOrder               = ABlockTransferSrcAccessOrder_;
+    // A block transfer thread cluster dimensions (converted to std::array)
+    static constexpr auto kAThreadClusterLengths =
+        detail::SequenceToArray<ABlockTransferThreadClusterLengths_K0_M_K1>::value;
+    static constexpr auto kAThreadClusterArrangeOrder =
+        detail::SequenceToArray<ABlockTransferThreadClusterArrangeOrder>::value;
+    static constexpr auto kABlockTransferSrcAccessOrder =
+        detail::SequenceToArray<ABlockTransferSrcAccessOrder_>::value;
     static constexpr ck::index_t kABlockTransferSrcVectorDim = ABlockTransferSrcVectorDim;
     static constexpr ck::index_t kABlockTransferSrcScalarPerVector =
         ABlockTransferSrcScalarPerVector;
-    static constexpr ck::index_t kABlockTransferDstScalarPerVector_K1 =
+    static constexpr ck::index_t kABlockTransferDstScalarPerVectorK1 =
         ABlockTransferDstScalarPerVector_K1;
-    static constexpr bool kABlockLdsAddExtraM = ABlockLdsAddExtraM;
+    static constexpr bool kABlockLdsExtraM = ABlockLdsAddExtraM;
 
     using BBlockTransferThreadClusterLengths_K0_N_K1 = BBlockTransferThreadClusterLengths_K0_N_K1_;
     using BBlockTransferThreadClusterArrangeOrder    = BBlockTransferThreadClusterArrangeOrder_;
     using BBlockTransferSrcAccessOrder               = BBlockTransferSrcAccessOrder_;
+    // B block transfer thread cluster dimensions (converted to std::array)
+    static constexpr auto kBThreadClusterLengths =
+        detail::SequenceToArray<BBlockTransferThreadClusterLengths_K0_N_K1>::value;
+    static constexpr auto kBThreadClusterArrangeOrder =
+        detail::SequenceToArray<BBlockTransferThreadClusterArrangeOrder>::value;
+    static constexpr auto kBBlockTransferSrcAccessOrder =
+        detail::SequenceToArray<BBlockTransferSrcAccessOrder_>::value;
     static constexpr ck::index_t kBBlockTransferSrcVectorDim = BBlockTransferSrcVectorDim;
     static constexpr ck::index_t kBBlockTransferSrcScalarPerVector =
         BBlockTransferSrcScalarPerVector;
-    static constexpr ck::index_t kBBlockTransferDstScalarPerVector_K1 =
+    static constexpr ck::index_t kBBlockTransferDstScalarPerVectorK1 =
         BBlockTransferDstScalarPerVector_K1;
-    static constexpr bool kBBlockLdsAddExtraN = BBlockLdsAddExtraN;
+    static constexpr bool kBBlockLdsExtraN = BBlockLdsAddExtraN;
 
     using CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock =
         CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_;
 
     using ComputeTypeA = ComputeTypeA_;
     using ComputeTypeB = ComputeTypeB_;
+
+    static constexpr auto kCThreadClusterLengths = detail::SequenceToArray<
+        CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>::value;
 
     // Static member function to generate instance string
     static std::string instance_string()
@@ -220,7 +244,7 @@ struct InstanceTraits<
         oss << "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle";
 
         // Template parameters in exact order
-        oss << "<" << kNDimSpatial;                     // 1. NDimSpatial
+        oss << "<" << kSpatialDim;                      // 1. NDimSpatial
         oss << "," << detail::layout_name<InLayout>();  // 2. InLayout
         oss << "," << detail::layout_name<WeiLayout>(); // 3. WeiLayout
         oss << "," << detail::layout_name<OutLayout>(); // 4. OutLayout
@@ -240,30 +264,30 @@ struct InstanceTraits<
                                                                        // OutElementwiseOperation
         oss << ","
             << detail::conv_bwd_weight_spec_name(
-                   kConvBackwardWeightSpecialization); // 14. ConvBackwardWeightSpecialization
-        oss << "," << kBlockSize;                      // 15. BlockSize
-        oss << "," << kMPerBlock;                      // 16. MPerBlock
-        oss << "," << kNPerBlock;                      // 17. NPerBlock
-        oss << "," << kK0PerBlock;                     // 18. K0PerBlock
-        oss << "," << kK1;                             // 19. K1
-        oss << "," << kMPerXDL;                        // 20. MPerXDL
-        oss << "," << kNPerXDL;                        // 21. NPerXDL
-        oss << "," << kMXdlPerWave;                    // 22. MXdlPerWave
-        oss << "," << kNXdlPerWave;                    // 23. NXdlPerWave
+                   kConvBwdWeightSpecialization); // 14. ConvBackwardWeightSpecialization
+        oss << "," << kBlockSize;                 // 15. BlockSize
+        oss << "," << kMPerBlock;                 // 16. MPerBlock
+        oss << "," << kNPerBlock;                 // 17. NPerBlock
+        oss << "," << kK0PerBlock;                // 18. K0PerBlock
+        oss << "," << kK1;                        // 19. K1
+        oss << "," << kMPerXDL;                   // 20. MPerXDL
+        oss << "," << kNPerXDL;                   // 21. NPerXDL
+        oss << "," << kMXdlPerWave;               // 22. MXdlPerWave
+        oss << "," << kNXdlPerWave;               // 23. NXdlPerWave
         oss << "," << detail::sequence_name<ABlockTransferThreadClusterLengths_K0_M_K1>(); // 24.
         oss << "," << detail::sequence_name<ABlockTransferThreadClusterArrangeOrder>();    // 25.
         oss << "," << detail::sequence_name<ABlockTransferSrcAccessOrder>();               // 26.
         oss << "," << kABlockTransferSrcVectorDim;                                         // 27.
         oss << "," << kABlockTransferSrcScalarPerVector;                                   // 28.
-        oss << "," << kABlockTransferDstScalarPerVector_K1;                                // 29.
-        oss << "," << (kABlockLdsAddExtraM ? "true" : "false");                            // 30.
+        oss << "," << kABlockTransferDstScalarPerVectorK1;                                 // 29.
+        oss << "," << (kABlockLdsExtraM ? "true" : "false");                               // 30.
         oss << "," << detail::sequence_name<BBlockTransferThreadClusterLengths_K0_N_K1>(); // 31.
         oss << "," << detail::sequence_name<BBlockTransferThreadClusterArrangeOrder>();    // 32.
         oss << "," << detail::sequence_name<BBlockTransferSrcAccessOrder>();               // 33.
         oss << "," << kBBlockTransferSrcVectorDim;                                         // 34.
         oss << "," << kBBlockTransferSrcScalarPerVector;                                   // 35.
-        oss << "," << kBBlockTransferDstScalarPerVector_K1;                                // 36.
-        oss << "," << (kBBlockLdsAddExtraN ? "true" : "false");                            // 37.
+        oss << "," << kBBlockTransferDstScalarPerVectorK1;                                 // 36.
+        oss << "," << (kBBlockLdsExtraN ? "true" : "false");                               // 37.
         oss << "," << kCShuffleMXdlPerWavePerShuffle;                                      // 38.
         oss << "," << kCShuffleNXdlPerWavePerShuffle;                                      // 39.
         oss << ","

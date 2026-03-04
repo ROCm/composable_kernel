@@ -47,15 +47,20 @@ struct BaseGemmPipelineAgBgCrCompV4
     CK_TILE_HOST_DEVICE static auto
     TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
     {
+        // Use amd_wave_read_first_lane to avoid higher resource usage.
+        // It forces to store these values in SGPR.
+        // Compiler cannot deduce if one path is used for all threads
+        const bool has_hot_loop_first_lane      = amd_wave_read_first_lane(has_hot_loop);
+        const TailNumber tail_number_first_lane = amd_wave_read_first_lane(tail_number);
         // Handle all the valid cases.
-        if(has_hot_loop)
+        if(has_hot_loop_first_lane)
         {
-            if(tail_number == TailNumber::Three)
+            if(tail_number_first_lane == TailNumber::Three)
             {
                 return run_func(bool_constant<true>{},
                                 integral_constant<TailNumber, TailNumber::Three>{});
             }
-            else if(tail_number == TailNumber::Two)
+            else if(tail_number_first_lane == TailNumber::Two)
             {
                 return run_func(bool_constant<true>{},
                                 integral_constant<TailNumber, TailNumber::Two>{});
@@ -63,12 +68,12 @@ struct BaseGemmPipelineAgBgCrCompV4
         }
         else
         {
-            if(tail_number == TailNumber::Three)
+            if(tail_number_first_lane == TailNumber::Three)
             {
                 return run_func(bool_constant<false>{},
                                 integral_constant<TailNumber, TailNumber::Three>{});
             }
-            else if(tail_number == TailNumber::Two)
+            else if(tail_number_first_lane == TailNumber::Two)
             {
                 return run_func(bool_constant<false>{},
                                 integral_constant<TailNumber, TailNumber::Two>{});
@@ -143,6 +148,8 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
+
+    static constexpr bool Async = false;
 
     template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeA()

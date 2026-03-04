@@ -93,9 +93,14 @@ struct BaseGemmPipelineAgBgCrMem
     CK_TILE_HOST_DEVICE static auto
     TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
     {
+        // Use amd_wave_read_first_lane to avoid higher resource usage.
+        // It forces to store these values in SGPR.
+        // Compiler cannot deduce if one path is used for all threads
+        const bool has_hot_loop_first_lane      = amd_wave_read_first_lane(has_hot_loop);
+        const TailNumber tail_number_first_lane = amd_wave_read_first_lane(tail_number);
         // Wrap the hot_loop dispatch first.
         auto tail_dispatch = [&](auto tail_num_constant) {
-            if(has_hot_loop)
+            if(has_hot_loop_first_lane)
             {
                 return run_func(bool_constant<true>{}, tail_num_constant);
             }
@@ -106,7 +111,7 @@ struct BaseGemmPipelineAgBgCrMem
         };
 
 #define CHECK_TAIL_NUMBER(TAIL_NUMBER, PREFETCH_VALUE)                                      \
-    else if(tail_number == TailNumber::TAIL_NUMBER)                                         \
+    else if(tail_number_first_lane == TailNumber::TAIL_NUMBER)                              \
     {                                                                                       \
         if constexpr(PrefetchStages > PREFETCH_VALUE)                                       \
         {                                                                                   \
@@ -114,11 +119,11 @@ struct BaseGemmPipelineAgBgCrMem
         }                                                                                   \
     }
         // Handle all the valid cases.
-        if(tail_number == TailNumber::One)
+        if(tail_number_first_lane == TailNumber::One)
         {
             return tail_dispatch(integral_constant<TailNumber, TailNumber::One>{});
         }
-        else if(tail_number == TailNumber::Full)
+        else if(tail_number_first_lane == TailNumber::Full)
         {
             return tail_dispatch(integral_constant<TailNumber, TailNumber::Full>{});
         }
@@ -178,6 +183,8 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
+
+    static constexpr bool Async = false;
 
     template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeA()

@@ -66,10 +66,10 @@ class TestGroupedConvndFwdBilinear : public ::testing::Test
                                OutDataType,
                                AComputeType,
                                BComputeType,
-                               IndexType>(true,  // do_verification
+                               IndexType>(2,     // do_verification
                                           1,     // init_method: integer value
                                           false, // do_log
-                                          true,  // time_kernel
+                                          false, // time_kernel
                                           param,
                                           bilinear_op);
         }

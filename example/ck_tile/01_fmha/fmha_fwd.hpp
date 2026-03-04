@@ -602,6 +602,13 @@ struct fmha_batch_prefill_args
 
     std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
         drop_seed_offset;
+
+    // KV_BLOCKSCALE: per-page K/V descales (Q per-tensor, K/V per-page)
+    // k_descale_ptr/v_descale_ptr are reused for KV_BLOCKSCALE mode:
+    // k_descale_ptr: [num_block, num_kv_head] - points to k block descale
+    // v_descale_ptr: [num_block, num_kv_head] - points to v block descale
+    ck_tile::index_t nblock_stride_kv_block_descale = 0; // Stride along num_block dimension
+    ck_tile::index_t nhead_stride_kv_block_descale  = 0; // Stride along num_kv_head dimension
 };
 
 template <typename FmhaKernel>
@@ -1225,7 +1232,9 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.p_drop,
                                          args.s_randval,
                                          args.drop_seed_offset,
-                                         args.sink_ptr);
+                                         args.sink_ptr,
+                                         args.nblock_stride_kv_block_descale,
+                                         args.nhead_stride_kv_block_descale);
         }
         else
         { // create batch mode kernel arguments
@@ -1278,7 +1287,9 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.p_drop,
                                          args.s_randval,
                                          args.drop_seed_offset,
-                                         args.sink_ptr);
+                                         args.sink_ptr,
+                                         args.nblock_stride_kv_block_descale,
+                                         args.nhead_stride_kv_block_descale);
         }
     }();
 
@@ -1624,8 +1635,8 @@ struct fmha_fwd_splitkv_traits
     mask_enum mask_type;
     bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
     bool has_lse;
-    bool do_fp8_static_quant;
-    bool has_sink = false;
+    bool do_fp8_static_quant = false;
+    bool has_sink            = false;
     // TODO: padding check is inside this api
 };
 float fmha_fwd_splitkv(fmha_fwd_splitkv_traits,

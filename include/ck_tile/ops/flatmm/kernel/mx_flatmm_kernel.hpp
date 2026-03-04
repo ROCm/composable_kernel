@@ -63,7 +63,7 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "mx_flatmm_gemm", gemm_prec_str<ADataType, BDataType>, MXFlatmmPipeline::GetName());
+        return concat('_', "mx_flatmm_gemm", gemm_prec_str<ADataType, BDataType>(), MXFlatmmPipeline::GetName());
         // clang-format on
     }
 

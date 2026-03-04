@@ -12,21 +12,21 @@ namespace ck_tile {
 template <typename Problem, typename Policy>
 struct GemmAQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Problem, Policy>
 {
-    using Base           = GemmPipelineAgBgCrImplBase<Problem, Policy>;
-    using ADataType      = typename Base::ADataType;
-    using ALayout        = typename Base::ALayout;
-    using BDataType      = typename Base::BDataType;
-    using BLayout        = typename Base::BLayout;
-    using BlockGemmShape = typename Base::BlockGemmShape;
-    using QuantGroupSize = remove_cvref_t<typename Problem::AQuantGroupSize>;
+    using Base            = GemmPipelineAgBgCrImplBase<Problem, Policy>;
+    using ADataType       = typename Base::ADataType;
+    using ALayout         = typename Base::ALayout;
+    using BDataType       = typename Base::BDataType;
+    using BLayout         = typename Base::BLayout;
+    using BlockGemmShape  = typename Base::BlockGemmShape;
+    using AQuantGroupSize = remove_cvref_t<typename Problem::AQuantGroupSize>;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t KPerBlockAQ = KPerBlock / QuantGroupSize::kK;
+    static constexpr index_t KPerBlockAQ = KPerBlock / AQuantGroupSize::kK;
 
-    static_assert(KPerBlock % QuantGroupSize::kK == 0,
+    static_assert(KPerBlock % AQuantGroupSize::kK == 0,
                   "KPerBlock must be a multiple of QuantGroupSize");
 
     // Create DRAM tile window for AQ

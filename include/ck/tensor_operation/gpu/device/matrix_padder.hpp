@@ -43,11 +43,8 @@ PadTensorDescriptor(const TensorDesc& desc, const TileLengths& tile_lengths, DoP
         },
         Number<num_dim>{});
 
-    // lower dimension Id
-    const auto lower_dimss =
-        generate_tuple([&](auto idim) { return Sequence<idim.value>{}; }, Number<num_dim>{});
-
-    // upper dimension Id
+    // lower/upper dimension Ids
+    const auto lower_dimss = generate_identity_sequences<num_dim>();
     const auto upper_dimss = lower_dimss;
 
     return transform_tensor_descriptor(desc, transforms, lower_dimss, upper_dimss);

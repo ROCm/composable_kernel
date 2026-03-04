@@ -22,9 +22,39 @@ struct SimpleDeviceMem
         HIP_CHECK_ERROR(hipMalloc(static_cast<void**>(&p_mem_), mem_size));
     }
 
+    // Delete copy operations (resource should not be copied)
+    SimpleDeviceMem(const SimpleDeviceMem&)            = delete;
+    SimpleDeviceMem& operator=(const SimpleDeviceMem&) = delete;
+
+    // Define move operations
+    SimpleDeviceMem(SimpleDeviceMem&& other) noexcept : p_mem_(other.p_mem_)
+    {
+        other.p_mem_ = nullptr;
+    }
+
+    SimpleDeviceMem& operator=(SimpleDeviceMem&& other) noexcept
+    {
+        if(this != &other)
+        {
+            if(p_mem_)
+            {
+                (void)hipFree(p_mem_);
+            }
+            p_mem_       = other.p_mem_;
+            other.p_mem_ = nullptr;
+        }
+        return *this;
+    }
+
     void* GetDeviceBuffer() { return p_mem_; }
 
-    ~SimpleDeviceMem() { (void)hipFree(p_mem_); }
+    ~SimpleDeviceMem()
+    {
+        if(p_mem_)
+        {
+            (void)hipFree(p_mem_);
+        }
+    }
 
     void* p_mem_;
 };
@@ -172,6 +202,91 @@ __global__ void strided_copy_kernel(const DataType* __restrict__ src,
         }
     }
 }
+
+namespace detail {
+
+// Helper for parameter pack expansion (D tensors)
+template <typename ResultType, typename Op, typename DataType, std::size_t... Is>
+__device__ __forceinline__ void apply_multi_tensor_impl(ResultType& result,
+                                                        Op&& element_op,
+                                                        const DataType* const* tensor_ptrs,
+                                                        long_index_t element_offset,
+                                                        std::index_sequence<Is...>)
+{
+    element_op(result, tensor_ptrs[Is][element_offset]...);
+}
+
+// Generic helper for A and B tensors (works in all directions)
+template <index_t NumExtraTensors, typename DataType, typename ResultType, typename Op>
+__device__ __forceinline__ void apply_multi_tensor_elementwise_op(ResultType& result,
+                                                                  Op&& element_op,
+                                                                  const DataType* primary_ptr,
+                                                                  const DataType* const* extra_ptrs,
+                                                                  long_index_t extra_base_offset,
+                                                                  long_index_t element_offset)
+{
+    const DataType* tensor_ptrs[NumExtraTensors + 1];
+    tensor_ptrs[0] = primary_ptr;
+
+    static_for<1, NumExtraTensors + 1, 1>{}(
+        [&](auto i) { tensor_ptrs[i] = extra_ptrs[i - 1] + extra_base_offset; });
+
+    apply_multi_tensor_impl(result,
+                            element_op,
+                            tensor_ptrs,
+                            element_offset,
+                            std::make_index_sequence<NumExtraTensors + 1>{});
+}
+
+// Helper for parameter pack expansion (D tensors)
+template <typename OutDataType, typename Op, std::size_t... Is>
+__device__ __forceinline__ void apply_d_tensor_impl(OutDataType& result_out,
+                                                    Op&& element_op,
+                                                    float computed_value,
+                                                    const float* d_values,
+                                                    std::index_sequence<Is...>)
+{
+    float temp_out;
+    element_op(temp_out, computed_value, d_values[Is]...);
+    result_out = type_convert<OutDataType>(temp_out);
+}
+
+// Specialized helper for D tensors with stride calculations and float conversion
+template <index_t NumDTensors, typename DDataType, typename OutDataType, typename Op>
+__device__ __forceinline__ void apply_d_tensor_elementwise_op(OutDataType& result_out,
+                                                              Op&& element_op,
+                                                              float computed_value,
+                                                              const DDataType* const* p_ds,
+                                                              const index_t* const* p_d_strides,
+                                                              index_t g,
+                                                              index_t n,
+                                                              index_t c_or_k,
+                                                              long_index_t spatial_linear_index)
+{
+    if constexpr(NumDTensors == 0)
+    {
+        element_op(result_out, computed_value);
+    }
+    else
+    {
+        float d_values[NumDTensors];
+
+        // Compute all D tensor indices and convert to float
+        static_for<0, NumDTensors, 1>{}([&](auto i) {
+            const long_index_t d_idx = g * p_d_strides[i][0] + n * p_d_strides[i][1] +
+                                       c_or_k * p_d_strides[i][2] + spatial_linear_index;
+            d_values[i] = type_convert<float>(p_ds[i][d_idx]);
+        });
+
+        apply_d_tensor_impl(result_out,
+                            element_op,
+                            computed_value,
+                            d_values,
+                            std::make_index_sequence<NumDTensors>{});
+    }
+}
+
+} // namespace detail
 
 } // namespace ref
 } // namespace ck

@@ -48,19 +48,19 @@ CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
  *       and an elementwise function. For each A = A0, A1… AN, the elementwise function
  *       is additionally applied during a single read.
  */
-template <typename TileWindow_,
+template <typename... TileWindow_,
           typename ElementWise_,
           index_t i_access           = -1,
           bool oob_conditional_check = true>
-CK_TILE_DEVICE auto load_tile_with_elementwise(const TileWindow_& tile_window,
+CK_TILE_DEVICE auto load_tile_with_elementwise(const ck_tile::tuple<TileWindow_...>& tile_windows,
                                                ElementWise_ elementwise,
                                                number<i_access>                     = {},
                                                bool_constant<oob_conditional_check> = {})
 {
-    // TODO: Tile windows should works with unknow number of params
-    // Load element_wise API works only when the input typle is a tuple-tyupe
-    return tile_window[number<0>{}].load(
-        tile_window, elementwise, number<i_access>{}, bool_constant<oob_conditional_check>{});
+    // TODO: Tile windows should work with unknown number of params
+    // Load element_wise API works only when the input type is a tuple-type
+    return tile_windows[number<0>{}].load(
+        tile_windows, elementwise, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 // Per-lane read-offset tweaks allow swizzling patterns not representable by tile_distribution.
@@ -85,12 +85,12 @@ template <typename DistributedTensor_,
           typename TileWindow_,
           index_t i_access           = -1,
           bool oob_conditional_check = true>
-CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
+CK_TILE_DEVICE void load_tile(DistributedTensor_& dst_tile,
                               const TileWindow_& tile_window,
                               number<i_access>                     = {},
                               bool_constant<oob_conditional_check> = {})
 {
-    return tile_window.load(dst_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
+    tile_window.load(dst_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 /**
@@ -131,7 +131,7 @@ template <typename T,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
           bool pre_nop               = false>
-CK_TILE_DEVICE auto load_tile_raw(T& tile,
+CK_TILE_DEVICE void load_tile_raw(T& tile,
                                   const tile_window_linear<BottomTensorView_,
                                                            WindowLengths_,
                                                            TileDistribution_,

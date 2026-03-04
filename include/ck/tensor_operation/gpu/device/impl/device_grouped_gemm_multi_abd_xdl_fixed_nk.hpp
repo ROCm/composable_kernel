@@ -36,7 +36,7 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
 #endif
     kernel_grouped_gemm_xdl_fixed_nk(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                      const index_t group_count,
@@ -48,7 +48,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<EGlobalMemoryDataOperation>())
     {
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         const index_t KBatch = 1;
 
@@ -605,7 +605,7 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
             if(arg.grouped_gemm_kernel_args_dev == nullptr)
             {
-                throw std::runtime_error("wrong! grouped_gemm_kernel_args_dev is nullpr");
+                throw std::runtime_error("wrong! grouped_gemm_kernel_args_dev is nullptr");
             }
 
             float ave_time = 0;
@@ -688,6 +688,11 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(!ck::is_xdl_wmma_supported<ComputeType, ComputeType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
+
         // Split-K autodeduction is not supported
         if(arg.k_batch_ < 1)
         {
@@ -717,6 +722,26 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
                 supported = supported & (a_vector_dim % ABlockTransferSrcScalarPerVector == 0);
                 supported = supported & (b_vector_dim % BBlockTransferSrcScalarPerVector == 0);
+            }
+        }
+
+        for(index_t i = 0; i < arg.group_count_; i++)
+        {
+            if(get_warp_size() == 64)
+            {
+                if(GridwiseGemm64::CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[i].K_) !=
+                   true)
+                {
+                    supported = false;
+                }
+            }
+            else
+            {
+                if(GridwiseGemm32::CalculateHasMainKBlockLoop(arg.gemm_desc_kernel_arg_[i].K_) !=
+                   true)
+                {
+                    supported = false;
+                }
             }
         }
 

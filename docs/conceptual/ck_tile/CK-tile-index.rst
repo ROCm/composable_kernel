@@ -1,14 +1,13 @@
 .. _ck_tile_index:
 
-************************
-CK Tile Index
-************************
-
-CK Tile documentation structure:
+****************************************************
+CK Tile conceptual documentation table of contents
+****************************************************
 
 .. toctree::
    :maxdepth: 2
 
+   index
    introduction_motivation
    buffer_views
    tensor_views

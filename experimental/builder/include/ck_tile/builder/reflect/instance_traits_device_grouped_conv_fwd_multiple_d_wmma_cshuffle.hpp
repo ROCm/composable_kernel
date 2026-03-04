@@ -79,6 +79,11 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle;
 
 } // namespace ck::tensor_operation::device
 
+/// @brief Tag type for DeviceGroupedConvFwdMultipleD_Wmma_CShuffle device kernel
+struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_Tag
+{
+};
+
 namespace ck_tile::reflect {
 
 // Specialization for DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
@@ -176,6 +181,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
     LoopSched,
     PipelineVer>>
 {
+    /// @brief Tag type identifying this device kernel variant
+    using device_kernel_tag = DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_Tag;
     // Spatial dimension
     static constexpr int kSpatialDim = NDimSpatial;
 

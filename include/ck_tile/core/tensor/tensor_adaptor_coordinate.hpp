@@ -14,6 +14,9 @@
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/print.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 template <index_t NDimHidden, typename BottomDimensionHiddenIds, typename TopDimensionHiddenIds>
@@ -367,3 +370,4 @@ CK_TILE_HOST_DEVICE void print(const tensor_adaptor_coordinate<N, B, T>& coord)
     detail::CK_PRINT_X_<>{}(coord);
 }
 } // namespace ck_tile
+#pragma clang diagnostic pop

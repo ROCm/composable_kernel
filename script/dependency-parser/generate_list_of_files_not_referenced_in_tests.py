@@ -10,6 +10,7 @@
 # Usage: python3 generate_list_of_files_not_referenced_in_tests -f /path/to/enhanced_dependency_mapping/json/file
 
 import argparse
+import os
 import subprocess
 import json
 
@@ -32,23 +33,38 @@ def main():
         ref_files = json.load(file)
     file_to_executables = ref_files["file_to_executables"]
 
-    all_files = (
-        subprocess.check_output(
-            'find ../../include/ ../../library/ ../../profiler/ -type f -iname "*.cpp" -o -iname "*.hpp"',
+    # Determine the CK project root: go up two levels from this script's location
+    # (script/dependency-parser/ -> script/ -> CK root)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    ck_root = os.path.normpath(os.path.join(script_dir, "..", ".."))
+
+    search_dirs = ["include", "library", "profiler"]
+    all_files = []
+    for d in search_dirs:
+        search_path = os.path.join(ck_root, d)
+        if not os.path.isdir(search_path):
+            print(f"Warning: directory not found: {search_path}")
+            continue
+        result = subprocess.check_output(
+            f'find "{search_path}" -type f -iname "*.cpp" -o -iname "*.hpp"',
             shell=True,
-        )
-        .decode("utf-8")
-        .split("\n")
-    )
-    all_files = all_files[:-1]
-    all_files[:] = [x[6:] for x in all_files]
+        ).decode("utf-8").split("\n")
+        # Convert absolute paths to relative paths from CK root
+        ck_root_prefix = ck_root.rstrip("/") + "/"
+        for f in result:
+            f = f.strip()
+            if f:
+                if f.startswith(ck_root_prefix):
+                    f = f[len(ck_root_prefix):]
+                all_files.append(f)
 
     all_referenced_files = []
     for v in file_to_executables:
-        if (
-            "composablekernel/include/" in v
-            or "composablekernel/library/" in v
-            or "composablekernel/profiler/" in v
+        # Match both standalone paths (include/, library/, profiler/) and
+        # monorepo paths (projects/composablekernel/include/, etc.)
+        if any(
+            d in v
+            for d in ["include/", "library/", "profiler/"]
         ):
             exe_list = file_to_executables[v]
         else:
@@ -60,10 +76,13 @@ def main():
 
     not_referenced_files = {"include": [], "library": [], "profiler": []}
     for f in all_files:
-        found = any(f in el for el in all_referenced_files)
+        # Check if this file appears in any referenced file path
+        # (handles both relative and monorepo-prefixed paths)
+        found = any(f in el or el.endswith(f) for el in all_referenced_files)
         if not found:
             pos = f.find("/")
-            not_referenced_files[f[:pos]].append(f)
+            if pos > 0 and f[:pos] in not_referenced_files:
+                not_referenced_files[f[:pos]].append(f)
 
     print(json.dumps(not_referenced_files, indent="\t"))
 

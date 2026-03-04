@@ -2,7 +2,7 @@
   "tile_config": {
     "tile_m": {
       "values": [
-        64
+      128
       ]
     },
     "tile_n": {
@@ -12,17 +12,17 @@
     },
     "tile_k": {
       "values": [
-        192
+        64
       ]
     },
     "warp_m": {
       "values": [
-        2
+        4
       ]
     },
     "warp_n": {
       "values": [
-        2
+        1
       ]
     },
     "warp_k": {
@@ -32,17 +32,17 @@
     },
     "warp_tile_m": {
       "values": [
-        16
+        32
       ]
     },
     "warp_tile_n": {
       "values": [
-        16
+        32
       ]
     },
     "warp_tile_k": {
       "values": [
-        32
+        64
       ]
     }
   },
@@ -59,8 +59,7 @@
     },
     "epilogue": {
       "values": [
-        "default",
-        "cshuffle"
+        "default"
       ]
     },
     "pad_m": {
@@ -80,7 +79,7 @@
     },
     "persistent": {
         "values": [
-            true
+            false
        ]
     }
   },

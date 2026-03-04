@@ -6,6 +6,7 @@
 #include "ck_tile/builder/testing/tensor_descriptor.hpp"
 #include "ck_tile/builder/factory/helpers/ck/conv_tensor_type.hpp"
 #include <cstdint>
+#include <cassert>
 #include <concepts>
 #include <array>
 
@@ -347,5 +348,116 @@ void clear_tensor_buffer(const TensorDescriptor<DT, RANK>& desc,
 {
     fill_tensor_buffer(desc, buffer, [value]([[maybe_unused]] size_t i) { return value; });
 }
+
+/// @brief Utility for copying a tensor from one layout to another
+///
+/// This function copies tensor data from `src_buffer` to `dst_buffer`,
+/// changing the layout from `src_desc` to `dst_desc`. Note that the src and
+/// dst tensor lengths must be compatible, otherwise this function may write
+/// out of bounds.
+///
+/// @tparam DT The element datatype of both tensors.
+/// @tparam RANK The rank (number of spatial dimensions) of the tensors.
+///
+/// @param src_desc The descriptor of the source tensor to copy from.
+/// @param src_buffer The memory of the source tensor.
+/// @param dst_desc The descriptor of the destination tensor to copy to.
+/// @param dst_buffer The memory of the destination tensor.
+template <DataType DT, size_t RANK>
+void copy_tensor(const TensorDescriptor<DT, RANK>& src_desc,
+                 const void* src_buffer,
+                 const TensorDescriptor<DT, RANK>& dst_desc,
+                 void* dst_buffer)
+{
+    assert(src_desc.get_lengths() == dst_desc.get_lengths());
+    const auto src_strides = src_desc.get_strides();
+    const auto dst_strides = dst_desc.get_strides();
+    tensor_foreach(dst_desc.get_lengths(),
+                   [src_buffer, dst_buffer, src_strides, dst_strides](const auto& index) {
+                       using T            = detail::cpp_type_t<DT>;
+                       const auto* src    = static_cast<const T*>(src_buffer);
+                       auto* dst          = static_cast<T*>(dst_buffer);
+                       const auto src_off = calculate_offset(index, src_strides);
+                       const auto dst_off = calculate_offset(index, dst_strides);
+                       dst[dst_off]       = src[src_off];
+                   });
+}
+
+/// @brief Simple iterator implementation over tensors.
+///
+/// This type implements a simple "iterator" type for tensor types,
+/// basically exposing operator[] for flat indices. This type is useful
+/// to be able to provide a "pointer-like" object to API that does not
+/// expect higher dimensional tensor types, and expects linear pointers
+/// instead. Ideally, one just needs to replace the `T* ptr` with
+/// `Iterator it` to update those API to be compatible with this type.
+///
+/// @note This is not intended to be a full implementation of the C++
+/// iterator concept. For example, it does not really hold any state,
+/// because that is not really useful anyway.
+///
+/// @tparam DT The datatype of the tensor to iterate over. Note that this
+/// is only here for reference purposes, the actual data type of the backing
+/// memory is provided via the backing iterator type.
+/// @tparam RANK The rank (number of spatial dimensions) of the tensors.
+/// @tparam Iterator The backing iterator type. This can be a (non-void)
+/// pointer type.
+template <DataType DT, size_t RANK, typename Iterator>
+struct FlatTensorIterator
+{
+    /// @brief Construct a FlatTensorIterator.
+    ///
+    /// Construct a FlatTensorIterator from a tensor descriptor and a backing
+    /// iterator. The backing iterator can just be a non-void pointer type,
+    /// note that the result of FlatTensorIterator::operator[] is the same as
+    /// that of Iterator::operator[].
+    ///
+    /// @param desc The descriptor of the tensor to iterate.
+    /// @param inner The inner iterator, for example a (non-void) pointer.
+    FlatTensorIterator(const TensorDescriptor<DT, RANK>& desc, Iterator inner)
+        : iter_(desc.get_lengths()), strides_(desc.get_strides()), inner_(inner)
+    {
+    }
+
+    /// @brief Return the value at a particular flat index.
+    ///
+    /// This function returns the value of the tensor at flat coordinate
+    /// `flat_index`. This index is then unflattened into a multi-dimensional
+    /// index according to the way described in `NdIter`, and a tensor offset
+    /// is computed from that according to `calculate_offset`. The value at
+    /// that offset in the inner iterator is then the return value of this
+    /// function.
+    ///
+    /// @note NdIter iterates such that the inner dimension (right-most value
+    /// in the tensor shape) changes fastest.
+    ///
+    /// @note This function performs no bounds checking.
+    ///
+    /// @param flat_index The flat index into this tensor.
+    ///
+    /// @pre flat_index < numel()
+    ///
+    /// @see NdIter
+    __host__ __device__ auto& operator[](size_t flat_index) const
+    {
+        const auto index  = iter_(flat_index);
+        const auto offset = calculate_offset(index, strides_);
+        return inner_[offset];
+    }
+
+    /// @brief Return the total number of elements to iterate over.
+    ///
+    /// @see NdIter::numel()
+    __host__ __device__ size_t numel() const { return iter_.numel(); }
+
+    private:
+    NdIter<RANK> iter_;
+    Extent<RANK> strides_;
+    Iterator inner_;
+};
+
+template <DataType DT, size_t RANK, typename Iterator>
+FlatTensorIterator(const TensorDescriptor<DT, RANK>&,
+                   Iterator) -> FlatTensorIterator<DT, RANK, Iterator>;
 
 } // namespace ck_tile::builder::test

@@ -23,7 +23,7 @@ The concept of a tile represents the fundamental unit of data organization in th
 
 Distribution
 ~~~~~~~~~~~~
-The distribution pattern represents one of the most compile-time abstractions in the CK framework, defining the precise mapping between logical data elements and the physical processing resources that will operate on them. A distribution is far more than an assignment scheme—it embodies a strategy for achieving optimal performance on GPU hardware. The distribution determines which threads access which data elements, how those accesses are ordered to maximize memory bandwidth, and how intermediate results are shared between cooperating threads. By encoding these decisions at compile time, distributions enable the generation of highly optimized code that respects hardware constraints while maintaining algorithmic clarity. For a detailed exploration of distribution concepts, see :ref:`ck_tile_distribution`.
+The distribution pattern represents one of the most compile-time abstractions in the CK framework, defining the precise mapping between logical data elements and the physical processing resources that will operate on them. A distribution is far more than an assignment scheme—it embodies a strategy for achieving optimal performance on GPU hardware. The distribution determines which threads access which data elements, how those accesses are ordered to maximize memory bandwidth, and how intermediate results are shared between cooperating threads. By encoding these decisions at compile time, distributions enable the generation of highly optimized code that respects hardware constraints while maintaining algorithmic clarity. For a detailed exploration of distribution concepts, see :ref:`ck_tile_tile_distribution`.
 
 **C++ Type**: ``tile_distribution<...>``
 
@@ -378,6 +378,6 @@ Related Documentation
 
 - :ref:`ck_tile_introduction` - Introduction and motivation
 - :ref:`ck_tile_buffer_views` - Raw memory access
-- :ref:`ck_tile_distribution` - Core distribution concepts
+- :ref:`ck_tile_tile_distribution` - Core distribution concepts
 
 

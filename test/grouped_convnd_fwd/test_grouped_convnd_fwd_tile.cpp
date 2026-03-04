@@ -7,12 +7,9 @@
 #include <vector>
 #include <gtest/gtest.h>
 
-#include "ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
+#include "ck_tile/builder/testing/conv/ck_tile.hpp"
 #include "ck_tile/host/device_prop.hpp"
 #include "profiler/grouped_convolution_forward_tile_algs.hpp"
-
-// TODO: Remove limitation of conv fwd gpu reference which does not support right pad
-#define CK_CONV_FWD_REF_SKIP_RIGHT_PAD_CASES 1
 
 static ck::index_t args_mask      = 0xffff;
 static ck::index_t instance_index = -1;
@@ -67,7 +64,10 @@ class TestGroupedConvndFwdTile : public ::testing::Test
 
             auto inputs  = alloc_inputs(args);
             auto outputs = alloc_outputs(args);
-            ckt::init_inputs(args, inputs.get());
+            ckt::init_tensor_buffer_uniform_int(
+                inputs.get().input, args.make_input_descriptor(), -5, 5);
+            ckt::init_tensor_buffer_uniform_int(
+                inputs.get().weight, args.make_weight_descriptor(), -5, 5);
 
             std::cout << args.make_input_descriptor() << std::endl;
             std::cout << args.make_weight_descriptor() << std::endl;
@@ -98,17 +98,6 @@ class TestGroupedConvndFwdTile : public ::testing::Test
                           const std::vector<std::size_t>& input_left_pads,
                           const std::vector<std::size_t>& input_right_pads)
     {
-#if CK_CONV_FWD_REF_SKIP_RIGHT_PAD_CASES
-        bool without_right_pad = true;
-        for(const std::size_t& right_pad : input_right_pads)
-        {
-            without_right_pad &= right_pad == 0;
-        }
-        if(!without_right_pad)
-        {
-            return;
-        }
-#endif
         ckt::Args<SIGNATURE> args = {
             .lengths =
                 {

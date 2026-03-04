@@ -10,6 +10,8 @@
 #include "ck/tensor_operation/gpu/warp/wmma_gemm.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 
 template <index_t BlockSize,
@@ -485,3 +487,4 @@ struct BlockwiseGemmWmmaops_pipeline_base
 };
 
 } // namespace ck
+#pragma clang diagnostic pop

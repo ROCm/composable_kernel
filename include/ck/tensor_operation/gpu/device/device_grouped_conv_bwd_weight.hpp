@@ -11,8 +11,6 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
-#define DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS 1
-
 template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,

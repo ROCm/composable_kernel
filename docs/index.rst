@@ -10,7 +10,7 @@ Composable Kernel User Guide
 
 The Composable Kernel library provides a programming model for writing performance critical kernels for machine learning workloads across multiple architectures including GPUs and CPUs, through general purpose kernel languages such as `HIP C++ <https://rocm.docs.amd.com/projects/HIP/en/latest/index.html>`_.
 
-The Composable Kernel repository is located at `https://github.com/ROCm/composable_kernel <https://github.com/ROCm/composable_kernel>`_.
+The Composable Kernel project is located in https://github.com/ROCm/rocm-libraries/tree/develop/projects/composablekernel.
 
 .. grid:: 2
   :gutter: 3
@@ -25,7 +25,8 @@ The Composable Kernel repository is located at `https://github.com/ROCm/composab
 
     * :doc:`Composable Kernel structure <./conceptual/Composable-Kernel-structure>`
     * :doc:`Composable Kernel mathematical basis <./conceptual/Composable-Kernel-math>`
-    * :doc:`CK Tile conceptual documentation <./conceptual/ck_tile/index>`
+    * :doc:`CK Tile intrawave and interwave scheduling <../conceptual/CK-Tile-intra-inter-wave>`
+    * :doc:`CK Tile conceptual documentation <./conceptual/ck_tile/CK-tile-index>`
 
   .. grid-item-card:: Tutorials
 
@@ -37,9 +38,6 @@ The Composable Kernel repository is located at `https://github.com/ROCm/composab
     * :doc:`Composable Kernel custom types <./reference/Composable_Kernel_custom_types>`
     * :doc:`Composable Kernel vector utilities <./reference/Composable_Kernel_vector_utilities>`
     * :ref:`wrapper`    
-    * :doc:`Composable Kernel API reference <./doxygen/html/namespace_c_k>`
-    * :doc:`CK Tile API reference <./doxygen/html/namespaceck__tile>`
-    * :doc:`Composable Kernel complete API class list <./doxygen/html/annotated>`
     * :doc:`Composable Kernel glossary <./reference/Composable-Kernel-Glossary>`
     
 To contribute to the documentation refer to `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.

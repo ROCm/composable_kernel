@@ -40,7 +40,8 @@ struct BlockSoftmax2D
 #endif
 
         // compute row max
-        auto reduce_row_max = BlockReduce2D{x, -numeric<DataType>::infinity()};
+        using X = remove_cvref_t<decltype(x)>;
+        BlockReduce2D<X> reduce_row_max{x, -numeric<DataType>::infinity()};
 #if _BLOCK_SOFTMAX_USE_UNPACK2
         auto row_max = reduce_row_max(f_max3, f_max, sequence<1, 2>{});
 #else
@@ -52,7 +53,8 @@ struct BlockSoftmax2D
         });
 
         // compute row sum
-        auto reduce_row_sum = BlockReduce2D<decltype(y)>{y, DataType{0}};
+        using Y = remove_cvref_t<decltype(y)>;
+        BlockReduce2D<Y> reduce_row_sum{y, DataType{0}};
 #if _BLOCK_SOFTMAX_USE_UNPACK2
         auto row_sum = reduce_row_sum(f_sum3, f_sum, sequence<1, 2>{});
 #else

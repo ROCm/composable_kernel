@@ -8,14 +8,14 @@
 Contributing to Composable Kernel
 ********************************************************************
 
-Review the `Composable Kernel documentation <https://rocm.docs.amd.com/projects/composable_kernel/en/latest/>`_ before contributing to the Composable Kernel project. This documentation provides information about core concepts and configurations, as well as providing :doc:`steps for building Composable Kernel <install/Composable-Kernel-install>`. Some of this information is also available in the `Composable Kernel README <https://github.com/ROCm/composable_kernel/blob/develop/README.md>`_.
+Review the `Composable Kernel documentation <https://rocm.docs.amd.com/projects/composable_kernel/en/latest/>`_ before contributing to the Composable Kernel project. This documentation provides information about core concepts and configurations, as well as providing :doc:`steps for building Composable Kernel <install/Composable-Kernel-install>`. Some of this information is also available in the `Composable Kernel README <https://github.com/ROCm/rocm-libraries/tree/develop/projects/composablekernel/README.md>`_.
 
 Consult the `AMD Developer Central portal <https://www.amd.com/en/developer.html>`_ for more information about AMD products.
 
 Reporting issues
 =================
 
-Use `Github issues <https://github.com/ROCm/composable_kernel/issues>`_ to log and track issues and enhancement requests.
+Use `Github issues <https://github.com/ROCm/rocm-libraries/issues>`_ to log and track issues and enhancement requests.
 
 If you encounter an issue with the Composable Kernel library, search the existing GitHub issues to determine whether the problem has already been
 reported. If it hasn't, submit a new issue that includes:
@@ -52,11 +52,11 @@ All external contributors to the Composable Kernel codebase must follow these gu
 
 * Ensure a manageable pull request size: Pull requests should be limited to approximately one thousand lines. If your changes significantly exceed one thousand lines, break them into smaller pull requests that can be reviewed independently.
 
-* Use pre-commit hooks to adhere to the coding style: Composable Kernel's coding style is defined in `.clang-format <https://github.com/ROCm/composable_kernel/blob/develop/.clang-format>`_. Use the provided pre-commit hooks to run clang formatting and linting. Instructions on installing pre-commit hooks are available in the `README file <https://github.com/ROCm/composable_kernel/blob/develop/.clang-format>`_. 
+* Use pre-commit hooks to adhere to the coding style: Composable Kernel's coding style is defined in `.clang-format <https://github.com/ROCm/rocm-libraries/tree/develop/projects/composablekernel/.clang-format>`_. Use the provided pre-commit hooks to run clang formatting and linting. Instructions on installing pre-commit hooks are available in the `README file <https://github.com/ROCm/composable_kernel/blob/develop/README.md#contributing-to-ck>`_. 
 
 Forks require an approver from AMD to trigger continuous integration (CI) testing. This approval process is necessary for security and resource management.
 
 Depending on the complexity of your changes, an  AMD developer might need to pull your changes and perform additional fixes or modifications before merging. This collaborative approach ensures compatibility with internal systems and standards.
 
-You can see a complete list of pull requests on the `Composable Kernel GitHub page <https://github.com/ROCm/composable_kernel/pulls>`_.
+You can see a complete list of pull requests on the `Composable Kernel GitHub page <https://github.com/ROCm/rocm-libraries/pulls>`_.
 

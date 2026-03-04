@@ -28,6 +28,11 @@
 
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/description.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_bwd_data_multiple_d_wmma_cshuffle_v3.hpp"
+#endif
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -450,8 +455,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         BlkGemmPipelineVer,
         AComputeType,
         BComputeType,
-        false,
-        false>;
+        false, // PermuteA
+        false, // PermuteB
+        false, // IsBPreShuffled
+        true>; // ForceThreadTileTransfer
 
 #define GridwiseGemmCTransposeTemplateParameters                                                   \
     ALayout, BLayout, DsLayout, ELayout, Tuple<ADataType>, Tuple<BDataType>, AccDataType,          \
@@ -467,7 +474,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         ABlockLdsExtraM, CShuffleMRepeatPerShuffle, CShuffleNRepeatPerShuffle,                     \
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                     \
         CShuffleBlockTransferScalarPerVector, BlkGemmPipeSched, BlkGemmPipelineVer, BComputeType,  \
-        AComputeType, false, false
+        AComputeType, false, false, false, true
 
     using GridwiseGemmCTranspose =
         std::conditional_t<CTranspose,
@@ -1983,8 +1990,27 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                 "The argument pointer is not an object of "
                 "DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3::Argument structure!");
     }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    std::string GetInstanceString() const override
+    {
+        static_assert(ck_tile::reflect::HasInstanceTraits<DeviceOp>,
+                      "Specialization of instance_traits not found. Please check that a "
+                      "specialization exists in file "
+                      "ck_tile/builder/reflect/"
+                      "instance_traits_device_grouped_conv_bwd_data_multiple_d_wmma_cshuffle_v3.hpp "
+                      "for the given template parameters.");
+        return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        return std::make_unique<ck_tile::reflect::InstanceStringDescription>(GetInstanceString());
+    }
+#endif
 };
 
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+

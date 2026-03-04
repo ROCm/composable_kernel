@@ -124,6 +124,13 @@ struct FmhaBwdDQDKDVKernel
         #undef _TS_
         // clang-format on
     }
+    CK_TILE_HOST static index_t GetDqAccSplits(index_t seqlen_k)
+    {
+        if constexpr(kIsDeterministic)
+            return integer_divide_ceil(seqlen_k, FmhaPipeline::BlockFmhaShape::kN0);
+        else
+            return 1;
+    }
 
     template <ck_tile::index_t I> // to avoid duplicated base class prblem, introduce an template
                                   // arg
@@ -1181,7 +1188,7 @@ struct FmhaBwdDQDKDVKernel
                                                              scale_rp_undrop,
                                                              dropout);
 
-#if defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx12__)
             // Workaround for a compiler bug (SWDEV-559729): v_wmma instructions can be incorrectly
             // placed in divergent branches used to store padded tensors (when some lanes are
             // inactive due to padding). Inline asm with dummy dependencies on VGPRs of the tensors

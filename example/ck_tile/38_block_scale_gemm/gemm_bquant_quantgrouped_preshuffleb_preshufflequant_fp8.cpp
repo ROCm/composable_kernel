@@ -17,9 +17,8 @@ using GemmConfig = GemmConfigPreshuffleB_PreshuffleBQuant_Prefill<T>;
                                QuantGroupSize,             \
                                ck_tile::QuantType::BQuantGrouped>(arg_parser);
 
-void bquant_quantgrouped_preshuffleb_preshufflequant_fp8_instance_factory(
-    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
-{
+static auto _ = []() {
+    auto& lut = get_kernel_lut();
     using TypeConfig =
         decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
     lut[hash_multiple_strings({"fp8", "bquant", "preshuffleb", "preshufflequant", "1x1x128"})] =
@@ -47,4 +46,5 @@ void bquant_quantgrouped_preshuffleb_preshufflequant_fp8_instance_factory(
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;
         };
-}
+    return 0;
+}();

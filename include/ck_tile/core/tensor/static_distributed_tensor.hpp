@@ -14,6 +14,9 @@
 #include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/container/thread_buffer.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 template <typename DataType_, typename StaticTileDistribution_>
@@ -75,7 +78,7 @@ struct static_distributed_tensor
         constexpr auto sliced_thread_tensor_desc =
             make_naive_tensor_descriptor_packed(make_tuple(YSliceLengths...));
 
-        thread_buffer<DataType, sliced_thread_tensor_desc.get_element_space_size()>
+        thread_buffer<DataType, sliced_thread_tensor_desc.get_element_space_size() / PackedSize>
             sliced_thread_data;
 
         static_ford<sequence<YSliceLengths...>>{}([&](auto idx) {
@@ -266,3 +269,4 @@ inline constexpr bool is_similiar_distributed_tensor_v =
 } // namespace detail
 
 } // namespace ck_tile
+#pragma clang diagnostic pop

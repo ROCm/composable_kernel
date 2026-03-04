@@ -132,10 +132,6 @@ struct ABTransferWaveTiles
                                                        index_t,
                                                        index_t)
     {
-        // Notes: padding is currently not supported with transpose
-        static_assert(!((PadMN || PadK) && ABDoTranspose),
-                      "padding is currently not supported with transpose");
-
         const index_t MN_grid = !PadMN ? sizeMN : MNPad;
         const index_t K_grid  = !PadK ? sizeK : KPad;
 
@@ -322,43 +318,43 @@ struct ABTransferWaveTiles
                                             const index_t block_mn_id,
                                             const index_t)
     {
-        // Note: GlobalBufferNum is currently not used but it will be needed
-        // once we add other pipelines. It is currently needed only for
-        // consistency with the thread tiles approach
-        static_assert(GlobalBufferNum == 1, "single global buffer is only supported");
         constexpr index_t NumABTensor = ABsDataType::Size();
-        static_assert(NumABTensor == 1, "multiAB currently not supported");
-
-        using ABDataType = remove_cvref_t<tuple_element_t<0, ABsDataType>>;
 
         const auto wave_idx = GetWaveIdx();
         index_t wave_idK    = wave_idx[I1];
         index_t wave_idMN   = wave_idx[I0];
 
-        const auto grid_lane_id    = GetGridLaneIdx<ABDataType>();
-        index_t lane_group_grid    = grid_lane_id[I0];
-        index_t lane_local_id_grid = grid_lane_id[I1];
-
         const auto block_lane_id    = GetBlockLaneIdx();
         index_t lane_group_block    = block_lane_id[I0];
         index_t lane_local_id_block = block_lane_id[I1];
 
-        return ThreadGroupTransferGlobal<decltype(grid_descriptor[I0]),
+        const auto idx_as_block_begin = generate_tuple(
+            [&](auto iTensor) {
+                using ABDataType           = remove_cvref_t<tuple_element_t<iTensor, ABsDataType>>;
+                const auto grid_lane_id    = GetGridLaneIdx<ABDataType>();
+                index_t lane_group_grid    = grid_lane_id[I0];
+                index_t lane_local_id_grid = grid_lane_id[I1];
+                return make_multi_index(block_mn_id * (MNRepeat_ * MNWaves_) + wave_idMN,
+                                        wave_idK,
+                                        lane_group_grid,
+                                        lane_local_id_grid);
+            },
+            Number<NumABTensor>{});
+
+        return ThreadGroupTransferGlobal<GridDescriptor,
                                          BlockDescriptor,
-                                         ABDataType,
-                                         ABDataType,
+                                         ABsDataType,
+                                         LDSTypeAB,
                                          ABElementwiseOperation,
                                          Sequence<MNRepeat_, KRepeat_, I1, I1>,
                                          Sequence<MNWaves_, KWaves_, I1, I1>,
                                          Sequence<I0, I1, I2, I3>,
                                          ABK1Value,
-                                         ABDoTranspose>(
-            grid_descriptor[I0],
+                                         ABDoTranspose,
+                                         GlobalBufferNum>(
+            grid_descriptor,
             block_descriptor,
-            make_multi_index(block_mn_id * (MNRepeat_ * MNWaves_) + wave_idMN,
-                             wave_idK,
-                             lane_group_grid,
-                             lane_local_id_grid),
+            idx_as_block_begin,
             make_multi_index(wave_idMN, wave_idK, lane_group_block, lane_local_id_block),
             ab_element_op);
     }
@@ -401,6 +397,12 @@ struct ABTransferWaveTiles
     __device__ static auto GetBuffer(LDSType* p_shared_AB, const IndexType& size)
     {
         return make_dynamic_buffer<AddressSpaceEnum::Lds>(p_shared_AB, size);
+    }
+
+    template <index_t numElements, typename Type>
+    __device__ __forceinline__ static auto get_first_element_workaround(Type& array)
+    {
+        return array;
     }
 };
 

@@ -173,7 +173,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
         const auto rs_batch_offset = compute_ptr_offset_of_batch.GetRsPtrOffset(g_idx);
 
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         DsPointer p_ds_grid_grp;
 

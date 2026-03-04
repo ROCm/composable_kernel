@@ -260,7 +260,10 @@ struct DynamicBuffer
                 x, p_data_, i, is_valid_element, element_space_size_ / PackedSize);
         }
         else if constexpr(GetAddressSpace() == AddressSpaceEnum::Lds &&
-                          is_same<typename scalar_type<remove_cvref_t<T>>::type, int8_t>::value &&
+                          is_same_v<typename scalar_type<remove_cvref_t<T>>::type, int8_t> &&
+                          !is_same_v<remove_cvref_t<T>,
+                                     pk_i4_t> && // TODO: This needs to be fixed for pk_i4_t which
+                                                 // cannot be handled below, but is stored as int8_t
                           workaround_int8_ds_write_issue)
         {
             if(is_valid_element)

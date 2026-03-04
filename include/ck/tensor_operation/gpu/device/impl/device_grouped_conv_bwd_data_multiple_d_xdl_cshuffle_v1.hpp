@@ -27,6 +27,11 @@
 
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
 
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/description.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_bwd_data_multiple_d_xdl_cshuffle.hpp"
+#endif
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -80,7 +85,7 @@ template <typename GridwiseGemm,
           bool CTranspose>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, CK_MIN_BLOCK_PER_CU)
 #endif
     kernel_grouped_conv_bwd_data_multiple_d_xdl_cshuffle(
         const ABDataType* __restrict__ p_a_grid,
@@ -124,7 +129,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const long_index_t e_n_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
 
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         DsPointer p_ds_grid_grp;
 
@@ -1942,6 +1947,24 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 "The argument pointer is not an object of "
                 "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1::Argument structure!");
     }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    std::string GetInstanceString() const override
+    {
+        static_assert(ck_tile::reflect::HasInstanceTraits<DeviceOp>,
+                      "Specialization of instance_traits not found. Please check that a "
+                      "specialization exists in file "
+                      "ck_tile/builder/reflect/"
+                      "instance_traits_device_grouped_conv_bwd_data_multiple_d_xdl_cshuffle.hpp "
+                      "for the given template parameters.");
+        return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        return std::make_unique<ck_tile::reflect::InstanceStringDescription>(GetInstanceString());
+    }
+#endif
 };
 
 } // namespace device

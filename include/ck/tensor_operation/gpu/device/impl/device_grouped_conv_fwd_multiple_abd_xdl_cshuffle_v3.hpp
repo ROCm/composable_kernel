@@ -116,7 +116,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const long_index_t e_n_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
 
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         using Block2CTileMap         = typename GridwiseGemm::Block2CTileMapDefault;
         const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N, 4};
@@ -238,8 +238,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         // Pass two lds pointer is the key to tell compiler that ds_read/write
         // operate on different lds chunk at same time without order dependecy
-        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
+        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
 
         using Block2CTileMap         = typename GridwiseGemm::Block2CTileMapDefault;
         const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N, 4};
@@ -382,7 +382,8 @@ template <index_t NDimSpatial,
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
           typename BComputeDataType = AComputeDataType,
-          bool DirectLoad           = false>
+          bool DirectLoad           = false,
+          index_t NumGroupsToMerge  = 1>
 struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
                                              ALayout,
@@ -418,6 +419,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                        Wave32MaxMNPerXDL,
                        NXdlPerWave*(NPerXDL / Wave32MaxMNPerXDL)>();
 
+    static_assert(NumGroupsToMerge >= 1);
+
     static constexpr bool isMultiA   = is_detected<is_tuple, ADataType>::value;
     static constexpr bool isMultiB   = is_detected<is_tuple, BDataType>::value;
     static constexpr bool isMultiD   = DsDataType::Size() > 0;
@@ -447,7 +450,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                             ConvForwardSpecialization,
                                                             true /*SplitN*/,
                                                             ADataType,
-                                                            EDataType>;
+                                                            EDataType,
+                                                            NumGroupsToMerge>;
 
     using ComputePtrOffset = ComputePtrOffsetOfStridedBatch<I1, I1, NumDTensor>;
 
@@ -567,6 +571,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     using DsGridDesc_M_N =
         remove_cvref_t<decltype(MakeDsGridDescriptor_M_N(dummy_conv_to_gemm_transformer))>;
 
+    // Disable vector load = 4. It is not supported for Direct Load. Align to 2 in such case.
     static constexpr index_t ABlockTransferSrcScalarPerVectorAligned =
         ABlockTransferSrcScalarPerVector * sizeof(ADataType) == 8
             ? 4 / sizeof(ADataType)
@@ -783,8 +788,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
               cde_element_op_{cde_element_op}
         {
             // A/B/E Batch/N Stride
-            compute_ptr_offset_of_groups_.BatchStrideA_ = a_g_n_c_wis_strides_[0];
-            compute_ptr_offset_of_groups_.BatchStrideB_ = b_g_k_c_xs_strides_[0];
+            compute_ptr_offset_of_groups_.BatchStrideA_ =
+                a_g_n_c_wis_strides_[0] * NumGroupsToMerge;
+            compute_ptr_offset_of_groups_.BatchStrideB_ = b_g_k_c_xs_strides_[0] * NumGroupsToMerge;
             compute_ptr_offset_of_n_.BatchStrideA_ = a_g_n_c_wis_strides_[1] * conv_N_per_block_;
 
             // p_as and p_bs are pointers
@@ -795,7 +801,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
                 // D batch stride
-                compute_ptr_offset_of_groups_.BatchStrideDs_(i) = ds_g_n_k_wos_strides_[i][0];
+                compute_ptr_offset_of_groups_.BatchStrideDs_(i) =
+                    ds_g_n_k_wos_strides_[i][0] * NumGroupsToMerge;
                 compute_ptr_offset_of_n_.BatchStrideDs_(i) =
                     ds_g_n_k_wos_strides_[i][1] * conv_N_per_block_;
 
@@ -815,7 +822,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                     DeviceOp::MakeEGridDescriptor_M_N<DLayout>(conv_to_gemm_transformer_d);
             });
 
-            compute_ptr_offset_of_groups_.BatchStrideE_ = e_g_n_k_wos_strides_[0];
+            compute_ptr_offset_of_groups_.BatchStrideE_ =
+                e_g_n_k_wos_strides_[0] * NumGroupsToMerge;
             compute_ptr_offset_of_n_.BatchStrideE_ = e_g_n_k_wos_strides_[1] * conv_N_per_block_;
 
             if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
@@ -998,7 +1006,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             std::tie(gdx, gdy, gdz) =
                 GridwiseGemm::CalculateGridSize(GemmM, GemmN, I1 /*arg.KBatch*/);
 
-            gdy = arg.num_group_;
+            gdy = arg.num_group_ / NumGroupsToMerge;
             gdz = num_workgroups_per_Conv_N;
 
             index_t K_split                  = (GemmK + KPerBlock - 1) / KPerBlock * KPerBlock;
@@ -1498,6 +1506,19 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             }
         }
 
+        if constexpr(NumGroupsToMerge > 1)
+        {
+            if(G % NumGroupsToMerge != 0)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Unsupported! G % NumGroupsToMerge != 0: G=" << G
+                              << ", NumGroupsToMerge=" << NumGroupsToMerge << std::endl;
+                }
+                return false;
+            }
+        }
+
         if(get_device_name() == "gfx908")
         {
             // FIXME: re-enable fp64 when SWDEV-335738 is fixed
@@ -1590,6 +1611,22 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                             << " In " << __FILE__ << ":" << __LINE__
                             << ", in function: " << __func__ << std::endl;
                     }
+                    return false;
+                }
+            }
+        }
+        else if constexpr(ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter3x3)
+        {
+            if(C != 1)
+            {
+                return false;
+            }
+            for(index_t i = 0; i < NDimSpatial; ++i)
+            {
+                const index_t filter_spatial_dim = arg.b_g_k_c_xs_lengths_[i + I3];
+
+                if(filter_spatial_dim != I3)
+                {
                     return false;
                 }
             }
@@ -2105,6 +2142,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         if constexpr(DirectLoad) {
             str << "_DirectLoad";
         }
+        if constexpr (NumGroupsToMerge > 1) {
+            str << "_MergedGroups";
+        }
 
         str << "<"
             << BlockSize << ", "
@@ -2124,8 +2164,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             << "BlkGemmPipelineScheduler: "
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "
-            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer]
-            << ">";
+            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer];
+            if constexpr (NumGroupsToMerge > 1) {
+                str   << ", " << NumGroupsToMerge;
+            }
+            str << ">";
         // clang-format on
 
         return str.str();

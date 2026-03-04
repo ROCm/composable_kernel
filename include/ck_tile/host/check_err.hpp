@@ -19,7 +19,7 @@
 namespace ck_tile {
 
 /** @brief Maximum number of error values to display when checking errors */
-constexpr int ERROR_DETAIL_LIMIT = 128;
+constexpr int ERROR_DETAIL_LIMIT = 16;
 
 /** @brief 8-bit floating point type */
 using F8 = ck_tile::fp8_t;
@@ -137,7 +137,10 @@ CK_TILE_HOST double get_absolute_threshold(const double max_possible_num,
                             int>::value,
                   "Warning: Unhandled ComputeDataType for setting up the absolute threshold!");
 
-    auto expo            = std::log2(std::abs(max_possible_num));
+    // Use discrete exponent (floor of log2) to match actual floating-point exponent levels
+    // This ensures ULP calculation matches the discrete precision levels of FP representation
+    int discrete_expo =
+        std::floor(static_cast<int>(std::floor(std::log2(std::abs(max_possible_num)))));
     double compute_error = 0;
     if constexpr(is_any_of<ComputeDataType, pk_int4_t, I8, I32, int>::value)
     {
@@ -145,7 +148,7 @@ CK_TILE_HOST double get_absolute_threshold(const double max_possible_num,
     }
     else
     {
-        compute_error = std::pow(2, expo - numeric_traits<ComputeDataType>::mant) * 0.5;
+        compute_error = std::pow(2, discrete_expo - numeric_traits<ComputeDataType>::mant) * 0.5;
     }
 
     static_assert(is_any_of<OutDataType, F8, BF8, F16, BF16, F32, pk_int4_t, I8, I32, int>::value,
@@ -158,7 +161,10 @@ CK_TILE_HOST double get_absolute_threshold(const double max_possible_num,
     }
     else
     {
-        output_error = std::pow(2, expo - numeric_traits<OutDataType>::mant) * 0.5;
+        // Use full ULP (1.0) instead of half ULP (0.5) for output_error to account for
+        // hardware vs software conversion differences (e.g., hardware __bf16 vs software
+        // float_to_bf16 can differ by up to 1 ULP at tie cases)
+        output_error = std::pow(2, discrete_expo - numeric_traits<OutDataType>::mant) * 1.0;
     }
     double midway_error = std::max(compute_error, output_error);
 
@@ -172,8 +178,8 @@ CK_TILE_HOST double get_absolute_threshold(const double max_possible_num,
     }
     else
     {
-        acc_error =
-            std::pow(2, expo - numeric_traits<AccDataType>::mant) * 0.5 * number_of_accumulations;
+        acc_error = std::pow(2, discrete_expo - numeric_traits<AccDataType>::mant) * 0.5 *
+                    number_of_accumulations;
     }
     return std::max(acc_error, midway_error);
 }
@@ -716,6 +722,59 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     if(err_count > 0)
     {
         report_error_stats(err_count, numeric<pk_fp4_t>::max(), ref.size());
+    }
+    return err_count == 0;
+}
+
+/**
+ * @brief Check errors between pk_fp6x16_t ranges
+ *
+ * Compares two ranges of pk_fp6x16_t without tolerance.
+ * This specialization handles ck_tile::pk_fp6x16_t type.
+ *
+ * @tparam Range Type of output range
+ * @tparam RefRange Type of reference range
+ * @param out Output range to check
+ * @param ref Reference range to check against
+ * @param msg Error message to display if check fails
+ * @return True if check passes, false otherwise
+ */
+template <typename Range, typename RefRange>
+std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
+                  std::is_same_v<ranges::range_value_t<Range>, pk_fp6x16_t>),
+                 bool>
+    CK_TILE_HOST check_err(const Range& out,
+                           const RefRange& ref,
+                           const std::string& msg = "Error: Incorrect results!",
+                           double                 = 0,
+                           double                 = 0)
+{
+    if(check_size_mismatch(out, ref, msg))
+        return false;
+
+    int err_count   = 0;
+    float max_err   = 0.0f;
+    auto update_err = [&](float o, float r, std::size_t index) {
+        if(std::fabs(o - r) > 1e-8)
+        {
+            std::cerr << msg << " out[" << index << "] != ref[" << index << "]: " << o
+                      << " != " << r << std::endl;
+            ++err_count;
+            max_err = max_err < std::fabs(o - r) ? o : max_err;
+        }
+    };
+    for(std::size_t i = 0; i < ref.size(); ++i)
+    {
+        const pk_fp6x16_t o = *std::next(std::begin(out), i);
+        const pk_fp6x16_t r = *std::next(std::begin(ref), i);
+        for(std::size_t j = 0; j < numeric_traits<pk_fp6x16_t>::PackedSize; j++)
+        {
+            update_err(o.unpack(j), r.unpack(j), i * numeric_traits<pk_fp6x16_t>::PackedSize + j);
+        }
+    }
+    if(err_count > 0)
+    {
+        report_error_stats(err_count, max_err, ref.size());
     }
     return err_count == 0;
 }

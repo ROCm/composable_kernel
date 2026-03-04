@@ -63,7 +63,10 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
                               true>
         c_thread_buf_;
 
-    __host__ __device__ constexpr auto& GetCThreadBuffer() { return c_thread_buf_; }
+    __host__ __device__ constexpr auto& GetCThreadBuffer() [[clang::lifetimebound]]
+    {
+        return c_thread_buf_;
+    }
 
     __device__ static auto GetWaveIdx()
     {

@@ -1,5 +1,6 @@
 #include "../../builder/test/utils/ckb_conv_tile_test_configs.hpp"
-#include "ck_tile/builder/testing/conv_fwd_ck_tile.hpp"
+#include "ck_tile/builder/testing/conv/fwd.hpp"
+#include "ck_tile/builder/testing/conv/ck_tile.hpp"
 
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;

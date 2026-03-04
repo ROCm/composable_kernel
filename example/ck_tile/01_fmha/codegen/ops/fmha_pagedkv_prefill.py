@@ -597,6 +597,24 @@ class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
             return None
 
 
+class KernelComponentFactoryGfx11(KernelComponentFactoryBase):
+    arch = ArchTrait("gfx11")
+
+    @staticmethod
+    def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
+        if dtype in ["fp16", "bf16"]:
+            return {
+                #                      bm0, bn0, bk0, bn1, bk1,
+              # "32":  FmhaFwdTileSize( 64,  64,  16,  32,  32,   32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+              # "64":  FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                "128": FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+              # "192": FmhaFwdTileSize( 64,  64,  32, 128,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+              # "256": FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            }  # fmt: skip
+        else:
+            return None
+
+
 class KernelComponentFactoryGfx12(KernelComponentFactoryBase):
     arch = ArchTrait("gfx12")
 
@@ -628,6 +646,8 @@ def get_factory(target: str):
     if target.startswith("gfx9"):
         return KernelComponentFactoryGfx9
 
+    if target.startswith("gfx11"):
+        return KernelComponentFactoryGfx11
     if target.startswith("gfx12"):
         return KernelComponentFactoryGfx12
 
@@ -775,5 +795,5 @@ def list_blobs(
             targets, kernel_filter, receipt, optdim_list, mask_impl
         )
         for kernel in kernels:
-            f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME) + "\n")
+            f.write((file_path.parent / GEN_DIR / kernel.filename).as_posix() + "\n")
+        f.write((file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME).as_posix() + "\n")
