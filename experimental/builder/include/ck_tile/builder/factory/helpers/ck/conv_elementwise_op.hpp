@@ -30,6 +30,12 @@ struct ElementwiseOpToCK<ElementwiseOperation::SCALE>
 };
 
 template <>
+struct ElementwiseOpToCK<ElementwiseOperation::BILINEAR>
+{
+    using Op = ck::tensor_operation::element_wise::Bilinear;
+};
+
+template <>
 struct ElementwiseOpToCK<ElementwiseOperation::CLAMP>
 {
     using Op = ck::tensor_operation::element_wise::Clamp;
@@ -39,6 +45,12 @@ template <>
 struct ElementwiseOpToCK<ElementwiseOperation::SCALEADD_SCALEADD_RELU>
 {
     using Op = ck::tensor_operation::element_wise::ScaleAddScaleAddRelu;
+};
+
+template <>
+struct ElementwiseOpToCK<ElementwiseOperation::ADD_CLAMP>
+{
+    using Op = ck::tensor_operation::element_wise::AddClamp;
 };
 
 template <>

@@ -23,6 +23,12 @@ TEST(ConvElementwiseOp, AssignsOpsForScale)
     EXPECT_TRUE((std::is_same_v<Op, ck::tensor_operation::element_wise::Scale>));
 }
 
+TEST(ConvElementwiseOp, AssignsOpsForBilinear)
+{
+    using Op = ElementwiseOpToCK<ElementwiseOperation::BILINEAR>::Op;
+    EXPECT_TRUE((std::is_same_v<Op, ck::tensor_operation::element_wise::Bilinear>));
+}
+
 TEST(ConvElementwiseOp, AssignsOpsForClamp)
 {
     using Op = ElementwiseOpToCK<ElementwiseOperation::CLAMP>::Op;
@@ -33,6 +39,12 @@ TEST(ConvElementwiseOp, AssignsOpsForScaleAddScaleAddRelu)
 {
     using Op = ElementwiseOpToCK<ElementwiseOperation::SCALEADD_SCALEADD_RELU>::Op;
     EXPECT_TRUE((std::is_same_v<Op, ck::tensor_operation::element_wise::ScaleAddScaleAddRelu>));
+}
+
+TEST(ConvElementwiseOp, AssignsOpsForAddClamp)
+{
+    using Op = ElementwiseOpToCK<ElementwiseOperation::ADD_CLAMP>::Op;
+    EXPECT_TRUE((std::is_same_v<Op, ck::tensor_operation::element_wise::AddClamp>));
 }
 
 TEST(ConvElementwiseOp, AssignsOpsForBiasNormClamp)
