@@ -9,6 +9,7 @@
 #include "ck_tile/builder/testing/conv/ck_tile.hpp"
 #include "ck_tile/host/device_prop.hpp"
 #include "profiler/grouped_convolution_forward_tile_algs.hpp"
+#include "profiler/tile_profiler_utils.hpp"
 
 #include "profiler_operation_registry.hpp"
 
