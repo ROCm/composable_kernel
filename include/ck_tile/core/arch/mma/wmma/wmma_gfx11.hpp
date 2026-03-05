@@ -8,6 +8,7 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
+#include "ck_tile/core/arch/mma/mma_traits.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 
 namespace ck_tile::core::arch::mma {
@@ -77,10 +78,12 @@ struct amdgcn_mma<fp16_t,
                   16u,
                   CtrlFlags,
                   CompilerTarget,
-                  enable_if_target_family_gfx11_t<CompilerTarget>>
+                  MmaOpFamily::DENSE,
+                  std::enable_if_t<is_target_family_gfx11<CompilerTarget>()>>
 {
     // Wmma operation type
-    using OpType = WmmaOp;
+    using OpType                          = WmmaOp;
+    static constexpr MmaOpFamily OpFamily = MmaOpFamily::DENSE;
 
     // Register types (duplicated input / b32 accum)
     using AVecType = ext_vector_t<fp16_t, 16>;

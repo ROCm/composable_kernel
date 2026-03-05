@@ -3,6 +3,7 @@
 
 #pragma once
 #include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/arch/mma/mma_op_family.hpp"
 
 namespace ck_tile::core::arch::mma {
 
@@ -15,11 +16,12 @@ namespace ck_tile::core::arch::mma {
  * architecture.
  * @tparam ADataType       Data type of matrix A
  * @tparam BDataType       Data type of matrix B
- * @tparam CDataType     Data type of the accumulator
+ * @tparam CDataType       Data type of the accumulator
  * @tparam FragM           Fragment M dimension
  * @tparam FragN           Fragment N dimension
  * @tparam FragK           Fragment K dimension
  * @tparam CompilerTarget  The compiler target
+ * @tparam OpFamily        The MMA operation family
  * @tparam Enable          SFINAE enabler
  * @note Here we distinguish that Fragment MNK sizes from Block MNK sizes used in the actual MMA
  * operation. Fragment sizes correspond to the overall tile size being computed, while Block sizes
@@ -34,14 +36,22 @@ template <typename ADataType,
           uint32_t FragN,
           uint32_t FragK,
           typename CompilerTarget,
+          MmaOpFamily OpFamily,
           typename Enable = void>
 // TODO c++20 requires
 struct MmaDefaultSelector
 {
     // By default, no selection is made, and we fall back to a pass-through unsupported
     // implementation. This is because we do not have any knowledge of the target architecture here.
-    using SelectedOp =
-        amdgcn_mma<ADataType, BDataType, CDataType, FragM, FragN, FragK, void, amdgcn_target<>>;
+    using SelectedOp = amdgcn_mma<ADataType,
+                                  BDataType,
+                                  CDataType,
+                                  FragM,
+                                  FragN,
+                                  FragK,
+                                  void,
+                                  amdgcn_target<>,
+                                  MmaOpFamily::UNDEFINED>;
 };
 
 #if CK_TILE_CONCEPTS
