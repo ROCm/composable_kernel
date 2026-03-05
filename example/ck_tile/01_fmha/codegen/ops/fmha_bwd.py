@@ -447,7 +447,7 @@ class KernelComponentFactoryGfx950(KernelComponentFactoryGfx9):
         results = KernelComponentFactoryGfx9.get_dq_dk_dv_tiles(dtype, tr_load)
         if dtype in ["fp16", "bf16"] and tr_load == "t":
             results.extend([
-                FmhaBwdDQDKDVTileSize( 32, 128,  64,  32,  64,  32,  32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
+                FmhaBwdDQDKDVTileSize( 32, 256,  64,  32,  64,  32,  32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
                 FmhaBwdDQDKDVTileSize( 32, 128, 128,  32, 128,  32,  32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
                 FmhaBwdDQDKDVTileSize( 16, 192, 128,  16, 128,  16,  32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
                 # FmhaBwdDQDKDVTileSize( 32,  32,  64, 32,  64, 32, 32,  64,  64, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 32, 1, 32),
@@ -823,7 +823,7 @@ class FmhaBwdApiTrait:
 
     @property
     def extra_cond(self) -> str:
-        if self.tr_load == "t" and self.tile.max_seq_q == 0 and self.tile.F_bn0 == 128:
+        if self.tr_load == "t" and self.tile.max_seq_q == 0 and self.tile.F_bn0 == 128 and self.tile.F_bhdq == 128:
             return " && (t.seqlen_k <= 256)"
         else:
             return ""
