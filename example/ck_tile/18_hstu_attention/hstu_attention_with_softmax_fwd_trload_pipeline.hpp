@@ -451,14 +451,10 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
-            auto m_local = block_tile_reduce<CompDataType>(
-                pcomp_tile, sequence<1>{}, f_max, -numeric<CompDataType>::infinity());
-            block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
-
             const auto m_old = m;
 
-            tile_elementwise_inout(
-                [](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); }, m, m_old, m_local);
+            block_tile_reduce(m, pcomp_tile, sequence<1>{}, f_max);
+            block_tile_reduce_sync(m, f_max, bool_constant<false>{});
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
