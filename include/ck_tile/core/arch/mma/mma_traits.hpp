@@ -1,6 +1,8 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 #pragma once
+
+#include "ck_tile/core/arch/mma/mma_op_family.hpp"
 #include "amdgcn_mma.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "mfma/mfma_traits.hpp"
@@ -69,6 +71,7 @@ concept MmaOpParamsI = requires(MmaOpParams op) {
     { MmaOpParams::BlockN } -> std::convertible_to<unsigned int>;
     { MmaOpParams::BlockK } -> std::convertible_to<unsigned int>;
     { MmaOpParams::GfxTargetId } -> std::convertible_to<amdgcn_target_arch_id>;
+    { MmaOpParams::Family } -> std::convertible_to<MmaOpFamily>;
 };
 
 #endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
@@ -92,7 +95,8 @@ template <typename ADataType_,
           uint32_t BlockN_,
           uint32_t BlockK_,
           typename CtrlFlags_,
-          typename CompilerTarget_>
+          typename CompilerTarget_,
+          MmaOpFamily OpFamily_>
 // TODO: c++20 amdgcn_target_arch_id CompilerTarget_>
 struct MmaOpParams<amdgcn_mma<ADataType_,
                               BDataType_,
@@ -101,17 +105,19 @@ struct MmaOpParams<amdgcn_mma<ADataType_,
                               BlockN_,
                               BlockK_,
                               CtrlFlags_,
-                              CompilerTarget_>>
+                              CompilerTarget_,
+                              OpFamily_>>
 {
     // Capture incoming template parameters
-    using ADataType                  = ADataType_;
-    using BDataType                  = BDataType_;
-    using CDataType                  = CDataType_;
-    static constexpr uint32_t BlockM = BlockM_;
-    static constexpr uint32_t BlockN = BlockN_;
-    static constexpr uint32_t BlockK = BlockK_;
-    using CtrlFlags                  = CtrlFlags_;
-    using CompilerTarget             = CompilerTarget_;
+    using ADataType                   = ADataType_;
+    using BDataType                   = BDataType_;
+    using CDataType                   = CDataType_;
+    static constexpr uint32_t BlockM  = BlockM_;
+    static constexpr uint32_t BlockN  = BlockN_;
+    static constexpr uint32_t BlockK  = BlockK_;
+    using CtrlFlags                   = CtrlFlags_;
+    using CompilerTarget              = CompilerTarget_;
+    static constexpr auto MmaOpFamily = OpFamily_;
     // TODO c++20static constexpr amdgcn_target_arch_id GfxTargetId = CompilerTarget_;
 };
 
@@ -131,6 +137,8 @@ struct MmaOpTraits : public MmaOpParams<MmaOp>
     using BVecType = typename MmaOp::BVecType;
     using CVecType = typename MmaOp::CVecType;
 
+    static constexpr MmaOpFamily OpFamily = MmaOp::OpFamily;
+
     // Capture layout parameters
     static constexpr index_t kAMBlock    = MmaOp::kAMBlock;
     static constexpr index_t kBNBlock    = MmaOp::kBNBlock;
@@ -144,9 +152,13 @@ struct MmaOpTraits : public MmaOpParams<MmaOp>
     static constexpr index_t kCM1PerLane = MmaOp::kCM1PerLane;
 
     // Additional traits to identify the type of MmaOp at compile time
-    constexpr static bool IsMfma      = is_mma_op_mfma_v<MmaOp>;
-    constexpr static bool IsWmma      = is_mma_op_wmma_v<MmaOp>;
-    constexpr static bool IsSupported = is_mma_op_supported_v<MmaOp>;
+    constexpr static bool IsMfma   = is_mma_op_mfma_v<MmaOp>;
+    constexpr static bool IsWmma   = is_mma_op_wmma_v<MmaOp>;
+    constexpr static bool IsDense  = OpFamily == MmaOpFamily::DENSE;
+    constexpr static bool IsSparse = OpFamily == MmaOpFamily::SPARSE;
+    constexpr static bool IsScale  = OpFamily == MmaOpFamily::SCALE;
+    constexpr static bool IsSupported =
+        is_mma_op_supported_v<MmaOp> && OpFamily != MmaOpFamily::UNDEFINED;
 };
 
 } // namespace ck_tile::core::arch::mma

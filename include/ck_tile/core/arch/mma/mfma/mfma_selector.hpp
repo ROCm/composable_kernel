@@ -52,7 +52,8 @@ struct MfmaDefaultSelector
                    BlockN,
                    BlockKTest,
                    DefaultMfmaCtrlFlags, // By default, let's assume no special flags for MFMA
-                   CompilerTarget>;
+                   CompilerTarget,
+                   MmaOpFamily::DENSE>;
     using CandidateTraits = MmaOpTraits<CandidateOp>;
 
     public:
@@ -98,7 +99,8 @@ struct MfmaDefaultSelector<ADataType, BDataType, CDataType, BlockM, BlockN, 1u, 
                    BlockN,
                    1u,
                    DefaultMfmaCtrlFlags, // By default, let's assume no special flags for MFMA
-                   CompilerTarget>;
+                   CompilerTarget,
+                   MmaOpFamily::DENSE>;
 };
 
 /**
@@ -114,6 +116,7 @@ struct MfmaDefaultSelector<ADataType, BDataType, CDataType, BlockM, BlockN, 1u, 
  * @tparam FragN Size of the N dimension of the fragment to decompose
  * @tparam FragK Size of the K dimension of the fragment to decompose
  * @tparam CompilerTarget The compiler target
+ * @tparam OpFamily The MMA operation family
  */
 template <typename ADataType,
           typename BDataType,
@@ -121,7 +124,8 @@ template <typename ADataType,
           uint32_t FragM,
           uint32_t FragN,
           uint32_t FragK,
-          typename CompilerTarget> // TODO: c++20 amdgcn_target_arch_id CompilerTarget>
+          typename CompilerTarget,
+          MmaOpFamily OpFamily> // TODO: c++20 amdgcn_target_arch_id CompilerTarget>
 struct MmaDefaultSelector<ADataType,
                           BDataType,
                           CDataType,
@@ -129,7 +133,9 @@ struct MmaDefaultSelector<ADataType,
                           FragN,
                           FragK,
                           CompilerTarget,
-                          enable_if_target_family_gfx9_t<CompilerTarget>>
+                          OpFamily,
+                          enable_if_all<enable_if_target_family_gfx9_t<CompilerTarget>,
+                                        std::enable_if_t<OpFamily == MmaOpFamily::DENSE>>>
 {
     private:
     // Provide the default depth-K search strategy for each class of common MFMA shapes.
