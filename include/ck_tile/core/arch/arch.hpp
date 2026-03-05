@@ -823,6 +823,12 @@ using enable_if_target_wave64_t =
 
 #endif // __cplusplus <= 201703L
 
+template <typename... Ts>
+constexpr bool all_types_void = std::conjunction_v<std::is_same<void, Ts>...>;
+
+template <typename... Enablers>
+using enable_if_all = std::enable_if_t<all_types_void<Enablers...>>;
+
 } // namespace core::arch
 
 CK_TILE_HOST bool is_wave32()
