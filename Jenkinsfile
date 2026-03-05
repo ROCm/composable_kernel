@@ -287,12 +287,12 @@ def shouldRunCICheck() {
                 if [ "$CHANGE_ID" != "" ]; then
                     # For PR builds, get all files touched in any commit
                     echo "PR build detected, checking all touched files against origin/$CHANGE_TARGET" >&2
-                    git log --name-only --pretty=format: origin/$CHANGE_TARGET..HEAD -- projects/composablekernel/ | sort -u | grep -v '^$'
+                    git log --name-only --pretty=format: origin/$CHANGE_TARGET..HEAD -- projects/composablekernel/ | sort -u | grep -v '^$' || true
                 else
                     # For feature branch builds, compare against merge-base with base branch
                     MERGE_BASE=$(git merge-base HEAD origin/$BASE_BRANCH 2>/dev/null || echo "HEAD~1")
                     echo "Branch build detected, checking all touched files since merge-base: $MERGE_BASE" >&2
-                    git log --name-only --pretty=format: $MERGE_BASE..HEAD -- projects/composablekernel/ | sort -u | grep -v '^$'
+                    git log --name-only --pretty=format: $MERGE_BASE..HEAD -- projects/composablekernel/ | sort -u | grep -v '^$' || true
                 fi
             '''
         ).trim().split('\n')
