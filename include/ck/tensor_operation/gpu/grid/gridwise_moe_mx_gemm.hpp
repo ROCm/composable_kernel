@@ -1342,10 +1342,10 @@ struct GridwiseMoeGemmMX
             gather_offsets(m0) = static_cast<IndexType>(token_offset);
         });
 
-        const index_t expert_stride =
-            __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
-        const index_t expert_scale_stride = __builtin_amdgcn_readfirstlane(
-            problem.N * (IsInputGemm ? 2 : 1) *
+        const long_index_t expert_stride =
+            __builtin_amdgcn_readfirstlane(static_cast<long_index_t>(problem.N) * problem.K * (IsInputGemm ? 2 : 1));
+        const long_index_t expert_scale_stride = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(problem.N) * (IsInputGemm ? 2 : 1) *
             math::integer_divide_ceil(problem.K, ScaleBlockSize / BPackedSize));
 
         // N0, K0, Blocksize*KPack
@@ -1356,13 +1356,13 @@ struct GridwiseMoeGemmMX
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid + expert_id * expert_stride, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+            p_b_grid + static_cast<long_index_t>(expert_id) * expert_stride, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
 
         // A, B scale buffer
         const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
         const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_scale_grid + (expert_id * expert_scale_stride) / sizeof(BScaleDataType),
+            p_b_scale_grid + (static_cast<long_index_t>(expert_id) * expert_scale_stride) / sizeof(BScaleDataType),
             b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
         // lds max alignment
@@ -1502,7 +1502,7 @@ struct GridwiseMoeGemmMX
 
             const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2;
             const auto b_grid_buf_up     = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_grid_up + expert_id * expert_stride,
+                p_b_grid_up + static_cast<long_index_t>(expert_id) * expert_stride,
                 b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
 
             auto b_blockwise_copy_up = ThreadGroupTensorSliceTransfer_DirectLoad<
@@ -1525,7 +1525,7 @@ struct GridwiseMoeGemmMX
             const BScaleDataType* p_b_scale_grid_up =
                 p_b_scale_grid + expert_scale_stride / 2 / sizeof(BScaleDataType);
             const auto b_scale_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_scale_grid_up + expert_id * expert_scale_stride / sizeof(BScaleDataType),
+                p_b_scale_grid_up + static_cast<long_index_t>(expert_id) * expert_scale_stride / sizeof(BScaleDataType),
                 b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
             auto b_scale_thread_copy_up = ThreadwiseTensorSliceTransfer_v2<
@@ -2105,10 +2105,10 @@ struct GridwiseMoeGemmMX
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
 
-        const index_t expert_stride =
-            __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
-        const index_t expert_scale_stride = __builtin_amdgcn_readfirstlane(
-            problem.N * (IsInputGemm ? 2 : 1) *
+        const long_index_t expert_stride = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(problem.N) * problem.K * (IsInputGemm ? 2 : 1));
+        const long_index_t expert_scale_stride = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(problem.N) * (IsInputGemm ? 2 : 1) *
             math::integer_divide_ceil(problem.K, ScaleBlockSize / BPackedSize));
 
         // N0, K0, Blocksize*KPack
@@ -2119,13 +2119,15 @@ struct GridwiseMoeGemmMX
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_grid + expert_id * expert_stride, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
+            p_b_grid + static_cast<long_index_t>(expert_id) * expert_stride,
+            b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
 
         // A, B scale buffer
         const auto a_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_scale_grid, a_scale_grid_desc_am_ak.GetElementSpaceSize());
         const auto b_scale_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_b_scale_grid + (expert_id * expert_scale_stride) / sizeof(BScaleDataType),
+            p_b_scale_grid + (static_cast<long_index_t>(expert_id) * expert_scale_stride) /
+                                 sizeof(BScaleDataType),
             b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
         // lds max alignment
@@ -2274,7 +2276,7 @@ struct GridwiseMoeGemmMX
         {
             const BDataType* p_b_grid_up = p_b_grid + expert_stride / 2;
             const auto b_grid_buf_up     = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_grid_up + expert_id * expert_stride,
+                p_b_grid_up + static_cast<long_index_t>(expert_id) * expert_stride,
                 b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
 
             // lds ping pong buffers for up
@@ -2313,7 +2315,8 @@ struct GridwiseMoeGemmMX
             const BScaleDataType* p_b_scale_grid_up =
                 p_b_scale_grid + expert_scale_stride / 2 / sizeof(BScaleDataType);
             const auto b_scale_grid_buf_up = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                p_b_scale_grid_up + expert_id * expert_scale_stride / sizeof(BScaleDataType),
+                p_b_scale_grid_up + static_cast<long_index_t>(expert_id) * expert_scale_stride /
+                                        sizeof(BScaleDataType),
                 b_scale_grid_desc_bn_ak.GetElementSpaceSize());
 
             auto b_scale_thread_copy_up = ThreadwiseTensorSliceTransfer_v2<
