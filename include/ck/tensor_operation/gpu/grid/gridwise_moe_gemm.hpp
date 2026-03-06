@@ -1175,9 +1175,10 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
             }
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
-        const IndexType expert_stride =
-            __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
-        const IndexType expert_offset = expert_id * expert_stride / BPackedSize;
+        const long_index_t expert_stride = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(problem.N) * problem.K * (IsInputGemm ? 2 : 1));
+        const long_index_t expert_offset =
+            static_cast<long_index_t>(expert_id) * expert_stride / BPackedSize;
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
@@ -1640,9 +1641,10 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
             }
             gather_offsets(m0) = static_cast<IndexType>(token_offset) * problem.K;
         });
-        const IndexType expert_stride =
-            __builtin_amdgcn_readfirstlane(problem.N * problem.K * (IsInputGemm ? 2 : 1));
-        const IndexType expert_offset = expert_id * expert_stride / BPackedSize;
+        const long_index_t expert_stride = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(problem.N) * problem.K * (IsInputGemm ? 2 : 1));
+        const long_index_t expert_offset =
+            static_cast<long_index_t>(expert_id) * expert_stride / BPackedSize;
         // N0, K0, Blocksize*KPack
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_n_id * NXdlPerWave);
