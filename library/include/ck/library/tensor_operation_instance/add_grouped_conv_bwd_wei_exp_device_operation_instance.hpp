@@ -45,9 +45,11 @@ void add_explicit_gemm_device_operation_instances(
                                                                   DeviceGemmOp>;
 
         static_assert(std::is_base_of_v<BaseOp, NewOpInstance>,
-                      "wrong! NewOpInstance should be derived from BaseOp");
+                      "NewOpInstance must derive from BaseOp");
+        static_assert(std::is_default_constructible_v<NewOpInstance>,
+                      "NewOpInstance must be default-constructible");
 
-        op_instances.push_back(std::make_unique<NewOpInstance>(NewOpInstance{}));
+        op_instances.push_back(std::make_unique<NewOpInstance>());
     });
 }
 
