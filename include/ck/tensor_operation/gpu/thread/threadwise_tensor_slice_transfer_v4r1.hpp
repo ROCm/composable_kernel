@@ -42,8 +42,6 @@ struct ThreadwiseTensorSliceTransfer_v4r1
 
     using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
 
-    using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
-
     __device__ constexpr ThreadwiseTensorSliceTransfer_v4r1(const Index& src_ref_idx)
         : src_ref_coord_(make_tensor_coordinate(SrcDesc{}, src_ref_idx))
     {
