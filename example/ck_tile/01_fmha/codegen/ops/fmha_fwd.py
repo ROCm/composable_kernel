@@ -629,6 +629,104 @@ class FmhaFwdTileSize:
             + ("" if self.F_occupancy == -1 else f"_o{self.F_occupancy}")
         )
 
+@dataclass(frozen=True)
+class ForcedTileConfig:
+    target: str
+    dtype: str
+    hdim: int
+    hdim_v: int
+    condition_expr: str
+    tile: FmhaFwdTileSize
+
+
+FORCED_TILE_CONFIGS: List[ForcedTileConfig] = [
+    ForcedTileConfig(
+        target="gfx950",
+        dtype="bf16",
+        hdim=128,
+        hdim_v=128,
+        condition_expr="(a.batch == 130) && (a.nhead_q == 2) && (a.nhead_k == 2) && (a.seqlen_q == 16) && (a.seqlen_k == 2048)",
+        tile=FmhaFwdTileSize( 32,  32, 128, 128,  32, 128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+    ),
+    ForcedTileConfig(
+        target="gfx9",
+        dtype="bf16",
+        hdim=128,
+        hdim_v=128,
+        condition_expr="(a.batch == 130) && (a.nhead_q == 2) && (a.nhead_k == 2) && (a.seqlen_q == 16) && (a.seqlen_k == 2048)",
+        tile=FmhaFwdTileSize( 16, 128,  64, 128,  32, 128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+    ),
+]
+
+
+def get_forced_tile_configs_for_bucket(
+    target: str, dtype: str, hdim: int, hdim_v: int
+) -> List[ForcedTileConfig]:
+    return [
+        cfg
+        for cfg in FORCED_TILE_CONFIGS
+        if cfg.target == target
+        and cfg.dtype == dtype
+        and cfg.hdim == hdim
+        and cfg.hdim_v == hdim_v
+    ]
+
+
+def make_forced_tile(cfg: ForcedTileConfig) -> FmhaFwdTileSize:
+    forced_tile = copy.deepcopy(cfg.tile)
+    forced_tile.F_constraint = forced_tile.F_constraint & CppConstraint(cfg.condition_expr)
+    return forced_tile
+
+
+def _same_tile_definition(lhs: FmhaFwdTileSize, rhs: FmhaFwdTileSize) -> bool:
+    return (
+        lhs.F_bm0 == rhs.F_bm0
+        and lhs.F_bn0 == rhs.F_bn0
+        and lhs.F_bk0 == rhs.F_bk0
+        and lhs.F_bn1 == rhs.F_bn1
+        and lhs.F_bk1 == rhs.F_bk1
+        and lhs.F_bk0max == rhs.F_bk0max
+        and lhs.F_rm0 == rhs.F_rm0
+        and lhs.F_rn0 == rhs.F_rn0
+        and lhs.F_rk0 == rhs.F_rk0
+        and lhs.F_rm1 == rhs.F_rm1
+        and lhs.F_rn1 == rhs.F_rn1
+        and lhs.F_rk1 == rhs.F_rk1
+        and lhs.F_wm0 == rhs.F_wm0
+        and lhs.F_wn0 == rhs.F_wn0
+        and lhs.F_wk0 == rhs.F_wk0
+        and lhs.F_wm1 == rhs.F_wm1
+        and lhs.F_wn1 == rhs.F_wn1
+        and lhs.F_wk1 == rhs.F_wk1
+        and lhs.F_occupancy == rhs.F_occupancy
+    )
+
+
+def apply_forced_tile_configs_to_tiles(
+    tiles: List[FmhaFwdTileSize], forced_cfgs: List[ForcedTileConfig]
+) -> None:
+    forced_tiles = []
+
+    for cfg in forced_cfgs:
+        tiles[:] = [
+            tile
+            for tile in tiles
+            if not _same_tile_definition(tile, cfg.tile)
+        ]
+
+        forced_tile = make_forced_tile(cfg)
+        tiles.append(forced_tile)
+        forced_tiles.append((forced_tile, cfg.condition_expr))
+
+    for forced_tile, cond_expr in forced_tiles:
+        for tile in tiles:
+            if tile is forced_tile:
+                continue
+            tile.F_constraint = tile.F_constraint & CppConstraint(f"!({cond_expr})")
+
+    tiles.sort(key=lambda tile: tile.F_bm0)
+
+
 
 @dataclass
 class FmhaFwdKernel:
@@ -946,8 +1044,6 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                 ( 80, 96)  : [FmhaFwdTileSize(128, 128,  16,  96,  32,  80,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 ( 96, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32,  96,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (128, 128) : [FmhaFwdTileSize( 16,  32,  64, 128,  32, 128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
-                              FmhaFwdTileSize( 16, 128,  64, 128,  32, 128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1,
-                                           CppConstraint('(a.batch == 130) && (a.nhead_q == 2) && (a.nhead_k == 2) && (a.seqlen_q == 16) && (a.seqlen_k == 2048)')),
                               FmhaFwdTileSize( 32,  32, 128, 128,  32, 128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                               FmhaFwdTileSize( 64, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 16,  -1, CppConstraint('get_num_blocks(64) <= num_cus')),
                               FmhaFwdTileSize(128,  64,  32, 128,  16, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
@@ -1052,12 +1148,8 @@ class KernelComponentFactoryGfx950(
     def get_hdim_tile_size_dict(cls, dtype: str) -> Optional[dict]:
         result = KernelComponentFactoryGfx9.get_hdim_tile_size_dict(dtype)
         if dtype in cls._DT_FP16_BF16:
+            # add tile for qr_async_trload_v3 
             if (128, 128) in result.keys():
-                # add constrained tile for specific aiter benchmark shape
-                result[(128, 128)].append(
-                    FmhaFwdTileSize( 32,  32, 128, 128,  32, 128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1,
-                                    CppConstraint('(a.batch == 130) && (a.nhead_q == 2) && (a.nhead_k == 2) && (a.seqlen_q == 16) && (a.seqlen_k == 2048)')))
-                # add tile for qr_async_trload_v3
                 result[(128, 128)].append(
                     FmhaFwdTileSize(256, 32, 128, 128, 32, 128,  8, 1, 1,  8, 1, 1,  32, 32, 16,  32, 32, 16,  -1))  # fmt: skip
                 # keep bm0 non-decreasing for get_fwd_blobs() ordering assertion
@@ -1371,6 +1463,13 @@ def get_fwd_blobs(
 
     for factory, dtype in ((f, t) for f in factories for t in f.supported_dtypes()):
         d = factory.get_hdim_tile_size_dict(dtype)
+        for (hdim, hdim_v), tiles in d.items():
+            forced_cfgs = get_forced_tile_configs_for_bucket(
+                factory.arch.name, dtype, hdim, hdim_v
+            )
+            if forced_cfgs:
+                apply_forced_tile_configs_to_tiles(tiles, forced_cfgs)
+
         # for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for ((hdim, hdim_v), tiles), mode in itertools.product(
             d.items(), MODE_MAP.keys()
