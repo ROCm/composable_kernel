@@ -946,6 +946,8 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                 ( 80, 96)  : [FmhaFwdTileSize(128, 128,  16,  96,  32,  80,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 ( 96, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32,  96,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (128, 128) : [FmhaFwdTileSize( 16,  32,  64, 128,  32, 128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+                              FmhaFwdTileSize( 16, 128,  64, 128,  32, 128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1,
+                                           CppConstraint('(a.batch == 130) && (a.nhead_q == 2) && (a.nhead_k == 2) && (a.seqlen_q == 16) && (a.seqlen_k == 2048)')),
                               FmhaFwdTileSize( 32,  32, 128, 128,  32, 128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                               FmhaFwdTileSize( 64, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 16,  -1, CppConstraint('get_num_blocks(64) <= num_cus')),
                               FmhaFwdTileSize(128,  64,  32, 128,  16, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
@@ -1050,10 +1052,16 @@ class KernelComponentFactoryGfx950(
     def get_hdim_tile_size_dict(cls, dtype: str) -> Optional[dict]:
         result = KernelComponentFactoryGfx9.get_hdim_tile_size_dict(dtype)
         if dtype in cls._DT_FP16_BF16:
-            # add tile for qr_async_trload_v3
             if (128, 128) in result.keys():
+                # add constrained tile for specific aiter benchmark shape
+                result[(128, 128)].append(
+                    FmhaFwdTileSize( 32,  32, 128, 128,  32, 128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1,
+                                    CppConstraint('(a.batch == 130) && (a.nhead_q == 2) && (a.nhead_k == 2) && (a.seqlen_q == 16) && (a.seqlen_k == 2048)')))
+                # add tile for qr_async_trload_v3
                 result[(128, 128)].append(
                     FmhaFwdTileSize(256, 32, 128, 128, 32, 128,  8, 1, 1,  8, 1, 1,  32, 32, 16,  32, 32, 16,  -1))  # fmt: skip
+                # keep bm0 non-decreasing for get_fwd_blobs() ordering assertion
+                result[(128, 128)].sort(key=lambda tile: tile.F_bm0)
         return result
 
     @classmethod
