@@ -488,13 +488,11 @@ bool profile_reduce_impl(bool do_verification,
     using tuple_of_description_instances =
         tensor_operation::device::instance::reduce_description_instances;
 
-    const auto tuple_object = tuple_of_description_instances{};
-
     static_for<0, std::tuple_size<tuple_of_description_instances>::value, 1>{}([&](auto i) {
         if(matched)
             return;
 
-        using descType = remove_cvref_t<decltype(std::get<i>(tuple_object))>;
+        using descType = std::tuple_element_t<i.value, tuple_of_description_instances>;
 
         if(!description_match(
                descType{}, inLengths.size(), reduceDims, ReduceOpId, PropagateNan, UseIndex))
