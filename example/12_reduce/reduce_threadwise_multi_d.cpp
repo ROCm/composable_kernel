@@ -129,13 +129,11 @@ bool reduce_threadwise_multi_d_test(bool do_verification,
     bool matched = false;
     int result   = 0;
 
-    const auto tuple_object = reduce_shape_instances{};
-
     static_for<0, std::tuple_size<reduce_shape_instances>::value, 1>{}([&](auto i) {
         if(matched)
             return;
 
-        using ShapeType = remove_cvref_t<decltype(std::get<i>(tuple_object))>;
+        using ShapeType = std::tuple_element_t<i.value, reduce_shape_instances>;
 
         if(ShapeType::Rank_ != inLengths.size() || ShapeType::NumReduceDim_ != reduceDims.size())
             return;

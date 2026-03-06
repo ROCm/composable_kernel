@@ -77,8 +77,7 @@ void add_device_reduce_instance_threadwise(
 
     static_for<0, std::tuple_size<reduce_configuration_2_instances_threadwise>::value, 1>{}(
         [&](auto j) {
-            using cfg2 = remove_cvref_t<decltype(std::get<j.value>(
-                reduce_configuration_2_instances_threadwise{}))>;
+            using cfg2 = std::tuple_element_t<j.value, reduce_configuration_2_instances_threadwise>;
 
             using ReduceOpInstance = DeviceReduceThreadWise<InDataType,
                                                             AccDataType,
@@ -99,7 +98,7 @@ void add_device_reduce_instance_threadwise(
                                                             cfg2::InSrcVectorSize_,
                                                             cfg2::OutDstVectorSize_>;
 
-            device_op_instances.push_back(std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
+            device_op_instances.push_back(std::make_unique<ReduceOpInstance>());
         });
 };
 

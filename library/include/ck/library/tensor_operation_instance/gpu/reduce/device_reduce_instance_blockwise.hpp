@@ -89,13 +89,12 @@ void add_device_reduce_instance_blockwise(
 {
     static_for<0, std::tuple_size<reduce_configuration_1_instances_blockwise>::value, 1>{}(
         [&](auto i) {
-            using cfg1 = remove_cvref_t<decltype(std::get<i.value>(
-                reduce_configuration_1_instances_blockwise{}))>;
+            using cfg1 = std::tuple_element_t<i.value, reduce_configuration_1_instances_blockwise>;
 
             static_for<0, std::tuple_size<reduce_configuration_2_instances_blockwise>::value, 1>{}(
                 [&](auto j) {
-                    using cfg2 = remove_cvref_t<decltype(std::get<j.value>(
-                        reduce_configuration_2_instances_blockwise{}))>;
+                    using cfg2 =
+                        std::tuple_element_t<j.value, reduce_configuration_2_instances_blockwise>;
 
                     using ReduceOpInstance =
                         DeviceReduceMultiBlock<InDataType,
@@ -119,8 +118,7 @@ void add_device_reduce_instance_blockwise(
                                                cfg2::InSrcVectorSize_,
                                                cfg2::OutDstVectorSize_>;
 
-                    device_op_instances.push_back(
-                        std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
+                    device_op_instances.push_back(std::make_unique<ReduceOpInstance>());
                 });
         });
 };
