@@ -1,0 +1,120 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK Exec - Execute arbitrary commands in Docker container
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(get_project_root "${SCRIPT_DIR}")
+CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
+
+# Help message
+show_help() {
+    cat << EOF
+CK Exec - Execute arbitrary commands in Docker container
+
+Usage: ck-exec [options] <command> [args...]
+
+Options:
+  -h, --help              Show this help message
+  --name <name>           Specify container name
+  -w <dir>                Working directory (default: /workspace)
+  -i, --interactive       Interactive mode (allocate TTY)
+
+Arguments:
+  command                 Command to execute (required)
+  args                    Arguments to the command
+
+Environment:
+  CK_CONTAINER_NAME - Override default container name
+
+Examples:
+  ck-exec rocm-smi                      # Run rocm-smi
+  ck-exec rocminfo                      # Run rocminfo
+  ck-exec ls -la build/bin              # List build binaries
+  ck-exec -w /workspace/build ninja -t commands # Run ninja commands
+  ck-exec --interactive python3         # Interactive Python session
+
+Common Commands:
+  ck-exec rocm-smi                      # Check GPU status
+  ck-exec rocminfo \| grep gfx           # Check GPU architecture
+  ck-exec hipcc --version               # Check HIP compiler version
+  ck-exec cmake --version               # Check CMake version
+  ck-exec ninja -C build -t targets     # List all build targets
+
+EOF
+}
+
+# Parse arguments
+workdir="/workspace"
+interactive=false
+command_args=()
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --name)
+            CONTAINER_NAME="$2"
+            shift 2
+            ;;
+        -w)
+            workdir="$2"
+            shift 2
+            ;;
+        -i|--interactive)
+            interactive=true
+            shift
+            ;;
+        *)
+            command_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Validate command
+if [ ${#command_args[@]} -eq 0 ]; then
+    echo "Error: command required"
+    echo ""
+    show_help
+    exit 1
+fi
+
+# Ensure container is running
+if ! container_is_running "${CONTAINER_NAME}"; then
+    echo "Container '${CONTAINER_NAME}' not running. Starting..."
+    "${SCRIPT_DIR}/ck-start" "${CONTAINER_NAME}"
+    echo ""
+fi
+
+# Build command string
+cmd_string=""
+for arg in "${command_args[@]}"; do
+    cmd_string="${cmd_string} $(printf '%q' "$arg")"
+done
+
+# Auto-detect Python commands and enable unbuffered output for live streaming
+env_flags=""
+for arg in "${command_args[@]}"; do
+    if [[ "$arg" == "python" || "$arg" == "python3" || "$arg" == *.py ]]; then
+        env_flags="-e PYTHONUNBUFFERED=1"
+        break
+    fi
+done
+
+# Execute command
+if [ "$interactive" = true ]; then
+    docker exec -it ${env_flags} -w "${workdir}" "${CONTAINER_NAME}" bash -c "${cmd_string}"
+else
+    docker exec ${env_flags} -w "${workdir}" "${CONTAINER_NAME}" bash -c "${cmd_string}"
+fi

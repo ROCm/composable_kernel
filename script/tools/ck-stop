@@ -1,0 +1,141 @@
+#!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# CK Stop - Stop and remove Docker container
+
+set -e
+set -o pipefail
+
+# Find script directory and load common utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/common.sh"
+
+# Initialize configuration
+PROJECT_ROOT=$(get_project_root "${SCRIPT_DIR}")
+CONTAINER_NAME=$(get_container_name "${PROJECT_ROOT}")
+
+# Help message
+show_help() {
+    cat << EOF
+CK Stop - Stop and remove Docker container
+
+Usage: ck-stop [options] [container_name]
+
+Options:
+  -h, --help              Show this help message
+  -f, --force             Force stop without confirmation
+  --all                   Stop all CK containers for this user
+
+Arguments:
+  container_name          Optional container name (default: ck_<username>_<branch>)
+
+Environment:
+  CK_CONTAINER_NAME - Override default container name
+
+Examples:
+  ck-stop                     # Stop default container
+  ck-stop my_ck_container     # Stop specific container
+  ck-stop --all               # Stop all user's CK containers
+  ck-stop --force             # Stop without confirmation
+
+EOF
+}
+
+# Parse arguments
+force=false
+stop_all=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -f|--force)
+            force=true
+            shift
+            ;;
+        --all)
+            stop_all=true
+            shift
+            ;;
+        *)
+            CONTAINER_NAME="$1"
+            shift
+            ;;
+    esac
+done
+
+# Function to stop a single container
+stop_container() {
+    local name="$1"
+
+    if ! container_exists "${name}"; then
+        echo "Container '${name}' does not exist"
+        return 1
+    fi
+
+    echo "Stopping and removing container '${name}'..."
+    docker stop "${name}" 2>/dev/null || true
+    docker rm "${name}" 2>/dev/null || true
+    echo "Container '${name}' stopped and removed"
+}
+
+# Stop all user containers
+if [ "$stop_all" = true ]; then
+    username=$(get_username)
+    containers=$(docker ps -a --filter "name=ck_${username}_" --format '{{.Names}}')
+
+    if [ -z "$containers" ]; then
+        echo "No CK containers found for user '${username}'"
+        exit 0
+    fi
+
+    echo "Found CK containers for user '${username}':"
+    echo "$containers"
+    echo ""
+
+    if [ "$force" = false ]; then
+        read -p "Stop and remove all these containers? (y/N) " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Cancelled"
+            exit 0
+        fi
+    fi
+
+    echo ""
+    while IFS= read -r container; do
+        stop_container "$container"
+    done <<< "$containers"
+
+    echo ""
+    echo "All containers stopped and removed"
+    exit 0
+fi
+
+# Stop single container
+if ! container_exists "${CONTAINER_NAME}"; then
+    echo "Container '${CONTAINER_NAME}' does not exist"
+    exit 0
+fi
+
+# Show container info
+if container_is_running "${CONTAINER_NAME}"; then
+    echo "Container '${CONTAINER_NAME}' is currently running"
+else
+    echo "Container '${CONTAINER_NAME}' exists but is stopped"
+fi
+
+# Confirm if not forced
+if [ "$force" = false ]; then
+    read -p "Stop and remove container '${CONTAINER_NAME}'? (y/N) " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "Cancelled"
+        exit 0
+    fi
+fi
+
+stop_container "${CONTAINER_NAME}"
