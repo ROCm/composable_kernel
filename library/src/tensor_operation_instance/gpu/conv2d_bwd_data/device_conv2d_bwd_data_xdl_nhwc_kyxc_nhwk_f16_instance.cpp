@@ -143,7 +143,6 @@ void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(
                                                   PassThrough>>>& instances)
 {
 #if CK_BUILD_DEPRECATED
-#pragma message "These instances are getting deprecated"
     add_device_operation_instances(instances,
                                    device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances{});
     add_device_operation_instances(
@@ -153,7 +152,6 @@ void add_device_conv2d_bwd_data_xdl_nhwc_kyxc_nhwk_f16_instances(
     add_device_operation_instances(
         instances, device_conv_dedicated_2d_bwd_data_xdl_nhwc_kyxc_nhwk_1x1_s1_p0_f16_instances{});
 #else
-#pragma message "These instances were deprecated"
     std::ignore = instances;
 #endif
 }
