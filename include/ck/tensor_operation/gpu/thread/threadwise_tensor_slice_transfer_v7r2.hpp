@@ -55,6 +55,8 @@ struct ThreadwiseTensorSliceTransfer_v7r2
 
     using Index = MultiIndex<nDim>;
 
+    using SFCHelper = ThreadwiseTransferHelper_SFC;
+
     // return a tuple of coordiantes for a tuple of tensor
     template <typename Descs,
               typename Indices,
@@ -124,17 +126,7 @@ struct ThreadwiseTensorSliceTransfer_v7r2
     template <typename DataTypes, index_t ScalarPerVector>
     __device__ static auto generate_vectors()
     {
-        auto data_types = DataTypes{};
-
-        constexpr index_t num = data_types.Size();
-
-        return generate_tuple(
-            [&](auto i) {
-                using DataType = remove_cvref_t<decltype(data_types[i])>;
-
-                return vector_type_maker_t<DataType, ScalarPerVector>{};
-            },
-            Number<num>{});
+        return SFCHelper::MakeVectorContainerTuple<DataTypes, ScalarPerVector>();
     }
 
     // SrcDescs: Tuple<const SrcDesc0&, const SrcDesc1&, ...>
@@ -473,98 +465,14 @@ struct ThreadwiseTensorSliceTransfer_v7r2
 
     __device__ static constexpr auto GetSrcThreadScratchDescriptor()
     {
-        // constexpr auto src_scalar_per_access = generate_sequence(
-        // detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector>{}, Number<nDim>{});
-
-        constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
-
-        constexpr auto src_access_lengths_and_vector_length = container_push_back(
-            sequence_to_tuple_of_number(src_access_lengths), Number<SrcScalarPerVector>{});
-
-        // 1st stage of transforms
-        constexpr auto desc0 =
-            make_naive_tensor_descriptor_packed(src_access_lengths_and_vector_length);
-
-        // 2nd stage of transforms
-        constexpr auto transforms = generate_tuple(
-            [&](auto i) {
-                if constexpr(i == SrcVectorDim)
-                {
-                    return make_merge_transform_v3_division_mod(
-                        make_tuple(src_access_lengths_and_vector_length[i],
-                                   src_access_lengths_and_vector_length[Number<nDim>{}]));
-                }
-                else
-                {
-                    return make_pass_through_transform(src_access_lengths_and_vector_length[i]);
-                }
-            },
-            Number<nDim>{});
-
-        constexpr auto low_dim_idss = generate_tuple(
-            [&](auto i) {
-                if constexpr(i == SrcVectorDim)
-                {
-                    return Sequence<i.value, nDim>{};
-                }
-                else
-                {
-                    return Sequence<i.value>{};
-                }
-            },
-            Number<nDim>{});
-
-        constexpr auto up_dim_idss = generate_identity_sequences<nDim>();
-
-        return transform_tensor_descriptor(desc0, transforms, low_dim_idss, up_dim_idss);
+        return SFCHelper::
+            ComputeThreadScratchDescriptor<SliceLengths, SrcVectorDim, SrcScalarPerVector>();
     }
 
     __device__ static constexpr auto GetDstThreadScratchDescriptor()
     {
-        // 1st stage of transforms
-        // constexpr auto dst_scalar_per_access = generate_sequence(
-        // detail::lambda_scalar_per_access<DstVectorDim, DstScalarPerVector>{}, Number<nDim>{});
-
-        constexpr auto dst_access_lengths = SliceLengths{} / dst_scalar_per_access;
-
-        constexpr auto dst_access_lengths_and_vector_length = container_push_back(
-            sequence_to_tuple_of_number(dst_access_lengths), Number<DstScalarPerVector>{});
-
-        constexpr auto desc0 =
-            make_naive_tensor_descriptor_packed(dst_access_lengths_and_vector_length);
-
-        // 2nd stage of transforms
-        constexpr auto transforms = generate_tuple(
-            [&](auto i) {
-                if constexpr(i == DstVectorDim)
-                {
-                    return make_merge_transform_v3_division_mod(
-                        make_tuple(dst_access_lengths_and_vector_length[i],
-                                   dst_access_lengths_and_vector_length[Number<nDim>{}]));
-                }
-                else
-                {
-                    return make_pass_through_transform(dst_access_lengths_and_vector_length[i]);
-                }
-            },
-            Number<nDim>{});
-
-        constexpr auto low_dim_idss = generate_tuple(
-            [&](auto i) {
-                if constexpr(i == DstVectorDim)
-                {
-                    return Sequence<i.value, nDim>{};
-                }
-                else
-                {
-                    return Sequence<i.value>{};
-                }
-            },
-            Number<nDim>{});
-
-        constexpr auto up_dim_idss = generate_identity_sequences<nDim>();
-
-        return transform_tensor_descriptor(desc0, transforms, low_dim_idss, up_dim_idss);
+        return SFCHelper::
+            ComputeThreadScratchDescriptor<SliceLengths, DstVectorDim, DstScalarPerVector>();
     }
 
     // src_slice_origin_step_idx need to be known at compile-time, for performance reason
