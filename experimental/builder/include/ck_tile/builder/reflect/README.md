@@ -21,7 +21,7 @@ This template is common for XDL and WMMA, forward and backward weight kernels. `
 
 - **`conv_description.hpp`**: The main entry point. Contains the `ConvDescription` struct and the `describe()` factory function.
 - **`conv_traits.hpp`**: Home of the `ConvTraits` template, which is the core of the property extraction mechanism.
-- **`tree_formatter.hpp`**: A simple utility for generating the indented, tree-like format used in the `detailed()` description.
+- **`tree_formatter.hpp`**: A tree-building utility that generates indented, tree-like output for the `detailed()` description.
 
 ## Usage
 
