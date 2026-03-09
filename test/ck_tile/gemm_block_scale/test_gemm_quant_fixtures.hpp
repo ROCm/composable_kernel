@@ -1276,7 +1276,7 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
 
             using GemmPipeline = std::conditional_t<
                 eight_warps,
-                ck_tile::ABQuantGemmPipelineAgBgCrAsync<PipelineProblem>,
+                ck_tile::ABQuantGemmPipelineAgBgCrEightWarps<PipelineProblem>,
                 std::conditional_t<PreshuffleB,
                                    ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
                                    ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
