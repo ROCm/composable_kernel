@@ -80,7 +80,8 @@ struct MmaLayoutTestKernel
                                     BlockM,
                                     BlockN,
                                     BlockK,
-                                    decltype(ck_tile::core::arch::get_compiler_target())>;
+                                    decltype(ck_tile::core::arch::get_compiler_target()),
+                                    mma::MmaOpFamily::DENSE>;
         using MmaOp     = typename Selector::SelectedOp;
         using MmaTraits = mma::MmaOpTraits<MmaOp>;
 
@@ -253,12 +254,30 @@ using MmaGfx90aCompilerTarget  = decltype(ck_tile::core::arch::make_amdgcn_gfx9_
 using MmaGfx1100CompilerTarget = decltype(ck_tile::core::arch::make_amdgcn_gfx11_target<
                                           ck_tile::core::arch::amdgcn_target_id::GFX1100>());
 
-using MmaGfx1201Selector = mma::
-    MmaDefaultSelector<ck::fp16_t, ck::fp16_t, ck::fp32_t, 16u, 16u, 16u, MmaGfx1201CompilerTarget>;
-using MmaGfx90aSelector = mma::
-    MmaDefaultSelector<ck::fp16_t, ck::fp16_t, ck::fp32_t, 16u, 16u, 16u, MmaGfx90aCompilerTarget>;
-using MmaGfx1100Selector = mma::
-    MmaDefaultSelector<ck::fp16_t, ck::fp16_t, ck::fp32_t, 16u, 16u, 16u, MmaGfx1100CompilerTarget>;
+using MmaGfx1201Selector = mma::MmaDefaultSelector<ck::fp16_t,
+                                                   ck::fp16_t,
+                                                   ck::fp32_t,
+                                                   16u,
+                                                   16u,
+                                                   16u,
+                                                   MmaGfx1201CompilerTarget,
+                                                   mma::MmaOpFamily::DENSE>;
+using MmaGfx90aSelector  = mma::MmaDefaultSelector<ck::fp16_t,
+                                                   ck::fp16_t,
+                                                   ck::fp32_t,
+                                                   16u,
+                                                   16u,
+                                                   16u,
+                                                   MmaGfx90aCompilerTarget,
+                                                   mma::MmaOpFamily::DENSE>;
+using MmaGfx1100Selector = mma::MmaDefaultSelector<ck::fp16_t,
+                                                   ck::fp16_t,
+                                                   ck::fp32_t,
+                                                   16u,
+                                                   16u,
+                                                   16u,
+                                                   MmaGfx1100CompilerTarget,
+                                                   mma::MmaOpFamily::DENSE>;
 
 // clang-format off
 using KernelTypes = ::testing::Types<
