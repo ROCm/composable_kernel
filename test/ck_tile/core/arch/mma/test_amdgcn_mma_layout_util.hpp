@@ -68,7 +68,9 @@ struct RegisterMap
 /**
  * @brief RegisterMapTraits for GFX12 WMMA 16x16x16_F16_F16_F32_GFX12
  */
-template <typename CtrlFlags, typename CompilerTarget>
+template <typename CtrlFlags,
+          typename CompilerTarget,
+          ck_tile::core::arch::mma::MmaOpFamily OpFamily_>
 struct RegisterMapTraits<ck_tile::core::arch::mma::amdgcn_mma<
     ck_tile::fp16_t,
     ck_tile::fp16_t,
@@ -78,6 +80,7 @@ struct RegisterMapTraits<ck_tile::core::arch::mma::amdgcn_mma<
     16u,
     CtrlFlags,
     CompilerTarget,
+    OpFamily_,
     ck_tile::core::arch::enable_if_target_family_gfx12_t<CompilerTarget>>>
 {
     using MmaOp = ck_tile::core::arch::mma::amdgcn_mma<ck_tile::fp16_t,
@@ -87,7 +90,8 @@ struct RegisterMapTraits<ck_tile::core::arch::mma::amdgcn_mma<
                                                        16u,
                                                        16u,
                                                        CtrlFlags,
-                                                       CompilerTarget>;
+                                                       CompilerTarget,
+                                                       OpFamily_>;
 
     using MmaTraits = ck_tile::core::arch::mma::MmaOpTraits<MmaOp>;
     static constexpr index_t WaveSize =
@@ -147,7 +151,9 @@ struct RegisterMapTraits<ck_tile::core::arch::mma::amdgcn_mma<
 /**
  * @brief RegisterMapTraits for GFX9 MFMA 16x16x16_F16_F16_F32_GFX9
  */
-template <typename CtrlFlags, typename CompilerTarget>
+template <typename CtrlFlags,
+          typename CompilerTarget,
+          ck_tile::core::arch::mma::MmaOpFamily OpFamily_>
 struct RegisterMapTraits<ck_tile::core::arch::mma::amdgcn_mma<
     ck_tile::fp16_t,
     ck_tile::fp16_t,
@@ -157,6 +163,7 @@ struct RegisterMapTraits<ck_tile::core::arch::mma::amdgcn_mma<
     16u,
     CtrlFlags,
     CompilerTarget,
+    OpFamily_,
     ck_tile::core::arch::enable_if_target_family_gfx9_t<CompilerTarget>>>
 {
     using MmaOp = ck_tile::core::arch::mma::amdgcn_mma<ck_tile::fp16_t,
@@ -166,7 +173,8 @@ struct RegisterMapTraits<ck_tile::core::arch::mma::amdgcn_mma<
                                                        16u,
                                                        16u,
                                                        CtrlFlags,
-                                                       CompilerTarget>;
+                                                       CompilerTarget,
+                                                       OpFamily_>;
 
     using MmaTraits = ck_tile::core::arch::mma::MmaOpTraits<MmaOp>;
     static constexpr index_t WaveSize =
@@ -212,7 +220,9 @@ struct RegisterMapTraits<ck_tile::core::arch::mma::amdgcn_mma<
 /**
  * @brief RegisterMapTraits for GFX11 WMMA 16x16x16_F16_F16_F32_GFX11
  */
-template <typename CtrlFlags, typename CompilerTarget>
+template <typename CtrlFlags,
+          typename CompilerTarget,
+          ck_tile::core::arch::mma::MmaOpFamily OpFamily_>
 struct RegisterMapTraits<ck_tile::core::arch::mma::amdgcn_mma<
     ck_tile::fp16_t,
     ck_tile::fp16_t,
@@ -222,6 +232,7 @@ struct RegisterMapTraits<ck_tile::core::arch::mma::amdgcn_mma<
     16u,
     CtrlFlags,
     CompilerTarget,
+    OpFamily_,
     ck_tile::core::arch::enable_if_target_family_gfx11_t<CompilerTarget>>>
 {
     using MmaOp = ck_tile::core::arch::mma::amdgcn_mma<ck_tile::fp16_t,
@@ -231,7 +242,8 @@ struct RegisterMapTraits<ck_tile::core::arch::mma::amdgcn_mma<
                                                        16u,
                                                        16u,
                                                        CtrlFlags,
-                                                       CompilerTarget>;
+                                                       CompilerTarget,
+                                                       OpFamily_>;
 
     using MmaTraits = ck_tile::core::arch::mma::MmaOpTraits<MmaOp>;
     static constexpr index_t WaveSize =
