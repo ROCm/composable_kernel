@@ -5,6 +5,7 @@
 
 #include <concepts>
 
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp"
 #include "ck_tile/builder/reflect/conv_traits.hpp"
 #include "ck_tile/builder/reflect/conv_traits_helpers.hpp"
 #include "ck_tile/builder/reflect/instance_traits.hpp"
