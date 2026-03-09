@@ -73,7 +73,7 @@ namespace ck_tile::reflect::conv {
 // There is a lot we still need to do:
 //
 // TODO: Generalize type support for all tensors and accumulator.
-// TODO: Describe all tensros.
+// TODO: Describe all tensors.
 // TODO: Include the full generalization of the signature from the input schema.
 // TODO: Include the full generalization of the algorithm from the input schema.
 struct ConvTraits
