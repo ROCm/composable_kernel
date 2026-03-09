@@ -15,4 +15,4 @@ template void run_batched_forward_causal_softmax_bias_dropout_dispatch<
     false,
     true,
     false,
-    256>(HstuAttentionFwdParams& param, hipStream_t stream);
+    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);

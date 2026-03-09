@@ -15,4 +15,4 @@ template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
     true,
     true,
     false,
-    96>(HstuAttentionFwdParams& param, hipStream_t stream);
+    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);

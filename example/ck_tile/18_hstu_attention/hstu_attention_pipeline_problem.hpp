@@ -64,6 +64,7 @@ template <typename InOutDataType_,
           typename CompDataType_, // data type for SiLU and other non-linear calculation
           typename BiasDataType_,
           bool kIsCrossAttention_,
+          bool kUseGroup_,
           bool kIsJagged_,
           bool kHasBias_,
           bool kHasDropout_,
@@ -87,12 +88,16 @@ struct HstuAttentionFwdPipelineProblem
     using PDataType    = QKVDataType;
 
     static constexpr bool kIsCrossAttention = kIsCrossAttention_;
+    static constexpr bool kUseGroup         = kUseGroup_;
     static constexpr bool kIsJagged         = kIsJagged_;
     static constexpr bool kHasBias          = kHasBias_;
     static constexpr bool kHasDropout       = kHasDropout_;
     static constexpr bool kHasCausal        = kHasCausal_;
     static constexpr bool kUseSoftmax       = kUseSoftmax_;
     static constexpr bool kUseTrLoad        = kUseTrLoad_;
+
+    static_assert(!kUseGroup || (kUseGroup && kIsJagged),
+                  "Group HSTU is only used with jagged mode!");
 
     using HstuAttentionTileSetting = remove_cvref_t<AttentionTileSetting_>;
 

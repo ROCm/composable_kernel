@@ -40,6 +40,7 @@ struct HstuAttentionFwdKernel
     using ODataType    = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::ODataType>;
 
     static constexpr bool kIsCrossAttention = HstuAttentionPipeline::Problem::kIsCrossAttention;
+    static constexpr bool kUseGroup         = HstuAttentionPipeline::Problem::kUseGroup;
     static constexpr bool kIsJagged         = HstuAttentionPipeline::Problem::kIsJagged;
     static constexpr auto kHasBias          = HstuAttentionPipeline::Problem::kHasBias;
     static constexpr bool kHasDropout       = HstuAttentionPipeline::Problem::kHasDropout;
@@ -60,7 +61,7 @@ struct HstuAttentionFwdKernel
     // kargs use aggregate initializer, so no constructor will provided
     // use inheritance to minimize karg size
     // user need to use MakeKargs() function to create kargs.
-    struct HstuAttentionFwdBatchModeBaseKargs
+    struct HstuAttentionNoGroupBatchedFwdBaseKargs
     {
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
@@ -98,7 +99,7 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t min_full_attn_seqlen;
     };
 
-    struct HstuAttentionFwdJaggModeBaseKargs
+    struct HstuAttentionNoGroupJaggedFwdBaseKargs
     {
         const int32_t* seq_q_offsets_ptr;
         const int32_t* seq_kv_offsets_ptr;
@@ -133,6 +134,51 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t contextual_seqlen;
         ck_tile::index_t window_size;
         ck_tile::index_t min_full_attn_seqlen;
+    };
+
+    struct HstuAttentionGroupFwdBaseKargs
+    {
+        ck_tile::index_t num_batch_per_group;
+
+        const int32_t* seq_q_offsets_ptr;
+        const int32_t* seq_kv_offsets_ptr;
+
+        ck_tile::index_t seq_stride_q;
+        ck_tile::index_t seq_stride_k;
+        ck_tile::index_t seq_stride_v;
+        ck_tile::index_t seq_stride_o;
+
+        const int32_t* num_targets_ptr;
+
+        const void* q_ptr;
+        const void* k_ptr;
+        const void* v_ptr;
+        void* o_ptr;
+
+        ck_tile::index_t nhead_stride_q;
+        ck_tile::index_t nhead_stride_k;
+        ck_tile::index_t nhead_stride_v;
+        ck_tile::index_t nhead_stride_o;
+
+        ck_tile::index_t hdim_qk;
+        ck_tile::index_t hdim_v;
+
+        ck_tile::index_t seqlen_q;
+        ck_tile::index_t seqlen_kv;
+
+        ck_tile::index_t num_head;
+        float scale_s; // scaling value exerted on the immediate Q@K result
+        float scale_p; // scaling value exerted on the SiLU result
+
+        int32_t contextual_seqlen;    // to be set by the per-group contextual_seqlen
+        int32_t window_size;          // to be set by the per-group window_size
+        int32_t min_full_attn_seqlen; // to be set by the per-group min_full_attn_seqlen
+
+        const int32_t* group_max_seqlen_ptr;
+        const int32_t* group_contextual_seqlen_ptr;
+        const int32_t* group_window_size_ptr;
+        const int32_t* group_min_full_attn_seqlen_ptr;
+        const float* group_attn_scale_ptr;
     };
 
     struct HstuAttentionFwdCommonBiasKargs
@@ -170,30 +216,48 @@ struct HstuAttentionFwdKernel
         uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
     };
 
-    struct HstuAttentionFwdBatchModeKargs : HstuAttentionFwdBatchModeBaseKargs,
-                                            std::conditional_t<kHasBias,
-                                                               HstuAttentionFwdBatchModeBiasKargs,
-                                                               HstuAttentionFwdEmptyKargs<1>>,
-                                            std::conditional_t<kHasDropout,
-                                                               HstuAttentionFwdCommonDropoutKargs,
-                                                               HstuAttentionFwdEmptyKargs<2>>
+    struct HstuAttentionNoGroupBatchedFwdKargs
+        : HstuAttentionNoGroupBatchedFwdBaseKargs,
+          std::conditional_t<kHasBias,
+                             HstuAttentionFwdBatchModeBiasKargs,
+                             HstuAttentionFwdEmptyKargs<1>>,
+          std::conditional_t<kHasDropout,
+                             HstuAttentionFwdCommonDropoutKargs,
+                             HstuAttentionFwdEmptyKargs<2>>
     {
     };
 
-    struct HstuAttentionFwdJaggModeKargs : HstuAttentionFwdJaggModeBaseKargs,
-                                           std::conditional_t<kHasBias,
-                                                              HstuAttentionFwdCommonBiasKargs,
-                                                              HstuAttentionFwdEmptyKargs<1>>,
-                                           std::conditional_t<kHasDropout,
-                                                              HstuAttentionFwdCommonDropoutKargs,
-                                                              HstuAttentionFwdEmptyKargs<2>>
+    struct HstuAttentionNoGroupJaggedFwdKargs
+        : HstuAttentionNoGroupJaggedFwdBaseKargs,
+          std::conditional_t<kHasBias,
+                             HstuAttentionFwdCommonBiasKargs,
+                             HstuAttentionFwdEmptyKargs<1>>,
+          std::conditional_t<kHasDropout,
+                             HstuAttentionFwdCommonDropoutKargs,
+                             HstuAttentionFwdEmptyKargs<2>>
     {
     };
 
-    using Kargs = std::
-        conditional_t<kIsJagged, HstuAttentionFwdJaggModeKargs, HstuAttentionFwdBatchModeKargs>;
+    struct HstuAttentionGroupFwdKargs : HstuAttentionGroupFwdBaseKargs,
+                                        std::conditional_t<kHasBias,
+                                                           HstuAttentionFwdCommonBiasKargs,
+                                                           HstuAttentionFwdEmptyKargs<1>>,
+                                        std::conditional_t<kHasDropout,
+                                                           HstuAttentionFwdCommonDropoutKargs,
+                                                           HstuAttentionFwdEmptyKargs<2>>
+    {
+    };
 
-    template <bool Cond = !kIsJagged>
+    using Kargs = std::conditional_t<kUseGroup,
+                                     HstuAttentionGroupFwdKargs,
+                                     std::conditional_t<kIsJagged,
+                                                        HstuAttentionNoGroupJaggedFwdKargs,
+                                                        HstuAttentionNoGroupBatchedFwdKargs>>;
+
+    static constexpr bool kUseNoGroupBatched = (!kUseGroup && !kIsJagged);
+    static constexpr bool kUseNoGroupJagged  = (!kUseGroup && kIsJagged);
+
+    template <bool Cond = kUseNoGroupBatched>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
@@ -278,7 +342,7 @@ struct HstuAttentionFwdKernel
         return kargs;
     }
 
-    template <bool Cond = kIsJagged>
+    template <bool Cond = kUseNoGroupJagged>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* q_ptr,
               const void* k_ptr,
@@ -355,11 +419,95 @@ struct HstuAttentionFwdKernel
         return kargs;
     }
 
+    template <bool Cond = kUseGroup>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
+    MakeKargs(const void* q_ptr,
+              const void* k_ptr,
+              const void* v_ptr,
+              const void* bias_ptr,
+              void* o_ptr,
+              ck_tile::index_t num_batch_per_group,
+              const void* seq_q_offsets_ptr,
+              const void* seq_kv_offsets_ptr,
+              const void* group_max_seqlen_ptr,
+              const void* group_contextual_seqlen_ptr,
+              const void* group_window_size_ptr,
+              const void* group_min_full_attn_seqlen_ptr,
+              const void* group_attn_scale_ptr,
+              ck_tile::index_t hdim_qk,
+              ck_tile::index_t hdim_v,
+              ck_tile::index_t num_head,
+              float scale_s,
+              ck_tile::index_t seq_stride_q,
+              ck_tile::index_t seq_stride_k,
+              ck_tile::index_t seq_stride_v,
+              ck_tile::index_t seq_stride_bias,
+              ck_tile::index_t seq_stride_o,
+              ck_tile::index_t nhead_stride_q,
+              ck_tile::index_t nhead_stride_k,
+              ck_tile::index_t nhead_stride_v,
+              ck_tile::index_t nhead_stride_bias,
+              ck_tile::index_t nhead_stride_o,
+              const void* num_targets_ptr,
+              float p_drop,
+              uint64_t philox_seed,
+              uint64_t philox_offset)
+    {
+        Kargs kargs{
+            {num_batch_per_group,
+             reinterpret_cast<const int32_t*>(seq_q_offsets_ptr),
+             reinterpret_cast<const int32_t*>(seq_kv_offsets_ptr),
+             seq_stride_q,
+             seq_stride_k,
+             seq_stride_v,
+             seq_stride_o,
+             reinterpret_cast<const int32_t*>(num_targets_ptr),
+             q_ptr,
+             k_ptr,
+             v_ptr,
+             o_ptr,
+             nhead_stride_q,
+             nhead_stride_k,
+             nhead_stride_v,
+             nhead_stride_o,
+             hdim_qk,
+             hdim_v,
+             -1, // seqlen_q will be updated by another pointer
+             -1, // seqlen_kv will be updated by another pointer
+             num_head,
+             scale_s,
+             1.0f, // to be set according to the per-group attn_scale and max_seqlen
+             0,    // to be set by the per-group contextual_seqlen
+             0,    // to be set by the per-group window_size
+             0,    // to be set by the per-group min_full_attn_seqlen
+             reinterpret_cast<const int32_t*>(group_max_seqlen_ptr),
+             reinterpret_cast<const int32_t*>(group_contextual_seqlen_ptr),
+             reinterpret_cast<const int32_t*>(group_window_size_ptr),
+             reinterpret_cast<const int32_t*>(group_min_full_attn_seqlen_ptr),
+             reinterpret_cast<const float*>(group_attn_scale_ptr)}, // args for common karg
+            {},                                                     // placeholder for bias
+            {},                                                     // placeholder for dropout
+        };
+
+        if constexpr(kHasBias)
+        {
+            kargs.bias_ptr          = bias_ptr;
+            kargs.seq_stride_bias   = seq_stride_bias;
+            kargs.nhead_stride_bias = nhead_stride_bias;
+        }
+        if constexpr(kHasDropout)
+        {
+            kargs.init_dropout(p_drop, philox_seed, philox_offset);
+        }
+
+        return kargs;
+    }
+
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_,
                                                 ck_tile::index_t hdim_v_,
-                                                bool has_minfull_attn_seqlen)
+                                                bool has_minfull_attn_seqlen = false)
     {
         // The Q sequence [0, seqlen) will be split to two parts for allocating workgroups:
         // 1) [0, seqlen - target - min_full_attn_seqlen)
@@ -367,8 +515,15 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t num_tile_in_seqlen =
             ck_tile::integer_divide_ceil(seqlen_, HstuAttentionPipeline::kM0);
 
-        if(has_minfull_attn_seqlen)
+        if constexpr(kUseGroup)
+        {
             num_tile_in_seqlen += 1;
+        }
+        else
+        {
+            if(has_minfull_attn_seqlen)
+                num_tile_in_seqlen += 1;
+        };
 
         if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kSubQKHeaddim)
         {
@@ -492,6 +647,20 @@ struct HstuAttentionFwdKernel
                 kargs.seq_q_offsets_ptr[i_batch + 1] - kargs.seq_q_offsets_ptr[i_batch];
             kargs.seqlen_kv =
                 kargs.seq_kv_offsets_ptr[i_batch + 1] - kargs.seq_kv_offsets_ptr[i_batch];
+
+            // read from device memory for the group specific mask and scaling parameters
+            if constexpr(kUseGroup)
+            {
+                index_t i_group =
+                    __builtin_amdgcn_readfirstlane(i_batch / kargs.num_batch_per_group);
+
+                float attn_scale   = kargs.group_attn_scale_ptr[i_group];
+                index_t max_seqlen = kargs.group_max_seqlen_ptr[i_group];
+                kargs.scale_p = (attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen));
+                kargs.contextual_seqlen    = kargs.group_contextual_seqlen_ptr[i_group];
+                kargs.window_size          = kargs.group_window_size_ptr[i_group];
+                kargs.min_full_attn_seqlen = kargs.group_min_full_attn_seqlen_ptr[i_group];
+            };
         }
         else
         {
