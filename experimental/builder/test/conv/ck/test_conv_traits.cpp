@@ -6,6 +6,7 @@
 #include <concepts>
 
 #include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
+#include <ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp>
 #include <ck_tile/builder/reflect/instance_to_conv_traits.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp>
