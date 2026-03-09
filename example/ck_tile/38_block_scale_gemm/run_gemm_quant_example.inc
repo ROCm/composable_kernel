@@ -185,7 +185,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 
         using ABQuantPipeline = std::conditional_t<
             eight_warps,
-            ck_tile::ABQuantGemmPipelineAgBgCrAsync<PipelineProblem>,
+            ck_tile::ABQuantGemmPipelineAgBgCrEightWarps<PipelineProblem>,
             std::conditional_t<GemmConfig::DoubleSmemBuffer && GemmConfig::PreshuffleB,
                                ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
                                ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
