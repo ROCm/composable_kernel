@@ -126,6 +126,7 @@ function(build_gemm_test_targets datatype layout config_name configs_dir_path)
                 --layout ${layout}
                 --config_json ${json_blob}
                 --list_kernels
+                --gpu_targets "${SUPPORTED_GPU_TARGETS}"
         WORKING_DIRECTORY ${TILE_ENGINE_GEMM_DIR}
         RESULT_VARIABLE ret
         OUTPUT_VARIABLE list_output
@@ -188,6 +189,7 @@ function(build_gemm_test_targets datatype layout config_name configs_dir_path)
                                 --kernel_name "${kernel_name}"
                                 --tile_config "${tile_config}"
                                 --trait_combo "${trait_combo}"
+                                --gpu_targets "${SUPPORTED_GPU_TARGETS}"
                         WORKING_DIRECTORY ${TILE_ENGINE_GEMM_DIR}
                         RESULT_VARIABLE gen_ret
                         OUTPUT_VARIABLE gen_output
