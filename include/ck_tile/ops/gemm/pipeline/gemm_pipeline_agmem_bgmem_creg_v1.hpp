@@ -112,6 +112,9 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
 
     static constexpr auto Scheduler = Problem::Scheduler;
 
+    static constexpr auto is_a_load_tr_v = bool_constant<PipelineImplBase::is_a_load_tr>{};
+    static constexpr auto is_b_load_tr_v = bool_constant<PipelineImplBase::is_b_load_tr>{};
+
     static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
     static constexpr index_t kLdsAlignmentInBytes = 16;
@@ -272,29 +275,27 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
                 tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
                 // LDS write 0
-                if constexpr(is_a_col_major)
+                if constexpr(is_a_col_major && !is_a_load_tr_v())
                 {
                     auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                         Policy::template MakeShuffledARegTileDistribution<Problem>());
                     transpose_tile2d(a_shuffle_tmp, elementwise_As_res);
-                    store_tile(a_copy_lds_window, a_shuffle_tmp);
+                    Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp);
                 }
                 else
                 {
-                    store_tile(a_copy_lds_window, elementwise_As_res);
+                    Base::LocalPrefill(a_copy_lds_window, elementwise_As_res);
                 }
-
-                // LDS write 0
-                if constexpr(is_b_row_major)
+                if constexpr(is_b_row_major && !is_b_load_tr_v())
                 {
                     auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                         Policy::template MakeShuffledBRegTileDistribution<Problem>());
                     transpose_tile2d(b_shuffle_tmp, elementwise_Bs_res);
-                    store_tile(b_copy_lds_window, b_shuffle_tmp);
+                    Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp);
                 }
                 else
                 {
-                    store_tile(b_copy_lds_window, elementwise_Bs_res);
+                    Base::LocalPrefill(b_copy_lds_window, elementwise_Bs_res);
                 }
             }
 
@@ -310,7 +311,8 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
                         load_tile_with_elementwise(bs_copy_dram_window, b_element_func);
                     block_sync_lds();
 
-                    block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                    block_gemm.LocalPrefetch(
+                        a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
 
                     // GEMM i
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
@@ -322,29 +324,27 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
                     move_tile_window(bs_copy_dram_window, b_dram_tile_window_step);
 
                     // LDS write i + 1
-                    if constexpr(is_a_col_major)
+                    if constexpr(is_a_col_major && !is_a_load_tr_v())
                     {
-                        auto a_shuffle_tmp_loop = make_static_distributed_tensor<ADataType>(
+                        auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                             Policy::template MakeShuffledARegTileDistribution<Problem>());
-                        transpose_tile2d(a_shuffle_tmp_loop, elementwise_As_res);
-                        store_tile(a_copy_lds_window, a_shuffle_tmp_loop);
+                        transpose_tile2d(a_shuffle_tmp, elementwise_As_res);
+                        Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp);
                     }
                     else
                     {
-                        store_tile(a_copy_lds_window, elementwise_As_res);
+                        Base::LocalPrefill(a_copy_lds_window, elementwise_As_res);
                     }
-
-                    // LDS write i + 1
-                    if constexpr(is_b_row_major)
+                    if constexpr(is_b_row_major && !is_b_load_tr_v())
                     {
-                        auto b_shuffle_tmp_loop = make_static_distributed_tensor<BDataType>(
+                        auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                             Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                        transpose_tile2d(b_shuffle_tmp_loop, elementwise_Bs_res);
-                        store_tile(b_copy_lds_window, b_shuffle_tmp_loop);
+                        transpose_tile2d(b_shuffle_tmp, elementwise_Bs_res);
+                        Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp);
                     }
                     else
                     {
-                        store_tile(b_copy_lds_window, elementwise_Bs_res);
+                        Base::LocalPrefill(b_copy_lds_window, elementwise_Bs_res);
                     }
 
                     iCounter--;
@@ -354,7 +354,8 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
             // tail
             {
                 block_sync_lds();
-                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                block_gemm.LocalPrefetch(
+                    a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
                 // GEMM num_loop - 1
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
             }
@@ -479,29 +480,27 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
                 tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
                 // LDS write 0
-                if constexpr(is_a_col_major)
+                if constexpr(is_a_col_major && !is_a_load_tr_v())
                 {
                     auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                         Policy::template MakeShuffledARegTileDistribution<Problem>());
                     transpose_tile2d(a_shuffle_tmp, elementwise_As_res);
-                    store_tile(a_copy_lds_window, a_shuffle_tmp);
+                    Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp);
                 }
                 else
                 {
-                    store_tile(a_copy_lds_window, elementwise_As_res);
+                    Base::LocalPrefill(a_copy_lds_window, elementwise_As_res);
                 }
-
-                // LDS write 0
-                if constexpr(is_b_row_major)
+                if constexpr(is_b_row_major && !is_b_load_tr_v())
                 {
                     auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                         Policy::template MakeShuffledBRegTileDistribution<Problem>());
                     transpose_tile2d(b_shuffle_tmp, elementwise_Bs_res);
-                    store_tile(b_copy_lds_window, b_shuffle_tmp);
+                    Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp);
                 }
                 else
                 {
-                    store_tile(b_copy_lds_window, elementwise_Bs_res);
+                    Base::LocalPrefill(b_copy_lds_window, elementwise_Bs_res);
                 }
             }
 
@@ -518,36 +517,38 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
                         load_tile_with_elementwise(bs_copy_dram_window, b_element_func);
 
                     // GEMM i
-                    block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+                    block_gemm(c_block_tile,
+                               a_lds_gemm_window,
+                               b_lds_gemm_window,
+                               is_a_load_tr_v,
+                               is_b_load_tr_v);
 
                     // move to i + 2
                     move_tile_window(as_copy_dram_window, {0, kKPerBlock});
                     move_tile_window(bs_copy_dram_window, {0, kKPerBlock});
 
                     // LDS write i + 1
-                    if constexpr(is_a_col_major)
+                    if constexpr(is_a_col_major && !is_a_load_tr_v())
                     {
-                        auto a_shuffle_tmp_loop = make_static_distributed_tensor<ADataType>(
+                        auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                             Policy::template MakeShuffledARegTileDistribution<Problem>());
-                        transpose_tile2d(a_shuffle_tmp_loop, elementwise_As_res);
-                        store_tile(a_copy_lds_window, a_shuffle_tmp_loop);
+                        transpose_tile2d(a_shuffle_tmp, elementwise_As_res);
+                        Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp);
                     }
                     else
                     {
-                        store_tile(a_copy_lds_window, elementwise_As_res);
+                        Base::LocalPrefill(a_copy_lds_window, elementwise_As_res);
                     }
-
-                    // LDS write i + 1
-                    if constexpr(is_b_row_major)
+                    if constexpr(is_b_row_major && !is_b_load_tr_v())
                     {
-                        auto b_shuffle_tmp_loop = make_static_distributed_tensor<BDataType>(
+                        auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                             Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                        transpose_tile2d(b_shuffle_tmp_loop, elementwise_Bs_res);
-                        store_tile(b_copy_lds_window, b_shuffle_tmp_loop);
+                        transpose_tile2d(b_shuffle_tmp, elementwise_Bs_res);
+                        Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp);
                     }
                     else
                     {
-                        store_tile(b_copy_lds_window, elementwise_Bs_res);
+                        Base::LocalPrefill(b_copy_lds_window, elementwise_Bs_res);
                     }
 
                     iCounter--;
@@ -558,7 +559,11 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
             {
                 block_sync_lds();
                 // GEMM num_loop - 1
-                block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+                block_gemm(c_block_tile,
+                           a_lds_gemm_window,
+                           b_lds_gemm_window,
+                           is_a_load_tr_v,
+                           is_b_load_tr_v);
             }
 
             return c_block_tile;

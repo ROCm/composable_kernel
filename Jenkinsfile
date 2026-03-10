@@ -1524,7 +1524,8 @@ pipeline {
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ python3 ../experimental/grouped_convolution_tile_instances/generate_instances.py --mode=profiler && \
                                            cmake .. --preset dev-gfx90a -D CK_EXPERIMENTAL_BUILDER=ON && \
-                                           make -j64 test_grouped_convnd_fwd_tile && \
+                                           make -j64 test_grouped_convnd_fwd_tile test_grouped_convnd_bwd_weight_tile && \
+                                           ./bin/test_grouped_convnd_bwd_weight_tile && \
                                            ./bin/test_grouped_convnd_fwd_tile"""
                     }
                     steps{
