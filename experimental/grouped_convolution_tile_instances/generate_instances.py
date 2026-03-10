@@ -288,6 +288,8 @@ def parse_bwd_weight_instances(instances, problem_name):
         end = instance.rindex('>')
         params_str = instance[start:end]
         args = parse_instance_string(params_str)
+        
+        direct_load = False
 
         is_v3_instance = instance.find("Xdl_CShuffleV3") != -1
         is_two_stage_instance = instance.find("TwoStage") != -1
@@ -357,6 +359,7 @@ def parse_bwd_weight_instances(instances, problem_name):
                 if len(args) != 45:
                     raise RuntimeError(f"Wrong number of parameters in the V3 XDL CShuffle instance string: {instance}")
 
+                direct_load = int(args[43]) == 1
                 num_groups_to_merge = int(args[44])
 
                 # Block GEMM pipeline parameters
@@ -395,6 +398,16 @@ def parse_bwd_weight_instances(instances, problem_name):
         # OLd CK pipeline version V5 maps to V6 for CK Tile
         if pipeline_version == "V5":
             pipeline_version = "V6"
+
+        if direct_load:
+            if pipeline_version == "V1":
+                pipeline_version = "ASYNC_V1"
+            elif pipeline_version == "V4":
+                pipeline_version = "ASYNC_V4"
+            else:
+                raise RuntimeError(
+                    f"Not supported pipeline for direct load: pipeline_version={pipeline_version} in instance: {instance}"
+                )
 
         m_warp = int(m_per_block / (m_per_xdl * m_xdl_per_wave))
         n_warp = int(n_per_block / (n_per_xdl * n_xdl_per_wave))
