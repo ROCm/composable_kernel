@@ -106,7 +106,7 @@ using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataTyp
                                                                         PassThrough,
                                                                         PassThrough>;
 
-int main()
+int main(int argc, char* argv[])
 {
     bool do_verification = true;
     bool time_kernel     = false;
@@ -122,6 +122,34 @@ int main()
     ck::index_t StrideE    = 1024;
 
     float requant_scale = 0.03;
+
+    if(argc == 1)
+    {
+        // do nothing
+    }
+    else if(argc == 3 || argc == 9)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+        if(argc == 9)
+        {
+            M = std::stoi(argv[3]);
+            N = std::stoi(argv[4]);
+            K = std::stoi(argv[5]);
+
+            StrideA = std::stoi(argv[6]);
+            StrideB = std::stoi(argv[7]);
+            StrideE = std::stoi(argv[8]);
+        }
+    }
+    else
+    {
+        std::cout << "arg1: verification (0=no, 1=yes)\n"
+                  << " arg2: Measure kernel execution time (1=ON, 0=Off)\n"
+                  << " arg3 to 8: M (256x), N(128x), K(64x), StrideA, StrideB, StrideE\n"
+                  << std::endl;
+        exit(1);
+    }
 
     auto f_host_tensor_descriptor2d =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
