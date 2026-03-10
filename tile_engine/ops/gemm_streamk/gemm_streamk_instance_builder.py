@@ -15,6 +15,7 @@ from typing import Optional
 from gemm_streamk_validation_utils import (
     is_tile_config_valid,
     is_trait_combination_valid,
+    set_gpu_targets,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -819,8 +820,18 @@ def main():
         action="store_true",
         help="List kernel configurations without generating files",
     )
+    parser.add_argument(
+        "--gpu_targets",
+        help="Semicolon-separated list of GPU targets from CMake (e.g., 'gfx90a;gfx942;gfx950')",
+    )
 
     args = parser.parse_args()
+
+    # Configure GPU targets for fallback if provided
+    if args.gpu_targets:
+        targets = [t.strip() for t in args.gpu_targets.split(';') if t.strip()]
+        set_gpu_targets(targets)
+        logging.debug(f"Configured GPU targets: {targets}")
 
     # Create builder
     builder = GemmKernelBuilder(
