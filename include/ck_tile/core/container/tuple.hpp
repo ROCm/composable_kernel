@@ -287,6 +287,7 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) operator[](number<I>)             { TP_COM_(); return get<I>(); }
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) operator[](number<I>) const { TP_COM_(); return get<I>(); }
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) operator()(number<I>)             { TP_COM_(); return get<I>(); }  // TODO: compatible
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) operator()(number<I>) const { TP_COM_(); return get<I>(); }
 
     // below function should be used under tuple_array<> type, no extra check will perform here
     template <typename Tx> CK_TILE_HOST_DEVICE constexpr decltype(auto) get_as()                            { return reinterpret_cast<tuple_array<Tx, size()>&>(*this); }

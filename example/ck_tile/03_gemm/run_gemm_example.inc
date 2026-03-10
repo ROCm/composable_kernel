@@ -30,7 +30,6 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
         ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
     const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
         max_accumulated_value, kbatch);
-    // Use higher threshold
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
@@ -369,7 +368,9 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
 
     std::size_t flop = std::size_t(2) * M * N * K;
     std::size_t num_byte =
-        sizeof(ADataType) * M * K + sizeof(BDataType) * N * K + sizeof(CDataType) * M * N;
+        sizeof(ADataType) * M * K / ck_tile::numeric_traits<ADataType>::PackedSize +
+        sizeof(BDataType) * N * K / ck_tile::numeric_traits<BDataType>::PackedSize +
+        sizeof(CDataType) * M * N;
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 

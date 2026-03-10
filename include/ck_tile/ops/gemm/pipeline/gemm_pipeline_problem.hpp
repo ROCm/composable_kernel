@@ -110,7 +110,7 @@ struct GemmPipelineProblemBase
         }
         else
         {
-            return VectorLoadSize / sizeof(ADataType);
+            return PackedSize * VectorLoadSize / sizeof(ADataType);
         }
     }
 

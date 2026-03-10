@@ -262,6 +262,23 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
             throw std::runtime_error("Unsupported pipeline for this operation !!!");
         }
     }
+    if(data_type == "fp4")
+    {
+        if constexpr(GemmConfig<ck_tile::pk_fp4_t>::Pipeline ==
+                         ck_tile::GemmPipeline::COMPUTE_ASYNC &&
+                     GemmConfig<ck_tile::pk_fp4_t>::K_Warp_Tile == 128)
+        {
+            return run_gemm_example_prec_type_universal<GemmConfig<ck_tile::pk_fp4_t>,
+                                                        ck_tile::pk_fp4_t,
+                                                        ck_tile::pk_fp4_t,
+                                                        ck_tile::half_t>(
+                a_layout, b_layout, arg_parser);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported pipeline for this operation !!!");
+        }
+    }
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");
