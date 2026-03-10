@@ -632,6 +632,14 @@ using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
                           BlockGemm_,
                           GemmBatchOptions_>;
 
+using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3 =
+    ConvAlgorithmTemplate<ThreadBlock_,
+                          WmmaGemmABK1_,
+                          Transfer_<>,
+                          ConvSpecializationFwd_,
+                          BlockGemm_,
+                          GemmBatchOptions_>;
+
 using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle =
     ConvAlgorithmTemplate<ThreadBlock_,
                           WmmaGemm_,

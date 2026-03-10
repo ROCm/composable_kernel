@@ -76,6 +76,13 @@ concept FwdXdlV3Algorithm =
     SpecifiesGridwiseFwdXdlGemm<T> && SpecifiesFwdConvSpecialization<T> &&
     SpecifiesGemmSpecialization<T> && SpecifiesBlockGemm<T> && SpecifiesNumGroupsToMerge<T>;
 
+// FWD WMMA V3 algorithm concept
+template <typename T>
+concept FwdWmmaV3Algorithm =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesTileTransferParameters3D<T> &&
+    SpecifiesGridwiseWmmaGemm<T> && SpecifiesFwdConvSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesBlockGemm<T> && SpecifiesNumGroupsToMerge<T>;
+
 // FWD WMMA algorithm concepts
 template <typename T>
 concept FwdWmmaAlgorithm =

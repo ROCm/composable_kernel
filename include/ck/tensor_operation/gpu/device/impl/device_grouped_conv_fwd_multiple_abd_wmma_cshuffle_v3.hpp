@@ -29,6 +29,11 @@
 #include "ck/host_utility/flush_cache.hpp"
 #include "ck/host_utility/io.hpp"
 
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/description.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_wmma_cshuffle_v3.hpp"
+#endif
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -2341,8 +2346,28 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 "The argument pointer is not an object of "
                 "DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle::Argument structure!");
     }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    std::string GetInstanceString() const override
+    {
+        static_assert(
+            ck_tile::reflect::HasInstanceTraits<DeviceOp>,
+            "InstanceTraits specialization is required. Include the .inc file for this device op.");
+        return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        return std::make_unique<ck_tile::reflect::InstanceStringDescription>(
+            ck_tile::reflect::instance_string<DeviceOp>());
+    }
+#endif
 };
 
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/reflect_device_grouped_conv_fwd_multiple_abd_wmma_cshuffle_v3.inc"
+#endif
