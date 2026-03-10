@@ -1141,6 +1141,9 @@ struct gfx103_t
 struct gfx11_t
 {
 };
+struct gfx115_t
+{
+};
 struct gfx12_t
 {
 };
@@ -1173,6 +1176,8 @@ CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx9_t) { return 32; }
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx103_t) { return 32; }
 
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx11_t) { return 32; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx115_t) { return 32; }
 
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx12_t) { return 32; }
 
