@@ -410,6 +410,17 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_C
 }
 
 template <>
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3>(
+    ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3 t)
+{
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
+        << to_string(static_cast<WmmaGemmABK1_>(t)) << ","
+        << to_string(static_cast<Transfer_<>>(t));
+    return oss.str();
+}
+
+template <>
 inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>(
     ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle t)
 {
