@@ -536,14 +536,8 @@ struct UniversalGemmBasePolicy
             ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
 
         // Assume DataType is even!
-        if constexpr(XPerTile % (PackedSize * 32 / sizeof(DataType)) == 0 &&
-                     elements_per_thread % (PackedSize * 32 / sizeof(DataType)) == 0 &&
-                     PackedSize == 2)
-        {
-            return (PackedSize * 32 / sizeof(DataType));
-        }
-        else if constexpr(XPerTile % (PackedSize * 16 / sizeof(DataType)) == 0 &&
-                          elements_per_thread % (PackedSize * 16 / sizeof(DataType)) == 0)
+        if constexpr(XPerTile % (PackedSize * 16 / sizeof(DataType)) == 0 &&
+                     elements_per_thread % (PackedSize * 16 / sizeof(DataType)) == 0)
         {
             return (PackedSize * 16 / sizeof(DataType));
         }
@@ -861,30 +855,32 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr index_t GetSmemSizeA()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
         using ADataType                 = remove_cvref_t<typename Problem::ADataType>;
+        constexpr auto APackedSize      = numeric_traits<ADataType>::PackedSize;
         constexpr auto a_lds_block_desc = Derived::template MakeALdsBlockDescriptor<Problem>();
         constexpr index_t smem_size_a   = integer_least_multiple(
-            a_lds_block_desc.get_element_space_size() * sizeof(ADataType), 16);
+            a_lds_block_desc.get_element_space_size() * sizeof(ADataType) / APackedSize, 16);
         return smem_size_a;
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr index_t GetSmemSizeB()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
     {
         constexpr bool IsBCastPolicyBeforeLDSWrite = IsBCastPolicyBeforeLDSWrite_v<Problem>;
         using BDataType                            = std::conditional_t<IsBCastPolicyBeforeLDSWrite,
                                                                         typename Problem::ADataType,
                                                                         typename Problem::BDataType>;
+        constexpr auto BPackedSize                 = numeric_traits<BDataType>::PackedSize;
         constexpr auto b_lds_block_desc = Derived::template MakeBLdsBlockDescriptor<Problem>();
         constexpr index_t smem_size_b   = integer_least_multiple(
-            b_lds_block_desc.get_element_space_size() * sizeof(BDataType), 16);
+            b_lds_block_desc.get_element_space_size() * sizeof(BDataType) / BPackedSize, 16);
         return smem_size_b;
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
