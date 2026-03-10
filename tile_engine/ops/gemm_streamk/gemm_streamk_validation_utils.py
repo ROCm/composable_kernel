@@ -11,7 +11,7 @@ import subprocess
 import re
 from functools import lru_cache
 import logging
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 # Element size mapping for different data types
 ELEMENT_SIZE_MAP = {
@@ -124,19 +124,57 @@ def element_size(data_type: str) -> float:
 
 GPU_NAME_PATTERN = re.compile(r"Name:\s*(gfx\d+\w*)")
 
+# Module-level storage for configured GPU targets (fallback for when rocminfo fails)
+_configured_gpu_targets: List[str] = []
+
+
+def set_gpu_targets(targets: List[str]) -> None:
+    """
+    Set the fallback GPU targets list (from CMake SUPPORTED_GPU_TARGETS).
+    
+    This list will be used as a fallback when rocminfo fails to detect GPU.
+    
+    Args:
+        targets: List of GPU target strings (e.g., ["gfx90a", "gfx942:xnack+", "gfx950"])
+    """
+    global _configured_gpu_targets
+    _configured_gpu_targets = list(targets)
+
+
+def get_configured_gpu_targets() -> List[str]:
+    """
+    Get the configured GPU targets list.
+    
+    Returns:
+        List of configured GPU target strings
+    """
+    return _configured_gpu_targets
+
 
 @lru_cache(maxsize=1)
 def get_gpu_name_by_id(gpu_id: int = 0) -> str:
-    """Retrieve GPU name (e.g. gfx90a) by device ID"""
+    """
+    Retrieve GPU name (e.g. gfx90a) by device ID.
+    
+    First attempts to query the GPU using rocminfo. If that fails, falls back
+    to using the first supported gfx target from the configured GPU targets list
+    (set via set_gpu_targets()).
+    
+    Args:
+        gpu_id: Device ID to query (default: 0)
+        
+    Returns:
+        GPU architecture name (e.g., "gfx90a") or empty string if detection fails
+    """
+    # Try rocminfo first
     try:
         output = subprocess.check_output(
             ["rocminfo"], text=True, stderr=subprocess.PIPE, timeout=5
         )
         if matches := GPU_NAME_PATTERN.finditer(output):
             gpu_list = [m.group(1) for m in matches]
-            return gpu_list[gpu_id] if gpu_id < len(gpu_list) else ""
-
-        return ""
+            if gpu_id < len(gpu_list):
+                return gpu_list[gpu_id]
 
     except subprocess.CalledProcessError as e:
         logging.debug(f"GPU query failed (exit {e.returncode}): {e.stderr.strip()}")
@@ -146,6 +184,18 @@ def get_gpu_name_by_id(gpu_id: int = 0) -> str:
         logging.debug("GPU query timeout (5s)")
     except Exception as e:
         logging.debug(f"GPU detection error: {str(e)}")
+
+    # Fallback to configured GPU targets from CMake
+    if _configured_gpu_targets:
+        target = _configured_gpu_targets[0]
+        # Extract base gfx name (e.g., "gfx90a" from "gfx90a:xnack+")
+        match = re.match(r'(gfx\d+\w*)', target)
+        if match:
+            gpu_name = match.group(1)
+            logging.debug(f"rocminfo failed, using fallback GPU target: {gpu_name}")
+            return gpu_name
+        else:
+            logging.debug(f"Failed to parse GPU target: {target}")
 
     return ""
 
@@ -234,6 +284,7 @@ def validate_warp_tile_combination(
     gpu_name: str = None,
 ) -> Tuple[bool, str]:
     """Validate warp tile combination against GPU-specific supported combinations."""
+    # This is likely going to need to change to support multiple targets, not just a single one:
     if gpu_name is None:
         gpu_name = get_gpu_name_by_id(0)
 
