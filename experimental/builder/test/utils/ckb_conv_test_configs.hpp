@@ -344,6 +344,16 @@ constexpr GridwiseWmmaGemmABK1 GemmParamsABK1_Wmma_16x16_2x1_per_wave{.ak1      
                                                                       .m_wmma_per_wave = 2,
                                                                       .n_wmma_per_wave = 1};
 
+constexpr GridwiseWmmaGemmABK1 GemmParamsABK1_Wmma_16x16_4x2_per_wave{.ak1             = 8,
+                                                                      .bk1             = 8,
+                                                                      .m_per_wmma      = 16,
+                                                                      .n_per_wmma      = 16,
+                                                                      .m_wmma_per_wave = 4,
+                                                                      .n_wmma_per_wave = 2};
+
+constexpr ThreadBlock ThreadBlock_64_64x64x32{.block_size = 64,
+                                              .tile_size  = {.m = 64, .n = 64, .k = 32}};
+
 constexpr ThreadBlock ThreadBlock_256_256x256x32{.block_size = 256,
                                                  .tile_size  = {.m = 256, .n = 256, .k = 32}};
 

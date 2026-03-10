@@ -146,6 +146,7 @@ set(INSTANCE_STRING_TESTS
 
 if (CK_USE_WMMA)
     list(APPEND INSTANCE_STRING_TESTS
+        test_instance_string_fwd_grp_conv_wmma_v3.cpp
         test_instance_string_bwd_weight_grp_conv_wmma_v3.cpp
         test_instance_string_bwd_weight_grp_conv_multiple_d_wmma_v3.cpp
         test_instance_string_bwd_weight_grp_conv_two_stage_wmma_v3.cpp
@@ -172,6 +173,13 @@ add_ck_builder_test(test_ckb_build_fwd_instances
     conv/ck/test_ckb_conv_fwd_3d_fp32.cpp
     conv/ck_tile/test_ckb_conv_fwd_2d_fp16_v3.cpp
 )
+
+if (CK_USE_WMMA)
+    target_sources(test_ckb_build_fwd_instances PRIVATE
+        conv/ck/test_ckb_conv_fwd_2d_wmma_v3_fp16.cpp
+    )
+endif()
+
 target_link_libraries(test_ckb_build_fwd_instances PRIVATE utility)
 
 set(BWD_WEIGHT_TESTS
