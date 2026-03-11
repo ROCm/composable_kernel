@@ -2519,7 +2519,8 @@ amd_buffer_load_invalid_element_return_customized_value(const T* p_src_wave,
                 else
                 {
                     thread_buffer<T, N> tmp;
-                    tmp.template set_as<vector_t>(number<0>{}, vector_t{customized_value});
+                    tmp.template set_as<vector_t>(
+                        number<0>{}, vector_t{static_cast<typename T::type>(customized_value)});
                     return tmp;
                 }
             }
