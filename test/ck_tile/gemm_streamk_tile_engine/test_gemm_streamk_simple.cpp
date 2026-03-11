@@ -52,7 +52,12 @@ bool compare_results(std::string instanceName,
                      ck_tile::HostTensor<CDataType>& c_m_n_host_result)
 {
     const float max_accumulated_value =
-        *std::max_element(c_m_n_host_result.mData.begin(), c_m_n_host_result.mData.end());
+        std::abs(static_cast<float>(*std::max_element(c_m_n_host_result.mData.begin(),
+                                                      c_m_n_host_result.mData.end(),
+                                                      [](CDataType a, CDataType b) {
+                                                          return std::abs(static_cast<float>(a)) <
+                                                                 std::abs(static_cast<float>(b));
+                                                      })));
     const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
         K, kbatch, max_accumulated_value);
     bool pass = ck_tile::check_err(c_m_n_dev_result,
