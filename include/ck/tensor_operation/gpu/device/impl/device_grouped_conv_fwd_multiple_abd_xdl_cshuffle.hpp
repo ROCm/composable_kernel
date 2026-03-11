@@ -1158,26 +1158,52 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         isMultiB,
                         CTranspose>;
 
-                    return launch_and_time_kernel(
-                        stream_config,
-                        kernel,
-                        dim3(gdx, gdy, gdz),
-                        dim3(BlockSize),
-                        0,
-                        arg.p_as_grid_,
-                        arg.p_bs_grid_,
-                        arg.p_ds_grid_,
-                        arg.p_e_grid_,
-                        arg.a_element_op_,
-                        arg.b_element_op_,
-                        arg.cde_element_op_,
-                        as_grid_desc_ak0_m_ak1,
-                        bs_grid_desc_bk0_n_bk1,
-                        arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                        arg.block_2_etile_map_,
-                        arg.compute_ptr_offset_of_groups_,
-                        arg.compute_ptr_offset_of_n_);
+                    if(stream_config.flush_cache)
+                    {
+                        return launch_and_time_kernel_flush_cache(
+                            stream_config,
+                            kernel,
+                            dim3(gdx, gdy, gdz),
+                            dim3(BlockSize),
+                            0,
+                            arg.p_as_grid_,
+                            arg.p_bs_grid_,
+                            arg.p_ds_grid_,
+                            arg.p_e_grid_,
+                            arg.a_element_op_,
+                            arg.b_element_op_,
+                            arg.cde_element_op_,
+                            as_grid_desc_ak0_m_ak1,
+                            bs_grid_desc_bk0_n_bk1,
+                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                            arg.block_2_etile_map_,
+                            arg.compute_ptr_offset_of_groups_,
+                            arg.compute_ptr_offset_of_n_);
+                    }
+                    else
+                    {
+                        return launch_and_time_kernel(
+                            stream_config,
+                            kernel,
+                            dim3(gdx, gdy, gdz),
+                            dim3(BlockSize),
+                            0,
+                            arg.p_as_grid_,
+                            arg.p_bs_grid_,
+                            arg.p_ds_grid_,
+                            arg.p_e_grid_,
+                            arg.a_element_op_,
+                            arg.b_element_op_,
+                            arg.cde_element_op_,
+                            as_grid_desc_ak0_m_ak1,
+                            bs_grid_desc_bk0_n_bk1,
+                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                            arg.block_2_etile_map_,
+                            arg.compute_ptr_offset_of_groups_,
+                            arg.compute_ptr_offset_of_n_);
+                    }
                 }
                 else
                 {
@@ -1230,26 +1256,53 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                             isMultiA,
                             isMultiB,
                             CTranspose>;
-                        return launch_and_time_kernel(
-                            stream_config,
-                            kernel,
-                            dim3(gdx, gdy, gdz),
-                            dim3(BlockSize),
-                            0,
-                            p_b_grid,
-                            p_a_grid,
-                            arg.p_ds_grid_,
-                            p_e_grid,
-                            arg.b_element_op_,
-                            arg.a_element_op_,
-                            arg.cde_element_op_,
-                            arg.b_grid_desc_bk0_n_bk1_,
-                            arg.a_grid_desc_ak0_m_ak1_,
-                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                            arg.block_2_etile_map_,
-                            arg.compute_ptr_offset_of_groups_,
-                            arg.compute_ptr_offset_of_n_);
+
+                        if(stream_config.flush_cache)
+                        {
+                            return launch_and_time_kernel_flush_cache(
+                                stream_config,
+                                kernel,
+                                dim3(gdx, gdy, gdz),
+                                dim3(BlockSize),
+                                0,
+                                p_b_grid,
+                                p_a_grid,
+                                arg.p_ds_grid_,
+                                p_e_grid,
+                                arg.b_element_op_,
+                                arg.a_element_op_,
+                                arg.cde_element_op_,
+                                arg.b_grid_desc_bk0_n_bk1_,
+                                arg.a_grid_desc_ak0_m_ak1_,
+                                arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                arg.block_2_etile_map_,
+                                arg.compute_ptr_offset_of_groups_,
+                                arg.compute_ptr_offset_of_n_);
+                        }
+                        else
+                        {
+                            return launch_and_time_kernel(
+                                stream_config,
+                                kernel,
+                                dim3(gdx, gdy, gdz),
+                                dim3(BlockSize),
+                                0,
+                                p_b_grid,
+                                p_a_grid,
+                                arg.p_ds_grid_,
+                                p_e_grid,
+                                arg.b_element_op_,
+                                arg.a_element_op_,
+                                arg.cde_element_op_,
+                                arg.b_grid_desc_bk0_n_bk1_,
+                                arg.a_grid_desc_ak0_m_ak1_,
+                                arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                arg.block_2_etile_map_,
+                                arg.compute_ptr_offset_of_groups_,
+                                arg.compute_ptr_offset_of_n_);
+                        }
                     }
                     else
                     {
@@ -1274,26 +1327,52 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                             isMultiB,
                             CTranspose>;
 
-                        return launch_and_time_kernel(
-                            stream_config,
-                            kernel,
-                            dim3(gdx, gdy, gdz),
-                            dim3(BlockSize),
-                            0,
-                            p_a_grid,
-                            p_b_grid,
-                            arg.p_ds_grid_,
-                            p_e_grid,
-                            arg.a_element_op_,
-                            arg.b_element_op_,
-                            arg.cde_element_op_,
-                            arg.a_grid_desc_ak0_m_ak1_,
-                            arg.b_grid_desc_bk0_n_bk1_,
-                            arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-                            arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                            arg.block_2_etile_map_,
-                            arg.compute_ptr_offset_of_groups_,
-                            arg.compute_ptr_offset_of_n_);
+                        if(stream_config.flush_cache)
+                        {
+                            return launch_and_time_kernel_flush_cache(
+                                stream_config,
+                                kernel,
+                                dim3(gdx, gdy, gdz),
+                                dim3(BlockSize),
+                                0,
+                                p_a_grid,
+                                p_b_grid,
+                                arg.p_ds_grid_,
+                                p_e_grid,
+                                arg.a_element_op_,
+                                arg.b_element_op_,
+                                arg.cde_element_op_,
+                                arg.a_grid_desc_ak0_m_ak1_,
+                                arg.b_grid_desc_bk0_n_bk1_,
+                                arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                arg.block_2_etile_map_,
+                                arg.compute_ptr_offset_of_groups_,
+                                arg.compute_ptr_offset_of_n_);
+                        }
+                        else
+                        {
+                            return launch_and_time_kernel(
+                                stream_config,
+                                kernel,
+                                dim3(gdx, gdy, gdz),
+                                dim3(BlockSize),
+                                0,
+                                p_a_grid,
+                                p_b_grid,
+                                arg.p_ds_grid_,
+                                p_e_grid,
+                                arg.a_element_op_,
+                                arg.b_element_op_,
+                                arg.cde_element_op_,
+                                arg.a_grid_desc_ak0_m_ak1_,
+                                arg.b_grid_desc_bk0_n_bk1_,
+                                arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                                arg.block_2_etile_map_,
+                                arg.compute_ptr_offset_of_groups_,
+                                arg.compute_ptr_offset_of_n_);
+                        }
                     }
                 }
             };
