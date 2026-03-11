@@ -148,7 +148,7 @@ template <ck::index_t NDimSpatial,
           typename BLayout,
           typename ELayout,
           ConvolutionBackwardWeightSpecialization ConvSpec>
-using device_grouped_conv_bwd_weight_xdl_c_shuffle_bf16_scale_instances = std::tuple<
+using device_grouped_conv_bwd_weight_xdl_c_shuffle_bf16_f32_bf16_scale_instances = std::tuple<
     // clang-format off
         //#########################################|     Num| InLayout| WeiLayout| OutLayout| DsData| InData| WeiData| OutData| AccData| DsData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer|
         //#########################################|     Dim|         |          |          | Layout|   Type|    Type|    Type|    Type|   Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|
@@ -173,6 +173,22 @@ using device_grouped_conv_bwd_weight_xdl_c_shuffle_bf16_scale_instances = std::t
         DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,    ELayout, Empty_Tuple, BF16,     F32,    BF16,     F32, Empty_Tuple, PassThrough, Scale, PassThrough,       ConvSpec,   128,    32,   128,     4,  8,   32,   32,    1,    2,  S<1, 4, 4,  8>, S<0, 3, 1, 2>,   S<0, 2, 1, 3>,              2,              8,              1,      true,   S<1, 4, 16, 2>,   S<0, 3, 1, 2>,  S<0, 2, 1, 3>,             2,              8,              4,      true,           1,           1,   S<1, 32, 1, 4>,               4>,   
         DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,    ELayout, Empty_Tuple, BF16,     F32,    BF16,     F32, Empty_Tuple, PassThrough, Scale, PassThrough,       ConvSpec,    64,    64,    32,     4,  8,   32,   32,    2,    1,  S<1, 4, 8,  2>, S<0, 3, 1, 2>,   S<0, 2, 1, 3>,              2,              8,              4,      true,   S<1, 4, 4,  4>,   S<0, 3, 1, 2>,  S<0, 2, 1, 3>,             2,              8,              2,      true,           1,           1,   S<1, 16, 1, 4>,               4>,   
         DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,    ELayout, Empty_Tuple, BF16,     F32,    BF16,     F32, Empty_Tuple, PassThrough, Scale, PassThrough,       ConvSpec,    64,    32,    64,     4,  8,   32,   32,    1,    2,  S<1, 4, 4,  4>, S<0, 3, 1, 2>,   S<0, 2, 1, 3>,              2,              8,              2,      true,   S<1, 4, 8,  2>,   S<0, 3, 1, 2>,  S<0, 2, 1, 3>,             2,              8,              4,      true,           1,           1,   S<1, 16, 1, 4>,               4>
+    // clang-format on
+    >;
+
+template <ck::index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename ELayout,
+          ConvolutionBackwardWeightSpecialization ConvSpec>
+using device_grouped_conv_bwd_weight_xdl_c_shuffle_bf16_scale_instances = std::tuple<
+    // clang-format off
+        //#########################################|     Num| InLayout| WeiLayout| OutLayout| DsData| InData| WeiData| OutData| AccData| DsData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer|
+        //#########################################|     Dim|         |          |          | Layout|   Type|    Type|    Type|    Type|   Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|
+        //#########################################| Spatial|         |          |          |       |       |        |        |        |       |   Operation|   Operation|   Operation|            Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|     ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| MBlock_MPerBlock|    NWaveNPerXdl|
+        //#########################################|        |         |          |          |       |       |        |        |        |       |            |            |            |                          |      |      |      |      |   |     |     |     |     |                |                 |               |               |               |               |          |                |               |               |              |               |               |          |            |            | NBlock_NPerBlock|                |
+        // generic instance
+        DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle< NDimSpatial,  ALayout,   BLayout,    ELayout, Empty_Tuple, BF16,     BF16,    BF16,     F32, Empty_Tuple, PassThrough, Scale, PassThrough,       ConvSpec,    64,    64,    64,     4,  8,   32,   32,    2,    2,  S<1, 4, 8,  2>, S<0, 3, 1, 2>,   S<0, 2, 1, 3>,              2,              1,              4,      true,   S<1, 4, 8,  2>,   S<0, 3, 1, 2>,  S<0, 2, 1, 3>,             2,              1,              4,      true,           1,           1,   S<1, 16, 1, 4>,               1>
     // clang-format on
     >;
 

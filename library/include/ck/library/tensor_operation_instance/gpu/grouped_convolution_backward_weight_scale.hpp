@@ -66,6 +66,19 @@ void add_device_grouped_conv3d_bwd_weight_xdl_scale_ndhwgc_gkzyxc_ndhwgk_bf16_f3
                                                                     PassThrough,
                                                                     Scale,
                                                                     PassThrough>>>& instances);
+void add_device_grouped_conv3d_bwd_weight_xdl_scale_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<3,
+                                                                    NDHWGC,
+                                                                    GKZYXC,
+                                                                    NDHWGK,
+                                                                    Tuple<>,
+                                                                    BF16,
+                                                                    BF16,
+                                                                    BF16,
+                                                                    Tuple<>,
+                                                                    PassThrough,
+                                                                    Scale,
+                                                                    PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_FP16
 void add_device_grouped_conv3d_bwd_weight_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f16_instances(
@@ -255,6 +268,16 @@ struct DeviceOperationInstanceFactory<
                     add_device_grouped_conv3d_bwd_weight_xdl_scale_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
                         op_ptrs);
                 }
+                if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                             is_same_v<WeiDataType, ck::bhalf_t> &&
+                             is_same_v<OutDataType, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeA, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeB, ck::bhalf_t>)
+                {
+                    add_device_grouped_conv3d_bwd_weight_xdl_scale_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+                        op_ptrs);
+                }
+
 #endif
 #if defined CK_ENABLE_FP16 && defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
                 if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
