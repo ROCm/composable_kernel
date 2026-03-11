@@ -118,6 +118,25 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     std::cout << "weight: " << wei_g_k_c_xs_desc << std::endl;
     std::cout << "output: " << out_g_n_k_wos_desc << std::endl;
 
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdWeight<NDimSpatial,
+                                                                              InLayout,
+                                                                              WeiLayout,
+                                                                              OutLayout,
+                                                                              InDataType,
+                                                                              WeiDataType,
+                                                                              OutDataType,
+                                                                              InElementOp,
+                                                                              WeiElementOp,
+                                                                              OutElementOp,
+                                                                              ComputeTypeA,
+                                                                              ComputeTypeB>;
+
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
     // Create host tensors
     Tensor<InDataType> input(in_g_n_c_wis_desc);
     Tensor<WeiDataType> weight_host_result(wei_g_k_c_xs_desc);
@@ -243,25 +262,6 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                 out_element_op);
         }
     }
-
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdWeight<NDimSpatial,
-                                                                              InLayout,
-                                                                              WeiLayout,
-                                                                              OutLayout,
-                                                                              InDataType,
-                                                                              WeiDataType,
-                                                                              OutDataType,
-                                                                              InElementOp,
-                                                                              WeiElementOp,
-                                                                              OutElementOp,
-                                                                              ComputeTypeA,
-                                                                              ComputeTypeB>;
-
-    // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
-
-    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     std::string best_op_name;
     float best_avg_time   = 0;

@@ -115,6 +115,28 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     std::cout << "wei: " << wei_g_k_c_xs_desc << std::endl;
     std::cout << "in: " << in_g_n_c_wis_desc << std::endl;
 
+    using DeviceOp =
+        ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
+                                                                        OutLayout,
+                                                                        WeiLayout,
+                                                                        ck::Tuple<>,
+                                                                        InLayout,
+                                                                        OutDataType,
+                                                                        WeiDataType,
+                                                                        ck::Tuple<>,
+                                                                        InDataType,
+                                                                        OutElementOp,
+                                                                        WeiElementOp,
+                                                                        InElementOp,
+                                                                        ComputeDataType,
+                                                                        ComputeDataType>;
+
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
     // Create host tensors
     Tensor<OutDataType> out(out_g_n_k_wos_desc);
     Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
@@ -438,26 +460,6 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     };
 
     // do GEMM
-    using DeviceOp =
-        ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
-                                                                        OutLayout,
-                                                                        WeiLayout,
-                                                                        ck::Tuple<>,
-                                                                        InLayout,
-                                                                        OutDataType,
-                                                                        WeiDataType,
-                                                                        ck::Tuple<>,
-                                                                        InDataType,
-                                                                        OutElementOp,
-                                                                        WeiElementOp,
-                                                                        InElementOp,
-                                                                        ComputeDataType,
-                                                                        ComputeDataType>;
-
-    // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
-
     std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> out_strides{};
     std::array<ck::index_t, NDimSpatial + 3> wei_lengths{};

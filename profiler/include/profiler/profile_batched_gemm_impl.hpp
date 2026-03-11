@@ -85,6 +85,12 @@ bool profile_batched_gemm_impl(int do_verification,
     std::cout << "b_g_k_n: " << b_g_k_n.mDesc << std::endl;
     std::cout << "c_g_m_n: " << c_g_m_n_host_result.mDesc << std::endl;
 
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
     switch(init_method)
     {
     case 0: break;
@@ -128,12 +134,6 @@ bool profile_batched_gemm_impl(int do_verification,
     a_device_buf.ToDevice(a_g_m_k.mData.data());
     b_device_buf.ToDevice(b_g_k_n.mData.data());
     c_device_buf.ToDevice(c_g_m_n_device_result.mData.data());
-
-    // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
-
-    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     std::string best_op_name;
     float best_ave_time   = 0;
