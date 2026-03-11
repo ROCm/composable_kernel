@@ -70,6 +70,47 @@ struct MXFlatmmArchTraits
 
     static constexpr int GetNLane() { return Config::N_Warp_Tile; }
 
+    template <typename dtype>
+    static auto preShuffleWeight(ck_tile::HostTensor<dtype>& src)
+    {
+        constexpr ck_tile::index_t NLane = Config::N_Warp_Tile;
+        auto src_lengths                 = src.get_lengths();
+        const int K                      = src_lengths[0];
+        const int N                      = src_lengths[1];
+        constexpr int packed_size        = ck_tile::numeric_traits<dtype>::PackedSize;
+        int KPack                        = std::is_same_v<dtype, ck_tile::pk_fp6x16_t>
+                                               ? 32
+                                               : 16 * packed_size; // fp4/fp6:32 or fp8:16
+
+        int KLane = ck_tile::get_warp_size() / NLane;
+        int K0    = K / (KLane * KPack);
+
+        ck_tile::HostTensor<dtype> shuffled(ck_tile::HostTensorDescriptor({N * K}, {1}));
+
+        // K -> K0 KLane KPack
+        // N -> N0 NLane
+        // N, K -> N0 K0 KLane NLane KPack
+        for(int n = 0; n < N; ++n)
+        {
+            for(int k = 0; k < K; k += packed_size)
+            {
+                int n0 = n / NLane;
+                int n1 = n % NLane;
+
+                int k0    = k / (KLane * KPack);
+                int tempk = k % (KLane * KPack);
+                int k1    = tempk / KPack;
+                int k2    = tempk % KPack;
+
+                int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                                  k1 * KPack * NLane + n1 * KPack + k2;
+
+                shuffled(outputIndex) = src(k, n);
+            }
+        }
+        return shuffled;
+    }
+
     template <bool KLast, typename dtype>
     static auto preShuffleScale(ck_tile::HostTensor<dtype>& src)
     {

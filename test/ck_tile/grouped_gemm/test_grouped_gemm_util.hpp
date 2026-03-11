@@ -447,8 +447,12 @@ class TestCkTileGroupedGemm : public ::testing::Test
             c_m_n_host_ref.SetZero();
             ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
                 a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
-            const float max_accumulated_value =
-                *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+            const float max_accumulated_value = std::abs(static_cast<float>(*std::max_element(
+                c_m_n_host_ref.mData.begin(),
+                c_m_n_host_ref.mData.end(),
+                [](CDataType a, CDataType b) {
+                    return std::abs(static_cast<float>(a)) < std::abs(static_cast<float>(b));
+                })));
             const auto rtol_atol = calculate_rtol_atol(Ks[i], kbatch, max_accumulated_value);
             pass &= ck_tile::check_err(c_m_n_tensors[i],
                                        c_m_n_host_ref,

@@ -43,7 +43,6 @@ float invoke_mx_flatmm(ck_tile::DeviceMem& a_dev_buf,
                        ck_tile::index_t stride_A,
                        ck_tile::index_t stride_B,
                        ck_tile::index_t stride_C,
-                       ck_tile::index_t kbatch,
                        ScaleA scale_a,
                        ScaleB scale_b,
                        int n_warmup,
@@ -55,7 +54,7 @@ float invoke_mx_flatmm(ck_tile::DeviceMem& a_dev_buf,
                                                          b_shuffle_dev_buf.GetDeviceBuffer(),
                                                          {},
                                                          c_dev_buf.GetDeviceBuffer(),
-                                                         kbatch,
+                                                         1,
                                                          M,
                                                          N,
                                                          K,
@@ -90,8 +89,8 @@ float invoke_mx_flatmm(ck_tile::DeviceMem& a_dev_buf,
 
     using BaseFlatmmPipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV1<GemmPipelineProblem>;
 
-    const ck_tile::index_t k_grain     = args.k_batch * FlatmmConfig::K_Tile;
-    const ck_tile::index_t k_split     = (K + k_grain - 1) / k_grain * FlatmmConfig::K_Tile;
+    const ck_tile::index_t k_grain     = FlatmmConfig::K_Tile;
+    const ck_tile::index_t k_split     = (K + k_grain - 1) / k_grain * k_grain;
     const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(k_split);
     const bool has_hot_loop            = BaseFlatmmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseFlatmmPipeline::GetBlockLoopTailNum(num_loop);
@@ -100,29 +99,24 @@ float invoke_mx_flatmm(ck_tile::DeviceMem& a_dev_buf,
         [&](auto has_hot_loop_, auto tail_num_) {
             constexpr auto has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_num_v     = tail_num_.value;
-            auto invoke_splitk_path       = [&](auto split_k_) {
-                return mx_flatmm_calc<MXFlatmmArchTraits,
-                                            ADataType,
-                                            BDataType,
-                                            DsDatatype,
-                                            AccDataType,
-                                            CDataType,
-                                            ALayout,
-                                            BLayout,
-                                            DsLayout,
-                                            CLayout,
-                                            ScaleA,
-                                            ScaleB,
-                                            UsePersistentKernel,
-                                            CDEElementWise,
-                                            split_k_.value,
-                                            has_hot_loop_v,
-                                            tail_num_v>(
-                    args,
-                    ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
-            };
-            return (args.k_batch == 1) ? invoke_splitk_path(std::false_type{})
-                                       : invoke_splitk_path(std::true_type{});
+            return mx_flatmm_calc<MXFlatmmArchTraits,
+                                  ADataType,
+                                  BDataType,
+                                  DsDatatype,
+                                  AccDataType,
+                                  CDataType,
+                                  ALayout,
+                                  BLayout,
+                                  DsLayout,
+                                  CLayout,
+                                  ScaleA,
+                                  ScaleB,
+                                  UsePersistentKernel,
+                                  CDEElementWise,
+                                  false,
+                                  has_hot_loop_v,
+                                  tail_num_v>(
+                args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
         },
         has_hot_loop,
         tail_num);
@@ -166,51 +160,11 @@ auto create_args(int argc, char* argv[])
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:constant(1)")
         .insert("persistent", "0", "0: no persistent, 1: persistent kernel")
         .insert("warp_tile", "0", "0: 16x16x128 on gfx950.");
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
-}
-
-template <ck_tile::index_t NLane, typename dtype>
-auto preShuffleWeight(ck_tile::HostTensor<dtype>& src)
-{
-    auto src_lengths          = src.get_lengths();
-    const int K               = src_lengths[0];
-    const int N               = src_lengths[1];
-    constexpr int packed_size = ck_tile::numeric_traits<dtype>::PackedSize;
-    int KPack =
-        std::is_same_v<dtype, ck_tile::pk_fp6x16_t> ? 32 : 16 * packed_size; // fp4/fp6:32 or fp8:16
-
-    int KLane = ck_tile::get_warp_size() / NLane;
-    int K0    = K / (KLane * KPack);
-
-    ck_tile::HostTensor<dtype> shuffled(ck_tile::HostTensorDescriptor({N * K}, {1}));
-
-    // K -> K0 KLane KPack
-    // N -> N0 NLane
-    // N, K -> N0 K0 KLane NLane KPack
-    for(int n = 0; n < N; ++n)
-    {
-        for(int k = 0; k < K; k += packed_size)
-        {
-            int n0 = n / NLane;
-            int n1 = n % NLane;
-
-            int k0    = k / (KLane * KPack);
-            int tempk = k % (KLane * KPack);
-            int k1    = tempk / KPack;
-            int k2    = tempk % KPack;
-
-            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
-                              k1 * KPack * NLane + n1 * KPack + k2;
-
-            shuffled(outputIndex) = src(k, n);
-        }
-    }
-    return shuffled;
 }
 
 #include "run_mx_flatmm.inc"
