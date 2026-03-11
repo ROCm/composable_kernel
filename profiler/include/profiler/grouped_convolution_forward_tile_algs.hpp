@@ -65,7 +65,9 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
                                    const ckt::Outputs<SIGNATURE>& outputs,
                                    const ck_tile::stream_config& s_conf)
 {
-    float best_avg_time = std::numeric_limits<float>::max();
+    // Run first instance as dummy to get proper time from the first instance
+    bool dummy_run_executed = false;
+    float best_avg_time     = std::numeric_limits<float>::max();
     std::string best_op_name, op_name;
     bool is_supported;
     float avg_time;
@@ -84,6 +86,12 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
     auto ref_conv   = ReferenceInstance{};
     auto ref_result = ckt::run(ref_conv, args, inputs, reference.get());
     auto run_alg    = [&](auto&& run_alg_func) {
+        if(!dummy_run_executed)
+        {
+            // Run first instance twice
+            std::tie(is_supported, avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
+            dummy_run_executed                        = true;
+        }
         std::tie(is_supported, avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
         if(is_supported)
         {

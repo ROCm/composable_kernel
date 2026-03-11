@@ -68,7 +68,14 @@ mkdir -p forward/tests
 mkdir -p backward_weight/tests
 mkdir -p backward_data/tests
 
-# Do not change the existing fwd test configs
+# For FWD, generate new test configs by taking 20% of the profiler configs for each data type and layout
+for layout in nhwgc ndhwgc; do
+    for dtype in fp32 fp16 bf16; do
+        profiler_config="forward/profiler/${layout}_${dtype}.conf"
+        test_config="forward/tests/${layout}_${dtype}.conf"
+        awk 'NR % 5 == 0' $profiler_config > $test_config # 20% of lines in the profiler configs
+    done
+done
 
 # For BWD weight, generate new test configs by taking 20% of the profiler configs for each data type and layout
 for layout in nhwgc ndhwgc; do
