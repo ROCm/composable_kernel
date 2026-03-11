@@ -11,6 +11,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
+#include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -62,6 +63,19 @@ void add_device_grouped_conv3d_bwd_weight_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16
                                                                     F32,
                                                                     BF16,
                                                                     Tuple<F32>,
+                                                                    PassThrough,
+                                                                    Bilinear,
+                                                                    PassThrough>>>& instances);
+void add_device_grouped_conv3d_bwd_weight_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<3,
+                                                                    NDHWGC,
+                                                                    GKZYXC,
+                                                                    NDHWGK,
+                                                                    Tuple<GKZYXC>,
+                                                                    BF16,
+                                                                    BF16,
+                                                                    BF16,
+                                                                    Tuple<BF16>,
                                                                     PassThrough,
                                                                     Bilinear,
                                                                     PassThrough>>>& instances);
@@ -253,6 +267,16 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<ComputeTypeB, ck::bhalf_t>)
                 {
                     add_device_grouped_conv3d_bwd_weight_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
+                        op_ptrs);
+                }
+
+                if constexpr(is_same_v<InDataType, ck::bhalf_t> &&
+                             is_same_v<WeiDataType, ck::bhalf_t> &&
+                             is_same_v<OutDataType, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeA, ck::bhalf_t> &&
+                             is_same_v<ComputeTypeB, ck::bhalf_t>)
+                {
+                    add_device_grouped_conv3d_bwd_weight_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
                         op_ptrs);
                 }
 #endif
