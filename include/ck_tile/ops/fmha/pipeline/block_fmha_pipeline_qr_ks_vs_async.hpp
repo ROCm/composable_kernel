@@ -171,7 +171,10 @@ struct BlockFmhaPipelineQRKSVSAsync
               typename OAccElementFunction,
               typename PositionEncoding,
               typename AttentionVariantParams,
-              typename BlockIndices>
+              typename BlockIndices,
+              typename QScaleDramBlockWindowTmp,
+              typename KScaleDramBlockWindowTmp,
+              typename VScaleDramBlockWindowTmp>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -198,6 +201,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                const float* k_descale_ptr,
                const float* v_descale_ptr,
                const index_t block_scale_size_kv,
+               const QScaleDramBlockWindowTmp&, // M0*(K0/kQKScaleGranularity) tile
+               const KScaleDramBlockWindowTmp&, // N0*(K0/kQKScaleGranularity) tile
+               const VScaleDramBlockWindowTmp&, // N1*(K1/kVScaleGranularity) tile
                const float sink_v) const
     {
         static_assert(
@@ -214,6 +220,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                           kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
+
+        static_assert(QScaleEnum != BlockAttentionQuantScaleEnum::MX);
 
         constexpr auto LdsSeq = Policy::template GetLdsBufferSequence<Problem>();
 
@@ -986,6 +994,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                           nullptr,
                           nullptr,
                           1,
+                          make_null_tile_window(make_tuple()),
+                          make_null_tile_window(make_tuple()),
+                          make_null_tile_window(make_tuple()),
                           sink_v);
     }
 };
