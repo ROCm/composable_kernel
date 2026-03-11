@@ -44,6 +44,15 @@ struct BlockFmhaPipelineProblem
     using FmhaMask              = remove_cvref_t<FmhaMask_>;
     using Traits                = remove_cvref_t<Traits_>;
 
+    // TODO: Pass scale types and granularity from FmhaFwdTypeConfig
+    using QScaleDataType = ck_tile::e8m0_t;
+    using KScaleDataType = ck_tile::e8m0_t;
+    using VScaleDataType = ck_tile::e8m0_t;
+    using PScaleDataType = ck_tile::e8m0_t;
+
+    static constexpr ck_tile::index_t kQKScaleGranularity = 32;
+    static constexpr ck_tile::index_t kVScaleGranularity  = 32;
+
     static constexpr index_t kNumGemm0Warps = BlockFmhaShape::NumGemm0Warps;
     static constexpr index_t kNumGemm1Warps = BlockFmhaShape::NumGemm1Warps;
     static constexpr index_t kBlockSize     = BlockFmhaShape::NumWarps * get_warp_size();

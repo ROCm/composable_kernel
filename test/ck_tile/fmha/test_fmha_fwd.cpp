@@ -1,6 +1,11 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <vector>
+
 #include "example/ck_tile/01_fmha/fmha_fwd.hpp"
 #include "example/ck_tile/01_fmha/fmha_fwd_runner.hpp"
 
@@ -42,6 +47,7 @@ struct TestConfigs
     static constexpr auto qscale_str        = "n";
     static constexpr bool def_lse           = true;
     static constexpr bool def_is_v_rowmajor = true;
+    static constexpr auto init_method       = "uf";
     static int adjust_seqlen(int seqlen) { return seqlen; }
 };
 
@@ -57,9 +63,43 @@ struct TestConfigs<FmhaFwdFp8Bf16>
     static constexpr auto qscale_str         = "pt";
     static constexpr bool def_lse            = false;
     static constexpr bool def_is_v_rowmajor  = true;
+    static constexpr auto init_method        = "3";
     // When there are no fp8 instances with padding, pad seqlen to avoid skipping most of the tests:
     // return ck_tile::integer_least_multiple(seqlen, 128);
     static int adjust_seqlen(int seqlen) { return seqlen; }
+};
+
+template <>
+struct TestConfigs<FmhaFwdMxFp8>
+{
+    static constexpr auto HDimValues         = std::array{std::tuple{128, -1}, std::tuple{256, -1}};
+    static constexpr auto SplitKVHDimValues  = std::array<std::tuple<int, int>, 0>{};
+    static constexpr auto AppendKVHDimValues = std::array<std::tuple<int, int>, 0>{};
+    static constexpr auto ModeValues         = std::array{mode_enum::batch, mode_enum::group};
+    static constexpr auto IsVRowmajorValues  = std::array{false};
+    static constexpr auto qscale_str         = "mx";
+    static constexpr bool def_lse            = true;
+    static constexpr bool def_is_v_rowmajor  = false;
+    static constexpr auto init_method        = "3";
+    static int adjust_seqlen(int seqlen) { return seqlen; }
+};
+
+template <>
+struct TestConfigs<FmhaFwdMxFp4>
+{
+    static constexpr auto HDimValues         = std::array{std::tuple{128, -1}, std::tuple{256, -1}};
+    static constexpr auto SplitKVHDimValues  = std::array<std::tuple<int, int>, 0>{};
+    static constexpr auto AppendKVHDimValues = std::array<std::tuple<int, int>, 0>{};
+    static constexpr auto ModeValues         = std::array{mode_enum::batch, mode_enum::group};
+    static constexpr auto IsVRowmajorValues  = std::array{false};
+    static constexpr auto qscale_str         = "mx";
+    static constexpr bool def_lse            = true;
+    static constexpr bool def_is_v_rowmajor  = false;
+    static constexpr auto init_method        = "3";
+    static int adjust_seqlen(int seqlen)
+    {
+        return seqlen < 0 ? seqlen : ck_tile::integer_least_multiple(seqlen, 2);
+    }
 };
 
 template <>
@@ -81,6 +121,7 @@ struct TestConfigs<FmhaFwdFp32>
     static constexpr auto qscale_str         = "n";
     static constexpr bool def_lse            = true;
     static constexpr bool def_is_v_rowmajor  = true;
+    static constexpr auto init_method        = "uf";
     static int adjust_seqlen(int seqlen) { return seqlen; }
 };
 
@@ -92,8 +133,8 @@ static auto IsVRowmajorValues    = ValuesIn(TestConfigs<DataTypeConfig>::IsVRowm
 constexpr static auto qscale_str = TestConfigs<DataTypeConfig>::qscale_str;
 constexpr bool def_lse           = TestConfigs<DataTypeConfig>::def_lse;
 constexpr bool def_is_v_rowmajor = TestConfigs<DataTypeConfig>::def_is_v_rowmajor;
+constexpr auto init_method       = TestConfigs<DataTypeConfig>::init_method;
 int adjust_seqlen(int seqlen) { return TestConfigs<DataTypeConfig>::adjust_seqlen(seqlen); }
-constexpr auto init_method = "uf";
 
 // Random seed used for initializing input tensors. 0 for non-deterministic seed
 CK_TILE_DECLARE_ENV_VAR(CK_TILE_TEST_SEED, uint64_t, 123456)
@@ -901,12 +942,6 @@ using PaddingParam = std::tuple<mode_enum,        // mode
                                 bool,             // o_perm
                                 std::string>;     // mask_str
 
-// Ensure headers for containers / algorithms used in padding param builder.
-#include <vector>
-#include <array>
-#include <cmath>
-#include <algorithm>
-
 class PaddingCases : public TestWithParam<PaddingParam>
 {
 };
@@ -917,6 +952,12 @@ GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(PaddingCases);
 static std::vector<PaddingParam> BuildPaddingParams()
 {
     std::vector<PaddingParam> params;
+
+    if constexpr(ck_tile::is_any_of<DataTypeConfig, FmhaFwdFp8Bf16, FmhaFwdMxFp8, FmhaFwdMxFp4>::
+                     value)
+    {
+        return params;
+    }
 
     // mask variants to cover
     const std::vector<std::string> mask_variants{"0", "t:50,64", "b:32,40"};
@@ -1106,15 +1147,10 @@ static std::vector<PaddingParam> BuildPaddingParams()
 
 static const std::vector<PaddingParam> kPaddingParams = BuildPaddingParams();
 
-INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd_Padding, PaddingCases, ValuesIn(kPaddingParams));
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd, PaddingCases, ValuesIn(kPaddingParams));
 
 TEST_P(PaddingCases, DataTypeConfig)
 {
-    if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16>)
-    {
-        GTEST_SKIP() << "Skip for fp8";
-    }
-
     auto [mode,
           batch,
           nhead,

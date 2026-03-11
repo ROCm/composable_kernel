@@ -53,7 +53,9 @@ set(REGRESSION_TESTS
     test_ck_tile_fmha_fwd_fp32
     test_ck_tile_fmha_fwd_bf16
     test_ck_tile_fmha_fwd_fp16
-    test_ck_tile_fmha_fwd_fp8
+    test_ck_tile_fmha_fwd_fp8bf16
+    test_ck_tile_fmha_fwd_mxfp8
+    test_ck_tile_fmha_fwd_mxfp4
     test_ck_tile_streamk_extended
 )
 
