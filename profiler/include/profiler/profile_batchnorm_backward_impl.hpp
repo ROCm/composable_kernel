@@ -63,6 +63,27 @@ bool profile_batchnorm_backward_impl(bool do_verification,
         };
     }
 
+    using PassThroughOp = ck::tensor_operation::element_wise::PassThrough;
+
+    // add device batchnorm-backward instances
+    using DeviceOp = ck::tensor_operation::device::DeviceBatchNormBwd<XDataType,
+                                                                      DxDataType,
+                                                                      DxDataType,
+                                                                      AccDataType,
+                                                                      ScaleDataType,
+                                                                      DscaleDbiasDataType,
+                                                                      MeanVarDataType,
+                                                                      PassThroughOp,
+                                                                      Rank,
+                                                                      NumBatchNormReduceDim>;
+
+    // get device op instances
+    const auto instance_ptrs =
+        ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+            DeviceOp>::GetInstances();
+
+    std::cout << "found " << instance_ptrs.size() << " instances" << std::endl;
+
     // input data of the batchnorm backward algorithm
     Tensor<XDataType> x(inOutLengths);
     Tensor<DyDataType> dy(inOutLengths);
@@ -190,27 +211,6 @@ bool profile_batchnorm_backward_impl(bool do_verification,
               arrScaleBiasMeanVarStrides.begin());
 
     std::copy(reduceDims.begin(), reduceDims.end(), arrReduceDims.begin());
-
-    using PassThroughOp = ck::tensor_operation::element_wise::PassThrough;
-
-    // add device batchnorm-backward instances
-    using DeviceOp = ck::tensor_operation::device::DeviceBatchNormBwd<XDataType,
-                                                                      DxDataType,
-                                                                      DxDataType,
-                                                                      AccDataType,
-                                                                      ScaleDataType,
-                                                                      DscaleDbiasDataType,
-                                                                      MeanVarDataType,
-                                                                      PassThroughOp,
-                                                                      Rank,
-                                                                      NumBatchNormReduceDim>;
-
-    // get device op instances
-    const auto instance_ptrs =
-        ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-            DeviceOp>::GetInstances();
-
-    std::cout << "found " << instance_ptrs.size() << " instances" << std::endl;
 
     std::string best_instance_name;
     float best_avg_time   = std::numeric_limits<float>::max();

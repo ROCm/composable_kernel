@@ -89,6 +89,23 @@ bool profile_conv_fwd_impl(int do_verification,
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << host_output.mDesc << std::endl;
 
+    using DeviceOp = ck::tensor_operation::device::DeviceConvFwd<NDimSpatial,
+                                                                 InLayout,
+                                                                 WeiLayout,
+                                                                 OutLayout,
+                                                                 InDataType,
+                                                                 WeiDataType,
+                                                                 OutDataType,
+                                                                 InElementOp,
+                                                                 WeiElementOp,
+                                                                 OutElementOp>;
+
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
     switch(init_method)
     {
     case 0: break;
@@ -157,23 +174,6 @@ bool profile_conv_fwd_impl(int do_verification,
         hip_check_error(hipDeviceSynchronize());
         gpu_ref_out_dev.FromDevice(gpu_ref_output.mData.data());
     }
-
-    using DeviceOp = ck::tensor_operation::device::DeviceConvFwd<NDimSpatial,
-                                                                 InLayout,
-                                                                 WeiLayout,
-                                                                 OutLayout,
-                                                                 InDataType,
-                                                                 WeiDataType,
-                                                                 OutDataType,
-                                                                 InElementOp,
-                                                                 WeiElementOp,
-                                                                 OutElementOp>;
-
-    // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
-
-    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     std::string best_op_name;
     float best_avg_time   = 0;

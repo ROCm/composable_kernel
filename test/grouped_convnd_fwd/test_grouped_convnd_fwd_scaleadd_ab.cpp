@@ -104,6 +104,27 @@ bool profile_grouped_conv_fwd_scaleadd_ab_impl(int do_verification,
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << host_output.mDesc << std::endl;
 
+    // InDataType and WeiDataType must be tuple, inLayout and weiLayout are single.
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<
+        NDimSpatial,
+        InLayout,
+        WeiLayout,
+        ck::Tuple<>,
+        OutLayout,
+        ck::Tuple<InDataType, InDataType>,
+        ck::Tuple<WeiDataType, WeiDataType>,
+        ck::Tuple<>,
+        OutDataType,
+        InElementOp,
+        WeiElementOp,
+        OutElementOp>;
+
+    // get device op instances
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "ckProfiler found " << op_ptrs.size() << " instances" << std::endl;
+
     switch(init_method)
     {
     case 0: break;
@@ -245,27 +266,6 @@ bool profile_grouped_conv_fwd_scaleadd_ab_impl(int do_verification,
             std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
     };
-
-    // InDataType and WeiDataType must be tuple, inLayout and weiLayout are single.
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<
-        NDimSpatial,
-        InLayout,
-        WeiLayout,
-        ck::Tuple<>,
-        OutLayout,
-        ck::Tuple<InDataType, InDataType>,
-        ck::Tuple<WeiDataType, WeiDataType>,
-        ck::Tuple<>,
-        OutDataType,
-        InElementOp,
-        WeiElementOp,
-        OutElementOp>;
-
-    // get device op instances
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
-
-    std::cout << "ckProfiler found " << op_ptrs.size() << " instances" << std::endl;
 
     std::array<const void*, NumAs> as{in_device_buf.GetDeviceBuffer(),
                                       in_bias_device_buf.GetDeviceBuffer()};
