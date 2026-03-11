@@ -35,16 +35,46 @@ CK_TILE_HOST_DEVICE constexpr auto sequence_pop_front(sequence<I, Is...>);
 template <typename Seq>
 CK_TILE_HOST_DEVICE constexpr auto sequence_pop_back(Seq);
 
-namespace impl {
+// Implementation details for sequence element access and index generation.
+namespace detail {
 
-// static_assert(__has_builtin(__type_pack_element), "can't find __type_pack_element");
+// O(1) type pack indexing via compiler builtin when available,
+// with an O(N) recursive fallback for compilers that lack it (e.g., older MSVC).
+// Does not depend on <tuple> so it is safe for hipRTC / GPU codegen.
+#if defined(__has_builtin) && __has_builtin(__type_pack_element)
 template <index_t I, typename... Ts>
 using at_index_t = __type_pack_element<I, Ts...>;
-} // namespace impl
+#else
+template <index_t I, typename T, typename... Ts>
+struct type_pack_element_impl
+{
+    using type = typename type_pack_element_impl<I - 1, Ts...>::type;
+};
 
-// we could implement as below, similiar to std. But let's reduce the symbol name...
-// template< class T, T... Ints >
-// class integer_sequence;
+template <typename T, typename... Ts>
+struct type_pack_element_impl<0, T, Ts...>
+{
+    using type = T;
+};
+
+template <index_t I, typename... Ts>
+using at_index_t = typename type_pack_element_impl<I, Ts...>::type;
+#endif
+
+// Bridge type for __make_integer_seq: converts integer pack to ck_tile::sequence
+template <typename T, T... Ints>
+struct integer_sequence_wrapper;
+
+template <index_t... Ints>
+struct integer_sequence_wrapper<index_t, Ints...>
+{
+    using seq_type = sequence<Ints...>;
+};
+} // namespace detail
+
+template <index_t N>
+using make_index_sequence =
+    typename __make_integer_seq<detail::integer_sequence_wrapper, index_t, N>::seq_type;
 
 template <index_t... Is>
 struct sequence
@@ -59,7 +89,7 @@ struct sequence
     CK_TILE_HOST_DEVICE static constexpr auto get()
     {
         static_assert(I < size(), "wrong! I too large");
-        return number<impl::at_index_t<I, constant<Is>...>{}>{};
+        return number<detail::at_index_t<I, constant<Is>...>{}>{};
     }
 
     template <index_t I>
@@ -80,7 +110,7 @@ struct sequence
     CK_TILE_HOST_DEVICE static constexpr auto at()
     {
         static_assert(I < size(), "wrong! I too large");
-        return number<impl::at_index_t<I, constant<Is>...>{}>{};
+        return number<detail::at_index_t<I, constant<Is>...>{}>{};
     }
 
     template <index_t I>
@@ -184,15 +214,19 @@ struct sequence
     template <index_t I, index_t X>
     CK_TILE_HOST_DEVICE static constexpr auto modify(number<I>, number<X>)
     {
-        static_assert(I < size(), "wrong!");
-
-        using seq_split          = sequence_split<type, I>;
-        constexpr auto seq_left  = typename seq_split::left_type{};
-        constexpr auto seq_right = typename seq_split::right_type{}.pop_front();
-
-        return seq_left.push_back(number<X>{}).push_back(seq_right);
+        static_assert(I >= 0 && I < size(), "Index I is out of bounds");
+        return modify_impl(make_index_sequence<size()>{}, number<I>{}, number<X>{});
     }
 
+    private:
+    template <index_t... Idxs, index_t ModifyIdx, index_t NewVal>
+    CK_TILE_HOST_DEVICE static constexpr auto
+    modify_impl(sequence<Idxs...>, number<ModifyIdx>, number<NewVal>)
+    {
+        return sequence<(Idxs == ModifyIdx ? NewVal : get<Idxs>())...>{};
+    }
+
+    public:
     template <typename F>
     CK_TILE_HOST_DEVICE static constexpr auto transform(F f)
     {
@@ -227,22 +261,6 @@ struct is_sequence<sequence<Is...>> : std::true_type
 template <typename T>
 inline constexpr bool is_sequence_v = is_sequence<T>::value;
 
-namespace impl {
-template <typename T, T... Ints>
-struct __integer_sequence;
-
-template <index_t... Ints>
-struct __integer_sequence<index_t, Ints...>
-{
-    using seq_type = sequence<Ints...>;
-};
-} // namespace impl
-
-// similiar
-template <index_t N>
-using make_index_sequence =
-    typename __make_integer_seq<impl::__integer_sequence, index_t, N>::seq_type;
-
 // merge sequence
 template <typename Seq, typename... Seqs>
 struct sequence_merge
@@ -262,36 +280,36 @@ struct sequence_merge<Seq>
     using type = Seq;
 };
 
-// generate sequence
+namespace detail {
+
+// Bridge: converts __make_integer_seq index pack into a sequence via functor application.
+template <typename T, T... Ids>
+struct sequence_gen_helper
+{
+    template <typename F>
+    using apply = sequence<F{}(number<Ids>{})...>;
+};
+
+} // namespace detail
+
+/**
+ * @brief Generate a compile-time sequence by applying a functor to indices 0..N-1.
+ * @tparam NSize Number of elements in the generated sequence.
+ * @tparam F Functor type; must be default-constructible with a constexpr call operator
+ *         accepting number<I> (or index_t via implicit conversion) and returning index_t.
+ *         Lambdas with captures cannot be used; use a template struct functor instead.
+ */
 template <index_t NSize, typename F>
 struct sequence_gen
 {
-    template <index_t IBegin, index_t NRemain, typename G>
-    struct sequence_gen_impl
-    {
-        static constexpr index_t NRemainLeft  = NRemain / 2;
-        static constexpr index_t NRemainRight = NRemain - NRemainLeft;
-        static constexpr index_t IMiddle      = IBegin + NRemainLeft;
+    using type =
+        typename __make_integer_seq<detail::sequence_gen_helper, index_t, NSize>::template apply<F>;
+};
 
-        using type = typename sequence_merge<
-            typename sequence_gen_impl<IBegin, NRemainLeft, G>::type,
-            typename sequence_gen_impl<IMiddle, NRemainRight, G>::type>::type;
-    };
-
-    template <index_t I, typename G>
-    struct sequence_gen_impl<I, 1, G>
-    {
-        static constexpr index_t Is = G{}(number<I>{});
-        using type                  = sequence<Is>;
-    };
-
-    template <index_t I, typename G>
-    struct sequence_gen_impl<I, 0, G>
-    {
-        using type = sequence<>;
-    };
-
-    using type = typename sequence_gen_impl<0, NSize, F>::type;
+template <typename F>
+struct sequence_gen<0, F>
+{
+    using type = sequence<>;
 };
 
 // arithmetic sequence
@@ -321,20 +339,34 @@ struct arithmetic_sequence_gen<0, IEnd, 1>
     using type = make_index_sequence<IEnd>;
 };
 
-// uniform sequence
+// uniform sequence - optimized using __make_integer_seq
+namespace detail {
+
+template <typename T, T... Ids>
+struct uniform_sequence_helper
+{
+    // Comma operator: discard Ids, produce Value for each element
+    template <index_t Value>
+    using apply = sequence<((void)Ids, Value)...>;
+};
+
+} // namespace detail
+
 template <index_t NSize, index_t I>
 struct uniform_sequence_gen
 {
-    struct F
-    {
-        CK_TILE_HOST_DEVICE constexpr index_t operator()(index_t) const { return I; }
-    };
-
-    using type = typename sequence_gen<NSize, F>::type;
+    using type = typename __make_integer_seq<detail::uniform_sequence_helper, index_t, NSize>::
+        template apply<I>;
 };
 
-// inclusive scan (with init) sequence
-namespace impl {
+template <index_t I>
+struct uniform_sequence_gen<0, I>
+{
+    using type = sequence<>;
+};
+
+// inclusive scan (with init) sequence - optimized using constexpr for-loop with static_array
+namespace detail {
 
 template <typename Seq, typename Reduce, index_t Init, bool Reverse>
 struct sequence_inclusive_scan_impl;
@@ -352,6 +384,9 @@ struct sequence_inclusive_scan_impl<sequence<Is...>, Reduce, Init, Reverse>
         }
         else
         {
+            // Compute all scan values in a single constexpr evaluation using
+            // static_array, then unpack via index expansion. Avoids O(N) recursive
+            // template instantiation.
             constexpr auto arr = []() {
                 static_array<index_t, size> values = {Is...};
                 static_array<index_t, size> result = {0};
@@ -381,18 +416,53 @@ struct sequence_inclusive_scan_impl<sequence<Is...>, Reduce, Init, Reverse>
 
     using type = decltype(compute(make_index_sequence<sizeof...(Is)>{}));
 };
-} // namespace impl
+
+// Exclusive scan: result[0] = Init, result[i] = Reduce(values[i-1], result[i-1]) for i > 0.
+template <typename Seq, typename Reduce, index_t Init>
+struct sequence_exclusive_scan_impl;
+
+template <index_t... Is, typename Reduce, index_t Init>
+struct sequence_exclusive_scan_impl<sequence<Is...>, Reduce, Init>
+{
+    template <index_t... Indices>
+    static constexpr auto compute(sequence<Indices...>)
+    {
+        constexpr index_t size = sizeof...(Is);
+        if constexpr(size == 0)
+        {
+            return sequence<>{};
+        }
+        else
+        {
+            constexpr auto arr = []() {
+                static_array<index_t, size> values = {Is...};
+                static_array<index_t, size> result = {0};
+                result[0]                          = Init;
+                for(index_t i = 1; i < size; ++i)
+                {
+                    result[i] = Reduce{}(values[i - 1], result[i - 1]);
+                }
+                return result;
+            }();
+            return sequence<arr[Indices]...>{};
+        }
+    }
+
+    using type = decltype(compute(make_index_sequence<sizeof...(Is)>{}));
+};
+
+} // namespace detail
 
 template <typename Seq, typename Reduce, index_t Init>
 struct sequence_reverse_inclusive_scan
 {
-    using type = typename impl::sequence_inclusive_scan_impl<Seq, Reduce, Init, true>::type;
+    using type = typename detail::sequence_inclusive_scan_impl<Seq, Reduce, Init, true>::type;
 };
 
 template <typename Seq, typename Reduce, index_t Init>
 struct sequence_inclusive_scan
 {
-    using type = typename impl::sequence_inclusive_scan_impl<Seq, Reduce, Init, false>::type;
+    using type = typename detail::sequence_inclusive_scan_impl<Seq, Reduce, Init, false>::type;
 };
 
 // split sequence
@@ -434,7 +504,7 @@ struct sequence_reverse<sequence<I0, I1>>
 };
 #endif
 
-namespace impl {
+namespace detail {
 template <typename Id, index_t... Ns>
 struct seq_reverse;
 
@@ -442,14 +512,14 @@ template <index_t... Ids, index_t... Ns>
 struct seq_reverse<sequence<Ids...>, Ns...>
 {
     template <index_t I>
-    using element = impl::at_index_t<I, constant<Ns>...>;
+    using element = detail::at_index_t<I, constant<Ns>...>;
     using type    = sequence<element<(sizeof...(Ns) - 1 - Ids)>::value...>;
 };
-} // namespace impl
+} // namespace detail
 
 template <index_t... Ns>
 struct sequence_reverse<sequence<Ns...>>
-    : impl::seq_reverse<make_index_sequence<sizeof...(Ns)>, Ns...>
+    : detail::seq_reverse<make_index_sequence<sizeof...(Ns)>, Ns...>
 {
 };
 
@@ -719,31 +789,48 @@ struct is_valid_sequence_map
 {
 };
 
-template <typename SeqMap>
-struct sequence_map_inverse
+/**
+ * @brief Compute the inverse permutation of a sequence map.
+ * @tparam Is A valid permutation of {0, 1, ..., N-1}.
+ * @pre Input must satisfy is_valid_sequence_map (enforced by static_assert).
+ *
+ * Optimized using constexpr for-loop: O(1) template instantiation depth instead of O(N).
+ */
+template <index_t... Is>
+struct sequence_map_inverse<sequence<Is...>>
 {
-    template <typename X2Y, typename WorkingY2X, index_t XBegin, index_t XRemain>
-    struct sequence_map_inverse_impl
+    static_assert(is_valid_sequence_map<sequence<Is...>>::value,
+                  "sequence_map_inverse requires a valid permutation sequence map");
+
+    private:
+    static constexpr auto build_inverse()
     {
-        static constexpr auto new_y2x =
-            WorkingY2X::modify(X2Y::get(number<XBegin>{}), number<XBegin>{});
+        static_assert(sizeof...(Is) > 0, "build_inverse requires non-empty sequence");
+        static_array<index_t, sizeof...(Is)> result = {0};
+        constexpr index_t input[]                   = {Is...};
+        for(index_t pos = 0; pos < static_cast<index_t>(sizeof...(Is)); ++pos)
+        {
+            result[input[pos]] = pos;
+        }
+        return result;
+    }
 
-        using type =
-            typename sequence_map_inverse_impl<X2Y, decltype(new_y2x), XBegin + 1, XRemain - 1>::
-                type;
-    };
+    static constexpr auto inverse = build_inverse();
 
-    template <typename X2Y, typename WorkingY2X, index_t XBegin>
-    struct sequence_map_inverse_impl<X2Y, WorkingY2X, XBegin, 0>
+    template <index_t... Positions>
+    static constexpr auto compute(sequence<Positions...>)
     {
-        using type = WorkingY2X;
-    };
+        return sequence<inverse[Positions]...>{};
+    }
 
-    using type =
-        typename sequence_map_inverse_impl<SeqMap,
-                                           typename uniform_sequence_gen<SeqMap::size(), 0>::type,
-                                           0,
-                                           SeqMap::size()>::type;
+    public:
+    using type = decltype(compute(make_index_sequence<sizeof...(Is)>{}));
+};
+
+template <>
+struct sequence_map_inverse<sequence<>>
+{
+    using type = sequence<>;
 };
 
 template <index_t... Xs, index_t... Ys>
@@ -922,43 +1009,18 @@ CK_TILE_HOST_DEVICE constexpr auto inclusive_scan_sequence(Seq, Reduce, number<I
 }
 
 // e.g. Seq<2, 3, 4> --> Seq<0, 2, 5>, Init=0, Reduce=Add
-//      ResultSeq  TargetSeq  Reduce
-template <typename, typename, typename>
-struct sequence_exclusive_scan;
-
-template <index_t... Xs, index_t Y, index_t... Ys, typename Reduce>
-struct sequence_exclusive_scan<sequence<Xs...>, sequence<Y, Ys...>, Reduce>
-{
-    using old_scan = typename sequence_merge<sequence<Xs...>,
-                                             sequence<Reduce{}(Y, sequence<Xs...>{}.back())>>::type;
-    using type     = typename sequence_exclusive_scan<old_scan, sequence<Ys...>, Reduce>::type;
-};
-
-template <index_t... Xs, index_t Y, typename Reduce>
-struct sequence_exclusive_scan<sequence<Xs...>, sequence<Y>, Reduce>
-{
-    using type = sequence<Xs...>;
-};
-
-template <index_t... Xs, typename Reduce>
-struct sequence_exclusive_scan<sequence<Xs...>, sequence<>, Reduce>
-{
-    using type = sequence<Xs...>;
-};
-
 template <typename Seq, typename Reduce, index_t Init>
-constexpr auto exclusive_scan_sequence(Seq, Reduce, number<Init>)
+CK_TILE_HOST_DEVICE constexpr auto exclusive_scan_sequence(Seq, Reduce, number<Init>)
 {
-    // TODO: c++20 and later can pass in Reduce with a lambda expression
-    return typename sequence_exclusive_scan<sequence<Init>, Seq, Reduce>::type{};
+    return typename detail::sequence_exclusive_scan_impl<Seq, Reduce, Init>::type{};
 }
 
+// e.g. Seq<2, 3, 4> --> Seq<0, 2, 5, 9> (N+1 elements: prefix sums including both endpoints)
 template <typename Seq>
-constexpr auto prefix_sum_sequence(Seq)
+CK_TILE_HOST_DEVICE constexpr auto prefix_sum_sequence(Seq)
 {
-    return typename sequence_exclusive_scan<sequence<0>,
-                                            typename sequence_merge<Seq, sequence<0>>::type,
-                                            plus<index_t>>::type{};
+    using extended = typename sequence_merge<Seq, sequence<0>>::type;
+    return typename detail::sequence_exclusive_scan_impl<extended, plus<index_t>, 0>::type{};
 }
 
 template <typename Seq, index_t... Is>
@@ -1177,7 +1239,7 @@ CK_TILE_HOST_DEVICE constexpr auto generate_array(F&& f, number<N>)
                   typename arithmetic_sequence_gen<0, N, 1>::type{});
 }
 
-namespace impl {
+namespace detail {
 template <typename, typename, typename, index_t>
 struct reverse_slice_sequence_impl;
 
@@ -1239,7 +1301,7 @@ struct reverse_slice_sequence_impl<sequence<x>, sequence<m>, sequence<id>, Slice
     static constexpr index_t split_idx =
         std::conditional_t<split_flag, number<id>, number<0>>::value;
 };
-} // namespace impl
+} // namespace detail
 
 // clang-format off
 // input a sequence(with optional mask), and the SliceSize : size per slice
@@ -1288,11 +1350,11 @@ constexpr auto reverse_slice_sequence(Seq,
                 SliceSize ==
             0,
         "slice size can't evenly divide input sizes");
-    using sliced_type =
-        impl::reverse_slice_sequence_impl<Seq,
-                                          Mask,
-                                          typename arithmetic_sequence_gen<0, Seq::size(), 1>::type,
-                                          SliceSize>;
+    using sliced_type = detail::reverse_slice_sequence_impl<
+        Seq,
+        Mask,
+        typename arithmetic_sequence_gen<0, Seq::size(), 1>::type,
+        SliceSize>;
     static_assert(sliced_type::remaining_slice_sizes::front().value == 1,
                   "can not evenly divide this sequence, please check");
     return make_tuple(typename sliced_type::dim_lengths{},
