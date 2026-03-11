@@ -105,24 +105,34 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const auto b_grid_desc_bk0_n_bk1 =
             GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
 
-        GridwiseGemm::template Run<decltype(a_grid_desc_ak0_m_ak1),
+        const auto block_2_ctile_map_ = typename GridwiseGemm::Block2CTileMap{karg.M, karg.N, 4};
+
+        GridwiseGemm::template Run<GridwiseGemm::ConvRegime::FORWARD,
+                                   decltype(a_grid_desc_ak0_m_ak1),
                                    decltype(b_grid_desc_bk0_n_bk1),
                                    DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                                    EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                   decltype(block_2_ctile_map_),
                                    ComputePtrOffset,
                                    ComputePtrOffset,
+                                   0,
                                    HasMainKBlockLoop,
                                    EGlobalMemoryDataOperation,
-                                   TailNum>(p_shared,
-                                            a_grid_desc_ak0_m_ak1,
-                                            b_grid_desc_bk0_n_bk1,
-                                            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                            e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                            compute_ptr_offset_of_batch,
-                                            compute_ptr_offset_of_n,
-                                            num_k_per_block,
-                                            karg,
-                                            epilogue_args);
+                                   false,
+                                   TailNum,
+                                   decltype(epilogue_args)>(
+            p_shared,
+            a_grid_desc_ak0_m_ak1,
+            b_grid_desc_bk0_n_bk1,
+            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+            e_grid_desc_mblock_mperblock_nblock_nperblock,
+            block_2_ctile_map_,
+            compute_ptr_offset_of_batch,
+            compute_ptr_offset_of_n,
+            num_k_per_block,
+            karg,
+            epilogue_args);
+
 #if defined(__gfx11__)
     }
 #endif
