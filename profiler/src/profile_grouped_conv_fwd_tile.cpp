@@ -97,7 +97,16 @@ int call_profiler(const ckt::Args<SIGNATURE>& args, bool time_kernel)
     std::string op_name;
     bool valid;
     std::tie(valid, avg_time, op_name) = ckp::run_grouped_conv_forward_tile_algs(
-        args, inputs.get(), outputs.get(), ck_tile::stream_config{nullptr, time_kernel, 0, 5, 50});
+        args,
+        inputs.get(),
+        outputs.get(),
+        ck_tile::stream_config{nullptr,
+                               time_kernel,
+                               0 /*log_level*/,
+                               5 /*cold_iters*/,
+                               50 /*nrepeat_*/,
+                               true /*is_gpu_timer_*/,
+                               time_kernel /*flush_cache*/});
     if(time_kernel)
     {
         std::cout << "Best configuration parameters:" << "\nname: " << op_name

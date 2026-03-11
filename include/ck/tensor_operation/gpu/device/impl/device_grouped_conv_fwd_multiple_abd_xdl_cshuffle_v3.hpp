@@ -26,7 +26,6 @@
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
-#include "ck/host_utility/flush_cache.hpp"
 #include "ck/host_utility/io.hpp"
 #ifdef CK_EXPERIMENTAL_BUILDER
 #include "ck_tile/builder/reflect/conv_describe.hpp"
@@ -1049,35 +1048,19 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             const auto Run = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
                 {
-                    typename GridwiseGemm::Argument gemm_arg_ = gemm_arg;
-                    ck::utility::RotatingMemWrapper<typename GridwiseGemm::Argument> rotating_mem(
-                        gemm_arg_,
-                        stream_config.rotating_count,
-                        gemm_arg_.M * gemm_arg_.K * sizeof(ADataType),
-                        gemm_arg_.K * gemm_arg_.N * sizeof(BDataType));
-                    rotating_mem.Print();
-
-                    auto run_flush_cache = [&]() {
-                        // flush icache
-                        ck::utility::flush_icache();
-                        // rotating mem
-                        rotating_mem.Next();
-                    };
-
-                    ave_time += ck::utility::launch_and_time_kernel_with_preprocess<false>(
-                        stream_config,
-                        run_flush_cache,
-                        kernel,
-                        dim3(gdx, gdy, gdz),
-                        dim3(BlockSize),
-                        0,
-                        gemm_arg_,
-                        arg.a_grid_desc_ak0_m_ak1_,
-                        arg.b_grid_desc_bk0_n_bk1_,
-                        arg.ds_grid_desc_m_n_,
-                        arg.e_grid_desc_m_n_,
-                        arg.compute_ptr_offset_of_groups_,
-                        arg.compute_ptr_offset_of_n_);
+                    ave_time +=
+                        launch_and_time_kernel_flush_cache(stream_config,
+                                                           kernel,
+                                                           dim3(gdx, gdy, gdz),
+                                                           dim3(BlockSize),
+                                                           0,
+                                                           gemm_arg,
+                                                           arg.a_grid_desc_ak0_m_ak1_,
+                                                           arg.b_grid_desc_bk0_n_bk1_,
+                                                           arg.ds_grid_desc_m_n_,
+                                                           arg.e_grid_desc_m_n_,
+                                                           arg.compute_ptr_offset_of_groups_,
+                                                           arg.compute_ptr_offset_of_n_);
                 }
                 else
                 {
