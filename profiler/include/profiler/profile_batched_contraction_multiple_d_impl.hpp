@@ -99,6 +99,23 @@ bool profile_batched_contraction_multiple_d_impl(int do_verification,
     std::cout << "d_gs_ms_ns: " << d_gs_ms_ns.mDesc << std::endl;
     std::cout << "e_gs_ms_ns: " << e_gs_ms_ns_host_result.mDesc << std::endl;
 
+    // get device op instances
+    using DeviceOp     = ck::tensor_operation::device::DeviceBatchedContractionMultipleD<NumDimG,
+                                                                                         NumDimM,
+                                                                                         NumDimN,
+                                                                                         NumDimK,
+                                                                                         ADataType,
+                                                                                         BDataType,
+                                                                                         DsDataType,
+                                                                                         EDataType,
+                                                                                         AElementOp,
+                                                                                         BElementOp,
+                                                                                         CDEElementOp>;
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
     switch(init_method)
     {
     case 0: break;
@@ -180,23 +197,6 @@ bool profile_batched_contraction_multiple_d_impl(int do_verification,
             }
         }
     }
-
-    // get device op instances
-    using DeviceOp     = ck::tensor_operation::device::DeviceBatchedContractionMultipleD<NumDimG,
-                                                                                         NumDimM,
-                                                                                         NumDimN,
-                                                                                         NumDimK,
-                                                                                         ADataType,
-                                                                                         BDataType,
-                                                                                         DsDataType,
-                                                                                         EDataType,
-                                                                                         AElementOp,
-                                                                                         BElementOp,
-                                                                                         CDEElementOp>;
-    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
-        DeviceOp>::GetInstances();
-
-    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     std::string best_op_name;
     float best_ave_time   = 0;
