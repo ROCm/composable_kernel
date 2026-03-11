@@ -4,13 +4,13 @@
 #include "test_gemm_streamk_common_includes.hpp"
 
 template <typename Tuple>
-class TestCkTileStreamKFp16NonPersistent : public TestCkTileStreamK<Tuple>
+class TestCkTileStreamKBf8NonPersistentMem : public TestCkTileStreamK<Tuple>
 {
 };
 
-#define TEST_SUITE_NAME TestCkTileStreamKFp16NonPersistent
+#define TEST_SUITE_NAME TestCkTileStreamKBf8NonPersistentMem
 
-TYPED_TEST_SUITE(TestCkTileStreamKFp16NonPersistent, KernelTypesStreamKFp16NonPersistent);
+TYPED_TEST_SUITE(TestCkTileStreamKBf8NonPersistentMem, KernelTypesStreamKBf8NonPersistentMem);
 
 #include "test_gemm_streamk_extended_cases.inc"
 

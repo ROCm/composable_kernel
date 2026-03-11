@@ -33,7 +33,7 @@ class TileConfig:
 class TraitConfig:
     """Represents the Trait Config section of a Tile Engine config"""
 
-    pipeline: List[str] = field(default_factory=lambda: ["compv3"])
+    pipeline: List[str] = field(default_factory=lambda: ["compv3", "mem"])
     epilogue: List[str] = field(default_factory=lambda: ["cshuffle"])
     scheduler: List[str] = field(default_factory=lambda: ["intrawave"])
     pad_m: List[bool] = field(default_factory=lambda: [False])
