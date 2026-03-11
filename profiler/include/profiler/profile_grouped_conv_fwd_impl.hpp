@@ -65,7 +65,19 @@ void print_instances()
 
     for(const auto& op_ptr : op_ptrs)
     {
+#ifdef CK_EXPERIMENTAL_BUILDER
+        const auto& instance_str = op_ptr->GetInstanceString();
+        if(!instance_str.empty())
+        {
+            std::cout << instance_str << std::endl;
+        }
+        else
+        {
+            std::cout << op_ptr->GetTypeString() << std::endl;
+        }
+#else
         std::cout << op_ptr->GetTypeString() << std::endl;
+#endif
     }
 }
 } // namespace fwd
@@ -298,8 +310,13 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-            float avg_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+            float avg_time = invoker_ptr->Run(argument_ptr.get(),
+                                              StreamConfig{nullptr,
+                                                           time_kernel,
+                                                           0 /*log_level*/,
+                                                           5 /*cold_iters*/,
+                                                           50 /*nrepeat_*/,
+                                                           time_kernel /*flush_cache*/});
 
             std::size_t flop      = conv_param.GetFlops();
             std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
@@ -420,6 +437,30 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         std::cout << "\nValid instances for this problem:" << std::endl;
     }
 
+    // Run first instance twice to get proper time
+    {
+        auto argument_ptr = op_ptrs[0]->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                            wei_device_buf.GetDeviceBuffer(),
+                                                            {},
+                                                            out_device_buf.GetDeviceBuffer(),
+                                                            a_g_n_c_wis_lengths,
+                                                            a_g_n_c_wis_strides,
+                                                            b_g_k_c_xs_lengths,
+                                                            b_g_k_c_xs_strides,
+                                                            {},
+                                                            {},
+                                                            e_g_n_k_wos_lengths,
+                                                            e_g_n_k_wos_strides,
+                                                            conv_filter_strides,
+                                                            conv_filter_dilations,
+                                                            input_left_pads,
+                                                            input_right_pads,
+                                                            in_element_op,
+                                                            wei_element_op,
+                                                            out_element_op);
+
+        run_impl(op_ptrs[0], argument_ptr);
+    }
     for(auto& op_ptr : op_ptrs)
     {
         auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
