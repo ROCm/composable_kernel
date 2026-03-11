@@ -7,6 +7,7 @@
 #include <numeric>
 #include <sstream>
 
+#include "ck/ck.hpp"
 #include "ck/utility/common_header.hpp"
 
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -28,6 +29,7 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/flush_cache.hpp"
+#include "ck/utility/tuple.hpp"
 
 #ifdef CK_EXPERIMENTAL_BUILDER
 #include "ck_tile/builder/reflect/description.hpp"
@@ -71,23 +73,34 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             typename GridwiseGemm::EpilogueCShuffle>();
         __shared__ char p_shared[LDS_size];
 
-        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+        const auto block_2_ctile_map_ = typename GridwiseGemm::Block2CTileMap{karg.M, karg.N, 4};
+        auto epilogue_args            = typename GridwiseGemm::EpilogueCShuffle{};
 
-        GridwiseGemm::template Run<AGridDesc_AK0_M_K1,
+        GridwiseGemm::template Run<GridwiseGemm::ConvRegime::BWD_WEIGHT,
+                                   AGridDesc_AK0_M_K1,
                                    BGridDesc_BK0_N_K1,
+                                   ck::Tuple<>, // Empty tuple
                                    CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                   decltype(block_2_ctile_map_),
                                    ComputePtrOffsetOfBatch,
+                                   ComputePtrOffsetOfBatch, // placeholder
                                    1,
                                    HasMainKBlockLoop,
                                    CGlobalMemoryDataOperation,
-                                   TailNum>(p_shared,
-                                            a_grid_desc_ak0_m_ak1,
-                                            b_grid_desc_bk0_n_bk1,
-                                            c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                            compute_ptr_offset_of_batch,
-                                            num_k_per_block,
-                                            karg,
-                                            epilogue_args);
+                                   false,
+                                   TailNum,
+                                   decltype(epilogue_args)>(
+            p_shared,
+            a_grid_desc_ak0_m_ak1,
+            b_grid_desc_bk0_n_bk1,
+            ck::Tuple<>(), // placeholder
+            c_grid_desc_mblock_mperblock_nblock_nperblock,
+            block_2_ctile_map_,
+            compute_ptr_offset_of_batch,
+            ComputePtrOffsetOfBatch{}, // placeholder
+            num_k_per_block,
+            karg,
+            epilogue_args);
 
 #if defined(__gfx11__)
     }
