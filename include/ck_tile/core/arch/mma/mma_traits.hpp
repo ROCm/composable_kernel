@@ -7,6 +7,7 @@
 #include "ck_tile/core/arch/arch.hpp"
 #include "mfma/mfma_traits.hpp"
 #include "wmma/wmma_traits.hpp"
+#include "sparse/sparse_traits.hpp"
 
 namespace ck_tile::core::arch::mma {
 
