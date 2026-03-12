@@ -7,12 +7,10 @@
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_smfmac_impl.hpp"
+#include "ck_tile/core/arch/mma/sparse/sparse_traits.hpp"
 
 namespace ck_tile::core::arch::mma {
-
-struct DefaultSparseWmmaCtrlFlags
-{
-};
 
 // TODO: c++20 template <CtrlFlagsSparseWmmaI CtrlFlags, amdgcn_target CompilerTarget>
 // TODO: c++20 requires
@@ -61,7 +59,7 @@ struct amdgcn_mma<fp16_t,
         // TODO: Compressing A on-the-fly should be OK for now, but we need to validate
         // and evaluate changing this to a transform at a higher level.
         // aVec not being const can cause problems when running multiple intrinsics.
-        const int32_t idx = ck_tile::compress_a_impl<fp16_t, CompressedSize>(aVec);
+        const int32_t idx = ::ck_tile::compress_a_impl<fp16_t, CompressedSize>(aVec);
 
         const AVecCompressed a_vec_pruned = {
             aVec[0], aVec[1], aVec[2], aVec[3], aVec[4], aVec[5], aVec[6], aVec[7]};

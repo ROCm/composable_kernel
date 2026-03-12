@@ -7,33 +7,9 @@
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_smfmac_impl.hpp"
+#include "ck_tile/core/arch/mma/sparse/sparse_traits.hpp"
 
 namespace ck_tile::core::arch::mma {
-
-/**
- * @struct DefaultSparseMfmaCtrlFlags
- * @brief Default MFMA sparse flags, select (VGPR[srcC][7..0]) if srcC is
- * 16-bit or (VGPR[srcC][15..0]) if srcC is 8-bit.
- */
-struct DefaultSparseMfmaCtrlFlags
-{
-    static constexpr SparseCompressionIndex CompressionIndex = SparseCompressionIndex::FIRST;
-};
-
-#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-#include <concepts>
-
-/**
- * @concept SparseMfmaCtrlFlags
- * @brief Expresses the interface of required members for each CtrlFlags type
- */
-template <typename CtrlFlags>
-concept SparseMfmaCtrlFlags = requires(CtrlFlags ctrlFlags) {
-    // Flag members for sparse MFMA instructions
-    { CtrlFlags::CompressionIndex } -> std::convertible_to<SparseCompressionIndex>;
-};
-
-#endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
 /**
  * @struct amdgcn_mma
