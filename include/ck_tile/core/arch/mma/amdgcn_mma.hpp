@@ -21,6 +21,7 @@ namespace ck_tile::core::arch::mma {
 struct Unsupported;
 
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
+
 #include <concepts>
 /**
  * @concept MmaOpI
