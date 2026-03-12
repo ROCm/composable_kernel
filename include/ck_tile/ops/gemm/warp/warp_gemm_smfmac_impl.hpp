@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include "ck_tile/core.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/tensor/static_distributed_tensor.hpp"
 namespace ck_tile {
