@@ -1,0 +1,88 @@
+{
+  "tile_config": {
+    "tile_m": {
+      "values": [
+      128
+      ]
+    },
+    "tile_n": {
+      "values": [
+        64
+      ]
+    },
+    "tile_k": {
+      "values": [
+        64
+      ]
+    },
+    "warp_m": {
+      "values": [
+        4
+      ]
+    },
+    "warp_n": {
+      "values": [
+        1
+      ]
+    },
+    "warp_k": {
+      "values": [
+        1
+      ]
+    },
+    "warp_tile_m": {
+      "values": [
+        32
+      ]
+    },
+    "warp_tile_n": {
+      "values": [
+        32
+      ]
+    },
+    "warp_tile_k": {
+      "values": [
+        64
+      ]
+    }
+  },
+  "trait_config": {
+    "pipeline": {
+      "values": [
+        "preshufflev2"
+      ]
+    },
+    "scheduler": {
+      "values": [
+        "default"
+      ]
+    },
+    "epilogue": {
+      "values": [
+        "default"
+      ]
+    },
+    "pad_m": {
+      "values": [
+        false
+      ]
+    },
+    "pad_n": {
+      "values": [
+        false
+      ]
+    },
+    "pad_k": {
+      "values": [
+        false
+      ]
+    },
+    "persistent": {
+        "values": [
+            false
+       ]
+    }
+  },
+  "k_block_per_cu": 1,
+  "permute_n": false
+}
