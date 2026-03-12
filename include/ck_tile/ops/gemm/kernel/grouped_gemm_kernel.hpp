@@ -507,6 +507,12 @@ struct GroupedGemmKernel
         const index_t group_id = FindGroupId(gemm_desc_ptr, block_id, group_count);
         const auto& kargs      = gemm_desc_ptr[group_id];
 
+        // Early exit if no work to do.
+        if(kargs.group_karg.M == 0 || kargs.group_karg.N == 0 || kargs.group_karg.K == 0)
+        {
+            return;
+        }
+
         const auto grid_size_2d = TilePartitioner::GridSize(kargs.group_karg.M, kargs.group_karg.N);
         const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
             0,
@@ -534,6 +540,22 @@ struct GroupedGemmKernel
             const auto& k_batch    = kargs.k_batch;
             const auto block_start = cum_grid_size;
             cum_grid_size += TilePartitioner::GridSize(kargs.M, kargs.N) * k_batch;
+
+            // Early exit if no work to do.
+            // If M or N is zero, TilePartitioner::GridSize(kargs.M, kargs.N) returns zero,
+            // so this group contributes no blocks and cum_grid_size is unchanged. The group
+            // is naturally skipped by the block_id < cum_grid_size check below.
+            if(kargs.K == 0)
+            {
+                // Advance only if this workgroup was assigned to this group's range,
+                // matching the pattern of the normal while loop below.
+                while(block_id < cum_grid_size)
+                {
+                    block_id += grid_size;
+                }
+                continue;
+            }
+
             while(block_id < cum_grid_size)
             {
                 const auto grid_size_2d = TilePartitioner::GridSize(kargs.M, kargs.N);
