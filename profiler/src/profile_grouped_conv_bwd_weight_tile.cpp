@@ -136,7 +136,12 @@ int call_profiler(const ckt::Args<SIGNATURE>& args, const std::string& split_k, 
             split_k,
             inputs.get(),
             outputs.get(),
-            ck_tile::stream_config{nullptr, time_kernel});
+            ck_tile::stream_config{nullptr,
+                                   time_kernel,
+                                   0 /*log_level*/,
+                                   5 /*cold_iters*/,
+                                   50 /*nrepeat_*/,
+                                   true /*is_gpu_timer_*/});
     if(time_kernel)
     {
         std::cout << "\nBest configuration parameters:" << "\n\tname: " << op_name

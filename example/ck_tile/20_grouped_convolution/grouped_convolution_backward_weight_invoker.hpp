@@ -126,7 +126,7 @@ struct GroupedConvolutionBackwardWeightInvoker
         }
 
         auto preprocess = [&]() {
-            if(args.k_batch > 1)
+            if(kargs.k_batch > 1)
             {
                 ck_tile::hip_check_error(hipMemsetAsync(
                     kargs.wei_ptr, 0, args.template GetWeightByte<WeiDataType>(), s.stream_id_));
