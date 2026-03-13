@@ -24,6 +24,11 @@ struct ElementWiseDefaultPolicy
                                        sequence<0, 3>>{}                // Yield
         );
     }
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        return "ElementWiseDefaultPolicy";
+    }
 };
 
 } // namespace ck_tile

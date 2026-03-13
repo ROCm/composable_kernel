@@ -6,6 +6,7 @@
 namespace ckb = ck_tile::builder;
 namespace ckt = ck_tile::builder::test;
 namespace cku = ck_tile::builder::test_utils;
+namespace ckf = ck_tile::builder::factory;
 
 namespace ck_tile::builder::profiling {
 
