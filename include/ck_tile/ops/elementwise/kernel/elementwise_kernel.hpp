@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/concat.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/elementwise/pipeline/elementwise_pipeline_problem.hpp"
 #include "ck_tile/ops/elementwise/pipeline/elementwise_pipeline_default_policy.hpp"
@@ -108,6 +109,19 @@ struct ElementWiseKernel
         ignore = input_sizes;
         return true;
     }
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "elementwise_kernel", 
+            Problem::GetName(),
+            "policy",
+            Policy::GetName()
+        );
+        // clang-format on
+    }
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetTypeString() { return GetName(); }
 };
 
 } // namespace ck_tile
