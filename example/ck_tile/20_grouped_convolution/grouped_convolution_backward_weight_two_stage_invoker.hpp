@@ -180,7 +180,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
         }
 
         auto preprocess = [&]() {
-            if(args.k_batch > 1)
+            if(kargs.k_batch > 1)
                 ck_tile::hip_check_error(
                     hipMemsetAsync(ws_args.wei_ptr,
                                    0,

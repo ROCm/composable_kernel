@@ -447,7 +447,9 @@ def parse_bwd_weight_instances(instances, problem_name):
         if check_vectors(a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector) == False:
             print(f"Skipping instance {instance_id} with irregular load since it's not supported yet.")
             continue
-
+        if pipeline_version == "V6":
+            print(f"Skipping instance {instance_id} with V6 since it's not supported yet.")
+            continue
 
         conv = ConvInstanceTemplateParams(
             spec,
