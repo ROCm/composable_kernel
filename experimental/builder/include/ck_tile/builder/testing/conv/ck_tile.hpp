@@ -6,6 +6,7 @@
 #include "ck_tile/builder/testing/testing.hpp"
 #include "ck_tile/builder/testing/conv/fwd.hpp"
 #include "ck_tile/builder/testing/conv/bwd_weight.hpp"
+#include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_tensor_type.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/grouped_convolution.hpp"
@@ -56,6 +57,7 @@ template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename Ou
     if(!Conv::IsSupportedArgument(kargs))
         return RunResult::not_supported("unsupported ck_tile arguments");
 
+    using Types = ck_tile::builder::factory::internal::TileConvTensorTypes<SIGNATURE.data_type>;
     const std::size_t zeroing_size = std::accumulate(std::begin(kargs.wei_g_k_c_xs_lengths.data),
                                                      std::end(kargs.wei_g_k_c_xs_lengths.data),
                                                      1,
@@ -64,10 +66,13 @@ template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename Ou
     auto preprocess = [&]() {
         if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
         {
-            if(args.k_batch > 1)
+            if(kargs.k_batch > 1)
             {
                 ck_tile::hip_check_error(
-                    hipMemsetAsync(kargs.wei_ptr, 0, zeroing_size, s_conf.stream_id_));
+                    hipMemsetAsync(kargs.wei_ptr,
+                                   0,
+                                   zeroing_size * sizeof(typename Types::EDataType),
+                                   s_conf.stream_id_));
             }
         }
     };
@@ -156,7 +161,7 @@ template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename Ou
     auto preprocess = [&]() {
         if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
         {
-            if(args.k_batch > 1)
+            if(kargs.k_batch > 1)
             {
                 ck_tile::hip_check_error(
                     hipMemsetAsync(ws_args.wei_ptr,
