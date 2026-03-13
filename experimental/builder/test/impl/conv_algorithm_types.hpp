@@ -377,6 +377,8 @@ struct TileOptimizations
     bool split_image;
     // Explicit gemm for 1x1, stride=0, pad=0 cases
     bool explicit_gemm;
+    // Two-stage kernels
+    bool two_stage;
 };
 static_assert(ckb::TileOptimizationsDescriptor<TileOptimizations>);
 
