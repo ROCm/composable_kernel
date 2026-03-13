@@ -753,7 +753,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
             {
                 tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
             }
-            if constexpr(kIsDeterministic)
+            if constexpr(decltype(dq_dram_window)::BottomTensorView::DstInMemOp ==
+                         memory_operation_enum::set)
             {
                 store_tile(dq_dram_window, dq_acc);
             }
