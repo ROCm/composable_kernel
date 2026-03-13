@@ -34,6 +34,7 @@ struct TileOptimizations
     int num_groups_to_merge = 1;
     bool split_image        = false;
     bool explicit_gemm      = false;
+    bool two_stage          = false;
 };
 
 template <ConvAlgorithmDescriptor auto ALGORITHM>
@@ -181,7 +182,8 @@ consteval TileOptimizations SetTileOptimizations()
 
     return TileOptimizations{.num_groups_to_merge = OPT.num_groups_to_merge,
                              .split_image         = OPT.split_image,
-                             .explicit_gemm       = OPT.explicit_gemm};
+                             .explicit_gemm       = OPT.explicit_gemm,
+                             .two_stage           = OPT.two_stage};
 }
 
 } // namespace ck_tile::builder::factory::internal

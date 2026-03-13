@@ -24,8 +24,10 @@ TEST(FwdConvInstances, Create_ConvAlgorithm_Tile_GroupedConvolutionKernel_2D_FP1
             .with_tile_thread_block(TileThreadBlock_64x64x64)
             .with_tile_block_gemm(TileBlockGemmDesc_16x16_v3_intrawave)
             .with_tile_transfer(TileTransfer_4x4x4)
-            .with_tile_optimizations(TileOptimizations{
-                .num_groups_to_merge = 1, .split_image = false, .explicit_gemm = false});
+            .with_tile_optimizations(TileOptimizations{.num_groups_to_merge = 1,
+                                                       .split_image         = false,
+                                                       .explicit_gemm       = false,
+                                                       .two_stage           = false});
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_ck_tile_test<Builder>({
