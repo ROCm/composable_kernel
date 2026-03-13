@@ -416,9 +416,10 @@ bwd_result fmha_bwd_run(mode_enum mode,
               << "/" << seqlen_ks[0] << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale
               << ", bias:" << bias << ", dbias:" << use_dbias << ", p_drop:" << p_drop
               << ", s_randval:" << s_randval << ", deterministic:" << deterministic
-              << (deterministic ? std::string(", workspace:") +
-                                      std::to_string(workspace_size_in_megabytes) + "MiB"
-                                : "")
+              << (deterministic
+                      ? std::string(", workspace:") + std::to_string(workspace_size_in_megabytes) +
+                            "MiB|" + std::to_string(nsplits) + "splits"
+                      : "")
               << ", mask:" << mask << std::flush;
 
     auto fmha_args = [&]() {
@@ -842,10 +843,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
         lse_buf.ToDevice(lse_host.data());
         dbias_buf.SetZero();
 
-        // non-deterministic kernels use atomic add to write dq
-        // Some block may be skipped with causal mask and dq are not set to zeros
-        // In these cases thus we need to zero out it first
-        if(!deterministic || mask.type != mask_enum::no_mask)
+        if(launcher.needs_zero_dq_acc)
             dq_acc_buf.SetZero();
 
         ck_tile::stream_config stream_config_v{nullptr, true, 0, 0, 1};
