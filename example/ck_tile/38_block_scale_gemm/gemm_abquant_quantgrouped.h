@@ -7,9 +7,9 @@
 
 #if defined(CK_USE_GFX950)
 template <typename T, bool TransposeC = true>
-using GemmConfig = GemmConfigEightWarps<T, TransposeC>;
+using GemmConfig = GemmConfigEightWaves<T, TransposeC>;
 template <typename T, bool TransposeC = true>
-using GemmConfigPrefill = GemmConfigPreshuffleBEightWarps<T, TransposeC>;
+using GemmConfigPrefill = GemmConfigPreshuffleBEightWaves<T, TransposeC>;
 #else
 template <typename T, bool TransposeC = true>
 using GemmConfig = GemmConfigABQuantPrefill<T, TransposeC>;
