@@ -49,6 +49,13 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
         list(APPEND CK_TILE_GEMM_TEST_TARGETS
             test_ck_tile_gemm_pipeline_comp_async
         )
+
+        add_gtest_executable(test_ck_tile_gemm_pipeline_comp_async_eight_waves test_gemm_pipeline_comp_async_eight_waves.cpp)
+        target_compile_options(test_ck_tile_gemm_pipeline_comp_async_eight_waves PRIVATE ${EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS})
+
+        list(APPEND CK_TILE_GEMM_TEST_TARGETS
+            test_ck_tile_gemm_pipeline_comp_async_eight_waves
+        )
     endif()
 
     if(GPU_TARGETS MATCHES "gfx11|gfx12")

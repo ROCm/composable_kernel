@@ -193,7 +193,7 @@ struct GemmConfigPreshuffleB_ABQuant_Prefill : public GemmConfigPreshuffleBPrefi
     static constexpr bool TransposeC = true;
 };
 
-struct GemmConfigEightWarps : public GemmConfigBase
+struct GemmConfigEightWaves : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Warp = 4;
     static constexpr ck_tile::index_t N_Warp = 2; // NWarps == 2 for ping-pong!
@@ -210,7 +210,7 @@ struct GemmConfigEightWarps : public GemmConfigBase
     static constexpr bool TransposeC = true;
 };
 
-struct GemmConfigEightWarps_PreshuffleB : public GemmConfigEightWarps
+struct GemmConfigEightWaves_PreshuffleB : public GemmConfigEightWaves
 {
     static constexpr bool PreshuffleB = true;
 };
@@ -1221,7 +1221,7 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                           (std::is_same_v<BDataType, ck_tile::fp8_t> ||
                                            std::is_same_v<BDataType, ck_tile::bf8_t>);
         constexpr bool transpose_c = CodegenGemmTraits::TransposeC;
-        constexpr bool eight_warps =
+        constexpr bool eight_waves =
 #ifdef CK_GFX950_SUPPORT
             IS_FP8BLOCKSCALE &&
             (GemmConfig::M_Warp * GemmConfig::N_Warp * GemmConfig::K_Warp == 8) &&
@@ -1237,7 +1237,7 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                                                      ComputeDataType>;
 
         constexpr auto base_gemm_pipeline = []() {
-            if constexpr(eight_warps)
+            if constexpr(eight_waves)
                 return ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>{};
             else if constexpr(PreshuffleB)
                 return ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>{};
@@ -1275,8 +1275,8 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
                                                     tail_number_v>;
 
             using GemmPipeline = std::conditional_t<
-                eight_warps,
-                ck_tile::ABQuantGemmPipelineAgBgCrEightWarps<PipelineProblem>,
+                eight_waves,
+                ck_tile::ABQuantGemmPipelineAgBgCrEightWaves<PipelineProblem>,
                 std::conditional_t<PreshuffleB,
                                    ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
                                    ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
@@ -1316,7 +1316,7 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
             {
                 throw std::runtime_error("Arguments not supported for ABQuant kernel");
             }
-            using k_attr_t = ck_tile::kernel_attr<eight_warps>;
+            using k_attr_t = ck_tile::kernel_attr<eight_waves>;
             ck_tile::launch_kernel(s,
                                    ck_tile::make_kernel<GemmConfigBase::kBlockPerCu, k_attr_t>(
                                        Kernel{}, grids, blocks, 0, kargs));

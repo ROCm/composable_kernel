@@ -42,7 +42,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
         (std::is_same_v<typename TypeConfig::BDataType, ck_tile::fp8_t> ||
          std::is_same_v<typename TypeConfig::BDataType, ck_tile::bf8_t>);
     constexpr bool transpose_c = GemmConfig::TransposeC;
-    constexpr bool eight_warps =
+    constexpr bool eight_waves =
 #ifdef CK_GFX950_SUPPORT
         IS_FP8BLOCKSCALE && (GemmConfig::M_Warp * GemmConfig::N_Warp * GemmConfig::K_Warp == 8) &&
         GemmConfig::K_Warp_Tile == 128;
@@ -85,7 +85,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 
     // Base pipeline selection based on quant mode and preshuffle settings
     constexpr auto base_gemm_pipeline = []() {
-        if constexpr(eight_warps)
+        if constexpr(eight_waves)
             return ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>{};
         else if constexpr(GemmConfig::PreshuffleB)
             return ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>{};
@@ -184,8 +184,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
 
         using ABQuantPipeline = std::conditional_t<
-            eight_warps,
-            ck_tile::ABQuantGemmPipelineAgBgCrEightWarps<PipelineProblem>,
+            eight_waves,
+            ck_tile::ABQuantGemmPipelineAgBgCrEightWaves<PipelineProblem>,
             std::conditional_t<GemmConfig::DoubleSmemBuffer && GemmConfig::PreshuffleB,
                                ck_tile::WPABQuantBPipelineAgBgCrV2<PipelineProblem>,
                                ck_tile::ABQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>;
@@ -256,7 +256,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                       << std::endl;
         }
         float ave_time = 0;
-        using k_attr_t = ck_tile::kernel_attr<eight_warps>;
+        using k_attr_t = ck_tile::kernel_attr<eight_waves>;
         if(s.flush_cache_)
         {
             std::cout << "Flushing cache..." << std::endl;

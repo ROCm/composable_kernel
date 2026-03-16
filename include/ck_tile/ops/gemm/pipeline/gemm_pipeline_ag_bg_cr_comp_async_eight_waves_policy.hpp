@@ -3,14 +3,19 @@
 
 #pragma once
 
-#include "ck_tile/ops/gemm_quant/pipeline/gemm_aquant_pipeline_ag_bg_cr_policy.hpp"
-#include "ck_tile/ops/gemm_quant/pipeline/gemm_bquant_pipeline_ag_bg_cr_policy.hpp"
+#include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_eight_waves_v1.hpp"
 
 namespace ck_tile {
+// Default policy for GemmPipelineAgBgCrCompAsyncEightWaves
+// Customized methods: MakeALdsBlockDescriptor, MakeBLdsBlockDescriptor
 namespace detail {
-
 template <typename Problem>
-struct GemmABQuantPipelineAgBgCrAsyncPolicy
+struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
 {
     static constexpr auto I0             = number<0>{};
     static constexpr auto I1             = number<1>{};
@@ -32,7 +37,35 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     using BlockWarps     = typename BlockGemmShape::BlockWarps;
     using WarpTile       = typename BlockGemmShape::WarpTile;
 
-    static constexpr bool PreshuffleB   = Problem::PreshuffleB;
+    // Check if Preshuffle or PreshuffleB exists. In this way it will work for both GEMM and ABQuant
+    template <typename T>
+    using has_preshuffle_type = decltype(T::Preshuffle);
+    template <typename T>
+    using has_preshuffleb_type = decltype(T::PreshuffleB);
+
+    static constexpr bool IsPreshuffle_ = [] {
+        if constexpr(is_detected<has_preshuffle_type, Problem>{})
+        {
+            return Problem::Preshuffle;
+        }
+        else
+        {
+            return false;
+        }
+    }();
+
+    static constexpr bool IsPreshuffleB_ = [] {
+        if constexpr(is_detected<has_preshuffleb_type, Problem>{})
+        {
+            return Problem::PreshuffleB;
+        }
+        else
+        {
+            return false;
+        }
+    }();
+
+    static constexpr bool Preshuffle    = IsPreshuffle_ || IsPreshuffleB_;
     static constexpr index_t BlockSize  = Problem::kBlockSize;
     static constexpr index_t MPerBlock  = BlockGemmShape::kM;
     static constexpr index_t NPerBlock  = BlockGemmShape::kN;
@@ -54,11 +87,6 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     static_assert(NWarps == 2, "KWarps == 2 for ping-pong!");
     static_assert(KWarpTiles == KWarps, "Wrong!");
 
-    static constexpr index_t KPerWarpAQ  = KPerWarp / Problem::AQuantGroupSize::kK;
-    static constexpr index_t NPerWarpBQ  = NPerWarp / Problem::BQuantGroupSize::kN;
-    static constexpr index_t KPerWarpkBQ = KPerWarp / Problem::BQuantGroupSize::kK;
-    static_assert(Problem::AQuantGroupSize::kM == 1 && Problem::AQuantGroupSize::kK == WarpTileK);
-
     static constexpr index_t warp_size = get_warp_size();
     static constexpr index_t warp_num  = BlockSize / warp_size;
     static_assert(warp_size == 64, "Wrong!");
@@ -72,73 +100,7 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     static_assert(K0 * K1 * K2 == KPerWarp, "Wrong!");
     static_assert(K0 == 1, "Wrong!");
 
-    struct swap_warp_t
-    {
-        template <typename T>
-        CK_TILE_HOST_DEVICE constexpr auto operator()(T&& v) const
-        {
-            return v ^ 1;
-        }
-    };
-
-    template <bool swap_warp_group>
-    static constexpr inline auto warp_groups_transform = []() {
-        if constexpr(swap_warp_group)
-            return make_functor_transform(swap_warp_t{}, number<KWarps>{});
-        else
-            return make_pass_through_transform(number<KWarps>{});
-    }();
-
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeAQ() { return 1; }
-    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeBQ() { return 1; }
-    CK_TILE_HOST_DEVICE static constexpr auto MakeAQBlockDistribution()
-    {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<                          //
-                sequence<NWarps, warp_size / WarpTileM>,         // ?, 4
-                tuple<sequence<MIterPerWarp, MWarps, WarpTileM>, // ?,?,16
-                      sequence<KWarps, KPerWarpAQ>>,             // 1, 1
-                tuple<sequence<2, 0, 1>, sequence<0, 1>>,
-                tuple<sequence<0, 0, 1>, sequence<1, 2>>,
-                sequence<1, 2>,
-                sequence<0, 1>>{});
-    }
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBQBlockDistribution()
-    {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<                                             //
-                sequence<MWarps, warp_size>,                                        // 4,64
-                tuple<sequence<NWarps, NPerWarpBQ>, sequence<KWarps, KPerWarpkBQ>>, // 2,1 1,1
-                tuple<sequence<2, 1, 0>, sequence<0>>,
-                tuple<sequence<0, 0, 0>, sequence<1>>,
-                sequence<1, 2>,
-                sequence<0, 1>>{});
-    }
-
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
-    {
-        static_assert(Problem::BQuantGroupSize::kK % WarpTile::at(I2) == 0,
-                      "KPerWarpGemm must be a multiple of QuantGroupSize::kK!");
-        static_assert(Problem::TransposeC, "Wrong!");
-
-        using WarpGemm = WarpGemmDispatcher<ComputeDataType,
-                                            ComputeDataType,
-                                            CDataType,
-                                            WarpTileM,
-                                            WarpTileN,
-                                            WarpTileK,
-                                            Problem::TransposeC,
-                                            false,
-                                            false,
-                                            WGAccessDouble>;
-
-        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<ADataType,
-                                                                      BDataType,
-                                                                      CDataType,
-                                                                      BlockWarps,
-                                                                      WarpGemm>;
-        return ABQuantBlockUniversalGemmAsBsCrAsync<Problem, BlockGemmPolicy>{};
-    }
+    CK_TILE_DEVICE static constexpr bool IsPreshuffle() { return Preshuffle; }
 
     CK_TILE_DEVICE static constexpr auto MakeADramTileDistribution()
     {
@@ -157,9 +119,10 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
                 ck_tile::sequence<1, 2, 2>, // M0,K0,K2
                 ck_tile::sequence<0, 0, 2>>{});
     }
+
     CK_TILE_DEVICE static constexpr auto MakeBDramTileDistribution()
     {
-        if constexpr(PreshuffleB)
+        if constexpr(Preshuffle)
         {
             constexpr index_t K1_ = warp_size;                        // 64
             constexpr index_t K0_ = KPerBlock * WarpTileN / K1_ / K2; // 2
@@ -244,7 +207,7 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     template <typename WindowTmp>
     CK_TILE_DEVICE static constexpr auto MakeAsyncLoadBDramWindow(const WindowTmp& window_tmp)
     {
-        if constexpr(!PreshuffleB)
+        if constexpr(!Preshuffle)
             return MakeAsyncLoadADramWindow(window_tmp);
         else
             return make_tile_window(window_tmp.get_bottom_tensor_view(),
@@ -309,7 +272,7 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     }
     CK_TILE_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        if constexpr(!PreshuffleB)
+        if constexpr(!Preshuffle)
             return MakeABLdsBlockDescriptor_<NPerBlock, 2>();
         else
         {
@@ -334,7 +297,7 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     }
     CK_TILE_DEVICE static constexpr auto MakeBLdsReadBlockDescriptor()
     {
-        if constexpr(!PreshuffleB)
+        if constexpr(!Preshuffle)
             return MakeABLdsBlockDescriptor_<NPerBlock, 2>();
         else
         {
@@ -375,31 +338,55 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
 
     CK_TILE_DEVICE static constexpr index_t GetSmemSize()
     {
-        return max(2 * (GetSmemSizeA() + GetSmemSizeB()));
+        return 2 * (GetSmemSizeA() + GetSmemSizeB());
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeA() { return K2; }
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeB() { return K2; }
     CK_TILE_DEVICE static constexpr auto GetSmemPackA() { return K2; }
     CK_TILE_DEVICE static constexpr auto GetSmemPackB() { return K2; }
+
+    static constexpr auto ATileAccessPattern = tile_distribution_pattern::warp_raked;
+    static constexpr auto BTileAccessPattern = tile_distribution_pattern::warp_raked;
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
+    {
+        // TODO: Fix for transpose
+        constexpr auto wg_attr_num_access = WGAttrNumAccessEnum::Double;
+
+        using WarpGemm = WarpGemmDispatcher<typename Problem::ADataType,
+                                            typename Problem::BDataType,
+                                            typename Problem::CDataType,
+                                            WarpTile::at(I0),
+                                            WarpTile::at(I1),
+                                            WarpTile::at(I2),
+                                            Problem::TransposeC,
+                                            false,
+                                            false,
+                                            wg_attr_num_access>;
+
+        using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
+                                                                    typename Problem::BDataType,
+                                                                    typename Problem::CDataType,
+                                                                    BlockWarps,
+                                                                    WarpGemm>;
+
+        return BlockGemmARegBRegCRegEightWavesV1<Problem, BlockGemmPolicy>{};
+    }
 };
 } // namespace detail
 
-struct GemmABQuantPipelineAgBgCrAsyncPolicy
+struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
 {
 
-#define FORWARD_METHOD_(method)                                               \
-    template <typename Problem, typename... Args>                             \
-    CK_TILE_HOST_DEVICE static constexpr auto method(Args&&... args)          \
-    {                                                                         \
-        return detail::GemmABQuantPipelineAgBgCrAsyncPolicy<Problem>::method( \
-            std::forward<Args>(args)...);                                     \
+#define FORWARD_METHOD_(method)                                                      \
+    template <typename Problem, typename... Args>                                    \
+    CK_TILE_HOST_DEVICE static constexpr auto method(Args&&... args)                 \
+    {                                                                                \
+        return detail::GemmPipelineAgBgCrCompAsyncEightWavesPolicy<Problem>::method( \
+            std::forward<Args>(args)...);                                            \
     }
 
-    FORWARD_METHOD_(GetVectorSizeAQ);
-    FORWARD_METHOD_(GetVectorSizeBQ);
-    FORWARD_METHOD_(MakeAQBlockDistribution);
-    FORWARD_METHOD_(MakeBQBlockDistribution);
     FORWARD_METHOD_(GetBlockGemm);
     FORWARD_METHOD_(MakeADramTileDistribution);
     FORWARD_METHOD_(MakeBDramTileDistribution);
@@ -415,6 +402,7 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     FORWARD_METHOD_(GetVectorSizeB);
     FORWARD_METHOD_(GetSmemPackA);
     FORWARD_METHOD_(GetSmemPackB);
+    FORWARD_METHOD_(IsPreshuffle);
 
 #undef FORWARD_METHOD_
 };
