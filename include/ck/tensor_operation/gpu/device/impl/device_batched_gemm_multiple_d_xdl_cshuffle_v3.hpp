@@ -479,7 +479,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
 
             const auto Run = [&](const auto& kernel) {
-                if(stream_config.flush_cache)
+                if(stream_config.flush_cache && stream_config.rotating_count > 1)
                 {
 
                     std::array<std::size_t, NumDTensor> DsSize;
@@ -533,6 +533,27 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         dim3(BlockSize),
                         0,
                         arg_);
+                }
+                else if(stream_config.flush_cache)
+                {
+                    const auto clear_workspace = [&]() {
+                        if(arg.KBatch > 1)
+                            hipGetErrorString(
+                                hipMemsetAsync(arg.p_c_grid,
+                                               0,
+                                               arg.Batch * arg.M * arg.N * sizeof(CDataType),
+                                               stream_config.stream_id_));
+                    };
+
+                    BatchGemmArgument arg_ = reinterpret_cast<const BatchGemmArgument&>(arg);
+                    ave_time =
+                        launch_and_time_kernel_with_preprocess_flush_cache(stream_config,
+                                                                           clear_workspace,
+                                                                           kernel,
+                                                                           dim3(gdx, gdy, gdz),
+                                                                           dim3(BlockSize),
+                                                                           0,
+                                                                           arg_);
                 }
                 else
                 {
