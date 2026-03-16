@@ -175,19 +175,40 @@ template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename Ou
     constexpr index_t minimum_occupancy =
         Conv::GemmPipeline::Scheduler == ck_tile::GemmPipelineScheduler::Intrawave ? 1 : 2;
 
-    return RunResult::from_runtime(ck_tile::launch_kernel_time_mask(
-        s_conf,
-        preprocess,
-        ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs),
-        ck_tile::make_kernel<minimum_occupancy>(elementwise_op,
-                                                kGridSize,
-                                                kBlockSize,
-                                                0,
-                                                input_size,
-                                                ck_tile::make_tuple(shape[1], 1), // Input Stride
-                                                ck_tile::make_tuple(shape[1], 1), // Output Stride
-                                                input_tensors,
-                                                static_cast<CDataType*>(c_ptr))));
+    if(s_conf.flush_cache_)
+    {
+        return RunResult::from_runtime(ck_tile::launch_kernel_time_mask_flush_cache(
+            s_conf,
+            preprocess,
+            ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs),
+            ck_tile::make_kernel<minimum_occupancy>(
+                elementwise_op,
+                kGridSize,
+                kBlockSize,
+                0,
+                input_size,
+                ck_tile::make_tuple(shape[1], 1), // Input Stride
+                ck_tile::make_tuple(shape[1], 1), // Output Stride
+                input_tensors,
+                static_cast<CDataType*>(c_ptr))));
+    }
+    else
+    {
+        return RunResult::from_runtime(ck_tile::launch_kernel_time_mask(
+            s_conf,
+            preprocess,
+            ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs),
+            ck_tile::make_kernel<minimum_occupancy>(
+                elementwise_op,
+                kGridSize,
+                kBlockSize,
+                0,
+                input_size,
+                ck_tile::make_tuple(shape[1], 1), // Input Stride
+                ck_tile::make_tuple(shape[1], 1), // Output Stride
+                input_tensors,
+                static_cast<CDataType*>(c_ptr))));
+    }
 }
 
 } // namespace detail

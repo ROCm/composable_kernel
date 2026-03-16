@@ -114,7 +114,8 @@ run_grouped_conv_backward_weight_tile_algs(const ckt::Args<SIGNATURE>& args,
                                            const ckt::Outputs<SIGNATURE>& outputs,
                                            const ck_tile::stream_config& s_conf)
 {
-    float best_avg_time = std::numeric_limits<float>::max();
+    bool dummy_run_executed = false;
+    float best_avg_time     = std::numeric_limits<float>::max();
     std::string best_op_name, op_name;
     int best_split_k;
     bool is_supported;
@@ -154,6 +155,13 @@ run_grouped_conv_backward_weight_tile_algs(const ckt::Args<SIGNATURE>& args,
         {
             ckt::Args<SIGNATURE> args_k_batch = args;
             args_k_batch.k_batch              = k_batch;
+            if((s_conf.time_kernel_ || s_conf.flush_cache_) && !dummy_run_executed)
+            {
+                // Run first instance twice when profiling to stabilize timing
+                std::tie(is_supported, avg_time, op_name) =
+                    run_alg_func(args_k_batch, inputs, outputs, s_conf);
+                dummy_run_executed = true;
+            }
             std::tie(is_supported, avg_time, op_name) =
                 run_alg_func(args_k_batch, inputs, outputs, s_conf);
             if(is_supported)
