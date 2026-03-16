@@ -6,14 +6,17 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/ref/naive_attention.hpp"
 #include "fmha_fwd.hpp"
+#include "fmha_fwd_head_grouping.hpp"
 #include "utils.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 
 #include <array>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <cmath>
 #include <numeric>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <tuple>
@@ -1238,6 +1241,11 @@ fwd_result fmha_fwd_run(mode_enum mode,
         args.hdim_v   = hdim_v;
         args.nhead_q  = nhead;
         args.nhead_k  = nhead_k;
+        if constexpr(std::is_same_v<fmha_fwd_args, std::decay_t<decltype(args)>>)
+        {
+            args.num_head_q_total = nhead;
+            args.head_start       = 0;
+        }
 
         args.stride_q       = stride_q;
         args.stride_k       = stride_k;
@@ -1555,7 +1563,87 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
         return fmha_fwd(fmha_traits, fmha_args, sc);
     };
-    const float fwd_ave_time = run_fwd(stream_config);
+
+    float fwd_ave_time = -1.0f;
+#if CK_TILE_FMHA_ENABLE_HEAD_GROUPING
+    const bool allow_head_grouping = !i_perm && !use_kvcache && (num_splits <= 1) &&
+                                     !need_append_kvcache &&
+                                     (mode == mode_enum::batch || mode == mode_enum::group);
+
+    if(allow_head_grouping)
+    {
+        if(fmha_fwd_head_grouping::disabled_by_env())
+        {
+            if(fmha_fwd_head_grouping::log_enabled())
+                std::cout << "[LLC Head Grouping] disabled by env" << std::endl;
+        }
+        else
+        {
+            const auto group_size_opt =
+                fmha_fwd_head_grouping::get_head_group_size(nhead,
+                                                            nhead_k,
+                                                            batch,
+                                                            max_seqlen_k,
+                                                            hdim_q,
+                                                            hdim_v,
+                                                            sizeof(KDataType),
+                                                            sizeof(VDataType));
+
+            if(group_size_opt.has_value() && group_size_opt.value() < nhead)
+            {
+                if(fmha_fwd_head_grouping::log_enabled())
+                {
+                    const std::string arch = ck_tile::get_device_name();
+                    const size_t llc_bytes = fmha_fwd_head_grouping::get_llc_cache_bytes(arch);
+                    const ck_tile::index_t gqa_ratio = (nhead_k > 0 ? (nhead / nhead_k) : 1);
+                    const ck_tile::index_t group_sz  = group_size_opt.value();
+                    const ck_tile::index_t n_groups = ck_tile::integer_divide_ceil(nhead, group_sz);
+                    std::cout << "[LLC Head Grouping] enabled" << std::endl;
+                    std::cout << "[LLC Head Grouping] arch=" << (arch.empty() ? "unknown" : arch)
+                              << " llc_mb=" << (llc_bytes / (1024ull * 1024ull))
+                              << " nhead_q=" << nhead << " nhead_k=" << nhead_k
+                              << " gqa_ratio=" << gqa_ratio << " group_size=" << group_sz
+                              << " groups=" << n_groups << std::endl;
+                }
+                fmha_fwd_traits fmha_traits;
+                init_traits(fmha_traits);
+
+                fmha_fwd_args fmha_args;
+                init_args(fmha_args);
+
+                fwd_ave_time = fmha_fwd_head_grouping::run_fwd_head_grouped<QDataType,
+                                                                            KDataType,
+                                                                            VDataType,
+                                                                            ODataType,
+                                                                            BiasDataType,
+                                                                            LSEDataType,
+                                                                            RandValOutputDataType>(
+                    stream_config,
+                    fmha_traits,
+                    fmha_args,
+                    nhead,
+                    nhead_k,
+                    group_size_opt.value(),
+                    qscale.type == quant_scale_enum::blockscale,
+                    [&](const auto& traits, auto& args, const auto& sc) {
+                        return fmha_fwd(traits, args, sc);
+                    });
+            }
+            else if(fmha_fwd_head_grouping::log_enabled())
+            {
+                std::cout << "[LLC Head Grouping] skipped (group_size not set or >= nhead)"
+                          << std::endl;
+            }
+        }
+    }
+    else if(fmha_fwd_head_grouping::log_enabled())
+    {
+        std::cout << "[LLC Head Grouping] disabled by conditions/layout" << std::endl;
+    }
+#endif
+
+    if(fwd_ave_time < 0.0f)
+        fwd_ave_time = run_fwd(stream_config);
     if(fwd_ave_time < 0.0f)
     {
         std::cout << ", not supported yet" << std::flush << std::endl;
