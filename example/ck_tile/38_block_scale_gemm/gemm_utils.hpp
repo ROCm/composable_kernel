@@ -297,7 +297,7 @@ struct GemmConfigMixedPrecision : public GemmConfigBase
 };
 
 template <typename PrecType, bool TransposeC_ = true>
-struct GemmConfigEightWarps : public GemmConfigABQuantPrefill<PrecType, TransposeC_>
+struct GemmConfigEightWaves : public GemmConfigABQuantPrefill<PrecType, TransposeC_>
 {
     static constexpr ck_tile::index_t M_Warp = 4;
     static constexpr ck_tile::index_t N_Warp = 2; // NWarps == 2 for ping-pong!
@@ -312,7 +312,7 @@ struct GemmConfigEightWarps : public GemmConfigABQuantPrefill<PrecType, Transpos
 };
 
 template <typename PrecType, bool TransposeC_ = true>
-struct GemmConfigPreshuffleBEightWarps : public GemmConfigEightWarps<PrecType, TransposeC_>
+struct GemmConfigPreshuffleBEightWaves : public GemmConfigEightWaves<PrecType, TransposeC_>
 {
     static constexpr bool PreshuffleB      = true;
     static constexpr bool DoubleSmemBuffer = true;
