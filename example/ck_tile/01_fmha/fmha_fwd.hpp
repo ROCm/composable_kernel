@@ -299,6 +299,8 @@ struct fmha_fwd_args
     ck_tile::index_t hdim_v;
     ck_tile::index_t nhead_q;
     ck_tile::index_t nhead_k;
+    ck_tile::index_t num_head_q_total = 0;
+    ck_tile::index_t head_start       = 0;
 
     float scale_s;
     float logits_soft_cap;
@@ -733,7 +735,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.block_scale_size_kv,
                                              args.cu_seqlen_q_ptr,
                                              args.cu_seqlen_k_ptr,
-                                             args.sink_ptr);
+                                             args.sink_ptr,
+                                             args.num_head_q_total,
+                                             args.head_start);
         }
         else
         { // create batch mode kernel arguments
@@ -795,7 +799,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.block_scale_size_kv,
                                              args.cu_seqlen_q_ptr,
                                              args.cu_seqlen_k_ptr,
-                                             args.sink_ptr);
+                                             args.sink_ptr,
+                                             args.num_head_q_total,
+                                             args.head_start);
         }
     }();
 

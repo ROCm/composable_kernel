@@ -808,7 +808,7 @@ class CompatibilityRuleFactory:
                     kernel_ctx.pipeline.F_bias != "no"
                     or kernel_ctx.pipeline.F_dropout == "t"
                 ):
-                    False
+                    return False
             return True
 
         def check_feature(
