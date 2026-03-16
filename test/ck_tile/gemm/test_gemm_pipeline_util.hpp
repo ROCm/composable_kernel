@@ -46,7 +46,8 @@ enum struct GemmPipelineType
     CompV3,
     CompV4,
     CompV6,
-    CompAsync
+    CompAsync,
+    CompAsyncEightWaves
 };
 
 template <GemmPipelineType PT, typename Problem>
@@ -97,6 +98,15 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompAsync, Problem>
     static constexpr auto GetName() { return "GemmPipelineAgBgCrCompAsync"; }
 };
 
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompAsyncEightWaves, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrCompAsyncEightWaves<Problem>;
+
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompAsyncEightWaves"; }
+};
+
 template <typename Tuple, typename Derived>
 class TestCkTileGemmPipeline : public ::testing::Test
 {
@@ -129,7 +139,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
-        constexpr ck_tile::index_t M_Warp = 2;
+        constexpr ck_tile::index_t M_Warp =
+            PipelineType == GemmPipelineType::CompAsyncEightWaves ? 4 : 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
 
@@ -246,6 +257,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
             GTEST_SKIP() << "Unsupported data type combination for gemm pipeline test.";
         }
         if constexpr(PipelineType == GemmPipelineType::CompV4 ||
+                     PipelineType == GemmPipelineType::CompAsyncEightWaves ||
                      std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
             // Only do k_batch = 1 when pipeline is CompV4, or BDataType is I4
