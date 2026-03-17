@@ -272,7 +272,10 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
 
     if(!preshuffle && GemmConfig::UseStructuredSparsity)
     {
-        ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
+        if constexpr(GemmConfig::UseStructuredSparsity)
+        {
+            ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
+        }
     }
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
