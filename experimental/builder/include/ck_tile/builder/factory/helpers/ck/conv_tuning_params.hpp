@@ -5,6 +5,7 @@
 
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
@@ -182,6 +183,26 @@ SetBwdWeightConvSpecialization()
     case ConvSpecialization::ODD_C: return ck_conv_spec::OddC;
     case ConvSpecialization::FILTER_3x3:
         throw "FILTER_3x3 is not supported for backward weight convolution.";
+    default: throw "Unsupported ConvSpecialization";
+    }
+}
+
+template <ConvAlgorithmDescriptor auto ALGORITHM>
+consteval ck::tensor_operation::device::ConvolutionBackwardDataSpecialization
+SetBwdDataConvSpecialization()
+{
+    constexpr auto specialization = ALGORITHM.bwd_data_specialization;
+    using ck_conv_spec = ck::tensor_operation::device::ConvolutionBackwardDataSpecialization;
+    switch(specialization)
+    {
+    case ConvSpecialization::DEFAULT: return ck_conv_spec::Default;
+    case ConvSpecialization::FILTER_1X1_PAD0:
+        throw "FILTER_1x1_PAD0 is not supported for backward data convolution.";
+    case ConvSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
+    case ConvSpecialization::ODD_C:
+        throw "FILTER ODD_C is not supported for backward data convolution.";
+    case ConvSpecialization::FILTER_3x3:
+        throw "FILTER_3x3 is not supported for backward data convolution.";
     default: throw "Unsupported ConvSpecialization";
     }
 }

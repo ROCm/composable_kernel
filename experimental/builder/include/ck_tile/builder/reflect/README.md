@@ -9,7 +9,7 @@ See the [main builder documentation](../README.md) for an overview.
 The reflection system works by extracting properties from a convolution kernel *type* and formatting them into a string. This is useful for debugging, performance tuning, and generating documentation.
 
 1. **Trait Extraction**: The `ConvTraits` template (in `conv_traits.hpp`) is specialized for each kernel instance. It extracts low-level details like tile sizes, data layouts, and pipeline versions from the kernel's type definition.
-This template is common for xld and wmma, fwd and backwards weight kernels. std::optional is used for parameters that are only used by some kernels
+This template is common for XDL and WMMA, forward and backward weight kernels. `std::optional` is used for parameters that are only used by some kernels.
 
 2. **Description Generation**: The `describe<Instance>()` function (in `conv_description.hpp`) uses `ConvTraits` to populate a `ConvDescription` (`Description`) object.
 
@@ -21,7 +21,7 @@ This template is common for xld and wmma, fwd and backwards weight kernels. std:
 
 - **`conv_description.hpp`**: The main entry point. Contains the `ConvDescription` struct and the `describe()` factory function.
 - **`conv_traits.hpp`**: Home of the `ConvTraits` template, which is the core of the property extraction mechanism.
-- **`tree_formatter.hpp`**: A simple utility for generating the indented, tree-like format used in the `detailed()` description.
+- **`tree_formatter.hpp`**: A tree-building utility that generates indented, tree-like output for the `detailed()` description.
 
 ## Usage
 
@@ -49,7 +49,7 @@ The reflection system (`ckr::describe`) currently supports the following convolu
 - **Standard XDL Forward Convolution** (`DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle`)
 - **Large Tensor XDL Forward Convolution** (`DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor`)
 - **V3 XDL Forward Convolution** (`DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3`)
-- **V3 WMMA Forward Convolution** (`DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3`)
+- **WMMA Forward Convolution** (`DeviceGroupedConvFwdMultipleD_Wmma_CShuffle`)
 - **XDL Backward Weight Convolution** (`DeviceGroupedConvBwdWeight_Xdl_CShuffle`)
 - **V3 XDL Backward Weight Convolution** (`DeviceGroupedConvBwdWeight_Xdl_CShuffleV3`)
 - **XDL Multiple D Backward Weight Convolution** (`DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle`)
@@ -61,21 +61,39 @@ The reflection system (`ckr::describe`) currently supports the following convolu
 
 These variants all share similar template parameter structures and are compatible with the current `ConvTraits` implementation.
 
-### Unsupported Instance Types
+#### CK Tile Instance Types
 
-The following instance types are **not yet supported** by the reflection system:
+The reflection system also provides `InstanceTraits` specializations for CK Tile kernel instances:
 
-- **DL (pre-XDL) Variants** (`DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK`)
-  - Uses different internal structure with parameters like `K0PerBlock`, `K1`, `M1PerThread`, etc.
-  - Missing standard members like `kKPerBlock`, `kMPerXDL`, `kAK1`
+- **Tile Forward Convolution** (`GroupedConvolutionForwardKernel`)
+- **Tile Backward Weight Convolution** (`GroupedConvolutionBackwardWeightKernel`)
+- **Tile Backward Data Convolution** (`GroupedConvolutionBackwardDataKernel`)
+- **Reference Convolution** (reference implementation)
+
+#### Unsupported Instance Types
+
+- **DL (non-XDLops) Forward** (`DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK`) has `InstanceTraits` but uses a different internal parameter structure (`K0PerBlock`, `K1`, `M1PerThread` instead of standard block/warp parameters). It can use `GetInstanceString()` through the base class pointer but cannot use `describe()`.
+
+### Reflection Coverage: ConvTraits Bridge
+
+The reflection system operates at two levels:
+
+1. **`InstanceTraits`** (compile-time): Extracts raw template parameters from a kernel type. Specializations exist for both old CK and CK Tile instances.
+
+2. **`ConvTraits`** (runtime): A unified, type-erased data structure representing kernel configuration in convolution-specific terms. Populated by `instance_to_conv_traits<Instance>()` specializations.
+
+`ConvTraits` captures the common ground shared by both backends: spatial dimensions, tensor layouts, data types, elementwise operations, tile dimensions, pipeline version/scheduler, and memory access patterns. Within old CK, `ConvTraits` already unifies across the MFMA/WMMA instruction set boundary — XDL and WMMA forward instances both produce the same `ConvTraits` representation, demonstrating that instruction-set differences can be abstracted at this level.
+
+Currently, `instance_to_conv_traits()` specializations exist only for old CK instances (forward XDL, XDL V3, WMMA, large tensor, and 8 backward weight variants). CK Tile instances have `InstanceTraits` but lack `instance_to_conv_traits()` specializations — there is no bridge from CK Tile's `InstanceTraits` to the unified `ConvTraits` representation.
+
+This is the critical gap in the reflection system. Today the builder has 16+ per-variant factories, each with its own algorithm descriptor shape. `ConvTraits` is the mechanism for discovering which parameters are genuinely variant-specific versus which can be expressed in a single unified algorithm descriptor. Closing the CK Tile bridge means writing `instance_to_conv_traits()` specializations for the CK Tile kernel types that map their `InstanceTraits` fields to the `ConvTraits` struct. Once this bridge exists, both backends produce the same `ConvTraits` output — making it possible to define a single algorithm descriptor format that the dispatcher decomposes into variant-specific parameters internally.
 
 ### Future Work
 
-To support these additional instance types, the reflection system would need:
+The priorities for the reflection system are:
 
-1. Specialized `ConvTraits` templates for each variant type
-2. Updated `conv_layout`, `conv_data_type`, and other helper functions to handle different parameter structures
-3. Conditional compilation or SFINAE techniques to select the appropriate trait extraction logic based on instance type
-4. Customize `ConvDescription` methods for more general kernels.
+1. **CK Tile ConvTraits bridge.** Write `instance_to_conv_traits()` specializations for `GroupedConvolutionForwardKernel`, `GroupedConvolutionBackwardWeightKernel`, and `GroupedConvolutionBackwardDataKernel`. This is the prerequisite for unified algorithm descriptors.
 
-For now, these unsupported types can still use `GetInstanceString()` through the base class pointer, but cannot use the `ckr::describe` reflection API.
+2. **DL variant support.** The DL forward kernel needs a specialized `ConvTraits` mapping due to its different internal parameter structure.
+
+3. **Generalization beyond convolution.** `ConvTraits` is designed to evolve toward a more general `KernelTraits` covering GEMM, flash attention, and other operations.

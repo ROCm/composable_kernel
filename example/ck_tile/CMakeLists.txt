@@ -30,5 +30,7 @@ add_subdirectory(36_pooling)
 add_subdirectory(38_block_scale_gemm)
 add_subdirectory(40_streamk_gemm)
 add_subdirectory(41_batched_contraction)
+add_subdirectory(42_mx_gemm)
 add_subdirectory(50_sparse_attn)
+add_subdirectory(51_tile_distr_enc_reg_map)
 

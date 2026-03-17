@@ -45,7 +45,7 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
                          const float max_accumulated_value)
 {
     using ComputeType = std::conditional_t<
-        std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>,
+        std::is_same_v<BDataType, ck_tile::pk_fp4_t>,
         ADataType,
         std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>>;
     // Calculate thresholds
@@ -223,7 +223,7 @@ struct GemmConfigPreshuffleB_PreshuffleBQuant_Prefill
     static constexpr bool BPreshuffleQuant = true;
 };
 
-template <typename PrecType>
+template <typename PrecType, bool TransposeC_ = true>
 struct GemmConfigPreshuffleB_ABQuant_Prefill : public GemmConfigPreshuffleB_BQuant_Prefill<PrecType>
 {
     static constexpr ck_tile::index_t M_Warp = 2;
@@ -231,17 +231,17 @@ struct GemmConfigPreshuffleB_ABQuant_Prefill : public GemmConfigPreshuffleB_BQua
     static constexpr ck_tile::index_t K_Warp = 1;
 
     static constexpr bool kPadK      = false;
-    static constexpr bool TransposeC = true;
+    static constexpr bool TransposeC = TransposeC_;
 };
 
-template <typename PrecType>
+template <typename PrecType, bool TransposeC_ = true>
 struct GemmConfigPreshuffleB_ABQuant_PreshuffleBQuant_Prefill
-    : public GemmConfigPreshuffleB_ABQuant_Prefill<PrecType>
+    : public GemmConfigPreshuffleB_ABQuant_Prefill<PrecType, TransposeC_>
 {
     static constexpr bool BPreshuffleQuant = true;
 };
 
-template <typename PrecType>
+template <typename PrecType, bool TransposeC_ = true>
 struct GemmConfigPreshuffleB_ABQuant_Decode : public GemmConfigPreshuffleB_BQuant_Prefill<PrecType>
 {
     static constexpr ck_tile::index_t M_Tile = 16;
@@ -249,7 +249,7 @@ struct GemmConfigPreshuffleB_ABQuant_Decode : public GemmConfigPreshuffleB_BQuan
     static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
 
     static constexpr bool kPadK      = false;
-    static constexpr bool TransposeC = true;
+    static constexpr bool TransposeC = TransposeC_;
 };
 
 template <typename PrecType>
@@ -271,15 +271,33 @@ struct GemmConfigQuantPrefill : public GemmConfigBase
     // static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Interwave;
 };
 
-template <typename PrecType>
+template <typename PrecType, bool TransposeC_ = true>
 struct GemmConfigABQuantPrefill : public GemmConfigQuantPrefill<PrecType>
 {
     static constexpr bool kPadK      = false;
-    static constexpr bool TransposeC = true;
+    static constexpr bool TransposeC = TransposeC_;
 };
 
-template <typename PrecType>
-struct GemmConfigEightWarps : public GemmConfigABQuantPrefill<PrecType>
+// Used for A=16bit and B=8bit. The warp tile has KPack=16
+// Matrix A: Vectorsize =  8, KPack=16 -> LDS read/write vectorsize =  8 (128bit)
+// Matrix B: Vectorsize = 16, KPack=16 -> LDS read/write vectorsize = 16 (128bit)
+struct GemmConfigMixedPrecision : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 64;
+};
+
+template <typename PrecType, bool TransposeC_ = true>
+struct GemmConfigEightWaves : public GemmConfigABQuantPrefill<PrecType, TransposeC_>
 {
     static constexpr ck_tile::index_t M_Warp = 4;
     static constexpr ck_tile::index_t N_Warp = 2; // NWarps == 2 for ping-pong!
@@ -290,12 +308,11 @@ struct GemmConfigEightWarps : public GemmConfigABQuantPrefill<PrecType>
     static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType) * K_Warp;
 
     static constexpr bool kPadK      = false;
-    static constexpr bool TransposeC = true;
     static constexpr int kBlockPerCu = 1;
 };
 
-template <typename PrecType>
-struct GemmConfigPreshuffleBEightWarps : public GemmConfigEightWarps<PrecType>
+template <typename PrecType, bool TransposeC_ = true>
+struct GemmConfigPreshuffleBEightWaves : public GemmConfigEightWaves<PrecType, TransposeC_>
 {
     static constexpr bool PreshuffleB      = true;
     static constexpr bool DoubleSmemBuffer = true;

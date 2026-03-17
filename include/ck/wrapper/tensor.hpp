@@ -190,8 +190,7 @@ __host__ __device__ constexpr auto GenerateSlicedDescriptor(const Tuple<Ts...>& 
     const auto transforms     = GenerateSliceTransforms(idx, shape);
     using TransformsTupleType = decltype(transforms);
 
-    const auto lower_dims =
-        generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<old_shape_dims>{});
+    const auto lower_dims = generate_identity_sequences<old_shape_dims>();
     const auto upper_dims = decltype(GenerateUpperDims<0>(TransformsTupleType{})){};
     return transform_tensor_descriptor(flatten_desc, transforms, lower_dims, upper_dims);
 }

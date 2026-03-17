@@ -30,6 +30,58 @@
 namespace ck {
 namespace profiler {
 
+namespace fwd {
+template <ck::index_t NDimSpatial,
+          typename InLayout,
+          typename WeiLayout,
+          typename OutLayout,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename InElementOp,
+          typename WeiElementOp,
+          typename OutElementOp,
+          typename ComputeTypeA,
+          typename ComputeTypeB>
+void print_instances()
+{
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                                   InLayout,
+                                                                                   WeiLayout,
+                                                                                   ck::Tuple<>,
+                                                                                   OutLayout,
+                                                                                   InDataType,
+                                                                                   WeiDataType,
+                                                                                   ck::Tuple<>,
+                                                                                   OutDataType,
+                                                                                   InElementOp,
+                                                                                   WeiElementOp,
+                                                                                   OutElementOp,
+                                                                                   ComputeTypeA,
+                                                                                   ComputeTypeB>;
+
+    const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+        DeviceOp>::GetInstances();
+
+    for(const auto& op_ptr : op_ptrs)
+    {
+#ifdef CK_EXPERIMENTAL_BUILDER
+        const auto& instance_str = op_ptr->GetInstanceString();
+        if(!instance_str.empty())
+        {
+            std::cout << instance_str << std::endl;
+        }
+        else
+        {
+            std::cout << op_ptr->GetTypeString() << std::endl;
+        }
+#else
+        std::cout << op_ptr->GetTypeString() << std::endl;
+#endif
+    }
+}
+} // namespace fwd
+
 template <ck::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -47,7 +99,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                    bool time_kernel,
                                    const ck::utils::conv::ConvParam& conv_param,
                                    const OutElementOp out_element_op = OutElementOp{},
-                                   index_t instance_index            = -1)
+                                   index_t instance_index            = -1,
+                                   bool list_instances               = false)
 {
     using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -107,6 +160,10 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     DeviceMem in_device_buf(sizeof(InDataType) * input_size);
     DeviceMem wei_device_buf(sizeof(WeiDataType) * weight_size);
     DeviceMem out_device_buf(sizeof(OutDataType) * output_size);
+
+    // Don't create reference if we're only listing instances
+    if(list_instances)
+        do_verification = 0;
 
     // Initialize tensors based on do_verification:
     // - do_verification=2: GPU-side initialization
@@ -210,11 +267,12 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     }
 
     std::string best_op_name;
-    float best_avg_time   = 0;
-    float best_tflops     = 0;
-    float best_gb_per_sec = 0;
-    index_t num_kernel    = 0;
-    int valids            = 0;
+    float best_avg_time         = 0;
+    float best_tflops           = 0;
+    float best_gb_per_sec       = 0;
+    index_t num_kernel          = 0;
+    index_t valid_instances     = 0;
+    index_t best_instance_index = 0;
 
     // profile device op instances
     bool pass = true;
@@ -228,21 +286,37 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             num_kernel++;
-            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+
+            // List instances mode - just print and continue
+            if(list_instances)
             {
-                // skip test if instance_index is specified
+                std::cout << "[" << (num_kernel - 1) << "] " << op_ptr->GetTypeString()
+                          << std::endl;
+                return;
+            }
+
+            // Skip if a specific instance was requested and this isn't it
+            const bool running_specific_instance = (instance_index != -1);
+            const bool current_is_target         = (num_kernel - 1 == instance_index);
+            if(running_specific_instance && !current_is_target)
+            {
                 return;
             }
 
             std::string op_name = op_ptr->GetTypeString();
-            valids++;
+            valid_instances++;
 
             out_device_buf.SetZero();
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-            float avg_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+            float avg_time = invoker_ptr->Run(argument_ptr.get(),
+                                              StreamConfig{nullptr,
+                                                           time_kernel,
+                                                           0 /*log_level*/,
+                                                           5 /*cold_iters*/,
+                                                           50 /*nrepeat_*/,
+                                                           time_kernel /*flush_cache*/});
 
             std::size_t flop      = conv_param.GetFlops();
             std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
@@ -256,10 +330,11 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
             if(tflops > best_tflops)
             {
-                best_op_name    = op_name;
-                best_tflops     = tflops;
-                best_avg_time   = avg_time;
-                best_gb_per_sec = gb_per_sec;
+                best_op_name        = op_name;
+                best_tflops         = tflops;
+                best_avg_time       = avg_time;
+                best_gb_per_sec     = gb_per_sec;
+                best_instance_index = num_kernel - 1;
             }
 
             // Synchronize before verification to ensure kernel has completed
@@ -330,7 +405,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                 }
             }
         }
-        else
+        else if(list_instances || instance_index == -1)
         {
             std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
@@ -357,6 +432,35 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
     std::cout << "ckProfiler found " << op_ptrs.size() << " instances" << std::endl;
 
+    if(list_instances)
+    {
+        std::cout << "\nValid instances for this problem:" << std::endl;
+    }
+
+    // Run first instance twice to get proper time
+    {
+        auto argument_ptr = op_ptrs[0]->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                            wei_device_buf.GetDeviceBuffer(),
+                                                            {},
+                                                            out_device_buf.GetDeviceBuffer(),
+                                                            a_g_n_c_wis_lengths,
+                                                            a_g_n_c_wis_strides,
+                                                            b_g_k_c_xs_lengths,
+                                                            b_g_k_c_xs_strides,
+                                                            {},
+                                                            {},
+                                                            e_g_n_k_wos_lengths,
+                                                            e_g_n_k_wos_strides,
+                                                            conv_filter_strides,
+                                                            conv_filter_dilations,
+                                                            input_left_pads,
+                                                            input_right_pads,
+                                                            in_element_op,
+                                                            wei_element_op,
+                                                            out_element_op);
+
+        run_impl(op_ptrs[0], argument_ptr);
+    }
     for(auto& op_ptr : op_ptrs)
     {
         auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
@@ -382,11 +486,24 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         run_impl(op_ptr, argument_ptr);
     }
 
-    printf("\033[36mvalids: %d\033[0m\n", valids);
+    if(list_instances)
+    {
+        std::cout << "\nTotal: " << num_kernel << " valid instances" << std::endl;
+        return true;
+    }
 
-    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
-              << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
-              << "\nGB/s: " << best_gb_per_sec << std::endl;
+    printf("\033[36mvalids: %ld\033[0m\n", static_cast<long>(valid_instances));
+
+    if(instance_index != -1 && valid_instances == 0)
+    {
+        std::cerr << "Error: instance_index " << instance_index
+                  << " exceeds the number of valid instances (" << num_kernel << ")" << std::endl;
+        return false;
+    }
+
+    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name << " (instance "
+              << best_instance_index << ")" << "\navg_time: " << best_avg_time
+              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
     if(instance_index != -1)
     {
         std::cout << "grouped_conv_fwd_instance (" << instance_index << "/" << num_kernel

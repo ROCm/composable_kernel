@@ -131,7 +131,7 @@ auto f_host_tensor_descriptor2d =
         }
     };
 
-int main()
+int main(int argc, char* argv[])
 {
     ck::index_t M = 1024;
     ck::index_t N = 1024;
@@ -142,6 +142,38 @@ int main()
     ck::index_t StrideD0 = 0;
     ck::index_t StrideD1 = 1024;
     ck::index_t StrideE  = 1024;
+
+    bool do_verification = true;
+    bool time_kernel     = false;
+
+    if(argc == 1)
+    {
+        // do nothing
+    }
+    else if(argc == 3 || argc == 10)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+        if(argc == 10)
+        {
+            M = std::stoi(argv[3]);
+            N = std::stoi(argv[4]);
+            K = std::stoi(argv[5]);
+
+            StrideA  = std::stoi(argv[6]);
+            StrideB  = std::stoi(argv[7]);
+            StrideD1 = std::stoi(argv[8]);
+            StrideE  = std::stoi(argv[9]);
+        }
+    }
+    else
+    {
+        std::cout << "arg1: verification (0=no, 1=yes)\n"
+                  << " arg2: Measure kernel execution time (1=ON, 0=Off)\n"
+                  << " arg3 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD1, StrideE\n"
+                  << std::endl;
+        exit(1);
+    }
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor2d(K, N, StrideB, BLayout{}));
@@ -208,8 +240,7 @@ int main()
 
     invoker.Run(argument, StreamConfig{nullptr, false});
 
-    bool do_verification = true;
-    bool pass            = true;
+    bool pass = true;
 
     if(do_verification)
     {
@@ -268,7 +299,6 @@ int main()
         pass &= ck::utils::check_err(r1_m, r1_m_host, "Error: Incorrect results d1", 1e-2, 1e-2);
     }
 
-    bool time_kernel = false;
     if(time_kernel)
     {
         float ave_time = invoker.Run(argument, StreamConfig{nullptr, time_kernel});

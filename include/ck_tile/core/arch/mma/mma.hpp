@@ -57,6 +57,7 @@ template <typename ADataType,
           uint32_t FragM,
           uint32_t FragN,
           uint32_t FragK,
+          MmaOpFamily OpFamily,
           MmaAccumPolicy AccumPolicy = MmaAccumPolicy::ROW_MAJOR,
           typename CompilerTarget =
               decltype(get_compiler_target()), // TODO: c++20 amdgcn_target_arch_id GfxTargetId =
@@ -69,7 +70,8 @@ template <typename ADataType,
                                           FragM,
                                           FragN,
                                           FragK,
-                                          CompilerTarget>::SelectedOp,
+                                          CompilerTarget,
+                                          OpFamily>::SelectedOp,
           typename MmaTransforms = // TODO: c++20 MmaTransformsI MmaTransforms =
           typename MmaTransformsDefaultSelector<MmaOp, CompilerTarget>::SelectedTransforms>
 struct WaveWiseMma

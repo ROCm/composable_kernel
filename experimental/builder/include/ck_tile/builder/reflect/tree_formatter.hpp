@@ -3,26 +3,27 @@
 
 #pragma once
 
+#include <deque>
 #include <sstream>
 #include <string>
-#include <type_traits>
-#include <vector>
 
 namespace ck_tile::reflect {
 
-// Helper class for formatting hierarchical tree structures with proper indentation
-// and tree-drawing characters (├─, └─, │, etc.)
+// Tree-node class for building hierarchical tree structures, then rendering them
+// with proper indentation and tree-drawing characters (├─, └─, │, etc.)
+//
+// Unlike a streaming API, the tree is built first and rendered afterwards,
+// so last-child status is determined automatically.
 //
 // Example Usage:
 //
-//   TreeFormatter f;
-//   f.writeLine(0, "Root");
-//   f.writeLine(1, "Branch 1");
-//   f.writeLine(2, "Item 1a");
-//   f.writeLast(2, "Item 1b");
-//   f.writeLast(1, "Branch 2");
-//   f.writeLast(2, "Item 2a");
-//   std::cout << f.getString() << "\n";
+//   TreeFormatter root("Root");
+//   auto& b1 = root.add("Branch 1");
+//   b1.add("Item 1a");
+//   b1.add("Item 1b");
+//   auto& b2 = root.add("Branch 2");
+//   b2.add("Item 2a");
+//   std::cout << root.getString() << "\n";
 //
 // Generated Output:
 //
@@ -35,74 +36,53 @@ namespace ck_tile::reflect {
 class TreeFormatter
 {
     public:
-    TreeFormatter() = default;
-
-    // Write a line at the specified indentation level (branch continues after this)
+    // Construct a node with content built from the given arguments
     template <typename... Args>
-    void writeLine(int indent_level, Args&&... args)
+    explicit TreeFormatter(Args&&... args)
     {
-        writeLineImpl(indent_level, false, std::forward<Args>(args)...);
+        std::ostringstream oss;
+        ((oss << std::forward<Args>(args)), ...);
+        content_ = oss.str();
     }
 
-    // Write the last line at the specified indentation level (branch ends)
+    // Add a child node, returns a reference to it for further nesting
     template <typename... Args>
-    void writeLast(int indent_level, Args&&... args)
+    TreeFormatter& add(Args&&... args)
     {
-        writeLineImpl(indent_level, true, std::forward<Args>(args)...);
+        children_.emplace_back(std::forward<Args>(args)...);
+        return children_.back();
     }
 
-    // Get the formatted string (removes trailing newline if present)
+    // Render the full tree to a string
     std::string getString() const
     {
-        std::string result = oss_.str();
-        if(!result.empty() && result.back() == '\n')
+        std::ostringstream oss;
+        oss << content_;
+        for(size_t i = 0; i < children_.size(); ++i)
         {
-            result.pop_back();
+            oss << '\n';
+            children_[i].renderChild(oss, "", i == children_.size() - 1);
         }
-        return result;
+        return oss.str();
     }
 
     private:
-    std::ostringstream oss_;
-    std::vector<bool> is_last_at_level_; // Tracks which levels have ended
+    std::string content_;
+    // std::deque preserves references to existing elements on push_back/emplace_back,
+    // unlike std::vector which may reallocate. This allows add() to safely return
+    // a reference to the newly added child for further nesting.
+    std::deque<TreeFormatter> children_;
 
-    // Implementation of line writing with tree symbols
-    template <typename... Args>
-    void writeLineImpl(int indent_level, bool is_last, Args&&... args)
+    // Recursive render helper
+    void renderChild(std::ostringstream& oss, const std::string& prefix, bool is_last) const
     {
-        // Ensure we have enough tracking space
-        if(static_cast<size_t>(indent_level) >= is_last_at_level_.size())
+        oss << prefix << (is_last ? "└─ " : "├─ ") << content_;
+        std::string child_prefix = prefix + (is_last ? "   " : "│  ");
+        for(size_t i = 0; i < children_.size(); ++i)
         {
-            is_last_at_level_.resize(indent_level + 1, false);
-            // Level 0 (root) should always be treated as "last" since it has no tree symbols
-            if(is_last_at_level_.size() > 0)
-            {
-                is_last_at_level_[0] = true;
-            }
+            oss << '\n';
+            children_[i].renderChild(oss, child_prefix, i == children_.size() - 1);
         }
-
-        // Draw the tree structure
-        // Start from level 1 (skip level 0 which is the root with no symbols)
-        for(int i = 1; i < indent_level; ++i)
-        {
-            // For all parent levels, draw vertical line or space based on whether they ended
-            oss_ << (is_last_at_level_[i] ? "   " : "│  ");
-        }
-
-        // Draw the branch symbol for the current level
-        if(indent_level > 0)
-        {
-            oss_ << (is_last ? "└─ " : "├─ ");
-        }
-
-        // Write the content using fold expression with direct stream insertion
-        ((oss_ << std::forward<Args>(args)), ...);
-
-        oss_ << '\n';
-
-        // Update tracking for this level AFTER writing the line
-        // This ensures future lines at deeper levels know if this level ended
-        is_last_at_level_[indent_level] = is_last;
     }
 };
 

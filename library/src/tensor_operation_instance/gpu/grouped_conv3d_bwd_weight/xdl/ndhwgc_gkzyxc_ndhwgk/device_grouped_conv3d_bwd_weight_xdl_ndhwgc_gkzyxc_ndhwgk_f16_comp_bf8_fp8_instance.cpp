@@ -24,7 +24,6 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_
                                                            F8>>>& instances)
 {
 #if CK_BUILD_DEPRECATED
-#pragma message "These instances are getting deprecated"
     // 1. Default
     add_device_operation_instances(
         instances,
@@ -44,7 +43,6 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_
             NDHWGK,
             ConvBwdWeightFilter1x1Stride1Pad0>{});
 #else
-#pragma message "These instances were deprecated"
     std::ignore = instances;
 #endif
 }

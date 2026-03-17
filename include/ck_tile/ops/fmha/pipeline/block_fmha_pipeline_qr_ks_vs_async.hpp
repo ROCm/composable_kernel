@@ -171,7 +171,10 @@ struct BlockFmhaPipelineQRKSVSAsync
               typename OAccElementFunction,
               typename PositionEncoding,
               typename AttentionVariantParams,
-              typename BlockIndices>
+              typename BlockIndices,
+              typename QScaleDramBlockWindowTmp,
+              typename KScaleDramBlockWindowTmp,
+              typename VScaleDramBlockWindowTmp>
     CK_TILE_HOST_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                const QElementFunction& q_element_func,
@@ -198,6 +201,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                const float* k_descale_ptr,
                const float* v_descale_ptr,
                const index_t block_scale_size_kv,
+               const QScaleDramBlockWindowTmp&, // M0*(K0/kQKScaleGranularity) tile
+               const KScaleDramBlockWindowTmp&, // N0*(K0/kQKScaleGranularity) tile
+               const VScaleDramBlockWindowTmp&, // N1*(K1/kVScaleGranularity) tile
                const float sink_v) const
     {
         static_assert(
@@ -214,6 +220,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                           kM0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
+
+        static_assert(QScaleEnum != BlockAttentionQuantScaleEnum::MX);
 
         constexpr auto LdsSeq = Policy::template GetLdsBufferSequence<Problem>();
 
@@ -335,16 +343,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                 {
                     auto lse =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
-
-                    if(__builtin_isinf_sign(sink_v) >= 0)
-                    {
-                        set_tile(lse, SMPLComputeDataType{sink_v * scale_s});
-                    }
-                    else
-                    {
-                        set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
-                    }
-
+                    set_tile(lse, SMPLComputeDataType{sink_v * scale_s});
                     store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
                 }
 
@@ -598,6 +597,12 @@ struct BlockFmhaPipelineQRKSVSAsync
                 s.get_tile_distribution()); // Pcompute{j}
 
             __builtin_amdgcn_sched_barrier(0x7F);
+            // Ensure gemm_0's LDS reads (K tile) from all threads are completed before V store
+            // Only needed when K tail and V use the same LDS buffer
+            if constexpr(LdsSeq.at(number<k0_loops - 1>{}) == LdsSeq.at(number<k0_loops>{}))
+            {
+                __builtin_amdgcn_s_barrier();
+            }
             // store & prefetch next v, after the max reduction
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
@@ -989,6 +994,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                           nullptr,
                           nullptr,
                           1,
+                          make_null_tile_window(make_tuple()),
+                          make_null_tile_window(make_tuple()),
+                          make_null_tile_window(make_tuple()),
                           sink_v);
     }
 };

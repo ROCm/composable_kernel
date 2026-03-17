@@ -4,9 +4,13 @@
 #pragma once
 
 #include "ck_tile/builder/testing/testing.hpp"
+#include "ck_tile/builder/testing/conv/fwd.hpp"
+#include "ck_tile/builder/testing/conv/bwd_weight.hpp"
+#include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_tensor_type.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/grouped_convolution.hpp"
+#include "ck_tile/host.hpp"
 #include <type_traits>
 #include <array>
 
@@ -53,11 +57,158 @@ template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename Ou
     if(!Conv::IsSupportedArgument(kargs))
         return RunResult::not_supported("unsupported ck_tile arguments");
 
+    using Types = ck_tile::builder::factory::internal::TileConvTensorTypes<SIGNATURE.data_type>;
+    const std::size_t zeroing_size = std::accumulate(std::begin(kargs.wei_g_k_c_xs_lengths.data),
+                                                     std::end(kargs.wei_g_k_c_xs_lengths.data),
+                                                     1,
+                                                     std::multiplies<std::size_t>());
+
+    auto preprocess = [&]() {
+        if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
+        {
+            if(kargs.k_batch > 1)
+            {
+                ck_tile::hip_check_error(
+                    hipMemsetAsync(kargs.wei_ptr,
+                                   0,
+                                   zeroing_size * sizeof(typename Types::EDataType),
+                                   s_conf.stream_id_));
+            }
+        }
+    };
+
     constexpr index_t minimum_occupancy =
         Conv::GemmPipeline::Scheduler == ck_tile::GemmPipelineScheduler::Intrawave ? 1 : 2;
 
-    return RunResult::from_runtime(ck_tile::launch_kernel(
-        s_conf, ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs)));
+    if(s_conf.flush_cache_)
+    {
+        return RunResult::from_runtime(ck_tile::launch_kernel_time_mask_flush_cache(
+            s_conf,
+            preprocess,
+            ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs)));
+    }
+    else
+    {
+        return RunResult::from_runtime(ck_tile::launch_kernel_time_mask(
+            s_conf,
+            preprocess,
+            ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs)));
+    }
+}
+
+template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename OutDataType>
+[[nodiscard]] RunResult run(CkTileConvInstance<SIGNATURE> auto& conv,
+                            auto& elementwise_op,
+                            const Args<SIGNATURE>& args,
+                            InDataType* input,
+                            WeiDataType* weight,
+                            OutDataType* output,
+                            const ck_tile::stream_config s_conf)
+{
+    using Conv              = std::remove_reference_t<decltype(conv)>;
+    using ElementwiseOp     = std::remove_reference_t<decltype(elementwise_op)>;
+    using WorkspaceDataType = typename ElementwiseOp::ComputeDataType;
+    using CDataType         = typename ElementwiseOp::YDataType;
+    using BlockShape        = typename ElementwiseOp::Problem::BlockShape;
+
+    const auto param = args.to_ck_tile_conv_param();
+
+    ck_tile::GroupedConvHostArgs<InDataType*, WeiDataType*, OutDataType*, ck_tile::PassThrough>
+        host_args(param, input, weight, {}, output, args.k_batch);
+
+    // Set-up for elementwise op kernel.
+    const ck_tile::index_t spatial_lengths_accum =
+        std::accumulate(host_args.filter_spatial_lengths_.begin(),
+                        host_args.filter_spatial_lengths_.end(),
+                        1,
+                        std::multiplies<ck_tile::index_t>());
+    ck_tile::DeviceMem ws_m_n_dev_buf(host_args.G_ * host_args.K_ * host_args.C_ *
+                                      spatial_lengths_accum * sizeof(WorkspaceDataType));
+    ck_tile::GroupedConvBwdWeightHostArgs ws_args =
+        ck_tile::GroupedConvBwdWeightHostArgs(host_args);
+    auto c_ptr      = ws_args.wei_ptr;
+    ws_args.wei_ptr = ws_m_n_dev_buf.GetDeviceBuffer();
+
+    auto kargs        = Conv::MakeKernelArgs(ws_args);
+    const dim3 grids  = Conv::GridSize(kargs);
+    const dim3 blocks = Conv::BlockSize();
+
+    if(!Conv::IsSupportedArgument(kargs))
+        return RunResult::not_supported("unsupported ck_tile arguments");
+
+    ck_tile::index_t total_elements     = 1;
+    std::vector<ck_tile::index_t> shape = {
+        static_cast<ck_tile::index_t>(host_args.G_ * host_args.K_),
+        static_cast<ck_tile::index_t>(host_args.C_ * spatial_lengths_accum)};
+
+    for(auto d : shape)
+        total_elements *= d;
+
+    const ck_tile::index_t kBlockSize = ElementwiseOp::BlockSize();
+
+    constexpr ck_tile::index_t elements_per_block = BlockShape::kBlockM;
+    ck_tile::index_t kGridSize = (total_elements + elements_per_block - 1) / elements_per_block;
+
+    auto input_tensors = ck_tile::make_tuple(static_cast<WorkspaceDataType*>(ws_args.wei_ptr));
+    auto input_size    = ck_tile::make_tuple(shape[0], shape[1]);
+
+    // Check if the kernel configuration is supported
+    if(!ElementwiseOp::IsSupportedArgument(input_size))
+    {
+        return RunResult::not_supported("unsupported ck_tile arguments for elementwise op");
+    }
+
+    auto preprocess = [&]() {
+        if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
+        {
+            if(kargs.k_batch > 1)
+            {
+                ck_tile::hip_check_error(
+                    hipMemsetAsync(ws_args.wei_ptr,
+                                   0,
+                                   shape[0] * shape[1] * sizeof(WorkspaceDataType),
+                                   s_conf.stream_id_));
+            }
+        }
+    };
+
+    constexpr index_t minimum_occupancy =
+        Conv::GemmPipeline::Scheduler == ck_tile::GemmPipelineScheduler::Intrawave ? 1 : 2;
+
+    if(s_conf.flush_cache_)
+    {
+        return RunResult::from_runtime(ck_tile::launch_kernel_time_mask_flush_cache(
+            s_conf,
+            preprocess,
+            ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs),
+            ck_tile::make_kernel<minimum_occupancy>(
+                elementwise_op,
+                kGridSize,
+                kBlockSize,
+                0,
+                input_size,
+                ck_tile::make_tuple(shape[1], 1), // Input Stride
+                ck_tile::make_tuple(shape[1], 1), // Output Stride
+                input_tensors,
+                static_cast<CDataType*>(c_ptr))));
+    }
+    else
+    {
+        return RunResult::from_runtime(ck_tile::launch_kernel_time_mask(
+            s_conf,
+            preprocess,
+            ck_tile::make_kernel<minimum_occupancy>(conv, grids, blocks, 0, kargs),
+            ck_tile::make_kernel<minimum_occupancy>(
+                elementwise_op,
+                kGridSize,
+                kBlockSize,
+                0,
+                input_size,
+                ck_tile::make_tuple(shape[1], 1), // Input Stride
+                ck_tile::make_tuple(shape[1], 1), // Output Stride
+                input_tensors,
+                static_cast<CDataType*>(c_ptr))));
+    }
 }
 
 } // namespace detail
@@ -111,6 +262,30 @@ template <auto SIGNATURE>
                             const ck_tile::stream_config s_conf = {})
 {
     return detail::run(conv,
+                       args,
+                       static_cast<const void*>(inputs.input),
+                       static_cast<void*>(outputs.weight),
+                       static_cast<const void*>(inputs.output),
+                       s_conf);
+}
+
+/// @brief `run()` specialization for two-stage backwards weight convolution and CK Tile.
+///
+/// @tparam SIGNATURE Backwards weight convolution signature.
+/// @returns RunResult about how the operation completed (or not).
+///
+/// @see run()
+template <auto SIGNATURE>
+    requires ConvDirectionIsBackwardWeight<SIGNATURE>
+[[nodiscard]] RunResult run(CkTileConvInstance<SIGNATURE> auto& conv,
+                            auto& elementwise_op,
+                            const Args<SIGNATURE>& args,
+                            const Inputs<SIGNATURE>& inputs,
+                            const Outputs<SIGNATURE>& outputs,
+                            const ck_tile::stream_config s_conf = {})
+{
+    return detail::run(conv,
+                       elementwise_op,
                        args,
                        static_cast<const void*>(inputs.input),
                        static_cast<void*>(outputs.weight),

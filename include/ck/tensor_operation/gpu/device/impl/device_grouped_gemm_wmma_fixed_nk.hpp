@@ -7,22 +7,55 @@
 #include <sstream>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
-#include "ck/utility/env.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
+#include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
+#include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/utility/scheduler_enum.hpp"
 #include "ck/utility/tuple.hpp"
 
+#include "ck/host_utility/device_prop.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_fixed_nk.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3.hpp"
-#include "ck/host_utility/device_prop.hpp"
-#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 namespace tensor_operation {
+namespace element_wise {
+struct SplitKAdd
+{
+    static constexpr const char* name = "SplitKAdd";
+
+    __host__ __device__ void set_kbatch(const index_t& id, const index_t& total)
+    {
+        kbatch_id = id;
+        KBatch    = total;
+    }
+
+    template <typename Y, typename X0, typename X1>
+    __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const
+    {
+        if(kbatch_id == KBatch - 1)
+        {
+            add_op(y, x0, x1);
+        }
+        else
+        {
+            passthrough_op(y, x0);
+        }
+    }
+
+    private:
+    index_t kbatch_id                    = 0;
+    index_t KBatch                       = 1;
+    static constexpr auto add_op         = Add{};
+    static constexpr auto passthrough_op = PassThrough{};
+};
+} // namespace element_wise
+
 namespace device {
 
 template <typename GridwiseGemm,
@@ -110,6 +143,21 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         while(id_local < local_grid_size)
         {
+            const auto block_2_etile_map =
+                GroupedGemmBlock2ETileMap(local_b2c_tile_map, group_start, id_off);
+
+            const auto tile_index =
+                block_2_etile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+
+            const index_t kbatch_id = __builtin_amdgcn_readfirstlane(tile_index[Number<0>{}]);
+
+            auto c_element_op_copy(c_element_op);
+            if constexpr(std::is_same_v<decltype(c_element_op_copy),
+                                        ck::tensor_operation::element_wise::SplitKAdd>)
+            {
+                c_element_op_copy.set_kbatch(kbatch_id, k_batch_);
+            }
+
             KernelArgument kernel_arg{std::array<const void*, 1>{gemmTransKernelArg.p_a_grid},
                                       std::array<const void*, 1>{gemmTransKernelArg.p_b_grid},
                                       gemmTransKernelArg.p_ds_grid,
@@ -124,14 +172,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                       k_batch_,
                                       a_element_op,
                                       b_element_op,
-                                      c_element_op,
+                                      c_element_op_copy,
                                       false};
-
-            const auto block_2_etile_map =
-                GroupedGemmBlock2ETileMap(local_b2c_tile_map, group_start, id_off);
-
-            const auto tile_index =
-                block_2_etile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
 
             const auto splitk_batch_offset =
                 typename GridwiseGemm::SplitKBatchOffset(kernel_arg, tile_index[Number<0>{}]);
@@ -813,7 +855,9 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
         }
 
         if constexpr(!std::is_same_v<CDEElementwiseOperation,
-                                     ck::tensor_operation::element_wise::PassThrough>)
+                                     ck::tensor_operation::element_wise::PassThrough> &&
+                     !std::is_same_v<CDEElementwiseOperation,
+                                     ck::tensor_operation::element_wise::SplitKAdd>)
         {
             if(arg.k_batch_ > 1)
             {

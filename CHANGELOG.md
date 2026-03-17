@@ -5,6 +5,9 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ## (Unreleased) Composable Kernel 1.3.0
 
 ### Added
+* Added overload of load_tile_transpose that takes reference to output tensor as output parameter
+* Use data type from LDS tensor view when determining tile distribution for transpose in the GEMM pipeline
+* Added eightwarps support for abquant mode in blockscale GEMM.
 * Added preshuffleB support for abquant mode in blockscale GEMM.
 * Added support for explicit GEMM in CK_TILE grouped convolution forward and backward weight.
 * Added TF32 convolution support on gfx942 and gfx950 in CK. It could be enabled/disabled via `DTYPES` of "tf32".
@@ -18,6 +21,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added persistent async input scheduler for CK Tile universal GEMM kernels to support asynchronous input streaming.
 * Added FP8 block scale quantization for FMHA forward kernel.
 * Added gfx11 support for FMHA.
+* Added microscaling (MX) FP8/FP4 support on gfx950 for FMHA forward kernel ("qr" pipeline only).
 
 ### Changed
 

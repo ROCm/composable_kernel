@@ -18,6 +18,7 @@
 #include <string_view>
 #include <type_traits>
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
+#include "ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -135,6 +136,18 @@ constexpr std::string_view conv_bwd_weight_spec_name(
     case Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
     case Filter1x1Pad0: return "Filter1x1Pad0";
     case OddC: return "OddC";
+    }
+}
+
+// Convert ConvolutionBackwardDataSpecialization enum to string
+constexpr std::string_view
+conv_bwd_data_spec_name(ck::tensor_operation::device::ConvolutionBackwardDataSpecialization spec)
+{
+    using enum ck::tensor_operation::device::ConvolutionBackwardDataSpecialization;
+    switch(spec)
+    {
+    case Default: return "Default";
+    case Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
     }
 }
 

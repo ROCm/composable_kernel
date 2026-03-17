@@ -2404,6 +2404,9 @@ CK_TILE_DEVICE void amd_buffer_atomic_max_impl(const thread_buffer<T, N> src_thr
     }
 }
 
+template <typename T>
+using has_type = typename T::type;
+
 // buffer_load requires:
 //   1) p_src_wave must point to global memory space
 //   2) p_src_wave must be a wavewise pointer.
@@ -2436,21 +2439,46 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
 #else
     if constexpr(oob_conditional_check)
     {
-        if(src_thread_element_valid)
+        if(!src_thread_element_valid)
         {
-            return amd_buffer_load_impl<T, N, coherence>(
-                src_wave_buffer_resource, src_thread_addr_offset, 0);
-        }
-        else
-        {
-            return thread_buffer<T, N>{numeric<T>::zero()};
+            if constexpr(is_detected<has_type, T>::value)
+            {
+                // Use vector_t for not valid elements to avoid permute instructions.
+                // Get raw type from structure
+                using vector_t = typename T::type __attribute__((ext_vector_type(N)));
+                if constexpr(sizeof(vector_t) != sizeof(typename T::type) * N)
+                {
+                    // Not possible to use set_as
+                    return thread_buffer<T, N>{numeric<T>::zero()};
+                }
+                else
+                {
+                    thread_buffer<T, N> tmp;
+                    tmp.template set_as<vector_t>(number<0>{},
+                                                  vector_t{numeric<typename T::type>::zero()});
+                    return tmp;
+                }
+            }
+            else
+            {
+                // Use vector_t for not valid elements to avoid permute instructions.
+                using vector_t = T __attribute__((ext_vector_type(N)));
+                if constexpr(sizeof(vector_t) != sizeof(T) * N)
+                {
+                    // Not possible to use set_as
+                    return thread_buffer<T, N>{numeric<T>::zero()};
+                }
+                else
+                {
+                    thread_buffer<T, N> tmp;
+                    tmp.template set_as<vector_t>(number<0>{}, vector_t{numeric<T>::zero()});
+                    return tmp;
+                }
+            }
         }
     }
-    else
-    {
-        return amd_buffer_load_impl<T, N, coherence>(
-            src_wave_buffer_resource, src_thread_addr_offset, 0);
-    }
+    return amd_buffer_load_impl<T, N, coherence>(
+        src_wave_buffer_resource, src_thread_addr_offset, 0);
 #endif
 }
 
@@ -2474,13 +2502,48 @@ amd_buffer_load_invalid_element_return_customized_value(const T* p_src_wave,
 
     index_t src_thread_addr_offset = src_thread_element_offset * sizeof(T);
 
-    thread_buffer<T, N> tmp =
-        amd_buffer_load_impl<T, N, coherence>(src_wave_buffer_resource, src_thread_addr_offset, 0);
-
     if constexpr(oob_conditional_check)
-        return src_thread_element_valid ? tmp : thread_buffer<T, N>{customized_value};
-    else
-        return tmp;
+    {
+        if(!src_thread_element_valid)
+        {
+            if constexpr(is_detected<has_type, T>::value)
+            {
+                // Use vector_t for not valid elements to avoid permute instructions.
+                // Get raw type from structure
+                using vector_t = typename T::type __attribute__((ext_vector_type(N)));
+                if constexpr(sizeof(vector_t) != sizeof(typename T::type) * N)
+                {
+                    // Not possible to use set_as
+                    return thread_buffer<T, N>{customized_value};
+                }
+                else
+                {
+                    thread_buffer<T, N> tmp;
+                    tmp.template set_as<vector_t>(
+                        number<0>{}, vector_t{static_cast<typename T::type>(customized_value)});
+                    return tmp;
+                }
+            }
+            else
+            {
+                // Use vector_t for not valid elements to avoid permute instructions.
+                using vector_t = T __attribute__((ext_vector_type(N)));
+                if constexpr(sizeof(vector_t) != sizeof(T) * N)
+                {
+                    // Not possible to use set_as
+                    return thread_buffer<T, N>{customized_value};
+                }
+                else
+                {
+                    thread_buffer<T, N> tmp;
+                    tmp.template set_as<vector_t>(number<0>{}, vector_t{customized_value});
+                    return tmp;
+                }
+            }
+        }
+    }
+    return amd_buffer_load_impl<T, N, coherence>(
+        src_wave_buffer_resource, src_thread_addr_offset, 0);
 }
 
 template <typename T,
@@ -2864,6 +2927,12 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
         typedef __attribute__((__vector_size__(2 * sizeof(index_t)))) index_t llvm_i32x2_t;
         auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_i32x2_t*>(in_ptr_);
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr8_b64_v2i32(lds_ptr));
+    }
+    else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::pk_fp4_t>)
+    {
+        typedef __attribute__((__vector_size__(2 * sizeof(index_t)))) index_t llvm_i32x2_t;
+        auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_i32x2_t*>(in_ptr_);
+        return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr4_b64_v2i32(lds_ptr));
     }
     else
     {

@@ -4,21 +4,16 @@
 template <typename PrecActType,
           typename PrecWeightType,
           typename CDataType,
-          typename FlatmmConfig,
+          typename MXFlatmmArchTraits,
           bool UsePersistentKernel = false,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-int run_mx_flatmm_with_layouts(int argc,
-                               char* argv[],
+int run_mx_flatmm_with_layouts(const ck_tile::ArgParser& arg_parser,
                                const ALayout a_layout = ALayout{},
                                const BLayout b_layout = BLayout{},
                                const CLayout c_layout = CLayout{})
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
     using ADataType   = PrecActType;
     using BDataType   = PrecWeightType;
     using AccDataType = float;
@@ -37,7 +32,6 @@ int run_mx_flatmm_with_layouts(int argc,
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
     ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
 
-    ck_tile::index_t kbatch      = arg_parser.get_int("split_k");
     ck_tile::index_t init_method = arg_parser.get_int("init");
     ck_tile::index_t n_warmup    = arg_parser.get_int("warmup");
     ck_tile::index_t n_repeat    = arg_parser.get_int("repeat");
@@ -111,9 +105,9 @@ int run_mx_flatmm_with_layouts(int argc,
         }
     }
 
-    const auto b_shuffled_host  = preShuffleWeight<FlatmmConfig::N_Warp_Tile>(b_origin_host);
-    const auto scale_a_shuffled = preShuffleScale<FlatmmConfig, true>(scale_a);
-    const auto scale_b_shuffled = preShuffleScale<FlatmmConfig, false>(scale_b);
+    const auto b_shuffled_host  = MXFlatmmArchTraits::preShuffleWeight(b_origin_host);
+    const auto scale_a_shuffled = MXFlatmmArchTraits::template preShuffleScale<true>(scale_a);
+    const auto scale_b_shuffled = MXFlatmmArchTraits::template preShuffleScale<false>(scale_b);
 
     ck_tile::DeviceMem a_dev_buf(a_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_shuffled_dev_buf(b_shuffled_host.get_element_space_size_in_bytes());
@@ -135,7 +129,7 @@ int run_mx_flatmm_with_layouts(int argc,
         ck_tile::FlatmmScalePointer<ScaleGranularityN, ScaleGranularityK, ScaleType>{
             static_cast<ScaleType*>(scale_b_dev_buf.GetDeviceBuffer()), N / ScaleGranularityN};
 
-    invoke_mx_flatmm<FlatmmConfig,
+    invoke_mx_flatmm<MXFlatmmArchTraits,
                      ADataType,
                      BDataType,
                      ck_tile::tuple<>,
@@ -156,7 +150,6 @@ int run_mx_flatmm_with_layouts(int argc,
                                           stride_A,
                                           stride_B,
                                           stride_C,
-                                          kbatch,
                                           scale_a_dev_ptr,
                                           scale_b_dev_ptr,
                                           n_warmup,

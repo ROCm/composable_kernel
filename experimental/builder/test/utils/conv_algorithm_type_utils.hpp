@@ -86,6 +86,15 @@ inline std::string to_string<ThreadBlock>(ThreadBlock t)
 }
 
 template <>
+inline std::string to_string<GridwiseBwdDataXdlGemm>(GridwiseBwdDataXdlGemm t)
+{
+    std::ostringstream oss;
+    oss << t.ak1 << "," << t.bk1 << "," << t.xdl_params.m_per_xdl << "," << t.xdl_params.n_per_xdl
+        << "," << t.xdl_params.m_xdl_per_wave << "," << t.xdl_params.n_xdl_per_wave;
+    return oss.str();
+}
+
+template <>
 inline std::string to_string<GridwiseBwdXdlGemm>(GridwiseBwdXdlGemm t)
 {
     std::ostringstream oss;
@@ -109,6 +118,15 @@ inline std::string to_string<GridwiseWmmaGemm>(GridwiseWmmaGemm t)
     std::ostringstream oss;
     oss << t.k1 << "," << t.m_per_wmma << "," << t.n_per_wmma << "," << t.m_wmma_per_wave << ","
         << t.n_wmma_per_wave;
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<GridwiseWmmaGemmABK1>(GridwiseWmmaGemmABK1 t)
+{
+    std::ostringstream oss;
+    oss << t.ak1 << "," << t.bk1 << "," << t.m_per_wmma << "," << t.n_per_wmma << ","
+        << t.m_wmma_per_wave << "," << t.n_wmma_per_wave;
     return oss.str();
 }
 
@@ -176,8 +194,8 @@ template <>
 inline std::string to_string<OutputTransfer>(OutputTransfer t)
 {
     std::ostringstream oss;
-    oss << t.epilogue.m_xdl_per_wave_per_shuffle << "," << t.epilogue.n_per_wave_per_shuffle << ","
-        << to_string(t.thread_cluster_dims) << "," << t.epilogue.scalar_per_vector;
+    oss << t.epilogue.m_xdl_per_wave_per_shuffle << "," << t.epilogue.n_xdl_per_wave_per_shuffle
+        << "," << to_string(t.thread_cluster_dims) << "," << t.epilogue.scalar_per_vector;
     return oss.str();
 }
 
@@ -284,7 +302,19 @@ inline std::string to_string<BwdXdlGemm_>(BwdXdlGemm_ t)
 }
 
 template <>
+inline std::string to_string<BwdDataXdlGemm_>(BwdDataXdlGemm_ t)
+{
+    return to_string(t.gridwise_gemm);
+}
+
+template <>
 inline std::string to_string<WmmaGemm_>(WmmaGemm_ t)
+{
+    return to_string(t.gridwise_gemm);
+}
+
+template <>
+inline std::string to_string<WmmaGemmABK1_>(WmmaGemmABK1_ t)
 {
     return to_string(t.gridwise_gemm);
 }
@@ -308,6 +338,14 @@ inline std::string to_string<ConvSpecializationBwdWeight_>(ConvSpecializationBwd
 {
     std::ostringstream oss;
     oss << to_string(t.bwd_weight_specialization);
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<ConvSpecializationBwdData_>(ConvSpecializationBwdData_ t)
+{
+    std::ostringstream oss;
+    oss << to_string(t.bwd_data_specialization);
     return oss.str();
 }
 
@@ -368,6 +406,17 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_C
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<FwdXdlGemm_>(t))
         << "," << to_string(static_cast<Transfer_<>>(t));
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3>(
+    ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3 t)
+{
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
+        << to_string(static_cast<WmmaGemmABK1_>(t)) << ","
+        << to_string(static_cast<Transfer_<>>(t));
     return oss.str();
 }
 
@@ -492,6 +541,38 @@ inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdWeightMultipleD_X
     std::ostringstream oss;
     oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<BwdXdlGemm_>(t))
         << "," << to_string(static_cast<Transfer_<4>>(t));
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle>(
+    ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle t)
+{
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
+        << to_string(static_cast<BwdDataXdlGemm_>(t)) << ","
+        << to_string(static_cast<Transfer_<>>(t));
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle>(
+    ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle t)
+{
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << "," << to_string(static_cast<WmmaGemm_>(t))
+        << "," << to_string(static_cast<Transfer_<>>(t));
+    return oss.str();
+}
+
+template <>
+inline std::string to_string<ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle_V3>(
+    ConvAlgorithm_DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle_V3 t)
+{
+    std::ostringstream oss;
+    oss << to_string(static_cast<ThreadBlock_>(t)) << ","
+        << to_string(static_cast<WmmaGemmABK1_>(t)) << ","
+        << to_string(static_cast<Transfer_<>>(t));
     return oss.str();
 }
 

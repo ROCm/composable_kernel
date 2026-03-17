@@ -115,7 +115,12 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return Policy::template GetSmemSize<Problem>();
+        // We are not storing the original packed type in LDS, so we need to multiply the smem size
+        // by the packed size.
+        constexpr index_t smem_size_a = Policy::template GetSmemSizeA<Problem>() * APackedSize;
+        constexpr index_t smem_size_b = Policy::template GetSmemSizeB<Problem>() * BPackedSize;
+
+        return smem_size_a + smem_size_b;
     }
 
     CK_TILE_HOST static std::string Print()
@@ -185,10 +190,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
         CK_TILE_DEVICE static void LoadAndConvertBTile(BBlockTile_& b_block_tile,
                                                        const BDramWindow& b_dram_window)
         {
-            using DestDataType            = typename BBlockTile_::DataType;
-            using SrcDataType             = typename BDramWindow::Base::TileWindowBase::DataType;
             constexpr index_t UnaryOpSize = 8;
-            load_int4_tile<SrcDataType, DestDataType, UnaryOpSize>(b_block_tile, b_dram_window);
+            load_and_convert_tile<UnaryOpSize>(b_block_tile, b_dram_window);
         }
 
         template <typename BBlockTile_, typename BDramWindow, typename BDramTileWindowStep>

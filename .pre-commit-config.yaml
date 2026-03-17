@@ -36,7 +36,7 @@ repos:
         name: Run ck_tile remod.py
         entry: python projects/composablekernel/script/remod_for_ck_tile.py
         language: python
-        files: '^(include|example)/ck_tile/.*$'
+        files: '^projects/composablekernel/(include|example)/ck_tile/.*$'
         additional_dependencies:
         - dos2unix
         - clang-format==18.1.3

@@ -49,7 +49,9 @@ struct UniversalGemmBasePolicy
         constexpr index_t kKWarpTile = WarpTile::at(number<2>{});
         // Max K warp tile for transpose load based on data type size
         constexpr index_t kMaxKWarpTile = (sizeof(ADataType) == 1) ? 64 : 32;
-        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+        if constexpr(std::is_same_v<ADataType, float>)
+            return false;
+        else if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             return false;
         else if constexpr(kKWarpTile > kMaxKWarpTile)
             return false;
@@ -65,7 +67,9 @@ struct UniversalGemmBasePolicy
         constexpr index_t kKWarpTile = WarpTile::at(number<2>{});
         // Max K warp tile for transpose load based on data type size
         constexpr index_t kMaxKWarpTile = (sizeof(BDataType) == 1) ? 64 : 32;
-        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+        if constexpr(std::is_same_v<BDataType, float>)
+            return false;
+        else if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             return false;
         else if constexpr(kKWarpTile > kMaxKWarpTile)
             return false;
@@ -79,6 +83,21 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     static constexpr bool is_b_load_tr = false;
 #endif
+
+    template <typename T>
+    using has_bcastpolicy_type = decltype(T::BCastPolicy);
+
+    template <typename Problem>
+    static constexpr bool IsBCastPolicyBeforeLDSWrite_v = [] {
+        if constexpr(is_detected<has_bcastpolicy_type, Problem>{})
+        {
+            return Problem::BCastPolicy == CastPolicy::BeforeLDSWrite;
+        }
+        else
+        {
+            return false;
+        }
+    }();
 
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
@@ -112,7 +131,6 @@ struct UniversalGemmBasePolicy
         using ADataType             = OverrideADataType;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t KPack     = Derived::template GetSmemPackA<Problem>();
 
         if constexpr(is_a_load_tr<Problem>)
         {
@@ -246,6 +264,7 @@ struct UniversalGemmBasePolicy
             }
             else // A is in RowMajor
             {
+                constexpr index_t KPack        = Derived::template GetSmemPackA<Problem>();
                 constexpr auto DataTypeSize    = sizeof(ADataType);
                 constexpr uint64_t MinLdsLayer = 1ULL;
                 constexpr auto MLdsLayer =
@@ -305,11 +324,11 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        using BLayout = remove_cvref_t<typename Problem::BLayout>;
-        using BDataType =
-            std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_raw_t>,
-                               typename Problem::ADataType,
-                               typename Problem::BDataType>;
+        using BLayout                              = remove_cvref_t<typename Problem::BLayout>;
+        constexpr bool IsBCastPolicyBeforeLDSWrite = IsBCastPolicyBeforeLDSWrite_v<Problem>;
+        using BDataType                            = std::conditional_t<IsBCastPolicyBeforeLDSWrite,
+                                                                        typename Problem::ADataType,
+                                                                        typename Problem::BDataType>;
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
@@ -517,14 +536,8 @@ struct UniversalGemmBasePolicy
             ck_tile::numeric_traits<remove_cvref_t<DataType>>::PackedSize;
 
         // Assume DataType is even!
-        if constexpr(XPerTile % (PackedSize * 32 / sizeof(DataType)) == 0 &&
-                     elements_per_thread % (PackedSize * 32 / sizeof(DataType)) == 0 &&
-                     PackedSize == 2)
-        {
-            return (PackedSize * 32 / sizeof(DataType));
-        }
-        else if constexpr(XPerTile % (PackedSize * 16 / sizeof(DataType)) == 0 &&
-                          elements_per_thread % (PackedSize * 16 / sizeof(DataType)) == 0)
+        if constexpr(XPerTile % (PackedSize * 16 / sizeof(DataType)) == 0 &&
+                     elements_per_thread % (PackedSize * 16 / sizeof(DataType)) == 0)
         {
             return (PackedSize * 16 / sizeof(DataType));
         }
@@ -589,15 +602,14 @@ struct UniversalGemmBasePolicy
     CK_TILE_HOST_DEVICE static constexpr index_t GetVectorSizeB()
     {
         using BsLayout              = remove_cvref_t<typename Problem::BsLayoutTuple>;
-        using BsDataType            = remove_cvref_t<typename Problem::BsDataTypeTuple>;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         using BLayout               = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
-        using BInDataType           = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
 
-        using BDataType = std::conditional_t<std::is_same_v<BInDataType, pk_fp4_raw_t>,
-                                             typename Problem::ADataType,
-                                             typename Problem::BDataType>;
+        constexpr bool IsBCastPolicyBeforeLDSWrite = IsBCastPolicyBeforeLDSWrite_v<Problem>;
+        using BDataType                            = std::conditional_t<IsBCastPolicyBeforeLDSWrite,
+                                                                        typename Problem::ADataType,
+                                                                        typename Problem::BDataType>;
 
         if constexpr(Problem::FixedVectorSize)
         {
@@ -739,13 +751,13 @@ struct UniversalGemmBasePolicy
     {
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        using BDataType             = remove_cvref_t<typename Problem::BDataType>;
-        constexpr index_t KPerBlock = std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>
-                                          ? Problem::BlockGemmShape::kK / 2
-                                          : Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
+        // If we cast before writing to LDS, the vectorsize is defined by the A type
+        // since the assumption is that A type is going to be the B LDS type
+        constexpr bool IsBCastPolicyBeforeLDSWrite = IsBCastPolicyBeforeLDSWrite_v<Problem>;
         constexpr index_t VecLoadSize =
-            std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>
-                ? 4
+            IsBCastPolicyBeforeLDSWrite
+                ? (Problem::FixedVectorSize ? Problem::VectorSizeA : GetVectorSizeA<Problem>())
                 : (Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>());
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
         using BLayout                   = remove_cvref_t<
@@ -843,30 +855,32 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr index_t GetSmemSizeA()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
         using ADataType                 = remove_cvref_t<typename Problem::ADataType>;
+        constexpr auto APackedSize      = numeric_traits<ADataType>::PackedSize;
         constexpr auto a_lds_block_desc = Derived::template MakeALdsBlockDescriptor<Problem>();
         constexpr index_t smem_size_a   = integer_least_multiple(
-            a_lds_block_desc.get_element_space_size() * sizeof(ADataType), 16);
+            a_lds_block_desc.get_element_space_size() * sizeof(ADataType) / APackedSize, 16);
         return smem_size_a;
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr index_t GetSmemSizeB()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
     {
-        using BDataType =
-            std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_raw_t>,
-                               typename Problem::ADataType,
-                               typename Problem::BDataType>;
+        constexpr bool IsBCastPolicyBeforeLDSWrite = IsBCastPolicyBeforeLDSWrite_v<Problem>;
+        using BDataType                            = std::conditional_t<IsBCastPolicyBeforeLDSWrite,
+                                                                        typename Problem::ADataType,
+                                                                        typename Problem::BDataType>;
+        constexpr auto BPackedSize                 = numeric_traits<BDataType>::PackedSize;
         constexpr auto b_lds_block_desc = Derived::template MakeBLdsBlockDescriptor<Problem>();
         constexpr index_t smem_size_b   = integer_least_multiple(
-            b_lds_block_desc.get_element_space_size() * sizeof(BDataType), 16);
+            b_lds_block_desc.get_element_space_size() * sizeof(BDataType) / BPackedSize, 16);
         return smem_size_b;
     }
 
     template <typename Problem>
-    CK_TILE_DEVICE static constexpr index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
@@ -900,7 +914,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
         using ATypeToUse =
             std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
         using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
-                                                  std::is_same_v<BDataType, pk_fp4_raw_t>,
+                                                  std::is_same_v<BDataType, pk_fp4_t> ||
+                                                  sizeof(BDataType) < sizeof(ADataType),
                                               ADataType,
                                               BDataType>;
 

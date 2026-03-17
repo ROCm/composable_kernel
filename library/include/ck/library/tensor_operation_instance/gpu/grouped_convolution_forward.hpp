@@ -251,6 +251,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t> &&
                          is_same_v<BComputeType, half_t>)
             {
+                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_nongroup_ported_instances(
+                    op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f16_16x16_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_large_tensor_nhwgc_gkyxc_nhwgk_f16_instances(
@@ -276,6 +278,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                          is_same_v<AComputeType, ck::bhalf_t> &&
                          is_same_v<BComputeType, ck::bhalf_t>)
             {
+                add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_nongroup_ported_instances(
+                    op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_16x16_instances(op_ptrs);
                 add_device_grouped_conv2d_fwd_xdl_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instances(

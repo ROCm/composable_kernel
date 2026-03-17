@@ -50,6 +50,14 @@ struct FmhaFwdFp8Fp32
 {
 };
 
+struct FmhaFwdMxFp8
+{
+};
+
+struct FmhaFwdMxFp4
+{
+};
+
 template <typename DataType>
 struct FmhaFwdTypeConfig;
 
@@ -165,6 +173,54 @@ struct FmhaFwdTypeConfig<FmhaFwdFp8Fp32>
     using ODataType             = float;
 };
 
+template <>
+struct FmhaFwdTypeConfig<FmhaFwdMxFp8>
+{
+    using QDataType             = ck_tile::fp8_t;
+    using KDataType             = ck_tile::fp8_t;
+    using VDataType             = ck_tile::fp8_t;
+    using BiasDataType          = float;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float; // data type for first gemm accumulation
+    using SMPLComputeDataType   = float; // data type for reduction, softmax
+    using PDataType             = ck_tile::fp8_t; // data type for A matrix of second gemm
+    using OaccDataType          = float;          // data type for second gemm accumulation
+    using ODataType             = float;
+
+    using QScaleDataType = ck_tile::e8m0_t;
+    using KScaleDataType = ck_tile::e8m0_t;
+    using VScaleDataType = ck_tile::e8m0_t;
+    using PScaleDataType = ck_tile::e8m0_t;
+
+    static constexpr ck_tile::index_t kQKScaleGranularity = 32;
+    static constexpr ck_tile::index_t kVScaleGranularity  = 32;
+};
+
+template <>
+struct FmhaFwdTypeConfig<FmhaFwdMxFp4>
+{
+    using QDataType             = ck_tile::pk_fp4_t;
+    using KDataType             = ck_tile::pk_fp4_t;
+    using VDataType             = ck_tile::pk_fp4_t;
+    using BiasDataType          = float;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float; // data type for first gemm accumulation
+    using SMPLComputeDataType   = float; // data type for reduction, softmax
+    using PDataType             = ck_tile::pk_fp4_t; // data type for A matrix of second gemm
+    using OaccDataType          = float;             // data type for second gemm accumulation
+    using ODataType             = float;
+
+    using QScaleDataType = ck_tile::e8m0_t;
+    using KScaleDataType = ck_tile::e8m0_t;
+    using VScaleDataType = ck_tile::e8m0_t;
+    using PScaleDataType = ck_tile::e8m0_t;
+
+    static constexpr ck_tile::index_t kQKScaleGranularity = 32;
+    static constexpr ck_tile::index_t kVScaleGranularity  = 32;
+};
+
 struct FmhaMasks
 {
     using NoMask      = ck_tile::GenericAttentionMask<false>;
@@ -232,6 +288,7 @@ struct fmha_fwd_args
                                            // array [batch + 1]. (Used with padding)
     const void* block_scale_seqstart_q_ptr;
     const void* block_scale_seqstart_k_ptr;
+    const void* seqstart_v_scale_ptr;
     const void* sink_ptr;
 
     ck_tile::index_t seqlen_q;
@@ -242,6 +299,8 @@ struct fmha_fwd_args
     ck_tile::index_t hdim_v;
     ck_tile::index_t nhead_q;
     ck_tile::index_t nhead_k;
+    ck_tile::index_t num_head_q_total = 0;
+    ck_tile::index_t head_start       = 0;
 
     float scale_s;
     float logits_soft_cap;
@@ -252,6 +311,9 @@ struct fmha_fwd_args
     ck_tile::index_t stride_bias; // if alibi, b*h need set this to h, 1*h need set this to 0
     ck_tile::index_t stride_randval;
     ck_tile::index_t stride_o;
+    ck_tile::index_t stride_q_descale;
+    ck_tile::index_t stride_k_descale;
+    ck_tile::index_t stride_v_descale;
     ck_tile::index_t nhead_stride_q;
     ck_tile::index_t nhead_stride_k;
     ck_tile::index_t nhead_stride_v;
@@ -635,6 +697,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.seqlen_k_ptr,
                                              args.block_scale_seqstart_q_ptr,
                                              args.block_scale_seqstart_k_ptr,
+                                             args.seqstart_v_scale_ptr,
                                              args.hdim_q,
                                              args.hdim_v,
                                              args.nhead_q,
@@ -647,6 +710,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.stride_bias,
                                              args.stride_randval,
                                              args.stride_o,
+                                             args.stride_q_descale,
+                                             args.stride_k_descale,
+                                             args.stride_v_descale,
                                              args.nhead_stride_q,
                                              args.nhead_stride_k,
                                              args.nhead_stride_v,
@@ -669,7 +735,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.block_scale_size_kv,
                                              args.cu_seqlen_q_ptr,
                                              args.cu_seqlen_k_ptr,
-                                             args.sink_ptr);
+                                             args.sink_ptr,
+                                             args.num_head_q_total,
+                                             args.head_start);
         }
         else
         { // create batch mode kernel arguments
@@ -697,6 +765,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.stride_bias,
                                              args.stride_randval,
                                              args.stride_o,
+                                             args.stride_q_descale,
+                                             args.stride_k_descale,
+                                             args.stride_v_descale,
                                              args.nhead_stride_q,
                                              args.nhead_stride_k,
                                              args.nhead_stride_v,
@@ -728,7 +799,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.block_scale_size_kv,
                                              args.cu_seqlen_q_ptr,
                                              args.cu_seqlen_k_ptr,
-                                             args.sink_ptr);
+                                             args.sink_ptr,
+                                             args.num_head_q_total,
+                                             args.head_start);
         }
     }();
 

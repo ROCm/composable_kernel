@@ -78,7 +78,7 @@ constexpr Transfer<> Transfer_4x64x1{
             .thread_cluster_dims =
                 {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
-                         .n_per_wave_per_shuffle     = 1,
+                         .n_xdl_per_wave_per_shuffle = 1,
                          .scalar_per_vector          = 4},
         },
 };
@@ -111,7 +111,7 @@ constexpr Transfer<4> BwdTransfer_4x64x1{
             .thread_cluster_dims =
                 {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
-                         .n_per_wave_per_shuffle     = 1,
+                         .n_xdl_per_wave_per_shuffle = 1,
                          .scalar_per_vector          = 8},
         },
 };
@@ -144,7 +144,7 @@ constexpr Transfer<> BwdTransfer_4x8x1_4x16x1_v3{
             .thread_cluster_dims =
                 {.m_block = 1, .m_wave_per_xdl = 8, .n_block = 1, .n_wave_per_xdl = 8},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
-                         .n_per_wave_per_shuffle     = 1,
+                         .n_xdl_per_wave_per_shuffle = 1,
                          .scalar_per_vector          = 2},
         },
 };
@@ -177,7 +177,7 @@ constexpr Transfer<> Transfer_4x64x1_fp8{
             .thread_cluster_dims =
                 {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
-                         .n_per_wave_per_shuffle     = 1,
+                         .n_xdl_per_wave_per_shuffle = 1,
                          .scalar_per_vector          = 8},
         },
 };
@@ -210,8 +210,42 @@ constexpr Transfer<> Transfer_4x16x1{
             .thread_cluster_dims =
                 {.m_block = 1, .m_wave_per_xdl = 16, .n_block = 1, .n_wave_per_xdl = 4},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
-                         .n_per_wave_per_shuffle     = 1,
+                         .n_xdl_per_wave_per_shuffle = 1,
                          .scalar_per_vector          = 8},
+
+        },
+};
+
+constexpr Transfer<> Transfer_4x16x1_asrc_vec_dim1{
+    .a =
+        {
+            .block_transfer               = {.k0 = 4, .m_n = 16, .k1 = 1},
+            .lds_transfer                 = {.src_vector_dim            = 1,
+                                             .src_scalar_per_vector     = 4,
+                                             .lds_dst_scalar_per_vector = 4,
+                                             .is_direct_load            = false,
+                                             .lds_padding               = true},
+            .thread_cluster_arrange_order = {0, 2, 1},
+            .src_access_order             = {0, 2, 1},
+        },
+    .b =
+        {
+            .block_transfer               = {.k0 = 4, .m_n = 16, .k1 = 1},
+            .lds_transfer                 = {.src_vector_dim            = 2,
+                                             .src_scalar_per_vector     = 1,
+                                             .lds_dst_scalar_per_vector = 8,
+                                             .is_direct_load            = false,
+                                             .lds_padding               = true},
+            .thread_cluster_arrange_order = {1, 0, 2},
+            .src_access_order             = {1, 0, 2},
+        },
+    .c =
+        {
+            .thread_cluster_dims =
+                {.m_block = 1, .m_wave_per_xdl = 16, .n_block = 1, .n_wave_per_xdl = 4},
+            .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
+                         .n_xdl_per_wave_per_shuffle = 1,
+                         .scalar_per_vector          = 1},
 
         },
 };
@@ -244,10 +278,30 @@ constexpr Transfer<> Transfer_4x32x1{
             .thread_cluster_dims =
                 {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 4},
             .epilogue = {.m_xdl_per_wave_per_shuffle = 1,
-                         .n_per_wave_per_shuffle     = 1,
+                         .n_xdl_per_wave_per_shuffle = 1,
                          .scalar_per_vector          = 8},
         },
 };
+
+constexpr GridwiseBwdDataXdlGemm BwdDataGemmParams_Xdl_4x4_per_wave{
+    .ak1        = 8,
+    .bk1        = 8,
+    .xdl_params = {.m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 4}};
+
+constexpr GridwiseBwdDataXdlGemm BwdDataGemmParams_Xdl_4x2_per_wave{
+    .ak1        = 8,
+    .bk1        = 8,
+    .xdl_params = {.m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 2}};
+
+constexpr GridwiseBwdDataXdlGemm BwdDataGemmParams_Xdl_2x2_per_wave{
+    .ak1        = 8,
+    .bk1        = 8,
+    .xdl_params = {.m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 2, .n_xdl_per_wave = 2}};
+
+constexpr GridwiseBwdDataXdlGemm BwdDataGemmParams_Xdl_2x1_per_wave{
+    .ak1        = 8,
+    .bk1        = 8,
+    .xdl_params = {.m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 2, .n_xdl_per_wave = 1}};
 
 constexpr GridwiseBwdXdlGemm BwdGemmParams_Xdl_4x4_per_wave{
     .k1         = 8,
@@ -282,6 +336,23 @@ constexpr GridwiseWmmaGemm GemmParams_Wmma_2x1_per_wave{
 
 constexpr GridwiseWmmaGemm GemmParams_Wmma_16x16_2x1_per_wave{
     .k1 = 8, .m_per_wmma = 16, .n_per_wmma = 16, .m_wmma_per_wave = 2, .n_wmma_per_wave = 1};
+
+constexpr GridwiseWmmaGemmABK1 GemmParamsABK1_Wmma_16x16_2x1_per_wave{.ak1             = 8,
+                                                                      .bk1             = 8,
+                                                                      .m_per_wmma      = 16,
+                                                                      .n_per_wmma      = 16,
+                                                                      .m_wmma_per_wave = 2,
+                                                                      .n_wmma_per_wave = 1};
+
+constexpr GridwiseWmmaGemmABK1 GemmParamsABK1_Wmma_16x16_4x2_per_wave{.ak1             = 8,
+                                                                      .bk1             = 8,
+                                                                      .m_per_wmma      = 16,
+                                                                      .n_per_wmma      = 16,
+                                                                      .m_wmma_per_wave = 4,
+                                                                      .n_wmma_per_wave = 2};
+
+constexpr ThreadBlock ThreadBlock_64_64x64x32{.block_size = 64,
+                                              .tile_size  = {.m = 64, .n = 64, .k = 32}};
 
 constexpr ThreadBlock ThreadBlock_256_256x256x32{.block_size = 256,
                                                  .tile_size  = {.m = 256, .n = 256, .k = 32}};

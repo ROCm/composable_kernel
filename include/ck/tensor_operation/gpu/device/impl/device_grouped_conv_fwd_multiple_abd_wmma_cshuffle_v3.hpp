@@ -29,6 +29,11 @@
 #include "ck/host_utility/flush_cache.hpp"
 #include "ck/host_utility/io.hpp"
 
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/description.hpp"
+#include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_wmma_cshuffle_v3.hpp"
+#endif
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -100,24 +105,34 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const auto b_grid_desc_bk0_n_bk1 =
             GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k);
 
-        GridwiseGemm::template Run<decltype(a_grid_desc_ak0_m_ak1),
+        const auto block_2_ctile_map_ = typename GridwiseGemm::Block2CTileMap{karg.M, karg.N, 4};
+
+        GridwiseGemm::template Run<GridwiseGemm::ConvRegime::FORWARD,
+                                   decltype(a_grid_desc_ak0_m_ak1),
                                    decltype(b_grid_desc_bk0_n_bk1),
                                    DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
                                    EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                   decltype(block_2_ctile_map_),
                                    ComputePtrOffset,
                                    ComputePtrOffset,
+                                   0,
                                    HasMainKBlockLoop,
                                    EGlobalMemoryDataOperation,
-                                   TailNum>(p_shared,
-                                            a_grid_desc_ak0_m_ak1,
-                                            b_grid_desc_bk0_n_bk1,
-                                            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                            e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                            compute_ptr_offset_of_batch,
-                                            compute_ptr_offset_of_n,
-                                            num_k_per_block,
-                                            karg,
-                                            epilogue_args);
+                                   false,
+                                   TailNum,
+                                   decltype(epilogue_args)>(
+            p_shared,
+            a_grid_desc_ak0_m_ak1,
+            b_grid_desc_bk0_n_bk1,
+            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+            e_grid_desc_mblock_mperblock_nblock_nperblock,
+            block_2_ctile_map_,
+            compute_ptr_offset_of_batch,
+            compute_ptr_offset_of_n,
+            num_k_per_block,
+            karg,
+            epilogue_args);
+
 #if defined(__gfx11__)
     }
 #endif
@@ -2341,8 +2356,28 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 "The argument pointer is not an object of "
                 "DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle::Argument structure!");
     }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    std::string GetInstanceString() const override
+    {
+        static_assert(
+            ck_tile::reflect::HasInstanceTraits<DeviceOp>,
+            "InstanceTraits specialization is required. Include the .inc file for this device op.");
+        return ck_tile::reflect::instance_string<DeviceOp>();
+    }
+
+    std::unique_ptr<ck_tile::reflect::Description> describe() const override
+    {
+        return std::make_unique<ck_tile::reflect::InstanceStringDescription>(
+            ck_tile::reflect::instance_string<DeviceOp>());
+    }
+#endif
 };
 
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/reflect_device_grouped_conv_fwd_multiple_abd_wmma_cshuffle_v3.inc"
+#endif

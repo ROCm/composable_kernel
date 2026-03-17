@@ -186,8 +186,7 @@ __host__ __device__ constexpr auto get(const Layout<Shape, UnrolledDesc>& layout
         },
         Number<old_shape_dims>{});
 
-    const auto lower_dims =
-        generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<old_shape_dims>{});
+    const auto lower_dims = generate_identity_sequences<old_shape_dims>();
     const auto upper_dims = generate_tuple(
         [&](auto i) {
             if constexpr(i < shape_offset || i >= shape_offset + new_shape_dims)
@@ -492,8 +491,7 @@ __host__ __device__ constexpr auto unmerge(const Layout<Shape, UnrolledDesc>& la
         },
         Number<dims>{});
 
-    constexpr auto lower_dims =
-        generate_tuple([&](auto i) { return Sequence<i.value>{}; }, Number<dims>{});
+    constexpr auto lower_dims = generate_identity_sequences<dims>();
     constexpr auto upper_dims = generate_tuple(
         [&](auto i) {
             if constexpr(is_detected<is_tuple, tuple_element_t<i.value, NewIdxs>>::value)

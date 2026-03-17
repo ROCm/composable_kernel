@@ -823,6 +823,12 @@ using enable_if_target_wave64_t =
 
 #endif // __cplusplus <= 201703L
 
+template <typename... Ts>
+constexpr bool all_types_void = std::conjunction_v<std::is_same<void, Ts>...>;
+
+template <typename... Enablers>
+using enable_if_all = std::enable_if_t<all_types_void<Enablers...>>;
+
 } // namespace core::arch
 
 CK_TILE_HOST bool is_wave32()
@@ -1135,6 +1141,9 @@ struct gfx103_t
 struct gfx11_t
 {
 };
+struct gfx115_t
+{
+};
 struct gfx12_t
 {
 };
@@ -1167,6 +1176,8 @@ CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx9_t) { return 32; }
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx103_t) { return 32; }
 
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx11_t) { return 32; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx115_t) { return 32; }
 
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx12_t) { return 32; }
 

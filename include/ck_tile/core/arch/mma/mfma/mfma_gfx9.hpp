@@ -8,6 +8,7 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
+#include "ck_tile/core/arch/mma/mma_traits.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 
 namespace ck_tile::core::arch::mma {
@@ -18,34 +19,6 @@ namespace ck_tile::core::arch::mma {
 // smaller values of K that aren't directly supported by the built-ins.
 // For flexibility, it is recommended that for each backend wrapper it supports at least
 // one packed register for each input to be able to process smaller K values by padding.
-
-/**
- * @struct DefaultMmaCtrlFlags
- * @brief Default MFMA flags, no broadcasting or rotation of inputs
- */
-struct DefaultMfmaCtrlFlags
-{
-    static constexpr uint32_t Cbsz = 0; // CBSZ flag, default 0
-    static constexpr uint32_t Abid = 0; // ABID flag, default 0
-    static constexpr uint32_t Blgp = 0; // BLGP flag, default 0
-};
-
-#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-#include <concepts>
-
-/**
- * @concept CtrlFlagsGfx9I
- * @brief  Expresses the interface of required members for each CtrlFlags type on Gfx9
- */
-template <typename CtrlFlags>
-concept CtrlFlagsGfx9I = requires(CtrlFlags ctrlFlags) {
-    // Flag members for Gfx9 MFMA instructions
-    { CtrlFlags::Cbsz } -> std::convertible_to<int>;
-    { CtrlFlags::Abid } -> std::convertible_to<int>;
-    { CtrlFlags::Blgp } -> std::convertible_to<int>;
-};
-
-#endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
 /**
  * @struct amdgcn_mma
@@ -68,10 +41,12 @@ struct amdgcn_mma<fp16_t,
                   16u,
                   CtrlFlags,
                   CompilerTarget,
+                  MmaOpFamily::DENSE,
                   enable_if_target_family_gfx9_t<CompilerTarget>>
 {
     // Mfma operation type
-    using OpType = MfmaOp;
+    using OpType                          = MfmaOp;
+    static constexpr MmaOpFamily OpFamily = MmaOpFamily::DENSE;
 
     // Register types
     using AVecType = ext_vector_t<fp16_t, 4>;
@@ -125,9 +100,11 @@ struct amdgcn_mma<fp16_t,
                   32u,
                   CtrlFlags,
                   CompilerTarget,
+                  MmaOpFamily::DENSE,
                   enable_if_target_id_t<CompilerTarget, amdgcn_target_id::GFX950>>
 {
-    using OpType = MfmaOp;
+    using OpType                          = MfmaOp;
+    static constexpr MmaOpFamily OpFamily = MmaOpFamily::DENSE;
 
     // Packed register types
     using AVecType = ext_vector_t<fp16_t, 8>;

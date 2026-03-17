@@ -90,14 +90,15 @@ void add_device_reduce_instance_multiblock_atomic_add(
     static_for<0,
                std::tuple_size<reduce_configuration_1_instances_multiblock_atomic_add>::value,
                1>{}([&](auto i) {
-        using cfg1 = remove_cvref_t<decltype(std::get<i.value>(
-            reduce_configuration_1_instances_multiblock_atomic_add{}))>;
+        using cfg1 =
+            std::tuple_element_t<i.value, reduce_configuration_1_instances_multiblock_atomic_add>;
 
         static_for<0,
                    std::tuple_size<reduce_configuration_2_instances_multiblock_atomic_add>::value,
                    1>{}([&](auto j) {
-            using cfg2 = remove_cvref_t<decltype(std::get<j.value>(
-                reduce_configuration_2_instances_multiblock_atomic_add{}))>;
+            using cfg2 =
+                std::tuple_element_t<j.value,
+                                     reduce_configuration_2_instances_multiblock_atomic_add>;
 
             using ReduceOpInstance = DeviceReduceMultiBlock<InDataType,
                                                             AccDataType,
@@ -120,7 +121,7 @@ void add_device_reduce_instance_multiblock_atomic_add(
                                                             cfg2::InSrcVectorSize_,
                                                             cfg2::OutDstVectorSize_>;
 
-            device_op_instances.push_back(std::make_unique<ReduceOpInstance>(ReduceOpInstance{}));
+            device_op_instances.push_back(std::make_unique<ReduceOpInstance>());
         });
     });
 };

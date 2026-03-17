@@ -53,7 +53,7 @@ args:
         -stride_b    Tensor B stride (default:0)
         -stride_c    Tensor C stride (default:0)
                -v    0: No validation, 1: Validation on CPU, 2: Validation on GPU (default:1)
-            -prec    Data type. For AQuant: fp8, bf8, i4fp8, or i4bf8;  for Bquant: fp8, bf8, fp8i4, bf8i4, or bf16fp4 (default for both AQuant and Bquant: fp8)
+            -prec    Data type. For AQuant: fp8, bf8, i4fp8, or i4bf8;  for Bquant: fp8, bf8, fp8i4, bf8i4, mxbf16bf16, mxbf16bf8 or mxbf16fp4 (default for both AQuant and Bquant: fp8)
           -warmup    Number of iterations before benchmarking the kernel (default:50)
           -repeat    Number of iterations to benchmark the kernel (default:1000)
            -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)

@@ -32,14 +32,14 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
     struct GroupedGemKernelParam_Mfma
     {
-        static const bool kPadM = false;
-        static const bool kPadN = false;
-        static const bool kPadK = false;
+        static const bool kPadM = true;
+        static const bool kPadN = true;
+        static const bool kPadK = true;
 
         static const int kBlockPerCu         = 1;
-        static const ck_tile::index_t M_Tile = 256;
-        static const ck_tile::index_t N_Tile = 256;
-        static const ck_tile::index_t K_Tile = 64;
+        static const ck_tile::index_t M_Tile = 64;
+        static const ck_tile::index_t N_Tile = 64;
+        static const ck_tile::index_t K_Tile = 32;
 
         static const ck_tile::index_t M_Warp = 2;
         static const ck_tile::index_t N_Warp = 2;
@@ -52,9 +52,9 @@ class TestCkTileGroupedGemm : public ::testing::Test
 
     struct GroupedGemKernelParam_Wmma : public GroupedGemKernelParam_Mfma
     {
-        static const ck_tile::index_t M_Tile = 128;
-        static const ck_tile::index_t N_Tile = 128;
-        static const ck_tile::index_t K_Tile = 64;
+        static const ck_tile::index_t M_Tile = 64;
+        static const ck_tile::index_t N_Tile = 64;
+        static const ck_tile::index_t K_Tile = 32;
 
         static const ck_tile::index_t M_Warp_Tile = 16;
         static const ck_tile::index_t N_Warp_Tile = 16;
@@ -131,14 +131,20 @@ class TestCkTileGroupedGemm : public ::testing::Test
         auto kargs   = Kernel::MakeKargs(gemm_descs);
         EXPECT_TRUE(Kernel::IsSupportedArgument(kargs));
 
-        const dim3 grids  = Kernel::GridSize(gemm_descs);
+        // Use the filtered kargs (zero-dim groups are excluded by MakeKargs) to derive
+        // the correct grid size and group count — not the raw gemm_descs vector.
         const dim3 blocks = Kernel::BlockSize();
+        if(kargs.empty())
+            return;
 
-        ck_tile::hip_check_error(hipMemcpyWithStream(kargs_ptr,
-                                                     kargs.data(),
-                                                     get_workspace_size(gemm_descs),
-                                                     hipMemcpyHostToDevice,
-                                                     s.stream_id_));
+        const dim3 grids = dim3(kargs.back().block_end, 1, 1);
+
+        ck_tile::hip_check_error(
+            hipMemcpyWithStream(kargs_ptr,
+                                kargs.data(),
+                                kargs.size() * sizeof(ck_tile::GemmTransKernelArg<>),
+                                hipMemcpyHostToDevice,
+                                s.stream_id_));
 
         if(s.log_level_ > 0)
         {
@@ -155,7 +161,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
                                        blocks,
                                        0,
                                        ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                                       gemm_descs.size()));
+                                       kargs.size()));
     }
 
     template <typename GroupedGemKernelParam, typename ALayout, typename BLayout, typename CLayout>
@@ -296,11 +302,13 @@ class TestCkTileGroupedGemm : public ::testing::Test
                     if constexpr(std::is_same_v<decltype(layout),
                                                 ck_tile::tensor_layout::gemm::RowMajor>)
                     {
-                        return col;
+                        // Use stride 1, in case the dim equals to zero
+                        return std::max(col, std::size_t{1});
                     }
                     else
                     {
-                        return row;
+                        // Use stride 1, in case the dim equals to zero
+                        return std::max(row, std::size_t{1});
                     }
                 }
                 else
@@ -332,7 +340,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
             const ck_tile::index_t N = Ns[i];
             const ck_tile::index_t K = Ks[i];
 
-            stride_As[i] = f_get_default_stride(M, N, stride_As[i], ALayout{});
+            stride_As[i] = f_get_default_stride(M, K, stride_As[i], ALayout{});
             stride_Bs[i] = f_get_default_stride(K, N, stride_Bs[i], BLayout{});
             stride_Cs[i] = f_get_default_stride(M, N, stride_Cs[i], CLayout{});
 
@@ -442,13 +450,27 @@ class TestCkTileGroupedGemm : public ::testing::Test
         bool pass{true};
         for(int i = 0; i < group_count; ++i)
         {
+            // Groups with M=0 or N=0 produce no output — skip validation.
+            // K=0 groups do produce output (all zeros) and are validated normally.
+            if(Ms[i] == 0 || Ns[i] == 0)
+                continue;
+
             ck_tile::HostTensor<CDataType> c_m_n_host_ref(
                 f_host_tensor_descriptor(Ms[i], Ns[i], stride_Cs[i], CLayout{}));
             c_m_n_host_ref.SetZero();
             ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
                 a_m_k_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
-            const float max_accumulated_value =
-                *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+            // Use max absolute value (not algebraic max) to calibrate atol.
+            // The absolute threshold in calculate_rtol_atol scales with this value,
+            // so using the algebraic max (which may be a small positive number when
+            // most outputs are negative) would produce a near-zero atol. Near-zero
+            // reference elements then have no tolerance headroom for the ~1 ULP
+            // error introduced by SplitK atomicAdd accumulation.
+            const float max_accumulated_value = std::accumulate(
+                c_m_n_host_ref.mData.begin(),
+                c_m_n_host_ref.mData.end(),
+                0.0f,
+                [](float acc, auto v) { return std::max(acc, std::abs(static_cast<float>(v))); });
             const auto rtol_atol = calculate_rtol_atol(Ks[i], kbatch, max_accumulated_value);
             pass &= ck_tile::check_err(c_m_n_tensors[i],
                                        c_m_n_host_ref,

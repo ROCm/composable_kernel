@@ -1507,11 +1507,11 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
         blobs = self.get_blobs(args)
         with list_p.open("w") as list_f:
             # api related file
-            list_f.write(str(w_p / (self.name_api + ".cpp")) + "\n")
-            list_f.write(str(w_p / (self.name_common_header + ".hpp")) + "\n")
+            list_f.write((w_p / (self.name_api + ".cpp")).as_posix() + "\n")
+            list_f.write((w_p / (self.name_common_header + ".hpp")).as_posix() + "\n")
             # kernel instance file
             for b in blobs:
-                list_f.write(str(w_p / (b.name + ".cpp")) + "\n")
+                list_f.write((w_p / (b.name + ".cpp")).as_posix() + "\n")
 
     def gen_blobs(self, args) -> None:
         w_p = Path(self.working_path)

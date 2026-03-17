@@ -42,7 +42,8 @@ constexpr ConvTraits instance_to_conv_traits()
         .pipeline_scheduler = get_pipeline_scheduler<InstTraits>(),
         .max_transpose_transfer_src_scalar_per_vector =
             InstTraits::kMaxTransposeTransferSrcScalarPerVector,
-        .max_transpose_dst_scalar_per_vector = InstTraits::kMaxTransposeTransferDstScalarPerVector,
+        .max_transpose_transfer_dst_scalar_per_vector =
+            InstTraits::kMaxTransposeTransferDstScalarPerVector,
 
     };
 }

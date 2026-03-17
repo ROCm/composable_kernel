@@ -9,22 +9,21 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
-// Compilation parameters for in[n, hi, wi, g, c] * wei[g, k, y, x, c] = out[n, ho, wo, g, k]
-void add_device_grouped_conv3d_bwd_weight_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_f32_bf16_instances(
+void add_device_grouped_conv3d_bwd_weight_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeightMultipleD<3,
                                                                     NDHWGC,
                                                                     GKZYXC,
                                                                     NDHWGK,
                                                                     Tuple<GKZYXC>,
                                                                     BF16,
-                                                                    F32,
                                                                     BF16,
-                                                                    Tuple<F32>,
+                                                                    BF16,
+                                                                    Tuple<BF16>,
                                                                     PassThrough,
                                                                     Bilinear,
                                                                     PassThrough>>>& instances)
 {
-    // 1. Default
+    // Default bwd weight bilinear
     add_device_operation_instances(
         instances,
         device_grouped_conv_bwd_weight_xdl_c_shuffle_bf16_bilinear_instances<
@@ -33,15 +32,6 @@ void add_device_grouped_conv3d_bwd_weight_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16
             GKZYXC,
             NDHWGK,
             ConvBwdWeightDefault>{});
-    // 2. Filter1x1Stride1Pad0
-    add_device_operation_instances(
-        instances,
-        device_grouped_conv_bwd_weight_xdl_c_shuffle_bf16_bilinear_instances<
-            3,
-            NDHWGC,
-            GKZYXC,
-            NDHWGK,
-            ConvBwdWeightFilter1x1Stride1Pad0>{});
 }
 
 } // namespace instance

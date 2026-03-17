@@ -259,26 +259,40 @@ def runShell(String command){
 }
 
 def shouldRunCICheck() {
-    // Define patterns for files that should not trigger CI
+    // File patterns that should not trigger CI
     def skipFilePatterns = [
-        /^\.github\/.*/, // GitHub workflow files
-        /^docs\/.*/, // Documentation files
-        /^LICENSE$/, // License file
-        /^.*\.gitignore$/, // Git ignore files
-        /.*\.md$/ // Markdown files
+        /^projects\/composablekernel\/\.github\/.*/, // GitHub workflow files
+        /^projects\/composablekernel\/docs\/.*/, // Documentation files
+        /^projects\/composablekernel\/LICENSE$/, // License file
+        /^projects\/composablekernel\/.*\.gitignore$/, // Git ignore files
+        /^projects\/composablekernel\/.*\.md$/ // Markdown files
     ]
     
     try {
-        // Get the list of changed files
+        // Always run if this is a base branch build
+        def baseBranch = "develop"
+        def isBaseBranchBuild = (env.CHANGE_ID == null && env.BRANCH_NAME == baseBranch)
+
+        if (isBaseBranchBuild) {
+            echo "Base branch (${baseBranch}) build detected - always running CI for safety"
+            return true
+        }
+
+        // Get the list of changed files (all files touched in any commit, even if reverted)
         def changedFiles = sh(
             returnStdout: true,
             script: '''
+                BASE_BRANCH="develop"
+
                 if [ "$CHANGE_ID" != "" ]; then
-                    # For PR builds, compare against target branch
-                    git diff --name-only origin/$CHANGE_TARGET...HEAD -- projects/composablekernel/
+                    # For PR builds, get all files touched in any commit
+                    echo "PR build detected, checking all touched files against origin/$CHANGE_TARGET" >&2
+                    git log --name-only --pretty=format: origin/$CHANGE_TARGET..HEAD -- projects/composablekernel/ | sort -u | grep -v '^$'
                 else
-                    # For regular builds, compare against previous commit
-                    git diff --name-only HEAD~1..HEAD -- projects/composablekernel/
+                    # For feature branch builds, compare against merge-base with base branch
+                    MERGE_BASE=$(git merge-base HEAD origin/$BASE_BRANCH 2>/dev/null || echo "HEAD~1")
+                    echo "Branch build detected, checking all touched files since merge-base: $MERGE_BASE" >&2
+                    git log --name-only --pretty=format: $MERGE_BASE..HEAD -- projects/composablekernel/ | sort -u | grep -v '^$'
                 fi
             '''
         ).trim().split('\n')
@@ -290,20 +304,36 @@ def shouldRunCICheck() {
         
         echo "Changed files: ${changedFiles.join(', ')}"
         
-        // Check if any changed files are not in the skip patterns
-        def hasFilesRequiringCI = changedFiles.any { file ->
-            !skipFilePatterns.any { pattern ->
+        // Separate files into those requiring CI and those that can be skipped
+        def filesRequiringCI = []
+        def skippedFiles = []
+
+        changedFiles.each { file ->
+            def shouldSkip = skipFilePatterns.any { pattern ->
                 file ==~ pattern
             }
+
+            if (shouldSkip) {
+                skippedFiles.add(file)
+            } else {
+                filesRequiringCI.add(file)
+            }
         }
-        
-        if (hasFilesRequiringCI) {
-            echo "Found files that require CI"
+
+        // Debug output
+        if (skippedFiles.size() > 0) {
+            echo "Files that don't require CI (${skippedFiles.size()}):"
+            skippedFiles.each { echo "  - ${it}" }
+        }
+
+        if (filesRequiringCI.size() > 0) {
+            echo "Files that require CI (${filesRequiringCI.size()}):"
+            filesRequiringCI.each { echo "  - ${it}" }
             return true
         } else {
             echo "Only non-relevant files changed, skipping CI"
             return false
-        } 
+        }
     } catch (Exception e) {
         echo "Error checking changed files: ${e.getMessage()}, running CI by default"
         return true
@@ -431,7 +461,7 @@ def buildDocker(install_prefix){
     def base_image_name = getBaseDockerImageName()
     echo "Building Docker for ${image_name}"
     def dockerArgs = "--build-arg PREFIX=${install_prefix} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-    if(params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
+    if(params.COMPILER_VERSION == "develop" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
         dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f projects/composablekernel/Dockerfile.compiler . "
     }
     else if(params.RUN_AITER_TESTS){
@@ -479,7 +509,7 @@ def get_docker_options(){
     else{ //only add kfd and dri paths if you actually going to run somthing on GPUs
         dockerOpts = "--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     }
-    if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
+    if (params.COMPILER_VERSION == "develop" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
     // the  --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 env variable is required when building code with offload-compress flag with
     // newer clang22 compilers and running with older hip runtima libraries
         dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 "
@@ -1151,7 +1181,7 @@ def run_pytorch_tests(Map conf=[:]){
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;FORCE_CI=true
                                               0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_TILE_ENGINE_BASIC_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX101=false;BUILD_GFX908=false;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
-                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
+                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=develop;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
                                               0 13 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
@@ -1182,7 +1212,7 @@ pipeline {
         string(
             name: 'COMPILER_VERSION',
             defaultValue: '',
-            description: 'Specify which version of compiler to use: release, amd-staging, amd-mainline, or leave blank (default).')
+            description: 'Specify which version of compiler to use: release, develop, amd-mainline, or leave blank (default).')
         string(
             name: 'COMPILER_COMMIT',
             defaultValue: '',
@@ -1709,15 +1739,47 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
-                                            -D GEMM_UNIVERSAL_DATATYPE="fp8;fp16" \
+                                            -D GEMM_UNIVERSAL_DATATYPE="fp8;fp16;bf8;bf16" \
                                             -D GEMM_UNIVERSAL_LAYOUT="rcr;rrr;crr;ccr" \
                                             -D GEMM_STREAMK_DATATYPE="fp8;fp16" \
                                             -D GEMM_STREAMK_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
+                                            -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
+                                            -D GROUPED_GEMM_DATATYPE="fp8;fp16" \
+                                            -D GROUPED_GEMM_LAYOUT="rcr;rrr;crr;ccr" .. && \
+                                           ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all benchmark_grouped_gemm_all && \
+                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           python3 ../tile_engine/ops/gemm/grouped_gemm/grouped_gemm_benchmark.py . --problem-sizes "1024,1024,1024" --group-counts 8 --warmup 5 --repeat 5 --verbose --json grouped_gemm_results.json """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+                stage("Run TILE_ENGINE_GEMM Tests on gfx950")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx950") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                            -D CMAKE_BUILD_TYPE=Release \
+                                            -D GPU_TARGETS="gfx950" \
+                                            -D GEMM_UNIVERSAL_DATATYPE="fp8;fp16" \
+                                            -D GEMM_UNIVERSAL_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_MULTI_D_DATATYPE="fp16" \
+                                            -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" .. && \
-                                           ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all && \
+                                           ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_universal/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """

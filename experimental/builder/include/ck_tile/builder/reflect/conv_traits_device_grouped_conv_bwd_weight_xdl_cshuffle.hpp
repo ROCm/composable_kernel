@@ -5,6 +5,7 @@
 
 #include <concepts>
 
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_weight_xdl_cshuffle.hpp"
 #include "ck_tile/builder/reflect/conv_traits.hpp"
 #include "ck_tile/builder/reflect/conv_traits_helpers.hpp"
 #include "ck_tile/builder/reflect/instance_traits.hpp"
@@ -49,7 +50,8 @@ constexpr ConvTraits instance_to_conv_traits()
         .pipeline_scheduler = get_pipeline_scheduler<InstTraits>(),
         .max_transpose_transfer_src_scalar_per_vector =
             InstTraits::kMaxTransposeTransferSrcScalarPerVector,
-        .max_transpose_dst_scalar_per_vector = InstTraits::kMaxTransposeTransferDstScalarPerVector,
+        .max_transpose_transfer_dst_scalar_per_vector =
+            InstTraits::kMaxTransposeTransferDstScalarPerVector,
     };
 }
 

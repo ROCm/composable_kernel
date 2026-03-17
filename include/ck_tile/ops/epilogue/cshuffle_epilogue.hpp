@@ -99,7 +99,7 @@ struct CShuffleEpilogue
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
     using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
                                               std::is_same_v<BDataType, pk_fp4_t> ||
-                                              std::is_same_v<BDataType, pk_fp4_raw_t>,
+                                              sizeof(BDataType) < sizeof(ADataType),
                                           ADataType,
                                           BDataType>;
 
@@ -116,11 +116,7 @@ struct CShuffleEpilogue
     static constexpr index_t isCTransposed = Problem::isCTransposed;
     static constexpr bool FixedVectorSize  = Problem::FixedVectorSize;
     static constexpr bool TiledMMAPermuteN = Problem::TiledMMAPermuteN;
-#ifdef __gfx95__
-    static constexpr bool EightWave = (MWave * NWave == 8);
-#else
-    static constexpr bool EightWave = false;
-#endif
+    static constexpr bool EightWave        = (MWave * NWave == 8);
     static constexpr index_t BlockedXDLN_PerWarp =
         EightWave ? kNPerBlock / NWave / NPerXdl : Problem::BlockedXDLN_PerWarp;
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;

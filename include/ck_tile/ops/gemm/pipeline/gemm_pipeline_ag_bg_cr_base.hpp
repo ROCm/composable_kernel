@@ -20,8 +20,23 @@ struct GemmPipelineAgBgCrImplBase
     using ADataType   = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
     using ALayout     = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
     using BInDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
-    using BDataType =
-        std::conditional_t<std::is_same_v<BInDataType, pk_fp4_raw_t>, ADataType, BInDataType>;
+
+    template <typename T>
+    using has_bcastpolicy_type = decltype(T::BCastPolicy);
+
+    static constexpr bool IsBCastPolicyBeforeLDSWrite = [] {
+        if constexpr(is_detected<has_bcastpolicy_type, Problem>{})
+        {
+            return Problem::BCastPolicy == CastPolicy::BeforeLDSWrite;
+        }
+        else
+        {
+            return false;
+        }
+    }();
+
+    using BDataType = std::conditional_t<IsBCastPolicyBeforeLDSWrite, ADataType, BInDataType>;
+
     using BLayout = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
@@ -38,7 +53,9 @@ struct GemmPipelineAgBgCrImplBase
         using WarpTile                  = typename BlockGemmShape::WarpTile;
         constexpr index_t kKWarpTile    = WarpTile::at(number<2>{});
         constexpr index_t kMaxKWarpTile = (sizeof(ADataType) == 1) ? 64 : 32;
-        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+        if constexpr(std::is_same_v<ADataType, float>)
+            return false;
+        else if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             return false;
         else if constexpr(kKWarpTile > kMaxKWarpTile)
             return false;
@@ -50,7 +67,9 @@ struct GemmPipelineAgBgCrImplBase
         using WarpTile                  = typename BlockGemmShape::WarpTile;
         constexpr index_t kKWarpTile    = WarpTile::at(number<2>{});
         constexpr index_t kMaxKWarpTile = (sizeof(BDataType) == 1) ? 64 : 32;
-        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+        if constexpr(std::is_same_v<BDataType, float>)
+            return false;
+        else if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             return false;
         else if constexpr(kKWarpTile > kMaxKWarpTile)
             return false;
@@ -64,9 +83,7 @@ struct GemmPipelineAgBgCrImplBase
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
-    template <typename SrcDataType = void,
-              typename DstDataType = void,
-              index_t UnaryOpSize  = 8,
+    template <index_t UnaryOpSize = 8,
               typename DstBlockTile,
               typename SrcTileWindow,
               typename DramTileWindowStep>
@@ -74,7 +91,7 @@ struct GemmPipelineAgBgCrImplBase
                                        SrcTileWindow& dram_tile_window,
                                        const DramTileWindowStep& dram_tile_window_step) const
     {
-        load_int4_tile<SrcDataType, DstDataType, UnaryOpSize>(dst_block_tile, dram_tile_window);
+        load_and_convert_tile<UnaryOpSize>(dst_block_tile, dram_tile_window);
         move_tile_window(dram_tile_window, dram_tile_window_step);
     }
 
@@ -109,7 +126,7 @@ struct GemmPipelineAgBgCrImplBase
                                       bool_constant<LoadTranspose> = {}) const
     {
         if constexpr(LoadTranspose)
-            dst_block_tile = load_tile_transpose(lds_tile_window);
+            load_tile_transpose(dst_block_tile, lds_tile_window);
         else
             load_tile(dst_block_tile, lds_tile_window);
     }
@@ -124,8 +141,11 @@ struct GemmPipelineAgBgCrImplBase
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
         // TODO: LDS alignment should come from Policy!
-        constexpr index_t a_lds_block_space_size_aligned = integer_least_multiple(
-            sizeof(OverrideADataType) * a_lds_block_desc.get_element_space_size(), 16);
+        constexpr index_t APackedSize = numeric_traits<OverrideADataType>::PackedSize;
+        constexpr index_t a_lds_block_space_size =
+            sizeof(OverrideADataType) * a_lds_block_desc.get_element_space_size() / APackedSize;
+        constexpr index_t a_lds_block_space_size_aligned =
+            integer_least_multiple(a_lds_block_space_size, 16);
 
         // B tile in LDS
         OverrideBDataType* __restrict__ p_b_lds = static_cast<OverrideBDataType*>(
@@ -237,12 +257,16 @@ struct GemmPipelineAgBgCrImplBase
 
         auto a_lds_load_tile_distr = []() {
             if constexpr(is_a_load_tr)
+            {
                 return make_static_tile_distribution(
                     typename InputTileDistributionTraits<
                         typename ALdsLoadTileDistr::DstrEncode,
-                        typename Problem::ADataType>::TransposedDstrEncode{});
+                        typename ALdsTensorView::DataType>::TransposedDstrEncode{});
+            }
             else
+            {
                 return ALdsLoadTileDistr{};
+            }
         }();
 
         auto a_lds_gemm_window =
@@ -313,19 +337,18 @@ struct GemmPipelineAgBgCrImplBase
 
         auto b_copy_lds_window = make_tile_window(b_lds_block_view, b_lds_shape, {0, 0});
 
-        using BLdsDataType =
-            std::conditional_t<std::is_same_v<typename Problem::BDataType, pk_fp4_raw_t>,
-                               typename Problem::ADataType,
-                               typename Problem::BDataType>;
-
         auto b_lds_load_tile_distr = []() {
             if constexpr(is_b_load_tr)
+            {
                 return make_static_tile_distribution(
-                    typename InputTileDistributionTraits<typename BLdsLoadTileDistr::DstrEncode,
-                                                         BLdsDataType>::TransposedDstrEncode{});
-
+                    typename InputTileDistributionTraits<
+                        typename BLdsLoadTileDistr::DstrEncode,
+                        typename BLdsTensorView::DataType>::TransposedDstrEncode{});
+            }
             else
+            {
                 return BLdsLoadTileDistr{};
+            }
         }();
 
         auto b_lds_gemm_window =

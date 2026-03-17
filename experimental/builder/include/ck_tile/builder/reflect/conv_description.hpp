@@ -64,171 +64,145 @@ class ConvDescription : public Description
     /// @return A multi-line tree-formatted description covering signature and algorithm details
     std::string detailed() const override
     {
-        TreeFormatter f;
-        f.writeLine(0, traits_.spatial_dim, "D ", traits_.direction, " Convolution Kernel");
-        f.writeLine(1, "Signature");
-        f.writeLine(2, "Tensor Type: ", traits_.data_type);
-        f.writeLine(2, "Input Layout: ", traits_.layout[0]);
-        f.writeLine(2, "Weight Layout: ", traits_.layout[1]);
-        f.writeLine(2, "Output Layout: ", traits_.layout[2]);
-        f.writeLine(2, "Input elementwise operation: ", traits_.input_element_op);
-        f.writeLine(2, "Weights elementwise operation: ", traits_.weight_element_op);
-        f.writeLast(2, "Output elementwise operation: ", traits_.output_element_op);
+        TreeFormatter root(traits_.spatial_dim, "D ", traits_.direction, " Convolution Kernel");
 
-        f.writeLast(1, "Algorithm");
+        auto& sig = root.add("Signature");
+        sig.add("Tensor Type: ", traits_.data_type);
+        sig.add("Input Layout: ", traits_.layout[0]);
+        sig.add("Weight Layout: ", traits_.layout[1]);
+        sig.add("Output Layout: ", traits_.layout[2]);
+        sig.add("Input elementwise operation: ", traits_.input_element_op);
+        sig.add("Weights elementwise operation: ", traits_.weight_element_op);
+        sig.add("Output elementwise operation: ", traits_.output_element_op);
+
+        auto& algo = root.add("Algorithm");
         // Compute Block section
-        f.writeLine(2, "Thread block size: ", traits_.thread_block_size);
-        f.writeLine(2,
-                    "Data tile size: ",
-                    traits_.tile_dims.m,
-                    "×",
-                    traits_.tile_dims.n,
-                    "×",
-                    traits_.tile_dims.k);
+        algo.add("Thread block size: ", traits_.thread_block_size);
+        algo.add("Data tile size: ",
+                 traits_.tile_dims.m,
+                 "×",
+                 traits_.tile_dims.n,
+                 "×",
+                 traits_.tile_dims.k);
         if(traits_.gemm_padding)
-            f.writeLine(
-                2, "Gemm padding: ", traits_.gemm_padding.value_or(builder::GemmPadding::DEFAULT));
-        else
-            f.writeLine(2, "Struct does not contain optional gemm_padding argument");
-        f.writeLine(2, "Convolution specialization: ", traits_.conv_specialization);
+            algo.add("Gemm padding: ", *traits_.gemm_padding);
+        if(traits_.do_pad_gemm_m)
+            algo.add("Do Pad Gemm M: ", *traits_.do_pad_gemm_m);
+        if(traits_.do_pad_gemm_n)
+            algo.add("Do Pad Gemm N: ", *traits_.do_pad_gemm_n);
+        algo.add("Convolution specialization: ", traits_.conv_specialization);
         // Pipeline section
-        f.writeLine(2, "Pipeline version: ", traits_.pipeline_version);
-        f.writeLine(2, "Pipeline scheduler: ", traits_.pipeline_scheduler);
-        f.writeLine(2, "Warp Gemm parameters: ");
-        f.writeLine(3, "subtile size: ", traits_.warp_gemm.gemm_m, "×", traits_.warp_gemm.gemm_n);
-        f.writeLast(3,
-                    "Number of warp gemm iterations: ",
-                    traits_.warp_gemm.m_iter,
-                    "×",
-                    traits_.warp_gemm.n_iter);
+        algo.add("Pipeline version: ", traits_.pipeline_version);
+        algo.add("Pipeline scheduler: ", traits_.pipeline_scheduler);
+        auto& warpGemm = algo.add("Warp Gemm parameters:");
+        warpGemm.add("subtile size: ", traits_.warp_gemm.gemm_m, "×", traits_.warp_gemm.gemm_n);
+        warpGemm.add("Number of warp gemm iterations: ",
+                     traits_.warp_gemm.m_iter,
+                     "×",
+                     traits_.warp_gemm.n_iter);
 
         // Memory Access section
-        f.writeLast(2, "Memory access:");
+        auto& memAccess = algo.add("Memory access:");
 
-        f.writeLine(3, "A Tile transfer: ");
-        f.writeLine(4,
-                    "Tile dimensions: ",
-                    traits_.a_tile_transfer.tile_dimensions.k0,
-                    "×",
-                    traits_.a_tile_transfer.tile_dimensions.m_or_n,
-                    "×",
-                    traits_.a_tile_transfer.tile_dimensions.k1,
-                    "×");
-        f.writeLine(
-            4, "The innermost K subdimension size: ", traits_.a_tile_transfer.transfer_params.k1);
-        f.writeLine(4,
-                    "Spatial thread distribution over the data tile: ",
-                    traits_.a_tile_transfer.transfer_params.thread_cluster_order[0],
-                    "×",
-                    traits_.a_tile_transfer.transfer_params.thread_cluster_order[1],
-                    "×",
-                    traits_.a_tile_transfer.transfer_params.thread_cluster_order[2]);
-        f.writeLine(4,
-                    "The order of accessing data tile axes: ",
-                    traits_.a_tile_transfer.transfer_params.src_access_order[0],
-                    "×",
-                    traits_.a_tile_transfer.transfer_params.src_access_order[1],
-                    "×",
-                    traits_.a_tile_transfer.transfer_params.src_access_order[2]);
-        f.writeLine(4,
-                    "Vectorized memory access axis index (with contiguous memory): ",
-                    traits_.a_tile_transfer.transfer_params.src_vector_dim);
-        f.writeLine(4,
-                    "Vector access (GMEM read) instruction size: ",
-                    traits_.a_tile_transfer.transfer_params.src_scalar_per_vector);
-        f.writeLine(4,
-                    "Vector access (LDS write) instruction size: ",
-                    traits_.a_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
-        f.writeLast(4,
-                    "LDS data layout padding (to prevent bank conflicts): ",
-                    traits_.a_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
+        auto& aTile = memAccess.add("A Tile transfer:");
+        aTile.add("Tile dimensions: ",
+                  traits_.a_tile_transfer.tile_dimensions.k0,
+                  "×",
+                  traits_.a_tile_transfer.tile_dimensions.m_or_n,
+                  "×",
+                  traits_.a_tile_transfer.tile_dimensions.k1);
+        aTile.add("The innermost K subdimension size: ",
+                  traits_.a_tile_transfer.transfer_params.k1);
+        aTile.add("Thread cluster lengths (threads per axis): ",
+                  traits_.a_tile_transfer.transfer_params.thread_cluster_dims[0],
+                  "×",
+                  traits_.a_tile_transfer.transfer_params.thread_cluster_dims[1],
+                  "×",
+                  traits_.a_tile_transfer.transfer_params.thread_cluster_dims[2]);
+        aTile.add("Spatial thread distribution over the data tile: ",
+                  traits_.a_tile_transfer.transfer_params.thread_cluster_order[0],
+                  "×",
+                  traits_.a_tile_transfer.transfer_params.thread_cluster_order[1],
+                  "×",
+                  traits_.a_tile_transfer.transfer_params.thread_cluster_order[2]);
+        aTile.add("The order of accessing data tile axes: ",
+                  traits_.a_tile_transfer.transfer_params.src_access_order[0],
+                  "×",
+                  traits_.a_tile_transfer.transfer_params.src_access_order[1],
+                  "×",
+                  traits_.a_tile_transfer.transfer_params.src_access_order[2]);
+        aTile.add("Vectorized memory access axis index (with contiguous memory): ",
+                  traits_.a_tile_transfer.transfer_params.src_vector_dim);
+        aTile.add("Vector access (GMEM read) instruction size: ",
+                  traits_.a_tile_transfer.transfer_params.src_scalar_per_vector);
+        aTile.add("Vector access (LDS write) instruction size: ",
+                  traits_.a_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
+        aTile.add("LDS data layout padding (to prevent bank conflicts): ",
+                  traits_.a_tile_transfer.transfer_params.lds_padding);
 
-        f.writeLine(3, "B Tile transfer: ");
-        f.writeLine(4,
-                    "Tile dimensions: ",
-                    traits_.b_tile_transfer.tile_dimensions.k0,
-                    "×",
-                    traits_.b_tile_transfer.tile_dimensions.m_or_n,
-                    "×",
-                    traits_.b_tile_transfer.tile_dimensions.k1,
-                    "×");
-        f.writeLine(
-            4, "The innermost K subdimension size: ", traits_.b_tile_transfer.transfer_params.k1);
-        f.writeLine(4,
-                    "Spatial thread distribution over the data tile: ",
-                    traits_.b_tile_transfer.transfer_params.thread_cluster_order[0],
-                    "×",
-                    traits_.b_tile_transfer.transfer_params.thread_cluster_order[1],
-                    "×",
-                    traits_.b_tile_transfer.transfer_params.thread_cluster_order[2]);
-        f.writeLine(4,
-                    "The order of accessing data tile axes: ",
-                    traits_.b_tile_transfer.transfer_params.src_access_order[0],
-                    "×",
-                    traits_.b_tile_transfer.transfer_params.src_access_order[1],
-                    "×",
-                    traits_.b_tile_transfer.transfer_params.src_access_order[2]);
-        f.writeLine(4,
-                    "Vectorized memory access axis index (with contiguous memory): ",
-                    traits_.b_tile_transfer.transfer_params.src_vector_dim);
-        f.writeLine(4,
-                    "Vector access (GMEM read) instruction size: ",
-                    traits_.b_tile_transfer.transfer_params.src_scalar_per_vector);
-        f.writeLine(4,
-                    "Vector access (LDS write) instruction size: ",
-                    traits_.b_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
-        f.writeLast(4,
-                    "LDS data layout padding (to prevent bank conflicts): ",
-                    traits_.b_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
+        auto& bTile = memAccess.add("B Tile transfer:");
+        bTile.add("Tile dimensions: ",
+                  traits_.b_tile_transfer.tile_dimensions.k0,
+                  "×",
+                  traits_.b_tile_transfer.tile_dimensions.m_or_n,
+                  "×",
+                  traits_.b_tile_transfer.tile_dimensions.k1);
+        bTile.add("The innermost K subdimension size: ",
+                  traits_.b_tile_transfer.transfer_params.k1);
+        bTile.add("Thread cluster lengths (threads per axis): ",
+                  traits_.b_tile_transfer.transfer_params.thread_cluster_dims[0],
+                  "×",
+                  traits_.b_tile_transfer.transfer_params.thread_cluster_dims[1],
+                  "×",
+                  traits_.b_tile_transfer.transfer_params.thread_cluster_dims[2]);
+        bTile.add("Spatial thread distribution over the data tile: ",
+                  traits_.b_tile_transfer.transfer_params.thread_cluster_order[0],
+                  "×",
+                  traits_.b_tile_transfer.transfer_params.thread_cluster_order[1],
+                  "×",
+                  traits_.b_tile_transfer.transfer_params.thread_cluster_order[2]);
+        bTile.add("The order of accessing data tile axes: ",
+                  traits_.b_tile_transfer.transfer_params.src_access_order[0],
+                  "×",
+                  traits_.b_tile_transfer.transfer_params.src_access_order[1],
+                  "×",
+                  traits_.b_tile_transfer.transfer_params.src_access_order[2]);
+        bTile.add("Vectorized memory access axis index (with contiguous memory): ",
+                  traits_.b_tile_transfer.transfer_params.src_vector_dim);
+        bTile.add("Vector access (GMEM read) instruction size: ",
+                  traits_.b_tile_transfer.transfer_params.src_scalar_per_vector);
+        bTile.add("Vector access (LDS write) instruction size: ",
+                  traits_.b_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
+        bTile.add("LDS data layout padding (to prevent bank conflicts): ",
+                  traits_.b_tile_transfer.transfer_params.lds_padding);
 
-        f.writeLast(3, "C Tile transfer: ");
-        f.writeLine(4,
-                    "Data shuffle (number of gemm instructions per iteration): ",
-                    traits_.c_tile_transfer.shuffle_params.m_gemms_per_shuffle,
-                    "×",
-                    traits_.c_tile_transfer.shuffle_params.n_gemms_per_shuffle);
-        f.writeLine(4,
-                    "Spatial thread distribution used to store data: ",
-                    traits_.c_tile_transfer.thread_cluster_dims[0],
-                    "×",
-                    traits_.c_tile_transfer.thread_cluster_dims[1],
-                    "×",
-                    traits_.c_tile_transfer.thread_cluster_dims[2],
-                    "×",
-                    traits_.c_tile_transfer.thread_cluster_dims[3]);
-        f.writeLine(4,
-                    "Vector access (GMEM write) instruction size: ",
-                    traits_.c_tile_transfer.scalar_per_vector);
+        auto& cTile = memAccess.add("C Tile transfer:");
+        cTile.add("Data shuffle (number of gemm instructions per iteration): ",
+                  traits_.c_tile_transfer.shuffle_params.m_gemms_per_shuffle,
+                  "×",
+                  traits_.c_tile_transfer.shuffle_params.n_gemms_per_shuffle);
+        cTile.add("Spatial thread distribution used to store data: ",
+                  traits_.c_tile_transfer.thread_cluster_dims[0],
+                  "×",
+                  traits_.c_tile_transfer.thread_cluster_dims[1],
+                  "×",
+                  traits_.c_tile_transfer.thread_cluster_dims[2],
+                  "×",
+                  traits_.c_tile_transfer.thread_cluster_dims[3]);
+        cTile.add("Vector access (GMEM write) instruction size: ",
+                  traits_.c_tile_transfer.scalar_per_vector);
         if(traits_.num_gemm_k_prefetch_stage)
-            f.writeLine(
-                2, "Num gemm k prefetch stage: ", traits_.num_gemm_k_prefetch_stage.value_or(0));
-        else
-            f.writeLine(2,
-                        "Struct does not contain optional "
-                        "num_gemm_k_prefetch_stage parameter");
-
+            algo.add("Num gemm k prefetch stage: ", *traits_.num_gemm_k_prefetch_stage);
         if(traits_.max_transpose_transfer_src_scalar_per_vector)
-            f.writeLine(2,
-                        "Max Transpose transfer scr scalar per vector: ",
-                        traits_.max_transpose_transfer_src_scalar_per_vector.value_or(0));
-        else
-            f.writeLine(2,
-                        "Struct does not contain optional "
-                        "max_transpose_transfer_src_scalar_per_vector parameter");
-        if(traits_.max_transpose_dst_scalar_per_vector)
-            f.writeLine(2,
-                        "Max Transpose dst scalar per vector: ",
-                        traits_.max_transpose_dst_scalar_per_vector.value_or(0));
-        else
-            f.writeLine(
-                2,
-                "Struct does not contain optional max_transpose_dst_scalar_per_vector parameter");
+            algo.add("Max Transpose transfer src scalar per vector: ",
+                     *traits_.max_transpose_transfer_src_scalar_per_vector);
+        if(traits_.max_transpose_transfer_dst_scalar_per_vector)
+            algo.add("Max Transpose dst scalar per vector: ",
+                     *traits_.max_transpose_transfer_dst_scalar_per_vector);
         if(traits_.num_groups_to_merge)
-            f.writeLast(2, "Num groups to merge: ", traits_.num_groups_to_merge.value_or(0));
-        else
-            f.writeLast(2, "Struct does not contain optional num_groups_to_merge parameter");
+            algo.add("Num groups to merge: ", *traits_.num_groups_to_merge);
 
-        return f.getString();
+        return root.getString();
     }
 
     /// @brief Generate a string representation of the instance
