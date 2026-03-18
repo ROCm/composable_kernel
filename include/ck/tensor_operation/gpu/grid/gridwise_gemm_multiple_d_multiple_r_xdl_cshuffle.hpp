@@ -881,14 +881,14 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                         ThreadReduceOperation::template GetIdentityValue<FloatReduceAcc>();
                     static_for<0, mreduce_per_thread, 1>{}(
                         [&](auto I) { r_thread_buf(I) = reduce_identityVal; });
-                    static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
-                        static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
-                            constexpr auto offset =
-                                Number<cde_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
-                                    make_tuple(im, in))>{};
+                    static_ford<Sequence<mreduce_per_thread, nreduce_per_thread>>{}([&](auto ii) {
+                        constexpr auto im = Number<ii[Number<0>{}]>{};
+                        constexpr auto in = Number<ii[Number<1>{}]>{};
+                        constexpr auto offset =
+                            Number<cde_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
+                                make_tuple(im, in))>{};
 
-                            qs_element_op[Ir](e_thread_buf(offset), e_thread_buf(offset));
-                        });
+                        qs_element_op[Ir](e_thread_buf(offset), e_thread_buf(offset));
                     });
                     ThreadwiseReduce::Reduce(e_thread_buf, r_thread_buf);
 

@@ -98,13 +98,13 @@ struct BlockwiseSoftmax
         });
 
         // calculate exp for elements, P=exp(s-max)
-        static_for<0, MRepeat, 1>{}([&](auto iM) {
-            static_for<0, KRepeat, 1>{}([&](auto iK) {
-                auto offset = Number<ThreadSliceDesc_M_K{}.CalculateOffset(make_tuple(iM, iK))>{};
-                in_thread_buf(offset) = IgnoreNaN && ck::math::isnan(in_thread_buf[offset])
-                                            ? 0
-                                            : math::exp(in_thread_buf[offset] - max_value_buf(iM));
-            });
+        static_ford<Sequence<MRepeat, KRepeat>>{}([&](auto ii) {
+            constexpr auto iM = Number<ii[Number<0>{}]>{};
+            constexpr auto iK = Number<ii[Number<1>{}]>{};
+            auto offset       = Number<ThreadSliceDesc_M_K{}.CalculateOffset(make_tuple(iM, iK))>{};
+            in_thread_buf(offset) = IgnoreNaN && ck::math::isnan(in_thread_buf[offset])
+                                        ? 0
+                                        : math::exp(in_thread_buf[offset] - max_value_buf(iM));
         });
 
         // sum data
