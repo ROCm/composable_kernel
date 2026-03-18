@@ -502,15 +502,15 @@ struct EpilogueReduceCShuffle
                         [&](auto I) { reduce_thread_buf(I) = reduce_identityVal; });
 
                     // reduce in VGPR
-                    static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
-                        static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
-                            constexpr auto offset =
-                                Number<c_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
-                                    make_tuple(im, in))>{};
+                    static_ford<Sequence<mreduce_per_thread, nreduce_per_thread>>{}([&](auto ii) {
+                        constexpr auto im = Number<ii[Number<0>{}]>{};
+                        constexpr auto in = Number<ii[Number<1>{}]>{};
+                        constexpr auto offset =
+                            Number<c_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
+                                make_tuple(im, in))>{};
 
-                            reduce_in_element_op(c_reduce_thread_buf(offset),
-                                                 c_reduce_thread_buf(offset));
-                        });
+                        reduce_in_element_op(c_reduce_thread_buf(offset),
+                                             c_reduce_thread_buf(offset));
                     });
 
                     ThreadwiseReduce::Reduce(c_reduce_thread_buf, reduce_thread_buf);

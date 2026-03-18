@@ -350,16 +350,16 @@ __host__ __device__ constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
                 });
 
                 // match hidden id
-                static_for<0, ndim_low_1, 1>{}([&](auto idim_low_1) {
-                    static_for<0, ndim_bottom_1, 1>{}([&](auto idim_bottom_1) {
-                        // if this low dim is bottom dim, then do id matching
-                        if constexpr(low_dim_hidden_ids_1[idim_low_1] ==
-                                     TensorAdaptor1::GetBottomDimensionHiddenIds()[idim_bottom_1])
-                        {
-                            low_dim_hidden_ids_1_mod_(idim_low_1) =
-                                TensorAdaptor0::GetTopDimensionHiddenIds()[idim_bottom_1];
-                        }
-                    });
+                static_ford<Sequence<ndim_low_1, ndim_bottom_1>>{}([&](auto ii) {
+                    constexpr auto idim_low_1    = Number<ii[Number<0>{}]>{};
+                    constexpr auto idim_bottom_1 = Number<ii[Number<1>{}]>{};
+                    // if this low dim is bottom dim, then do id matching
+                    if constexpr(low_dim_hidden_ids_1[idim_low_1] ==
+                                 TensorAdaptor1::GetBottomDimensionHiddenIds()[idim_bottom_1])
+                    {
+                        low_dim_hidden_ids_1_mod_(idim_low_1) =
+                            TensorAdaptor0::GetTopDimensionHiddenIds()[idim_bottom_1];
+                    }
                 });
 
                 return low_dim_hidden_ids_1_mod_;

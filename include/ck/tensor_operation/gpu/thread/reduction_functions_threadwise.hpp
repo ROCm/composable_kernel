@@ -35,14 +35,13 @@ struct ThreadwiseReduction
     template <typename SrcBufferType, typename DstBufferType>
     __device__ static void Reduce(const SrcBufferType& src_buf, DstBufferType& dst_buf)
     {
-        static_for<0, src_length_m, 1>{}([&](auto iM) {
+        static_ford<Sequence<src_length_m, src_length_k>>{}([&](auto mk) {
+            constexpr auto iM            = Number<mk[Number<0>{}]>{};
+            constexpr auto iK            = Number<mk[Number<1>{}]>{};
             constexpr index_t out_offset = dst_thread_desc_m.CalculateOffset(make_tuple(iM));
+            constexpr auto offset        = src_thread_desc_m_k.CalculateOffset(make_tuple(iM, iK));
 
-            static_for<0, src_length_k, 1>{}([&](auto iK) {
-                constexpr auto offset = src_thread_desc_m_k.CalculateOffset(make_tuple(iM, iK));
-
-                Accumulation::Calculate(dst_buf(Number<out_offset>{}), src_buf[Number<offset>{}]);
-            });
+            Accumulation::Calculate(dst_buf(Number<out_offset>{}), src_buf[Number<offset>{}]);
         });
     };
 };
@@ -81,17 +80,16 @@ struct ThreadwiseReductionWithIndex
                                   DstValueBufferType& dst_val_buf,
                                   DstIndexBufferType& dst_idx_buf)
     {
-        static_for<0, src_length_m, 1>{}([&](auto iM) {
+        static_ford<Sequence<src_length_m, src_length_k>>{}([&](auto mk) {
+            constexpr auto iM            = Number<mk[Number<0>{}]>{};
+            constexpr auto iK            = Number<mk[Number<1>{}]>{};
             constexpr index_t out_offset = dst_thread_desc_m.CalculateOffset(make_tuple(iM));
+            constexpr auto offset        = src_thread_desc_m_k.CalculateOffset(make_tuple(iM, iK));
 
-            static_for<0, src_length_k, 1>{}([&](auto iK) {
-                constexpr auto offset = src_thread_desc_m_k.CalculateOffset(make_tuple(iM, iK));
-
-                Accumulation::Calculate(dst_val_buf(Number<out_offset>{}),
-                                        src_val_buf[Number<offset>{}],
-                                        dst_idx_buf(Number<out_offset>{}),
-                                        src_idx_buf[Number<offset>{}]);
-            });
+            Accumulation::Calculate(dst_val_buf(Number<out_offset>{}),
+                                    src_val_buf[Number<offset>{}],
+                                    dst_idx_buf(Number<out_offset>{}),
+                                    src_idx_buf[Number<offset>{}]);
         });
     };
 };
