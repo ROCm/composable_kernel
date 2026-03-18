@@ -997,26 +997,26 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                         c_grid_desc_mblock_mperblock_nblock_nperblock.GetTransforms()[I0]
                             .GetUpperLengths()[I1]; // TODO: proper handle
 
-                    static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
-                        static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
-                            constexpr auto dst_offset =
-                                Number<c_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
-                                    make_tuple(im, in))>{};
+                    static_ford<Sequence<mreduce_per_thread, nreduce_per_thread>>{}([&](auto ii) {
+                        constexpr auto im = Number<ii[Number<0>{}]>{};
+                        constexpr auto in = Number<ii[Number<1>{}]>{};
+                        constexpr auto dst_offset =
+                            Number<c_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
+                                make_tuple(im, in))>{};
 
-                            constexpr auto src_offset =
-                                Number<d_reduce_thread_desc_mperblock.CalculateOffset(
-                                    make_tuple(im))>{};
+                        constexpr auto src_offset =
+                            Number<d_reduce_thread_desc_mperblock.CalculateOffset(
+                                make_tuple(im))>{};
 
-                            FloatReduceAcc avg_sum         = d0_thread_buf(src_offset) / NRaw;
-                            FloatReduceAcc avg_squared_sum = d1_thread_buf(src_offset) / NRaw;
+                        FloatReduceAcc avg_sum         = d0_thread_buf(src_offset) / NRaw;
+                        FloatReduceAcc avg_squared_sum = d1_thread_buf(src_offset) / NRaw;
 
-                            FloatReduceAcc numerator = c_reduce_thread_buf(dst_offset) - avg_sum;
-                            FloatReduceAcc divisor = epsilon + avg_squared_sum - avg_sum * avg_sum;
-                            FloatReduceAcc divisor_sqrt;
-                            tensor_operation::element_wise::UnarySqrt{}(divisor_sqrt, divisor);
+                        FloatReduceAcc numerator = c_reduce_thread_buf(dst_offset) - avg_sum;
+                        FloatReduceAcc divisor   = epsilon + avg_squared_sum - avg_sum * avg_sum;
+                        FloatReduceAcc divisor_sqrt;
+                        tensor_operation::element_wise::UnarySqrt{}(divisor_sqrt, divisor);
 
-                            c_reduce_thread_buf(dst_offset) = numerator / divisor_sqrt;
-                        });
+                        c_reduce_thread_buf(dst_offset) = numerator / divisor_sqrt;
                     });
 
                     // scaling

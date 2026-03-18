@@ -526,17 +526,16 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
 
         // Local prefetch A1
         block_sync_lds();
-        static_for<0, 2, 1>{}([&](auto m0) {
-            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                static_for<0, KGroup, 1>{}([&](auto kg0) {
-                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                       make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                       a_block_buf.At(I0),
-                                       a_thread_desc_,
-                                       make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                       a_thread_buf);
-                });
-            });
+        static_ford<Sequence<2, KRepeat, KGroup>>{}([&](auto mkk) {
+            constexpr auto m0  = Number<mkk[Number<0>{}]>{};
+            constexpr auto k0  = Number<mkk[Number<1>{}]>{};
+            constexpr auto kg0 = Number<mkk[Number<2>{}]>{};
+            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                               make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                               a_block_buf.At(I0),
+                               a_thread_desc_,
+                               make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                               a_thread_buf);
         });
 
 #if 0
@@ -672,80 +671,80 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                         {
                             block_sync_lds();
 
-                            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                static_for<0, KGroup, 1>{}([&](auto kg0) {
-                                    a_thread_copy_.Run(
-                                        a_block_desc_m0_m1_m2_k0_k1_k2,
-                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                                   I0,
-                                                   I0,
-                                                   Number<k0 * KGroup + kg0>{},
-                                                   I0,
-                                                   I0),
-                                        a_block_buf.At(local_read_buf),
-                                        a_thread_desc_,
-                                        make_tuple(
-                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                   2>{},
-                                            I0,
-                                            I0,
-                                            k0,
-                                            I0,
-                                            Number<kg0 * A_K1>{}),
-                                        a_thread_buf);
-                                });
+                            static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                                constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                                constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                                a_thread_copy_.Run(
+                                    a_block_desc_m0_m1_m2_k0_k1_k2,
+                                    make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                               I0,
+                                               I0,
+                                               Number<k0 * KGroup + kg0>{},
+                                               I0,
+                                               I0),
+                                    a_block_buf.At(local_read_buf),
+                                    a_thread_desc_,
+                                    make_tuple(
+                                        Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
+                                               2>{},
+                                        I0,
+                                        I0,
+                                        k0,
+                                        I0,
+                                        Number<kg0 * A_K1>{}),
+                                    a_thread_buf);
                             });
                         }
                         else if constexpr(m0.value == (MRepeat - 1))
                         {
-                            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                static_for<0, KGroup, 1>{}([&](auto kg0) {
-                                    a_thread_copy_.Run(
-                                        a_block_desc_m0_m1_m2_k0_k1_k2,
-                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                                   I0,
-                                                   I0,
-                                                   Number<k0 * KGroup + kg0>{},
-                                                   I0,
-                                                   I0),
-                                        a_block_buf.At(local_read_buf),
-                                        a_thread_desc_,
-                                        make_tuple(
-                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                   2>{},
-                                            I0,
-                                            I0,
-                                            k0,
-                                            I0,
-                                            Number<kg0 * A_K1>{}),
-                                        a_thread_buf);
-                                });
+                            static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                                constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                                constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                                a_thread_copy_.Run(
+                                    a_block_desc_m0_m1_m2_k0_k1_k2,
+                                    make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                               I0,
+                                               I0,
+                                               Number<k0 * KGroup + kg0>{},
+                                               I0,
+                                               I0),
+                                    a_block_buf.At(local_read_buf),
+                                    a_thread_desc_,
+                                    make_tuple(
+                                        Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
+                                               2>{},
+                                        I0,
+                                        I0,
+                                        k0,
+                                        I0,
+                                        Number<kg0 * A_K1>{}),
+                                    a_thread_buf);
                             });
                         }
                         else
                         {
-                            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                static_for<0, KGroup, 1>{}([&](auto kg0) {
-                                    a_thread_copy_.Run(
-                                        a_block_desc_m0_m1_m2_k0_k1_k2,
-                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                                   I0,
-                                                   I0,
-                                                   Number<k0 * KGroup + kg0>{},
-                                                   I0,
-                                                   I0),
-                                        a_block_buf.At(mfma_reg_buf),
-                                        a_thread_desc_,
-                                        make_tuple(
-                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                   2>{},
-                                            I0,
-                                            I0,
-                                            k0,
-                                            I0,
-                                            Number<kg0 * A_K1>{}),
-                                        a_thread_buf);
-                                });
+                            static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                                constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                                constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                                a_thread_copy_.Run(
+                                    a_block_desc_m0_m1_m2_k0_k1_k2,
+                                    make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                               I0,
+                                               I0,
+                                               Number<k0 * KGroup + kg0>{},
+                                               I0,
+                                               I0),
+                                    a_block_buf.At(mfma_reg_buf),
+                                    a_thread_desc_,
+                                    make_tuple(
+                                        Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
+                                               2>{},
+                                        I0,
+                                        I0,
+                                        k0,
+                                        I0,
+                                        Number<kg0 * A_K1>{}),
+                                    a_thread_buf);
                             });
                         }
                     });
@@ -830,62 +829,62 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
                 {
                     block_sync_lds();
 
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I1),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
+                    static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                        constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                        constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                       I0,
+                                       I0,
+                                       Number<k0 * KGroup + kg0>{},
+                                       I0,
+                                       I0),
+                            a_block_buf.At(I1),
+                            a_thread_desc_,
+                            make_tuple(
+                                Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                            a_thread_buf);
                     });
                 }
                 else if constexpr(m0.value == (MRepeat - 1))
                 {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I1),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
+                    static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                        constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                        constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                       I0,
+                                       I0,
+                                       Number<k0 * KGroup + kg0>{},
+                                       I0,
+                                       I0),
+                            a_block_buf.At(I1),
+                            a_thread_desc_,
+                            make_tuple(
+                                Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                            a_thread_buf);
                     });
                 }
                 else
                 {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I0),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
+                    static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                        constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                        constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                       I0,
+                                       I0,
+                                       Number<k0 * KGroup + kg0>{},
+                                       I0,
+                                       I0),
+                            a_block_buf.At(I0),
+                            a_thread_desc_,
+                            make_tuple(
+                                Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                            a_thread_buf);
                     });
                 }
             });
@@ -947,22 +946,22 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
 
                 if constexpr(m0.value < (MRepeat - 2))
                 {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(
-                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                a_block_buf.At(I1),
-                                a_thread_desc_,
-                                make_tuple(Number<(m0 + 2 + HotloopLocalBufSwitch) % 2>{},
-                                           I0,
-                                           I0,
-                                           k0,
-                                           I0,
-                                           Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
+                    static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                        constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                        constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(
+                                Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                            a_block_buf.At(I1),
+                            a_thread_desc_,
+                            make_tuple(Number<(m0 + 2 + HotloopLocalBufSwitch) % 2>{},
+                                       I0,
+                                       I0,
+                                       k0,
+                                       I0,
+                                       Number<kg0 * A_K1>{}),
+                            a_thread_buf);
                     });
                 }
             });
@@ -1023,18 +1022,18 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
 
                 if constexpr(m0.value < (MRepeat - 2))
                 {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(
-                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                a_block_buf.At(I0),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
+                    static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                        constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                        constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(
+                                Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                            a_block_buf.At(I0),
+                            a_thread_desc_,
+                            make_tuple(
+                                Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                            a_thread_buf);
                     });
                 }
             });

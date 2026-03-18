@@ -1297,15 +1297,15 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
             constexpr auto c_thread_buf_slice_m = c_thread_slice_desc_m_n.GetLength(I0);
             constexpr auto c_thread_buf_slice_n = c_thread_slice_desc_m_n.GetLength(I1);
 
-            static_for<0, c_thread_buf_slice_m, 1>{}([&](auto iM) {
-                static_for<0, c_thread_buf_slice_n, 1>{}([&](auto iN) {
-                    auto I = Number<c_thread_slice_desc_m_n.CalculateOffset(make_tuple(iM, iN))>{};
-                    Acc1DataType acc1  = acc1_thread_buf[I]; // P*V
-                    Acc1DataType c     = c_thread_buf[I];    // O
-                    Acc1DataType c_new = c + acc1; // Simply add results since we are no longer using softmax.
+            static_ford<Sequence<c_thread_buf_slice_m, c_thread_buf_slice_n>>{}([&](auto ii) {
+                constexpr auto iM = Number<ii[Number<0>{}]>{};
+                constexpr auto iN = Number<ii[Number<1>{}]>{};
+                auto I = Number<c_thread_slice_desc_m_n.CalculateOffset(make_tuple(iM, iN))>{};
+                Acc1DataType acc1  = acc1_thread_buf[I]; // P*V
+                Acc1DataType c     = c_thread_buf[I];    // O
+                Acc1DataType c_new = c + acc1; // Simply add results since we are no longer using softmax.
 
-                    c_thread_buf(I) = c_new; // O_new
-                });
+                c_thread_buf(I) = c_new; // O_new
             });
 
             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc,
