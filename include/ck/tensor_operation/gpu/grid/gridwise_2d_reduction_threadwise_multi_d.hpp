@@ -160,13 +160,11 @@ struct GridwiseReduction_mk_to_m_threadwise_multi_d
                                         make_tuple(I0, I0),
                                         in_thread_buf);
 
-            static_for<0, MThreadSliceSize, 1>{}([&](auto iM) {
-                // do element-wise pre-reduction operation
-                static_for<0, KThreadSliceSize, 1>{}([&](auto iK) {
-                    constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
-                    in_elementwise_op(in_thread_buf(Number<offset>{}),
-                                      in_thread_buf(Number<offset>{}));
-                });
+            static_ford<Sequence<MThreadSliceSize, KThreadSliceSize>>{}([&](auto ii) {
+                constexpr auto iM     = Number<ii[Number<0>{}]>{};
+                constexpr auto iK     = Number<ii[Number<1>{}]>{};
+                constexpr auto offset = thread_buffer_desc.CalculateOffset(make_tuple(iM, iK));
+                in_elementwise_op(in_thread_buf(Number<offset>{}), in_thread_buf(Number<offset>{}));
             });
 
             ThreadwiseReduce::Reduce(in_thread_buf, accu_value_buf);

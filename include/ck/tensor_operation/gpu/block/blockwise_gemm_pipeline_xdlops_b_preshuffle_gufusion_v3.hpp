@@ -255,54 +255,53 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v3<BlockGemmPipelineSch
         constexpr auto buffer_load_issue_point_a = num_mfma_perstage >= 3 ? 1 : 0;
 
         // B global read
-        static_for<0, buffer_load_b_stages, 1>{}([&](auto i) {
-            static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+        static_ford<Sequence<buffer_load_b_stages, num_mfma_perstage>>{}([&](auto ii) {
+            constexpr auto i     = Number<ii[Number<0>{}]>{};
+            constexpr auto imfma = Number<ii[Number<1>{}]>{};
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
 
-                if constexpr(((i < buffer_load_stages_more) &&
-                              (imfma % buffer_load_issue_point_interval_more ==
-                               buffer_load_issue_point_b)) ||
-                             ((i >= buffer_load_stages_more) &&
-                              (imfma % buffer_load_issue_point_interval_less ==
-                               buffer_load_issue_point_b)))
-                {
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                }
+            if constexpr(((i < buffer_load_stages_more) &&
+                          (imfma % buffer_load_issue_point_interval_more ==
+                           buffer_load_issue_point_b)) ||
+                         ((i >= buffer_load_stages_more) &&
+                          (imfma % buffer_load_issue_point_interval_less ==
+                           buffer_load_issue_point_b)))
+            {
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            }
 
-                if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
-                {
-                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
-                }
-            });
+            if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
+            {
+                __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+            }
         });
 
         // A global read + A local write
-        static_for<0, buffer_load_a_stages, 1>{}([&](auto i) {
-            static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
-                              (imfma % buffer_load_issue_point_interval_more ==
-                               ds_write_issue_point)) ||
-                             (((i + buffer_load_b_stages) >= buffer_load_stages_more) &&
-                              (imfma % buffer_load_issue_point_interval_less ==
-                               ds_write_issue_point)))
-                {
-                    __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
-                }
-                if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
-                              (imfma % buffer_load_issue_point_interval_more ==
-                               buffer_load_issue_point_a)) ||
-                             (((i + buffer_load_b_stages) >= buffer_load_stages_more) &&
-                              (imfma % buffer_load_issue_point_interval_less ==
-                               buffer_load_issue_point_a)))
-                {
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                }
-                if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
-                {
-                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
-                }
-            });
+        static_ford<Sequence<buffer_load_a_stages, num_mfma_perstage>>{}([&](auto ii) {
+            constexpr auto i     = Number<ii[Number<0>{}]>{};
+            constexpr auto imfma = Number<ii[Number<1>{}]>{};
+            __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
+                          (imfma % buffer_load_issue_point_interval_more ==
+                           ds_write_issue_point)) ||
+                         (((i + buffer_load_b_stages) >= buffer_load_stages_more) &&
+                          (imfma % buffer_load_issue_point_interval_less == ds_write_issue_point)))
+            {
+                __builtin_amdgcn_sched_group_barrier(0x200, 1, 0); // DS write
+            }
+            if constexpr((((i + buffer_load_b_stages) < buffer_load_stages_more) &&
+                          (imfma % buffer_load_issue_point_interval_more ==
+                           buffer_load_issue_point_a)) ||
+                         (((i + buffer_load_b_stages) >= buffer_load_stages_more) &&
+                          (imfma % buffer_load_issue_point_interval_less ==
+                           buffer_load_issue_point_a)))
+            {
+                __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+            }
+            if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
+            {
+                __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+            }
         });
 
         // lds synchronization, prefetch next loop local A
@@ -511,17 +510,16 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v3<BlockGemmPipelineSch
 
         // Local prefetch A1
         block_sync_lds();
-        static_for<0, 2, 1>{}([&](auto m0) {
-            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                static_for<0, KGroup, 1>{}([&](auto kg0) {
-                    a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
-                                       make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                       a_block_buf.At(I0),
-                                       a_thread_desc_,
-                                       make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                       a_thread_buf);
-                });
-            });
+        static_ford<Sequence<2, KRepeat, KGroup>>{}([&](auto mkk) {
+            constexpr auto m0  = Number<mkk[Number<0>{}]>{};
+            constexpr auto k0  = Number<mkk[Number<1>{}]>{};
+            constexpr auto kg0 = Number<mkk[Number<2>{}]>{};
+            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k0_k1_k2,
+                               make_tuple(m0, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                               a_block_buf.At(I0),
+                               a_thread_desc_,
+                               make_tuple(m0, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                               a_thread_buf);
         });
 
         // Initialize C
@@ -554,130 +552,129 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v3<BlockGemmPipelineSch
                     a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
                     a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        static_for<0, KRepeat, 1>{}([&](auto k0) {
-                            static_for<0, NRepeat, 1>{}([&](auto n0) {
-                                vector_type<ComputeDataType, KPack> a_thread_vec;
-                                vector_type<ComputeDataType, KPack> b_thread_vec;
-                                vector_type<ComputeDataType, KPack> b_thread_vec_up;
+                        static_ford<Sequence<KRepeat, NRepeat>>{}([&](auto kn) {
+                            constexpr auto k0 = Number<kn[Number<0>{}]>{};
+                            constexpr auto n0 = Number<kn[Number<1>{}]>{};
+                            vector_type<ComputeDataType, KPack> a_thread_vec;
+                            vector_type<ComputeDataType, KPack> b_thread_vec;
+                            vector_type<ComputeDataType, KPack> b_thread_vec_up;
 
-                                static_for<0, KPack, 1>{}([&](auto ik) {
-                                    a_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                        a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                            make_tuple((m0 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                           2,
-                                                       I0,
-                                                       I0,
-                                                       k0,
-                                                       I0,
-                                                       ik))>{}];
-                                    b_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                        b_thread_bufs[mfma_reg_buf]
-                                                     [Number<b_thread_desc_.CalculateOffset(
-                                                         make_tuple(n0, I0, k0, ik))>{}];
+                            static_for<0, KPack, 1>{}([&](auto ik) {
+                                a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                    a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                        make_tuple((m0 + HotloopLocalBufSwitch * mfma_reg_buf) % 2,
+                                                   I0,
+                                                   I0,
+                                                   k0,
+                                                   I0,
+                                                   ik))>{}];
+                                b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                                    b_thread_bufs[mfma_reg_buf]
+                                                 [Number<b_thread_desc_.CalculateOffset(
+                                                     make_tuple(n0, I0, k0, ik))>{}];
 
-                                    b_thread_vec_up.template AsType<ComputeDataType>()(ik) =
-                                        b_thread_bufs_up[mfma_reg_buf]
-                                                        [Number<b_thread_desc_.CalculateOffset(
-                                                            make_tuple(n0, I0, k0, ik))>{}];
-                                });
-
-                                using mfma_input_type =
-                                    typename vector_type<ComputeDataType,
-                                                         xdlops_gemm.K1PerXdlops>::type;
-
-                                constexpr index_t c_offset =
-                                    c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
-
-                                xdlops_gemm.Run(
-                                    a_thread_vec.template AsType<mfma_input_type>(),
-                                    b_thread_vec.template AsType<mfma_input_type>(),
-                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-
-                                xdlops_gemm.Run(
-                                    a_thread_vec.template AsType<mfma_input_type>(),
-                                    b_thread_vec_up.template AsType<mfma_input_type>(),
-                                    c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{}));
+                                b_thread_vec_up.template AsType<ComputeDataType>()(ik) =
+                                    b_thread_bufs_up[mfma_reg_buf]
+                                                    [Number<b_thread_desc_.CalculateOffset(
+                                                        make_tuple(n0, I0, k0, ik))>{}];
                             });
+
+                            using mfma_input_type =
+                                typename vector_type<ComputeDataType,
+                                                     xdlops_gemm.K1PerXdlops>::type;
+
+                            constexpr index_t c_offset =
+                                c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                            xdlops_gemm.Run(
+                                a_thread_vec.template AsType<mfma_input_type>(),
+                                b_thread_vec.template AsType<mfma_input_type>(),
+                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+
+                            xdlops_gemm.Run(
+                                a_thread_vec.template AsType<mfma_input_type>(),
+                                b_thread_vec_up.template AsType<mfma_input_type>(),
+                                c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{}));
                         });
 
                         if constexpr(m0.value == MRepeat - 2)
                         {
                             block_sync_lds();
 
-                            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                static_for<0, KGroup, 1>{}([&](auto kg0) {
-                                    a_thread_copy_.Run(
-                                        a_block_desc_m0_m1_m2_k0_k1_k2,
-                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                                   I0,
-                                                   I0,
-                                                   Number<k0 * KGroup + kg0>{},
-                                                   I0,
-                                                   I0),
-                                        a_block_buf.At(local_read_buf),
-                                        a_thread_desc_,
-                                        make_tuple(
-                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                   2>{},
-                                            I0,
-                                            I0,
-                                            k0,
-                                            I0,
-                                            Number<kg0 * A_K1>{}),
-                                        a_thread_buf);
-                                });
+                            static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                                constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                                constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                                a_thread_copy_.Run(
+                                    a_block_desc_m0_m1_m2_k0_k1_k2,
+                                    make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                               I0,
+                                               I0,
+                                               Number<k0 * KGroup + kg0>{},
+                                               I0,
+                                               I0),
+                                    a_block_buf.At(local_read_buf),
+                                    a_thread_desc_,
+                                    make_tuple(
+                                        Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
+                                               2>{},
+                                        I0,
+                                        I0,
+                                        k0,
+                                        I0,
+                                        Number<kg0 * A_K1>{}),
+                                    a_thread_buf);
                             });
                         }
                         else if constexpr(m0.value == (MRepeat - 1))
                         {
-                            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                static_for<0, KGroup, 1>{}([&](auto kg0) {
-                                    a_thread_copy_.Run(
-                                        a_block_desc_m0_m1_m2_k0_k1_k2,
-                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                                   I0,
-                                                   I0,
-                                                   Number<k0 * KGroup + kg0>{},
-                                                   I0,
-                                                   I0),
-                                        a_block_buf.At(local_read_buf),
-                                        a_thread_desc_,
-                                        make_tuple(
-                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                   2>{},
-                                            I0,
-                                            I0,
-                                            k0,
-                                            I0,
-                                            Number<kg0 * A_K1>{}),
-                                        a_thread_buf);
-                                });
+                            static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                                constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                                constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                                a_thread_copy_.Run(
+                                    a_block_desc_m0_m1_m2_k0_k1_k2,
+                                    make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                               I0,
+                                               I0,
+                                               Number<k0 * KGroup + kg0>{},
+                                               I0,
+                                               I0),
+                                    a_block_buf.At(local_read_buf),
+                                    a_thread_desc_,
+                                    make_tuple(
+                                        Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
+                                               2>{},
+                                        I0,
+                                        I0,
+                                        k0,
+                                        I0,
+                                        Number<kg0 * A_K1>{}),
+                                    a_thread_buf);
                             });
                         }
                         else
                         {
-                            static_for<0, KRepeat, 1>{}([&](auto k0) {
-                                static_for<0, KGroup, 1>{}([&](auto kg0) {
-                                    a_thread_copy_.Run(
-                                        a_block_desc_m0_m1_m2_k0_k1_k2,
-                                        make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                                   I0,
-                                                   I0,
-                                                   Number<k0 * KGroup + kg0>{},
-                                                   I0,
-                                                   I0),
-                                        a_block_buf.At(mfma_reg_buf),
-                                        a_thread_desc_,
-                                        make_tuple(
-                                            Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
-                                                   2>{},
-                                            I0,
-                                            I0,
-                                            k0,
-                                            I0,
-                                            Number<kg0 * A_K1>{}),
-                                        a_thread_buf);
-                                });
+                            static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                                constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                                constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                                a_thread_copy_.Run(
+                                    a_block_desc_m0_m1_m2_k0_k1_k2,
+                                    make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                               I0,
+                                               I0,
+                                               Number<k0 * KGroup + kg0>{},
+                                               I0,
+                                               I0),
+                                    a_block_buf.At(mfma_reg_buf),
+                                    a_thread_desc_,
+                                    make_tuple(
+                                        Number<(m0 + 2 + HotloopLocalBufSwitch * mfma_reg_buf) %
+                                               2>{},
+                                        I0,
+                                        I0,
+                                        k0,
+                                        I0,
+                                        Number<kg0 * A_K1>{}),
+                                    a_thread_buf);
                             });
                         }
                     });
@@ -706,100 +703,100 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v3<BlockGemmPipelineSch
                                     b_thread_bufs_up(I1));
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, KRepeat, 1>{}([&](auto k0) {
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
-                        vector_type<ComputeDataType, KPack> a_thread_vec;
-                        vector_type<ComputeDataType, KPack> b_thread_vec;
-                        vector_type<ComputeDataType, KPack> b_thread_vec_up;
+                static_ford<Sequence<KRepeat, NRepeat>>{}([&](auto kn) {
+                    constexpr auto k0 = Number<kn[Number<0>{}]>{};
+                    constexpr auto n0 = Number<kn[Number<1>{}]>{};
+                    vector_type<ComputeDataType, KPack> a_thread_vec;
+                    vector_type<ComputeDataType, KPack> b_thread_vec;
+                    vector_type<ComputeDataType, KPack> b_thread_vec_up;
 
-                        static_for<0, KPack, 1>{}([&](auto ik) {
-                            a_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                    make_tuple(m0 % 2, I0, I0, k0, I0, ik))>{}];
-                            b_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                b_thread_bufs[I0][Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(n0, I0, k0, ik))>{}];
+                    static_for<0, KPack, 1>{}([&](auto ik) {
+                        a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                            a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                make_tuple(m0 % 2, I0, I0, k0, I0, ik))>{}];
+                        b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                            b_thread_bufs[I0][Number<b_thread_desc_.CalculateOffset(
+                                make_tuple(n0, I0, k0, ik))>{}];
 
-                            b_thread_vec_up.template AsType<ComputeDataType>()(ik) =
-                                b_thread_bufs_up[I0][Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(n0, I0, k0, ik))>{}];
-                        });
-
-                        using mfma_input_type =
-                            typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
-
-                        constexpr index_t c_offset =
-                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
-
-                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
-                                        b_thread_vec.template AsType<mfma_input_type>(),
-                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-
-                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
-                                        b_thread_vec_up.template AsType<mfma_input_type>(),
-                                        c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{}));
+                        b_thread_vec_up.template AsType<ComputeDataType>()(ik) =
+                            b_thread_bufs_up[I0][Number<b_thread_desc_.CalculateOffset(
+                                make_tuple(n0, I0, k0, ik))>{}];
                     });
+
+                    using mfma_input_type =
+                        typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+
+                    constexpr index_t c_offset =
+                        c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                    xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                    b_thread_vec.template AsType<mfma_input_type>(),
+                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+
+                    xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                    b_thread_vec_up.template AsType<mfma_input_type>(),
+                                    c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{}));
                 });
                 if constexpr(m0.value == (MRepeat - 2))
                 {
                     block_sync_lds();
 
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I1),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
+                    static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                        constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                        constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                       I0,
+                                       I0,
+                                       Number<k0 * KGroup + kg0>{},
+                                       I0,
+                                       I0),
+                            a_block_buf.At(I1),
+                            a_thread_desc_,
+                            make_tuple(
+                                Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                            a_thread_buf);
                     });
                 }
                 else if constexpr(m0.value == MRepeat - 1)
                 {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I1),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
+                    static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                        constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                        constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                       I0,
+                                       I0,
+                                       Number<k0 * KGroup + kg0>{},
+                                       I0,
+                                       I0),
+                            a_block_buf.At(I1),
+                            a_thread_desc_,
+                            make_tuple(
+                                Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                            a_thread_buf);
                     });
                 }
                 else
                 {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(Number<(m0 + 2) % MRepeat>{},
-                                           I0,
-                                           I0,
-                                           Number<k0 * KGroup + kg0>{},
-                                           I0,
-                                           I0),
-                                a_block_buf.At(I0),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
+                    static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                        constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                        constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(Number<(m0 + 2) % MRepeat>{},
+                                       I0,
+                                       I0,
+                                       Number<k0 * KGroup + kg0>{},
+                                       I0,
+                                       I0),
+                            a_block_buf.At(I0),
+                            a_thread_desc_,
+                            make_tuple(
+                                Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                            a_thread_buf);
                     });
                 }
             });
@@ -807,58 +804,58 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v3<BlockGemmPipelineSch
             HotLoopScheduler();
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, KRepeat, 1>{}([&](auto k0) {
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
-                        vector_type<ComputeDataType, KPack> a_thread_vec;
-                        vector_type<ComputeDataType, KPack> b_thread_vec;
-                        vector_type<ComputeDataType, KPack> b_thread_vec_up;
+                static_ford<Sequence<KRepeat, NRepeat>>{}([&](auto kn) {
+                    constexpr auto k0 = Number<kn[Number<0>{}]>{};
+                    constexpr auto n0 = Number<kn[Number<1>{}]>{};
+                    vector_type<ComputeDataType, KPack> a_thread_vec;
+                    vector_type<ComputeDataType, KPack> b_thread_vec;
+                    vector_type<ComputeDataType, KPack> b_thread_vec_up;
 
-                        static_for<0, KPack, 1>{}([&](auto ik) {
-                            a_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(
-                                    (m0 + HotloopLocalBufSwitch) % 2, I0, I0, k0, I0, ik))>{}];
-                            b_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                b_thread_bufs[I1][Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(n0, I0, k0, ik))>{}];
-                            b_thread_vec_up.template AsType<ComputeDataType>()(ik) =
-                                b_thread_bufs_up[I1][Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(n0, I0, k0, ik))>{}];
-                        });
-
-                        using mfma_input_type =
-                            typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
-
-                        constexpr index_t c_offset =
-                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
-
-                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
-                                        b_thread_vec.template AsType<mfma_input_type>(),
-                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-
-                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
-                                        b_thread_vec_up.template AsType<mfma_input_type>(),
-                                        c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{}));
+                    static_for<0, KPack, 1>{}([&](auto ik) {
+                        a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                            a_thread_buf[Number<a_thread_desc_.CalculateOffset(make_tuple(
+                                (m0 + HotloopLocalBufSwitch) % 2, I0, I0, k0, I0, ik))>{}];
+                        b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                            b_thread_bufs[I1][Number<b_thread_desc_.CalculateOffset(
+                                make_tuple(n0, I0, k0, ik))>{}];
+                        b_thread_vec_up.template AsType<ComputeDataType>()(ik) =
+                            b_thread_bufs_up[I1][Number<b_thread_desc_.CalculateOffset(
+                                make_tuple(n0, I0, k0, ik))>{}];
                     });
+
+                    using mfma_input_type =
+                        typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+
+                    constexpr index_t c_offset =
+                        c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                    xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                    b_thread_vec.template AsType<mfma_input_type>(),
+                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+
+                    xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                    b_thread_vec_up.template AsType<mfma_input_type>(),
+                                    c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{}));
                 });
 
                 if constexpr(m0.value < (MRepeat - 2))
                 {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(
-                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                a_block_buf.At(I1),
-                                a_thread_desc_,
-                                make_tuple(Number<(m0 + 2 + HotloopLocalBufSwitch) % 2>{},
-                                           I0,
-                                           I0,
-                                           k0,
-                                           I0,
-                                           Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
+                    static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                        constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                        constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(
+                                Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                            a_block_buf.At(I1),
+                            a_thread_desc_,
+                            make_tuple(Number<(m0 + 2 + HotloopLocalBufSwitch) % 2>{},
+                                       I0,
+                                       I0,
+                                       k0,
+                                       I0,
+                                       Number<kg0 * A_K1>{}),
+                            a_thread_buf);
                     });
                 }
             });
@@ -870,53 +867,53 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v3<BlockGemmPipelineSch
         else if constexpr(TailNum == TailNumber::Odd)
         {
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                static_for<0, KRepeat, 1>{}([&](auto k0) {
-                    static_for<0, NRepeat, 1>{}([&](auto n0) {
-                        vector_type<ComputeDataType, KPack> a_thread_vec;
-                        vector_type<ComputeDataType, KPack> b_thread_vec;
-                        vector_type<ComputeDataType, KPack> b_thread_vec_up;
+                static_ford<Sequence<KRepeat, NRepeat>>{}([&](auto kn) {
+                    constexpr auto k0 = Number<kn[Number<0>{}]>{};
+                    constexpr auto n0 = Number<kn[Number<1>{}]>{};
+                    vector_type<ComputeDataType, KPack> a_thread_vec;
+                    vector_type<ComputeDataType, KPack> b_thread_vec;
+                    vector_type<ComputeDataType, KPack> b_thread_vec_up;
 
-                        static_for<0, KPack, 1>{}([&](auto ik) {
-                            a_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                    make_tuple(m0 % 2, I0, I0, k0, I0, ik))>{}];
-                            b_thread_vec.template AsType<ComputeDataType>()(ik) =
-                                b_thread_bufs[I0][Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(n0, I0, k0, ik))>{}];
-                            b_thread_vec_up.template AsType<ComputeDataType>()(ik) =
-                                b_thread_bufs_up[I0][Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(n0, I0, k0, ik))>{}];
-                        });
-
-                        using mfma_input_type =
-                            typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
-
-                        constexpr index_t c_offset =
-                            c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
-
-                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
-                                        b_thread_vec.template AsType<mfma_input_type>(),
-                                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                        xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
-                                        b_thread_vec_up.template AsType<mfma_input_type>(),
-                                        c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{}));
+                    static_for<0, KPack, 1>{}([&](auto ik) {
+                        a_thread_vec.template AsType<ComputeDataType>()(ik) =
+                            a_thread_buf[Number<a_thread_desc_.CalculateOffset(
+                                make_tuple(m0 % 2, I0, I0, k0, I0, ik))>{}];
+                        b_thread_vec.template AsType<ComputeDataType>()(ik) =
+                            b_thread_bufs[I0][Number<b_thread_desc_.CalculateOffset(
+                                make_tuple(n0, I0, k0, ik))>{}];
+                        b_thread_vec_up.template AsType<ComputeDataType>()(ik) =
+                            b_thread_bufs_up[I0][Number<b_thread_desc_.CalculateOffset(
+                                make_tuple(n0, I0, k0, ik))>{}];
                     });
+
+                    using mfma_input_type =
+                        typename vector_type<ComputeDataType, xdlops_gemm.K1PerXdlops>::type;
+
+                    constexpr index_t c_offset =
+                        c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+
+                    xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                    b_thread_vec.template AsType<mfma_input_type>(),
+                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+                    xdlops_gemm.Run(a_thread_vec.template AsType<mfma_input_type>(),
+                                    b_thread_vec_up.template AsType<mfma_input_type>(),
+                                    c_thread_buf_up.GetVectorTypeReference(Number<c_offset>{}));
                 });
 
                 if constexpr(m0.value < (MRepeat - 2))
                 {
-                    static_for<0, KRepeat, 1>{}([&](auto k0) {
-                        static_for<0, KGroup, 1>{}([&](auto kg0) {
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_k0_k1_k2,
-                                make_tuple(
-                                    Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
-                                a_block_buf.At(I0),
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
-                                a_thread_buf);
-                        });
+                    static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {
+                        constexpr auto k0  = Number<kk[Number<0>{}]>{};
+                        constexpr auto kg0 = Number<kk[Number<1>{}]>{};
+                        a_thread_copy_.Run(
+                            a_block_desc_m0_m1_m2_k0_k1_k2,
+                            make_tuple(
+                                Number<m0 + 2>{}, I0, I0, Number<k0 * KGroup + kg0>{}, I0, I0),
+                            a_block_buf.At(I0),
+                            a_thread_desc_,
+                            make_tuple(
+                                Number<(m0 + 2) % 2>{}, I0, I0, k0, I0, Number<kg0 * A_K1>{}),
+                            a_thread_buf);
                     });
                 }
             });
