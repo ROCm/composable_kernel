@@ -449,6 +449,14 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
             auto&& [bs_copy_dram_window, b_copy_lds_window, b_lds_gemm_window] =
                 Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
 
+            using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
+            using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
+
+            constexpr ADramTileWindowStep a_dram_tile_window_step =
+                is_a_col_major ? make_array(kKPerBlock, 0) : make_array(0, kKPerBlock);
+            constexpr BDramTileWindowStep b_dram_tile_window_step =
+                is_b_row_major ? make_array(kKPerBlock, 0) : make_array(0, kKPerBlock);
+
             // Block GEMM
             auto block_gemm = BlockGemm();
 
@@ -471,10 +479,10 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
                 // move to 1
                 // Move each A — the enhanced function move_tile_window is executed, which takes a
                 // tuple as input.
-                move_tile_window(as_copy_dram_window, {0, kKPerBlock});
+                move_tile_window(as_copy_dram_window, a_dram_tile_window_step);
                 // Move each B — the enhanced function move_tile_window is executed, which takes a
                 // tuple as input.
-                move_tile_window(bs_copy_dram_window, {0, kKPerBlock});
+                move_tile_window(bs_copy_dram_window, b_dram_tile_window_step);
 
                 // initialize C
                 tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -524,8 +532,8 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
                                is_b_load_tr_v);
 
                     // move to i + 2
-                    move_tile_window(as_copy_dram_window, {0, kKPerBlock});
-                    move_tile_window(bs_copy_dram_window, {0, kKPerBlock});
+                    move_tile_window(as_copy_dram_window, a_dram_tile_window_step);
+                    move_tile_window(bs_copy_dram_window, b_dram_tile_window_step);
 
                     // LDS write i + 1
                     if constexpr(is_a_col_major && !is_a_load_tr_v())
