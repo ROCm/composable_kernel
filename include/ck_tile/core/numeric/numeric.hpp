@@ -9,6 +9,11 @@
 
 namespace ck_tile {
 
+// TF32 tag type: 1 sign bit, 8 exponent bits, 10 mantissa bits (see numeric_traits<tf32_t>)
+struct tf32_t
+{
+};
+
 // this struct has the information of
 // 1. limit of a certain type, simliar to std::numeric_limits
 // 2. some pre-defined value, zero, one...
@@ -87,6 +92,25 @@ struct numeric_traits<float>
 {
     static constexpr int exp            = 8;
     static constexpr int mant           = 23;
+    static constexpr int bias           = 127;
+    static constexpr uint32_t nan_mask  = 0x7F800000;
+    static constexpr uint32_t head_mask = 0xFF800000;
+    static constexpr uint32_t mant_mask = 0x7FFFFF;
+    static constexpr uint32_t exp_mask  = 0xFF;
+    static constexpr uint32_t abs_mask  = 0x7FFFFFFF;
+    static constexpr uint32_t Inf       = 0x7F800000;
+    static constexpr uint32_t NegInf    = 0xFF800000;
+    static constexpr uint32_t NaN       = 0x7F800001;
+    static constexpr uint32_t Neg0      = 0x80000000;
+    static constexpr int PackedSize     = 1;
+    using bitwise_type                  = uint32_t;
+};
+
+template <>
+struct numeric_traits<tf32_t>
+{
+    static constexpr int exp            = 8;
+    static constexpr int mant           = 10;
     static constexpr int bias           = 127;
     static constexpr uint32_t nan_mask  = 0x7F800000;
     static constexpr uint32_t head_mask = 0xFF800000;

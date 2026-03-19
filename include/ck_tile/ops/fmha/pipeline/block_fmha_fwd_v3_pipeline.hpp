@@ -229,15 +229,6 @@ CK_TILE_DEVICE fp16x2_t cvt_pk_fp16_f32(float a, float b)
     return result;
 }
 
-CK_TILE_DEVICE bf16x2_t cvt_pk_bf16_f32(float a, float b)
-{
-    bf16x2_t result;
-    asm volatile("v_cvt_pk_bf16_f32 %[result], %[a], %[b]"
-                 : [result] "=v"(result)
-                 : [a] "v"(a), [b] "v"(b));
-    return result;
-}
-
 CK_TILE_DEVICE fp32x2_t pk_mul_f32(fp32x2_t lhs, fp32x2_t rhs)
 {
     fp32x2_t result;
@@ -856,7 +847,7 @@ struct BlockFmhaFwdV3Pipeline
                 }
                 else
                 {
-                    auto casted                           = detail::cvt_pk_bf16_f32(x, y);
+                    auto casted                           = ck_tile::cvt_pk_bf16_f32(x, y);
                     sp(sp_reg_idx).p.thread_buf_[idx]     = casted.x;
                     sp(sp_reg_idx).p.thread_buf_[idx + 1] = casted.y;
                 }

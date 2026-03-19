@@ -6,8 +6,8 @@
 struct BasicInvoker
 {
     template <typename GemmConfig,
-              typename ADataType,
-              typename BDataType,
+              typename ADataType_,
+              typename BDataType_,
               typename DsDataType,
               typename AccDataType,
               typename CDataType,
@@ -19,14 +19,30 @@ struct BasicInvoker
               typename CDEElementWise>
     static float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
+        // ADataTypeCompute: compute type (tf32_t for TF32 mode, used for warp gemm selection)
+        // ADataTypeBuf: buffer/storage type (fp32 when tf32)
+        using ADataTypeCompute = ADataType_;
+        using BDataTypeCompute = BDataType_;
+        using ADataTypeBuf = ck_tile::if_select_t<ADataType_, ck_tile::tf32_t, float, ADataType_>;
+        using BDataTypeBuf = ck_tile::if_select_t<BDataType_, ck_tile::tf32_t, float, BDataType_>;
+
+        if constexpr(std::is_same_v<ADataTypeCompute, ck_tile::tf32_t>)
+        {
+            static_assert(std::is_same_v<ADataTypeCompute, BDataTypeCompute>,
+                          "ADataTypeCompute and BDataTypeCompute must be the same");
+        }
+
         if constexpr(Persistent)
         {
             std::cout << "WARNING: Ignoring persistent kernel option for basic gemm." << std::endl;
         }
 
+        constexpr bool is_fp32_input   = std::is_same_v<ADataTypeBuf, float>;
+        constexpr bool is_tf32_compute = std::is_same_v<ADataTypeCompute, ck_tile::tf32_t>;
+
         // This part comes from the Codegen
-        constexpr ck_tile::index_t M_Tile = 256;
-        constexpr ck_tile::index_t N_Tile = 256;
+        constexpr ck_tile::index_t M_Tile = is_fp32_input ? 128 : 256;
+        constexpr ck_tile::index_t N_Tile = is_fp32_input ? 128 : 256;
         constexpr ck_tile::index_t K_Tile = 64;
 
 #if CK_TILE_USE_WMMA
@@ -38,12 +54,14 @@ struct BasicInvoker
         constexpr ck_tile::index_t N_Warp_Tile = 16;
         constexpr ck_tile::index_t K_Warp_Tile = 16;
 #else
-        constexpr ck_tile::index_t M_Warp = 2;
-        constexpr ck_tile::index_t N_Warp = 2;
+        // gfx950: fp32 uses 16x16x16 tile (native MFMA)
+        //         tf32 uses 32x32x16 tile (3x bf16 32x32x16 MFMA emulation)
+        constexpr ck_tile::index_t M_Warp = (is_fp32_input && !is_tf32_compute) ? 4 : 2;
+        constexpr ck_tile::index_t N_Warp = (is_fp32_input && !is_tf32_compute) ? 4 : 2;
         constexpr ck_tile::index_t K_Warp = 1;
 
-        constexpr ck_tile::index_t M_Warp_Tile = 32;
-        constexpr ck_tile::index_t N_Warp_Tile = 32;
+        constexpr ck_tile::index_t M_Warp_Tile = (is_fp32_input && !is_tf32_compute) ? 16 : 32;
+        constexpr ck_tile::index_t N_Warp_Tile = (is_fp32_input && !is_tf32_compute) ? 16 : 32;
         constexpr ck_tile::index_t K_Warp_Tile = 16;
 #endif
 
@@ -61,17 +79,21 @@ struct BasicInvoker
                                                           BLayout,
                                                           CLayout>;
 
-        using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<ADataType,
-                                                                    BDataType,
-                                                                    AccDataType,
-                                                                    CodegenGemmShape,
-                                                                    CodegenGemmTraits>;
+        using CodegenPipelineProblem =
+            ck_tile::GemmPipelineProblem<ADataTypeBuf,
+                                         BDataTypeBuf,
+                                         AccDataType,
+                                         CodegenGemmShape,
+                                         CodegenGemmTraits,
+                                         ck_tile::element_wise::PassThrough,
+                                         ck_tile::element_wise::PassThrough,
+                                         ADataTypeCompute>;
 
         using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
+            ck_tile::CShuffleEpilogueProblem<ADataTypeCompute,
+                                             BDataTypeCompute,
                                              ck_tile::tuple<>,
                                              AccDataType,
                                              CDataType,
@@ -112,7 +134,7 @@ struct BasicInvoker
         }
 
         // Declare rotating_mem_ptr here so it stays in scope until it is needed
-        std::unique_ptr<ck_tile::RotatingMemWrapper<ADataType, BDataType>> rotating_mem_ptr;
+        std::unique_ptr<ck_tile::RotatingMemWrapper<ADataTypeBuf, BDataTypeBuf>> rotating_mem_ptr;
         std::function<void()> preprocess;
 
         auto clear_gemm_output = [&]() {
@@ -125,16 +147,21 @@ struct BasicInvoker
         {
             std::cout << "Flushing cache..." << std::endl;
 
-            ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
+            ck_tile::HostTensor<ADataTypeBuf> a_m(ck_tile::host_tensor_descriptor(
                 args.M, args.K, args.stride_A, is_row_major(ALayout{})));
-            ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
+            ck_tile::HostTensor<BDataTypeBuf> b_n(ck_tile::host_tensor_descriptor(
                 args.K, args.N, args.stride_B, is_row_major(BLayout{})));
 
             auto size_a_buffer = a_m.get_element_space_size_in_bytes();
             auto size_b_buffer = b_n.get_element_space_size_in_bytes();
 
-            rotating_mem_ptr = std::make_unique<ck_tile::RotatingMemWrapper<ADataType, BDataType>>(
-                kargs.as_ptr[0], kargs.bs_ptr[0], s.rotating_count_, size_a_buffer, size_b_buffer);
+            rotating_mem_ptr =
+                std::make_unique<ck_tile::RotatingMemWrapper<ADataTypeBuf, BDataTypeBuf>>(
+                    kargs.as_ptr[0],
+                    kargs.bs_ptr[0],
+                    s.rotating_count_,
+                    size_a_buffer,
+                    size_b_buffer);
             rotating_mem_ptr->Print();
 
             preprocess = [&]() {

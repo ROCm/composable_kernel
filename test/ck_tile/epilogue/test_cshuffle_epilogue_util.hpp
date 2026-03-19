@@ -46,8 +46,8 @@ test_cshuffle_epilogue_kernel(const typename Problem::AccDataType* __restrict__ 
     __shared__ char smem[Epilogue::GetSmemSize()];
 
     // Create accumulator tile with GEMM accumulator distribution (matches BlockGemm)
-    using WG = ck_tile::WarpGemmDispatcher<typename Epilogue::ADataType,
-                                           typename Epilogue::BDataType,
+    using WG = ck_tile::WarpGemmDispatcher<typename Epilogue::ATypeToUse,
+                                           typename Epilogue::BTypeToUse,
                                            typename Problem::AccDataType,
                                            Problem::MPerXdl,
                                            Problem::NPerXdl,

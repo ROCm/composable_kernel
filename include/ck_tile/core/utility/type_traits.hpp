@@ -112,6 +112,11 @@ CK_TILE_HOST_DEVICE PY c_style_pointer_cast(PX p_x)
 #pragma clang diagnostic pop
 }
 
+// Template ternary: if Cond == Match, use TrueType, else FalseType
+// Usage: if_select_t<T, int, float, double> evaluates to float if T==int, else double
+template <typename Cond, typename Match, typename TrueType, typename FalseType>
+using if_select_t = std::conditional_t<std::is_same_v<Cond, Match>, TrueType, FalseType>;
+
 template <typename CompareTo, typename... Rest>
 struct is_any_of : std::false_type
 {
