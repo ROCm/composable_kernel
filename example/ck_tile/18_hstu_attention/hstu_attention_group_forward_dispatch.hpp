@@ -27,13 +27,14 @@ template <typename InOutDataType,
           bool kUseSoftmax,
           bool kHasBias,
           bool kHasDropout,
-          ck_tile::index_t MaxK>
+          ck_tile::index_t MaxK,
+          ck_tile::index_t MTile>
 struct group_forward_causal_softmax_bias_dropout_dispatch
 {
     using HstuAttentionTileSetting =
         typename std::conditional_t<kUseSoftmax,
-                                    HstuAttentionWithSoftmaxFwdTileSetting<MaxK>,
-                                    HstuAttentionNoSoftmaxFwdTileSetting<MaxK>>::Type;
+                                    HstuAttentionWithSoftmaxFwdTileSetting<MaxK, MTile>,
+                                    HstuAttentionNoSoftmaxFwdTileSetting<MaxK, MTile>>::Type;
 
 #ifdef BUILD_HSTU_FOR_GFX95_ONLY
     static constexpr bool kUseTrLoad = true;
@@ -175,10 +176,20 @@ template <typename InOutDataType,
 void run_group_forward_causal_softmax_bias_dropout_dispatch(HstuAttentionGroupFwdParams& param,
                                                             hipStream_t stream)
 {
-    group_forward_causal_softmax_bias_dropout_dispatch<InOutDataType,
-                                                       kUseCausal,
-                                                       kUseSoftmax,
-                                                       kHasBias,
-                                                       kHasDropout,
-                                                       MaxK>::Run(param, stream);
+    if(get_hstu_attention_fwd_mtile(param.num_batch, param.num_head, param.max_seqlen) == 128)
+        group_forward_causal_softmax_bias_dropout_dispatch<InOutDataType,
+                                                           kUseCausal,
+                                                           kUseSoftmax,
+                                                           kHasBias,
+                                                           kHasDropout,
+                                                           MaxK,
+                                                           128>::Run(param, stream);
+    else
+        group_forward_causal_softmax_bias_dropout_dispatch<InOutDataType,
+                                                           kUseCausal,
+                                                           kUseSoftmax,
+                                                           kHasBias,
+                                                           kHasDropout,
+                                                           MaxK,
+                                                           64>::Run(param, stream);
 };
