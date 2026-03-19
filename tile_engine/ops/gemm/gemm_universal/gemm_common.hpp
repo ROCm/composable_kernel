@@ -21,6 +21,12 @@ struct DataTypeTraits<float>
 };
 
 template <>
+struct DataTypeTraits<ck_tile::tf32_t>
+{
+    static constexpr const char* name = "tf32";
+};
+
+template <>
 struct DataTypeTraits<double>
 {
     static constexpr const char* name = "fp64";

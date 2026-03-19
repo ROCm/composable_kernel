@@ -257,33 +257,37 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
 
+        // Use ComputeDataType to detect tf32 mode for warp gemm selection
+        using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
+        using ADataType       = remove_cvref_t<typename Problem::ADataType>;
+        using BDataType       = remove_cvref_t<typename Problem::BDataType>;
+
         // Determine compute types to use
         // This logic defaults to A/B DataType, but if one of them is packed falls back to the other
         // If both are packed, it falls back to the explicitly defined ComputeDataType in the
         // problem It might be a good idea to use ComputeDataType anyway, but that would break how
         // this behaviour used to work
-        using ATypeToUse = mixed_prec_compute_type_from_input_t<typename Problem::ADataType,
-                                                                typename Problem::BDataType,
-                                                                typename Problem::ComputeDataType>;
-        using BTypeToUse = mixed_prec_compute_type_from_input_t<typename Problem::BDataType,
-                                                                typename Problem::ADataType,
-                                                                typename Problem::ComputeDataType>;
-
+        using ATypeToUse =
+            mixed_prec_compute_type_from_input_t<ADataType, BDataType, ComputeDataType>;
+        using BTypeToUse =
+            mixed_prec_compute_type_from_input_t<BDataType, ADataType, ComputeDataType>;
         constexpr index_t WaveSize = get_warp_size();
         constexpr index_t KLane    = WarpTile::at(I2) * WarpTile::at(I0) / WaveSize;
         // When BDataType is pk_int4_t, it is internally converted to fp8 for computation.
         constexpr index_t KLaneBytes = KLane * sizeof(BTypeToUse);
         constexpr auto NumAccess     = static_cast<WGAttrNumAccessEnum>(max(1, KLaneBytes / 16));
-        using WarpGemm               = WarpGemmDispatcher<ATypeToUse,
-                                                          BTypeToUse,
-                                                          typename Problem::CDataType,
-                                                          WarpTile::at(I0),
-                                                          WarpTile::at(I1),
-                                                          WarpTile::at(I2),
-                                                          Problem::TransposeC,
-                                                          false,
-                                                          false,
-                                                          NumAccess>;
+        // For tf32 mode, use tf32_t for warp gemm; otherwise use original types
+        using WarpGemm =
+            WarpGemmDispatcher<if_select_t<ComputeDataType, tf32_t, tf32_t, ATypeToUse>,
+                               if_select_t<ComputeDataType, tf32_t, tf32_t, BTypeToUse>,
+                               typename Problem::CDataType,
+                               WarpTile::at(I0),
+                               WarpTile::at(I1),
+                               WarpTile::at(I2),
+                               Problem::TransposeC,
+                               false,
+                               false,
+                               NumAccess>;
 
         using BlockWeightPreshufflePolicy =
             BlockWeightPreshuffleASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
