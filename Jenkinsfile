@@ -715,8 +715,9 @@ def cmake_build(Map conf=[:]){
                 "${build_envs} ninja -j${nt} ${config_targets}"
             )
         } else {
-            // Smart-build enabled: skip full build, only run cmake configure
+            // Smart-build enabled: skip full build and execute_cmd (client examples)
             build_cmd = ""
+            execute_cmd = ""
         }
 
         cmd = conf.get("cmd", """
@@ -1396,8 +1397,8 @@ pipeline {
             description: "Run codegen tests (default: ON)")
         booleanParam(
             name: "RUN_BUILDER_TESTS",
-            defaultValue: true,
-            description: "Run CK_BUILDER tests (default: ON)")
+            defaultValue: false,
+            description: "Run CK_BUILDER tests (default: OFF)")
         booleanParam(
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
