@@ -711,11 +711,10 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
     {
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize =
-            Problem::FixedVectorSize ? Problem::VectorSizeA : GetVectorSizeA<Problem>();
+        constexpr index_t BlockSize     = Problem::kBlockSize;
+        constexpr index_t MPerBlock     = Problem::BlockGemmShape::kM;
+        constexpr index_t KPerBlock     = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize   = GetVectorSizeA<Problem>();
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
         using ALayout = remove_cvref_t<
@@ -756,9 +755,7 @@ struct UniversalGemmBasePolicy
         // since the assumption is that A type is going to be the B LDS type
         constexpr bool IsBCastPolicyBeforeLDSWrite = IsBCastPolicyBeforeLDSWrite_v<Problem>;
         constexpr index_t VecLoadSize =
-            IsBCastPolicyBeforeLDSWrite
-                ? (Problem::FixedVectorSize ? Problem::VectorSizeA : GetVectorSizeA<Problem>())
-                : (Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem>());
+            IsBCastPolicyBeforeLDSWrite ? GetVectorSizeA<Problem>() : GetVectorSizeB<Problem>();
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
         using BLayout                   = remove_cvref_t<
                               std::tuple_element_t<number<0>{}, remove_cvref_t<typename Problem::BsLayoutTuple>>>;

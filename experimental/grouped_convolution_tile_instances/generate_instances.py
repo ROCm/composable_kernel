@@ -317,7 +317,7 @@ def parse_bwd_weight_instances(instances, problem_name):
             gemm_params = device_op_name = instance.split("<")[2].split(">")[1].split(",")
             args = [param.split(":")[1].strip() for param in gemm_params]
 
-            spec = "Default"
+            spec = "Filter1x1Stride1Pad0"
             block_size = int(args[0])
 
             mnk_per_block = args[1].split("x")
@@ -450,6 +450,13 @@ def parse_bwd_weight_instances(instances, problem_name):
         if pipeline_version == "V6":
             print(f"Skipping instance {instance_id} with V6 since it's not supported yet.")
             continue
+        if m_per_block > (warp_size * a_scalar_per_vector) or n_per_block > (warp_size * b_scalar_per_vector):
+            print(f"Skipping instance {instance_id} with multiple warps per continous tile dim since it's not supported yet.")
+            continue
+
+        if is_explicit_gemm:
+            if dtype != "float" and c_scalar_per_vector % 2 != 0:
+                is_two_stage_instance = True
 
         conv = ConvInstanceTemplateParams(
             spec,
