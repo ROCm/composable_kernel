@@ -21,7 +21,7 @@ import json
 class EnhancedNinjaDependencyParser:
     def __init__(self, build_file_path, ninja_executable="ninja"):
         self.build_file_path = build_file_path
-        self.build_dir = os.path.dirname(build_file_path)
+        self.build_dir = os.path.dirname(build_file_path) or "."
         self.ninja_executable = ninja_executable
 
         # Core data structures
