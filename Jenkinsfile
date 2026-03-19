@@ -1,3 +1,29 @@
+// Composable Kernel Jenkins Pipeline
+//
+// SMART BUILD SYSTEM:
+// This pipeline uses intelligent dependency analysis to speed up PR builds while
+// maintaining full validation on nightly runs.
+//
+// How it works:
+// 1. PR Builds (Selective):
+//    - Configure: cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON (~30s)
+//    - Analyze: Parse compile_commands.json + clang -MM for dependencies (~2min)
+//    - Select: git diff to find affected tests (~1s)
+//    - Build: ninja <affected-tests> only (minutes vs hours)
+//    - Test: ctest -R <affected-pattern>
+//
+// 2. Nightly Builds (Full):
+//    - FORCE_CI=true from cron triggers full build
+//    - All targets built and tested for validation
+//
+// 3. Safety Checks:
+//    - Forces full build if CMake configuration changes
+//    - Forces full build if dependency cache stale (>7 days)
+//    - Manual override: set DISABLE_SMART_BUILD=true
+//
+// Benefits: PR builds 5h → 30min (typical), nightly builds unchanged
+// See: script/dependency-parser/README.md for details
+//
 def rocmnode(name) {
     return '(rocmtest || miopen) && (' + name + ')'
 }
@@ -678,12 +704,20 @@ def cmake_build(Map conf=[:]){
         }
         setup_cmd = conf.get(
             "setup_cmd",
-            """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 " .. """
+            """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_CXX_FLAGS=" -O3 " .. """
         )
-        build_cmd = conf.get(
-            "build_cmd",
-            "${build_envs} ninja -j${nt} ${config_targets}"
-        )
+
+        // Smart-build: Only build if running all tests or forced
+        // Otherwise, smart-build will determine what to build after cmake configure
+        if (runAllUnitTests) {
+            build_cmd = conf.get(
+                "build_cmd",
+                "${build_envs} ninja -j${nt} ${config_targets}"
+            )
+        } else {
+            // Smart-build enabled: skip full build, only run cmake configure
+            build_cmd = ""
+        }
 
         cmd = conf.get("cmd", """
             ${setup_cmd}
@@ -741,25 +775,44 @@ def cmake_build(Map conf=[:]){
 
         //run tests except when NO_CK_BUILD is set
         if(!setup_args.contains("NO_CK_BUILD")){
-            sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${arch_name}.json"
-            archiveArtifacts "ck_build_trace_${arch_name}.json"
-            sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${arch_name}.json"
             if (params.NINJA_BUILD_TRACE || params.BUILD_INSTANCES_ONLY){
-                if (params.NINJA_FTIME_TRACE) {
-                    echo "running ClangBuildAnalyzer"
-                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
-                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${arch_name}.log"
-                    archiveArtifacts "clang_build_analysis_${arch_name}.log"
-                }
-
-
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
                     if (!runAllUnitTests){
-                        sh "../script/launch_tests.sh"
+                        // Smart Build: Run smart_build_and_test.sh
+                        sh """
+                            export WORKSPACE_ROOT=${env.WORKSPACE}
+                            export PARALLEL=32
+                            export NINJA_JOBS=${nt}
+                            export ARCH_NAME=${arch_name}
+                            export PROCESS_NINJA_TRACE=true
+                            export NINJA_FTIME_TRACE=${params.NINJA_FTIME_TRACE ? 'true' : 'false'}
+                            bash ../script/dependency-parser/smart_build_and_test.sh
+                        """
+
+                        // Archive artifacts if they were generated
+                        if (fileExists("ck_build_trace_${arch_name}.json")) {
+                            archiveArtifacts "ck_build_trace_${arch_name}.json"
+                        }
+                        if (fileExists("clang_build_analysis_${arch_name}.log")) {
+                            archiveArtifacts "clang_build_analysis_${arch_name}.log"
+                        }
                     }
                     else{
-                        sh "ninja check"
+                        echo "Full test suite requested (RUN_ALL_UNIT_TESTS=true or develop branch)"
+                        sh "ninja -j${nt} check"
+
+                        // Process ninja build trace after full build
+                        sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${arch_name}.json"
+                        archiveArtifacts "ck_build_trace_${arch_name}.json"
+                        sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${arch_name}.json"
+
+                        if (params.NINJA_FTIME_TRACE) {
+                            echo "running ClangBuildAnalyzer"
+                            sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
+                            sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${arch_name}.log"
+                            archiveArtifacts "clang_build_analysis_${arch_name}.log"
+                        }
                     }
                     if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
                         sh 'ninja check-builder'
@@ -781,12 +834,24 @@ def cmake_build(Map conf=[:]){
             }
             else{
                 // run unit tests unless building library for all targets
+                // Note: This else block is when NINJA_BUILD_TRACE=false and BUILD_INSTANCES_ONLY=false
+                // So no ninja trace processing needed here
                 if (!params.BUILD_INSTANCES_ONLY){
                     if (!runAllUnitTests){
-                        sh "../script/launch_tests.sh"
+                        // Smart Build: Run smart_build_and_test.sh
+                        sh """
+                            export WORKSPACE_ROOT=${env.WORKSPACE}
+                            export PARALLEL=32
+                            export NINJA_JOBS=${nt}
+                            export ARCH_NAME=${arch_name}
+                            export PROCESS_NINJA_TRACE=false
+                            export NINJA_FTIME_TRACE=false
+                            bash ../script/dependency-parser/smart_build_and_test.sh
+                        """
                     }
                     else{
-                        sh "ninja check"
+                        echo "Full test suite requested (RUN_ALL_UNIT_TESTS=true or develop branch)"
+                        sh "ninja -j${nt} check"
                     }
                     if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
                         sh 'ninja check-builder'
@@ -1241,6 +1306,10 @@ pipeline {
             name: "USE_SCCACHE",
             defaultValue: true,
             description: "Use the sccache for building CK (default: ON)")
+        booleanParam(
+            name: "DISABLE_SMART_BUILD",
+            defaultValue: false,
+            description: "Disable smart build system and force full build/test (default: OFF). Smart build uses pre-build dependency analysis for selective testing on PRs, full builds on nightly runs.")
         booleanParam(
             name: "RUN_CPPCHECK",
             defaultValue: false,
