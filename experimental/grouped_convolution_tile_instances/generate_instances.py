@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import argparse
+import shutil
 from pathlib import Path
 
 class ConvInstanceTemplateParams:
@@ -137,6 +138,12 @@ def parse_instance_string(instance_string):
     
     return params
 
+def copy_includes(instances_path):
+    inc_dir = Path(__file__).resolve().parent
+    output_dir = Path(instances_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(f"{inc_dir}/include/instance_includes.inc", instances_path)
+    shutil.copy(f"{inc_dir}/include/instance_run.inc", instances_path)
 
 def generate_calls_inc(instances, problem_name, direction, filter_pattern):
     generate_dir = Path(__file__).resolve().parent
@@ -168,17 +175,17 @@ def generate_defs_inc(instances, problem_name, signature, direction, filter_patt
 
 
 def generate_conv_cpp(
-    instances, problem_name, config, direction, signature_name, filter_pattern):
+    instances, problem_name, config, direction, signature_name, filter_pattern, instances_path):
     for instance in instances:
         if problem_name.find(filter_pattern) == -1:
             break
         instance_name = problem_name + "_" + str(instance.id)
-        generate_dir = Path(__file__).resolve().parent
-        directory_path = Path(f"{generate_dir}/instances/{direction}/{config}")
+        directory_path = Path(f"{instances_path}/{direction}/{config}")
         directory_path.mkdir(parents=True, exist_ok=True)
-        template_file = "grouped_convolution_tile.cpp.in"
+        parent_dir = Path(__file__).resolve().parent
+        template_file = "include/grouped_convolution_tile.cpp.in"
         
-        with open(f"{generate_dir}/instances/{template_file}", "r",) as f:
+        with open(f"{parent_dir}/{template_file}", "r",) as f:
             content = f.read()
 
             content = content.replace("gen_signature", signature_name)
@@ -189,7 +196,7 @@ def generate_conv_cpp(
             content = content.replace("gen_block_transfer", instance.get_block_transfer())
             content = content.replace("gen_optimizations", instance.get_optimizations())
 
-        with open(f"{generate_dir}/instances/{direction}/{config}/{instance_name}.cpp","w",) as f:
+        with open(f"{instances_path}/{direction}/{config}/{instance_name}.cpp","w",) as f:
             f.write(content)
 
 
@@ -484,7 +491,7 @@ def parse_bwd_data_instances(instances, problem_name):
     # TODO: Implement parsing logic for backward data instances.
     return convs
 
-def generate_instances_fwd(instances, problem_name, config, filter_pattern):
+def generate_instances_fwd(instances, problem_name, config, filter_pattern, instances_path):
     direction = "forward"
     signature_name = f"SIGNATURE_{config.upper()}_FWD"
     instances = parse_fwd_instances(instances, problem_name)
@@ -494,13 +501,13 @@ def generate_instances_fwd(instances, problem_name, config, filter_pattern):
         problem_name,
         signature_name,
         direction,
-        filter_pattern,
+        filter_pattern
     )
     generate_conv_cpp(
-        instances, problem_name, config, direction, signature_name, filter_pattern
+        instances, problem_name, config, direction, signature_name, filter_pattern, instances_path
     )
 
-def generate_instances_bwd_weight(instances, problem_name, config, filter_pattern):
+def generate_instances_bwd_weight(instances, problem_name, config, filter_pattern, instances_path):
     direction = "backward_weight"
     signature_name = f"SIGNATURE_{config.upper()}_BWD_WEIGHT"
     instances = parse_bwd_weight_instances(instances, problem_name)
@@ -510,13 +517,13 @@ def generate_instances_bwd_weight(instances, problem_name, config, filter_patter
         problem_name,
         signature_name,
         direction,
-        filter_pattern,
+        filter_pattern
     )
     generate_conv_cpp(
-        instances, problem_name, config, direction, signature_name, filter_pattern
+        instances, problem_name, config, direction, signature_name, filter_pattern, instances_path
     )
 
-def generate_instances_bwd_data(instances, problem_name, config, filter_pattern):
+def generate_instances_bwd_data(instances, problem_name, config, filter_pattern, instances_path):
     direction = "backward_data"
     signature_name = f"SIGNATURE_{config.upper()}_BWD_DATA"
     instances = parse_bwd_data_instances(instances, problem_name)
@@ -526,13 +533,13 @@ def generate_instances_bwd_data(instances, problem_name, config, filter_pattern)
         problem_name,
         signature_name,
         direction,
-        filter_pattern,
+        filter_pattern
     )
     generate_conv_cpp(
-        instances, problem_name, config, direction, signature_name, filter_pattern
+        instances, problem_name, config, direction, signature_name, filter_pattern, instances_path
     )
 
-def process_direction(configs, direction, generate_func, configs_prefix, filter_pattern):
+def process_direction(configs, direction, generate_func, configs_prefix, filter_pattern, instances_path):
     """Helper function to process a single direction."""
     for config in configs:
         instances = []
@@ -551,7 +558,7 @@ def process_direction(configs, direction, generate_func, configs_prefix, filter_
         else:
             raise RuntimeError(f"Unknown direction: {direction}")
         
-        generate_func(instances, problem_name, config, filter_pattern)
+        generate_func(instances, problem_name, config, filter_pattern, instances_path)
 
 if __name__ == "__main__":
     fwd_configs = [
@@ -605,6 +612,12 @@ if __name__ == "__main__":
         default="all",
         help="Convolution direction for which to generate instances."
     )
+    parser.add_argument(
+        "--instances_dir",
+        type=str,
+        default="../build/experimental/grouped_convolution_tile_instances",
+        help="Directory store generated instances."
+    )
     args = parser.parse_args()
 
     # apply empty filter
@@ -618,15 +631,16 @@ if __name__ == "__main__":
     else:
         raise RuntimeError("wrong mode")
 
+    copy_includes(args.instances_dir)
     match args.direction:
         case "forward":
-            process_direction(fwd_configs, args.direction, generate_instances_fwd, configs_prefix, args.filter_pattern)
+            process_direction(fwd_configs, args.direction, generate_instances_fwd, configs_prefix, args.filter_pattern, args.instances_dir)
         case "backward_weight":
-            process_direction(bwd_weight_configs, args.direction, generate_instances_bwd_weight, configs_prefix, args.filter_pattern)
+            process_direction(bwd_weight_configs, args.direction, generate_instances_bwd_weight, configs_prefix, args.filter_pattern, args.instances_dir)
         case "backward_data":
-            process_direction(bwd_data_configs, args.direction, generate_instances_bwd_data, configs_prefix, args.filter_pattern)
+            process_direction(bwd_data_configs, args.direction, generate_instances_bwd_data, configs_prefix, args.filter_pattern, args.instances_dir)
         case "all":
-            process_direction(fwd_configs, "forward", generate_instances_fwd, configs_prefix, args.filter_pattern)
-            process_direction(bwd_weight_configs, "backward_weight", generate_instances_bwd_weight, configs_prefix, args.filter_pattern)
-            process_direction(bwd_data_configs, "backward_data", generate_instances_bwd_data, configs_prefix, args.filter_pattern)
+            process_direction(fwd_configs, "forward", generate_instances_fwd, configs_prefix, args.filter_pattern, args.instances_dir)
+            process_direction(bwd_weight_configs, "backward_weight", generate_instances_bwd_weight, configs_prefix, args.filter_pattern, args.instances_dir)
+            process_direction(bwd_data_configs, "backward_data", generate_instances_bwd_data, configs_prefix, args.filter_pattern, args.instances_dir)
 
