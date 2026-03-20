@@ -41,40 +41,12 @@ using enable_if_target_id_dummy_t = std::enable_if_t<is_dummy_target(CompilerTar
 // and can focus on testing the mechanism of selecting supported vs unsupported architectures.
 // TODO: c++20 template <amdgcn_target_arch_id CompilerTarget>
 template <typename CompilerTarget>
-struct amdgcn_mma<fp32_t,
-                  fp32_t,
-                  fp32_t,
-                  16u,
-                  16u,
-                  16u,
-                  DummyCtrlFlags,
-                  CompilerTarget,
-                  MmaOpFamily::DENSE,
-                  enable_if_target_id_dummy_t<CompilerTarget>>
+// clang-format off
+//               | A B C DataTypes      | MNK + WaveSize |AParams |BPar |CPar |
+struct amdgcn_mma<fp32_t, fp32_t, fp32_t, 8u, 8u, 8u, DummyCtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_id_dummy_t<CompilerTarget>>
+: amdgcn_mma_base<fp32_t, fp32_t, fp32_t, 8u, 8u, 8u, 64u, 1, 1, 1, 1, 1, 1, 1, DummyOpType, MmaOpFamily::DENSE>
+// clang-format on
 {
-    // Mfma operation type
-    using OpType                          = DummyOpType;
-    static constexpr MmaOpFamily OpFamily = MmaOpFamily::DENSE;
-
-    // Register types
-    using AVecType = ext_vector_t<fp32_t, 4>;
-    using BVecType = ext_vector_t<fp32_t, 4>;
-    using CVecType = ext_vector_t<fp32_t, 4>;
-
-    // Layout constants
-    static constexpr index_t kAMBlock = 1;
-    static constexpr index_t kBNBlock = 2;
-
-    static constexpr index_t kAMLane     = 3;
-    static constexpr index_t kBNLane     = 4;
-    static constexpr index_t kABKLane    = 5;
-    static constexpr index_t kABKPerLane = 6;
-
-    static constexpr index_t kCMLane     = 7;
-    static constexpr index_t kCNLane     = 8;
-    static constexpr index_t kCM0PerLane = 9;
-    static constexpr index_t kCM1PerLane = 10;
-
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& regsA, BVecType const& regsB, CVecType const& regsC)
     {
@@ -88,30 +60,30 @@ template <typename CompilerTarget>
 using DummyAmdgcnMma = amdgcn_mma<fp32_t,
                                   fp32_t,
                                   fp32_t,
-                                  16u,
-                                  16u,
-                                  16u,
+                                  8u,
+                                  8u,
+                                  8u,
                                   DummyCtrlFlags,
                                   CompilerTarget,
                                   MmaOpFamily::DENSE>;
 
 /*! @struct MmaDefaultSelector
  * @brief For dummy Id only, instantiate tests for both MFMA and WMMA selectors so we can them both
- * @tparam ADataType Data type of matrix A
- * @tparam BDataType Data type of matrix B
- * @tparam CDataType Data type of the accumulator
- * @tparam FragM Size of the M dimension of the fragment to decompose
- * @tparam FragN Size of the N dimension of the fragment to decompose
- * @tparam FragK Size of the K dimension of the fragment to decompose
+ * @tparam ADataType      Data type of matrix A
+ * @tparam BDataType      Data type of matrix B
+ * @tparam CDataType      Data type of the accumulator
+ * @tparam WaveTileM      Size of the M dimension of the WaveTile to decompose
+ * @tparam WaveTileN      Size of the N dimension of the WaveTile to decompose
+ * @tparam WaveTileK      Size of the K dimension of the WaveTile to decompose
  * @tparam CompilerTarget The compiler target
- * @tparam OpFamily The MMA operation family
+ * @tparam OpFamily       The MMA operation family
  */
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
-          uint32_t FragM,
-          uint32_t FragN,
-          uint32_t FragK,
+          uint32_t WaveTileM,
+          uint32_t WaveTileN,
+          uint32_t WaveTileK,
           typename CompilerTarget,
           MmaOpFamily OpFamily>
 // TODO: c++20 amdgcn_target_arch_id CompilerTarget>
@@ -119,9 +91,9 @@ template <typename ADataType,
 struct MmaDefaultSelector<ADataType,
                           BDataType,
                           CDataType,
-                          FragM,
-                          FragN,
-                          FragK,
+                          WaveTileM,
+                          WaveTileN,
+                          WaveTileK,
                           CompilerTarget,
                           OpFamily,
                           enable_if_all<enable_if_target_id_dummy_t<CompilerTarget>,
@@ -145,25 +117,6 @@ TEST(TestAmdgcnMma, ArchSupported)
         (std::is_same<typename MmaOp::OpType, DummyOpType>::value)); // OpType is DummyOpType
     // Check OpFamily
     EXPECT_TRUE((is_mma_op_of_family_v<MmaOpFamily::DENSE, MmaOp>));
-
-    // Check AVecType, BVecType, CVecType
-    EXPECT_TRUE((std::is_same<typename MmaOp::AVecType, ext_vector_t<fp32_t, 4>>::value));
-    EXPECT_TRUE((std::is_same<typename MmaOp::BVecType, ext_vector_t<fp32_t, 4>>::value));
-    EXPECT_TRUE((std::is_same<typename MmaOp::CVecType, ext_vector_t<fp32_t, 4>>::value));
-
-    // Check layout constants
-    EXPECT_EQ(MmaOp::kAMBlock, 1);
-    EXPECT_EQ(MmaOp::kBNBlock, 2);
-
-    EXPECT_EQ(MmaOp::kAMLane, 3);
-    EXPECT_EQ(MmaOp::kBNLane, 4);
-    EXPECT_EQ(MmaOp::kABKLane, 5);
-    EXPECT_EQ(MmaOp::kABKPerLane, 6);
-
-    EXPECT_EQ(MmaOp::kCMLane, 7);
-    EXPECT_EQ(MmaOp::kCNLane, 8);
-    EXPECT_EQ(MmaOp::kCM0PerLane, 9);
-    EXPECT_EQ(MmaOp::kCM1PerLane, 10);
 }
 
 // Test case for unsupported architecture
@@ -176,25 +129,6 @@ TEST(TestAmdgcnMma, ArchUnsupported)
     EXPECT_TRUE((std::is_same<typename MmaOp::OpType, Unsupported>::value));
     // OpFamily should be Undefined
     EXPECT_TRUE((is_mma_op_of_family_v<MmaOpFamily::UNDEFINED, MmaOp>));
-
-    // AVecType, BVecType, CVecType should match default
-    EXPECT_TRUE((std::is_same<typename MmaOp::AVecType, ext_vector_t<fp32_t, 1>>::value));
-    EXPECT_TRUE((std::is_same<typename MmaOp::BVecType, ext_vector_t<fp32_t, 1>>::value));
-    EXPECT_TRUE((std::is_same<typename MmaOp::CVecType, ext_vector_t<fp32_t, 1>>::value));
-
-    // Layout constants should match default values (typically 0)
-    EXPECT_EQ(MmaOp::kAMBlock, 0);
-    EXPECT_EQ(MmaOp::kBNBlock, 0);
-
-    EXPECT_EQ(MmaOp::kAMLane, 0);
-    EXPECT_EQ(MmaOp::kBNLane, 0);
-    EXPECT_EQ(MmaOp::kABKLane, 0);
-    EXPECT_EQ(MmaOp::kABKPerLane, 0);
-
-    EXPECT_EQ(MmaOp::kCMLane, 0);
-    EXPECT_EQ(MmaOp::kCNLane, 0);
-    EXPECT_EQ(MmaOp::kCM0PerLane, 0);
-    EXPECT_EQ(MmaOp::kCM1PerLane, 0);
 }
 
 // Kernel to test amdgcn_mma::exec on device
@@ -317,89 +251,26 @@ TEST(TestAmdgcnMma, ArchUnsupportedExecDeviceOutput)
 
 #include "ck_tile/core/arch/mma/mma_traits.hpp"
 
-// Test MmaOpParams for supported DummyAmdgcnMma, including all member variables
-TEST(TestAmdgcnMma, MmaOpParamsTraitsSupportedMembers)
-{
-    using MmaOp  = DummyAmdgcnMma<DummyCompilerTarget>;
-    using Traits = MmaOpParams<MmaOp>;
-
-    // Check MmaOpParams members
-    EXPECT_TRUE((std::is_same<typename Traits::ADataType, fp32_t>::value));
-    EXPECT_TRUE((std::is_same<typename Traits::BDataType, fp32_t>::value));
-    EXPECT_TRUE((std::is_same<typename Traits::CDataType, fp32_t>::value));
-    EXPECT_EQ(Traits::BlockM, 16u);
-    EXPECT_EQ(Traits::BlockN, 16u);
-    EXPECT_EQ(Traits::BlockK, 16u);
-    EXPECT_TRUE((std::is_same<typename Traits::CtrlFlags, DummyCtrlFlags>::value));
-}
-
-// Test MmaOpParams for unsupported DummyAmdgcnMma, including all member variables
-TEST(TestAmdgcnMma, MmaOpParamsUnsupportedMembers)
-{
-    using MmaOp  = DummyAmdgcnMma<amdgcn_target<>>;
-    using Traits = MmaOpParams<MmaOp>;
-
-    // Check MmaOpParams members
-    EXPECT_TRUE((std::is_same<typename Traits::ADataType, fp32_t>::value));
-    EXPECT_TRUE((std::is_same<typename Traits::BDataType, fp32_t>::value));
-    EXPECT_TRUE((std::is_same<typename Traits::CDataType, fp32_t>::value));
-    EXPECT_EQ(Traits::BlockM, 16u);
-    EXPECT_EQ(Traits::BlockN, 16u);
-    EXPECT_EQ(Traits::BlockK, 16u);
-    EXPECT_TRUE((std::is_same<typename Traits::CtrlFlags, DummyCtrlFlags>::value));
-}
-
 // Test MmaOpTraits for supported DummyAmdgcnMma, including all member variables
 TEST(TestAmdgcnMma, MmaOpTraitsSupportedMembers)
 {
-    using MmaOp  = DummyAmdgcnMma<DummyCompilerTarget>;
-    using Traits = MmaOpTraits<MmaOp>;
+    using MmaOp = DummyAmdgcnMma<DummyCompilerTarget>;
 
     // Check MmaOpTraits member variables
-    EXPECT_TRUE((std::is_same<typename Traits::OpType, DummyOpType>::value));
-    EXPECT_TRUE((std::is_same<typename Traits::AVecType, ext_vector_t<fp32_t, 4>>::value));
-    EXPECT_TRUE((std::is_same<typename Traits::BVecType, ext_vector_t<fp32_t, 4>>::value));
-    EXPECT_TRUE((std::is_same<typename Traits::CVecType, ext_vector_t<fp32_t, 4>>::value));
-    EXPECT_EQ(Traits::kAMBlock, 1);
-    EXPECT_EQ(Traits::kBNBlock, 2);
-    EXPECT_EQ(Traits::kAMLane, 3);
-    EXPECT_EQ(Traits::kBNLane, 4);
-    EXPECT_EQ(Traits::kABKLane, 5);
-    EXPECT_EQ(Traits::kABKPerLane, 6);
-    EXPECT_EQ(Traits::kCMLane, 7);
-    EXPECT_EQ(Traits::kCNLane, 8);
-    EXPECT_EQ(Traits::kCM0PerLane, 9);
-    EXPECT_EQ(Traits::kCM1PerLane, 10);
-    EXPECT_FALSE(Traits::IsMfma);
-    EXPECT_FALSE(Traits::IsWmma);
-    EXPECT_TRUE(Traits::IsSupported);
+    EXPECT_FALSE(MmaOpTraits<MmaOp>::IsMfma);
+    EXPECT_FALSE(MmaOpTraits<MmaOp>::IsWmma);
+    EXPECT_TRUE(MmaOpTraits<MmaOp>::IsSupported);
 }
 
 // Test MmaOpTraits for unsupported DummyAmdgcnMma, including all member variables
 TEST(TestAmdgcnMma, MmaOpTraitsUnsupportedMembers)
 {
-    using MmaOp  = DummyAmdgcnMma<amdgcn_target<>>;
-    using Traits = MmaOpTraits<MmaOp>;
+    using MmaOp = DummyAmdgcnMma<amdgcn_target<>>;
 
     // Check MmaOpTraits member variables
-    EXPECT_TRUE((std::is_same<typename Traits::OpType, Unsupported>::value));
-    EXPECT_TRUE((std::is_same<typename Traits::AVecType, ext_vector_t<fp32_t, 1>>::value));
-    EXPECT_TRUE((std::is_same<typename Traits::BVecType, ext_vector_t<fp32_t, 1>>::value));
-    EXPECT_TRUE((std::is_same<typename Traits::CVecType, ext_vector_t<fp32_t, 1>>::value));
-    EXPECT_EQ(Traits::OpFamily, MmaOpFamily::UNDEFINED);
-    EXPECT_EQ(Traits::kAMBlock, 0);
-    EXPECT_EQ(Traits::kBNBlock, 0);
-    EXPECT_EQ(Traits::kAMLane, 0);
-    EXPECT_EQ(Traits::kBNLane, 0);
-    EXPECT_EQ(Traits::kABKLane, 0);
-    EXPECT_EQ(Traits::kABKPerLane, 0);
-    EXPECT_EQ(Traits::kCMLane, 0);
-    EXPECT_EQ(Traits::kCNLane, 0);
-    EXPECT_EQ(Traits::kCM0PerLane, 0);
-    EXPECT_EQ(Traits::kCM1PerLane, 0);
-    EXPECT_FALSE(Traits::IsMfma);
-    EXPECT_FALSE(Traits::IsWmma);
-    EXPECT_FALSE(Traits::IsSupported);
+    EXPECT_FALSE(MmaOpTraits<MmaOp>::IsMfma);
+    EXPECT_FALSE(MmaOpTraits<MmaOp>::IsWmma);
+    EXPECT_FALSE(MmaOpTraits<MmaOp>::IsSupported);
 }
 
 // Test MmaDefaultSelector for supported DummyAmdgcnMma
@@ -440,11 +311,11 @@ TEST(TestAmdgcnMma, MmaDefaultSelectorUnsupported)
     EXPECT_FALSE(MmaOpTraits<SelectedMma>::IsSupported);
 }
 
-// Test MmaDefaultSelector for supported DummyAmdgcnMma on fragment sizes other than 16x16x16
-// This tests that the selector can still pick the correct MMA op even if the fragment sizes differ
-TEST(TestAmdgcnMma, MmaDefaultSelectorSupportedFragment)
+// Test MmaDefaultSelector for supported DummyAmdgcnMma on WaveTile sizes other than 16x16x16
+// This tests that the selector can still pick the correct MMA op even if the WaveTile sizes differ
+TEST(TestAmdgcnMma, MmaDefaultSelectorSupportedWaveTile)
 {
-    // Select indirectly with a fragment size of 256x128x64
+    // Select indirectly with a WaveTile size of 256x128x64
     using SelectedMma = MmaDefaultSelector<fp32_t,
                                            fp32_t,
                                            fp32_t,
@@ -461,8 +332,8 @@ TEST(TestAmdgcnMma, MmaDefaultSelectorSupportedFragment)
     EXPECT_TRUE(MmaOpTraits<SelectedMma>::IsSupported);
 }
 
-// Test MmaDefaultSelector for a different block size and supported arch
-TEST(TestAmdgcnMma, MmaDefaultSelectorUnsupportedFragment)
+// Test MmaDefaultSelector for a different WaveTile size and supported arch
+TEST(TestAmdgcnMma, MmaDefaultSelectorUnsupportedWaveTile)
 {
     // This should fall back to unsupported since DummyAmdgcnMma only supports 16x16x16
     using SelectedMma = MmaDefaultSelector<fp32_t,
@@ -496,36 +367,34 @@ TEST(TestAmdgcnMma, MmaDefaultSelectorFp16Unsupported)
 // Test on real hardware for MmaOp selection.
 // This is not a GEMM kernel, but a simple test to ensure that the selected MmaOp works correctly on
 // real hardware. Assumption: inputs are all 1's The multiply-accumulate functionality can be tested
-// here by looping over the k dimension and accumulating the results. They should be equal to FragK
-// regardless of hardware.
+// here by looping over the k dimension and accumulating the results. They should be equal to
+// WaveTileK regardless of hardware.
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
-          uint32_t FragM,
-          uint32_t FragN,
-          uint32_t FragK>
+          uint32_t WaveTileM,
+          uint32_t WaveTileN,
+          uint32_t WaveTileK>
 __global__ void test_accum_over_k(void* a, void* b, void* c, void* out)
 {
     using Selector = MmaDefaultSelector<ADataType,
                                         BDataType,
                                         CDataType,
-                                        FragM,
-                                        FragN,
-                                        FragK,
+                                        WaveTileM,
+                                        WaveTileN,
+                                        WaveTileK,
                                         decltype(get_compiler_target()),
                                         MmaOpFamily::DENSE>;
 
-    using MmaOp     = typename Selector::SelectedOp;
-    using MmaTraits = MmaOpTraits<MmaOp>;
-
+    using MmaOp    = typename Selector::SelectedOp;
     using CVecType = typename MmaOp::CVecType;
 
-    static constexpr uint32_t kIters = FragK / MmaTraits::BlockK;
+    static constexpr uint32_t kIters = WaveTileK / MmaOp::kK;
 
     // Initialize the accumulator
     CVecType result = *reinterpret_cast<typename MmaOp::CVecType*>(c);
 
-    // Accumulate input AxB over FragK/BlockK iterations
+    // Accumulate input AxB over WaveTileK/FragK iterations
     for(uint32_t i = 0; i < kIters; ++i)
     {
         result = MmaOp::exec(*reinterpret_cast<typename MmaOp::AVecType*>(a),
@@ -561,16 +430,16 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_16x16x32_Real)
     using BType = fp16_t;
     using CType = fp32_t;
 
-    // Fragment size, also the expected block size from the selector.
-    // Note: Actual blockK might be slightly different due to hardware implementation, but the
+    // WaveTile size, also the expected fragment size (MmaTile) from the selector.
+    // Note: Actual FragK might be slightly different due to hardware implementation, but the
     // test_accum_over_k kernel will loop over the K dimension to ensure that the total K is
     // correct.
-    static constexpr uint32_t FragM  = 16;
-    static constexpr uint32_t FragN  = 16;
-    static constexpr uint32_t FragK  = 32;
-    static constexpr uint32_t BlockM = FragM;
-    static constexpr uint32_t BlockN = FragN;
-    static constexpr uint32_t BlockK = FragK;
+    static constexpr uint32_t WaveTileM = 16;
+    static constexpr uint32_t WaveTileN = 16;
+    static constexpr uint32_t WaveTileK = 32;
+    static constexpr uint32_t FragM     = WaveTileM;
+    static constexpr uint32_t FragN     = WaveTileN;
+    static constexpr uint32_t FragK     = WaveTileK;
 
     // Gfx11 has input data duplication and no accumulator padding (MultiplierC = 1)
     // TODO: c++20 use is_target_family_gfx11(currentArchId)
@@ -581,9 +450,9 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_16x16x32_Real)
     uint32_t MultiplierC = 1;
 
     // The number of elements per thread
-    uint32_t AElements = BlockM * BlockK / deviceWarpSize * MultiplierA;
-    uint32_t BElements = BlockN * BlockK / deviceWarpSize * MultiplierB;
-    uint32_t CElements = BlockM * BlockN / deviceWarpSize * MultiplierC;
+    uint32_t AElements = FragM * FragK / deviceWarpSize * MultiplierA;
+    uint32_t BElements = FragN * FragK / deviceWarpSize * MultiplierB;
+    uint32_t CElements = FragM * FragN / deviceWarpSize * MultiplierC;
 
     uint32_t ASize = AElements * sizeof(AType);
     uint32_t BSize = BElements * sizeof(BType);
@@ -611,16 +480,16 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_16x16x32_Real)
     HIP_CHECK_ERROR(hipMemcpy(d_c, h_c.data(), CSize, hipMemcpyHostToDevice));
 
     const auto wave_size = getDeviceWaveSize();
-    test_accum_over_k<AType, BType, CType, FragM, FragN, FragK>
+    test_accum_over_k<AType, BType, CType, WaveTileM, WaveTileN, WaveTileK>
         <<<1, wave_size>>>(d_a, d_b, d_c, d_out);
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     HIP_CHECK_ERROR(hipMemcpy(h_out.data(), d_out, CSize, hipMemcpyDeviceToHost));
 
-    // Output should be FragK for all elements, because the inputs are all 1's
+    // Output should be WaveTileK for all elements, because the inputs are all 1's
     for(size_t i = 0; i < CElements; ++i)
     {
-        CType expected = static_cast<CType>(FragK);
+        CType expected = static_cast<CType>(WaveTileK);
 
         EXPECT_NEAR(h_out[i], expected, 1e-3);
     }
@@ -633,7 +502,7 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_16x16x32_Real)
 
 // Do a live test. At minimum, there should be a solution on real hardware for F16_F16_F32_16x16x32
 // The selector should be able to pick the correct MmaOp as a multiple of 16x16x32, even if the
-// fragment sizes are larger than 16x16x32. This tests that the selector can handle larger fragment
+// WaveTile sizes are larger than 16x16x32. This tests that the selector can handle larger WaveTile
 // sizes and still select the correct MmaOp.
 TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_112x112x128_Real)
 {
@@ -659,19 +528,19 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_112x112x128_Real)
     using BType = fp16_t;
     using CType = fp32_t;
 
-    // Fragment size to test for decomposition.
-    // We expect the selector to pick a 16x16 block
-    static constexpr uint32_t FragM = 112;
-    static constexpr uint32_t FragN = 112;
-    static constexpr uint32_t FragK = 128;
+    // WaveTile size to test for decomposition.
+    // We expect the selector to pick a 16x16 WaveTile
+    static constexpr uint32_t WaveTileM = 112;
+    static constexpr uint32_t WaveTileN = 112;
+    static constexpr uint32_t WaveTileK = 128;
 
-    // The expected block size from the selector (multiple of 16).
-    // Note: Actual blockK might be slightly different due to hardware implementation, but the
+    // The expected fragment size from the selector (MmaTile, multiple of 16).
+    // Note: Actual FragK might be slightly different due to hardware implementation, but the
     // test_accum_over_k kernel will loop over the K dimension to ensure that the total K is
     // correct.
-    static constexpr uint32_t BlockM = 16;
-    static constexpr uint32_t BlockN = 16;
-    static constexpr uint32_t BlockK = 32;
+    static constexpr uint32_t FragM = 16;
+    static constexpr uint32_t FragN = 16;
+    static constexpr uint32_t FragK = 32;
 
     // Gfx11 has input data duplication and no accumulator padding (MultiplierC = 1)
     // TODO: c++20 use is_target_family_gfx11(currentArchId)
@@ -682,9 +551,9 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_112x112x128_Real)
     uint32_t MultiplierC = 1;
 
     // The number of elements per thread
-    uint32_t AElements = BlockM * BlockK / deviceWarpSize * MultiplierA;
-    uint32_t BElements = BlockN * BlockK / deviceWarpSize * MultiplierB;
-    uint32_t CElements = BlockM * BlockN / deviceWarpSize * MultiplierC;
+    uint32_t AElements = FragM * FragK / deviceWarpSize * MultiplierA;
+    uint32_t BElements = FragN * FragK / deviceWarpSize * MultiplierB;
+    uint32_t CElements = FragM * FragN / deviceWarpSize * MultiplierC;
 
     uint32_t ASize = AElements * sizeof(AType);
     uint32_t BSize = BElements * sizeof(BType);
@@ -712,16 +581,16 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_112x112x128_Real)
     HIP_CHECK_ERROR(hipMemcpy(d_c, h_c.data(), CSize, hipMemcpyHostToDevice));
 
     const auto wave_size = getDeviceWaveSize();
-    test_accum_over_k<AType, BType, CType, FragM, FragN, FragK>
+    test_accum_over_k<AType, BType, CType, WaveTileM, WaveTileN, WaveTileK>
         <<<1, wave_size>>>(d_a, d_b, d_c, d_out);
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     HIP_CHECK_ERROR(hipMemcpy(h_out.data(), d_out, CSize, hipMemcpyDeviceToHost));
 
-    // Output should be FragK for all elements, because the inputs are all 1's
+    // Output should be WaveTileK for all elements, because the inputs are all 1's
     for(size_t i = 0; i < CElements; ++i)
     {
-        CType expected = static_cast<CType>(FragK);
+        CType expected = static_cast<CType>(WaveTileK);
 
         EXPECT_NEAR(h_out[i], expected, 1e-3);
     }
