@@ -31,7 +31,7 @@ struct StreamKTilePartitionerBase
                                                 ? memory_operation_enum::atomic_add
                                                 : memory_operation_enum::set;
 
-    StreamKTilePartitionerBase(index_t m, index_t n, index_t k, index_t grid);
+    StreamKTilePartitionerBase(index_t m, index_t n, index_t k, index_t max_number_wgs);
 
     /**
      * @brief Calculates the total space needed for the partials buffer.
@@ -156,7 +156,7 @@ struct StreamKTilePartitionerBase
      * @brief Returns the maximum number of active workgroups; this is assumed to be number of CUs *
      * occupancy.
      */
-    CK_TILE_HOST_DEVICE index_t get_grid() const noexcept;
+    CK_TILE_HOST_DEVICE index_t get_max_active_wgs() const noexcept;
 
     /**
      * @brief Returns the number of tiles in the C tensor that will use the data-parallel (DP)
@@ -215,7 +215,7 @@ struct StreamKTilePartitionerBase
 
     protected:
     index_t num_tiles_;
-    index_t grid_;
+    index_t max_active_wgs_;
     index_t dp_tiles_;
 
     private:
@@ -270,7 +270,7 @@ struct StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>
     StreamKTilePartitioner(ck_tile::index_t m,
                            ck_tile::index_t n,
                            ck_tile::index_t k,
-                           ck_tile::index_t grid);
+                           ck_tile::index_t max_active_wgs);
 
     public:
     static constexpr bool PERSISTENT = true;
@@ -290,7 +290,7 @@ struct StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>
 
     /**
      * @brief Returns the total number of DP tiles left over when `dp_tiles_` is not evenly
-     * divisible by `grid_`.
+     * divisible by `max_active_wgs_`.
      */
     CK_TILE_HOST_DEVICE index_t get_extra_dp_tiles() const noexcept;
 
@@ -317,7 +317,7 @@ struct StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, false>
     StreamKTilePartitioner(ck_tile::index_t m,
                            ck_tile::index_t n,
                            ck_tile::index_t k,
-                           ck_tile::index_t grid);
+                           ck_tile::index_t max_number_wgs);
 
     public:
     static constexpr bool PERSISTENT = false;

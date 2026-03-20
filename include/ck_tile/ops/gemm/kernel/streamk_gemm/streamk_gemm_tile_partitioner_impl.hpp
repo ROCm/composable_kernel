@@ -7,24 +7,25 @@ namespace ck_tile {
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::StreamKTilePartitionerBase(
-    index_t m, index_t n, index_t k, index_t grid)
-    : grid_{grid}, n_{n}
+    index_t m, index_t n, index_t k, index_t max_active_wgs)
+    : max_active_wgs_{max_active_wgs}, n_{n}
 {
     iters_per_tile_ = integer_divide_ceil(k, KPerBlock);
     num_tiles_      = integer_divide_ceil(m, MPerBlock) * integer_divide_ceil(n_, NPerBlock);
 
-    bool big_enough         = num_tiles_ > grid_;
-    index_t remainder_tiles = num_tiles_ % grid_;
+    bool big_enough         = num_tiles_ > max_active_wgs_;
+    index_t remainder_tiles = num_tiles_ % max_active_wgs_;
 
     if(remainder_tiles)
     {
-        sk_tiles_       = big_enough ? full_tiles_ * grid_ + (num_tiles_ % grid_) : num_tiles_;
-        sk_tiles_       = min(num_tiles_, sk_tiles_);
-        sk_ctas_        = grid_;
+        sk_tiles_ = big_enough ? full_tiles_ * max_active_wgs_ + (num_tiles_ % max_active_wgs_)
+                               : num_tiles_;
+        sk_tiles_ = min(num_tiles_, sk_tiles_);
+        sk_ctas_  = max_active_wgs_;
         total_sk_iters_ = sk_tiles_ * iters_per_tile_;
 
         // If there still isn't enough work to saturate all CUs, then just revert to DP only.
-        if(total_sk_iters_ < grid_)
+        if(total_sk_iters_ < max_active_wgs_)
         {
             sk_tiles_       = 0;
             sk_ctas_        = 0;
@@ -175,9 +176,10 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_num_t
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 CK_TILE_HOST_DEVICE index_t
-StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_grid() const noexcept
+StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_max_active_wgs()
+    const noexcept
 {
-    return grid_;
+    return max_active_wgs_;
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
@@ -287,11 +289,11 @@ struct StreamKTilePartitioner;
 // child class for Persistent Tile Partitioner
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>::StreamKTilePartitioner(
-    ck_tile::index_t m, ck_tile::index_t n, ck_tile::index_t k, ck_tile::index_t grid)
-    : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>(m, n, k, grid)
+    ck_tile::index_t m, ck_tile::index_t n, ck_tile::index_t k, ck_tile::index_t max_active_wgs)
+    : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>(m, n, k, max_active_wgs)
 { // inherit from base constructor
-    dp_tiles_per_cta_ = this->dp_tiles_ / this->grid_;
-    extra_dp_tiles_   = this->dp_tiles_ % this->grid_;
+    dp_tiles_per_cta_ = this->dp_tiles_ / this->max_active_wgs_;
+    extra_dp_tiles_   = this->dp_tiles_ % this->max_active_wgs_;
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
@@ -301,7 +303,7 @@ StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>::grid_si
 {
     if(extra_dp_tiles_ == 0)
     {
-        return dim3(this->grid_, 1, 1);
+        return dim3(this->max_active_wgs_, 1, 1);
     }
     else
     {
@@ -328,8 +330,8 @@ StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>::get_ext
 // child class for Non-Persistent Tile Partitioner
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, false>::StreamKTilePartitioner(
-    ck_tile::index_t m, ck_tile::index_t n, ck_tile::index_t k, ck_tile::index_t grid)
-    : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>(m, n, k, grid)
+    ck_tile::index_t m, ck_tile::index_t n, ck_tile::index_t k, ck_tile::index_t max_active_wgs)
+    : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>(m, n, k, max_active_wgs)
 { // inherit from base constructor
     dp_ctas_            = this->dp_tiles_;
     dp_start_block_idx_ = 0;
