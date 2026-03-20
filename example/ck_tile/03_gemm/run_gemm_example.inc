@@ -284,12 +284,9 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
         b_k_n.SetZero();
     }
 
-    if(!preshuffle && GemmConfig::UseStructuredSparsity)
+    if constexpr(!preshuffle && GemmConfig::UseStructuredSparsity)
     {
-        if constexpr(GemmConfig::UseStructuredSparsity)
-        {
-            ck_tile::AdjustToStructuredSparsity<ADataTypeBuf>{}(a_m_k);
-        }
+        ck_tile::AdjustToStructuredSparsity<ADataTypeBuf>{}(a_m_k);
     }
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
