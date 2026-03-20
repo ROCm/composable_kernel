@@ -113,71 +113,6 @@ def checkoutComposableKernel()
     checkout scm
 }
 
-// Given a pattern, check if the log contains the pattern and return the context.
-def checkForPattern(pattern, log) {
-    def lines = log.split('\n')
-    for (int i = 0; i < lines.size(); i++) {
-        if (lines[i] =~ pattern) {
-            echo "Found pattern match in log for ${pattern}"
-            
-            // Get the two lines before and after failure.
-            def contextStart = Math.max(0, i - 2)
-            def contextEnd = Math.min(lines.size() - 1, i + 2)
-            def contextLines = []
-            for (int j = contextStart; j <= contextEnd; j++) {
-                contextLines.add(lines[j])
-            }
-            
-            return [found: true, matchedLine: lines[i], context: contextLines.join('\n')]
-        }
-    }
-    echo "No pattern match found in log for ${pattern}"
-    return [found: false, matchedLine: "", context: ""]
-}
-
-// Scan the build logs for failures and send notifications.
-def sendFailureNotifications() {
-    // Error patterns to scan build logs for specific failure types and send detailed notifications.
-    def failurePatterns = [
-        [pattern: /login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
-        [pattern: /.*docker login failed.*/, description: "Docker login failed"],
-        [pattern: /HTTP request sent .* 404 Not Found/, description: "HTTP request failed with 404"],
-        [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
-        [pattern: /.*GPU not found.*/, description: "GPU not found"],
-        [pattern: /Could not connect to Redis at .* Connection timed out/, description: "Redis connection timed out"],
-        [pattern: /.*unauthorized: your account must log in with a Personal Access Token.*/, description: "Docker login failed"],
-        [pattern: /.*sccache: error: Server startup failed: Address in use.*/, description: "Sccache Error"]
-    ]
-    
-    // Get the build log.
-    def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
-    echo "Checking for failure patterns..."
-    // Check for patterns in the log.
-    // def foundPatterns = []
-    // for (patternMap in failurePatterns) {
-    //     def result = checkForPattern(patternMap.pattern, buildLog)
-    //     if (result.found) {
-    //         foundPatterns.add([
-    //             description: patternMap.description,
-    //             matchedLine: result.matchedLine,
-    //             context: result.context
-    //         ])
-    //     }
-    // }
-    echo "Done checking for failure patterns..."
-    // Send a notification for each matched failure pattern.
-    for (patternMap in foundPatterns) {
-        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
-        sh '''
-            curl -X POST "${WEBHOOK_URL}" \
-            -H 'Content-Type: application/json' \
-            -d '{"text": "\\n\\n**Build Failed**\\n\\n**Issues detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.RUN_DISPLAY_URL + '''"}'
-        '''
-        }
-    }
-    echo "Done failure pattern checking and notifications"
-}
-
 def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
     try {
         checkoutComposableKernel()
@@ -2142,7 +2077,10 @@ pipeline {
                          description: 'Some checks have failed'
             node(rocmnode("nogpu")) {
                 script {
-                    sendFailureNotifications()
+                    checkoutComposableKernel()
+                }
+                withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+                    sh 'bash projects/composablekernel/script/infra_helper/send_failure_notifications.sh'
                 }
             }
         }
