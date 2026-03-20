@@ -1363,9 +1363,11 @@ struct TransformConvFwdToGemm
                           NumGroupsToMerge == 32 || NumGroupsToMerge == 64);
             const auto unmerged_padded_desc = transform_tensor_descriptor(
                 padded_desc,
-                make_tuple(make_pass_through_transform(NDoHoWo),
-                           make_xor_transform(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
-                           make_pass_through_transform(K_)),
+                make_tuple(
+                    make_pass_through_transform(NDoHoWo),
+                    make_xor_transform<decltype(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
+                                       false>(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
+                    make_pass_through_transform(K_)),
                 make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}));
             // Merge To M, N
@@ -1429,9 +1431,11 @@ struct TransformConvFwdToGemm
                           NumGroupsToMerge == 32 || NumGroupsToMerge == 64);
             const auto unmerged_padded_desc = transform_tensor_descriptor(
                 padded_desc,
-                make_tuple(make_pass_through_transform(NDoHoWo),
-                           make_xor_transform(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
-                           make_pass_through_transform(K_)),
+                make_tuple(
+                    make_pass_through_transform(NDoHoWo),
+                    make_xor_transform<decltype(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
+                                       false>(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
+                    make_pass_through_transform(K_)),
                 make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}));
             // Merge To M, N
@@ -1496,9 +1500,11 @@ struct TransformConvFwdToGemm
                           NumGroupsToMerge == 32 || NumGroupsToMerge == 64);
             const auto unmerged_padded_desc = transform_tensor_descriptor(
                 padded_desc,
-                make_tuple(make_pass_through_transform(NDoHoWo),
-                           make_xor_transform(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
-                           make_pass_through_transform(K_)),
+                make_tuple(
+                    make_pass_through_transform(NDoHoWo),
+                    make_xor_transform<decltype(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
+                                       false>(make_tuple(NumGroupsToMerge, NumGroupsToMerge)),
+                    make_pass_through_transform(K_)),
                 make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}),
                 make_tuple(sequence<0>{}, sequence<1, 3>{}, sequence<2>{}));
             // Merge To M, N
