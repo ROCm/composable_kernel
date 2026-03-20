@@ -30,38 +30,12 @@ namespace ck_tile::core::arch::mma {
 // TODO: c++20 template <CtrlFlagsGfx12I CtrlFlags, amdgcn_target CompilerTarget>
 // TODO: c++20 requires
 template <typename CtrlFlags, typename CompilerTarget>
-struct amdgcn_mma<fp16_t,
-                  fp16_t,
-                  fp32_t,
-                  16u,
-                  16u,
-                  16u,
-                  CtrlFlags,
-                  CompilerTarget,
-                  MmaOpFamily::DENSE,
-                  enable_if_target_family_gfx12_t<CompilerTarget>>
+// clang-format off
+//               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
+struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx12_t<CompilerTarget>>
+: amdgcn_mma_base<fp16_t, fp16_t, fp32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
+// clang-format on
 {
-    // Wmma operation type
-    using OpType                          = WmmaOp;
-    static constexpr MmaOpFamily OpFamily = MmaOpFamily::DENSE;
-
-    // Register types
-    using AVecType = ext_vector_t<fp16_t, 8>;
-    using BVecType = ext_vector_t<fp16_t, 8>;
-    using CVecType = ext_vector_t<fp32_t, 8>;
-
-    // Layout constants
-    static constexpr index_t kAMBlock    = 1;
-    static constexpr index_t kBNBlock    = 1;
-    static constexpr index_t kAMLane     = 16;
-    static constexpr index_t kBNLane     = 16;
-    static constexpr index_t kABKLane    = 8;
-    static constexpr index_t kABKPerLane = 8;
-    static constexpr index_t kCMLane     = 2;
-    static constexpr index_t kCNLane     = 2;
-    static constexpr index_t kCM0PerLane = 4;
-    static constexpr index_t kCM1PerLane = 1;
-
     CK_TILE_DEVICE static auto
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
     {

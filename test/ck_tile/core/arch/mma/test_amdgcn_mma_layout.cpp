@@ -55,17 +55,17 @@ namespace {
  * @tparam ADataType     Data type of tensor A elements
  * @tparam BDataType     Data type of tensor B elements
  * @tparam CDataType     Data type of tensor C elements
- * @tparam BlockM        M-dimension of the MMA tile
- * @tparam BlockN        N-dimension of the MMA tile
- * @tparam BlockK        K-dimension of the MMA tile
+ * @tparam FragM         M-dimension of the MMA tile
+ * @tparam FragN         N-dimension of the MMA tile
+ * @tparam FragK         K-dimension of the MMA tile
  * @tparam BlockSize     HIP block size
  */
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
-          uint32_t BlockM,
-          uint32_t BlockN,
-          uint32_t BlockK,
+          uint32_t FragM,
+          uint32_t FragN,
+          uint32_t FragK,
           uint32_t BlockSize>
 struct MmaLayoutTestKernel
 {
@@ -77,19 +77,18 @@ struct MmaLayoutTestKernel
             mma::MmaDefaultSelector<ADataType,
                                     BDataType,
                                     CDataType,
-                                    BlockM,
-                                    BlockN,
-                                    BlockK,
+                                    FragM,
+                                    FragN,
+                                    FragK,
                                     decltype(ck_tile::core::arch::get_compiler_target()),
                                     mma::MmaOpFamily::DENSE>;
-        using MmaOp     = typename Selector::SelectedOp;
-        using MmaTraits = mma::MmaOpTraits<MmaOp>;
+        using MmaOp = typename Selector::SelectedOp;
 
-        if constexpr(MmaTraits::IsSupported)
+        if constexpr(mma::MmaOpTraits<MmaOp>::IsSupported)
         {
-            using AVecType                = typename MmaTraits::AVecType;
-            using BVecType                = typename MmaTraits::BVecType;
-            using CVecType                = typename MmaTraits::CVecType;
+            using AVecType                = typename MmaOp::AVecType;
+            using BVecType                = typename MmaOp::BVecType;
+            using CVecType                = typename MmaOp::CVecType;
             constexpr uint32_t a_vec_size = vector_traits<AVecType>::vector_size;
             constexpr uint32_t b_vec_size = vector_traits<BVecType>::vector_size;
             constexpr uint32_t c_vec_size = vector_traits<CVecType>::vector_size;
@@ -102,9 +101,9 @@ struct MmaLayoutTestKernel
 
             // get (m, k, n), where "1" should be placed for this block
             const uint32_t case_idx = static_cast<uint32_t>(blockIdx.x);
-            const uint32_t m        = case_idx / (MmaTraits::BlockK * MmaTraits::BlockN);
-            const uint32_t k        = (case_idx / MmaTraits::BlockN) % MmaTraits::BlockK;
-            const uint32_t n        = case_idx % MmaTraits::BlockN;
+            const uint32_t m        = case_idx / (MmaOp::kK * MmaOp::kN);
+            const uint32_t k        = (case_idx / MmaOp::kN) % MmaOp::kK;
+            const uint32_t n        = case_idx % MmaOp::kN;
 
             // place a single "1" in A/B fragments using (lane, vecIdx) -> (row, col) mapping
             for(uint32_t v = 0; v < a_vec_size; ++v)
@@ -174,12 +173,12 @@ bool run_mma_layout_test()
 {
     using MmaOp                       = typename Selector::SelectedOp;
     using MmaTraits                   = mma::MmaOpTraits<MmaOp>;
-    using ADataType                   = typename MmaTraits::ADataType;
-    using BDataType                   = typename MmaTraits::BDataType;
-    using CDataType                   = typename MmaTraits::CDataType;
-    constexpr uint32_t BlockM         = MmaTraits::BlockM;
-    constexpr uint32_t BlockN         = MmaTraits::BlockN;
-    constexpr uint32_t BlockK         = MmaTraits::BlockK;
+    using ADataType                   = typename MmaOp::ADataType;
+    using BDataType                   = typename MmaOp::BDataType;
+    using CDataType                   = typename MmaOp::CDataType;
+    constexpr uint32_t FragM          = MmaOp::kM;
+    constexpr uint32_t FragN          = MmaOp::kN;
+    constexpr uint32_t FragK          = MmaOp::kK;
     constexpr auto selector_target_id = MmaTraits::CompilerTarget::TARGET_ID;
     constexpr auto selector_wave_size = MmaTraits::CompilerTarget::WAVE_SIZE_ID;
 
@@ -202,7 +201,7 @@ bool run_mma_layout_test()
         return false;
     }
 
-    constexpr uint32_t total_cases = BlockM * BlockK * BlockN;
+    constexpr uint32_t total_cases = FragM * FragK * FragN;
     ck_tile::DeviceMem d_errors(total_cases * sizeof(uint32_t));
     std::vector<uint32_t> h_errors(total_cases, 0u);
 
@@ -213,9 +212,9 @@ bool run_mma_layout_test()
     using Kernel = MmaLayoutTestKernel<ADataType,
                                        BDataType,
                                        CDataType,
-                                       BlockM,
-                                       BlockN,
-                                       BlockK,
+                                       FragM,
+                                       FragN,
+                                       FragK,
                                        static_cast<int>(selector_wave_size)>;
 
     std::ignore =
@@ -232,9 +231,9 @@ bool run_mma_layout_test()
 
     for(uint32_t case_idx = 0; case_idx < total_cases; ++case_idx)
     {
-        const uint32_t m = case_idx / (BlockK * BlockN);
-        const uint32_t k = (case_idx / BlockN) % BlockK;
-        const uint32_t n = case_idx % BlockN;
+        const uint32_t m = case_idx / (FragK * FragN);
+        const uint32_t k = (case_idx / FragN) % FragK;
+        const uint32_t n = case_idx % FragN;
 
         EXPECT_EQ(h_errors[case_idx], 0u) << "Mismatch for m=" << m << " k=" << k << " n=" << n;
     }
