@@ -165,7 +165,7 @@ struct StreamKTilePartitionerBaseExpected
     ck_tile::index_t extra_iters_;
     ck_tile::index_t total_dp_iters_;
     ck_tile::index_t num_tiles_;
-    ck_tile::index_t grid_;
+    ck_tile::index_t max_active_wgs_;
     ck_tile::index_t n_;
 };
 
@@ -183,7 +183,7 @@ void validate_streamk_base_constructor(
     EXPECT_EQ(tile_partitioner.get_iters_per_tile(), expected_values.iters_per_tile_);
     EXPECT_EQ(tile_partitioner.get_total_dp_iters(), expected_values.total_dp_iters_);
     EXPECT_EQ(tile_partitioner.get_num_tiles(), expected_values.num_tiles_);
-    EXPECT_EQ(tile_partitioner.get_grid(), expected_values.grid_);
+    EXPECT_EQ(tile_partitioner.get_max_active_wgs(), expected_values.max_active_wgs_);
     EXPECT_EQ(tile_partitioner.get_n(), expected_values.n_);
 }
 
@@ -201,9 +201,9 @@ struct StreamKTilePartitionerBaseConfigDP2TileSK : public StreamKTilePartitioner
     static constexpr ck_tile::index_t M = 28;
     static constexpr ck_tile::index_t N = 4;
     static constexpr ck_tile::index_t K = 16;
-    // The minimum number of bytes needed for the flags array is GRID * 4B = 3 * 4B = 12B. To ensure
-    // the total byte size of the array is 128B-aligned, the flags array must be 128B.
-    static constexpr ck_tile::index_t GRID = 3;
+    // The minimum number of bytes needed for the flags array is MAX_ACTIVE_WGS * 4B = 3 * 4B = 12B.
+    // To ensure the total byte size of the array is 128B-aligned, the flags array must be 128B.
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 3;
 
     static constexpr ck_tile::index_t M_TILE = 4;
     static constexpr ck_tile::index_t N_TILE = 4;
@@ -220,9 +220,9 @@ struct StreamKTilePartitionerBaseConfigFlagsSizeEqual128Bytes
     static constexpr ck_tile::index_t M = 28;
     static constexpr ck_tile::index_t N = 4;
     static constexpr ck_tile::index_t K = 32;
-    // The minimum number of bytes needed for the flags array is GRID * 4B = 32 * 4B = 128B. So, the
-    // number of bytes for the flags array should be 128B.
-    static constexpr ck_tile::index_t GRID = 32;
+    // The minimum number of bytes needed for the flags array is MAX_ACTIVE_WGS * 4B = 32 * 4B =
+    // 128B. So, the number of bytes for the flags array should be 128B.
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 32;
 
     static constexpr ck_tile::index_t M_TILE = 4;
     static constexpr ck_tile::index_t N_TILE = 4;
@@ -239,10 +239,10 @@ struct StreamKTilePartitionerBaseConfigFlagsSizeGreaterThan128Bytes
     static constexpr ck_tile::index_t M = 28;
     static constexpr ck_tile::index_t N = 4;
     static constexpr ck_tile::index_t K = 33;
-    // The minimum number of bytes needed for the flags array is GRID * 4B = 33 * 4B = 132B. So, the
-    // number of bytes for the flags array should be 2 * 128B = 256B to ensure the total byte size
-    // of the array is 128B-aligned.
-    static constexpr ck_tile::index_t GRID = 33;
+    // The minimum number of bytes needed for the flags array is MAX_ACTIVE_WGS * 4B = 33 * 4B =
+    // 132B. So, the number of bytes for the flags array should be 2 * 128B = 256B to ensure the
+    // total byte size of the array is 128B-aligned.
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 33;
 
     static constexpr ck_tile::index_t M_TILE = 4;
     static constexpr ck_tile::index_t N_TILE = 4;
@@ -256,10 +256,10 @@ struct StreamKTilePartitionerBaseConfigFlagsSizeGreaterThan128Bytes
 struct StreamKTilePartitionerBaseConfigSKOnlyWith2WgsPerSKTile
     : public StreamKTilePartitionerBaseConfig
 {
-    static constexpr ck_tile::index_t M    = 16;
-    static constexpr ck_tile::index_t N    = 4;
-    static constexpr ck_tile::index_t K    = 16;
-    static constexpr ck_tile::index_t GRID = 8;
+    static constexpr ck_tile::index_t M              = 16;
+    static constexpr ck_tile::index_t N              = 4;
+    static constexpr ck_tile::index_t K              = 16;
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 8;
 
     static constexpr ck_tile::index_t M_TILE = 4;
     static constexpr ck_tile::index_t N_TILE = 4;
@@ -272,10 +272,10 @@ struct StreamKTilePartitionerBaseConfigSKOnlyWith2WgsPerSKTile
 
 struct StreamKTilePartitionerBaseConfigDPOnly : public StreamKTilePartitionerBaseConfig
 {
-    static constexpr ck_tile::index_t M    = 12;
-    static constexpr ck_tile::index_t N    = 4;
-    static constexpr ck_tile::index_t K    = 16;
-    static constexpr ck_tile::index_t GRID = 3;
+    static constexpr ck_tile::index_t M              = 12;
+    static constexpr ck_tile::index_t N              = 4;
+    static constexpr ck_tile::index_t K              = 16;
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 3;
 
     static constexpr ck_tile::index_t M_TILE = 4;
     static constexpr ck_tile::index_t N_TILE = 2;
@@ -288,10 +288,10 @@ struct StreamKTilePartitionerBaseConfigDPOnly : public StreamKTilePartitionerBas
 
 struct StreamKTilePartitionerBaseConfigSKOnly : public StreamKTilePartitionerBaseConfig
 {
-    static constexpr ck_tile::index_t M    = 4;
-    static constexpr ck_tile::index_t N    = 4;
-    static constexpr ck_tile::index_t K    = 16;
-    static constexpr ck_tile::index_t GRID = 3;
+    static constexpr ck_tile::index_t M              = 4;
+    static constexpr ck_tile::index_t N              = 4;
+    static constexpr ck_tile::index_t K              = 16;
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 3;
 
     static constexpr ck_tile::index_t M_TILE = 4;
     static constexpr ck_tile::index_t N_TILE = 2;
@@ -304,10 +304,10 @@ struct StreamKTilePartitionerBaseConfigSKOnly : public StreamKTilePartitionerBas
 
 struct StreamKTilePartitionerBaseConfigSKOnlyLargeK : public StreamKTilePartitionerBaseConfig
 {
-    static constexpr ck_tile::index_t M    = 8;
-    static constexpr ck_tile::index_t N    = 2;
-    static constexpr ck_tile::index_t K    = 10;
-    static constexpr ck_tile::index_t GRID = 5;
+    static constexpr ck_tile::index_t M              = 8;
+    static constexpr ck_tile::index_t N              = 2;
+    static constexpr ck_tile::index_t K              = 10;
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 5;
 
     static constexpr ck_tile::index_t M_TILE = 4;
     static constexpr ck_tile::index_t N_TILE = 2;
@@ -321,10 +321,10 @@ struct StreamKTilePartitionerBaseConfigSKOnlyLargeK : public StreamKTilePartitio
 struct StreamKTilePartitionerBaseConfigEdgeCase : public StreamKTilePartitionerBaseConfig
 {
 
-    static constexpr ck_tile::index_t M    = 4;
-    static constexpr ck_tile::index_t N    = 4;
-    static constexpr ck_tile::index_t K    = 16;
-    static constexpr ck_tile::index_t GRID = 4;
+    static constexpr ck_tile::index_t M              = 4;
+    static constexpr ck_tile::index_t N              = 4;
+    static constexpr ck_tile::index_t K              = 16;
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 4;
 
     static constexpr ck_tile::index_t M_TILE = 4;
     static constexpr ck_tile::index_t N_TILE = 4;
@@ -340,10 +340,10 @@ struct StreamKTilePartitionerBaseConfigLargerCTensor : public StreamKTilePartiti
     // This config has 3 macro tiles in the M dimension and 4 macro tiles in the N dimension.
     // This facilitates testing the get_output_tile_index method.
 
-    static constexpr ck_tile::index_t M    = 12;
-    static constexpr ck_tile::index_t N    = 16;
-    static constexpr ck_tile::index_t K    = 16;
-    static constexpr ck_tile::index_t GRID = 4;
+    static constexpr ck_tile::index_t M              = 12;
+    static constexpr ck_tile::index_t N              = 16;
+    static constexpr ck_tile::index_t K              = 16;
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 4;
 
     static constexpr ck_tile::index_t M_TILE = 4;
     static constexpr ck_tile::index_t N_TILE = 4;
@@ -366,7 +366,7 @@ void test_get_output_tile_index(ck_tile::index_t tile_idx,
 
     // Test parameters
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
-        Config::M, Config::N, Config::K, Config::GRID};
+        Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
     ck_tile::DeviceMem im_dev(sizeof(ck_tile::index_t));
     ck_tile::DeviceMem in_dev(sizeof(ck_tile::index_t));
 
@@ -402,7 +402,7 @@ void test_get_tile_local_cta_idx(ck_tile::index_t tile_iter_start,
 
     // Test parameters
     ck_tile::StreamKTilePartitionerBase<typename Config::GemmShape> tile_partitioner{
-        Config::M, Config::N, Config::K, Config::GRID};
+        Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
     ck_tile::DeviceMem tile_local_cta_idx_dev(sizeof(ck_tile::index_t));
 
     // Launch kernel
@@ -426,7 +426,7 @@ struct StreamKTilePartitionerV2PersistentExpected
 {
     ck_tile::index_t dp_tiles_per_cta_;
     ck_tile::index_t extra_dp_tiles_;
-    ck_tile::index_t grid_;
+    ck_tile::index_t max_active_wgs_;
 };
 
 struct StreamKTilePartitionerV2NonPersistentExpected
@@ -434,7 +434,7 @@ struct StreamKTilePartitionerV2NonPersistentExpected
     ck_tile::index_t dp_ctas_;
     ck_tile::index_t dp_start_block_idx_;
     ck_tile::index_t sk_start_block_idx_;
-    ck_tile::index_t grid_;
+    ck_tile::index_t max_active_wgs_;
 };
 
 // Persistent
@@ -446,7 +446,7 @@ void validate_streamk_persistent(
 {
     EXPECT_EQ(tile_partitioner.get_dp_tiles_per_cta(), expected_values.dp_tiles_per_cta_);
     EXPECT_EQ(tile_partitioner.get_extra_dp_tiles(), expected_values.extra_dp_tiles_);
-    EXPECT_EQ(tile_partitioner.get_grid(), expected_values.grid_);
+    EXPECT_EQ(tile_partitioner.get_max_active_wgs(), expected_values.max_active_wgs_);
 }
 
 // Non-Persistent
@@ -459,5 +459,5 @@ void validate_streamk_nonpersistent(
     EXPECT_EQ(tile_partitioner.get_dp_ctas(), expected_values.dp_ctas_);
     EXPECT_EQ(tile_partitioner.get_dp_start_block_idx(), expected_values.dp_start_block_idx_);
     EXPECT_EQ(tile_partitioner.get_sk_start_block_idx(), expected_values.sk_start_block_idx_);
-    EXPECT_EQ(tile_partitioner.get_grid(), expected_values.grid_);
+    EXPECT_EQ(tile_partitioner.get_max_active_wgs(), expected_values.max_active_wgs_);
 }
