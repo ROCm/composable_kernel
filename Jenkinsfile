@@ -62,44 +62,12 @@ def cloneUpdateRefRepo() {
     echo "rocm-libraries repo exists at ${refRepoPath}, performing git remote update..."
     echo "locking on label: ${lockLabel}"
     lock(lockLabel) {
-        // Sanity check: detect corrupt refs that would break git fetch
-        int showRefStatus = sh(
-            script: """
-                set +e
-                cd ${refRepoPath}
-                git show-ref > /dev/null 2>&1
-                echo \$? > .git/.last-show-ref-status
-            """,
-            returnStatus: true,
-            label: "pre-update ref sanity check"
-        )
-
-        def showRefExit = sh(
-            script: "cat ${refRepoPath}/.git/.last-show-ref-status || echo 1",
-            returnStdout: true
-        ).trim() as Integer
-
-        if (showRefExit != 0) {
-            echo "Ref repo at ${refRepoPath} appears corrupt (git show-ref failed). Recreating mirror clone..."
-            sh(
-                script: """
-                    set -ex
-                    rm -rf ${refRepoPath}
-                    mkdir -p ${refRepoPath}
-                    git clone --mirror https://github.com/ROCm/rocm-libraries.git ${refRepoPath}
-                """,
-                label: "reclone ref repo after corruption"
-            )
-        }
-
         def fetchCommand = """
             set -ex
             cd ${refRepoPath}
             git remote prune origin
-            git remote update --prune
-            git fsck --no-progress --connectivity-only
+            git remote update
         """
-
         sh(script: fetchCommand, label: "update ref repo")
     }
     echo "Completed git ref repo fetch, lock released"
