@@ -31,7 +31,14 @@ TYPED_TEST(TEST_SUITE_NAME, SmallM)
             if constexpr(std::is_same_v<typename TestFixture::ALayout,
                                         ck_tile::tensor_layout::gemm::ColumnMajor>)
             {
-                EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                if(M * sizeof(typename TestFixture::ADataType) % 4 == 0) // oob fit dword
+                {
+                    this->Run(M, N, K);
+                }
+                else
+                {
+                    EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                }
             }
             else
             {
@@ -84,7 +91,14 @@ TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
                 }
                 else
                 {
-                    EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                    if(M * sizeof(typename TestFixture::ADataType) % 4 == 0) // oob fit dword
+                    {
+                        this->Run(M, N, K);
+                    }
+                    else
+                    {
+                        EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                    }
                 }
             }
             else
