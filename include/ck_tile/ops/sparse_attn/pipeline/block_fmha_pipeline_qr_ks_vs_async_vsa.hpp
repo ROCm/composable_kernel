@@ -200,7 +200,7 @@ struct BlockFmhaPipelineQRKSVSAsyncVSA
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
 
-        int seqlen_k_start = kv_block_idx_ptr[0] * kM0;
+        int seqlen_k_start = kv_block_idx_ptr[0] * kN0;
         auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
                                               q_dram_block_window_tmp.get_window_lengths(),
                                               q_dram_block_window_tmp.get_window_origin(),

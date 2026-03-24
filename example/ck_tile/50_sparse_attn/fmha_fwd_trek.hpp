@@ -277,6 +277,9 @@ struct fmha_jenga_fwd_traits
 
 float fmha_jenga_fwd(fmha_jenga_fwd_traits, fmha_jenga_fwd_args, const ck_tile::stream_config&);
 
+// sparge jenga
+float sparge_jenga_fwd(fmha_jenga_fwd_traits, fmha_jenga_fwd_args, const ck_tile::stream_config&);
+
 template <typename Traits_>
 float fmha_jenga_fwd_(const ck_tile::stream_config&, fmha_jenga_fwd_args);
 
@@ -321,6 +324,9 @@ using fmha_vsa_fwd_traits_ = fmha_jenga_fwd_traits_<HDim_,
 using fmha_vsa_fwd_traits = fmha_jenga_fwd_traits;
 
 float fmha_vsa_fwd(fmha_vsa_fwd_traits, fmha_vsa_fwd_args, const ck_tile::stream_config&);
+
+// sparge vsa
+float sparge_vsa_fwd(fmha_vsa_fwd_traits, fmha_vsa_fwd_args, const ck_tile::stream_config&);
 
 template <typename Traits_>
 float fmha_vsa_fwd_(const ck_tile::stream_config&, fmha_vsa_fwd_args);

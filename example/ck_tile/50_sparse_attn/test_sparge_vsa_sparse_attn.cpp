@@ -16,7 +16,7 @@
 #include "ck_tile/host/reference/reference_blocked_attention.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 
-#include "jenga_sparse_attention.h"
+#include "vsa_sparge_attention.h"
 #include "sparge_tool.hpp"
 
 // ============================================================================
@@ -115,7 +115,7 @@ auto create_args(int argc, char* argv[])
         .insert("repeat", "20", "benchmark iterations")
         .insert("kname", "0", "print kernel name")
         // Sparge-specific
-        .insert("blkq", "128", "Sparge BLKQ")
+        .insert("blkq", "64", "Sparge BLKQ")
         .insert("blkk", "128", "Sparge BLKK")
         .insert("simthreshd1", "0.6", "Sparge sim threshold")
         .insert("cdfthreshd", "0.98", "Sparge CDF threshold (used when topk < 0)")
@@ -161,10 +161,10 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     if(hdim_v < 0)
         hdim_v = hdim_q;
 
-    if(blkq != 128 || blkk != 128 || hdim_q != 128 || hdim_v != 128)
+    if(blkq != 64 || blkk != 128 || hdim_q != 128 || hdim_v != 128)
     {
         std::cout << "\n>>> TEST SKIPPED <<<" << std::endl;
-        std::cout << "VSA kernel instances are generated for BLKQ=BLKK=128, "
+        std::cout << "Sparge VSA kernel instances are generated for BLKQ=64, BLKK=128, "
                      "hdim_q=128, hdim_v=128 only."
                   << std::endl;
         std::cout << "TEST SKIPPED" << std::endl;
@@ -251,7 +251,7 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     {
         if(kname)
         {
-            vsa_sparse_attention<T>(q_host,
+            vsa_sparge_attention<T>(q_host,
                                     k_host,
                                     v_host,
                                     vsa_lut.lut,
@@ -273,7 +273,7 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
 
         for(int i = 0; i < warmup; ++i)
         {
-            vsa_sparse_attention<T>(q_host,
+            vsa_sparge_attention<T>(q_host,
                                     k_host,
                                     v_host,
                                     vsa_lut.lut,
@@ -298,7 +298,7 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
 
         for(int i = 0; i < repeat; ++i)
         {
-            vsa_sparse_attention<T>(q_host,
+            vsa_sparge_attention<T>(q_host,
                                     k_host,
                                     v_host,
                                     vsa_lut.lut,
