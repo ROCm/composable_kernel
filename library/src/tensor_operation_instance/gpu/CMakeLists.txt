@@ -381,7 +381,7 @@ ENDFOREACH()
 
 
 
-if(CK_DEVICE_OTHER_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
+if(CK_DEVICE_OTHER_INSTANCES AND (NOT MIOPEN_REQ_LIBS_ONLY OR HIPTENSOR_REQ_LIBS_ONLY))
         add_library(device_other_operations ${CK_DEVICE_OTHER_INSTANCES})
         add_library(composablekernels::device_other_operations ALIAS device_other_operations)
         set_target_properties(device_other_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -485,7 +485,7 @@ if(CK_DEVICE_MHA_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LI
             )
         endif()
 endif()
-if(CK_DEVICE_CONTRACTION_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
+if(CK_DEVICE_CONTRACTION_INSTANCES AND (NOT MIOPEN_REQ_LIBS_ONLY OR HIPTENSOR_REQ_LIBS_ONLY))
         add_library(device_contraction_operations ${CK_DEVICE_CONTRACTION_INSTANCES})
         add_library(composablekernels::device_contraction_operations ALIAS device_contraction_operations)
         target_compile_features(device_contraction_operations PUBLIC)
@@ -507,7 +507,7 @@ if(CK_DEVICE_CONTRACTION_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
 endif()
-if(CK_DEVICE_REDUCTION_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
+if(CK_DEVICE_REDUCTION_INSTANCES AND (NOT MIOPEN_REQ_LIBS_ONLY OR HIPTENSOR_REQ_LIBS_ONLY))
         add_library(device_reduction_operations ${CK_DEVICE_REDUCTION_INSTANCES})
         add_library(composablekernels::device_reduction_operations ALIAS device_reduction_operations)
         target_compile_features(device_reduction_operations PUBLIC)
