@@ -296,45 +296,45 @@ struct InstanceTraits<
         oss << ","
             << detail::conv_bwd_data_spec_name(
                    kConvBwdDataSpecialization); // 14. ConvBackwardDataSpecialization
-        oss << "," << kDoPadGemmM;
-        oss << "," << kDoPadGemmN;
-        oss << "," << kNumGemmKPrefetchStage;
-        oss << "," << kBlockSize;   // 15. BlockSize
-        oss << "," << kMPerBlock;   // 16. MPerBlock
-        oss << "," << kNPerBlock;   // 17. NPerBlock
-        oss << "," << kK0PerBlock;  // 18. K0PerBlock
-        oss << "," << kAK1;         // 19. AK1
-        oss << "," << kBK1;         // 19. BK1
-        oss << "," << kMPerXDL;     // 20. MPerXDL
-        oss << "," << kNPerXDL;     // 21. NPerXDL
-        oss << "," << kMXdlPerWave; // 22. MXdlPerWave
-        oss << "," << kNXdlPerWave; // 23. NXdlPerWave
-        oss << "," << detail::sequence_name<ABlockTransferThreadClusterLengths_K0_M_K1>(); // 24.
-        oss << "," << detail::sequence_name<ABlockTransferThreadClusterArrangeOrder>();    // 25.
-        oss << "," << detail::sequence_name<ABlockTransferSrcAccessOrder>();               // 26.
-        oss << "," << kABlockTransferSrcVectorDim;                                         // 27.
-        oss << "," << kABlockTransferSrcScalarPerVector;                                   // 28.
-        oss << "," << kABlockTransferDstScalarPerVectorK1;                                 // 29.
-        oss << "," << (kABlockLdsExtraM ? "true" : "false");                               // 30.
-        oss << "," << detail::sequence_name<BBlockTransferThreadClusterLengths_K0_N_K1>(); // 31.
-        oss << "," << detail::sequence_name<BBlockTransferThreadClusterArrangeOrder>();    // 32.
-        oss << "," << detail::sequence_name<BBlockTransferSrcAccessOrder>();               // 33.
-        oss << "," << kBBlockTransferSrcVectorDim;                                         // 34.
-        oss << "," << kBBlockTransferSrcScalarPerVector;                                   // 35.
-        oss << "," << kBBlockTransferDstScalarPerVectorK1;                                 // 36.
-        oss << "," << (kBBlockLdsExtraN ? "true" : "false");                               // 37.
-        oss << "," << kCShuffleMXdlPerWavePerShuffle;                                      // 38.
-        oss << "," << kCShuffleNXdlPerWavePerShuffle;                                      // 39.
+        oss << "," << kDoPadGemmM;              // 15. GEMM padding for M dimension
+        oss << "," << kDoPadGemmN;              // 16. GEMM padding for N dimension
+        oss << "," << kNumGemmKPrefetchStage;   // 17. Number of GEMM K prefetch stages
+        oss << "," << kBlockSize;               // 18. BlockSize
+        oss << "," << kMPerBlock;               // 19. MPerBlock
+        oss << "," << kNPerBlock;               // 20. NPerBlock
+        oss << "," << kK0PerBlock;              // 21. K0PerBlock
+        oss << "," << kAK1;                     // 22. AK1
+        oss << "," << kBK1;                     // 23. BK1
+        oss << "," << kMPerXDL;                 // 24. MPerXDL
+        oss << "," << kNPerXDL;                 // 25. NPerXDL
+        oss << "," << kMXdlPerWave;             // 26. MXdlPerWave
+        oss << "," << kNXdlPerWave;             // 27. NXdlPerWave
+        oss << "," << detail::sequence_name<ABlockTransferThreadClusterLengths_K0_M_K1>(); // 28.
+        oss << "," << detail::sequence_name<ABlockTransferThreadClusterArrangeOrder>();    // 29.
+        oss << "," << detail::sequence_name<ABlockTransferSrcAccessOrder>();               // 30.
+        oss << "," << kABlockTransferSrcVectorDim;                                         // 31.
+        oss << "," << kABlockTransferSrcScalarPerVector;                                   // 32.
+        oss << "," << kABlockTransferDstScalarPerVectorK1;                                 // 33.
+        oss << "," << (kABlockLdsExtraM ? "true" : "false");                               // 34.
+        oss << "," << detail::sequence_name<BBlockTransferThreadClusterLengths_K0_N_K1>(); // 35.
+        oss << "," << detail::sequence_name<BBlockTransferThreadClusterArrangeOrder>();    // 36.
+        oss << "," << detail::sequence_name<BBlockTransferSrcAccessOrder>();               // 37.
+        oss << "," << kBBlockTransferSrcVectorDim;                                         // 38.
+        oss << "," << kBBlockTransferSrcScalarPerVector;                                   // 39.
+        oss << "," << kBBlockTransferDstScalarPerVectorK1;                                 // 40.
+        oss << "," << (kBBlockLdsExtraN ? "true" : "false");                               // 41.
+        oss << "," << kCShuffleMXdlPerWavePerShuffle;                                      // 42.
+        oss << "," << kCShuffleNXdlPerWavePerShuffle;                                      // 43.
         oss << ","
             << detail::sequence_name<
-                   CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>(); // 40.
-        oss << "," << kCBlockTransferScalarPerVector_NWaveNPerXdl;                    // 42.
-        oss << "," << kNumGemmKPrefetchStage;                                         // 41.
-        oss << "," << detail::loop_scheduler_name(kLoopScheduler); // 43. LoopSched
-        oss << "," << detail::type_name<ComputeTypeA>();           // 44.
-        oss << "," << detail::type_name<ComputeTypeB>();           // 45.
-        oss << "," << kMaxTransposeTransferSrcScalarPerVector;     // 46.
-        oss << "," << kMaxTransposeTransferDstScalarPerVector;     // 47.
+                   CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock>(); // 44.
+        oss << "," << kCBlockTransferScalarPerVector_NWaveNPerXdl;                    // 45.
+        oss << "," << kNumGemmKPrefetchStage;                                         // 46.
+        oss << "," << detail::loop_scheduler_name(kLoopScheduler); // 47. LoopSched
+        oss << "," << detail::type_name<ComputeTypeA>();           // 48.
+        oss << "," << detail::type_name<ComputeTypeB>();           // 49.
+        oss << "," << kMaxTransposeTransferSrcScalarPerVector;     // 50.
+        oss << "," << kMaxTransposeTransferDstScalarPerVector;     // 51.
 
         oss << ">";
 

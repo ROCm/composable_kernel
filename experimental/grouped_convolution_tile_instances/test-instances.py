@@ -50,6 +50,7 @@ def compile_single_file(cpp_file: Path, project_root: Path, gpu_target: str, ver
             "-D__HIP_PLATFORM_AMD__",
             "-D CK_EXPERIMENTAL_BUILDER=ON",
             "-O3",
+            "-Wno-unknown-warning-option",
             *include_flags,
             str(cpp_file),
             "-o", str(output_file)
@@ -63,10 +64,15 @@ def compile_single_file(cpp_file: Path, project_root: Path, gpu_target: str, ver
                 timeout=300  # 5 minute timeout per file
             )
             
+            print(f"\n\n    Command: {' '.join(cmd)}\n") if verbose else None
+
             if result.returncode == 0:
                 return True, ""
             else:
                 # Extract the key error message
+                if verbose and result.stderr:
+                    print(f"    {result.stderr}")
+                    print()
                 error_output = result.stderr
                 return False, error_output
                 
