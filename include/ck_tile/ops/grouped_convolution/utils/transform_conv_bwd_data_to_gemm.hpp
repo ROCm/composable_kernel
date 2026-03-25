@@ -634,22 +634,40 @@ struct TransformConvBwdDataToGemm
         constexpr auto CStride = I1;
 
         // TODO Add support for NumGroupsToMerge > 1
-        return make_naive_tensor_descriptor(
-            make_tuple(N_, Di_, Hi_, Wi_, C_),
-            make_tuple(NStride, DiStride, HiStride, WiStride, CStride),
-            number<VectorSizeC>{},
-            I1);
+        if constexpr(ConvSpec == ConvolutionSpecialization::Filter1x1Stride1Pad0)
+        {
+            return make_naive_tensor_descriptor(make_tuple(N_ * Di_ * Hi_ * Wi_, C_),
+                                                make_tuple(WiStride, CStride),
+                                                number<VectorSizeC>{},
+                                                I1);
+        }
+        else
+        {
+            return make_naive_tensor_descriptor(
+                make_tuple(N_, Di_, Hi_, Wi_, C_),
+                make_tuple(NStride, DiStride, HiStride, WiStride, CStride),
+                number<VectorSizeC>{},
+                I1);
+        }
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 3, bool>::type = false>
     CK_TILE_HOST auto make_wei_grid_desc() const
     {
         // GKZYXC
-        return make_naive_tensor_descriptor(
-            make_tuple(K_, Z_, Y_, X_, C_),
-            make_tuple(C_ * X_ * Y_ * Z_, C_ * X_ * Y_, C_ * X_, C_, I1),
-            number<VectorSizeB>{},
-            I1);
+        if constexpr(ConvSpec == ConvolutionSpecialization::Filter1x1Stride1Pad0)
+        {
+            return make_naive_tensor_descriptor(
+                make_tuple(K_, C_), make_tuple(C_, I1), number<VectorSizeB>{}, I1);
+        }
+        else
+        {
+            return make_naive_tensor_descriptor(
+                make_tuple(K_, Z_, Y_, X_, C_),
+                make_tuple(C_ * X_ * Y_ * Z_, C_ * X_ * Y_, C_ * X_, C_, I1),
+                number<VectorSizeB>{},
+                I1);
+        }
     }
     // TODO: implement ck_tile::tensor_layout::convolution that describe packed/strided dimemsion as
     // properties
