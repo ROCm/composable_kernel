@@ -112,4 +112,5 @@ test_data/*
 experimental/grouped_convolution_tile_instances/instances/*
 !experimental/grouped_convolution_tile_instances/instances/*.in
 !experimental/grouped_convolution_tile_instances/instances/*.inc
+!experimental/grouped_convolution_tile_instances/instances/*.hpp
 experimental/grouped_convolution_tile_instances/*.inc

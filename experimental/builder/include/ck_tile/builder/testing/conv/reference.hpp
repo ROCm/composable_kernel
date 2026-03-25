@@ -134,4 +134,26 @@ template <auto SIGNATURE>
     return detail::run(conv, args, inputs.input, outputs.weight, inputs.output);
 }
 
+/// @brief Concept for checking whether this is the reference convolution
+/// backward data implementation.
+template <typename Conv, auto SIGNATURE>
+concept RefConvBwdDataInstance =
+    detail::RefConvInstance<Conv, SIGNATURE, void*, const void*, const void*> &&
+    ConvDirectionIsBackwardData<SIGNATURE>;
+
+/// @brief `run()` specialization for the reference backward data implementation.
+///
+/// @tparam SIGNATURE The signature of the operation to perform. Must be backwards data.
+/// @returns RunResult about how the operation completed (or not).
+///
+/// @see run()
+template <auto SIGNATURE>
+[[nodiscard]] RunResult run(RefConvBwdDataInstance<SIGNATURE> auto& conv,
+                            const Args<SIGNATURE>& args,
+                            const Inputs<SIGNATURE>& inputs,
+                            const Outputs<SIGNATURE>& outputs)
+{
+    return detail::run(conv, args, outputs.input, inputs.weight, inputs.output);
+}
+
 } // namespace ck_tile::builder::test
