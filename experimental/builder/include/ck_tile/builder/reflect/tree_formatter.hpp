@@ -47,7 +47,7 @@ class TreeFormatter
 
     // Add a child node, returns a reference to it for further nesting
     template <typename... Args>
-    TreeFormatter& add(Args&&... args)
+    TreeFormatter& add(Args&&... args) [[clang::lifetimebound]]
     {
         children_.emplace_back(std::forward<Args>(args)...);
         return children_.back();
