@@ -24,7 +24,7 @@ enum struct ConvLayout
     NGCHW_GKCYX_NGKHW, // 4
 };
 
-std::ostream& operator<<(std::ostream& os, const ConvLayout& layout)
+std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os, const ConvLayout& layout)
 {
     using ck::operator<<;
     switch(layout)
@@ -61,7 +61,7 @@ enum struct ConvDataType
     F32_F32_F32_COMP_TF32 // 6
 };
 
-std::ostream& operator<<(std::ostream& os, const ConvDataType& data_type)
+std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os, const ConvDataType& data_type)
 {
     using ck::operator<<;
     switch(data_type)
