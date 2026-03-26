@@ -471,6 +471,9 @@ static int get_hstu_attention_fwd_mtile(int num_batches, int num_heads, int max_
     int num_CUs  = get_number_of_cu();
     auto ceildiv = [](int a, int b) { return (a + b - 1) / b; };
 
+    if(max_seqlen_q <= 64)
+        return 64;
+
     int nbatch_nhead_mblocks = num_batches * num_heads * ceildiv(max_seqlen_q, 128);
 
     // assuming each CU is assigned two work-groups
