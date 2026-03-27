@@ -75,11 +75,19 @@ template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename Ou
 
     auto kargs = Conv::MakeKernelArgs(host_args);
 
-    const dim3 grids  = Conv::GridSize(kargs);
-    const dim3 blocks = Conv::BlockSize();
-
     if(!Conv::IsSupportedArgument(kargs))
         return RunResult::not_supported("unsupported ck_tile arguments");
+
+    // Workspace allocation (bwd weight only): may be non-zero for StreamK.
+    [[maybe_unused]] std::size_t ws_size = 0;
+    if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
+        ws_size = Conv::GetWorkSpaceSize(kargs);
+    ck_tile::DeviceMem workspace_dev(ws_size);
+    if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
+        Conv::SetWorkSpacePointer(kargs, workspace_dev.GetDeviceBuffer());
+
+    const dim3 grids  = Conv::GridSize(kargs);
+    const dim3 blocks = Conv::BlockSize();
 
     using Types = ck_tile::builder::factory::internal::TileConvTensorTypes<SIGNATURE.data_type>;
 
@@ -88,8 +96,18 @@ template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename Ou
     auto preprocess = [&]() {
         if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
         {
-            if(kargs.k_batch > 1)
+            if constexpr(Conv::IsStreamK)
             {
+                // StreamK: zero workspace flags before each kernel launch
+                if(ws_size > 0)
+                {
+                    ck_tile::hip_check_error(hipMemsetAsync(
+                        workspace_dev.GetDeviceBuffer(), 0, ws_size, s_conf.stream_id_));
+                }
+            }
+            else if(kargs.k_batch > 1)
+            {
+                // Split-K: zero weight buffer for atomic accumulation
                 ck_tile::hip_check_error(
                     hipMemsetAsync(kargs.wei_ptr,
                                    0,
