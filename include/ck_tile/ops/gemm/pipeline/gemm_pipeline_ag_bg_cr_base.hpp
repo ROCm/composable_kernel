@@ -146,10 +146,9 @@ struct GemmPipelineAgBgCrImplBase
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
         // TODO: LDS alignment should come from Policy!
-        constexpr index_t APackedSize            = numeric_traits<OverrideADataType>::PackedSize;
-        constexpr index_t a_lds_block_space_size = lds_padded_sizeof<OverrideADataType>() *
-                                                   a_lds_block_desc.get_element_space_size() /
-                                                   APackedSize;
+        constexpr index_t APackedSize = numeric_traits<OverrideADataType>::PackedSize;
+        constexpr index_t a_lds_block_space_size =
+            sizeof(OverrideADataType) * a_lds_block_desc.get_element_space_size() / APackedSize;
         constexpr index_t a_lds_block_space_size_aligned =
             integer_least_multiple(a_lds_block_space_size, 16);
 

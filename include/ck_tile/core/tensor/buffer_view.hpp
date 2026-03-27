@@ -19,14 +19,6 @@
 
 namespace ck_tile {
 
-// buffer_load_dwordx3 to LDS uses a fixed 16-byte per-thread stride,
-// padding each 12-byte element to 16 bytes in LDS.
-template <typename T>
-CK_TILE_HOST_DEVICE constexpr index_t lds_padded_sizeof()
-{
-    return (sizeof(T) == 12) ? 16 : sizeof(T);
-}
-
 // T may be scalar or vector
 // X may be scalar or vector
 // T and X have same scalar type
@@ -848,10 +840,7 @@ struct buffer_view<address_space_enum::lds,
             {
                 using buf_t = ext_vector_t<typename vector_traits<remove_cvref_t<T>>::scalar_type,
                                            scalar_per_t_vector * scalar_per_x_vector>;
-                constexpr index_t padded_stride = lds_padded_sizeof<T>();
-                const char* base =
-                    reinterpret_cast<const char*>(p_data_) + (i + linear_offset) * padded_stride;
-                auto rtn = *c_style_pointer_cast<const buf_t*>(base);
+                auto rtn    = *c_style_pointer_cast<const buf_t*>(&p_data_[i + linear_offset]);
                 return bit_cast<X>(rtn);
             }
 #endif
@@ -883,8 +872,7 @@ struct buffer_view<address_space_enum::lds,
                                           bool /*is_valid_element*/,
                                           bool_constant<pre_nop> = {}) const
     {
-        constexpr index_t padded_stride = lds_padded_sizeof<T>();
-        smem_load<sizeof(X)>{}(dst, v_offset * padded_stride, i_offset * padded_stride);
+        smem_load<sizeof(X)>{}(dst, v_offset * sizeof(T), i_offset * sizeof(T));
     }
 
     template <typename X,

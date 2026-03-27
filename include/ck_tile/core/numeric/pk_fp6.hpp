@@ -22,10 +22,7 @@ struct pk_fp6_t
     static constexpr index_t vector_size = (packed_size * num_bits_elem) / num_bits_vec_elem;
     element_type data_[vector_size]; // packed data
     using type = pk_fp6_t<packed_size>;
-
-    CK_TILE_HOST_DEVICE constexpr pk_fp6_t() : data_{element_type{}} {}
-
-    CK_TILE_HOST_DEVICE constexpr explicit pk_fp6_t(int value)
+    CK_TILE_HOST_DEVICE constexpr explicit pk_fp6_t(int value = 0)
     {
         for(size_t i = 0; i < vector_size; ++i)
         {
@@ -62,14 +59,13 @@ struct pk_fp6_t
         const int bit_offset = bit_pos % num_bits_vec_elem;
         const int overhang   = bit_offset + num_bits_elem - num_bits_vec_elem;
 
-        uint32_t bits = static_cast<uint32_t>(pk.data_[arr_idx]) >> bit_offset;
+        int32_t bits = pk.data_[arr_idx] >> bit_offset;
         if(overhang > 0 && (arr_idx + 1) < vector_size)
         {
-            bits |= (static_cast<uint32_t>(pk.data_[arr_idx + 1]) & ((1u << overhang) - 1))
-                    << (num_bits_elem - overhang);
+            bits |= (pk.data_[arr_idx + 1] & ((1u << overhang) - 1)) << (num_bits_elem - overhang);
         }
 
-        return static_cast<int32_t>(bits & 0x3F);
+        return bits & 0x3F;
     }
 
     CK_TILE_HOST_DEVICE int32_t unpack(const index_t i) const { return unpack(*this, i); }
@@ -101,22 +97,6 @@ struct pk_fp6_t
         }
         return sign == 1 ? -1 * result : result;
     }
-
-    CK_TILE_HOST static int32_t float_to_fp6_e2m3(float val)
-    {
-        int32_t best   = 0;
-        float best_err = 1e30f;
-        for(int32_t i = 0; i < 64; i++)
-        {
-            float err = std::fabs(val - fp6_e2m3_to_float(i));
-            if(err < best_err)
-            {
-                best     = i;
-                best_err = err;
-            }
-        }
-        return best;
-    }
 };
 
 using pk_fp6x16_t = pk_fp6_t<16>;
@@ -125,7 +105,5 @@ template <>
 struct numeric_traits<pk_fp6x16_t>
 {
     static constexpr int PackedSize = 16;
-    static constexpr int exp        = 2;
-    static constexpr int mant       = 3;
 };
 } // namespace ck_tile
