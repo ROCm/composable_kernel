@@ -189,6 +189,7 @@ set(BWD_WEIGHT_TESTS
     conv/ck/test_ckb_conv_bwd_weight_xdl_cshuffle_v3.cpp
     conv/ck/test_ckb_conv_bwd_weight_dl.cpp
     conv/ck_tile/test_ckb_conv_bwd_weight_2d_fp16_v3.cpp
+    conv/ck_tile/test_ckb_conv_bwd_weight_2d_fp16_streamk.cpp
 )
 
 if (CK_USE_WMMA)

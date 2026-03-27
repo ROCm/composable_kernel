@@ -66,14 +66,18 @@ struct InstanceTraits<ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedCon
     static constexpr int kMPerBlock = TilePartitioner_::MPerBlock;
     static constexpr int kNPerBlock = TilePartitioner_::NPerBlock;
     static constexpr int kKPerBlock = TilePartitioner_::KPerBlock;
+    // Partitioner — detect StreamK by checking for PERSISTENT member
+    static constexpr bool kIsStreamK = requires { TilePartitioner_::PERSISTENT; };
 
-    static constexpr int kMWarp = TilePartitioner_::BlockGemmShape::BlockWarps::at(number<0>{});
-    static constexpr int kNWarp = TilePartitioner_::BlockGemmShape::BlockWarps::at(number<1>{});
-    static constexpr int kKWarp = TilePartitioner_::BlockGemmShape::BlockWarps::at(number<2>{});
-
-    static constexpr int kMWarpTile = TilePartitioner_::BlockGemmShape::WarpTile::at(number<0>{});
-    static constexpr int kNWarpTile = TilePartitioner_::BlockGemmShape::WarpTile::at(number<1>{});
-    static constexpr int kKWarpTile = TilePartitioner_::BlockGemmShape::WarpTile::at(number<2>{});
+    // Warp configuration — sourced from pipeline's BlockGemmShape (works for both
+    // GemmSpatiallyLocalTilePartitioner and StreamKTilePartitioner).
+    using BlockGemmShape_           = typename GemmPipeline_::BlockGemmShape;
+    static constexpr int kMWarp     = BlockGemmShape_::BlockWarps::at(number<0>{});
+    static constexpr int kNWarp     = BlockGemmShape_::BlockWarps::at(number<1>{});
+    static constexpr int kKWarp     = BlockGemmShape_::BlockWarps::at(number<2>{});
+    static constexpr int kMWarpTile = BlockGemmShape_::WarpTile::at(number<0>{});
+    static constexpr int kNWarpTile = BlockGemmShape_::WarpTile::at(number<1>{});
+    static constexpr int kKWarpTile = BlockGemmShape_::WarpTile::at(number<2>{});
 
     // Data types
     using ADataType = typename GemmPipeline_::ADataType;
@@ -133,6 +137,13 @@ struct InstanceTraits<ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedCon
         oss << ","
             << detail::elementwise_op_name<CDEElementwiseOperation>(); // 31.
                                                                        // CDEElementwiseOperation
+        oss << "," << kIsStreamK;                                      // 32. IsStreamK
+        if constexpr(kIsStreamK)
+        {
+            oss << ","
+                << static_cast<int>(TilePartitioner_::ReductionStrategy); // 33. ReductionStrategy
+            oss << "," << TilePartitioner_::PERSISTENT;                   // 34. PersistentDP
+        }
         oss << ">";
 
         return oss.str();

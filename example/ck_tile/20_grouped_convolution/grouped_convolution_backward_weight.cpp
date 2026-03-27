@@ -17,7 +17,7 @@
 template <template <typename PrecType> typename ConvConfig>
 int run_grouped_conv_bwd_weight_example(ck_tile::ArgParser& arg_parser)
 {
-    using Invoker = GroupedConvolutionBackwardWeightInvoker;
+    using Invoker = GroupedConvolutionBackwardWeightInvoker<>;
 
     std::string data_type  = arg_parser.get_str("prec");
     std::string in_layout  = arg_parser.get_str("in_layout");
