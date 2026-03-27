@@ -4,6 +4,7 @@
 #pragma once
 
 #include <gtest/gtest.h>
+
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/check_err.hpp"

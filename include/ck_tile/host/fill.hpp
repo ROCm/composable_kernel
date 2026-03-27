@@ -169,41 +169,6 @@ struct FillUniformDistribution<ck_tile::pk_int4_t>
     }
 };
 
-template <>
-struct FillUniformDistribution<ck_tile::pk_fp6x16_t>
-{
-    float a_{-2.f};
-    float b_{2.f};
-    std::optional<uint32_t> seed_{11939};
-
-    template <typename ForwardIter>
-    void operator()(ForwardIter first, ForwardIter last) const
-    {
-        std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
-        std::uniform_real_distribution<float> dis(a_, b_);
-        while(first != last)
-        {
-            ck_tile::pk_fp6x16_t pk{};
-            for(ck_tile::index_t i = 0; i < ck_tile::pk_fp6x16_t::packed_size; ++i)
-            {
-                pk.pack(ck_tile::pk_fp6x16_t::float_to_fp6_e2m3(dis(gen)), i);
-            }
-            *first = pk;
-            ++first;
-        }
-    }
-
-    template <typename ForwardRange>
-    auto operator()(ForwardRange&& range) const
-        -> std::void_t<decltype(std::declval<const FillUniformDistribution&>()(
-            std::begin(std::forward<ForwardRange>(range)),
-            std::end(std::forward<ForwardRange>(range))))>
-    {
-        (*this)(std::begin(std::forward<ForwardRange>(range)),
-                std::end(std::forward<ForwardRange>(range)));
-    }
-};
-
 namespace impl {
 
 // clang-format off
