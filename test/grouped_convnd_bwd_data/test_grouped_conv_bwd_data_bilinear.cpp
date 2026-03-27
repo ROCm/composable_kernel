@@ -285,9 +285,14 @@ class TestGroupedConvndBwdData : public ::testing::Test
         bool pass = true;
         for(auto split_k : split_ks)
         {
-            for(auto& param : conv_params)
+            for(size_t i = 0; i < conv_params.size(); i++)
             {
-                pass = pass && PerformConvDataBilinear(param, split_k, instance_index);
+                if((param_mask & (1 << i)) == 0)
+                {
+                    continue;
+                }
+                auto& param = conv_params[i];
+                pass        = pass && PerformConvDataBilinear(param, split_k, instance_index);
             }
         }
         EXPECT_TRUE(pass);
