@@ -64,8 +64,10 @@ struct unified_attention_kernel_traits
     static constexpr bool is_masking = IsMasking;
 
     static constexpr index_t kBlockM    = BlockM_;
-    static constexpr index_t BLOCK_SIZE = 32;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
+    // On gfx950 with 128-bit loads (KVector=8), NumIssues = kPageBlockSize*HeadSize/4096.
+    // For HeadSize<=64 we need kPageBlockSize>=64 to keep NumIssues>=1.
+    static constexpr index_t BLOCK_SIZE = (HEAD_SIZE <= 64) ? 64 : 32;
 
     static constexpr index_t num_queries_per_kv = NumQPerKV_;
     static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;

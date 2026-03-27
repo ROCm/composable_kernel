@@ -32,9 +32,10 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
     const bool is_mask = (args.mask_type != static_cast<int>(mask_enum::no_mask));
 
     // Route based on (data_type, mask, hdim, num_queries_per_kv).
-    // Only d128 MHA (8 warps, kBlockM=256) instances available.
     // Decode-tuned instances require pipeline changes (NumWarpGroups must == 2,
     // which means exactly 8 warps; fewer warps are not supported).
+
+    // d128, MHA (num_queries_per_kv == 1)
     if(args.hdim == 128 && args.num_queries_per_kv == 1)
     {
         if(args.data_type == unified_attention_args::data_type_enum::fp16)
@@ -46,6 +47,21 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
         {
             if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, false, 128, 256, 1)
             else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, true,  128, 256, 1)
+        }
+    }
+
+    // d64, GQA-8 (num_queries_per_kv == 8)
+    if(args.hdim == 64 && args.num_queries_per_kv == 8)
+    {
+        if(args.data_type == unified_attention_args::data_type_enum::fp16)
+        {
+            if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, false, 64, 256, 8)
+            else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, true,  64, 256, 8)
+        }
+        else if(args.data_type == unified_attention_args::data_type_enum::bf16)
+        {
+            if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, false, 64, 256, 8)
+            else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, true,  64, 256, 8)
         }
     }
 
