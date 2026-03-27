@@ -20,7 +20,14 @@ CK_TILE_HOST void reference_batched_masking(HostTensor<CDataType>& c_b_m_n, cons
         {
             for(int m = 0; m < M; ++m)
             {
-                if(mask.IsOutOfSinkBound(m, n))
+                const bool is_out_of_bound = [&]() {
+                    if constexpr(requires { mask.IsOutOfSinkBound(m, n); })
+                        return mask.IsOutOfSinkBound(m, n);
+                    else
+                        return mask.IsOutOfBound(m, n);
+                }();
+
+                if(is_out_of_bound)
                     c_b_m_n(batch, m, n) = -ck_tile::numeric<CDataType>::infinity();
             }
         }

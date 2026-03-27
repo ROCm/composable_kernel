@@ -18,47 +18,43 @@ std::ostream& operator<<(std::ostream& stream,
     }
 }
 
+// Helper macro to reduce dispatch boilerplate.
+// Dispatches based on DataType, IsMasking, HeadSize, BlockM, NumQPerKV.
+#define DISPATCH_UNIFIED_ATTENTION(DType, IsMask, HSize, BM, NQPKV) \
+    { \
+        using kernel_traits = unified_attention_kernel_traits<DType, IsMask, HSize, BM, NQPKV>; \
+        return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
+    }
+
 std::pair<bool, float> unified_attention(const unified_attention_args& args,
                                          const stream_config& config)
 {
-    if(args.data_type == unified_attention_args::data_type_enum::fp16)
+    const bool is_mask = (args.mask_type != static_cast<int>(mask_enum::no_mask));
+
+    // Route based on (data_type, mask, hdim, num_queries_per_kv).
+    // Only d128 MHA (8 warps, kBlockM=256) instances available.
+    // Decode-tuned instances require pipeline changes (NumWarpGroups must == 2,
+    // which means exactly 8 warps; fewer warps are not supported).
+    if(args.hdim == 128 && args.num_queries_per_kv == 1)
     {
-        if(args.mask_type == static_cast<int>(mask_enum::no_mask))
+        if(args.data_type == unified_attention_args::data_type_enum::fp16)
         {
-            using kernel_traits =
-                unified_attention_kernel_traits<unified_attention_args::data_type_enum::fp16,
-                                                false>;
-
-            return unified_attention_kernel_dispatch<kernel_traits>(args, config);
+            if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, false, 128, 256, 1)
+            else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, true,  128, 256, 1)
         }
-        else
+        else if(args.data_type == unified_attention_args::data_type_enum::bf16)
         {
-            using kernel_traits =
-                unified_attention_kernel_traits<unified_attention_args::data_type_enum::fp16, true>;
-
-            return unified_attention_kernel_dispatch<kernel_traits>(args, config);
-        }
-    }
-    else if(args.data_type == unified_attention_args::data_type_enum::bf16)
-    {
-        if(args.mask_type == static_cast<int>(mask_enum::no_mask))
-        {
-            using kernel_traits =
-                unified_attention_kernel_traits<unified_attention_args::data_type_enum::bf16,
-                                                false>;
-
-            return unified_attention_kernel_dispatch<kernel_traits>(args, config);
-        }
-        else
-        {
-            using kernel_traits =
-                unified_attention_kernel_traits<unified_attention_args::data_type_enum::bf16, true>;
-
-            return unified_attention_kernel_dispatch<kernel_traits>(args, config);
+            if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, false, 128, 256, 1)
+            else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, true,  128, 256, 1)
         }
     }
 
+    std::cerr << "unified_attention: no matching kernel instance for hdim=" << args.hdim
+              << " num_queries_per_kv=" << args.num_queries_per_kv
+              << " data_type=" << args.data_type << " mask_type=" << args.mask_type << std::endl;
     return std::make_pair(false, -1.f);
 }
+
+#undef DISPATCH_UNIFIED_ATTENTION
 
 } // namespace ck_tile

@@ -26,7 +26,7 @@
 #include "mask.hpp"
 
 // const ck_tile::index_t page_blk_size         = 32;
-const ck_tile::index_t num_queries_per_kv = 1;
+// num_queries_per_kv is now a runtime arg (see parse_cmd_args)
 
 auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParser>
 {
@@ -34,10 +34,8 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
     arg_parser
         .insert("prec", "bf16", "data type. fp16/bf16")
         // .insert("b", "3", "batch size")
-        .insert("h_k",
-                "8",
-                "num head for k/v. num head for q is " + std::to_string(num_queries_per_kv) +
-                    " times this")
+        .insert("nqpkv", "1", "num queries per kv head (GQA ratio, e.g. 1 for MHA, 8 for GQA-8)")
+        .insert("h_k", "8", "num head for k/v. num head for q is nqpkv times this")
         .insert("s", "3328", "max seqlen_q")
         .insert("s_k", "-1", "max seqlen_k, -1 means equal to s")
         .insert("nb", "1024", "num_blks")
@@ -130,7 +128,7 @@ struct Problem
                         : ck_tile::unified_attention_args::data_type_enum::bf16;
         num_blks  = args.get_int("nb");
         nhead_kv  = args.get_int("h_k");
-        // TODO: support other GQA/MQA cases than just 4x
+        num_queries_per_kv = args.get_int("nqpkv");
         nhead_q = nhead_kv * num_queries_per_kv;
 
         ck_tile::index_t max_seqlen_q  = args.get_int("s");
@@ -192,6 +190,7 @@ struct Problem
     ck_tile::index_t num_blks;
     ck_tile::index_t nhead_q;
     ck_tile::index_t nhead_kv;
+    ck_tile::index_t num_queries_per_kv;
     ck_tile::index_t hdim;
     ck_tile::index_t page_blk_size;
     ck_tile::index_t num_tokens;
@@ -335,7 +334,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.data_type          = problem.data_type;
     args.num_seqs           = problem.batch;
     args.num_head_q         = problem.nhead_q;
-    args.num_queries_per_kv = num_queries_per_kv;
+    args.num_queries_per_kv = problem.num_queries_per_kv;
     args.page_blk_size      = problem.page_blk_size;
     args.mask_type          = 2;
     args.hdim               = problem.hdim;

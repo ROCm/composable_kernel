@@ -52,24 +52,29 @@ struct unified_attention_problem_traits<unified_attention_args::data_type_enum::
     using lse_dtype  = float;
 };
 
-template <unified_attention_args::data_type_enum DataType, bool IsMasking>
+// Parameterized kernel traits: DataType, IsMasking, HeadSize, BlockM, NumQueriesPerKV
+template <unified_attention_args::data_type_enum DataType,
+          bool IsMasking,
+          index_t HeadSize_     = 128,
+          index_t BlockM_       = 256,
+          index_t NumQPerKV_    = 1>
 struct unified_attention_kernel_traits
 {
     static constexpr auto date_type  = DataType;
     static constexpr bool is_masking = IsMasking;
 
-    static constexpr index_t kBlockM    = 256;
+    static constexpr index_t kBlockM    = BlockM_;
     static constexpr index_t BLOCK_SIZE = 32;
-    static constexpr index_t HEAD_SIZE  = 128;
+    static constexpr index_t HEAD_SIZE  = HeadSize_;
 
-    // TODO please fix this to support also other num_queries_per_kv
-    static constexpr index_t num_queries_per_kv = 1;
+    static constexpr index_t num_queries_per_kv = NumQPerKV_;
     static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
 
     //                                    kBlockM kBlockQ   BLOCK_SIZE  HEAD_SIZE
     using unified_attention_block_tile      = sequence<kBlockM, kBlockQ, BLOCK_SIZE, HEAD_SIZE>;
+
     using unified_attention_warp_gemm_shape = sequence<32, 32, 16>;
-    // need to have 8 warps per workgroup to have warp specialization
+    // 8 warps for warp specialization; kBlockM must be 8 * 32 = 256
     using unified_attention_block_warps = sequence<8, 1, 1>;
 
     using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
@@ -115,17 +120,70 @@ struct unified_attention_kernel_traits
     using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
 };
 
+// Decode-tuned traits: fewer warps, smaller kBlockM for low-token workloads.
+// NOTE: Currently cannot compile due to pipeline constraint (NumWarpGroups must == 2).
+// Kept for future pipeline work.
+template <unified_attention_args::data_type_enum DataType,
+          bool IsMasking,
+          index_t HeadSize_  = 128,
+          index_t BlockM_    = 64,
+          index_t NumQPerKV_ = 1>
+struct unified_attention_decode_kernel_traits
+{
+    static constexpr auto date_type  = DataType;
+    static constexpr bool is_masking = IsMasking;
+
+    static constexpr index_t kBlockM    = BlockM_;
+    static constexpr index_t BLOCK_SIZE = 32;
+    static constexpr index_t HEAD_SIZE  = HeadSize_;
+
+    static constexpr index_t num_queries_per_kv = NumQPerKV_;
+    static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
+
+    using unified_attention_block_tile      = sequence<kBlockM, kBlockQ, BLOCK_SIZE, HEAD_SIZE>;
+    using unified_attention_warp_gemm_shape = sequence<32, 32, 16>;
+    using unified_attention_block_warps     = sequence<2, 1, 1>;
+
+    using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
+                                                              unified_attention_block_warps,
+                                                              unified_attention_warp_gemm_shape,
+                                                              unified_attention_block_warps,
+                                                              unified_attention_warp_gemm_shape,
+                                                              true>;
+
+    using unified_attention_traits = TileUnifiedAttentionTraits<true, false, -1>;
+    using unified_attention_mask   = GenericAttentionMask<IsMasking, false>;
+
+    using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
+        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
+        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
+        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
+        typename unified_attention_problem_traits<date_type>::acc_dtype,
+        typename unified_attention_problem_traits<date_type>::acc_dtype,
+        typename unified_attention_problem_traits<date_type>::acc_dtype,
+        typename unified_attention_problem_traits<date_type>::lse_dtype,
+        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
+        typename unified_attention_problem_traits<date_type>::acc_dtype,
+        typename unified_attention_problem_traits<date_type>::o_dtype,
+        unified_attention_shape,
+        unified_attention_mask,
+        unified_attention_traits>;
+
+    using unified_attention_pipeline = UnifiedAttentionPipeline<unified_attention_pipeline_problem>;
+
+    using epilogue = Default2DEpilogue<
+        Default2DEpilogueProblem<typename unified_attention_problem_traits<date_type>::acc_dtype,
+                                 typename unified_attention_problem_traits<date_type>::o_dtype,
+                                 true, true, true>>;
+
+    using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
+};
+
 template <typename Kernel>
 float unified_attention_kernel_launch(const unified_attention_args& args,
                                       const stream_config& config)
 {
-    index_t kBlockQ = Kernel::kBlockQ;
-    assert(args.num_queries_per_kv == Kernel::num_queries_per_kv &&
-           "argument num_queries_per_kv must equal compiled num_queries_per_kv");
-    assert(args.BLOCK_SIZE == Kernel::BLOCK_SIZE &&
-           "argument BLOCK_SIZE must equal compiled BLOCK_SIZE");
-    assert(kBlockQ == kBlockM / args.num_queries_per_kv &&
-           "kBlockQ must equal kBlockM / num_queries_per_kv");
+    constexpr index_t kBlockQ = Kernel::kBlockQ;
     index_t total_num_q_blocks = args.num_tokens / kBlockQ + args.num_seqs;
     auto kargs                 = Kernel::MakeKargs(args.q_ptr,
                                    args.k_ptr,
