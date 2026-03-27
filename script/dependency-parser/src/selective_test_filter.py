@@ -29,6 +29,7 @@ import sys
 import subprocess
 import json
 import os
+import re
 
 
 def get_changed_files(ref1, ref2, project: str = None):
@@ -110,12 +111,18 @@ def get_ctest_registered_tests(build_dir=None):
             return None
 
         tests = set()
+        # CTest formats test numbers with variable spacing:
+        # Test   #1: name (3 spaces for 1-9)
+        # Test  #10: name (2 spaces for 10-99)
+        # Test #100: name (1 space for 100+)
+        # Use regex to match all formats
+        test_pattern = re.compile(r'^\s*Test\s+#\d+:\s*(.+)$')
+
         for line in result.stdout.splitlines():
-            if line.strip().startswith("Test #"):
-                parts = line.split(":", 1)
-                if len(parts) == 2:
-                    test_name = parts[1].strip()
-                    tests.add(test_name)
+            match = test_pattern.match(line)
+            if match:
+                test_name = match.group(1).strip()
+                tests.add(test_name)
 
         return tests
     except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
