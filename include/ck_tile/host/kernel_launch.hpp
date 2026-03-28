@@ -15,6 +15,9 @@
 #include <cstddef>
 #include <hip/hip_runtime.h>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 template <typename T, typename = void>
@@ -303,3 +306,5 @@ CK_TILE_HOST float launch_kernel_time_mask_flush_cache(const stream_config& s,
 }
 
 } // namespace ck_tile
+
+#pragma clang diagnostic pop
