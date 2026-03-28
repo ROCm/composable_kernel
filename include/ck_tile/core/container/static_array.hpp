@@ -6,6 +6,9 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 /**
@@ -30,3 +33,5 @@ struct static_array
     CK_TILE_HOST_DEVICE static constexpr index_t size() { return N; }
 };
 } // namespace ck_tile
+
+#pragma clang diagnostic pop
