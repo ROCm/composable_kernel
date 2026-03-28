@@ -889,10 +889,17 @@ struct HstuAttentionFwdKernel
                     };
                 }();
 
+                const auto [seqlen_k_start, seqlen_k_end] =
+                    mask.GetTileRangeAlongX(i_m0,
+                                            number<HstuAttentionPipeline::kM0>{},
+                                            number<HstuAttentionPipeline::kN0>{});
+
                 return HstuAttentionPipeline{}(q_dram_window,
                                                k_dram_window,
                                                v_dram_window,
                                                bias_dram_window,
+                                               seqlen_k_start,
+                                               seqlen_k_end,
                                                mask,
                                                kargs.scale_s,
                                                kargs.scale_p,
@@ -917,10 +924,17 @@ struct HstuAttentionFwdKernel
                     };
                 }();
 
+                const auto [seqlen_k_start, seqlen_k_end] =
+                    mask.GetTileRangeAlongX(i_m0,
+                                            number<HstuAttentionPipeline::kM0>{},
+                                            number<HstuAttentionPipeline::kN0>{});
+
                 return HstuAttentionPipeline{}(q_dram_window,
                                                k_dram_window,
                                                v_dram_window,
                                                bias_dram_window,
+                                               seqlen_k_start,
+                                               seqlen_k_end,
                                                mask,
                                                kargs.scale_s,
                                                kargs.scale_p,

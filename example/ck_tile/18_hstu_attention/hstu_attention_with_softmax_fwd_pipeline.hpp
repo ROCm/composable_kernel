@@ -133,6 +133,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
                const SAccElementFunction& s_acc_element_func,
                const PComputeElementFunction& p_compute_element_func,
                const OAccElementFunction& o_acc_element_func,
+               index_t seqlen_k_start,
+               index_t seqlen_k_end,
                HstuMask& mask,
                float scale_s, // scaling value exerted on the immediate Q@K result
                float scale_p, // scaling value exerted on the SiLu result
@@ -199,8 +201,6 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
         auto q_tile = load_tile(q_dram_window);
 
         const auto q_origin = q_dram_window.get_window_origin();
-        const auto [seqlen_k_start, seqlen_k_end] =
-            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
         auto k_dram_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -593,6 +593,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*KSubQKHeaddim tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
+               index_t seqlen_k_start,
+               index_t seqlen_k_end,
                HstuMask mask,
                float scale_s, // scaling value exerted on the immediate Q@K result
                float scale_p, // scaling value exerted on the SiLU result
@@ -608,6 +610,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
                           identity{},
                           identity{},
                           identity{},
+                          seqlen_k_start,
+                          seqlen_k_end,
                           mask,
                           scale_s,
                           scale_p,
