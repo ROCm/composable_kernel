@@ -7,6 +7,9 @@
 #include "functional2.hpp"
 #include "tuple.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 namespace detail {
@@ -102,4 +105,7 @@ struct StaticallyIndexedArray_v2
 };
 
 } // namespace ck
+
+#pragma clang diagnostic pop
+
 #endif
