@@ -320,4 +320,14 @@ using KernelTypesPersistentWmma = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,        CompV3, NonPersistent>
 >;
 
+// TF32 (gfx950 only): 3x bf16 MFMA emulation, uses float buffers with tf32_t compute type
+// Tile: 128x128x64, Warp tile: 32x32x16
+using KernelTypesTf32Mem = ::testing::Types<
+    //         ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType, CDataType, M_BlockSize, N_BlockSize, K_BlockSize, M_TileSize, N_TileSize, K_TileSize, Scheduler, PipelineType
+    std::tuple<    Row,     Row,     Row,      TF32,      TF32,         F32,       F32,        I128,        I128,         I64,        I32,        I32,        I16, Intrawave,         Mem>,
+    std::tuple<    Row,     Row,     Row,      TF32,      TF32,         F32,       F32,        I128,        I128,         I64,        I32,        I32,        I16, Interwave,         Mem>,
+    std::tuple<    Row,     Col,     Row,      TF32,      TF32,         F32,       F32,        I128,        I128,         I64,        I32,        I32,        I16, Intrawave,         Mem>,
+    std::tuple<    Row,     Col,     Row,      TF32,      TF32,         F32,       F32,        I128,        I128,         I64,        I32,        I32,        I16, Interwave,         Mem>
+>;
+
 // clang-format on

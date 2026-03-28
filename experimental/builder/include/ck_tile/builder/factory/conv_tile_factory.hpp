@@ -65,10 +65,8 @@ struct ConvTileFactory
         ck_tile::sequence<BLOCK_GEMM.warps.m, BLOCK_GEMM.warps.n, BLOCK_GEMM.warps.k>,
         ck_tile::sequence<BLOCK_GEMM.warp_tile.m, BLOCK_GEMM.warp_tile.n, BLOCK_GEMM.warp_tile.k>>;
 
-    using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<
-        GemmShape,
-        GroupedConvTraitsType::FixedGemmParams::TilePartitionerGroupNum,
-        GroupedConvTraitsType::FixedGemmParams::TilePartitionerM01>;
+    using TilePartitioner =
+        typename internal::TilePartitionerType<ALGORITHM, GemmShape, GroupedConvTraitsType>::type;
 
     using ConvOutDataType = std::conditional_t<OPTIMIZATIONS.two_stage,
                                                typename Types::AccDataType,

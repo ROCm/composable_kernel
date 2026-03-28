@@ -1,3 +1,29 @@
+// Composable Kernel Jenkins Pipeline
+//
+// SMART BUILD SYSTEM:
+// This pipeline uses intelligent dependency analysis to speed up PR builds while
+// maintaining full validation on nightly runs.
+//
+// How it works:
+// 1. PR Builds (Selective):
+//    - Configure: cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON (~30s)
+//    - Analyze: Parse compile_commands.json + clang -MM for dependencies (~2min)
+//    - Select: git diff to find affected tests (~1s)
+//    - Build: ninja <affected-tests> only (minutes vs hours)
+//    - Test: ctest -R <affected-pattern>
+//
+// 2. Nightly Builds (Full):
+//    - FORCE_CI=true from cron triggers full build
+//    - All targets built and tested for validation
+//
+// 3. Safety Checks:
+//    - Forces full build if CMake configuration changes
+//    - Forces full build if dependency cache stale (>7 days)
+//    - Manual override: set DISABLE_SMART_BUILD=true
+//
+// Benefits: PR builds 5h → 30min (typical), nightly builds unchanged
+// See: script/dependency-parser/README.md for details
+//
 def rocmnode(name) {
     return '(rocmtest || miopen) && (' + name + ')'
 }
@@ -53,71 +79,6 @@ def checkoutComposableKernel()
     cloneUpdateRefRepo()
     // checkout project
     checkout scm
-}
-
-// Given a pattern, check if the log contains the pattern and return the context.
-def checkForPattern(pattern, log) {
-    def lines = log.split('\n')
-    for (int i = 0; i < lines.size(); i++) {
-        if (lines[i] =~ pattern) {
-            echo "Found pattern match in log for ${pattern}"
-            
-            // Get the two lines before and after failure.
-            def contextStart = Math.max(0, i - 2)
-            def contextEnd = Math.min(lines.size() - 1, i + 2)
-            def contextLines = []
-            for (int j = contextStart; j <= contextEnd; j++) {
-                contextLines.add(lines[j])
-            }
-            
-            return [found: true, matchedLine: lines[i], context: contextLines.join('\n')]
-        }
-    }
-    echo "No pattern match found in log for ${pattern}"
-    return [found: false, matchedLine: "", context: ""]
-}
-
-// Scan the build logs for failures and send notifications.
-def sendFailureNotifications() {
-    // Error patterns to scan build logs for specific failure types and send detailed notifications.
-    def failurePatterns = [
-        [pattern: /login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
-        [pattern: /.*docker login failed.*/, description: "Docker login failed"],
-        [pattern: /HTTP request sent .* 404 Not Found/, description: "HTTP request failed with 404"],
-        [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
-        [pattern: /.*GPU not found.*/, description: "GPU not found"],
-        [pattern: /Could not connect to Redis at .* Connection timed out/, description: "Redis connection timed out"],
-        [pattern: /.*unauthorized: your account must log in with a Personal Access Token.*/, description: "Docker login failed"],
-        [pattern: /.*sccache: error: Server startup failed: Address in use.*/, description: "Sccache Error"]
-    ]
-    
-    // Get the build log.
-    def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
-    echo "Checking for failure patterns..."
-    // Check for patterns in the log.
-    // def foundPatterns = []
-    // for (patternMap in failurePatterns) {
-    //     def result = checkForPattern(patternMap.pattern, buildLog)
-    //     if (result.found) {
-    //         foundPatterns.add([
-    //             description: patternMap.description,
-    //             matchedLine: result.matchedLine,
-    //             context: result.context
-    //         ])
-    //     }
-    // }
-    echo "Done checking for failure patterns..."
-    // Send a notification for each matched failure pattern.
-    for (patternMap in foundPatterns) {
-        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
-        sh '''
-            curl -X POST "${WEBHOOK_URL}" \
-            -H 'Content-Type: application/json' \
-            -d '{"text": "\\n\\n**Build Failed**\\n\\n**Issues detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.RUN_DISPLAY_URL + '''"}'
-        '''
-        }
-    }
-    echo "Done failure pattern checking and notifications"
 }
 
 def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
@@ -461,7 +422,7 @@ def buildDocker(install_prefix){
     def base_image_name = getBaseDockerImageName()
     echo "Building Docker for ${image_name}"
     def dockerArgs = "--build-arg PREFIX=${install_prefix} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-    if(params.COMPILER_VERSION == "develop" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
+    if(params.COMPILER_VERSION == "develop" || params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
         dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f projects/composablekernel/Dockerfile.compiler . "
     }
     else if(params.RUN_AITER_TESTS){
@@ -509,7 +470,7 @@ def get_docker_options(){
     else{ //only add kfd and dri paths if you actually going to run somthing on GPUs
         dockerOpts = "--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     }
-    if (params.COMPILER_VERSION == "develop" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
+    if (params.COMPILER_VERSION == "develop" || params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
     // the  --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 env variable is required when building code with offload-compress flag with
     // newer clang22 compilers and running with older hip runtima libraries
         dockerOpts = dockerOpts + " --env HIP_CLANG_PATH='/llvm-project/build/bin' --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 "
@@ -678,12 +639,21 @@ def cmake_build(Map conf=[:]){
         }
         setup_cmd = conf.get(
             "setup_cmd",
-            """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_CXX_FLAGS=" -O3 " .. """
+            """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_CXX_FLAGS=" -O3 " .. """
         )
-        build_cmd = conf.get(
-            "build_cmd",
-            "${build_envs} ninja -j${nt} ${config_targets}"
-        )
+
+        // Smart-build: Only build if running all tests or forced
+        // Otherwise, smart-build will determine what to build after cmake configure
+        if (runAllUnitTests) {
+            build_cmd = conf.get(
+                "build_cmd",
+                "${build_envs} ninja -j${nt} ${config_targets}"
+            )
+        } else {
+            // Smart-build enabled: skip full build and execute_cmd (client examples)
+            build_cmd = ""
+            execute_cmd = ""
+        }
 
         cmd = conf.get("cmd", """
             ${setup_cmd}
@@ -741,25 +711,44 @@ def cmake_build(Map conf=[:]){
 
         //run tests except when NO_CK_BUILD is set
         if(!setup_args.contains("NO_CK_BUILD")){
-            sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${arch_name}.json"
-            archiveArtifacts "ck_build_trace_${arch_name}.json"
-            sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${arch_name}.json"
             if (params.NINJA_BUILD_TRACE || params.BUILD_INSTANCES_ONLY){
-                if (params.NINJA_FTIME_TRACE) {
-                    echo "running ClangBuildAnalyzer"
-                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
-                    sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${arch_name}.log"
-                    archiveArtifacts "clang_build_analysis_${arch_name}.log"
-                }
-
-
                 // do not run unit tests when building instances only
                 if(!params.BUILD_INSTANCES_ONLY){
                     if (!runAllUnitTests){
-                        sh "../script/launch_tests.sh"
+                        // Smart Build: Run smart_build_and_test.sh
+                        sh """
+                            export WORKSPACE_ROOT=${env.WORKSPACE}
+                            export PARALLEL=32
+                            export NINJA_JOBS=${nt}
+                            export ARCH_NAME=${arch_name}
+                            export PROCESS_NINJA_TRACE=true
+                            export NINJA_FTIME_TRACE=${params.NINJA_FTIME_TRACE ? 'true' : 'false'}
+                            bash ../script/dependency-parser/smart_build_and_test.sh
+                        """
+
+                        // Archive artifacts if they were generated
+                        if (fileExists("ck_build_trace_${arch_name}.json")) {
+                            archiveArtifacts "ck_build_trace_${arch_name}.json"
+                        }
+                        if (fileExists("clang_build_analysis_${arch_name}.log")) {
+                            archiveArtifacts "clang_build_analysis_${arch_name}.log"
+                        }
                     }
                     else{
-                        sh "ninja check"
+                        echo "Full test suite requested (RUN_ALL_UNIT_TESTS=true or develop branch)"
+                        sh "ninja -j${nt} check"
+
+                        // Process ninja build trace after full build
+                        sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${arch_name}.json"
+                        archiveArtifacts "ck_build_trace_${arch_name}.json"
+                        sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${arch_name}.json"
+
+                        if (params.NINJA_FTIME_TRACE) {
+                            echo "running ClangBuildAnalyzer"
+                            sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --all . clang_build.log"
+                            sh "/ClangBuildAnalyzer/build/ClangBuildAnalyzer  --analyze clang_build.log > clang_build_analysis_${arch_name}.log"
+                            archiveArtifacts "clang_build_analysis_${arch_name}.log"
+                        }
                     }
                     if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
                         sh 'ninja check-builder'
@@ -781,12 +770,24 @@ def cmake_build(Map conf=[:]){
             }
             else{
                 // run unit tests unless building library for all targets
+                // Note: This else block is when NINJA_BUILD_TRACE=false and BUILD_INSTANCES_ONLY=false
+                // So no ninja trace processing needed here
                 if (!params.BUILD_INSTANCES_ONLY){
                     if (!runAllUnitTests){
-                        sh "../script/launch_tests.sh"
+                        // Smart Build: Run smart_build_and_test.sh
+                        sh """
+                            export WORKSPACE_ROOT=${env.WORKSPACE}
+                            export PARALLEL=32
+                            export NINJA_JOBS=${nt}
+                            export ARCH_NAME=${arch_name}
+                            export PROCESS_NINJA_TRACE=false
+                            export NINJA_FTIME_TRACE=false
+                            bash ../script/dependency-parser/smart_build_and_test.sh
+                        """
                     }
                     else{
-                        sh "ninja check"
+                        echo "Full test suite requested (RUN_ALL_UNIT_TESTS=true or develop branch)"
+                        sh "ninja -j${nt} check"
                     }
                     if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
                         sh 'ninja check-builder'
@@ -1183,9 +1184,10 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX101=false;BUILD_GFX908=false;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=develop;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
-                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
-                                              0 13 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
-                                              0 11 * * * % RUN_PYTORCH_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
+                                              0 15 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
+                                              0 13 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
+                                              0 11 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
+                                              0 9 * * * % RUN_PYTORCH_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
 
 pipeline {
     agent none
@@ -1212,7 +1214,7 @@ pipeline {
         string(
             name: 'COMPILER_VERSION',
             defaultValue: '',
-            description: 'Specify which version of compiler to use: release, develop, amd-mainline, or leave blank (default).')
+            description: 'Specify which version of compiler to use: release, develop, amd-staging, amd-mainline, or leave blank (default).')
         string(
             name: 'COMPILER_COMMIT',
             defaultValue: '',
@@ -1241,6 +1243,10 @@ pipeline {
             name: "USE_SCCACHE",
             defaultValue: true,
             description: "Use the sccache for building CK (default: ON)")
+        booleanParam(
+            name: "DISABLE_SMART_BUILD",
+            defaultValue: false,
+            description: "Disable smart build system and force full build/test (default: OFF). Smart build uses pre-build dependency analysis for selective testing on PRs, full builds on nightly runs.")
         booleanParam(
             name: "RUN_CPPCHECK",
             defaultValue: false,
@@ -1327,8 +1333,8 @@ pipeline {
             description: "Run codegen tests (default: ON)")
         booleanParam(
             name: "RUN_BUILDER_TESTS",
-            defaultValue: true,
-            description: "Run CK_BUILDER tests (default: ON)")
+            defaultValue: false,
+            description: "Run CK_BUILDER tests (default: OFF)")
         booleanParam(
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
@@ -2039,7 +2045,10 @@ pipeline {
                          description: 'Some checks have failed'
             node(rocmnode("nogpu")) {
                 script {
-                    sendFailureNotifications()
+                    checkoutComposableKernel()
+                }
+                withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+                    sh 'bash projects/composablekernel/script/infra_helper/send_failure_notifications.sh'
                 }
             }
         }

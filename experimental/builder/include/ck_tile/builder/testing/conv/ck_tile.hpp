@@ -6,6 +6,7 @@
 #include "ck_tile/builder/testing/testing.hpp"
 #include "ck_tile/builder/testing/conv/fwd.hpp"
 #include "ck_tile/builder/testing/conv/bwd_weight.hpp"
+#include "ck_tile/builder/testing/conv/bwd_data.hpp"
 #include "ck_tile/builder/factory/helpers/ck_tile/conv_tile_tensor_type.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/gemm.hpp"
@@ -35,6 +36,29 @@ concept CkTileConvInstance = requires(Conv&) {
     { Conv::BlockSize() };
 };
 
+template <auto SIGNATURE>
+std::size_t gemm_split_k_output_size(auto kargs)
+{
+    std::size_t zeroing_size = 0;
+    if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
+    {
+        zeroing_size = std::accumulate(std::begin(kargs.wei_g_k_c_xs_lengths.data),
+                                       std::end(kargs.wei_g_k_c_xs_lengths.data),
+                                       1,
+                                       std::multiplies<std::size_t>());
+    }
+
+    if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
+    {
+        zeroing_size = std::accumulate(std::begin(kargs.in_g_n_c_wis_lengths.data),
+                                       std::end(kargs.in_g_n_c_wis_lengths.data),
+                                       1,
+                                       std::multiplies<std::size_t>());
+    }
+
+    return zeroing_size;
+}
+
 template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename OutDataType>
 [[nodiscard]] RunResult run(CkTileConvInstance<SIGNATURE> auto& conv,
                             const Args<SIGNATURE>& args,
@@ -51,25 +75,53 @@ template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename Ou
 
     auto kargs = Conv::MakeKernelArgs(host_args);
 
-    const dim3 grids  = Conv::GridSize(kargs);
-    const dim3 blocks = Conv::BlockSize();
-
     if(!Conv::IsSupportedArgument(kargs))
         return RunResult::not_supported("unsupported ck_tile arguments");
 
+    // Workspace allocation (bwd weight only): may be non-zero for StreamK.
+    [[maybe_unused]] std::size_t ws_size = 0;
+    if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
+        ws_size = Conv::GetWorkSpaceSize(kargs);
+    ck_tile::DeviceMem workspace_dev(ws_size);
+    if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
+        Conv::SetWorkSpacePointer(kargs, workspace_dev.GetDeviceBuffer());
+
+    const dim3 grids  = Conv::GridSize(kargs);
+    const dim3 blocks = Conv::BlockSize();
+
     using Types = ck_tile::builder::factory::internal::TileConvTensorTypes<SIGNATURE.data_type>;
-    const std::size_t zeroing_size = std::accumulate(std::begin(kargs.wei_g_k_c_xs_lengths.data),
-                                                     std::end(kargs.wei_g_k_c_xs_lengths.data),
-                                                     1,
-                                                     std::multiplies<std::size_t>());
+
+    const std::size_t zeroing_size = gemm_split_k_output_size<SIGNATURE>(kargs);
 
     auto preprocess = [&]() {
         if constexpr(ConvDirectionIsBackwardWeight<SIGNATURE>)
         {
+            if constexpr(Conv::IsStreamK)
+            {
+                // StreamK: zero workspace flags before each kernel launch
+                if(ws_size > 0)
+                {
+                    ck_tile::hip_check_error(hipMemsetAsync(
+                        workspace_dev.GetDeviceBuffer(), 0, ws_size, s_conf.stream_id_));
+                }
+            }
+            else if(kargs.k_batch > 1)
+            {
+                // Split-K: zero weight buffer for atomic accumulation
+                ck_tile::hip_check_error(
+                    hipMemsetAsync(kargs.wei_ptr,
+                                   0,
+                                   zeroing_size * sizeof(typename Types::EDataType),
+                                   s_conf.stream_id_));
+            }
+        }
+
+        if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
+        {
             if(kargs.k_batch > 1)
             {
                 ck_tile::hip_check_error(
-                    hipMemsetAsync(kargs.wei_ptr,
+                    hipMemsetAsync(kargs.in_ptr,
                                    0,
                                    zeroing_size * sizeof(typename Types::EDataType),
                                    s_conf.stream_id_));
@@ -289,6 +341,28 @@ template <auto SIGNATURE>
                        args,
                        static_cast<const void*>(inputs.input),
                        static_cast<void*>(outputs.weight),
+                       static_cast<const void*>(inputs.output),
+                       s_conf);
+}
+
+/// @brief `run()` specialization for backwards data convolution and CK Tile.
+///
+/// @tparam SIGNATURE Backward data convolution signature.
+/// @returns RunResult about how the operation completed (or not).
+///
+/// @see run()
+template <auto SIGNATURE>
+    requires ConvDirectionIsBackwardData<SIGNATURE>
+[[nodiscard]] RunResult run(CkTileConvInstance<SIGNATURE> auto& conv,
+                            const Args<SIGNATURE>& args,
+                            const Inputs<SIGNATURE>& inputs,
+                            const Outputs<SIGNATURE>& outputs,
+                            const ck_tile::stream_config s_conf = {})
+{
+    return detail::run(conv,
+                       args,
+                       static_cast<void*>(outputs.input),
+                       static_cast<const void*>(inputs.weight),
                        static_cast<const void*>(inputs.output),
                        s_conf);
 }

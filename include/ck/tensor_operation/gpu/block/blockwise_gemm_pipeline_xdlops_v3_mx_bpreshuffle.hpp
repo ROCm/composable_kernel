@@ -261,54 +261,49 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
 
             // Stage 1
             // global read more
-            static_for<0, buffer_load_stages_more, 1>{}([&](auto /*i*/) {
-                static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            static_ford<Sequence<buffer_load_stages_more, num_mfma_perstage>>{}([&](auto ii) {
+                constexpr auto imfma = Number<ii[Number<1>{}]>{};
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
 
-                    if constexpr(imfma % buffer_load_issue_point_interval_more == 0)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                    }
+                if constexpr(imfma % buffer_load_issue_point_interval_more == 0)
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                }
 
-                    if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x100, ds_read_a_mfma_rate, 0); // DS read
-                    }
-                });
+                if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                }
             });
 
             // global read less
-            static_for<0, (num_total_stages - 2 - buffer_load_stages_more), 1>{}([&](auto /*i*/) {
-                static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    if constexpr(imfma % buffer_load_issue_point_interval_less == 0)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                    }
-                    if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x100, ds_read_a_mfma_rate, 0); // DS read
-                    }
-                });
+            static_ford<Sequence<(num_total_stages - 2 - buffer_load_stages_more),
+                                 num_mfma_perstage>>{}([&](auto ii) {
+                constexpr auto imfma = Number<ii[Number<1>{}]>{};
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                if constexpr(imfma % buffer_load_issue_point_interval_less == 0)
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                }
+                if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                }
             });
 
             // Stage 2, Sync
             // lds synchronization, prefetch next loop local A
-            static_for<0, num_ds_read_a_prefetch_stages, 1>{}([&](auto /*i*/) {
-                static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    if constexpr(imfma % buffer_load_issue_point_interval_stage2 == 0)
-                    {
-                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                    }
-                    if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
-                    {
-                        __builtin_amdgcn_sched_group_barrier(
-                            0x100, ds_read_a_mfma_rate, 0); // DS read
-                    }
-                });
+            static_ford<Sequence<num_ds_read_a_prefetch_stages, num_mfma_perstage>>{}([&](auto ii) {
+                constexpr auto imfma = Number<ii[Number<1>{}]>{};
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                if constexpr(imfma % buffer_load_issue_point_interval_stage2 == 0)
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                }
+                if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
+                {
+                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                }
             });
         }
         else
@@ -537,25 +532,24 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
         // Local prefetch 1, sync the async load
         __builtin_amdgcn_s_waitcnt(async_vmcnt_encoding);
         block_sync_lds();
-        static_for<0, LocalPrefetchStages, 1>{}([&](auto m0) {
-            static_for<0, KRepeat, 1>{}([&](auto k) {
-                constexpr auto k_step = k * xdlops_gemm.KPerXdlops / APackedSize *
-                                        (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
-                static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}(
-                    [&](auto chunk) {
-                        constexpr auto a_k_step_chunk =
-                            k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                        a_thread_copy_.Run(
-                            a_block_desc_m0_m1_m2_m3_k,
-                            make_tuple(
-                                I0, I0, Number<m0 % MXdlPack>{}, I0, Number<a_k_step_chunk>{}),
-                            a_block_bufs(I0),
-                            a_thread_desc_,
-                            make_tuple(
-                                I0, I0, Number<m0 % MXdlPack>{}, k, Number<chunk * KThreadChunk>{}),
-                            a_thread_buf);
-                    });
-            });
+        static_ford<Sequence<LocalPrefetchStages, KRepeat>>{}([&](auto mk) {
+            constexpr auto m0     = Number<mk[Number<0>{}]>{};
+            constexpr auto k      = Number<mk[Number<1>{}]>{};
+            constexpr auto k_step = k * xdlops_gemm.KPerXdlops / APackedSize *
+                                    (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
+            static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}(
+                [&](auto chunk) {
+                    constexpr auto a_k_step_chunk =
+                        k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                    a_thread_copy_.Run(
+                        a_block_desc_m0_m1_m2_m3_k,
+                        make_tuple(I0, I0, Number<m0 % MXdlPack>{}, I0, Number<a_k_step_chunk>{}),
+                        a_block_bufs(I0),
+                        a_thread_desc_,
+                        make_tuple(
+                            I0, I0, Number<m0 % MXdlPack>{}, k, Number<chunk * KThreadChunk>{}),
+                        a_thread_buf);
+                });
         });
 
         // Global prefetch 2

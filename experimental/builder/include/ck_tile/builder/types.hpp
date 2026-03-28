@@ -241,6 +241,13 @@ enum class ConvAlgorithmSpecialization
     MULTIPLE_D
 };
 
+// StreamK work distribution strategy for the tile partitioner.
+enum class StreamKReductionStrategy
+{
+    LINEAR,
+    TREE
+};
+
 // to_string methods for enum classes
 inline std::string_view to_string(DataType dt)
 {
@@ -470,6 +477,17 @@ inline std::string_view to_string(TensorLayout layout)
     }
 }
 
+inline std::string_view to_string(StreamKReductionStrategy s)
+{
+    using enum StreamKReductionStrategy;
+    switch(s)
+    {
+    case LINEAR: return "LINEAR";
+    case TREE: return "TREE";
+    default: return "Unknown";
+    }
+}
+
 // ostream operator overloads for enum classes
 inline std::ostream& operator<<(std::ostream& os, DataType dt) { return os << to_string(dt); }
 
@@ -511,6 +529,11 @@ inline std::ostream& operator<<(std::ostream& os, PipelineScheduler sched)
 inline std::ostream& operator<<(std::ostream& os, TensorLayout layout)
 {
     return os << to_string(layout);
+}
+
+inline std::ostream& operator<<(std::ostream& os, StreamKReductionStrategy s)
+{
+    return os << to_string(s);
 }
 
 } // namespace ck_tile::builder

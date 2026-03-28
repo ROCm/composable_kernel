@@ -9,6 +9,9 @@
 #include <type_traits>
 #include <cassert>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 template <typename TData, index_t NSize>
@@ -78,4 +81,7 @@ __host__ __device__ constexpr auto make_array()
 }
 
 } // namespace ck
+
+#pragma clang diagnostic pop
+
 #endif

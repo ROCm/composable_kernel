@@ -29,15 +29,16 @@ import sys
 import subprocess
 import json
 import os
+import re
 
 
 def get_changed_files(ref1, ref2, project: str = None):
     """Return a set of files changed between two git refs."""
     try:
-        cmd = ["git", "diff", "--name-only", ref1, ref2]
-        if project:
-            # Scope git diff to only this project's subtree for efficiency
-            cmd += ["--", f"projects/{project}/"]
+        # Don't use git path filter - it can miss files when running from subdirectories
+        git_root = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True).stdout.strip()
+        cmd = ["git", "-C", git_root, "diff", "--name-only", f"{ref1}...{ref2}", "--", "projects/composablekernel"]
+
         result = subprocess.run(
             cmd,
             capture_output=True,
@@ -51,6 +52,7 @@ def get_changed_files(ref1, ref2, project: str = None):
             files = raw_files
             print(f"Identified {len(files)} modified files")
         else:
+            # Strip projects/{project}/ prefix from changed files
             root = f"projects/{project}/"
             root_len = len(root)
             files = set()
@@ -73,23 +75,85 @@ def load_depmap(depmap_json):
         data = json.load(f)
     # Support both old and new formats
     json_project = None
-    if "repo" in data and data["repo"]["type"] == "monorepo":
-        json_project = data["repo"]["project"]
+    if "repo" in data:
+        if data["repo"]["type"] == "monorepo":
+            json_project = data["repo"]["project"]
+        elif "workspace_root" in data["repo"]:
+            # Extract project from workspace_root path
+            workspace_root = data["repo"]["workspace_root"]
+            # Convert relative path to absolute if needed
+            if not os.path.isabs(workspace_root):
+                depmap_dir = os.path.dirname(os.path.abspath(depmap_json))
+                workspace_root = os.path.abspath(os.path.join(depmap_dir, workspace_root))
+            # If workspace_root is like /path/to/projects/composablekernel, extract composablekernel
+            if "/projects/" in workspace_root:
+                json_project = workspace_root.split("/projects/")[1].rstrip("/").split("/")[0]
     if "file_to_executables" in data:
         return data["file_to_executables"], json_project
     return data, json_project
 
 
-def select_tests(file_to_executables, changed_files, filter_mode):
+def get_ctest_registered_tests(build_dir=None):
+    """Get list of tests registered with CTest (excludes EXCLUDE_FROM_ALL targets)."""
+    try:
+        cmd = ["ctest", "-N"]
+        if build_dir:
+            cmd.extend(["--test-dir", build_dir])
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+
+        if result.returncode != 0:
+            return None
+
+        tests = set()
+        # CTest formats test numbers with variable spacing:
+        # Test   #1: name (3 spaces for 1-9)
+        # Test  #10: name (2 spaces for 10-99)
+        # Test #100: name (1 space for 100+)
+        # Use regex to match all formats
+        test_pattern = re.compile(r'^\s*Test\s+#\d+:\s*(.+)$')
+
+        for line in result.stdout.splitlines():
+            match = test_pattern.match(line)
+            if match:
+                test_name = match.group(1).strip()
+                tests.add(test_name)
+
+        return tests
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+        return None
+
+
+def select_tests(file_to_executables, changed_files, filter_mode, ctest_only=False, build_dir=None):
     """Return a set of test executables affected by changed files."""
     affected = set()
+
+    ctest_tests = None
+    if ctest_only:
+        ctest_tests = get_ctest_registered_tests(build_dir)
+        if ctest_tests is None:
+            print("Warning: Could not get CTest test list, including all executables")
+        else:
+            print(f"Filtering to {len(ctest_tests)} CTest-registered tests (excluding EXCLUDE_FROM_ALL targets)")
+
     for f in changed_files:
         if f in file_to_executables:
             for exe in file_to_executables[f]:
-                if filter_mode == "all":
-                    affected.add(exe)
-                elif filter_mode == "test_prefix" and exe.startswith("test_"):
-                    affected.add(exe)
+                if filter_mode == "test_prefix" and not os.path.basename(exe).startswith("test_"):
+                    continue
+
+                if ctest_only and ctest_tests is not None:
+                    test_name = exe.replace("bin/", "")
+                    if test_name not in ctest_tests:
+                        continue
+
+                affected.add(exe)
+
     return sorted(affected)
 
 
@@ -141,15 +205,31 @@ def main():
     ref2 = sys.argv[3]
     filter_mode = "all"
     output_json = "tests_to_run.json"
+    ctest_only = False
+    build_dir = None
 
     if "--test-prefix" in sys.argv:
         filter_mode = "test_prefix"
     if "--all" in sys.argv:
         filter_mode = "all"
+    if "--ctest-only" in sys.argv:
+        ctest_only = True
+    if "--build-dir" in sys.argv:
+        idx = sys.argv.index("--build-dir")
+        if idx + 1 < len(sys.argv):
+            build_dir = sys.argv[idx + 1]
     if "--output" in sys.argv:
         idx = sys.argv.index("--output")
         if idx + 1 < len(sys.argv):
             output_json = sys.argv[idx + 1]
+
+    # If build_dir not specified, try to infer from depmap_json path
+    if ctest_only and build_dir is None:
+        depmap_dir = os.path.dirname(os.path.abspath(depmap_json))
+        if os.path.basename(depmap_dir) in ["build", "."]:
+            build_dir = depmap_dir
+        elif os.path.exists(os.path.join(depmap_dir, "build.ninja")):
+            build_dir = depmap_dir
 
     if not os.path.exists(depmap_json):
         print(f"Dependency map JSON not found: {depmap_json}")
@@ -161,14 +241,54 @@ def main():
         print("No changed files detected.")
         tests = []
     else:
-        tests = select_tests(file_to_executables, changed_files, filter_mode)
+        tests = select_tests(file_to_executables, changed_files, filter_mode, ctest_only, build_dir)
+
+    # Generate ctest regex from test names
+    # Split into chunks to avoid regex length limits in CTest
+    regex_chunks = []
+    chunk_size = 50  # Max tests per regex pattern
+
+    if tests:
+        # Extract basenames for regex (e.g., bin/test_gemm -> test_gemm)
+        test_names = [os.path.basename(t) for t in tests]
+
+        # Split into chunks
+        for i in range(0, len(test_names), chunk_size):
+            chunk = test_names[i:i + chunk_size]
+            regex_chunks.append("|".join(chunk))
+
+        # Keep single regex for backward compatibility (but may be too long)
+        regex = "|".join(test_names)
+    else:
+        regex = ""
+
+    # Output format matches Jenkinsfile usage and documentation
+    output = {
+        "tests_to_run": tests,  # For backward compatibility and length check
+        "executables": tests,  # Used by Jenkinsfile for ninja build
+        "regex": regex,  # Used by Jenkinsfile for ctest (deprecated for large test sets)
+        "regex_chunks": regex_chunks,  # Multiple regex patterns for large test sets
+        "changed_files": sorted(changed_files),
+        "statistics": {
+            "total_changed_files": len(changed_files),
+            "total_affected_executables": len(tests),
+            "num_regex_chunks": len(regex_chunks),
+        },
+    }
 
     with open(output_json, "w") as f:
-        json.dump(
-            {"tests_to_run": tests, "changed_files": sorted(changed_files)}, f, indent=2
-        )
+        json.dump(output, f, indent=2)
 
+    # Print summary
     print(f"Exported {len(tests)} tests to run to {output_json}")
+
+    # Print changed files for visibility
+    if changed_files:
+        print(f"\nChanged files ({len(changed_files)}):")
+        for f in sorted(changed_files):
+            print(f"  - {f}")
+    else:
+        print("\nNo files changed.")
 
 
 if __name__ == "__main__":

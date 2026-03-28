@@ -362,11 +362,11 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                                     make_tuple(I0),
                                     gamma_thread_buf);
 
-        static_for<0, MThreadSliceSize, 1>{}([&](auto m) {
-            static_for<0, NThreadSliceSize, 1>{}([&](auto n) {
-                constexpr auto m_n = thread_buffer_desc_m_n.CalculateOffset(make_tuple(m, n));
-                h_thread_buf(Number<m_n>{}) = h_thread_buf(Number<m_n>{}) * gamma_thread_buf(n);
-            });
+        static_ford<Sequence<MThreadSliceSize, NThreadSliceSize>>{}([&](auto mn) {
+            constexpr auto m            = Number<mn[Number<0>{}]>{};
+            constexpr auto n            = Number<mn[Number<1>{}]>{};
+            constexpr auto m_n          = thread_buffer_desc_m_n.CalculateOffset(make_tuple(m, n));
+            h_thread_buf(Number<m_n>{}) = h_thread_buf(Number<m_n>{}) * gamma_thread_buf(n);
         });
 
         threadwise_beta_load_n.Run(beta_grid_desc_n,
@@ -375,11 +375,11 @@ struct GridwiseWelfordSecondHalfLayernorm2d
                                    make_tuple(I0),
                                    beta_thread_buf);
 
-        static_for<0, MThreadSliceSize, 1>{}([&](auto m) {
-            static_for<0, NThreadSliceSize, 1>{}([&](auto n) {
-                constexpr auto m_n = thread_buffer_desc_m_n.CalculateOffset(make_tuple(m, n));
-                h_thread_buf(Number<m_n>{}) = h_thread_buf(Number<m_n>{}) + beta_thread_buf(n);
-            });
+        static_ford<Sequence<MThreadSliceSize, NThreadSliceSize>>{}([&](auto mn) {
+            constexpr auto m            = Number<mn[Number<0>{}]>{};
+            constexpr auto n            = Number<mn[Number<1>{}]>{};
+            constexpr auto m_n          = thread_buffer_desc_m_n.CalculateOffset(make_tuple(m, n));
+            h_thread_buf(Number<m_n>{}) = h_thread_buf(Number<m_n>{}) + beta_thread_buf(n);
         });
 
         threadwise_h_store_m_n.Run(thread_buffer_desc_m_n,

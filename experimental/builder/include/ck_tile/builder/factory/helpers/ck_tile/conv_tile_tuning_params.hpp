@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/gemm/kernel/streamk_gemm/streamk_gemm_tile_partitioner.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/types.hpp"
 
@@ -185,5 +186,39 @@ consteval TileOptimizations SetTileOptimizations()
                              .explicit_gemm       = OPT.explicit_gemm,
                              .two_stage           = OPT.two_stage};
 }
+
+// Maps builder StreamKReductionStrategy to ck_tile::StreamKReductionStrategy.
+consteval ck_tile::StreamKReductionStrategy
+MapStreamKReductionStrategy(StreamKReductionStrategy strategy)
+{
+    switch(strategy)
+    {
+    case StreamKReductionStrategy::LINEAR: return ck_tile::StreamKReductionStrategy::Linear;
+    case StreamKReductionStrategy::TREE: return ck_tile::StreamKReductionStrategy::Tree;
+    default: throw "Unknown StreamKReductionStrategy";
+    }
+}
+
+// Selects the tile partitioner type based on whether the algorithm specifies StreamK.
+// Usage: typename TilePartitionerType<ALGORITHM, GemmShape, ConvTraitsType>::type
+template <ConvAlgorithmDescriptor auto ALGORITHM, typename GemmShape_, typename ConvTraitsType_>
+struct TilePartitionerType
+{
+    using type = ck_tile::GemmSpatiallyLocalTilePartitioner<
+        GemmShape_,
+        ConvTraitsType_::FixedGemmParams::TilePartitionerGroupNum,
+        ConvTraitsType_::FixedGemmParams::TilePartitionerM01>;
+};
+
+template <ConvAlgorithmDescriptor auto ALGORITHM, typename GemmShape_, typename ConvTraitsType_>
+    requires SpecifiesStreamK<decltype(ALGORITHM)>
+struct TilePartitionerType<ALGORITHM, GemmShape_, ConvTraitsType_>
+{
+    static constexpr auto CK_STRATEGY =
+        MapStreamKReductionStrategy(ALGORITHM.streamk.reduction_strategy);
+    static constexpr bool PERSISTENT = ALGORITHM.streamk.persistent;
+
+    using type = ck_tile::StreamKTilePartitioner<GemmShape_, CK_STRATEGY, PERSISTENT>;
+};
 
 } // namespace ck_tile::builder::factory::internal

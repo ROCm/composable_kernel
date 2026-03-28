@@ -14,7 +14,8 @@
 enum struct GemmPipelineType
 {
     Mem,
-    CompV3
+    CompV3,
+    CompV4
 };
 
 template <GemmPipelineType PT, typename Problem>
@@ -30,6 +31,12 @@ template <typename Problem>
 struct GemmPipelineTypeSelector<GemmPipelineType::CompV3, Problem>
 {
     using pipeline = ck_tile::GemmPipelineAgBgCrCompV3<Problem>;
+};
+
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompV4, Problem>
+{
+    using pipeline = ck_tile::GemmPipelineAgBgCrCompV4<Problem>;
 };
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
@@ -101,8 +108,8 @@ class TestCkTileStreamK : public ::testing::Test
         constexpr bool kPadK      = PadK;
         constexpr bool preshuffle = Preshuffle;
 
-        constexpr bool DoubleSmemBuffer   = false;
-        constexpr int kBlockPerCu         = 1;
+        constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
+        constexpr int kBlockPerCu       = 1;
         constexpr bool StructuredSparsity = false;
         constexpr bool NumWaveGroup       = 1;
 
