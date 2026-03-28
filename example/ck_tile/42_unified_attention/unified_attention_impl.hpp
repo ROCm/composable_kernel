@@ -29,6 +29,15 @@
             true, unified_attention_kernel_launch<kernel_traits::kernel>(args, config)); \
     }
 
+#define INST_UNIFIED_ATTENTION_DISPATCH_DECODE(kernel_traits)                                        \
+    template <>                                                                                      \
+    std::pair<bool, float> unified_attention_kernel_dispatch_decode<kernel_traits>(                  \
+        const unified_attention_args& args, const stream_config& config)                             \
+    {                                                                                                \
+        return std::make_pair(                                                                       \
+            true, unified_attention_kernel_launch<kernel_traits::kernel, true>(args, config));       \
+    }
+
 namespace ck_tile {
 
 template <unified_attention_args::data_type_enum DataType>
@@ -243,7 +252,7 @@ struct unified_attention_decode_small_kernel_traits
     using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
 };
 
-template <typename Kernel>
+template <typename Kernel, bool UseDecodeGrid = false>
 float unified_attention_kernel_launch(const unified_attention_args& args,
                                       const stream_config& config)
 {
@@ -281,7 +290,15 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
                                    args.query_start_len_ptr,
                                    args.num_seqs);
 
-    dim3 grids = Kernel::GridSize2D(args.num_head_q / args.num_queries_per_kv, total_num_q_blocks);
+    dim3 grids;
+    if constexpr(UseDecodeGrid)
+    {
+        grids = Kernel::GridSizeDecode(args.num_head_q / args.num_queries_per_kv, args.num_seqs);
+    }
+    else
+    {
+        grids = Kernel::GridSize2D(args.num_head_q / args.num_queries_per_kv, total_num_q_blocks);
+    }
     constexpr dim3 blocks         = Kernel::BlockSize();
     constexpr index_t kBlockPerCu = Kernel::kBlockPerCu;
 
@@ -294,5 +311,9 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
 template <typename KernelTraits>
 std::pair<bool, float> unified_attention_kernel_dispatch(const unified_attention_args& args,
                                                          const stream_config& config);
+
+template <typename KernelTraits>
+std::pair<bool, float> unified_attention_kernel_dispatch_decode(const unified_attention_args& args,
+                                                                const stream_config& config);
 
 } // namespace ck_tile

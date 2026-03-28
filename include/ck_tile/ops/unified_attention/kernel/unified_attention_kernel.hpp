@@ -220,53 +220,76 @@ struct UnifiedAttentionKernel
                             EpiloguePipeline::GetSmemSize());
     }
 
+    CK_TILE_HOST static constexpr auto GridSizeDecode(ck_tile::index_t num_kv_heads,
+                                                      ck_tile::index_t num_seqs)
+    {
+        return dim3(num_kv_heads, num_seqs);
+    }
+
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         using namespace ck_tile;
-
-        // allocate LDS
-        __shared__ char smem_ptr[GetSmemSize()];
-
-        ck_tile::index_t pid = blockIdx.x;
 
         const index_t num_queries_per_kv = kargs.num_queries_per_kv;
 
         assert(kBlockM / num_queries_per_kv == kBlockQ);
 
-        // for simplicity, batch stride we just modify the pointer
-        // const index_t num_head_q = kargs.num_head_q;
+        index_t kv_head_idx;
+        index_t seq_idx;
+        index_t q_block_local_idx;
+        index_t cur_batch_in_all_start_index;
+        index_t cur_batch_query_len;
 
-        // divide problem
-        const auto [kv_head_idx, q_block_global_idx] = GetTileIndex(pid, kargs);
-
-        // grid size is (num_kv_heads, total_num_q_blocks)
-        // total_num_q_blocks = q.shape[0] // kBlockQ + num_seqs
-        // q.shape[0] is total number of query tokens across all batches
-        // one q_block spans kBlockQ = kBlockM // num_queries_per_kv number of query token groups.
-        // One query token group shares one kv token
-
-        const index_t seq_idx = find_seq_idx(kargs.query_start_len_ptr,
-                                             q_block_global_idx,
-                                             kargs.num_seqs,
-                                             kBlockQ,
-                                             true); // which batch
-
-        const index_t q_block_start_idx = kargs.query_start_len_ptr[seq_idx] / kBlockQ + seq_idx;
-
-        const index_t q_block_local_idx =
-            amd_wave_read_first_lane(q_block_global_idx - q_block_start_idx);
-
-        const index_t cur_batch_in_all_start_index = kargs.query_start_len_ptr[seq_idx];
-        const index_t cur_batch_in_all_stop_index  = kargs.query_start_len_ptr[seq_idx + 1];
-
-        const index_t cur_batch_query_len =
-            amd_wave_read_first_lane(cur_batch_in_all_stop_index - cur_batch_in_all_start_index);
-
-        // TODO check if we get the block size info from pipeline
-        if(q_block_local_idx * kBlockQ >= cur_batch_query_len)
+        if(gridDim.y > 1)
         {
-            return;
+            // Decode grid: dim3(num_kv_heads, num_seqs)
+            // Direct mapping, no binary search, no padding CTAs.
+            kv_head_idx              = blockIdx.x;
+            seq_idx                  = blockIdx.y;
+            q_block_local_idx        = 0;
+            cur_batch_in_all_start_index = kargs.query_start_len_ptr[seq_idx];
+            const index_t stop       = kargs.query_start_len_ptr[seq_idx + 1];
+            cur_batch_query_len      = amd_wave_read_first_lane(stop - cur_batch_in_all_start_index);
         }
+        else
+        {
+            // Standard 1D grid with binary search
+            ck_tile::index_t pid = blockIdx.x;
+
+            const auto [kv_head_idx_, q_block_global_idx] = GetTileIndex(pid, kargs);
+            kv_head_idx = kv_head_idx_;
+
+            if(q_block_global_idx >= kargs.total_num_q_blocks)
+            {
+                return;
+            }
+
+            seq_idx = find_seq_idx(kargs.query_start_len_ptr,
+                                   q_block_global_idx,
+                                   kargs.num_seqs,
+                                   kBlockQ,
+                                   true);
+
+            const index_t q_block_start_idx =
+                kargs.query_start_len_ptr[seq_idx] / kBlockQ + seq_idx;
+
+            q_block_local_idx =
+                amd_wave_read_first_lane(q_block_global_idx - q_block_start_idx);
+
+            cur_batch_in_all_start_index = kargs.query_start_len_ptr[seq_idx];
+            const index_t cur_batch_in_all_stop_index = kargs.query_start_len_ptr[seq_idx + 1];
+
+            cur_batch_query_len =
+                amd_wave_read_first_lane(cur_batch_in_all_stop_index - cur_batch_in_all_start_index);
+
+            if(q_block_local_idx * kBlockQ >= cur_batch_query_len)
+            {
+                return;
+            }
+        }
+
+        // allocate LDS
+        __shared__ char smem_ptr[GetSmemSize()];
 
         const index_t query_pos = amd_wave_read_first_lane(q_block_local_idx * kBlockQ);
         const index_t seq_len   = kargs.seq_lens_ptr[seq_idx];
