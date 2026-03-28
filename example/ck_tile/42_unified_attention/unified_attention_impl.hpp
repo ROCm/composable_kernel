@@ -122,13 +122,12 @@ struct unified_attention_kernel_traits
     using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
 };
 
-// Decode-tuned traits: fewer warps, smaller kBlockM for low-token workloads.
-// NOTE: Currently cannot compile due to pipeline constraint (NumWarpGroups must == 2).
-// Kept for future pipeline work.
+// Decode-tuned traits: 4 warps (1 warp group), kBlockM=128, serial pipeline.
+// Uses the single-warp-group path in UnifiedAttentionPipeline.
 template <unified_attention_args::data_type_enum DataType,
           bool IsMasking,
           index_t HeadSize_  = 128,
-          index_t BlockM_    = 64,
+          index_t BlockM_    = 128,
           index_t NumQPerKV_ = 1>
 struct unified_attention_decode_kernel_traits
 {
@@ -136,15 +135,75 @@ struct unified_attention_decode_kernel_traits
     static constexpr bool is_masking = IsMasking;
 
     static constexpr index_t kBlockM    = BlockM_;
-    static constexpr index_t BLOCK_SIZE = 32;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
+    static constexpr index_t BLOCK_SIZE = (HEAD_SIZE <= 64) ? 64 : 32;
+
+    static constexpr index_t num_queries_per_kv = NumQPerKV_;
+    static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
+
+    //                                    kBlockM kBlockQ   BLOCK_SIZE  HEAD_SIZE
+    using unified_attention_block_tile      = sequence<kBlockM, kBlockQ, BLOCK_SIZE, HEAD_SIZE>;
+    using unified_attention_warp_gemm_shape = sequence<32, 32, 16>;
+    // 4 warps -> kBlockSize = 256 threads -> NumWarpGroups = 1
+    using unified_attention_block_warps     = sequence<4, 1, 1>;
+
+    using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
+                                                              unified_attention_block_warps,
+                                                              unified_attention_warp_gemm_shape,
+                                                              unified_attention_block_warps,
+                                                              unified_attention_warp_gemm_shape,
+                                                              true>;
+
+    using unified_attention_traits = TileUnifiedAttentionTraits<true, false, -1>;
+    using unified_attention_mask   = GenericAttentionMask<IsMasking, false>;
+
+    using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
+        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
+        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
+        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
+        typename unified_attention_problem_traits<date_type>::acc_dtype,
+        typename unified_attention_problem_traits<date_type>::acc_dtype,
+        typename unified_attention_problem_traits<date_type>::acc_dtype,
+        typename unified_attention_problem_traits<date_type>::lse_dtype,
+        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
+        typename unified_attention_problem_traits<date_type>::acc_dtype,
+        typename unified_attention_problem_traits<date_type>::o_dtype,
+        unified_attention_shape,
+        unified_attention_mask,
+        unified_attention_traits>;
+
+    using unified_attention_pipeline = UnifiedAttentionPipeline<unified_attention_pipeline_problem>;
+
+    using epilogue = Default2DEpilogue<
+        Default2DEpilogueProblem<typename unified_attention_problem_traits<date_type>::acc_dtype,
+                                 typename unified_attention_problem_traits<date_type>::o_dtype,
+                                 true, true, true>>;
+
+    using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
+};
+
+// Aggressive decode traits: 4 warps (2x2 layout), kBlockM=64 for maximum decode throughput.
+template <unified_attention_args::data_type_enum DataType,
+          bool IsMasking,
+          index_t HeadSize_  = 64,
+          index_t BlockM_    = 64,
+          index_t NumQPerKV_ = 8>
+struct unified_attention_decode_small_kernel_traits
+{
+    static constexpr auto date_type  = DataType;
+    static constexpr bool is_masking = IsMasking;
+
+    static constexpr index_t kBlockM    = BlockM_;
+    static constexpr index_t HEAD_SIZE  = HeadSize_;
+    static constexpr index_t BLOCK_SIZE = (HEAD_SIZE <= 64) ? 64 : 32;
 
     static constexpr index_t num_queries_per_kv = NumQPerKV_;
     static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
 
     using unified_attention_block_tile      = sequence<kBlockM, kBlockQ, BLOCK_SIZE, HEAD_SIZE>;
     using unified_attention_warp_gemm_shape = sequence<32, 32, 16>;
-    using unified_attention_block_warps     = sequence<2, 1, 1>;
+    // 2x2 warp layout: 4 warps total, kBlockM=2*32=64, N split=2*32=64
+    using unified_attention_block_warps     = sequence<2, 2, 1>;
 
     using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
                                                               unified_attention_block_warps,

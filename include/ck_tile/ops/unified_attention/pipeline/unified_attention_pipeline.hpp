@@ -381,7 +381,7 @@ struct UnifiedAttentionPipeline
         // static_assert(kPageBlockSize == kHeadDimPadded);
 
         constexpr index_t NumWarpGroups = Problem::kBlockSize / Policy::NumThreadPerWarpGroup;
-        static_assert(NumWarpGroups == 2);
+        static_assert(NumWarpGroups == 1 || NumWarpGroups == 2);
 
         [[maybe_unused]] auto print_dist_tensor = [&](const auto& dist_tensor, const char* name) {
             printf("[POYENC] %s (size=%d): %5.2f",
@@ -960,22 +960,109 @@ struct UnifiedAttentionPipeline
 
         if(1 < num_total_loop)
         {
-            if(warp_group_id == 0)
+            if constexpr(NumWarpGroups == 1)
             {
-                V_mem_load(number<1>{}); // V1
-                K_lds_load(number<1>{}); // K1
+                // --- Single warp group: serial pipeline ---
+                // After pre-stage:
+                //   sp(0) has QK for block 0 (alu0 + alu_D_upd done, alu1 NOT done)
+                //   V0 loading to LDS (V buf 0)
+                //   K1 in LDS (K buf 1) if num_total_loop >= 2
+                //   K2 loading to LDS (K buf 0) if num_total_loop >= 3
 
-                __builtin_amdgcn_s_setprio(0);
+                // Step 1: consume V0, K1 -> produce PV(0), QK(1)
+                s_waitcnt_vmcnt<0>();
                 __builtin_amdgcn_s_barrier();
-                while(core_loop(number<0>{}))
-                    ;
+
+                V_lds_load(number<0>{}); // V0 from LDS
+                s_waitcnt_lgkmcnt<0>();
+                fmha_alu1(number<0>{}); // finalize sp(0) -> P(0)
+                gemm(number<0>{}, /*gemm_idx=*/number<1>{}); // PV: P(0)*V0
+
+                __builtin_amdgcn_s_barrier();
+                K_lds_load(number<1>{}); // K1 from LDS
+                s_waitcnt_lgkmcnt<0>();
+
+                V_mem_load(number<1>{}); // start V1 -> LDS buf 1
+
+                gemm(number<1>{}, /*gemm_idx=*/number<0>{}); // QK: Q*K1 -> sp(1)
+                fmha_mask(number<1>{});
+                fmha_alu0(number<1>{});
+                fmha_alu_D_upd();
+                i_total_loops++;
+
+                while(i_total_loops < num_total_loop)
+                {
+                    // Even step: V from buf 1, K from buf 0, QK -> sp(0)
+                    // kv_tile is a union: must finish PV GEMM (v_tile) before K load
+                    s_waitcnt_vmcnt<0>();
+                    __builtin_amdgcn_s_barrier();
+
+                    V_lds_load(number<1>{}); // V from buf 1 -> kv_tile.v_tile
+                    s_waitcnt_lgkmcnt<0>();
+                    fmha_alu1(number<1>{}); // finalize sp(1) -> P(1)
+                    gemm(number<1>{}, /*gemm_idx=*/number<1>{}); // PV: P(1)*V
+
+                    __builtin_amdgcn_s_barrier();
+                    K_lds_load(number<0>{}); // K from buf 0 -> kv_tile.k_tile
+                    s_waitcnt_lgkmcnt<0>();
+
+                    if(i_total_loops + 1 < num_total_loop)
+                        K_mem_load(number<1>{}); // next K -> buf 1
+                    V_mem_load(number<0>{}); // next V -> buf 0
+
+                    gemm(number<0>{}, /*gemm_idx=*/number<0>{}); // QK -> sp(0)
+                    fmha_mask(number<0>{});
+                    fmha_alu0(number<0>{});
+                    fmha_alu_D_upd();
+                    i_total_loops++;
+
+                    if(i_total_loops >= num_total_loop)
+                        break;
+
+                    // Odd step: V from buf 0, K from buf 1, QK -> sp(1)
+                    s_waitcnt_vmcnt<0>();
+                    __builtin_amdgcn_s_barrier();
+
+                    V_lds_load(number<0>{}); // V from buf 0 -> kv_tile.v_tile
+                    s_waitcnt_lgkmcnt<0>();
+                    fmha_alu1(number<0>{}); // finalize sp(0) -> P(0)
+                    gemm(number<0>{}, /*gemm_idx=*/number<1>{}); // PV: P(0)*V
+
+                    __builtin_amdgcn_s_barrier();
+                    K_lds_load(number<1>{}); // K from buf 1 -> kv_tile.k_tile
+                    s_waitcnt_lgkmcnt<0>();
+
+                    if(i_total_loops + 1 < num_total_loop)
+                        K_mem_load(number<0>{}); // next K -> buf 0
+                    V_mem_load(number<1>{}); // next V -> buf 1
+
+                    gemm(number<1>{}, /*gemm_idx=*/number<0>{}); // QK -> sp(1)
+                    fmha_mask(number<1>{});
+                    fmha_alu0(number<1>{});
+                    fmha_alu_D_upd();
+                    i_total_loops++;
+                }
             }
-            if(warp_group_id != 0)
+            else
             {
-                __builtin_amdgcn_s_setprio(1);
-                __builtin_amdgcn_s_barrier();
-                while(core_loop(number<1>{}))
-                    ;
+                // --- Two warp groups: interleaved pipeline ---
+                if(warp_group_id == 0)
+                {
+                    V_mem_load(number<1>{}); // V1
+                    K_lds_load(number<1>{}); // K1
+
+                    __builtin_amdgcn_s_setprio(0);
+                    __builtin_amdgcn_s_barrier();
+                    while(core_loop(number<0>{}))
+                        ;
+                }
+                if(warp_group_id != 0)
+                {
+                    __builtin_amdgcn_s_setprio(1);
+                    __builtin_amdgcn_s_barrier();
+                    while(core_loop(number<1>{}))
+                        ;
+                }
             }
         }
     label_main_loops_exit:

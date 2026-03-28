@@ -26,14 +26,24 @@ std::ostream& operator<<(std::ostream& stream,
         return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
     }
 
+// Helper macro for decode-tuned dispatch (4 warps, kBlockM=128).
+#define DISPATCH_UNIFIED_ATTENTION_DECODE(DType, IsMask, HSize, BM, NQPKV) \
+    { \
+        using kernel_traits = unified_attention_decode_kernel_traits<DType, IsMask, HSize, BM, NQPKV>; \
+        return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
+    }
+
+static bool is_decode_shape(const unified_attention_args& args)
+{
+    const index_t kBlockQ_prefill = 256 / args.num_queries_per_kv;
+    return args.num_tokens <= args.num_seqs * kBlockQ_prefill;
+}
+
 std::pair<bool, float> unified_attention(const unified_attention_args& args,
                                          const stream_config& config)
 {
     const bool is_mask = (args.mask_type != static_cast<int>(mask_enum::no_mask));
-
-    // Route based on (data_type, mask, hdim, num_queries_per_kv).
-    // Decode-tuned instances require pipeline changes (NumWarpGroups must == 2,
-    // which means exactly 8 warps; fewer warps are not supported).
+    const bool use_decode = is_decode_shape(args);
 
     // d128, MHA (num_queries_per_kv == 1)
     if(args.hdim == 128 && args.num_queries_per_kv == 1)
@@ -53,15 +63,33 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
     // d64, GQA-8 (num_queries_per_kv == 8)
     if(args.hdim == 64 && args.num_queries_per_kv == 8)
     {
-        if(args.data_type == unified_attention_args::data_type_enum::fp16)
+        if(use_decode)
         {
-            if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, false, 64, 256, 8)
-            else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, true,  64, 256, 8)
+            // Decode-tuned: 4 warps, kBlockM=128 (kBlockQ=16)
+            if(args.data_type == unified_attention_args::data_type_enum::fp16)
+            {
+                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE(unified_attention_args::data_type_enum::fp16, false, 64, 128, 8)
+                else         DISPATCH_UNIFIED_ATTENTION_DECODE(unified_attention_args::data_type_enum::fp16, true,  64, 128, 8)
+            }
+            else if(args.data_type == unified_attention_args::data_type_enum::bf16)
+            {
+                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE(unified_attention_args::data_type_enum::bf16, false, 64, 128, 8)
+                else         DISPATCH_UNIFIED_ATTENTION_DECODE(unified_attention_args::data_type_enum::bf16, true,  64, 128, 8)
+            }
         }
-        else if(args.data_type == unified_attention_args::data_type_enum::bf16)
+        else
         {
-            if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, false, 64, 256, 8)
-            else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, true,  64, 256, 8)
+            // Prefill: 8 warps, kBlockM=256 (kBlockQ=32)
+            if(args.data_type == unified_attention_args::data_type_enum::fp16)
+            {
+                if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, false, 64, 256, 8)
+                else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, true,  64, 256, 8)
+            }
+            else if(args.data_type == unified_attention_args::data_type_enum::bf16)
+            {
+                if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, false, 64, 256, 8)
+                else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, true,  64, 256, 8)
+            }
         }
     }
 
@@ -70,6 +98,8 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
               << " data_type=" << args.data_type << " mask_type=" << args.mask_type << std::endl;
     return std::make_pair(false, -1.f);
 }
+
+#undef DISPATCH_UNIFIED_ATTENTION_DECODE
 
 #undef DISPATCH_UNIFIED_ATTENTION
 
