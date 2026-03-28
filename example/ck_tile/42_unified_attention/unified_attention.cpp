@@ -50,7 +50,7 @@ static tile_tier select_tile_tier(const unified_attention_args& args)
         return tile_tier::small;   // pure decode: 2 warps, kBlockM=64
 
     const index_t kBlockQ_medium = 128 / args.num_queries_per_kv; // kBlockQ for 4-warp kernel
-    if(avg_q <= kBlockQ_medium * 2)
+    if(avg_q <= kBlockQ_medium * 8)
         return tile_tier::medium;  // many short seqs: 4 warps, kBlockM=128
 
     return tile_tier::large;       // long prefill: 8 warps, kBlockM=256
