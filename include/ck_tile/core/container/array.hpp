@@ -12,6 +12,9 @@
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 // use aggregate initialization for this type
@@ -305,3 +308,5 @@ CK_TILE_HOST_DEVICE constexpr auto to_array(const X& x)
 }
 
 } // namespace ck_tile
+
+#pragma clang diagnostic pop
