@@ -603,4 +603,11 @@ struct UnifiedAttentionPipelineDecodePolicy : UnifiedAttentionPipelineDefaultPol
         NumWarpPerGroup * ck_tile::get_warp_size();
 };
 
+struct UnifiedAttentionPipelineTinyDecodePolicy : UnifiedAttentionPipelineDefaultPolicy
+{
+    static constexpr ck_tile::index_t NumWarpPerGroup = 1;
+    static constexpr ck_tile::index_t NumThreadPerWarpGroup =
+        NumWarpPerGroup * ck_tile::get_warp_size();
+};
+
 } // namespace ck_tile

@@ -39,15 +39,25 @@ std::ostream& operator<<(std::ostream& stream,
         return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
     }
 
-enum class tile_tier { large, medium, small };
+#define DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(DType, IsMask, HSize, BM, NQPKV) \
+    { \
+        using kernel_traits = unified_attention_decode_tiny_kernel_traits<DType, IsMask, HSize, BM, NQPKV>; \
+        return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
+    }
+
+enum class tile_tier { large, medium, small, tiny };
 
 static tile_tier select_tile_tier(const unified_attention_args& args)
 {
     const index_t avg_q = args.num_seqs > 0 ? args.num_tokens / args.num_seqs : args.num_tokens;
-    const index_t kBlockQ_small = 64 / args.num_queries_per_kv;  // kBlockQ for 2-warp kernel
+    const index_t kBlockQ_tiny = 16 / args.num_queries_per_kv;  // kBlockQ for 1-warp 16x16 kernel
 
+    if(avg_q <= kBlockQ_tiny)
+        return tile_tier::tiny;    // pure decode: 1 warp, 16x16 MFMA, kBlockM=16
+
+    const index_t kBlockQ_small = 64 / args.num_queries_per_kv;  // kBlockQ for 2-warp kernel
     if(avg_q <= kBlockQ_small)
-        return tile_tier::small;   // pure decode: 2 warps, kBlockM=64
+        return tile_tier::small;   // decode: 2 warps, kBlockM=64
 
     const index_t kBlockQ_medium = 128 / args.num_queries_per_kv; // kBlockQ for 4-warp kernel
     if(avg_q <= kBlockQ_medium * 8)
@@ -80,7 +90,21 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
     // d64, GQA-8 (num_queries_per_kv == 8)
     if(args.hdim == 64 && args.num_queries_per_kv == 8)
     {
-        if(tier == tile_tier::small)
+        if(tier == tile_tier::tiny)
+        {
+            // Tiny decode: 1 warp, 16x16 MFMA, kBlockM=16 (kBlockQ=2)
+            if(args.data_type == unified_attention_args::data_type_enum::fp16)
+            {
+                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::fp16, false, 64, 16, 8)
+                else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::fp16, true,  64, 16, 8)
+            }
+            else if(args.data_type == unified_attention_args::data_type_enum::bf16)
+            {
+                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::bf16, false, 64, 16, 8)
+                else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::bf16, true,  64, 16, 8)
+            }
+        }
+        else if(tier == tile_tier::small)
         {
             // Small decode: 2 warps, kBlockM=64 (kBlockQ=8)
             if(args.data_type == unified_attention_args::data_type_enum::fp16)
@@ -130,6 +154,7 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
     return std::make_pair(false, -1.f);
 }
 
+#undef DISPATCH_UNIFIED_ATTENTION_DECODE_TINY
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM
 #undef DISPATCH_UNIFIED_ATTENTION

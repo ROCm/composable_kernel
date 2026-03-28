@@ -252,6 +252,68 @@ struct unified_attention_decode_small_kernel_traits
     using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
 };
 
+// Tiny decode traits: 1 warp, 16x16 MFMA, kBlockM=16, kBlockQ=2 for GQA-8.
+// Matches Triton's BLOCK_M=16 / BLOCK_Q=2 decode configuration.
+// Uses block_tile_reduce_sync instead of permlane32_swap for 16x16 MFMA.
+template <unified_attention_args::data_type_enum DataType,
+          bool IsMasking,
+          index_t HeadSize_  = 64,
+          index_t BlockM_    = 16,
+          index_t NumQPerKV_ = 8>
+struct unified_attention_decode_tiny_kernel_traits
+{
+    static constexpr auto date_type  = DataType;
+    static constexpr bool is_masking = IsMasking;
+
+    static constexpr index_t kBlockM    = BlockM_;
+    static constexpr index_t HEAD_SIZE  = HeadSize_;
+    static constexpr index_t BLOCK_SIZE = (HEAD_SIZE <= 64) ? 64 : 32;
+
+    static constexpr index_t num_queries_per_kv = NumQPerKV_;
+    static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
+
+    using unified_attention_block_tile      = sequence<kBlockM, kBlockQ, BLOCK_SIZE, HEAD_SIZE>;
+    using unified_attention_warp_gemm_shape = sequence<16, 16, 32>;
+    // 1 warp: kBlockM=1*16=16, kBlockSize=64, NumWarpGroups=1
+    using unified_attention_block_warps     = sequence<1, 1, 1>;
+
+    using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
+                                                              unified_attention_block_warps,
+                                                              unified_attention_warp_gemm_shape,
+                                                              unified_attention_block_warps,
+                                                              unified_attention_warp_gemm_shape,
+                                                              true>;
+
+    using unified_attention_traits = TileUnifiedAttentionTraits<true, false, -1>;
+    using unified_attention_mask   = GenericAttentionMask<IsMasking, false>;
+
+    using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
+        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
+        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
+        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
+        typename unified_attention_problem_traits<date_type>::acc_dtype,
+        typename unified_attention_problem_traits<date_type>::acc_dtype,
+        typename unified_attention_problem_traits<date_type>::acc_dtype,
+        typename unified_attention_problem_traits<date_type>::lse_dtype,
+        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
+        typename unified_attention_problem_traits<date_type>::acc_dtype,
+        typename unified_attention_problem_traits<date_type>::o_dtype,
+        unified_attention_shape,
+        unified_attention_mask,
+        unified_attention_traits>;
+
+    using unified_attention_pipeline =
+        UnifiedAttentionPipeline<unified_attention_pipeline_problem,
+                                 UnifiedAttentionPipelineTinyDecodePolicy>;
+
+    using epilogue = Default2DEpilogue<
+        Default2DEpilogueProblem<typename unified_attention_problem_traits<date_type>::acc_dtype,
+                                 typename unified_attention_problem_traits<date_type>::o_dtype,
+                                 true, true, true>>;
+
+    using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
+};
+
 template <typename Kernel, bool UseDecodeGrid = false>
 float unified_attention_kernel_launch(const unified_attention_args& args,
                                       const stream_config& config)
