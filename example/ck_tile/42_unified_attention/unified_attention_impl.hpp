@@ -182,7 +182,8 @@ struct unified_attention_decode_kernel_traits
     using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
 };
 
-// Aggressive decode traits: 4 warps (2x2 layout), kBlockM=64 for maximum decode throughput.
+// Small decode traits: 2 warps, kBlockM=64, decode policy (NumWarpPerGroup=2).
+// Uses 1D warp layout (sequence<2,1,1>) so no softmax reduction changes needed.
 template <unified_attention_args::data_type_enum DataType,
           bool IsMasking,
           index_t HeadSize_  = 64,
@@ -202,8 +203,8 @@ struct unified_attention_decode_small_kernel_traits
 
     using unified_attention_block_tile      = sequence<kBlockM, kBlockQ, BLOCK_SIZE, HEAD_SIZE>;
     using unified_attention_warp_gemm_shape = sequence<32, 32, 16>;
-    // 2x2 warp layout: 4 warps total, kBlockM=2*32=64, N split=2*32=64
-    using unified_attention_block_warps     = sequence<2, 2, 1>;
+    // 2 warps along M: kBlockM=2*32=64, kBlockSize=128, NumWarpGroups=1
+    using unified_attention_block_warps     = sequence<2, 1, 1>;
 
     using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
                                                               unified_attention_block_warps,
@@ -230,7 +231,9 @@ struct unified_attention_decode_small_kernel_traits
         unified_attention_mask,
         unified_attention_traits>;
 
-    using unified_attention_pipeline = UnifiedAttentionPipeline<unified_attention_pipeline_problem>;
+    using unified_attention_pipeline =
+        UnifiedAttentionPipeline<unified_attention_pipeline_problem,
+                                 UnifiedAttentionPipelineDecodePolicy>;
 
     using epilogue = Default2DEpilogue<
         Default2DEpilogueProblem<typename unified_attention_problem_traits<date_type>::acc_dtype,

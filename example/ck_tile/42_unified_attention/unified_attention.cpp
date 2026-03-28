@@ -26,10 +26,10 @@ std::ostream& operator<<(std::ostream& stream,
         return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
     }
 
-// Helper macro for decode-tuned dispatch (4 warps, kBlockM=128).
+// Helper macro for decode dispatch (2 warps, kBlockM=64).
 #define DISPATCH_UNIFIED_ATTENTION_DECODE(DType, IsMask, HSize, BM, NQPKV) \
     { \
-        using kernel_traits = unified_attention_decode_kernel_traits<DType, IsMask, HSize, BM, NQPKV>; \
+        using kernel_traits = unified_attention_decode_small_kernel_traits<DType, IsMask, HSize, BM, NQPKV>; \
         return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
     }
 
@@ -65,16 +65,16 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
     {
         if(use_decode)
         {
-            // Decode-tuned: 4 warps, kBlockM=128 (kBlockQ=16)
+            // Small decode: 2 warps, kBlockM=64 (kBlockQ=8)
             if(args.data_type == unified_attention_args::data_type_enum::fp16)
             {
-                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE(unified_attention_args::data_type_enum::fp16, false, 64, 128, 8)
-                else         DISPATCH_UNIFIED_ATTENTION_DECODE(unified_attention_args::data_type_enum::fp16, true,  64, 128, 8)
+                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE(unified_attention_args::data_type_enum::fp16, false, 64, 64, 8)
+                else         DISPATCH_UNIFIED_ATTENTION_DECODE(unified_attention_args::data_type_enum::fp16, true,  64, 64, 8)
             }
             else if(args.data_type == unified_attention_args::data_type_enum::bf16)
             {
-                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE(unified_attention_args::data_type_enum::bf16, false, 64, 128, 8)
-                else         DISPATCH_UNIFIED_ATTENTION_DECODE(unified_attention_args::data_type_enum::bf16, true,  64, 128, 8)
+                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE(unified_attention_args::data_type_enum::bf16, false, 64, 64, 8)
+                else         DISPATCH_UNIFIED_ATTENTION_DECODE(unified_attention_args::data_type_enum::bf16, true,  64, 64, 8)
             }
         }
         else

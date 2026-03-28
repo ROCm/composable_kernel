@@ -596,4 +596,11 @@ struct UnifiedAttentionPipelineDefaultPolicy
     }
 };
 
+struct UnifiedAttentionPipelineDecodePolicy : UnifiedAttentionPipelineDefaultPolicy
+{
+    static constexpr ck_tile::index_t NumWarpPerGroup = 2;
+    static constexpr ck_tile::index_t NumThreadPerWarpGroup =
+        NumWarpPerGroup * ck_tile::get_warp_size();
+};
+
 } // namespace ck_tile
