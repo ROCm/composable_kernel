@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <iostream>
+
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
 #include <hip/hip_runtime.h>
