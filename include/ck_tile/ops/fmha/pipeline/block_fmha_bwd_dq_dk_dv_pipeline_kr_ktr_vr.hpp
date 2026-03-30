@@ -159,7 +159,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
         const auto [seqlen_q_start, seqlen_q_end] =
             mask.GetTileRangeAlongY(k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
-        const auto num_total_loop = integer_divide_ceil(seqlen_q_end - seqlen_q_start, kM0);
+        const auto num_total_loop =
+            amd_wave_read_first_lane(integer_divide_ceil(seqlen_q_end - seqlen_q_start, kM0));
 
         // check early exit if no work to do.
         if(num_total_loop <= 0)
