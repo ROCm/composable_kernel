@@ -1317,8 +1317,8 @@ pipeline {
             description: "Build CK and run tests on gfx12 (default: ON)")
         booleanParam(
             name: "NINJA_BUILD_TRACE",
-            defaultValue: false,
-            description: "Generate a ninja build trace (default: OFF)")
+            defaultValue: true,
+            description: "Generate a ninja build trace (default: ON)")
         booleanParam(
             name: "NINJA_FTIME_TRACE",
             defaultValue: false,
