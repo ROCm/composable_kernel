@@ -24,6 +24,7 @@ struct IndexLookupTable
     MultiIndex<nDim> data[NumAccesses > 0 ? NumAccesses : 1];
 
     __host__ __device__ constexpr const MultiIndex<nDim>& operator[](index_t i) const
+        [[clang::lifetimebound]]
     {
         return data[i];
     }

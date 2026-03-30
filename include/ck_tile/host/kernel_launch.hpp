@@ -87,8 +87,11 @@ template <int MinBlockPerCu = CK_TILE_MIN_BLOCK_PER_CU,
           typename Attr     = void,
           typename KernelImpl,
           typename... Args>
-CK_TILE_HOST auto
-make_kernel(KernelImpl /*f*/, dim3 grid_dim, dim3 block_dim, std::size_t lds_byte, Args... args)
+CK_TILE_HOST auto make_kernel(KernelImpl /*f*/,
+                              dim3 grid_dim,
+                              dim3 block_dim,
+                              std::size_t lds_byte,
+                              [[clang::lifetimebound]] Args... args)
 {
     const auto kernel = []() {
         if constexpr(std::is_void_v<Attr>)

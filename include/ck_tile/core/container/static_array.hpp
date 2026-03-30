@@ -27,8 +27,14 @@ struct static_array
     T elems[N > 0 ? N : 1];
 
     // Basic constexpr accessors
-    CK_TILE_HOST_DEVICE constexpr const T& operator[](index_t i) const { return elems[i]; }
-    CK_TILE_HOST_DEVICE constexpr T& operator[](index_t i) { return elems[i]; }
+    CK_TILE_HOST_DEVICE constexpr const T& operator[](index_t i) const [[clang::lifetimebound]]
+    {
+        return elems[i];
+    }
+    CK_TILE_HOST_DEVICE constexpr T& operator[](index_t i) [[clang::lifetimebound]]
+    {
+        return elems[i];
+    }
 
     CK_TILE_HOST_DEVICE static constexpr index_t size() { return N; }
 };
