@@ -24,13 +24,22 @@ struct Array
 
     __host__ __device__ static constexpr index_t Size() { return NSize; }
 
-    __host__ __device__ constexpr const TData& At(index_t i) const { return mData[i]; }
+    __host__ __device__ constexpr const TData& At(index_t i) const [[clang::lifetimebound]]
+    {
+        return mData[i];
+    }
 
-    __host__ __device__ constexpr TData& At(index_t i) { return mData[i]; }
+    __host__ __device__ constexpr TData& At(index_t i) [[clang::lifetimebound]] { return mData[i]; }
 
-    __host__ __device__ constexpr const TData& operator[](index_t i) const { return At(i); }
+    __host__ __device__ constexpr const TData& operator[](index_t i) const [[clang::lifetimebound]]
+    {
+        return At(i);
+    }
 
-    __host__ __device__ constexpr TData& operator()(index_t i) { return At(i); }
+    __host__ __device__ constexpr TData& operator()(index_t i) [[clang::lifetimebound]]
+    {
+        return At(i);
+    }
 
     template <typename... Args>
     __host__ constexpr auto Emplace(index_t i, Args&&... args)
@@ -50,10 +59,16 @@ struct Array
 
         return *this;
     }
-    __host__ __device__ constexpr const TData* begin() const { return &mData[0]; }
-    __host__ __device__ constexpr const TData* end() const { return &mData[NSize]; }
-    __host__ __device__ constexpr TData* begin() { return &mData[0]; }
-    __host__ __device__ constexpr TData* end() { return &mData[NSize]; }
+    __host__ __device__ constexpr const TData* begin() const [[clang::lifetimebound]]
+    {
+        return &mData[0];
+    }
+    __host__ __device__ constexpr const TData* end() const [[clang::lifetimebound]]
+    {
+        return &mData[NSize];
+    }
+    __host__ __device__ constexpr TData* begin() [[clang::lifetimebound]] { return &mData[0]; }
+    __host__ __device__ constexpr TData* end() [[clang::lifetimebound]] { return &mData[NSize]; }
 };
 
 // empty Array
