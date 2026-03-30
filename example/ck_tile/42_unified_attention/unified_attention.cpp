@@ -26,7 +26,7 @@ std::ostream& operator<<(std::ostream& stream,
         return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
     }
 
-// Dispatch macros for three tile tiers.
+// Dispatch macros for three tile tiers (default block_size).
 #define DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(DType, IsMask, HSize, BM, NQPKV) \
     { \
         using kernel_traits = unified_attention_decode_kernel_traits<DType, IsMask, HSize, BM, NQPKV>; \
@@ -42,6 +42,25 @@ std::ostream& operator<<(std::ostream& stream,
 #define DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(DType, IsMask, HSize, BM, NQPKV) \
     { \
         using kernel_traits = unified_attention_decode_tiny_kernel_traits<DType, IsMask, HSize, BM, NQPKV>; \
+        return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
+    }
+
+// block_size=32 dispatch macros (6th template arg = 32).
+#define DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(DType, IsMask, HSize, BM, NQPKV) \
+    { \
+        using kernel_traits = unified_attention_decode_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32>; \
+        return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
+    }
+
+#define DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(DType, IsMask, HSize, BM, NQPKV) \
+    { \
+        using kernel_traits = unified_attention_decode_small_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32>; \
+        return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
+    }
+
+#define DISPATCH_UNIFIED_ATTENTION_DECODE_TINY_BS32(DType, IsMask, HSize, BM, NQPKV) \
+    { \
+        using kernel_traits = unified_attention_decode_tiny_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32>; \
         return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
     }
 
@@ -88,51 +107,81 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
     // d64, GQA-8 (num_queries_per_kv == 8)
     if(args.hdim == 64 && args.num_queries_per_kv == 8)
     {
+        const bool use_bs32 = (args.page_blk_size < 64);
+
         if(tier == tile_tier::tiny)
         {
-            // Tiny decode: 1 warp, 16x16 MFMA, kBlockM=16 (kBlockQ=2)
             if(args.data_type == unified_attention_args::data_type_enum::fp16)
             {
-                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::fp16, false, 64, 16, 8)
-                else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::fp16, true,  64, 16, 8)
+                if(use_bs32) {
+                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY_BS32(unified_attention_args::data_type_enum::fp16, false, 64, 16, 8)
+                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY_BS32(unified_attention_args::data_type_enum::fp16, true,  64, 16, 8)
+                } else {
+                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::fp16, false, 64, 16, 8)
+                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::fp16, true,  64, 16, 8)
+                }
             }
             else if(args.data_type == unified_attention_args::data_type_enum::bf16)
             {
-                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::bf16, false, 64, 16, 8)
-                else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::bf16, true,  64, 16, 8)
+                if(use_bs32) {
+                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY_BS32(unified_attention_args::data_type_enum::bf16, false, 64, 16, 8)
+                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY_BS32(unified_attention_args::data_type_enum::bf16, true,  64, 16, 8)
+                } else {
+                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::bf16, false, 64, 16, 8)
+                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::bf16, true,  64, 16, 8)
+                }
             }
         }
         else if(tier == tile_tier::small)
         {
-            // Small decode: 2 warps, kBlockM=64 (kBlockQ=8)
             if(args.data_type == unified_attention_args::data_type_enum::fp16)
             {
-                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::fp16, false, 64, 64, 8)
-                else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::fp16, true,  64, 64, 8)
+                if(use_bs32) {
+                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(unified_attention_args::data_type_enum::fp16, false, 64, 64, 8)
+                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(unified_attention_args::data_type_enum::fp16, true,  64, 64, 8)
+                } else {
+                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::fp16, false, 64, 64, 8)
+                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::fp16, true,  64, 64, 8)
+                }
             }
             else if(args.data_type == unified_attention_args::data_type_enum::bf16)
             {
-                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::bf16, false, 64, 64, 8)
-                else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::bf16, true,  64, 64, 8)
+                if(use_bs32) {
+                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(unified_attention_args::data_type_enum::bf16, false, 64, 64, 8)
+                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(unified_attention_args::data_type_enum::bf16, true,  64, 64, 8)
+                } else {
+                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::bf16, false, 64, 64, 8)
+                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::bf16, true,  64, 64, 8)
+                }
             }
         }
         else if(tier == tile_tier::medium)
         {
-            // Medium: 4 warps, kBlockM=128 (kBlockQ=16)
             if(args.data_type == unified_attention_args::data_type_enum::fp16)
             {
-                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(unified_attention_args::data_type_enum::fp16, false, 64, 128, 8)
-                else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(unified_attention_args::data_type_enum::fp16, true,  64, 128, 8)
+                if(use_bs32) {
+                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(unified_attention_args::data_type_enum::fp16, false, 64, 128, 8)
+                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(unified_attention_args::data_type_enum::fp16, true,  64, 128, 8)
+                } else {
+                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(unified_attention_args::data_type_enum::fp16, false, 64, 128, 8)
+                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(unified_attention_args::data_type_enum::fp16, true,  64, 128, 8)
+                }
             }
             else if(args.data_type == unified_attention_args::data_type_enum::bf16)
             {
-                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(unified_attention_args::data_type_enum::bf16, false, 64, 128, 8)
-                else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(unified_attention_args::data_type_enum::bf16, true,  64, 128, 8)
+                if(use_bs32) {
+                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(unified_attention_args::data_type_enum::bf16, false, 64, 128, 8)
+                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(unified_attention_args::data_type_enum::bf16, true,  64, 128, 8)
+                } else {
+                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(unified_attention_args::data_type_enum::bf16, false, 64, 128, 8)
+                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(unified_attention_args::data_type_enum::bf16, true,  64, 128, 8)
+                }
             }
         }
         else
         {
             // Large prefill: 8 warps, kBlockM=256 (kBlockQ=32)
+            // No bs32 variant -- NumIssues < 1 for 8-warp tier with block_size=32.
             if(args.data_type == unified_attention_args::data_type_enum::fp16)
             {
                 if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, false, 64, 256, 8)
@@ -152,6 +201,9 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
     return std::make_pair(false, -1.f);
 }
 
+#undef DISPATCH_UNIFIED_ATTENTION_DECODE_TINY_BS32
+#undef DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32
+#undef DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_TINY
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM

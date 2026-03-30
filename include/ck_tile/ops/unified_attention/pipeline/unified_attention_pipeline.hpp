@@ -353,7 +353,6 @@ struct UnifiedAttentionPipeline
             }
         }
 
-        // TODO check correctness of this
         index_t i_total_loops  = num_blocks_start;
         const index_t PageSize = kv_page_size_in_blocks * kPageBlockSize;
         const ck_tile::index_t* block_tables_ptr_ =
@@ -484,7 +483,6 @@ struct UnifiedAttentionPipeline
 
         auto V_mem_load = [&](auto v_lds_write_idx) {
             async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
-            // prefetch next V tile (only if not at the end of loop)
             v_block_idx++;
 
             index_t v_page_blk_idx =
@@ -493,7 +491,6 @@ struct UnifiedAttentionPipeline
                 {v_page_blk_idx * PageSize +
                      (v_block_idx % kv_page_size_in_blocks) * kPageBlockSize,
                  0});
-            // we assume that v load is always after k
         };
 
         auto K_lds_load = [&](auto k_lds_read_idx) {

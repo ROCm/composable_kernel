@@ -61,12 +61,13 @@ struct unified_attention_problem_traits<unified_attention_args::data_type_enum::
     using lse_dtype  = float;
 };
 
-// Parameterized kernel traits: DataType, IsMasking, HeadSize, BlockM, NumQueriesPerKV
+// Parameterized kernel traits: DataType, IsMasking, HeadSize, BlockM, NumQueriesPerKV, BlockSize
 template <unified_attention_args::data_type_enum DataType,
           bool IsMasking,
           index_t HeadSize_     = 128,
           index_t BlockM_       = 256,
-          index_t NumQPerKV_    = 1>
+          index_t NumQPerKV_    = 1,
+          index_t BlockSize_    = (HeadSize_ <= 64) ? 64 : 32>
 struct unified_attention_kernel_traits
 {
     static constexpr auto date_type  = DataType;
@@ -74,9 +75,7 @@ struct unified_attention_kernel_traits
 
     static constexpr index_t kBlockM    = BlockM_;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
-    // On gfx950 with 128-bit loads (KVector=8), NumIssues = kPageBlockSize*HeadSize/4096.
-    // For HeadSize<=64 we need kPageBlockSize>=64 to keep NumIssues>=1.
-    static constexpr index_t BLOCK_SIZE = (HEAD_SIZE <= 64) ? 64 : 32;
+    static constexpr index_t BLOCK_SIZE = BlockSize_;
 
     static constexpr index_t num_queries_per_kv = NumQPerKV_;
     static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
@@ -137,7 +136,8 @@ template <unified_attention_args::data_type_enum DataType,
           bool IsMasking,
           index_t HeadSize_  = 128,
           index_t BlockM_    = 128,
-          index_t NumQPerKV_ = 1>
+          index_t NumQPerKV_ = 1,
+          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32>
 struct unified_attention_decode_kernel_traits
 {
     static constexpr auto date_type  = DataType;
@@ -145,7 +145,7 @@ struct unified_attention_decode_kernel_traits
 
     static constexpr index_t kBlockM    = BlockM_;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
-    static constexpr index_t BLOCK_SIZE = (HEAD_SIZE <= 64) ? 64 : 32;
+    static constexpr index_t BLOCK_SIZE = BlockSize_;
 
     static constexpr index_t num_queries_per_kv = NumQPerKV_;
     static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
@@ -197,7 +197,8 @@ template <unified_attention_args::data_type_enum DataType,
           bool IsMasking,
           index_t HeadSize_  = 64,
           index_t BlockM_    = 64,
-          index_t NumQPerKV_ = 8>
+          index_t NumQPerKV_ = 8,
+          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32>
 struct unified_attention_decode_small_kernel_traits
 {
     static constexpr auto date_type  = DataType;
@@ -205,7 +206,7 @@ struct unified_attention_decode_small_kernel_traits
 
     static constexpr index_t kBlockM    = BlockM_;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
-    static constexpr index_t BLOCK_SIZE = (HEAD_SIZE <= 64) ? 64 : 32;
+    static constexpr index_t BLOCK_SIZE = BlockSize_;
 
     static constexpr index_t num_queries_per_kv = NumQPerKV_;
     static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
@@ -259,7 +260,8 @@ template <unified_attention_args::data_type_enum DataType,
           bool IsMasking,
           index_t HeadSize_  = 64,
           index_t BlockM_    = 16,
-          index_t NumQPerKV_ = 8>
+          index_t NumQPerKV_ = 8,
+          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32>
 struct unified_attention_decode_tiny_kernel_traits
 {
     static constexpr auto date_type  = DataType;
@@ -267,7 +269,7 @@ struct unified_attention_decode_tiny_kernel_traits
 
     static constexpr index_t kBlockM    = BlockM_;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
-    static constexpr index_t BLOCK_SIZE = (HEAD_SIZE <= 64) ? 64 : 32;
+    static constexpr index_t BLOCK_SIZE = BlockSize_;
 
     static constexpr index_t num_queries_per_kv = NumQPerKV_;
     static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;

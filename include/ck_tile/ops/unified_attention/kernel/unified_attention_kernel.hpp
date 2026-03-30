@@ -310,7 +310,7 @@ struct UnifiedAttentionKernel
 
         // TODO sliding window
         const index_t num_blocks_start = 0;
-        index_t kv_head_offset         = kv_head_idx * kargs.stride_k_cache_2;
+        long_index_t kv_head_offset    = static_cast<long_index_t>(kv_head_idx) * kargs.stride_k_cache_2;
 
         // Q/K/V DRAM and DRAM window
         index_t q_ptr_offset_0 = cur_batch_in_all_start_index *
@@ -376,17 +376,19 @@ struct UnifiedAttentionKernel
                              {query_pos * num_queries_per_kv, 0});
 
         const auto k_dram = [&]() {
-            // HEAD dim is skipped as defined in the ptrs
+            // Use long_index_t for size/strides to prevent int32 overflow
+            // when row * stride exceeds 2^31 (happens at ~66K blocks for d64/GQA-8).
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.num_blks * kargs.page_size, kHeadDim),
-                make_tuple(kargs.stride_k_cache_1, kargs.stride_k_cache_3),
+                make_tuple(static_cast<long_index_t>(kargs.num_blks) * kargs.page_size,
+                           static_cast<long_index_t>(kHeadDim)),
+                make_tuple(static_cast<long_index_t>(kargs.stride_k_cache_1),
+                           static_cast<long_index_t>(kargs.stride_k_cache_3)),
                 number<UnifiedAttentionPipeline::kAlignmentK>{},
                 number<1>{});
 
             const auto k_dram_pad =
                 pad_tensor_view(k_dram_naive,
-                                // TODO can the kPageBlockSize_RAW needs padding?
                                 make_tuple(kPageBlockSize, kHeadDimPadded),
                                 sequence<false, kPadHeadDimQ>{});
 
@@ -399,8 +401,10 @@ struct UnifiedAttentionKernel
         const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 v_ptr,
-                make_tuple(kargs.num_blks * kargs.page_size, kHeadDim),
-                make_tuple(kargs.stride_v_cache_1, kargs.stride_v_cache_3),
+                make_tuple(static_cast<long_index_t>(kargs.num_blks) * kargs.page_size,
+                           static_cast<long_index_t>(kHeadDim)),
+                make_tuple(static_cast<long_index_t>(kargs.stride_v_cache_1),
+                           static_cast<long_index_t>(kargs.stride_v_cache_3)),
                 number<UnifiedAttentionPipeline::kAlignmentV>{},
                 number<1>{});
 
