@@ -165,7 +165,13 @@ We support sequence padding and variable-length processing in both batch and gro
 Both approaches optimize memory access patterns while supporting flexible sequence length requirements commonly found in transformer inference scenarios.
 
 ## FP8 support
-FP8 FMHA kernels are supported on gfx942/gfx950 machines with ROCm 6.0+. You can select fp8 precision by setting the arg `-prec=fp8` (or `fp8bf16`, `fp8fp32`) to the `tile_example_fmha_fwd`.
+FP8 FMHA kernels are supported on gfx942/gfx950 machines with ROCm 6.0+. Three fp8-based precision modes are available via `-prec`:
+
+| `-prec` value | Q/K/V input type | Output type | Description |
+|---|---|---|---|
+| `fp8` | fp8 | fp8 | Fully fp8: both inputs and output are in fp8 |
+| `fp8bf16` | fp8 | bf16 | Mixed precision: fp8 inputs, bf16 output — useful when the consumer expects a wider-range output format |
+| `fp8fp32` | fp8 | fp32 | Mixed precision: fp8 inputs, fp32 output — highest-precision output, suitable for debugging or further fp32 processing |
 
 The following quantization scale modes are available via `-qscale`:
 
