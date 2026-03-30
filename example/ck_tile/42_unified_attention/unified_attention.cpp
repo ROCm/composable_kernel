@@ -109,30 +109,23 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
     {
         const bool use_bs32 = (args.page_blk_size < 64);
 
-        if(tier == tile_tier::tiny)
+        if(tier == tile_tier::tiny && !use_bs32)
         {
+            // Tiny tier (1-warp, 16x16 MFMA) only for bs64+.
+            // bs32 tiny has a race condition in block_tile_reduce_sync
+            // when the last KV block has 9+ valid tokens; promote to small.
             if(args.data_type == unified_attention_args::data_type_enum::fp16)
             {
-                if(use_bs32) {
-                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY_BS32(unified_attention_args::data_type_enum::fp16, false, 64, 16, 8)
-                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY_BS32(unified_attention_args::data_type_enum::fp16, true,  64, 16, 8)
-                } else {
-                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::fp16, false, 64, 16, 8)
-                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::fp16, true,  64, 16, 8)
-                }
+                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::fp16, false, 64, 16, 8)
+                else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::fp16, true,  64, 16, 8)
             }
             else if(args.data_type == unified_attention_args::data_type_enum::bf16)
             {
-                if(use_bs32) {
-                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY_BS32(unified_attention_args::data_type_enum::bf16, false, 64, 16, 8)
-                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY_BS32(unified_attention_args::data_type_enum::bf16, true,  64, 16, 8)
-                } else {
-                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::bf16, false, 64, 16, 8)
-                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::bf16, true,  64, 16, 8)
-                }
+                if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::bf16, false, 64, 16, 8)
+                else         DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(unified_attention_args::data_type_enum::bf16, true,  64, 16, 8)
             }
         }
-        else if(tier == tile_tier::small)
+        else if(tier == tile_tier::small || (tier == tile_tier::tiny && use_bs32))
         {
             if(args.data_type == unified_attention_args::data_type_enum::fp16)
             {
