@@ -67,8 +67,7 @@ struct TopkSoftmaxDecodePipeline
                     w_(idx) = WeightType(1) / (WeightType(1) + exp(-w_(idx)));
                 }
             };
-            tile_sweeper<decltype(w_), decltype(w_f)> ts{w_, w_f};
-            ts();
+            sweep_tile(w_, w_f);
             return w_;
         }();
 
