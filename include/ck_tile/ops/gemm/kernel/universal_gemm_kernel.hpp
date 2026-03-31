@@ -1021,6 +1021,11 @@ struct UniversalGemmKernel
         const auto& e_tensor_view =
             make_tensor_view<address_space_enum::global, DstInMemOp>(e_ptr, e_desc);
 
+        // For bf16_t and atomic_add global_atomic_add is used instead of buffer_atomic_add
+        // Add padding for not contiguous dim due to the lack of OOB check
+        constexpr bool pad_not_contiguous_dim =
+            std::is_same_v<EDataType, bf16_t> && DstInMemOp == memory_operation_enum::atomic_add;
+
         // Step 2: Create padded view
         const auto& e_pad_view = [&]() {
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
@@ -1028,14 +1033,14 @@ struct UniversalGemmKernel
                 return pad_tensor_view(e_tensor_view,
                                        make_tuple(number<TilePartitioner::MPerBlock>{},
                                                   number<TilePartitioner::NPerBlock>{}),
-                                       sequence<false, GemmPipeline::kPadN>{});
+                                       sequence<pad_not_contiguous_dim, GemmPipeline::kPadN>{});
             }
             else
             {
                 return pad_tensor_view(e_tensor_view,
                                        make_tuple(number<TilePartitioner::MPerBlock>{},
                                                   number<TilePartitioner::NPerBlock>{}),
-                                       sequence<GemmPipeline::kPadM, false>{});
+                                       sequence<GemmPipeline::kPadM, pad_not_contiguous_dim>{});
             }
         }();
 
