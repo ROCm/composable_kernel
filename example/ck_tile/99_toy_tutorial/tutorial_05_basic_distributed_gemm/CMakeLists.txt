@@ -11,13 +11,13 @@ target_include_directories(aa_tutorial_05_basic_distributed_gemm PRIVATE
 )
 
 # Compile flags
-# target_compile_options(aa_tutorial_05_basic_distributed_gemm PRIVATE
+target_compile_options(aa_tutorial_05_basic_distributed_gemm PRIVATE
 
-#     -Wall
-#     -O0
-#     -g
-#     --save-temps
-# )
+    -Wall
+    -O0
+    -g
+    --save-temps
+)
 
 # Message for build output
 message(STATUS "Added Tutorial 05: Basic Distributed GEMM - Understanding tile distributions for GEMM")

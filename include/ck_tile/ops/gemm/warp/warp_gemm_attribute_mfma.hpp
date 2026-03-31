@@ -222,6 +222,7 @@ struct WarpGemmAttributeMfmaIterateK
         {
             if constexpr(AttrNumAccessV == 1)
             {
+#if 0
                 return tile_distribution_encoding<
                     sequence<>,
                     tuple<sequence<Impl::kBNLane>,
@@ -229,6 +230,16 @@ struct WarpGemmAttributeMfmaIterateK
                     tuple<sequence<2, 1>>,
                     tuple<sequence<0, 0>>,
                     sequence<2>,
+                    sequence<1>>{};
+#endif
+
+                return tile_distribution_encoding<
+                    sequence<>,
+                    tuple<sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>,
+                          sequence<Impl::kBNLane>>,
+                    tuple<sequence<1, 2>>,
+                    tuple<sequence<0, 0>>,
+                    sequence<1>,
                     sequence<1>>{};
             }
             else

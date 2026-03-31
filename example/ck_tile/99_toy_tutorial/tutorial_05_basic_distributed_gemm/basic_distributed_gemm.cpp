@@ -26,16 +26,17 @@
 using namespace ck_tile;
 
 // Distributed HGEMM kernel using proper tile_distribution
-template<typename ADataType, typename BDataType, typename CDataType, typename AccDataType>
+template <typename ADataType, typename BDataType, typename CDataType, typename AccDataType>
 struct DistributedHgemmKernel
 {
-    static constexpr index_t kWaveSize = 64;   // AMD wave size
-    static constexpr index_t kBlockM = 16;     // MFMA M dimension
-    static constexpr index_t kBlockN = 16;     // MFMA N dimension
-    static constexpr index_t kBlockK = 16;     // MFMA K dimension per instruction
+    static constexpr index_t kWaveSize = 64; // AMD wave size
+    static constexpr index_t kBlockM   = 32; // MFMA M dimension
+    static constexpr index_t kBlockN   = 32; // MFMA N dimension
+    static constexpr index_t kBlockK   = 16; // MFMA K dimension per instruction
 
     // Use ck_tile's WarpGemm for MFMA
-    using WarpGemm = WarpGemmMfmaF16F16F32M16N16K16;
+    // using WarpGemm = WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution<>;
+    using WarpGemm                      = WarpGemmMfmaF16F16F32M32N32K16<>;
     static constexpr index_t kBlockSize = kWaveSize;
 
     CK_TILE_DEVICE void operator()(const ADataType* a,
@@ -45,18 +46,19 @@ struct DistributedHgemmKernel
                                    index_t M,
                                    index_t N,
                                    index_t K,
-                                   index_t lda,  // Leading dimension of A (column-major)
-                                   index_t ldb,  // Leading dimension of B (row-major)
-                                   index_t ldc,  // Leading dimension of C (column-major)
-                                   index_t ldd,  // Leading dimension of D (column-major)
+                                   index_t lda, // Leading dimension of A (row-major)
+                                   index_t ldb, // Leading dimension of B (column-major)
+                                   index_t ldc, // Leading dimension of C (row-major)
+                                   index_t ldd, // Leading dimension of D (row-major)
                                    AccDataType alpha,
                                    AccDataType beta) const
     {
         // Calculate which 16×16 block this wave computes
-        // const index_t wave_id = get_block_id() * get_block_size() / kWaveSize + threadIdx.x / kWaveSize;
+        // const index_t wave_id = get_block_id() * get_block_size() / kWaveSize + threadIdx.x /
+        // kWaveSize;
         const index_t wave_id = get_warp_id();
-        const index_t wave_m = wave_id / (N / kBlockN);
-        const index_t wave_n = wave_id % (N / kBlockN);
+        const index_t wave_m  = wave_id / (N / kBlockN);
+        const index_t wave_n  = wave_id % (N / kBlockN);
 
         const index_t m_offset = wave_m * kBlockM;
         const index_t n_offset = wave_n * kBlockN;
@@ -70,93 +72,66 @@ struct DistributedHgemmKernel
             return;
 
         // Create tensor views for matrices
-        // A is column-major: M×K with stride lda between columns
+        // A is row-major: M×K with stride lda between rows (K is contiguous)
         const auto a_tensor = make_naive_tensor_view<address_space_enum::global>(
             a,
-            make_tuple(M, K),         // Shape: M×K
-            make_tuple(1, lda),       // Strides: column-major
+            make_tuple(M, K),   // Shape: M×K
+            make_tuple(lda, 1), // Strides: row-major (stride_M=lda, stride_K=1)
             number<1>{},
-            number<1>{}
-        );
+            number<1>{});
 
-        // B is row-major: K×N with stride ldb between rows
+        // B is column-major: K×N with stride ldb between columns (K is contiguous)
         const auto b_tensor = make_naive_tensor_view<address_space_enum::global>(
             b,
-            make_tuple(K, N),         // Shape: K×N
-            make_tuple(ldb, 1),       // Strides: row-major
+            make_tuple(K, N),   // Shape: K×N
+            make_tuple(1, ldb), // Strides: column-major (stride_K=1, stride_N=ldb)
             number<4>{},
-            number<1>{}
-        );
+            number<1>{});
 
-        // C is column-major: M×N with stride ldc between columns
+        // C is row-major: M×N with stride ldc between rows (N is contiguous)
         const auto c_tensor = make_naive_tensor_view<address_space_enum::global>(
             c,
-            make_tuple(M, N),         // Shape: M×N
-            make_tuple(1, ldc),       // Strides: column-major
+            make_tuple(M, N),   // Shape: M×N
+            make_tuple(ldc, 1), // Strides: row-major (stride_M=ldc, stride_N=1)
             number<1>{},
-            number<1>{}
-        );
+            number<1>{});
 
-        // D is column-major: M×N with stride ldd between columns
+        // D is row-major: M×N with stride ldd between rows (N is contiguous)
         auto d_tensor = make_naive_tensor_view<address_space_enum::global>(
             d,
-            make_tuple(M, N),         // Shape: M×N
-            make_tuple(1, ldd),       // Strides: column-major
+            make_tuple(M, N),   // Shape: M×N
+            make_tuple(ldd, 1), // Strides: row-major (stride_M=ldd, stride_N=1)
             number<1>{},
-            number<1>{}
-        );
+            number<1>{});
 
-        // Use our tested custom distributions from test_a_distribution.cpp and test_b_distribution.cpp
-        // A: Column-major M×K with each thread loading 4 consecutive K values from one M position
-        constexpr auto a_distribution = make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<>,                           // No replication
-                tuple<sequence<16>,                  // H0 (M): 16 lanes for M
-                      sequence<4, 4>>,                // H1 (K): 4 lanes × 4 per lane
-                tuple<sequence<2, 1>>,                // P-dims map to H-dims
-                tuple<sequence<0, 0>>,                // P positions in H-dims
-                sequence<2>,                          // Y maps to K dimension only
-                sequence<1>>{}                        // Y at position 1
-        );
+        // Use our tested custom distributions from test_a_distribution.cpp and
+        // test_b_distribution.cpp A: Column-major M×K with each thread loading 4 consecutive K
+        // values from one M position
+        constexpr auto a_distribution = WarpGemm::AWarpDstr{};
 
         // B: Row-major K×N with each thread loading 4 consecutive K values from one N position
-        constexpr auto b_distribution = make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<>,                           // No replication
-                tuple<sequence<4, 4>,                // H0 (K): 4 groups of 4 consecutive K values
-                      sequence<16>>,                  // H1 (N): 16 N positions
-                tuple<sequence<1, 2>>,                // P-dims map to H-dims (P0->H1, P1->H0)
-                tuple<sequence<0, 0>>,                // P positions in H-dims
-                sequence<1>,                          // Y maps to K dimension (H0)
-                sequence<1>>{}                        // Y at position 1 in H0 (the second 4 in sequence<4,4>)
-        );
+        constexpr auto b_distribution = WarpGemm::BWarpDstr{};
+        // constexpr auto b_distribution = make_static_tile_distribution(
+        //     tile_distribution_encoding<sequence<>,
+        //                                tuple<sequence<32>, sequence<2, 4 * 2>>,
+        //                                tuple<sequence<2, 1>>,
+        //                                tuple<sequence<0, 0>>,
+        //                                sequence<2>,
+        //                                sequence<1>>{});
 
         // Create windows for A and B that we'll move along K
-        auto a_window = make_tile_window(
-            a_tensor,
-            make_tuple(number<kBlockM>{}, number<kBlockK>{}),
-            {m_offset, 0},
-            a_distribution
-        );
+        auto a_window = make_tile_window(a_tensor,
+                                         make_tuple(number<kBlockM>{}, number<kBlockK>{}),
+                                         {m_offset, 0},
+                                         a_distribution);
 
-        auto b_window = make_tile_window(
-            b_tensor,
-            make_tuple(number<kBlockK>{}, number<kBlockN>{}),
-            {0, n_offset},
-            b_distribution
-        );
+        auto b_window = make_tile_window(b_tensor,
+                                         make_tuple(number<kBlockK>{}, number<kBlockN>{}),
+                                         {0, n_offset},
+                                         b_distribution);
 
         // C distribution (column-major M×N output) - tested in test_c_distribution.cpp
-        constexpr auto c_distribution = make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<>,                           // No replication
-                tuple<sequence<4, 4>,                // H0 (M): 4 groups of 4 consecutive M values
-                      sequence<16>>,                  // H1 (N): 16 N positions
-                tuple<sequence<1, 2>>,                // P-dims map to H-dims (P0->H1, P1->H0)
-                tuple<sequence<0, 0>>,                // P positions in H-dims
-                sequence<1>,                          // Y maps to M dimension (H0)
-                sequence<1>>{}                        // Y at position 1 in H0 (the second 4 in sequence<4,4>)
-        );
+        constexpr auto c_distribution = WarpGemm::CWarpDstr{};
 
         // Create accumulator using our tested C distribution
         auto acc_tile = make_static_distributed_tensor<AccDataType>(c_distribution);
@@ -172,15 +147,38 @@ struct DistributedHgemmKernel
             const auto a_tile = load_tile(a_window);
             const auto b_tile = load_tile(b_window);
 
+            if(threadIdx.x == 0)
+            {
+                printf("a buf: {%.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f}\nb buf: {%.3f, "
+                       "%.3f, %.3f, %.3f, %.3f, %.3f, %.3f, %.3f}\n",
+                       ck_tile::type_convert<float>(a_tile.get_thread_buffer()[0]),
+                       ck_tile::type_convert<float>(a_tile.get_thread_buffer()[1]),
+                       ck_tile::type_convert<float>(a_tile.get_thread_buffer()[2]),
+                       ck_tile::type_convert<float>(a_tile.get_thread_buffer()[3]),
+                       ck_tile::type_convert<float>(a_tile.get_thread_buffer()[4]),
+                       ck_tile::type_convert<float>(a_tile.get_thread_buffer()[5]),
+                       ck_tile::type_convert<float>(a_tile.get_thread_buffer()[6]),
+                       ck_tile::type_convert<float>(a_tile.get_thread_buffer()[7]),
+                       ck_tile::type_convert<float>(b_tile.get_thread_buffer()[0]),
+                       ck_tile::type_convert<float>(b_tile.get_thread_buffer()[1]),
+                       ck_tile::type_convert<float>(b_tile.get_thread_buffer()[2]),
+                       ck_tile::type_convert<float>(b_tile.get_thread_buffer()[3]),
+                       ck_tile::type_convert<float>(b_tile.get_thread_buffer()[4]),
+                       ck_tile::type_convert<float>(b_tile.get_thread_buffer()[5]),
+                       ck_tile::type_convert<float>(b_tile.get_thread_buffer()[6]),
+                       ck_tile::type_convert<float>(b_tile.get_thread_buffer()[7]));
+            }
+
             // Use WarpGemm to perform MFMA
             // This properly calls the MFMA instruction with the right distributions
             WarpGemm{}(acc_tile, a_tile, b_tile);
 
             // Move windows to next K chunk using the move API
             // This efficiently updates window_origin_ without recreating the window
-            if(k_iter < num_k_loops - 1) {
-                a_window.move({0, kBlockK});  // Move K forward for A
-                b_window.move({kBlockK, 0});  // Move K forward for B
+            if(k_iter < num_k_loops - 1)
+            {
+                a_window.move({0, kBlockK}); // Move K forward for A
+                b_window.move({kBlockK, 0}); // Move K forward for B
             }
         }
 
@@ -191,131 +189,139 @@ struct DistributedHgemmKernel
         // Load C, apply beta, and add to result
         if(std::abs(beta) > 1e-6f)
         {
-            auto c_window = make_tile_window(
-                c_tensor,
-                make_tuple(number<kBlockM>{}, number<kBlockN>{}),
-                {m_offset, n_offset},
-                c_distribution
-            );
+            auto c_window = make_tile_window(c_tensor,
+                                             make_tuple(number<kBlockM>{}, number<kBlockN>{}),
+                                             {m_offset, n_offset},
+                                             c_distribution);
 
             const auto c_tile = load_tile(c_window);
 
             // Apply beta * C + acc using ck_tile's elementwise API
             // This combines two tiles with a lambda function
             tile_elementwise_inout(
-                [beta](const auto& c_val, auto& acc_val) {
-                    acc_val += beta * c_val;
-                },
-                c_tile, acc_tile);
+                [beta](const auto& c_val, auto& acc_val) { acc_val += beta * c_val; },
+                c_tile,
+                acc_tile);
         }
 
         // Store final result to D
-        auto d_window = make_tile_window(
-            d_tensor,
-            make_tuple(number<kBlockM>{}, number<kBlockN>{}),
-            {m_offset, n_offset},
-            c_distribution
-        );
+        auto d_window = make_tile_window(d_tensor,
+                                         make_tuple(number<kBlockM>{}, number<kBlockN>{}),
+                                         {m_offset, n_offset},
+                                         c_distribution);
 
         store_tile(d_window, acc_tile);
     }
 };
 
 // CPU reference for verification
-template<typename InType, typename AccType>
-void reference_gemm_mixed(const std::vector<InType>& a,    // Column-major
-                          const std::vector<InType>& b,    // Row-major
-                          const std::vector<AccType>& c,   // Column-major
-                          std::vector<AccType>& d,         // Column-major
-                          index_t M, index_t N, index_t K,
-                          index_t lda, index_t ldb, index_t ldc, index_t ldd,
-                          AccType alpha, AccType beta)
+template <typename InType, typename AccType>
+void reference_gemm_mixed(const std::vector<InType>& a,  // Row-major
+                          const std::vector<InType>& b,  // Col-major
+                          const std::vector<AccType>& c, // Row-major
+                          std::vector<AccType>& d,       // Row-major
+                          index_t M,
+                          index_t N,
+                          index_t K,
+                          index_t lda,
+                          index_t ldb,
+                          index_t ldc,
+                          index_t ldd,
+                          AccType alpha,
+                          AccType beta)
 {
     // D = alpha * A * B + beta * C
-    for(index_t n = 0; n < N; ++n) {
-        for(index_t m = 0; m < M; ++m) {
+    for(index_t m = 0; m < M; ++m)
+    {
+        for(index_t n = 0; n < N; ++n)
+        {
             AccType sum = 0;
 
             // Compute A * B
-            for(index_t k = 0; k < K; ++k) {
-                // A is column-major: A[m,k] = a[m + k*lda]
-                // B is row-major: B[k,n] = b[k*ldb + n]
-                sum += static_cast<AccType>(a[m + k * lda]) *
-                       static_cast<AccType>(b[k * ldb + n]);
+            for(index_t k = 0; k < K; ++k)
+            {
+                // A is row-major: A[m,k] = a[m*lda + k]
+                // B is column-major: B[k,n] = b[k + n*ldb]
+                sum += static_cast<AccType>(a[m * lda + k]) * static_cast<AccType>(b[k + n * ldb]);
             }
 
             // D[m,n] = alpha * sum + beta * C[m,n]
-            // Both C and D are column-major
-            d[m + n * ldd] = alpha * sum + beta * c[m + n * ldc];
+            // Both C and D are row-major
+            d[m * ldd + n] = alpha * sum + beta * c[m * ldc + n];
         }
     }
 }
 
 // Helper to fill matrix with random values
-template<typename T>
+template <typename T>
 void fill_random(std::vector<T>& data, T min_val = -1, T max_val = 1)
 {
-    for(auto& val : data) {
-        val = static_cast<T>(min_val + (max_val - min_val) *
-                             static_cast<float>(rand()) / RAND_MAX);
+    for(auto& val : data)
+    {
+        val = static_cast<T>(min_val + (max_val - min_val) * static_cast<float>(rand()) / RAND_MAX);
     }
 }
 
 // Helper to print matrix (for debugging)
-template<typename T>
-void print_matrix(const std::vector<T>& mat, index_t rows, index_t cols,
-                  index_t ld, bool col_major = true, const std::string& name = "Matrix")
+template <typename T>
+void print_matrix(const std::vector<T>& mat,
+                  index_t rows,
+                  index_t cols,
+                  index_t ld,
+                  bool col_major          = true,
+                  const std::string& name = "Matrix")
 {
     std::cout << name << " (" << rows << "×" << cols << "):\n";
-    for(index_t i = 0; i < std::min(rows, index_t(8)); ++i) {
-        for(index_t j = 0; j < std::min(cols, index_t(8)); ++j) {
+    for(index_t i = 0; i < rows; ++i)
+    {
+        for(index_t j = 0; j < cols; ++j)
+        {
             index_t idx = col_major ? (i + j * ld) : (i * ld + j);
-            std::cout << std::setw(8) << std::setprecision(3) << mat[idx] << " ";
+            std::cout << std::setw(8) << std::setprecision(3)
+                      << ck_tile::type_convert<float>(mat[idx]) << " ";
         }
-        if(cols > 8) std::cout << "...";
         std::cout << "\n";
     }
-    if(rows > 8) std::cout << "...\n";
     std::cout << "\n";
 }
 
 int main()
 {
-    std::cout << "\n==================================================\n";
-    std::cout << "Stage 10b: Distributed HGEMM with ck_tile\n";
-    std::cout << "==================================================\n\n";
+    // std::cout << "\n==================================================\n";
+    // std::cout << "Stage 10b: Distributed HGEMM with ck_tile\n";
+    // std::cout << "==================================================\n\n";
 
-    std::cout << "Key features:\n";
-    std::cout << "• Uses tile_distribution for both A and B matrices\n";
-    std::cout << "• A is column-major, B is row-major (like MLSE example)\n";
-    std::cout << "• Half-precision inputs (fp16) with fp32 accumulation\n";
-    std::cout << "• Non-contiguous loads for A and B\n";
-    std::cout << "• Uses move_tile_window to advance along K dimension\n\n";
+    // std::cout << "Key features:\n";
+    // std::cout << "• Uses tile_distribution for both A and B matrices\n";
+    // std::cout << "• A is row-major, B is column-major\n";
+    // std::cout << "• Half-precision inputs (fp16) with fp32 accumulation\n";
+    // std::cout << "• Non-contiguous loads for A and B\n";
+    // std::cout << "• Uses move_tile_window to advance along K dimension\n\n";
 
     // Test configuration - must be multiples of 16
-    constexpr index_t M = 64;
-    constexpr index_t N = 64;
-    constexpr index_t K = 64;
+    constexpr index_t M = 32;
+    constexpr index_t N = 32;
+    constexpr index_t K = 16;
 
     // Leading dimensions
-    constexpr index_t lda = M;  // Column-major
-    constexpr index_t ldb = N;  // Row-major
-    constexpr index_t ldc = M;  // Column-major
-    constexpr index_t ldd = M;  // Column-major
+    constexpr index_t lda = K; // Row-major
+    constexpr index_t ldb = K; // Col-major
+    constexpr index_t ldc = N; // Row-major
+    constexpr index_t ldd = N; // Row-major
 
-    using InputType = half_t;   // fp16
-    using AccumType = float;    // fp32
+    using InputType = half_t; // fp16
+    using AccumType = float;  // fp32
 
-    constexpr AccumType alpha = 2.0f;
-    constexpr AccumType beta = 1.5f;
+    constexpr AccumType alpha = 1.0f;
+    constexpr AccumType beta  = 1.0f;
 
     std::cout << "Problem configuration:\n";
     std::cout << "  M×N×K: " << M << "×" << N << "×" << K << "\n";
-    std::cout << "  A: column-major, lda=" << lda << " (fp16)\n";
-    std::cout << "  B: row-major, ldb=" << ldb << " (fp16)\n";
-    std::cout << "  C/D: column-major, ldc=" << ldc << ", ldd=" << ldd << " (fp32)\n";
-    std::cout << "  alpha=" << alpha << ", beta=" << beta << "\n";
-    std::cout << "  Total FLOPs: " << 2*M*N*K << "\n\n";
+    // std::cout << "  A: row-major, lda=" << lda << " (fp16)\n";
+    // std::cout << "  B: column-major, ldb=" << ldb << " (fp16)\n";
+    // std::cout << "  C/D: row-major, ldc=" << ldc << ", ldd=" << ldd << " (fp32)\n";
+    // std::cout << "  alpha=" << alpha << ", beta=" << beta << "\n";
+    // std::cout << "  Total FLOPs: " << 2 * M * N * K << "\n\n";
 
     // Host memory
     std::vector<InputType> h_a(M * K);
@@ -333,7 +339,7 @@ int main()
     // CPU reference
     auto cpu_start = std::chrono::high_resolution_clock::now();
     reference_gemm_mixed(h_a, h_b, h_c, h_d_ref, M, N, K, lda, ldb, ldc, ldd, alpha, beta);
-    auto cpu_end = std::chrono::high_resolution_clock::now();
+    auto cpu_end       = std::chrono::high_resolution_clock::now();
     double cpu_time_ms = std::chrono::duration<double, std::milli>(cpu_end - cpu_start).count();
 
     // Device memory
@@ -348,30 +354,39 @@ int main()
     d_d.ToDevice(h_d.data(), M * N * sizeof(AccumType));
 
     // Launch kernel
-    constexpr index_t block_size = 64;  // One wave
-    const index_t grid_size = (M / 16) * (N / 16);  // One wave per 16×16 output block
+    constexpr index_t block_size = 64;                  // One wave
+    const index_t grid_size      = (M / 32) * (N / 32); // One wave per 32×32 output block
 
-    std::cout << "Launching kernel:\n";
-    std::cout << "  Grid: " << grid_size << " blocks\n";
-    std::cout << "  Block: " << block_size << " threads (1 wave)\n";
-    std::cout << "  Output blocks: " << (M/16) << "×" << (N/16) << " = " << grid_size << "\n";
-    std::cout << "  MFMA instructions per block: " << K/16 << "\n\n";
+    // std::cout << "Launching kernel:\n";
+    // std::cout << "  Grid: " << grid_size << " blocks\n";
+    // std::cout << "  Block: " << block_size << " threads (1 wave)\n";
+    // std::cout << "  Output blocks: " << (M / 32) << "×" << (N / 32) << " = " << grid_size <<
+    // "\n"; std::cout << "  MFMA instructions per block: " << K / 8 << "\n\n";
 
     stream_config stream;
 
     // Warmup
-    for(int i = 0; i < 5; ++i) {
+    for(int i = 0; i < 0; ++i)
+    {
         launch_kernel(stream,
-                     make_kernel<block_size>(
-                         DistributedHgemmKernel<InputType, InputType, AccumType, AccumType>{},
-                         dim3(grid_size),
-                         dim3(block_size),
-                         0,
-                         static_cast<const InputType*>(d_a.GetDeviceBuffer()),
-                         static_cast<const InputType*>(d_b.GetDeviceBuffer()),
-                         static_cast<const AccumType*>(d_c.GetDeviceBuffer()),
-                         static_cast<AccumType*>(d_d.GetDeviceBuffer()),
-                         M, N, K, lda, ldb, ldc, ldd, alpha, beta));
+                      make_kernel<block_size>(
+                          DistributedHgemmKernel<InputType, InputType, AccumType, AccumType>{},
+                          dim3(grid_size),
+                          dim3(block_size),
+                          0,
+                          static_cast<const InputType*>(d_a.GetDeviceBuffer()),
+                          static_cast<const InputType*>(d_b.GetDeviceBuffer()),
+                          static_cast<const AccumType*>(d_c.GetDeviceBuffer()),
+                          static_cast<AccumType*>(d_d.GetDeviceBuffer()),
+                          M,
+                          N,
+                          K,
+                          lda,
+                          ldb,
+                          ldc,
+                          ldd,
+                          alpha,
+                          beta));
     }
     hip_check_error(hipDeviceSynchronize());
 
@@ -379,40 +394,50 @@ int main()
     auto gpu_start = std::chrono::high_resolution_clock::now();
 
     launch_kernel(stream,
-                 make_kernel<block_size>(
-                     DistributedHgemmKernel<InputType, InputType, AccumType, AccumType>{},
-                     dim3(grid_size),
-                     dim3(block_size),
-                     0,
-                     static_cast<const InputType*>(d_a.GetDeviceBuffer()),
-                     static_cast<const InputType*>(d_b.GetDeviceBuffer()),
-                     static_cast<const AccumType*>(d_c.GetDeviceBuffer()),
-                     static_cast<AccumType*>(d_d.GetDeviceBuffer()),
-                     M, N, K, lda, ldb, ldc, ldd, alpha, beta));
+                  make_kernel<block_size>(
+                      DistributedHgemmKernel<InputType, InputType, AccumType, AccumType>{},
+                      dim3(grid_size),
+                      dim3(block_size),
+                      0,
+                      static_cast<const InputType*>(d_a.GetDeviceBuffer()),
+                      static_cast<const InputType*>(d_b.GetDeviceBuffer()),
+                      static_cast<const AccumType*>(d_c.GetDeviceBuffer()),
+                      static_cast<AccumType*>(d_d.GetDeviceBuffer()),
+                      M,
+                      N,
+                      K,
+                      lda,
+                      ldb,
+                      ldc,
+                      ldd,
+                      alpha,
+                      beta));
 
     hip_check_error(hipDeviceSynchronize());
 
-    auto gpu_end = std::chrono::high_resolution_clock::now();
+    auto gpu_end       = std::chrono::high_resolution_clock::now();
     double gpu_time_ms = std::chrono::duration<double, std::milli>(gpu_end - gpu_start).count();
 
     // Get result
     d_d.FromDevice(h_d.data(), M * N * sizeof(AccumType));
 
     // Verify
-    bool passed = true;
-    float max_error = 0;
+    bool passed         = true;
+    float max_error     = 0;
     index_t error_count = 0;
 
-    for(index_t i = 0; i < M * N; ++i) {
+    for(index_t i = 0; i < M * N; ++i)
+    {
         float error = std::abs(h_d[i] - h_d_ref[i]);
-        max_error = std::max(max_error, error);
-        if(error > 1e-2f) {  // Relaxed tolerance for fp16
-            if(error_count < 5) {
+        max_error   = std::max(max_error, error);
+        if(error > 1e-2f)
+        { // Relaxed tolerance for fp16
+            if(error_count < 5)
+            {
                 index_t m = i % M;
                 index_t n = i / M;
-                std::cout << "Error at [" << m << "," << n << "]: "
-                          << h_d[i] << " vs " << h_d_ref[i]
-                          << " (diff=" << error << ")\n";
+                std::cout << "Error at [" << m << "," << n << "]: " << h_d[i] << " vs "
+                          << h_d_ref[i] << " (diff=" << error << ")\n";
             }
             error_count++;
         }
@@ -421,14 +446,15 @@ int main()
     passed = (error_count == 0);
 
     // Calculate performance
-    double gflops = 2.0 * M * N * K / 1e9;
+    double gflops     = 2.0 * M * N * K / 1e9;
     double gpu_tflops = gflops / (gpu_time_ms / 1000);
     double cpu_gflops = gflops / (cpu_time_ms / 1000);
 
     std::cout << "Results:\n";
     std::cout << "  Correctness: " << (passed ? "✓ PASSED" : "✗ FAILED") << "\n";
     std::cout << "  Max error: " << max_error << "\n";
-    if(!passed) std::cout << "  Error count: " << error_count << "/" << M*N << "\n";
+    if(!passed)
+        std::cout << "  Error count: " << error_count << "/" << M * N << "\n";
     std::cout << "\n";
 
     std::cout << "Performance:\n";
@@ -436,19 +462,19 @@ int main()
     std::cout << "  GPU time: " << gpu_time_ms << " ms (" << gpu_tflops << " TFLOPS)\n";
     std::cout << "  Speedup: " << cpu_time_ms / gpu_time_ms << "x\n\n";
 
-#ifdef DEBUG_OUTPUT
+    // #ifdef DEBUG_OUTPUT
     // Print sample outputs for debugging
-    print_matrix(h_a, M, K, lda, true, "A (col-major)");
-    print_matrix(h_b, K, N, ldb, false, "B (row-major)");
-    print_matrix(h_c, M, N, ldc, true, "C (col-major)");
-    print_matrix(h_d_ref, M, N, ldd, true, "D_ref (col-major)");
-    print_matrix(h_d, M, N, ldd, true, "D_gpu (col-major)");
-#endif
+    print_matrix(h_a, M, K, lda, false, "A (row-major)");
+    print_matrix(h_b, K, N, ldb, true, "B (col-major)");
+    // print_matrix(h_c, M, N, ldc, true, "C (col-major)");
+    // print_matrix(h_d_ref, M, N, ldd, false, "D_ref (row-major)");
+    // print_matrix(h_d, M, N, ldd, false, "D_gpu (row-major)");
+    // #endif
 
     std::cout << "=== Key Insights ===\n";
     std::cout << "• Y dimensions should map to vector position in hierarchical factorization\n";
     std::cout << "• move_tile_window efficiently advances along K dimension\n";
-    std::cout << "• Column-major A and row-major B require different distributions\n";
+    std::cout << "• Row-major A and column-major B require different distributions\n";
     std::cout << "• Each thread loads 4 elements (2x fp16 = 32 bits per load)\n";
     std::cout << "• MFMA efficiently computes 16×16×16 in one instruction\n";
     std::cout << "• This pattern extends to production GEMM kernels\n\n";
