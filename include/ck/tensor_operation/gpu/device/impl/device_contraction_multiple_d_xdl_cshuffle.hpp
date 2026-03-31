@@ -809,7 +809,11 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             << AK1 << ", "
             << BK1 << ", "
             << ABlockTransferSrcVectorDim << ", "
-            << BBlockTransferSrcVectorDim
+            << BBlockTransferSrcVectorDim << ", "
+            << ABlockTransferSrcScalarPerVector << ", "
+            << BBlockTransferSrcScalarPerVector << ", "
+            << ABlockLdsExtraM << ", "
+            << BBlockLdsExtraN
             << ">";
         // clang-format on
 
