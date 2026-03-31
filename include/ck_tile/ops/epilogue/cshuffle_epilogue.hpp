@@ -336,9 +336,6 @@ struct CShuffleEpilogue
             constexpr index_t BaseWords  = ToWords(BaseStrideElems);
             constexpr index_t PadWords   = ((BaseWords % 2) == 0) ? 1 : 0;
             constexpr auto PaddingAmount = PadWords * ElemsPer4B;
-#else
-            constexpr auto PaddingAmount = 0;
-#endif
 
             constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<MPerIterationShuffle / MLdsLayer>{},
@@ -369,6 +366,18 @@ struct CShuffleEpilogue
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
             return lds_block_desc;
+
+#else
+            constexpr auto PaddingAmount = 0;
+
+            constexpr auto lds_block_desc = make_naive_tensor_descriptor(
+                make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
+                make_tuple(number<NPerIterationShuffle + PaddingAmount>{}, number<1>{}),
+                number<VectorLen>{},
+                number<1>{});
+
+            return lds_block_desc;
+#endif
         }
         // M is contiguous dimension
         else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
