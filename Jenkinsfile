@@ -1189,10 +1189,13 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_
                                               0 11 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
                                               0 9 * * * % RUN_PYTORCH_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
 
+POLL_SPEC = BRANCH_NAME == "develop" ? 'H/15 * * * *' : ''
+
 pipeline {
     agent none
     triggers {
         parameterizedCron(CRON_SETTINGS)
+        pollSCM(POLL_SPEC)
     }
     options {
         skipDefaultCheckout()
