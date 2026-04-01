@@ -904,14 +904,13 @@ struct UnifiedAttentionPipeline
             auto ps_pi        = number<1>{} - d;
             auto V_lds_rd_idx = ps_pi;
 
-            if(1 < num_total_loop)
-            {
-                s_waitcnt_vmcnt<K_mem_su_ld_insts>();
-            }
-            else
-            {
-                s_waitcnt_vmcnt<0>();
-            }
+            // Wait for the last V tile's async load to complete before reading from LDS.
+            // The main loop's final iteration never prefetches K (i_total_loops+1 ==
+            // num_total_loop), so only V loads are outstanding here.  The original
+            // s_waitcnt_vmcnt<K_mem_su_ld_insts> was a no-op when V_su_ld_insts ==
+            // K_su_ld_insts (e.g. both 2 for kPageBlockSize=32), causing a race where
+            // V_lds_load read stale LDS before the async V load finished.
+            s_waitcnt_vmcnt<0>();
             __builtin_amdgcn_s_barrier();
 
             V_lds_load(V_lds_rd_idx);
