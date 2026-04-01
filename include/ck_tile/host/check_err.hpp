@@ -58,6 +58,7 @@ CK_TILE_HOST double get_relative_threshold(const int number_of_accumulations = 1
                             F16,
                             BF16,
                             F32,
+                            tf32_t,
                             pk_fp4_t,
                             pk_fp4_raw_t,
                             pk_int4_t,
@@ -76,8 +77,9 @@ CK_TILE_HOST double get_relative_threshold(const int number_of_accumulations = 1
         compute_error = std::pow(2, -numeric_traits<ComputeDataType>::mant) * 0.5;
     }
 
-    static_assert(is_any_of<OutDataType, F8, BF8, F16, BF16, F32, pk_int4_t, I8, I32, int>::value,
-                  "Warning: Unhandled OutDataType for setting up the relative threshold!");
+    static_assert(
+        is_any_of<OutDataType, F8, BF8, F16, BF16, F32, tf32_t, pk_int4_t, I8, I32, int>::value,
+        "Warning: Unhandled OutDataType for setting up the relative threshold!");
 
     double output_error = 0;
     if constexpr(is_any_of<OutDataType, pk_int4_t, I8, I32, int>::value)
@@ -90,8 +92,9 @@ CK_TILE_HOST double get_relative_threshold(const int number_of_accumulations = 1
     }
     double midway_error = std::max(compute_error, output_error);
 
-    static_assert(is_any_of<AccDataType, F8, BF8, F16, BF16, F32, pk_int4_t, I8, I32, int>::value,
-                  "Warning: Unhandled AccDataType for setting up the relative threshold!");
+    static_assert(
+        is_any_of<AccDataType, F8, BF8, F16, BF16, F32, tf32_t, pk_int4_t, I8, I32, int>::value,
+        "Warning: Unhandled AccDataType for setting up the relative threshold!");
 
     double acc_error = 0;
     if constexpr(is_any_of<AccDataType, pk_int4_t, I8, I32, int>::value)
@@ -129,6 +132,7 @@ CK_TILE_HOST double get_absolute_threshold(const double max_possible_num,
                             F16,
                             BF16,
                             F32,
+                            tf32_t,
                             pk_fp4_t,
                             pk_fp4_raw_t,
                             pk_int4_t,
@@ -151,8 +155,9 @@ CK_TILE_HOST double get_absolute_threshold(const double max_possible_num,
         compute_error = std::pow(2, discrete_expo - numeric_traits<ComputeDataType>::mant) * 0.5;
     }
 
-    static_assert(is_any_of<OutDataType, F8, BF8, F16, BF16, F32, pk_int4_t, I8, I32, int>::value,
-                  "Warning: Unhandled OutDataType for setting up the absolute threshold!");
+    static_assert(
+        is_any_of<OutDataType, F8, BF8, F16, BF16, F32, tf32_t, pk_int4_t, I8, I32, int>::value,
+        "Warning: Unhandled OutDataType for setting up the absolute threshold!");
 
     double output_error = 0;
     if constexpr(is_any_of<OutDataType, pk_int4_t, I8, I32, int>::value)
@@ -168,8 +173,9 @@ CK_TILE_HOST double get_absolute_threshold(const double max_possible_num,
     }
     double midway_error = std::max(compute_error, output_error);
 
-    static_assert(is_any_of<AccDataType, F8, BF8, F16, BF16, F32, pk_int4_t, I8, I32, int>::value,
-                  "Warning: Unhandled AccDataType for setting up the absolute threshold!");
+    static_assert(
+        is_any_of<AccDataType, F8, BF8, F16, BF16, F32, tf32_t, pk_int4_t, I8, I32, int>::value,
+        "Warning: Unhandled AccDataType for setting up the absolute threshold!");
 
     double acc_error = 0;
     if constexpr(is_any_of<AccDataType, pk_int4_t, I8, I32, int>::value)

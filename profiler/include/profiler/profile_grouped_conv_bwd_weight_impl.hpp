@@ -272,7 +272,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     index_t valid_instances     = 0;
 
     // profile device Conv instances
-    bool all_pass = true;
+    bool all_pass           = true;
+    bool dummy_run_executed = false;
 
     std::array<ck::index_t, NDimSpatial + 3> input_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> filter_lengths{};
@@ -400,8 +401,25 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
                 auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-                float avg_time =
-                    invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+                if(time_kernel && !dummy_run_executed)
+                {
+                    // Run first instance as dummy to get proper time from the first instance
+                    invoker_ptr->Run(argument_ptr.get(),
+                                     StreamConfig{nullptr,
+                                                  time_kernel,
+                                                  0 /*log_level*/,
+                                                  5 /*cold_iters*/,
+                                                  50 /*nrepeat_*/,
+                                                  time_kernel /*flush_cache*/});
+                    dummy_run_executed = true;
+                }
+                float avg_time = invoker_ptr->Run(argument_ptr.get(),
+                                                  StreamConfig{nullptr,
+                                                               time_kernel,
+                                                               0 /*log_level*/,
+                                                               5 /*cold_iters*/,
+                                                               50 /*nrepeat_*/,
+                                                               time_kernel /*flush_cache*/});
 
                 std::size_t flop      = conv_param.GetFlops();
                 std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();

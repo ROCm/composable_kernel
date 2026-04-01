@@ -872,7 +872,7 @@ struct FmhaBwdDQDKDVKernel
             }
 
             // skip if logical lengths are zero
-            if(kargs.seqlen_q == 0 || kargs.seqlen_k == 0)
+            if(kargs.seqlen_q == 0 && kargs.seqlen_k == 0)
             {
                 return;
             }

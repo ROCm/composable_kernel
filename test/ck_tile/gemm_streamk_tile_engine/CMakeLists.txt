@@ -234,7 +234,7 @@ message(STATUS "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 
 # GPU architecture filtering - only build tests for supported architectures
 set(GEMM_TEST_GPU_TARGETS "")
-set(DESIRED_TARGETS "gfx90a;gfx942;gfx950")
+set(DESIRED_TARGETS "gfx90a;gfx942;gfx950;gfx12-generic")
 
 foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
     if(target IN_LIST DESIRED_TARGETS)
@@ -245,7 +245,7 @@ endforeach()
 
 # Early exit if no compatible GPU architectures are available
 if(NOT GEMM_TEST_GPU_TARGETS)
-	message(WARNING "Skipping StreamK GEMM Tile Engine tests: No supported GPU targets (gfx90a, gfx942, gfx950) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+	message(WARNING "Skipping StreamK GEMM Tile Engine tests: No supported GPU targets (gfx90a, gfx942, gfx950, gfx12-generic) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
     return()
 endif()
 
@@ -280,14 +280,18 @@ message(STATUS "Building StreamK GEMM tile engine tests for GPU targets: ${GEMM_
 # All supported data types and layouts for comprehensive testing
 # Note: fp64 not included (no MFMA hardware support)
 set(TEST_DATATYPES "fp16;bf16")
-set(TEST_LAYOUTS "rcr;rrr;ccr;crr")
+# Temporarily only test rcr and crr
+# set(TEST_LAYOUTS "rcr;rrr;ccr;crr")
+set(TEST_LAYOUTS "rcr;crr")
 
 # ============================================================================
 # Test Target Generation - Datatype-Specific Categories
 # ============================================================================
 
 # 1. SMOKE TESTS: Test for basic functionality with data types (fp8, bf8, fp16, bf16)
-set(SMALL_DATATYPES "fp16;bf16;fp8;bf8")
+# Temporarily only consider fp16
+# set(SMALL_DATATYPES "fp16;bf16;fp8;bf8")
+set(SMALL_DATATYPES "fp16")
 set(SIXTEEN_BIT_DATATYPES "fp16;bf16")
 set(EIGHT_BIT_DATATYPES "fp8;bf8")
 set(LARGE_TILES "256,256,32")

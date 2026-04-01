@@ -418,7 +418,8 @@ struct UniversalGemmKernel
             }
         }
 
-        if(kargs.K < GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{}) * kargs.k_batch)
+        if(integer_divide_ceil(kargs.K, GemmPipeline::BlockGemmShape::WarpTile::at(number<2>{})) <
+           kargs.k_batch)
         {
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
@@ -447,23 +448,11 @@ struct UniversalGemmKernel
                 }
                 if(kargs.K % vectorSizeA != 0)
                 {
-                    const auto remainder = kargs.K % vectorSizeA;
-                    constexpr ck_tile::index_t APackedSize =
-                        ck_tile::numeric_traits<ADataType>::PackedSize;
-                    const auto remainder_in_bytes = remainder * sizeof(ADataType) / APackedSize;
-                    // oob can support to dword level
-                    if(remainder_in_bytes % 4 == 0)
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
-                        AsTensorIsValid = true;
+                        CK_TILE_ERROR("K is not a multiple of vector load size for A tensor!");
                     }
-                    else
-                    {
-                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                        {
-                            CK_TILE_ERROR("K is not a multiple of vector load size for A tensor!");
-                        }
-                        AsTensorIsValid = false;
-                    }
+                    AsTensorIsValid = false;
                 }
             }
             else
@@ -479,24 +468,11 @@ struct UniversalGemmKernel
                 }
                 if(kargs.M % vectorSizeA != 0)
                 {
-                    const auto remainder = kargs.M % vectorSizeA;
-                    constexpr ck_tile::index_t APackedSize =
-                        ck_tile::numeric_traits<ADataType>::PackedSize;
-                    const auto remainder_in_bytes = remainder * sizeof(ADataType) / APackedSize;
-                    // oob can support to dword level
-                    if(remainder_in_bytes % 4 == 0)
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
-
-                        AsTensorIsValid = true;
+                        CK_TILE_ERROR("M is not a multiple of vector load size for A tensor!");
                     }
-                    else
-                    {
-                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                        {
-                            CK_TILE_ERROR("M is not a multiple of vector load size for A tensor!");
-                        }
-                        AsTensorIsValid = false;
-                    }
+                    AsTensorIsValid = false;
                 }
             }
         });
@@ -519,58 +495,33 @@ struct UniversalGemmKernel
                 }
                 if(kargs.N % vectorSizeB != 0)
                 {
-                    const auto remainder = kargs.N % vectorSizeB;
-                    constexpr ck_tile::index_t BPackedSize =
-                        ck_tile::numeric_traits<BDataType>::PackedSize;
-                    const auto remainder_in_bytes = remainder * sizeof(BDataType) / BPackedSize;
-                    // oob can support to dword level
-                    if(remainder_in_bytes % 4 == 0)
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
-                        BsTensorIsValid = true;
+                        CK_TILE_ERROR("N is not a multiple of vector load size for B tensor!");
                     }
-                    else
-                    {
-                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                        {
-                            CK_TILE_ERROR("N is not a multiple of vector load size for B tensor!");
-                        }
-                        BsTensorIsValid = false;
-                    }
+                    BsTensorIsValid = false;
                 }
-                else
+            }
+            else
+            {
+                if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
+                   GemmPipeline::kPadK == false)
                 {
-                    if(kargs.K % (TilePartitioner::KPerBlock * kargs.k_batch) != 0 &&
-                       GemmPipeline::kPadK == false)
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
-                        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                        {
-                            CK_TILE_ERROR(
-                                "Can't support K that is not a multiple of k_batch * KPerBlock "
-                                "without padding!");
-                        }
-                        BsTensorIsValid = false;
+                        CK_TILE_ERROR(
+                            "Can't support K that is not a multiple of k_batch * KPerBlock "
+                            "without padding!");
                     }
-                    if(kargs.K % vectorSizeB != 0)
+                    BsTensorIsValid = false;
+                }
+                if(kargs.K % vectorSizeB != 0)
+                {
+                    if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                     {
-                        const auto remainder = kargs.K % vectorSizeB;
-                        constexpr ck_tile::index_t BPackedSize =
-                            ck_tile::numeric_traits<BDataType>::PackedSize;
-                        const auto remainder_in_bytes = remainder * sizeof(BDataType) / BPackedSize;
-                        // oob can support to dword level
-                        if(remainder_in_bytes % 4 == 0)
-                        {
-                            BsTensorIsValid = true;
-                        }
-                        else
-                        {
-                            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-                            {
-                                CK_TILE_ERROR(
-                                    "K is not a multiple of vector load size for B tensor!");
-                            }
-                            BsTensorIsValid = false;
-                        }
+                        CK_TILE_ERROR("K is not a multiple of vector load size for B tensor!");
                     }
+                    BsTensorIsValid = false;
                 }
             }
         });
@@ -1070,6 +1021,11 @@ struct UniversalGemmKernel
         const auto& e_tensor_view =
             make_tensor_view<address_space_enum::global, DstInMemOp>(e_ptr, e_desc);
 
+        // For bf16_t and atomic_add global_atomic_add is used instead of buffer_atomic_add
+        // Add padding for not contiguous dim due to the lack of OOB check
+        constexpr bool pad_not_contiguous_dim =
+            std::is_same_v<EDataType, bf16_t> && DstInMemOp == memory_operation_enum::atomic_add;
+
         // Step 2: Create padded view
         const auto& e_pad_view = [&]() {
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
@@ -1077,14 +1033,14 @@ struct UniversalGemmKernel
                 return pad_tensor_view(e_tensor_view,
                                        make_tuple(number<TilePartitioner::MPerBlock>{},
                                                   number<TilePartitioner::NPerBlock>{}),
-                                       sequence<false, GemmPipeline::kPadN>{});
+                                       sequence<pad_not_contiguous_dim, GemmPipeline::kPadN>{});
             }
             else
             {
                 return pad_tensor_view(e_tensor_view,
                                        make_tuple(number<TilePartitioner::MPerBlock>{},
                                                   number<TilePartitioner::NPerBlock>{}),
-                                       sequence<GemmPipeline::kPadM, false>{});
+                                       sequence<GemmPipeline::kPadM, pad_not_contiguous_dim>{});
             }
         }();
 

@@ -11,8 +11,7 @@
 
 #include "profiler/profile_batched_gemm_reduce_impl.hpp"
 
-static ck::index_t param_mask     = 0xffff;
-static ck::index_t instance_index = -1;
+static ck::index_t param_mask = 0xffff;
 struct GemmParams
 {
     ck::index_t M;
@@ -105,15 +104,14 @@ int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
     if(argc == 1) {}
-    else if(argc == 3)
+    else if(argc == 2)
     {
-        param_mask     = strtol(argv[1], nullptr, 0);
-        instance_index = atoi(argv[2]);
+        param_mask = strtol(argv[1], nullptr, 0);
     }
     else
     {
         std::cout << "Usage of " << argv[0] << std::endl;
-        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+        std::cout << "Arg1: param_mask " << std::endl;
     }
     return RUN_ALL_TESTS();
 }

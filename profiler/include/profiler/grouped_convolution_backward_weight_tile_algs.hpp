@@ -15,6 +15,7 @@
 #include "ck_tile/builder/testing/conv/ck_tile.hpp"
 #include "ck_tile/builder/testing/conv/reference.hpp"
 #include "ck_tile/builder/conv_builder.hpp"
+#include "tile_profiler_utils.hpp"
 
 namespace ck_tile::builder::profiling {
 
@@ -27,26 +28,6 @@ namespace ckt = ck_tile::builder::test;
 #include "../../../experimental/grouped_convolution_tile_instances/instances/backward_weight/grouped_convolution_backward_weight_tile_nhwgc_fp16.inc"
 #include "../../../experimental/grouped_convolution_tile_instances/instances/backward_weight/grouped_convolution_backward_weight_tile_ndhwgc_bf16.inc"
 #include "../../../experimental/grouped_convolution_tile_instances/instances/backward_weight/grouped_convolution_backward_weight_tile_ndhwgc_fp16.inc"
-
-std::vector<int> get_split_k_values(const std::string& split_k)
-{
-    std::vector<int> split_k_list = {/*auto deduce value*/ -1, 1, 2, 4, 8, 16, 32, 64, 128};
-
-    if(split_k != "all")
-    {
-        try
-        {
-            int split_k_value = std::stoi(split_k);
-            split_k_list      = {split_k_value};
-        }
-        catch(const std::exception& e)
-        {
-            std::cerr << e.what() << '\n';
-            exit(EXIT_FAILURE);
-        }
-    }
-    return split_k_list;
-}
 
 template <auto SIGNATURE>
 void run_cpu_validation(const ckt::Args<SIGNATURE>& args,
@@ -71,36 +52,6 @@ void run_cpu_validation(const ckt::Args<SIGNATURE>& args,
     ck_tile::check_err(wei, ref, "\tError: Incorrect results!");
 }
 
-template <auto SIGNATURE>
-std::tuple<double, double>
-get_rtol_atol(const int num_accums, const int k_batch, const float max_accumulated_value)
-{
-    using WeiDataType =
-        std::conditional_t<SIGNATURE.data_type == ckb::DataType::FP32,
-                           float,
-                           std::conditional_t<SIGNATURE.data_type == ckb::DataType::FP16,
-                                              ck_tile::half_t,
-                                              ck_tile::bfloat16_t>>;
-    using ComputeType = WeiDataType;
-    using AccDataType = float;
-
-    // Assign middle value of the range for auto deduce
-    const int num_accums_split_k = k_batch > 0 ? k_batch : 64;
-    auto rtol = ck_tile::get_relative_threshold<ComputeType, WeiDataType, AccDataType>(
-        num_accums / num_accums_split_k);
-    auto atol = ck_tile::get_absolute_threshold<ComputeType, WeiDataType, AccDataType>(
-        max_accumulated_value / num_accums_split_k, num_accums / num_accums_split_k);
-    // Calculate error due to split_k accumulation
-    auto rtol_split_k =
-        ck_tile::get_relative_threshold<WeiDataType, WeiDataType, WeiDataType>(num_accums_split_k);
-    auto atol_split_k = ck_tile::get_absolute_threshold<WeiDataType, WeiDataType, WeiDataType>(
-        max_accumulated_value, num_accums_split_k);
-    // Use higher threshold
-    rtol = std::max(rtol, rtol_split_k);
-    atol = std::max(atol, atol_split_k);
-    return std::make_tuple(rtol, atol);
-}
-
 /// @brief `run_grouped_conv_backward_weight_tile_algs()` run all grouped conv fwd instances.
 ///
 /// @tparam SIGNATURE Forward convolution signature.
@@ -114,7 +65,8 @@ run_grouped_conv_backward_weight_tile_algs(const ckt::Args<SIGNATURE>& args,
                                            const ckt::Outputs<SIGNATURE>& outputs,
                                            const ck_tile::stream_config& s_conf)
 {
-    float best_avg_time = std::numeric_limits<float>::max();
+    bool dummy_run_executed = false;
+    float best_avg_time     = std::numeric_limits<float>::max();
     std::string best_op_name, op_name;
     int best_split_k;
     bool is_supported;
@@ -154,6 +106,13 @@ run_grouped_conv_backward_weight_tile_algs(const ckt::Args<SIGNATURE>& args,
         {
             ckt::Args<SIGNATURE> args_k_batch = args;
             args_k_batch.k_batch              = k_batch;
+            if((s_conf.time_kernel_ || s_conf.flush_cache_) && !dummy_run_executed)
+            {
+                // Run first instance twice when profiling to stabilize timing
+                std::tie(is_supported, avg_time, op_name) =
+                    run_alg_func(args_k_batch, inputs, outputs, s_conf);
+                dummy_run_executed = true;
+            }
             std::tie(is_supported, avg_time, op_name) =
                 run_alg_func(args_k_batch, inputs, outputs, s_conf);
             if(is_supported)
@@ -170,11 +129,11 @@ run_grouped_conv_backward_weight_tile_algs(const ckt::Args<SIGNATURE>& args,
                     });
 
                 const bool valid = report.get_errors().empty();
+                best_avg_time    = std::min(best_avg_time, avg_time);
+                best_op_name     = best_avg_time < avg_time ? best_op_name : op_name;
+                best_split_k     = best_avg_time < avg_time ? best_split_k : k_batch;
                 if(valid)
                 {
-                    best_avg_time = std::min(best_avg_time, avg_time);
-                    best_op_name  = best_avg_time < avg_time ? best_op_name : op_name;
-                    best_split_k  = best_avg_time < avg_time ? best_split_k : k_batch;
                     std::cout << "[Valid] Perf: " << std::setw(10) << avg_time << " ms," << " "
                               << op_name << ", SplitK " << k_batch << std::endl;
                 }

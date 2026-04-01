@@ -159,17 +159,16 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
         const auto [seqlen_q_start, seqlen_q_end] =
             mask.GetTileRangeAlongY(k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
-        const auto num_total_loop = integer_divide_ceil(seqlen_q_end - seqlen_q_start, kM0);
+        const auto num_total_loop =
+            amd_wave_read_first_lane(integer_divide_ceil(seqlen_q_end - seqlen_q_start, kM0));
 
-        // check early exit if masked and no work to do.
-        if constexpr(FmhaMask::IsMasking)
+        // check early exit if no work to do.
+        // __builtin_expect is load-bearing: omitting it causes incorrect AGPR allocation in
+        // the dK/dV accumulation loop on some compiler versions, leading to wrong results.
+        if(__builtin_expect(num_total_loop <= 0, 0))
         {
-            if(num_total_loop <= 0)
-            {
-                // Note: here dk_acc&dv_acc are all cleard, return it
-                // Note: v loaded but no fence, ignore it.
-                return make_tuple(dk_acc, dv_acc);
-            }
+            // Note: here dk_acc&dv_acc are all cleared, return it
+            return make_tuple(dk_acc, dv_acc);
         }
         KDataType* k_lds_ptr =
             static_cast<KDataType*>(static_cast<void*>(static_cast<char*>(smem_ptr)));

@@ -7,6 +7,9 @@
 #include "functional2.hpp"
 #include "tuple.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 namespace detail {
@@ -66,7 +69,7 @@ struct StaticallyIndexedArray_v2
 
     // read access
     template <index_t I>
-    __host__ __device__ constexpr const auto& At(Number<I>) const
+    __host__ __device__ constexpr const auto& At(Number<I>) const [[clang::lifetimebound]]
     {
         static_assert(I < N, "wrong! out of range");
 
@@ -75,7 +78,7 @@ struct StaticallyIndexedArray_v2
 
     // write access
     template <index_t I>
-    __host__ __device__ constexpr auto& At(Number<I>)
+    __host__ __device__ constexpr auto& At(Number<I>) [[clang::lifetimebound]]
     {
         static_assert(I < N, "wrong! out of range");
 
@@ -84,14 +87,14 @@ struct StaticallyIndexedArray_v2
 
     // read access
     template <index_t I>
-    __host__ __device__ constexpr const auto& operator[](Number<I> i) const
+    __host__ __device__ constexpr const auto& operator[](Number<I> i) const [[clang::lifetimebound]]
     {
         return At(i);
     }
 
     // write access
     template <index_t I>
-    __host__ __device__ constexpr auto& operator()(Number<I> i)
+    __host__ __device__ constexpr auto& operator()(Number<I> i) [[clang::lifetimebound]]
     {
         return At(i);
     }
@@ -102,4 +105,7 @@ struct StaticallyIndexedArray_v2
 };
 
 } // namespace ck
+
+#pragma clang diagnostic pop
+
 #endif

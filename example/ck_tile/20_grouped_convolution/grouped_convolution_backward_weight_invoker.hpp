@@ -2,7 +2,28 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 #include "grouped_convolution_utils.hpp"
+#include "ck_tile/ops/gemm/kernel/streamk_gemm/streamk_gemm_tile_partitioner.hpp"
 
+/// @brief Partitioner policies for the conv bwd weight invoker.
+/// SplitKPartitionerPolicy is the default (data-parallel + split-K).
+/// StreamKPartitionerPolicy selects StreamK work distribution.
+struct SplitKPartitionerPolicy
+{
+    template <typename GemmShape, typename GroupedConvTraitsType>
+    using type = ck_tile::GemmSpatiallyLocalTilePartitioner<
+        GemmShape,
+        GroupedConvTraitsType::FixedGemmParams::TilePartitionerGroupNum,
+        GroupedConvTraitsType::FixedGemmParams::TilePartitionerM01>;
+};
+
+template <ck_tile::StreamKReductionStrategy ReductionStrategy, bool Persistent = false>
+struct StreamKPartitionerPolicy
+{
+    template <typename GemmShape, typename>
+    using type = ck_tile::StreamKTilePartitioner<GemmShape, ReductionStrategy, Persistent>;
+};
+
+template <typename PartitionerPolicy = SplitKPartitionerPolicy>
 struct GroupedConvolutionBackwardWeightInvoker
 {
     template <ck_tile::index_t NDimSpatial,
@@ -40,10 +61,8 @@ struct GroupedConvolutionBackwardWeightInvoker
                                                                  ConvConfig::VectorSizeC,
                                                                  ConvConfig::NumGroupsToMerge>;
 
-        using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<
-            GemmShape,
-            GroupedConvTraitsType::FixedGemmParams::TilePartitionerGroupNum,
-            GroupedConvTraitsType::FixedGemmParams::TilePartitionerM01>;
+        using TilePartitioner =
+            typename PartitionerPolicy::template type<GemmShape, GroupedConvTraitsType>;
 
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<
             GroupedConvTraitsType::FixedGemmParams::kPadM,
@@ -103,13 +122,19 @@ struct GroupedConvolutionBackwardWeightInvoker
                                                                        ConvEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids  = Kernel::GridSize(args);
+        const dim3 grids  = Kernel::GridSize(kargs);
         const dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
             throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
         }
+
+        // Workspace: may be non-zero for StreamK (depends on SK/DP tile split),
+        // always zero for Split-K.
+        auto ws_size = Kernel::GetWorkSpaceSize(kargs);
+        ck_tile::DeviceMem workspace_dev(ws_size);
+        Kernel::SetWorkSpacePointer(kargs, workspace_dev.GetDeviceBuffer());
 
         if(s.log_level_ > 0)
         {
@@ -120,14 +145,25 @@ struct GroupedConvolutionBackwardWeightInvoker
                       << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                       << '\n'
+                      << "workspace: " << ws_size << " bytes" << '\n'
                       << "Vector size A: " << GemmPipeline::GetVectorSizeA()
                       << ", Vector size B: " << GemmPipeline::GetVectorSizeB()
                       << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
         }
 
         auto preprocess = [&]() {
-            if(kargs.k_batch > 1)
+            if constexpr(Kernel::IsStreamK)
             {
+                // StreamK: zero workspace flags before each kernel launch
+                if(ws_size > 0)
+                {
+                    ck_tile::hip_check_error(
+                        hipMemsetAsync(workspace_dev.GetDeviceBuffer(), 0, ws_size, s.stream_id_));
+                }
+            }
+            else if(kargs.k_batch > 1)
+            {
+                // Split-K: zero weight buffer for atomic accumulation
                 ck_tile::hip_check_error(hipMemsetAsync(
                     kargs.wei_ptr, 0, args.template GetWeightByte<WeiDataType>(), s.stream_id_));
             }

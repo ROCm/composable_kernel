@@ -108,7 +108,9 @@ struct GroupedConvTraits
     using OutLayout                                               = OutLayout_;
 
     // Forward Gemm Layouts
-    using AsLayoutFwd = ck_tile::tensor_layout::gemm::RowMajor;
+    using AsLayoutFwd = std::conditional_t<NumGroupsToMerge == 1,
+                                           ck_tile::tensor_layout::gemm::RowMajor,
+                                           ck_tile::tensor_layout::gemm::ColumnMajor>;
     using BsLayoutFwd = ck_tile::tensor_layout::gemm::ColumnMajor;
     using CLayoutFwd  = ck_tile::tensor_layout::gemm::RowMajor;
     // Backward Data Gemm Layouts

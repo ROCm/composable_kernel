@@ -998,30 +998,58 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                     hip_check_error(hipMemsetAsync(
                         p_e_grid, 0, arg.c_space_size_bytes, stream_config.stream_id_));
                 };
-
-                avg_time += launch_and_time_kernel_with_preprocess(
-                    stream_config,
-                    clear_workspace,
-                    kernel,
-                    dim3(grid_size),
-                    dim3(BlockSize),
-                    0,
-                    p_a_grid,
-                    p_b_grid,
-                    p_e_grid,
-                    arg.a_element_op_,
-                    arg.b_element_op_,
-                    arg.c_element_op_,
-                    arg.Conv_G_,
-                    arg.a_grid_desc_kbatch_k0_m_k1_,
-                    arg.b_grid_desc_kbatch_k0_n_k1_,
-                    c_grid_desc_mblock_mperblock_nblock_nperblock,
-                    arg.block_2_ctile_map_,
-                    arg.compute_ptr_offset_of_batch_,
-                    arg.split_k_stride_a_,
-                    arg.split_k_stride_b_,
-                    arg.split_k_offset_hack_,
-                    arg.k_batch_);
+                if(stream_config.flush_cache)
+                {
+                    avg_time += launch_and_time_kernel_with_preprocess_flush_cache(
+                        stream_config,
+                        clear_workspace,
+                        kernel,
+                        dim3(grid_size),
+                        dim3(BlockSize),
+                        0,
+                        p_a_grid,
+                        p_b_grid,
+                        p_e_grid,
+                        arg.a_element_op_,
+                        arg.b_element_op_,
+                        arg.c_element_op_,
+                        arg.Conv_G_,
+                        arg.a_grid_desc_kbatch_k0_m_k1_,
+                        arg.b_grid_desc_kbatch_k0_n_k1_,
+                        c_grid_desc_mblock_mperblock_nblock_nperblock,
+                        arg.block_2_ctile_map_,
+                        arg.compute_ptr_offset_of_batch_,
+                        arg.split_k_stride_a_,
+                        arg.split_k_stride_b_,
+                        arg.split_k_offset_hack_,
+                        arg.k_batch_);
+                }
+                else
+                {
+                    avg_time += launch_and_time_kernel_with_preprocess(
+                        stream_config,
+                        clear_workspace,
+                        kernel,
+                        dim3(grid_size),
+                        dim3(BlockSize),
+                        0,
+                        p_a_grid,
+                        p_b_grid,
+                        p_e_grid,
+                        arg.a_element_op_,
+                        arg.b_element_op_,
+                        arg.c_element_op_,
+                        arg.Conv_G_,
+                        arg.a_grid_desc_kbatch_k0_m_k1_,
+                        arg.b_grid_desc_kbatch_k0_n_k1_,
+                        c_grid_desc_mblock_mperblock_nblock_nperblock,
+                        arg.block_2_ctile_map_,
+                        arg.compute_ptr_offset_of_batch_,
+                        arg.split_k_stride_a_,
+                        arg.split_k_stride_b_,
+                        arg.split_k_offset_hack_,
+                        arg.k_batch_);
+                }
             };
 
             if(has_main_k0_block_loop)

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 import argparse
+import shutil
 from pathlib import Path
 
 class ConvInstanceTemplateParams:
@@ -137,6 +138,13 @@ def parse_instance_string(instance_string):
     
     return params
 
+def copy_includes(instances_path):
+    inc_dir = Path(__file__).resolve().parent
+    output_dir = Path(instances_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(f"{inc_dir}/include/instance_includes.inc", instances_path)
+    shutil.copy(f"{inc_dir}/include/instance_run.inc", instances_path)
+    shutil.copy(f"{inc_dir}/include/signatures.hpp", instances_path)
 
 def generate_calls_inc(instances, problem_name, direction, filter_pattern):
     generate_dir = Path(__file__).resolve().parent
@@ -168,17 +176,17 @@ def generate_defs_inc(instances, problem_name, signature, direction, filter_patt
 
 
 def generate_conv_cpp(
-    instances, problem_name, config, direction, signature_name, filter_pattern):
+    instances, problem_name, config, direction, signature_name, filter_pattern, instances_path):
     for instance in instances:
         if problem_name.find(filter_pattern) == -1:
             break
         instance_name = problem_name + "_" + str(instance.id)
-        generate_dir = Path(__file__).resolve().parent
-        directory_path = Path(f"{generate_dir}/instances/{direction}/{config}")
+        directory_path = Path(f"{instances_path}/{direction}/{config}")
         directory_path.mkdir(parents=True, exist_ok=True)
-        template_file = "grouped_convolution_tile.cpp.in"
+        parent_dir = Path(__file__).resolve().parent
+        template_file = "include/grouped_convolution_tile.cpp.in"
         
-        with open(f"{generate_dir}/instances/{template_file}", "r",) as f:
+        with open(f"{parent_dir}/{template_file}", "r",) as f:
             content = f.read()
 
             content = content.replace("gen_signature", signature_name)
@@ -189,7 +197,7 @@ def generate_conv_cpp(
             content = content.replace("gen_block_transfer", instance.get_block_transfer())
             content = content.replace("gen_optimizations", instance.get_optimizations())
 
-        with open(f"{generate_dir}/instances/{direction}/{config}/{instance_name}.cpp","w",) as f:
+        with open(f"{instances_path}/{direction}/{config}/{instance_name}.cpp","w",) as f:
             f.write(content)
 
 
@@ -460,11 +468,134 @@ def parse_bwd_weight_instances(instances, problem_name):
 
 def parse_bwd_data_instances(instances, problem_name):
     convs = []
-    print("Parsing backward data instances is not supported yet, skipping all instances.")
-    # TODO: Implement parsing logic for backward data instances.
+
+    for instance_id, instance in enumerate(instances):
+        if instance.find("#") != -1 or instance.find(";") != -1:
+            continue
+
+        start = instance.index('<') + 1
+        end = instance.rindex('>')
+        params_str = instance[start:end]
+        args = parse_instance_string(params_str)
+
+        is_v1_instance = instance.find("Xdl_CShuffle<") != -1
+        
+        if is_v1_instance:
+            if len(args) != 51:
+                raise RuntimeError(f"Wrong number of parameters in the V1 XDL CShuffle instance string: {instance}\n" + 
+                                    f"Expected 51 parameters for V1 instance. Found {len(args)} parameters.")
+        else:
+            raise RuntimeError(f"Only V1 XDL CShuffle instances are supported for backward data. Found instance: {instance}")
+        
+        spec = args[13]
+        block_size = int(args[17])
+        m_per_block = int(args[18])
+        n_per_block = int(args[19])
+        k_per_block = int(args[20])
+        ak1 = int(args[21])
+        bk1 = int(args[22])
+        m_per_xdl = int(args[23])
+        n_per_xdl = int(args[24])
+        m_xdl_per_wave = int(args[25])
+        n_xdl_per_wave = int(args[26])
+        a_scalar_per_vector = int(args[31])
+        b_scalar_per_vector = int(args[38])
+        c_scalar_per_vector = int(args[44])
+
+        if ak1 != bk1:
+            raise RuntimeError(f"Not supported instance {instance_id} since ak1 != bk1. ak1: {ak1}, bk1: {bk1} in instance: {instance}")
+        
+        k1 = min(ak1, bk1)
+
+        # TODO: Do we need split image for 3D bwd data convs?
+        split_image = False
+
+        # Default optimization parameters
+        num_groups_to_merge = 1
+        is_two_stage_instance = False
+        is_explicit_gemm = False
+        num_wave_groups = 1
+        direct_load = False
+
+        # Block GEMM pipeline parameters
+        block_gemm_pipeline_scheduler = args[46]
+        if block_gemm_pipeline_scheduler == "Default":
+            block_gemm_pipeline_scheduler = "Intrawave"
+
+        blk_gemm_pipeline_version = "v1"
+        if block_gemm_pipeline_scheduler == "Interwave":
+            blk_gemm_pipeline_version = "v1"
+
+        # Sanity check for Block GEMM pipeline parameters
+        # Scheduler must be either Intrawave or Interwave.
+        # Version must be from v1 to v5
+        if block_gemm_pipeline_scheduler not in ["Intrawave", "Interwave"]:
+            raise RuntimeError(f"Invalid Block GEMM pipeline scheduler: {block_gemm_pipeline_scheduler} in instance: {instance}")
+        if blk_gemm_pipeline_version not in ["v1", "v2", "v3", "v4", "v5"]:
+            raise RuntimeError(f"Invalid Block GEMM pipeline version: {blk_gemm_pipeline_version} in instance: {instance}")
+
+        double_smem_buffer = blk_gemm_pipeline_version == "v4"
+        scheduler = block_gemm_pipeline_scheduler
+        pipeline_version = blk_gemm_pipeline_version.upper()
+
+        # Old CK pipeline version V5 maps to V6 for CK Tile
+        if pipeline_version == "V5":
+            pipeline_version = "V6"
+
+        if direct_load:
+            if pipeline_version == "V1":
+                pipeline_version = "ASYNC_V1"
+            elif pipeline_version == "V4":
+                pipeline_version = "ASYNC_V4"
+            else:
+                raise RuntimeError(
+                    f"Not supported pipeline for direct load: pipeline_version={pipeline_version} in instance: {instance}"
+                )
+
+        m_warp = int(m_per_block / (m_per_xdl * m_xdl_per_wave))
+        n_warp = int(n_per_block / (n_per_xdl * n_xdl_per_wave))
+        warp_size = 64
+        k_warp = int(block_size / (warp_size * m_warp * n_warp))
+        dtype = get_dtype(problem_name)
+
+        k_per_xdl = max(k1, get_k_mfma(dtype, m_per_xdl, n_per_xdl))
+
+        if check_vectors(a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector) == False:
+            print(f"Skipping instance {instance_id} with irregular load since it's not supported yet.")
+            continue
+        if pipeline_version == "V6":
+            print(f"Skipping instance {instance_id} with V6 since it's not supported yet.")
+            continue
+
+        # Check vector sizes for A and B tensors - we cannot oversubscribe.
+        num_tile_elements_a = m_per_xdl * k_per_xdl
+        num_tile_elements_b = n_per_xdl * k_per_xdl
+        max_vector_size_a = max(1, num_tile_elements_a // block_size)
+        max_vector_size_b = max(1, num_tile_elements_b // block_size)
+        a_scalar_per_vector = min(a_scalar_per_vector, max_vector_size_a)
+        b_scalar_per_vector = min(b_scalar_per_vector, max_vector_size_b)
+
+        conv = ConvInstanceTemplateParams(
+            spec,
+            [m_per_block, n_per_block, k_per_block],
+            [m_warp, n_warp, k_warp],
+            [m_per_xdl, n_per_xdl, k_per_xdl],
+            double_smem_buffer,
+            num_wave_groups,
+            is_two_stage_instance,
+            pipeline_version,
+            scheduler,
+            [a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector],
+            num_groups_to_merge,
+            split_image,
+            is_explicit_gemm,
+            instance_id,
+        )
+        convs.append(conv)
+            
     return convs
 
-def generate_instances_fwd(instances, problem_name, config, filter_pattern):
+def generate_instances_fwd(instances, problem_name, config, filter_pattern, instances_path):
     direction = "forward"
     signature_name = f"SIGNATURE_{config.upper()}_FWD"
     instances = parse_fwd_instances(instances, problem_name)
@@ -474,13 +605,13 @@ def generate_instances_fwd(instances, problem_name, config, filter_pattern):
         problem_name,
         signature_name,
         direction,
-        filter_pattern,
+        filter_pattern
     )
     generate_conv_cpp(
-        instances, problem_name, config, direction, signature_name, filter_pattern
+        instances, problem_name, config, direction, signature_name, filter_pattern, instances_path
     )
 
-def generate_instances_bwd_weight(instances, problem_name, config, filter_pattern):
+def generate_instances_bwd_weight(instances, problem_name, config, filter_pattern, instances_path):
     direction = "backward_weight"
     signature_name = f"SIGNATURE_{config.upper()}_BWD_WEIGHT"
     instances = parse_bwd_weight_instances(instances, problem_name)
@@ -490,13 +621,13 @@ def generate_instances_bwd_weight(instances, problem_name, config, filter_patter
         problem_name,
         signature_name,
         direction,
-        filter_pattern,
+        filter_pattern
     )
     generate_conv_cpp(
-        instances, problem_name, config, direction, signature_name, filter_pattern
+        instances, problem_name, config, direction, signature_name, filter_pattern, instances_path
     )
 
-def generate_instances_bwd_data(instances, problem_name, config, filter_pattern):
+def generate_instances_bwd_data(instances, problem_name, config, filter_pattern, instances_path):
     direction = "backward_data"
     signature_name = f"SIGNATURE_{config.upper()}_BWD_DATA"
     instances = parse_bwd_data_instances(instances, problem_name)
@@ -506,13 +637,13 @@ def generate_instances_bwd_data(instances, problem_name, config, filter_pattern)
         problem_name,
         signature_name,
         direction,
-        filter_pattern,
+        filter_pattern
     )
     generate_conv_cpp(
-        instances, problem_name, config, direction, signature_name, filter_pattern
+        instances, problem_name, config, direction, signature_name, filter_pattern, instances_path
     )
 
-def process_direction(configs, direction, generate_func, configs_prefix, filter_pattern):
+def process_direction(configs, direction, generate_func, configs_prefix, filter_pattern, instances_path):
     """Helper function to process a single direction."""
     for config in configs:
         instances = []
@@ -531,7 +662,7 @@ def process_direction(configs, direction, generate_func, configs_prefix, filter_
         else:
             raise RuntimeError(f"Unknown direction: {direction}")
         
-        generate_func(instances, problem_name, config, filter_pattern)
+        generate_func(instances, problem_name, config, filter_pattern, instances_path)
 
 if __name__ == "__main__":
     fwd_configs = [
@@ -585,6 +716,12 @@ if __name__ == "__main__":
         default="all",
         help="Convolution direction for which to generate instances."
     )
+    parser.add_argument(
+        "--instances_dir",
+        type=str,
+        default="../build/experimental/grouped_convolution_tile_instances",
+        help="Directory store generated instances."
+    )
     args = parser.parse_args()
 
     # apply empty filter
@@ -598,15 +735,16 @@ if __name__ == "__main__":
     else:
         raise RuntimeError("wrong mode")
 
+    copy_includes(args.instances_dir)
     match args.direction:
         case "forward":
-            process_direction(fwd_configs, args.direction, generate_instances_fwd, configs_prefix, args.filter_pattern)
+            process_direction(fwd_configs, args.direction, generate_instances_fwd, configs_prefix, args.filter_pattern, args.instances_dir)
         case "backward_weight":
-            process_direction(bwd_weight_configs, args.direction, generate_instances_bwd_weight, configs_prefix, args.filter_pattern)
+            process_direction(bwd_weight_configs, args.direction, generate_instances_bwd_weight, configs_prefix, args.filter_pattern, args.instances_dir)
         case "backward_data":
-            process_direction(bwd_data_configs, args.direction, generate_instances_bwd_data, configs_prefix, args.filter_pattern)
+            process_direction(bwd_data_configs, args.direction, generate_instances_bwd_data, configs_prefix, args.filter_pattern, args.instances_dir)
         case "all":
-            process_direction(fwd_configs, "forward", generate_instances_fwd, configs_prefix, args.filter_pattern)
-            process_direction(bwd_weight_configs, "backward_weight", generate_instances_bwd_weight, configs_prefix, args.filter_pattern)
-            process_direction(bwd_data_configs, "backward_data", generate_instances_bwd_data, configs_prefix, args.filter_pattern)
+            process_direction(fwd_configs, "forward", generate_instances_fwd, configs_prefix, args.filter_pattern, args.instances_dir)
+            process_direction(bwd_weight_configs, "backward_weight", generate_instances_bwd_weight, configs_prefix, args.filter_pattern, args.instances_dir)
+            process_direction(bwd_data_configs, "backward_data", generate_instances_bwd_data, configs_prefix, args.filter_pattern, args.instances_dir)
 

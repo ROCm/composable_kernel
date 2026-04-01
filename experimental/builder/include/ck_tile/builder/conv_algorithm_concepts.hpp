@@ -470,4 +470,17 @@ concept SpecifiesDlEpilogue = requires {
     { T::transfer.c } -> DlEpilogueDescriptor;
 };
 
+// Concept to detect StreamK configuration in a tile algorithm descriptor.
+template <typename T>
+concept StreamKDescriptor = requires(T t) {
+    { t.reduction_strategy } -> std::convertible_to<StreamKReductionStrategy>;
+    { t.persistent } -> std::convertible_to<bool>;
+};
+
+// Concept to check if a tile algorithm specifies StreamK work distribution.
+template <typename T>
+concept SpecifiesStreamK = requires {
+    { T::streamk } -> StreamKDescriptor;
+};
+
 } // namespace ck_tile::builder
