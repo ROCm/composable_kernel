@@ -103,6 +103,42 @@ struct Max
     }
 };
 
+struct Min
+{
+    template <
+        typename T,
+        typename = std::enable_if_t<
+            is_any_of<T, float, double, int32_t, int8_t, half_t, bf16_t, fp8_t, bf8_t>::value>>
+    CK_TILE_HOST_DEVICE static constexpr T GetIdentityValue()
+    {
+        return numeric<T>::max();
+    };
+
+    template <
+        typename T,
+        typename = std::enable_if_t<
+            is_any_of<T, float, double, int32_t, int8_t, half_t, bf16_t, fp8_t, bf8_t>::value>>
+    CK_TILE_HOST_DEVICE constexpr T operator()(const T& y, const T x) const
+    {
+        return min(y, x);
+    }
+
+    // Overload with changed flag for index tracking
+    template <
+        typename T,
+        typename = std::enable_if_t<
+            is_any_of<T, float, double, int32_t, int8_t, half_t, bf16_t, fp8_t, bf8_t>::value>>
+    CK_TILE_HOST_DEVICE constexpr T operator()(const T& y, const T x, bool& changed) const
+    {
+        T new_min = min(y, x);
+        if(x < y)
+        {
+            changed = true;
+        }
+        return new_min;
+    }
+};
+
 struct AbsMax
 {
     template <
