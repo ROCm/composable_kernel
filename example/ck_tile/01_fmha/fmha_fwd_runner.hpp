@@ -154,15 +154,15 @@ int override_num_splits_if_necessary(
         return num_splits;
     }
 
-    // tile size should match the generate.py
-    const int kM0 = 64;
+    const int kM0 = 16; // smallest decode tile — use minimum for most parallelism
 
     const int num_m_blocks = ck_tile::integer_divide_ceil(max_seqlen_q, kM0);
 
     if(num_splits < 1 && p_drop == 0.0f)
     {
+        // Target 4x SMs for full GPU utilization (matching Triton 3D strategy)
         return num_splits_heuristic(
-            batch * nhead * num_m_blocks, props.multiProcessorCount * 2, 128);
+            batch * nhead * num_m_blocks, props.multiProcessorCount * 4, 128);
     }
 
     return num_splits;
