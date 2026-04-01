@@ -1,0 +1,165 @@
+{
+    "problem": {
+        "description": "Comprehensive pooling coverage testing - multiple block sizes (64-512), warp configurations, thread tile sizes, and all trait combinations (max/avg, index, NaN propagation). Approximately 200+ kernels."
+    },
+    "test_params": {
+        "problem_sizes_2d": [
+            {
+                "_comment": "Basic: small tensor, 2x2 window, stride 2, no padding",
+                "N": 1, "H": 8, "W": 8, "C": 32,
+                "Y": 2, "X": 2,
+                "stride_h": 2, "stride_w": 2,
+                "dilation_h": 1, "dilation_w": 1,
+                "pad_h_left": 0, "pad_h_right": 0,
+                "pad_w_left": 0, "pad_w_right": 0
+            },
+            {
+                "_comment": "Padded 3x3: moderate tensor with symmetric padding, stride 1 (overlapping)",
+                "N": 1, "H": 16, "W": 16, "C": 64,
+                "Y": 3, "X": 3,
+                "stride_h": 1, "stride_w": 1,
+                "dilation_h": 1, "dilation_w": 1,
+                "pad_h_left": 1, "pad_h_right": 1,
+                "pad_w_left": 1, "pad_w_right": 1
+            },
+            {
+                "_comment": "Large channels: stress-test the C dimension",
+                "N": 1, "H": 16, "W": 16, "C": 256,
+                "Y": 2, "X": 2,
+                "stride_h": 2, "stride_w": 2,
+                "dilation_h": 1, "dilation_w": 1,
+                "pad_h_left": 0, "pad_h_right": 0,
+                "pad_w_left": 0, "pad_w_right": 0
+            },
+            {
+                "_comment": "Large batch: multi-batch correctness",
+                "N": 4, "H": 16, "W": 16, "C": 32,
+                "Y": 2, "X": 2,
+                "stride_h": 2, "stride_w": 2,
+                "dilation_h": 1, "dilation_w": 1,
+                "pad_h_left": 0, "pad_h_right": 0,
+                "pad_w_left": 0, "pad_w_right": 0
+            },
+            {
+                "_comment": "Non-square spatial: rectangular H != W",
+                "N": 2, "H": 32, "W": 16, "C": 64,
+                "Y": 3, "X": 3,
+                "stride_h": 2, "stride_w": 2,
+                "dilation_h": 1, "dilation_w": 1,
+                "pad_h_left": 1, "pad_h_right": 1,
+                "pad_w_left": 1, "pad_w_right": 1
+            },
+            {
+                "_comment": "Large window 5x5: bigger receptive field",
+                "N": 1, "H": 32, "W": 32, "C": 32,
+                "Y": 5, "X": 5,
+                "stride_h": 2, "stride_w": 2,
+                "dilation_h": 1, "dilation_w": 1,
+                "pad_h_left": 2, "pad_h_right": 2,
+                "pad_w_left": 2, "pad_w_right": 2
+            },
+            {
+                "_comment": "Large window 7x7: global-style pooling",
+                "N": 1, "H": 14, "W": 14, "C": 128,
+                "Y": 7, "X": 7,
+                "stride_h": 1, "stride_w": 1,
+                "dilation_h": 1, "dilation_w": 1,
+                "pad_h_left": 3, "pad_h_right": 3,
+                "pad_w_left": 3, "pad_w_right": 3
+            },
+            {
+                "_comment": "Dilated: dilation_h=2, dilation_w=2 with 3x3 window",
+                "N": 1, "H": 32, "W": 32, "C": 64,
+                "Y": 3, "X": 3,
+                "stride_h": 1, "stride_w": 1,
+                "dilation_h": 2, "dilation_w": 2,
+                "pad_h_left": 2, "pad_h_right": 2,
+                "pad_w_left": 2, "pad_w_right": 2
+            },
+            {
+                "_comment": "Asymmetric padding: different left/right padding",
+                "N": 2, "H": 16, "W": 16, "C": 32,
+                "Y": 3, "X": 3,
+                "stride_h": 2, "stride_w": 2,
+                "dilation_h": 1, "dilation_w": 1,
+                "pad_h_left": 0, "pad_h_right": 1,
+                "pad_w_left": 0, "pad_w_right": 1
+            },
+            {
+                "_comment": "Large spatial: bigger feature maps",
+                "N": 1, "H": 64, "W": 64, "C": 64,
+                "Y": 2, "X": 2,
+                "stride_h": 2, "stride_w": 2,
+                "dilation_h": 1, "dilation_w": 1,
+                "pad_h_left": 0, "pad_h_right": 0,
+                "pad_w_left": 0, "pad_w_right": 0
+            },
+            {
+                "_comment": "Non-square window: Y != X",
+                "N": 1, "H": 32, "W": 32, "C": 32,
+                "Y": 3, "X": 2,
+                "stride_h": 2, "stride_w": 2,
+                "dilation_h": 1, "dilation_w": 1,
+                "pad_h_left": 1, "pad_h_right": 0,
+                "pad_w_left": 0, "pad_w_right": 0
+            },
+            {
+                "_comment": "Stride-1 overlap: overlapping 2x2 windows",
+                "N": 2, "H": 16, "W": 16, "C": 64,
+                "Y": 2, "X": 2,
+                "stride_h": 1, "stride_w": 1,
+                "dilation_h": 1, "dilation_w": 1,
+                "pad_h_left": 0, "pad_h_right": 0,
+                "pad_w_left": 0, "pad_w_right": 0
+            }
+        ],
+        "problem_sizes_3d": [
+            {
+                "_comment": "Basic 3D: small volume, 2x2x2 window",
+                "N": 1, "D": 4, "H": 4, "W": 4, "C": 32,
+                "Z": 2, "Y": 2, "X": 2,
+                "stride_d": 2, "stride_h": 2, "stride_w": 2,
+                "dilation_d": 1, "dilation_h": 1, "dilation_w": 1,
+                "pad_d_left": 0, "pad_d_right": 0,
+                "pad_h_left": 0, "pad_h_right": 0,
+                "pad_w_left": 0, "pad_w_right": 0
+            },
+            {
+                "_comment": "Padded 3D: with symmetric padding",
+                "N": 1, "D": 8, "H": 8, "W": 8, "C": 32,
+                "Z": 3, "Y": 3, "X": 3,
+                "stride_d": 2, "stride_h": 2, "stride_w": 2,
+                "dilation_d": 1, "dilation_h": 1, "dilation_w": 1,
+                "pad_d_left": 1, "pad_d_right": 1,
+                "pad_h_left": 1, "pad_h_right": 1,
+                "pad_w_left": 1, "pad_w_right": 1
+            },
+            {
+                "_comment": "Multi-batch 3D: larger batch and channels",
+                "N": 2, "D": 8, "H": 8, "W": 8, "C": 64,
+                "Z": 2, "Y": 2, "X": 2,
+                "stride_d": 2, "stride_h": 2, "stride_w": 2,
+                "dilation_d": 1, "dilation_h": 1, "dilation_w": 1,
+                "pad_d_left": 0, "pad_d_right": 0,
+                "pad_h_left": 0, "pad_h_right": 0,
+                "pad_w_left": 0, "pad_w_right": 0
+            }
+        ]
+    },
+    "tile_config": {
+        "block_m": {"values": [64, 128, 256, 512]},
+        "block_n": {"values": [1]},
+        "warp_m": {"values": [1, 2, 4]},
+        "warp_n": {"values": [1]},
+        "warp_tile_m": {"values": [64, 128, 256]},
+        "warp_tile_n": {"values": [1]},
+        "thread_tile_m": {"values": [1, 2, 4]},
+        "thread_tile_n": {"values": [1]}
+    },
+    "trait_config": {
+        "reduce_op": {"values": ["max", "avg"]},
+        "output_index": {"values": [true, false]},
+        "propagate_nan": {"values": [true, false]},
+        "pooling_dim": {"values": ["2d", "3d"]}
+    }
+}

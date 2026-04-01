@@ -1,0 +1,21 @@
+{
+    "problem": {
+        "description": "Default pooling configuration for tile_engine benchmarks"
+    },
+    "tile_config": {
+        "block_m": {"values": [64,128,256]},
+        "block_n": {"values": [1,2]},
+        "warp_m": {"values": [1]},
+        "warp_n": {"values": [1]},
+        "warp_tile_m": {"values": [128]},
+        "warp_tile_n": {"values": [1]},
+        "thread_tile_m": {"values": [1,2,4]},
+        "thread_tile_n": {"values": [1]}
+    },
+    "trait_config": {
+        "reduce_op": {"values": ["max", "min", "avg"]},
+        "output_index": {"values": [true, false]},
+        "propagate_nan": {"values": [true, false]},
+        "pooling_dim": {"values": ["2d", "3d"]}
+    }
+}

@@ -11,7 +11,7 @@ set(MULTI_REDUCE_VARIANTS "multiops_multiblock;multiops_threadwise" CACHE STRING
 function(build_multi_reduce_for_datatype datatype variant)
     # Filter GPU targets to only gfx942, and gfx950
     set(GPU_TARGETS "")
-    set(DESIRED_TARGETS "gfx942;gfx950")
+    set(DESIRED_TARGETS "gfx942;gfx950;gfx12-generic")
     set(VALID_VARIANTS "multiops_multiblock;multiops_threadwise")
     
     foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
@@ -22,7 +22,7 @@ function(build_multi_reduce_for_datatype datatype variant)
     
     # Skip compilation if no matching targets found
     if(NOT GPU_TARGETS)
-        message(WARNING "Skipping Tile Engine for Multi Reduction Kernel: No supported GPU targets (gfx942, gfx950) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+        message(WARNING "Skipping Tile Engine for Multi Reduction Kernel: No supported GPU targets (gfx942, gfx950, gfx12-generic) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
         return()
     endif()
     
