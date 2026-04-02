@@ -430,7 +430,7 @@ def buildDocker(install_prefix){
         dockerArgs = dockerArgs + " --no-cache -f projects/composablekernel/Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
     }
      else if(params.RUN_PYTORCH_TESTS){
-        image_name = "${env.CK_DOCKERHUB}:ck_pytorch"
+        image_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_pytorch"
         dockerArgs = dockerArgs + " --no-cache -f projects/composablekernel/Dockerfile.pytorch --build-arg CK_PYTORCH_BRANCH='${params.ck_pytorch_branch}' . "
     }
    else{
@@ -1140,7 +1140,7 @@ def run_pytorch_tests(Map conf=[:]){
     show_node_info()
     checkoutComposableKernel()
     //use the latest pytorch-nightly image
-    def image = "${env.CK_DOCKERHUB}:ck_pytorch"
+    def image = "${env.CK_DOCKERHUB_PRIVATE}:ck_pytorch"
     def dockerOpts=get_docker_options() + ' --group-add irc '
 
     gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
