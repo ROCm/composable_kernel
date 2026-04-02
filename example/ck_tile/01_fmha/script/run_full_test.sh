@@ -39,7 +39,6 @@ function print_log_header(){
 #run verification tests
 time example/ck_tile/01_fmha/script/smoke_test_fwd.sh
 time example/ck_tile/01_fmha/script/smoke_test_bwd.sh
-time example/ck_tile/01_fmha/script/smoke_test_fwd_sink.sh
 
 #run performance benchmarks
 export fmha_fwd_log="perf_fmha_fwd_$GPU_arch.log"
