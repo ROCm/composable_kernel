@@ -533,6 +533,7 @@ using fmha_bwd_dot_do_o_pipeline_problem_{F_idx} = ck_tile::BlockFmhaBwdOGradDot
     typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::ODataType,
     typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::OGradDataType,
     typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::DDataType,
+    typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::LSEDataType,
     /* BlockSize = M0 = */ {F_bm0},
     {F_hdim},
     {F_mode},
