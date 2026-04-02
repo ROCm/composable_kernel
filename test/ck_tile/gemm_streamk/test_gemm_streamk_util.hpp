@@ -71,23 +71,27 @@ template <typename Tuple>
 class TestCkTileStreamK : public ::testing::Test
 {
     protected:
-    using ALayout                            = std::tuple_element_t<0, Tuple>;
-    using BLayout                            = std::tuple_element_t<1, Tuple>;
-    using CLayout                            = std::tuple_element_t<2, Tuple>;
-    using ADataType                          = std::tuple_element_t<3, Tuple>;
-    using BDataType                          = std::tuple_element_t<4, Tuple>;
-    using AccDataType                        = std::tuple_element_t<5, Tuple>;
-    using CDataType                          = std::tuple_element_t<6, Tuple>;
-    using DsLayout                           = ck_tile::tuple<>;
-    using DsDataType                         = ck_tile::tuple<>;
-    static constexpr ck_tile::index_t M_Tile = std::tuple_element_t<7, Tuple>::value;
-    static constexpr ck_tile::index_t N_Tile = std::tuple_element_t<8, Tuple>::value;
-    static constexpr ck_tile::index_t K_Tile = std::tuple_element_t<9, Tuple>::value;
-    static constexpr bool Persistent         = std::tuple_element_t<10, Tuple>::value;
-    static constexpr auto PipelineType       = std::tuple_element_t<11, Tuple>::value;
+    using ALayout                                 = std::tuple_element_t<0, Tuple>;
+    using BLayout                                 = std::tuple_element_t<1, Tuple>;
+    using CLayout                                 = std::tuple_element_t<2, Tuple>;
+    using ADataType                               = std::tuple_element_t<3, Tuple>;
+    using BDataType                               = std::tuple_element_t<4, Tuple>;
+    using AccDataType                             = std::tuple_element_t<5, Tuple>;
+    using CDataType                               = std::tuple_element_t<6, Tuple>;
+    using DsLayout                                = ck_tile::tuple<>;
+    using DsDataType                              = ck_tile::tuple<>;
+    static constexpr ck_tile::index_t M_Tile      = std::tuple_element_t<7, Tuple>::value;
+    static constexpr ck_tile::index_t N_Tile      = std::tuple_element_t<8, Tuple>::value;
+    static constexpr ck_tile::index_t K_Tile      = std::tuple_element_t<9, Tuple>::value;
+    static constexpr ck_tile::index_t M_Warp_Tile = std::tuple_element_t<10, Tuple>::value;
+    static constexpr ck_tile::index_t N_Warp_Tile = std::tuple_element_t<11, Tuple>::value;
+    static constexpr ck_tile::index_t K_Warp_Tile = std::tuple_element_t<12, Tuple>::value;
 
-    template <ck_tile::StreamKReductionStrategy ReductionStrategy,
-              bool PadM       = true,
+    static constexpr bool Persistent        = std::tuple_element_t<13, Tuple>::value;
+    static constexpr auto PipelineType      = std::tuple_element_t<14, Tuple>::value;
+    static constexpr auto ReductionStrategy = std::tuple_element_t<15, Tuple>::value;
+
+    template <bool PadM       = true,
               bool PadN       = true,
               bool PadK       = true,
               bool Preshuffle = false,
@@ -98,10 +102,6 @@ class TestCkTileStreamK : public ::testing::Test
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
-
-        constexpr ck_tile::index_t M_Warp_Tile = 32;
-        constexpr ck_tile::index_t N_Warp_Tile = 32;
-        constexpr ck_tile::index_t K_Warp_Tile = 16;
 
         constexpr bool kPadM      = PadM;
         constexpr bool kPadN      = PadN;
@@ -269,8 +269,7 @@ class TestCkTileStreamK : public ::testing::Test
                                       stride_C};
 
         ck_tile::index_t num_accumulations_per_tile =
-            invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(
-                args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
+            invoke_streamk<>(args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
