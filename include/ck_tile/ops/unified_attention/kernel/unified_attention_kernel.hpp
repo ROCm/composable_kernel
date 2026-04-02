@@ -468,7 +468,9 @@ struct UnifiedAttentionKernel
                                               kv_page_size_in_blocks,
                                               mask,
                                               kargs.scale_s,
-                                              smem_ptr);
+                                              smem_ptr,
+                                              static_cast<long_index_t>(kargs.stride_k_cache_1),
+                                              static_cast<long_index_t>(kargs.stride_v_cache_1));
         }();
 
         // O DRAM and O DRAM window
