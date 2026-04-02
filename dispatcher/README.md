@@ -154,6 +154,8 @@ rocminfo | grep -i "gfx"
 
 ### Install Python Dependencies
 
+#### Core Dependencies (Required)
+
 NumPy is required for Python examples and kernel generation. We recommend using a virtual environment:
 
 **Option 1: Using standard venv**
@@ -165,8 +167,8 @@ python3 -m venv .venv
 source .venv/bin/activate  # Linux/macOS
 # .venv\Scripts\activate   # Windows
 
-# Install NumPy
-pip install numpy
+# Install core dependencies
+pip install -r python/requirements.txt
 ```
 
 **Option 2: Using uv (faster alternative)**
@@ -179,16 +181,37 @@ uv venv .venv
 source .venv/bin/activate  # Linux/macOS
 # .venv\Scripts\activate   # Windows
 
-# Install NumPy
-uv pip install numpy
+# Install core dependencies
+uv pip install -r python/requirements.txt
 ```
 
 **Option 3: System-wide install (not recommended)**
 ```bash
-pip install numpy
+pip install -r python/requirements.txt
 ```
 
 > **Note:** Always activate your virtual environment before running CMake or Python examples.
+
+#### ML Heuristics Dependencies (Optional)
+
+For ML-based kernel selection (examples 09-11), install additional dependencies:
+
+```bash
+# Activate your virtual environment first
+source .venv/bin/activate
+
+# Install ML dependencies (LightGBM, pandas, pyarrow, scikit-learn)
+pip install -r requirements-ml.txt
+```
+
+**Why separate?** ML dependencies are large (especially pyarrow) and not needed for basic dispatcher usage. Install only if you need:
+- ML-based kernel selection (`examples/gemm/python/09_ml_heuristic.py`)
+- Model training (`heuristics/train.py`)
+- Model evaluation (`heuristics/evaluate.py`)
+- Automated benchmark analysis
+
+**Core dependencies:** ~50 MB (NumPy only)
+**With ML dependencies:** ~500 MB (includes LightGBM, pandas, pyarrow, scikit-learn)
 
 ### Supported Data Types
 
@@ -467,6 +490,42 @@ python3 examples/gemm/python/10_advanced_benchmark.py \
 | Compute-bound analysis | `flush_cache=False` (default) |
 | Debug timing | `timer="cpu"` |
 | Production | `timer="gpu"` (default) |
+
+---
+
+## ML-Based Kernel Selection (Optional)
+
+The dispatcher includes ML heuristics for automated kernel selection using trained LightGBM models.
+
+**Prerequisites:** Install ML dependencies first:
+
+```bash
+pip install -r requirements-ml.txt  # ~500 MB (LightGBM, pandas, pyarrow, scikit-learn)
+```
+
+**Documentation:** See [heuristics/README.md](heuristics/README.md) for:
+- Training and evaluating models
+- Feature engineering (72 features)
+- Using pre-trained models
+- Python API reference
+
+**Examples:**
+```bash
+python3 examples/gemm/python/09_ml_heuristic.py      # ML-based kernel selection
+python3 examples/gemm/python/10_rank_kernels.py      # Kernel ranking
+```
+
+**Model Compression:** Trained models are stored in compressed `.lgbm.gz` format to save space (~67% size reduction). Python tools automatically decompress models on first use. For C++ examples, decompress manually:
+
+```bash
+# If you have compressed models
+cd heuristics/models/gemm_universal_fp16_gfx950
+gunzip model_tflops.lgbm.gz
+
+# Then use in C++ example
+cd ../../../build
+./gemm_09_ml_heuristic --model ../heuristics/models/gemm_universal_fp16_gfx950/model_tflops.lgbm
+```
 
 ---
 

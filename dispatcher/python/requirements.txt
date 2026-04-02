@@ -1,11 +1,16 @@
 # Core dependencies
 numpy>=1.19.0
 
+# ML Heuristic dependencies (OPTIONAL - large dependencies)
+# For ML-based kernel selection, install separately:
+#   pip install -r ../requirements-ml.txt
+# This avoids mandatory large dependencies (pyarrow, lightgbm) for users who don't need ML features
+
 # Optional dependencies (install with pip install -e ".[torch]")
 # torch>=2.0.0
 
 # Development dependencies (install with pip install -e ".[dev]")
-# pytest>=6.0.0
+pytest>=6.0.0
 # pytest-cov>=2.0.0
 # black>=21.0
 # flake8>=3.9.0

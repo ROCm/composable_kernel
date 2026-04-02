@@ -114,3 +114,28 @@ experimental/grouped_convolution_tile_instances/instances/*
 !experimental/grouped_convolution_tile_instances/instances/*.inc
 !experimental/grouped_convolution_tile_instances/instances/*.hpp
 experimental/grouped_convolution_tile_instances/*.inc
+# Heuristics: benchmark data (never in git)
+dispatcher/heuristics/data/
+
+# Heuristics: experimental/training artifacts (exclude from git)
+dispatcher/heuristics/models/**/oof_predictions.parquet
+dispatcher/heuristics/models/**/cv_metrics_*.json
+dispatcher/heuristics/models/**/eval_report.json
+dispatcher/heuristics/models/**/feature_importances_*.json
+dispatcher/heuristics/models/**/model_tflops_ihem.lgbm
+dispatcher/heuristics/models/**/model_tflops_log.lgbm
+dispatcher/heuristics/models/**/model_tflops_log_big.lgbm
+
+# Heuristics: keep in git (production model files):
+#   models/{op}_{dtype}_{arch}/model_tflops.lgbm
+#   models/{op}_{dtype}_{arch}/model_latency.lgbm
+#   models/{op}_{dtype}_{arch}/model_bandwidth.lgbm
+#   models/{op}_{dtype}_{arch}/feature_spec.json
+#   models/{op}_{dtype}_{arch}/train_manifest.json
+
+# Heuristics: logs and caches
+dispatcher/heuristics/*.log
+dispatcher/heuristics/__pycache__/
+dispatcher/heuristics/tests/__pycache__/
+dispatcher/heuristics/.pytest_cache/
+
