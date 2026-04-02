@@ -135,65 +135,147 @@ struct idx_identity
 
 namespace detail {
 
-// RemainLengths: sequence<...>
-// Orders: sequence<...>
-template <class RemainLengths, class Orders>
-struct static_ford_impl
+// Computes the inverse of a permutation as a constexpr array.
+// Avoids the sequence_map_inverse -> is_valid_sequence_map -> sequence_sort chain.
+template <class Perm>
+struct inverse_perm;
+
+template <index_t... Ps>
+struct inverse_perm<sequence<Ps...>>
 {
-    CK_TILE_HOST_DEVICE constexpr static_ford_impl()
+    static constexpr auto compute()
     {
-        static_assert(RemainLengths::size() > 0, "wrong! should not get here");
+        constexpr index_t n = sizeof...(Ps);
+        static_array<index_t, n> result{};
+        constexpr index_t input[] = {Ps...};
+        for(index_t i = 0; i < n; ++i)
+        {
+            result[input[i]] = i;
+        }
+        return result;
+    }
+    static constexpr auto value = compute();
+};
+
+// Decomposes a linear index into multi-dimensional indices using pre-computed
+// strides. Uses a single flat static_for instead of recursive nesting, which
+// eliminates intermediate lambda closure instantiations.
+template <class OrderedLengths, class IndexSeq>
+struct index_decomposer;
+
+template <index_t... Ls, index_t... Is>
+struct index_decomposer<sequence<Ls...>, sequence<Is...>>
+{
+    static constexpr index_t n_dim                        = sizeof...(Ls);
+    static constexpr static_array<index_t, n_dim> lengths = {{Ls...}};
+
+    static constexpr static_array<index_t, n_dim> compute_all_strides()
+    {
+        static_array<index_t, n_dim> result{};
+        if constexpr(n_dim > 0)
+        {
+            result[n_dim - 1] = 1;
+            for(index_t i = n_dim - 1; i > 0; --i)
+            {
+                result[i - 1] = result[i] * lengths[i];
+            }
+        }
+        return result;
     }
 
-    // F signature: F(sequence<...>)
-    // CurrentOrderedId: sequence<...>
-    template <class F, class CurrentOrderedId>
-    CK_TILE_HOST_DEVICE constexpr void operator()(F f, CurrentOrderedId) const
+    static constexpr static_array<index_t, n_dim> strides = compute_all_strides();
+
+    // Compile-time decomposition: linear index -> sequence of per-dimension indices
+    template <index_t LinearIdx>
+    using decompose = sequence<((LinearIdx / strides[Is]) % lengths[Is])...>;
+
+    // Decompose AND reorder in one step using a pre-computed inverse permutation.
+    // Produces the unordered multi-index directly, avoiding per-iteration
+    // reorder_old_to_new member function instantiations on each unique sequence type.
+    template <index_t LinearIdx, class New2Old>
+    using decompose_reordered = sequence<((LinearIdx / strides[inverse_perm<New2Old>::value[Is]]) %
+                                          lengths[inverse_perm<New2Old>::value[Is]])...>;
+};
+
+// Calls f(decompose<I>{}) for each linear index I in the pack, using a single
+// fold expression. Bypasses the static_for lambda entirely, eliminating M*N
+// intermediate lambda closure instantiations that the lambda-based approach creates.
+template <class Decomposer, class LinearIdxSeq>
+struct ford_applier;
+
+template <class Decomposer, index_t... LinearIds>
+struct ford_applier<Decomposer, sequence<LinearIds...>>
+{
+    template <class F>
+    CK_TILE_HOST_DEVICE constexpr void operator()(F f) const
     {
-        static_for<0, RemainLengths::front(), 1>{}([=](auto I) {
-            static_ford_impl<decltype(RemainLengths::pop_front()), Orders>{}(
-                f, CurrentOrderedId::push_back(I));
-        });
+        if constexpr(sizeof...(LinearIds) > 0)
+        {
+            (f(typename Decomposer::template decompose<LinearIds>{}), ...);
+        }
     }
 };
 
-template <class Orders>
-struct static_ford_impl<sequence<>, Orders>
+// Same as ford_applier but applies reordering during decomposition.
+template <class Decomposer, class New2Old, class LinearIdxSeq>
+struct ford_applier_reordered;
+
+template <class Decomposer, class New2Old, index_t... LinearIds>
+struct ford_applier_reordered<Decomposer, New2Old, sequence<LinearIds...>>
 {
-    // F signature: F(sequence<...>)
-    // OrderedId: sequence<...>
-    template <class F, class OrderedId>
-    CK_TILE_HOST_DEVICE constexpr void operator()(F f, OrderedId) const
+    template <class F>
+    CK_TILE_HOST_DEVICE constexpr void operator()(F f) const
     {
-        // retrive unordered Id
-        f(OrderedId::reorder_old_to_new(Orders{}));
+        if constexpr(sizeof...(LinearIds) > 0)
+        {
+            (f(typename Decomposer::template decompose_reordered<LinearIds, New2Old>{}), ...);
+        }
     }
 };
 
 } // namespace detail
 
-// Lengths is sequence<...>, it is the length of each dimension for
-// N-dimensional loop
-// Orders is sequence<...>, it is the order of dimension in which static_ford
-// will loop over each
-// dimension
+// Compile-time N-dimensional loop with static multi-indices.
+// Uses direct fold expansion with index decomposition, producing zero
+// intermediate lambda closures. Each iteration calls f with a compile-time
+// sequence<i0, i1, ...> containing the multi-dimensional index.
 template <class Lengths,
           class Orders = typename arithmetic_sequence_gen<0, Lengths::size(), 1>::type>
 struct static_ford
 {
+    static constexpr index_t n_dim = Lengths::size();
+    static constexpr index_t total_size =
+        reduce_on_sequence(Lengths{}, multiplies<>{}, number<1>{});
+
+    static constexpr bool is_identity_order = std::is_same_v<Orders, make_index_sequence<n_dim>>;
+
+    // For identity order, OrderedLengths == Lengths (no reorder needed).
+    // For non-identity, reorder lengths according to iteration order.
+    // Both branches must be valid types, but only the active one is used.
+    using OrderedLengths =
+        std::conditional_t<is_identity_order,
+                           Lengths,
+                           remove_cvref_t<decltype(Lengths::reorder_new_to_old(Orders{}))>>;
+    using Decomposer = detail::index_decomposer<OrderedLengths, make_index_sequence<n_dim>>;
+
     CK_TILE_HOST_DEVICE constexpr static_ford()
     {
         static_assert(Lengths::size() > 0, "wrong! Lengths is empty");
         static_assert(Lengths::size() == Orders::size(), "wrong! inconsistent size");
     }
 
-    // F signature: F(sequence<...> multi_id)
-    // multi_id is the unordered multi-index
     template <class F>
     CK_TILE_HOST_DEVICE constexpr void operator()(F f) const
     {
-        constexpr auto ordered_lengths = Lengths::reorder_new_to_old(Orders{});
-        detail::static_ford_impl<decltype(ordered_lengths), Orders>{}(f, sequence<>{});
+        if constexpr(is_identity_order)
+        {
+            detail::ford_applier<Decomposer, make_index_sequence<total_size>>{}(f);
+        }
+        else
+        {
+            detail::ford_applier_reordered<Decomposer, Orders, make_index_sequence<total_size>>{}(
+                f);
+        }
     }
 };
 
