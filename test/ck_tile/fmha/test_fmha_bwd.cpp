@@ -91,7 +91,8 @@ void fmha_bwd_test(const FmhaBwdTestParam& param)
         drop_offset,
         drop_prefs,
         mask_str,
-        det, // deterministic
+        false, // sink_grad
+        det,   // deterministic
         init_method,
         static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
         1,
@@ -333,7 +334,8 @@ TEST_P(BasicQPadding, DataTypeConfig)
         drop_offset,
         drop_prefs,
         mask_str,
-        det,
+        false, // sink_grad
+        det,   // deterministic
         init_method,
         static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
         1,
@@ -419,7 +421,8 @@ TEST_P(BasicKVPadding, DataTypeConfig)
         drop_offset,
         drop_prefs,
         mask_str,
-        det,
+        false, // sink_grad
+        det,   // deterministic
         init_method,
         static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
         1,
@@ -513,7 +516,8 @@ TEST_P(QKVPadding, DataTypeConfig)
         drop_offset,
         drop_prefs,
         mask_str,
-        det,
+        false, // sink_grad
+        det,   // deterministic
         init_method,
         static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
         1,
@@ -620,7 +624,8 @@ TEST_P(ZeroLengthPadding, DataTypeConfig)
         drop_offset,
         drop_prefs,
         mask_str,
-        det,
+        false, // sink_grad
+        det,   // deterministic
         init_method,
         static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
         1,
@@ -741,7 +746,8 @@ TEST_P(VariedPaddingRatios, DataTypeConfig)
         drop_offset,
         drop_prefs,
         mask_str,
-        det,
+        false, // sink_grad
+        det,   // deterministic
         init_method,
         static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
         1,
@@ -843,7 +849,8 @@ TEST_P(PaddingWithMask, DataTypeConfig)
         drop_offset,
         drop_prefs,
         mask_str,
-        det,
+        false, // sink_grad
+        det,   // deterministic
         init_method,
         static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
         1,
@@ -977,7 +984,8 @@ TEST_P(MultiBatchPadding, DataTypeConfig)
         drop_offset,
         drop_prefs,
         mask_str,
-        det,
+        false, // sink_grad
+        det,   // deterministic
         init_method,
         static_cast<uint32_t>(ck_tile::EnvValue(CK_TILE_ENV(CK_TILE_TEST_SEED))),
         1,
