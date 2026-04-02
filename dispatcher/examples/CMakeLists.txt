@@ -346,6 +346,55 @@ add_declarative_gpu_example(gemm_04_heuristics           gemm/cpp/04_heuristics.
 add_declarative_gpu_example(gemm_05_json_export          gemm/cpp/05_json_export.cpp)
 add_declarative_gpu_example(gemm_06_multi_registry       gemm/cpp/06_multi_registry.cpp)
 
+# ML Heuristic example -- requires LightGBM shared library
+# Derive site-packages from active Python interpreter (respects virtualenvs)
+find_package(Python3 COMPONENTS Interpreter)
+
+set(LIGHTGBM_SEARCH_PATHS)
+if(Python3_FOUND AND Python3_EXECUTABLE)
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c "import sysconfig; print(sysconfig.get_path('purelib'))"
+        OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(PYTHON_SITE_PACKAGES)
+        list(APPEND LIGHTGBM_SEARCH_PATHS "${PYTHON_SITE_PACKAGES}/lightgbm/lib")
+    endif()
+endif()
+
+# Fallback to common Python 3.x site-packages if auto-detection failed
+if(NOT PYTHON_SITE_PACKAGES)
+    list(APPEND LIGHTGBM_SEARCH_PATHS
+        "$ENV{HOME}/.local/lib/python3.12/site-packages/lightgbm/lib"
+    )
+endif()
+
+find_library(LIGHTGBM_LIB NAMES LightGBM lib_lightgbm _lightgbm
+    HINTS ${CMAKE_PREFIX_PATH}
+    PATHS ${LIGHTGBM_SEARCH_PATHS}
+    NO_DEFAULT_PATH
+    DOC "LightGBM shared library for ML heuristics"
+)
+
+# Fallback: search default paths (respects LightGBM_DIR if set by user)
+if(NOT LIGHTGBM_LIB)
+    find_library(LIGHTGBM_LIB NAMES LightGBM lib_lightgbm)
+endif()
+
+if(LIGHTGBM_LIB)
+    add_declarative_gpu_example(gemm_09_ml_heuristic gemm/cpp/09_ml_heuristic.cpp)
+    target_link_libraries(gemm_09_ml_heuristic PRIVATE ${LIGHTGBM_LIB})
+    message(STATUS "LightGBM found: ${LIGHTGBM_LIB} -- building gemm_09_ml_heuristic")
+else()
+    message(STATUS "LightGBM not found -- skipping gemm_09_ml_heuristic")
+    message(STATUS "  To enable ML heuristic example:")
+    message(STATUS "    1. Activate virtualenv: source .venv/bin/activate")
+    message(STATUS "    2. Install: pip install -r ../requirements-ml.txt")
+    message(STATUS "    3. Reconfigure: cmake ..")
+    message(STATUS "  Or set CMAKE_PREFIX_PATH or LightGBM_DIR to LightGBM location")
+endif()
+
 # =============================================================================
 # GEMM Python Library - Single Fallback Kernel
 # =============================================================================
