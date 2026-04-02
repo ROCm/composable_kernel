@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 
 set(GEMM_STREAMK_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
-set(GEMM_STREAMK_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
-set(GEMM_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
+set(GEMM_STREAMK_LAYOUT "rcr;rrr;crr;ccr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
+set(GEMM_STREAMK_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 option(ENABLE_CCACHE_GEMM "Enable ccache for GEMM ops compilation" OFF)
 
 # Store the directory path for use in functions
@@ -116,19 +116,19 @@ function(build_individual_gemm_targets datatype layout)
     
     # Choose config file
     # Priority order:
-    # 1. Environment variable GEMM_CONFIG_FILE
-    # 2. CMake variable GEMM_CONFIG_FILE  
+    # 1. Environment variable GEMM_STREAMK_CONFIG_FILE
+    # 2. CMake variable GEMM_STREAMK_CONFIG_FILE  
     # 3. Default based on layout
     
     # Check environment variable first
-    if(DEFINED ENV{GEMM_CONFIG_FILE} AND NOT "$ENV{GEMM_CONFIG_FILE}" STREQUAL "")
-        set(config_filename "$ENV{GEMM_CONFIG_FILE}")
+    if(DEFINED ENV{GEMM_STREAMK_CONFIG_FILE} AND NOT "$ENV{GEMM_STREAMK_CONFIG_FILE}" STREQUAL "")
+        set(config_filename "$ENV{GEMM_STREAMK_CONFIG_FILE}")
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${config_filename}")
         message(STATUS "  Using config from environment variable: ${config_filename}")
-    elseif(NOT "${GEMM_CONFIG_FILE}" STREQUAL "")
+    elseif(NOT "${GEMM_STREAMK_CONFIG_FILE}" STREQUAL "")
         # Use CMake variable if set
-        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${GEMM_CONFIG_FILE}")
-        message(STATUS "  Using custom config: ${GEMM_CONFIG_FILE}")
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${GEMM_STREAMK_CONFIG_FILE}")
+        message(STATUS "  Using custom config: ${GEMM_STREAMK_CONFIG_FILE}")
     else()
         # Use default config for all layouts
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
