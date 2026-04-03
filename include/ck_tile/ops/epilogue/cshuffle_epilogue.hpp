@@ -129,7 +129,13 @@ struct CShuffleEpilogue
     static constexpr index_t isCTransposed = Problem::isCTransposed;
     static constexpr bool FixedVectorSize  = Problem::FixedVectorSize;
     static constexpr bool TiledMMAPermuteN = Problem::TiledMMAPermuteN;
-    static constexpr bool EightWave        = (MWave * NWave == 8);
+
+#if defined(__gfx9__)
+    static constexpr bool EightWave = (MWave * NWave == 8);
+#else
+    static constexpr bool EightWave = false;
+#endif
+
     static constexpr index_t BlockedXDLN_PerWarp =
         EightWave ? kNPerBlock / NWave / NPerXdl : Problem::BlockedXDLN_PerWarp;
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
