@@ -26,7 +26,7 @@ function(build_multi_reduce_for_datatype datatype variant)
         return()
     endif()
     
-    message(STATUS "Building Reduction for GPU targets: ${GPU_TARGETS}")
+    message(VERBOSE "Building Reduction for GPU targets: ${GPU_TARGETS}")
     
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${variant}")
     file(MAKE_DIRECTORY "${working_path}")
@@ -75,7 +75,7 @@ function(build_multi_reduce_for_datatype datatype variant)
         message(FATAL_ERROR "Failed to generate kernels for ${datatype} ${variant}: ${ret}")
     endif()
 
-    message(STATUS "Generated ${datatype} ${variant} reduction kernel blobs at: ${working_path}")
+    message(VERBOSE "Generated ${datatype} ${variant} reduction kernel blobs at: ${working_path}")
 
     # # Add test executables for each generated test
     file(STRINGS "${working_path}/reduce_${variant}_blobs_list.txt" test_basenames)
@@ -85,7 +85,7 @@ function(build_multi_reduce_for_datatype datatype variant)
         set(test_src "${working_path}/${test_base}.cpp")
         set(test_target "${test_base}")
 
-        add_executable(${test_target} ${test_src})
+        add_executable(${test_target} EXCLUDE_FROM_ALL ${test_src})
         target_include_directories(${test_target} PRIVATE
             "${CMAKE_SOURCE_DIR}/test/ck_tile/reduce/"
             ${working_path}

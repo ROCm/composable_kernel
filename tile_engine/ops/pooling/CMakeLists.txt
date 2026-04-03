@@ -55,6 +55,7 @@ function(create_individual_pool_target datatype kernel_name trait tile_config co
 
     # Create the executable
     add_executable(${target_name}
+        EXCLUDE_FROM_ALL
         ${target_source}
         ${instance_header}
     )
@@ -90,7 +91,7 @@ function(create_individual_pool_target datatype kernel_name trait tile_config co
     add_dependencies(benchmark_pooling_all ${target_name})
     add_dependencies(benchmark_pooling_${datatype} ${target_name})
 
-    message(STATUS "  Created pooling benchmark target: ${target_name}")
+    message(DEBUG "  Created pooling benchmark target: ${target_name}")
 endfunction()
 
 # ============================================================================
@@ -105,13 +106,13 @@ function(build_individual_pool_targets datatype)
     if(DEFINED ENV{POOLING_CONFIG_FILE} AND NOT "$ENV{POOLING_CONFIG_FILE}" STREQUAL "")
         set(config_filename "$ENV{POOLING_CONFIG_FILE}")
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${config_filename}")
-        message(STATUS "  Using config from environment variable: ${config_filename}")
+        message(VERBOSE "  Using config from environment variable: ${config_filename}")
     elseif(NOT "${POOLING_CONFIG_FILE}" STREQUAL "")
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${POOLING_CONFIG_FILE}")
-        message(STATUS "  Using custom config: ${POOLING_CONFIG_FILE}")
+        message(VERBOSE "  Using custom config: ${POOLING_CONFIG_FILE}")
     else()
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
-        message(STATUS "  Using default config for pooling")
+        message(VERBOSE "  Using default config for pooling")
     endif()
 
     if(NOT EXISTS ${json_blob})
@@ -121,7 +122,7 @@ function(build_individual_pool_targets datatype)
     file(MAKE_DIRECTORY ${working_path})
 
     # Step 1: List kernels
-    message(STATUS "  Listing pooling kernel configurations for ${datatype}...")
+    message(VERBOSE "  Listing pooling kernel configurations for ${datatype}...")
     execute_process(
         COMMAND ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/pooling_instance_builder.py
                 --working_path ${working_path}
@@ -142,7 +143,7 @@ function(build_individual_pool_targets datatype)
     if(EXISTS ${working_path}/pool_kernel_count.txt)
         file(READ ${working_path}/pool_kernel_count.txt kernel_count)
         string(STRIP "${kernel_count}" kernel_count)
-        message(STATUS "  Found ${kernel_count} pooling kernel configurations")
+        message(VERBOSE "  Found ${kernel_count} pooling kernel configurations")
     else()
         message(FATAL_ERROR "Pooling kernel count file not found")
     endif()
@@ -169,9 +170,9 @@ endfunction()
 # MAIN EXECUTION
 # ============================================================================
 
-message(STATUS "=== Starting Tile Engine Pooling Configuration ===")
-message(STATUS "POOLING_DATATYPE: ${POOLING_DATATYPE}")
-message(STATUS "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+message(VERBOSE "=== Starting Tile Engine Pooling Configuration ===")
+message(VERBOSE "POOLING_DATATYPE: ${POOLING_DATATYPE}")
+message(VERBOSE "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 
 # Filter GPU targets
 set(POOLING_GPU_TARGETS "")
@@ -180,21 +181,21 @@ set(DESIRED_TARGETS "gfx90a;gfx942;gfx950;gfx1201")
 foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
     if(target IN_LIST DESIRED_TARGETS)
         list(APPEND POOLING_GPU_TARGETS ${target})
-        message(STATUS "  Adding GPU target for pooling: ${target}")
+        message(VERBOSE "  Adding GPU target for pooling: ${target}")
     endif()
 endforeach()
 
 if(NOT POOLING_GPU_TARGETS)
     message(WARNING "Skipping Tile Engine Pooling build: No supported GPU targets (gfx90a, gfx942, gfx950, gfx1201) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 else()
-    message(STATUS "Building pooling targets for GPU targets: ${POOLING_GPU_TARGETS}")
+    message(VERBOSE "Building pooling targets for GPU targets: ${POOLING_GPU_TARGETS}")
 
     # Enable ccache if requested
     if(ENABLE_CCACHE_POOLING)
         find_program(CCACHE_PROGRAM ccache)
         if(CCACHE_PROGRAM)
             set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-            message(STATUS "Using ccache for pooling compilation")
+            message(VERBOSE "Using ccache for pooling compilation")
         endif()
     endif()
 
