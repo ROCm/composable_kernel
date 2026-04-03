@@ -1304,7 +1304,23 @@ class Product:
 
 def get_product(receipt: int) -> Product:
     # Flash attention integration
-    if receipt in (2, 3):
+    if receipt == 2:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            cond = problem_ctx.dtype in ["fp16", "bf16"]
+            cond &= kernel_ctx.pipeline.F_vlayout == "row"
+            cond &= kernel_ctx.pipeline.F_bias in ["no", "alibi"]
+            cond &= kernel_ctx.pipeline.F_qscale == "no"
+            cond &= kernel_ctx.pipeline.F_skip == "f"
+            cond &= kernel_ctx.pipeline.F_sink == "f"
+            # FlashAttention direct fwd wrappers always use softcap disabled and LSE enabled.
+            cond &= kernel_ctx.pipeline.F_logits == "f"
+            cond &= kernel_ctx.pipeline.F_lse == "t"
+            return cond
+
+        return Product(name="Flash attention integration", rule=fit)
+    # Receipt 3 forward coverage used by CK library / smoke tests
+    elif receipt == 3:
 
         def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
             cond = problem_ctx.dtype in ["fp16", "bf16"]
