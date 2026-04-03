@@ -260,10 +260,11 @@ bwd_result fmha_bwd_run(mode_enum mode,
         p_drop > 0.0f,
         s_randval,
         deterministic,
+        (mode == mode_enum::group) ? seqstart_q_host.data() : nullptr,
+        (mode == mode_enum::group) ? seqstart_k_host.data() : nullptr,
     };
     fmha_bwd_launcher launcher(fmha_traits);
-
-    const ck_tile::index_t nsplits = launcher.dq_acc_splits;
+    const size_t ws_size = launcher.workspace_size;
 
     ck_tile::HostTensor<QDataType> q_host(
         get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
@@ -301,8 +302,6 @@ bwd_result fmha_bwd_run(mode_enum mode,
         use_dbias
             ? get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, max_seqlen_k)
             : std::array<ck_tile::index_t, 4>{1, 1, 1, 1} /* dummy shape for simplifying code */);
-    ck_tile::HostTensor<AccDataType> dq_acc_host(
-        std::array<ck_tile::index_t, 5>{shape_batch, nhead, nsplits, shape_seqlen_q, hdim_q});
 
     if(init_method == "ui" || init_method == "0")
     {
@@ -377,7 +376,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
     ck_tile::DeviceMem drop_seed_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem drop_offset_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem alibi_slope_buf(alibi_slope_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem dq_acc_buf(dq_acc_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem ws_buf(ws_size);
+    launcher.prepare_workspace(ws_buf.GetDeviceBuffer());
 
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
@@ -409,17 +409,14 @@ bwd_result fmha_bwd_run(mode_enum mode,
     // clang-format on
 
     const std::size_t workspace_size_in_megabytes =
-        ck_tile::integer_divide_ceil(dq_acc_host.get_element_space_size_in_bytes(), 1024 * 1024);
+        ck_tile::integer_divide_ceil(ws_size, 1024 * 1024);
 
     std::cout << "[" << data_type << "|" << mode << "|" << io_layout(i_perm, o_perm)
               << "] b:" << batch << ", h:" << nhead << "/" << nhead_k << ", s:" << seqlen_qs[0]
               << "/" << seqlen_ks[0] << ", d:" << hdim_q << "/" << hdim_v << ", scale:" << scale
               << ", bias:" << bias << ", dbias:" << use_dbias << ", p_drop:" << p_drop
               << ", s_randval:" << s_randval << ", deterministic:" << deterministic
-              << (deterministic
-                      ? std::string(", workspace:") + std::to_string(workspace_size_in_megabytes) +
-                            "MiB|" + std::to_string(nsplits) + "splits"
-                      : "")
+              << ", workspace:" << std::to_string(workspace_size_in_megabytes) << "MiB"
               << ", mask:" << mask << std::flush;
 
     auto fmha_args = [&]() {
@@ -437,7 +434,6 @@ bwd_result fmha_bwd_run(mode_enum mode,
         const ck_tile::index_t stride_dk      = (i_perm ? hdim_q : nhead * hdim_q);
         const ck_tile::index_t stride_dv      = (i_perm ? hdim_v : nhead * hdim_v);
         const ck_tile::index_t stride_dbias   = (i_perm ? max_seqlen_k : nhead * max_seqlen_k);
-        const auto split_stride_dq_acc        = (shape_seqlen_q * hdim_q);
         // setup nhead_stride_* arguments
         const ck_tile::index_t nhead_stride_q       = (i_perm ? shape_seqlen_q * hdim_q : hdim_q);
         const ck_tile::index_t nhead_stride_k       = (i_perm ? shape_seqlen_k * hdim_q : hdim_q);
@@ -449,8 +445,6 @@ bwd_result fmha_bwd_run(mode_enum mode,
         const ck_tile::index_t nhead_stride_lsed    = shape_seqlen_q;
         const ck_tile::index_t nhead_stride_dbias =
             (i_perm ? shape_seqlen_q * max_seqlen_k : max_seqlen_k);
-        const auto nhead_stride_dq_acc =
-            static_cast<ck_tile::long_index_t>(split_stride_dq_acc) * nsplits;
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q       = (nhead * shape_seqlen_q * hdim_q);
         const ck_tile::index_t batch_stride_k       = (nhead_k * shape_seqlen_k * hdim_q);
@@ -463,7 +457,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
         const ck_tile::index_t batch_stride_dk      = (nhead * shape_seqlen_k * hdim_q);
         const ck_tile::index_t batch_stride_dv      = (nhead * shape_seqlen_k * hdim_v);
         const ck_tile::index_t batch_stride_dbias   = (nhead * shape_seqlen_q * max_seqlen_k);
-        const auto batch_stride_dq_acc              = nhead * nhead_stride_dq_acc;
+
+        void* ws_ptr = ws_size > 0 ? ws_buf.GetDeviceBuffer() : nullptr;
 
         const auto drop_seed_offset = [&]() -> decltype(fmha_bwd_args::drop_seed_offset) {
             if(drop_prefs)
@@ -494,7 +489,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                              dk_buf.GetDeviceBuffer(),
                              dv_buf.GetDeviceBuffer(),
                              dbias_buf.GetDeviceBuffer(),
-                             dq_acc_buf.GetDeviceBuffer(),
+                             ws_ptr,
                              seqstart_q.GetDeviceBuffer(),
                              seqstart_k.GetDeviceBuffer(),
                              seqlen_q_ptr_dev,
@@ -519,8 +514,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                              stride_o,
                              stride_randval,
                              stride_do,
-                             hdim_q,   // stride_dq_acc
-                             stride_q, // stride_dq
+                             stride_q, // stride_dq (same layout as q for dq output)
                              stride_dk,
                              stride_dv,
                              stride_dbias,
@@ -532,7 +526,6 @@ bwd_result fmha_bwd_run(mode_enum mode,
                              nhead_stride_randval,
                              nhead_stride_do,
                              nhead_stride_lsed,
-                             nhead_stride_dq_acc,
                              nhead_stride_q, // nhead_stride_dq
                              nhead_stride_k, // nhead_stride_dk
                              nhead_stride_v, // nhead_stride_dv
@@ -545,12 +538,10 @@ bwd_result fmha_bwd_run(mode_enum mode,
                              batch_stride_randval,
                              batch_stride_do,
                              batch_stride_lsed,
-                             batch_stride_dq_acc,
                              batch_stride_q, // batch_stride_dq
                              batch_stride_dk,
                              batch_stride_dv,
                              batch_stride_dbias,
-                             split_stride_dq_acc,
                              mask.left,
                              mask.right,
                              static_cast<ck_tile::index_t>(mask.type),
@@ -833,18 +824,15 @@ bwd_result fmha_bwd_run(mode_enum mode,
         ck_tile::FillConstant<QGradDataType>{ck_tile::numeric<QGradDataType>::infinity()}(dq_host);
         ck_tile::FillConstant<KGradDataType>{ck_tile::numeric<KGradDataType>::infinity()}(dk_host);
         ck_tile::FillConstant<VGradDataType>{ck_tile::numeric<VGradDataType>::infinity()}(dv_host);
-        ck_tile::FillConstant<AccDataType>{ck_tile::numeric<AccDataType>::infinity()}(dq_acc_host);
         dq_buf.ToDevice(dq_host.data());
         dk_buf.ToDevice(dk_host.data());
         dv_buf.ToDevice(dv_host.data());
-        dq_acc_buf.ToDevice(dq_acc_host.data());
+        // re-initialize workspace for validation run
+        launcher.prepare_workspace(ws_buf.GetDeviceBuffer());
 
         o_buf.ToDevice(o_host.data());
         lse_buf.ToDevice(lse_host.data());
         dbias_buf.SetZero();
-
-        if(launcher.needs_zero_dq_acc)
-            dq_acc_buf.SetZero();
 
         ck_tile::stream_config stream_config_v{nullptr, true, 0, 0, 1};
         launcher(fmha_args, stream_config_v);

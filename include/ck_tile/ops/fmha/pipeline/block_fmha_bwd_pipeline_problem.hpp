@@ -95,7 +95,6 @@ template <typename AccDataType_,
           typename QGradDataType_,
           index_t kBlockSize_,
           index_t kM0_,
-          index_t kN0_,
           index_t kQKHeaddim_,
           bool kIsGroupMode_,
           bool kIsDeterministic_,
@@ -111,7 +110,6 @@ struct BlockFmhaBwdConvertQGradPipelineProblem
 
     static constexpr index_t kBlockSize    = kBlockSize_;
     static constexpr index_t kM0           = kM0_;
-    static constexpr index_t kN0           = kN0_;
     static constexpr index_t kQKHeaddim    = kQKHeaddim_;
     static constexpr bool kIsGroupMode     = kIsGroupMode_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;
