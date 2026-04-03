@@ -63,8 +63,8 @@
 #define __gfx101__
 #endif
 #if defined(__gfx1030__) || defined(__gfx1031__) || defined(__gfx1032__) || \
-    defined(__gfx1034__) || defined(__gfx1035__) || defined(__gfx1036__) || \
-    defined(__gfx10_3_generic__)
+    defined(__gfx1033__) || defined(__gfx1034__) || defined(__gfx1035__) || \
+    defined(__gfx1036__) || defined(__gfx10_3_generic__)
 #define __gfx103__
 #endif
 #if defined(__gfx1100__) || defined(__gfx1101__) || defined(__gfx1102__) || \
