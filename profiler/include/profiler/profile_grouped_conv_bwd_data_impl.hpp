@@ -287,6 +287,8 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     bool pass               = true;
     index_t num_kernel      = 0;
     index_t valid_instances = 0;
+    bool dummy_run_executed = false;
+
     auto run_impl = [&](auto& op_ptr, auto& argument_ptr, const index_t& split_k_for_run) {
         // workspace_sz will be equal to 0 for other layout than NGCHW
         const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
@@ -317,8 +319,25 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-            float avg_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+            // Run first instance twice to get proper time
+            if(time_kernel && !dummy_run_executed)
+            {
+                invoker_ptr->Run(argument_ptr.get(),
+                                 StreamConfig{nullptr,
+                                              time_kernel,
+                                              0 /*log_level*/,
+                                              5 /*cold_iters*/,
+                                              50 /*nrepeat_*/,
+                                              time_kernel /*flush_cache*/});
+                dummy_run_executed = true;
+            }
+            float avg_time = invoker_ptr->Run(argument_ptr.get(),
+                                              StreamConfig{nullptr,
+                                                           time_kernel,
+                                                           0 /*log_level*/,
+                                                           5 /*cold_iters*/,
+                                                           50 /*nrepeat_*/,
+                                                           time_kernel /*flush_cache*/});
 
             std::size_t flop      = conv_param.GetFlops();
             std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
@@ -495,7 +514,6 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     {
         std::cout << "\nValid instances for this problem:" << std::endl;
     }
-
     for(auto& op_ptr : op_ptrs)
     {
         for(std::size_t split_k_id = 0; split_k_id < split_k_list.size(); split_k_id++)
