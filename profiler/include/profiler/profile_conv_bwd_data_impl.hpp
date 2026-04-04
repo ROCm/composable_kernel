@@ -197,10 +197,11 @@ bool profile_conv_bwd_data_impl(int do_verification,
     }
 
     std::string best_op_name;
-    float best_avg_time   = 0;
-    float best_tflops     = 0;
-    float best_gb_per_sec = 0;
-    int num_kernel        = 0;
+    float best_avg_time     = 0;
+    float best_tflops       = 0;
+    float best_gb_per_sec   = 0;
+    int num_kernel          = 0;
+    bool dummy_run_executed = false;
 
     for(auto& op_ptr : op_ptrs)
     {
@@ -230,16 +231,38 @@ bool profile_conv_bwd_data_impl(int do_verification,
                 // skip test if instance_index is specified
                 continue;
             }
-            // for conv bwd data, some input tensor element are zero, but not written by kernel,
-            // need to set zero
-            in_device_buf.SetZero();
+            if(!time_kernel)
+            {
+                // Don't clear for perf measurement.
+                // For non-grouped solver user has to clear input on his own.
+                // for conv bwd data, some input tensor element are zero, but not written by kernel,
+                // need to set zero
+                in_device_buf.SetZero();
+            }
 
             std::string op_name = op_ptr->GetTypeString();
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-            float avg_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+            // Run first instance twice to get proper time
+            if(time_kernel && !dummy_run_executed)
+            {
+                invoker_ptr->Run(argument_ptr.get(),
+                                 StreamConfig{nullptr,
+                                              time_kernel,
+                                              0 /*log_level*/,
+                                              5 /*cold_iters*/,
+                                              50 /*nrepeat_*/,
+                                              time_kernel /*flush_cache*/});
+                dummy_run_executed = true;
+            }
+            float avg_time = invoker_ptr->Run(argument_ptr.get(),
+                                              StreamConfig{nullptr,
+                                                           time_kernel,
+                                                           0 /*log_level*/,
+                                                           5 /*cold_iters*/,
+                                                           50 /*nrepeat_*/,
+                                                           time_kernel /*flush_cache*/});
 
             std::size_t flop      = conv_param.GetFlops();
             std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();

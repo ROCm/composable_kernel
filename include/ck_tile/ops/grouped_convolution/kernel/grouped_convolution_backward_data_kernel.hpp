@@ -903,13 +903,11 @@ struct GroupedConvolutionBackwardDataKernel
         const auto& d_block_window =
             MakeDBlockWindows(ds_ptr, kargs, group_id, block_idx_m, block_idx_n);
 
-        const index_t num_loop  = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitted_k));
-        const bool has_hot_loop = GemmPipeline::BlockHasHotloop(num_loop);
-        const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
+        const index_t num_loop = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitted_k));
 
         // Run GEMM cooperatively by whole workgroup.
         const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, num_loop, has_hot_loop, tail_num, smem_ptr_0);
+            a_block_window, b_block_window, num_loop, smem_ptr_0);
 
         const index_t k_batch = amd_wave_read_first_lane(kargs.k_batch);
 

@@ -1225,26 +1225,50 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             has_main_loop,
                             no_main_loop,
                             CTranspose>;
-
-                        return launch_and_time_kernel_with_preprocess(
-                            stream_config,
-                            clear_workspace,
-                            kernel,
-                            dim3(gdx, gdy, gdz),
-                            dim3(BlockSize),
-                            0,
-                            p_b_grid,
-                            p_a_grid,
-                            arg.p_ds_grid_,
-                            p_e_grid,
-                            gemm_kernel_args,
-                            gemms_count_for_set,
-                            arg.b_element_op_,
-                            arg.a_element_op_,
-                            arg.cde_element_op_,
-                            arg.compute_ptr_offset_of_batch_,
-                            arg.compute_ptr_offset_of_n_,
-                            arg.k_batch_);
+                        if(stream_config.flush_cache)
+                        {
+                            return launch_and_time_kernel_with_preprocess_flush_cache(
+                                stream_config,
+                                clear_workspace,
+                                kernel,
+                                dim3(gdx, gdy, gdz),
+                                dim3(BlockSize),
+                                0,
+                                p_b_grid,
+                                p_a_grid,
+                                arg.p_ds_grid_,
+                                p_e_grid,
+                                gemm_kernel_args,
+                                gemms_count_for_set,
+                                arg.b_element_op_,
+                                arg.a_element_op_,
+                                arg.cde_element_op_,
+                                arg.compute_ptr_offset_of_batch_,
+                                arg.compute_ptr_offset_of_n_,
+                                arg.k_batch_);
+                        }
+                        else
+                        {
+                            return launch_and_time_kernel_with_preprocess(
+                                stream_config,
+                                clear_workspace,
+                                kernel,
+                                dim3(gdx, gdy, gdz),
+                                dim3(BlockSize),
+                                0,
+                                p_b_grid,
+                                p_a_grid,
+                                arg.p_ds_grid_,
+                                p_e_grid,
+                                gemm_kernel_args,
+                                gemms_count_for_set,
+                                arg.b_element_op_,
+                                arg.a_element_op_,
+                                arg.cde_element_op_,
+                                arg.compute_ptr_offset_of_batch_,
+                                arg.compute_ptr_offset_of_n_,
+                                arg.k_batch_);
+                        }
                     }
                     else
                     {
@@ -1264,26 +1288,50 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                             has_main_loop,
                             no_main_loop,
                             CTranspose>;
-
-                        return launch_and_time_kernel_with_preprocess(
-                            stream_config,
-                            clear_workspace,
-                            kernel,
-                            dim3(gdx, gdy, gdz),
-                            dim3(BlockSize),
-                            0,
-                            p_a_grid,
-                            p_b_grid,
-                            arg.p_ds_grid_,
-                            p_e_grid,
-                            gemm_kernel_args,
-                            gemms_count_for_set,
-                            arg.a_element_op_,
-                            arg.b_element_op_,
-                            arg.cde_element_op_,
-                            arg.compute_ptr_offset_of_batch_,
-                            arg.compute_ptr_offset_of_n_,
-                            arg.k_batch_);
+                        if(stream_config.flush_cache)
+                        {
+                            return launch_and_time_kernel_with_preprocess_flush_cache(
+                                stream_config,
+                                clear_workspace,
+                                kernel,
+                                dim3(gdx, gdy, gdz),
+                                dim3(BlockSize),
+                                0,
+                                p_a_grid,
+                                p_b_grid,
+                                arg.p_ds_grid_,
+                                p_e_grid,
+                                gemm_kernel_args,
+                                gemms_count_for_set,
+                                arg.a_element_op_,
+                                arg.b_element_op_,
+                                arg.cde_element_op_,
+                                arg.compute_ptr_offset_of_batch_,
+                                arg.compute_ptr_offset_of_n_,
+                                arg.k_batch_);
+                        }
+                        else
+                        {
+                            return launch_and_time_kernel_with_preprocess(
+                                stream_config,
+                                clear_workspace,
+                                kernel,
+                                dim3(gdx, gdy, gdz),
+                                dim3(BlockSize),
+                                0,
+                                p_a_grid,
+                                p_b_grid,
+                                arg.p_ds_grid_,
+                                p_e_grid,
+                                gemm_kernel_args,
+                                gemms_count_for_set,
+                                arg.a_element_op_,
+                                arg.b_element_op_,
+                                arg.cde_element_op_,
+                                arg.compute_ptr_offset_of_batch_,
+                                arg.compute_ptr_offset_of_n_,
+                                arg.k_batch_);
+                        }
                     }
                 };
                 if(has_loop_in_all_gemm)

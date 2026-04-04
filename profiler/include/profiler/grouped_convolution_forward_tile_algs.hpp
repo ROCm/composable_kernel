@@ -86,15 +86,16 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
     auto ref_conv   = ReferenceInstance{};
     auto ref_result = ckt::run(ref_conv, args, inputs, reference.get());
     auto run_alg    = [&](auto&& run_alg_func) {
-        if(!dummy_run_executed)
-        {
-            // Run first instance twice
-            std::tie(is_supported, avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
-            dummy_run_executed                        = true;
-        }
         std::tie(is_supported, avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
         if(is_supported)
         {
+            if((s_conf.time_kernel_ || s_conf.flush_cache_) && !dummy_run_executed)
+            {
+                // Run first instance twice
+                std::tie(is_supported, avg_time, op_name) =
+                    run_alg_func(args, inputs, outputs, s_conf);
+                dummy_run_executed = true;
+            }
             best_avg_time = std::min(best_avg_time, avg_time);
             best_op_name  = best_avg_time < avg_time ? best_op_name : op_name;
             std::cout << "Perf: " << std::setw(10) << avg_time << " ms," << " " << op_name
