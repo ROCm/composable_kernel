@@ -187,11 +187,11 @@ struct EpilogueGraph
                                    Context& context) const
     {
         // For each iteration, process all epilogues in order
-        static_for<0, Steps, 1>{}([&](auto iAccess) {
-            static_for<0, sizeof...(EpilogueTypes), 1>{}([&](auto I) {
-                epilogues.template get<I.value>()(
-                    out_window, acc_tile, aux_windows, p_smem, context, iAccess);
-            });
+        static_ford<sequence<Steps, sizeof...(EpilogueTypes)>>{}([&](auto iI) {
+            constexpr auto iAccess = number<iI[number<0>{}]>{};
+            constexpr auto I       = number<iI[number<1>{}]>{};
+            epilogues.template get<I.value>()(
+                out_window, acc_tile, aux_windows, p_smem, context, iAccess);
         });
     }
 };

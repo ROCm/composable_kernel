@@ -631,17 +631,17 @@ struct BlockReduce2dLinearCrossWarpSync
                                             IndexDataType> all_indices;
 
         // Load data from shared memory
-        static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
-            static_for<0, num_reduce_warps, 1>{}([&](auto i_1) {
-                all_scratch[i_0 * num_reduce_warps + i_1] =
-                    smem_ptr[i_0 * num_warps + local_smem_os + i_1];
+        static_ford<sequence<thread_buf_size, num_reduce_warps>>{}([&](auto ii) {
+            constexpr auto i_0 = number<ii[number<0>{}]>{};
+            constexpr auto i_1 = number<ii[number<1>{}]>{};
+            all_scratch[i_0 * num_reduce_warps + i_1] =
+                smem_ptr[i_0 * num_warps + local_smem_os + i_1];
 
-                if constexpr(kProcessIndex)
-                {
-                    all_indices[i_0 * num_reduce_warps + i_1] =
-                        smem_indices[i_0 * num_warps + local_smem_os + i_1];
-                }
-            });
+            if constexpr(kProcessIndex)
+            {
+                all_indices[i_0 * num_reduce_warps + i_1] =
+                    smem_indices[i_0 * num_warps + local_smem_os + i_1];
+            }
         });
         block_sync_lds(); // TODO: we don't need sync here
 
