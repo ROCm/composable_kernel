@@ -14,10 +14,9 @@
 
 void hstu_attention_no_group_forward_fp16(HstuAttentionNoGroupFwdParams& param, hipStream_t stream)
 {
-    const bool has_dropout = (param.p_drop > 0.0f);
-    const bool has_bias    = (param.bias_ptr != nullptr);
-    const bool use_causal  = param.use_causal;
-    BOOL_SWITCH_3(has_bias, kHasBias, has_dropout, kHasDropout, use_causal, kUseCausal, [&] {
+    const bool has_bias   = (param.bias_ptr != nullptr);
+    const bool use_causal = param.use_causal;
+    BOOL_SWITCH_2(has_bias, kHasBias, use_causal, kUseCausal, [&] {
         HDIM_SWITCH(param.hdim_qk, param.hdim_v, MaxK, [&] {
             BOOL_SWITCH(param.use_softmax, kUseSoftmax, [&] {
                 if(param.is_jagged)
@@ -25,14 +24,14 @@ void hstu_attention_no_group_forward_fp16(HstuAttentionNoGroupFwdParams& param, 
                                                                             kUseCausal,
                                                                             kUseSoftmax,
                                                                             kHasBias,
-                                                                            kHasDropout,
+                                                                            false, // kHasDropout
                                                                             MaxK>(param, stream);
                 else
                     run_batched_forward_causal_softmax_bias_dropout_dispatch<ck_tile::fp16_t,
                                                                              kUseCausal,
                                                                              kUseSoftmax,
                                                                              kHasBias,
-                                                                             kHasDropout,
+                                                                             false, // kHasDropout
                                                                              MaxK>(param, stream);
             });
         });
