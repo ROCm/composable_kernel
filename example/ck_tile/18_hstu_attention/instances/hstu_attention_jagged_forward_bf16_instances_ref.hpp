@@ -14,38 +14,6 @@ extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
     true,
     true,
     true,
-    true,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    false,
-    true,
-    true,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    true,
-    true,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    false,
-    true,
-    true,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    true,
     false,
     64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
 
@@ -71,38 +39,6 @@ extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
     false,
     true,
     false,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    false,
-    true,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    false,
-    false,
-    true,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    false,
-    true,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    false,
-    false,
-    true,
     64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
 
 extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
@@ -142,38 +78,6 @@ extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
     true,
     true,
     true,
-    true,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    false,
-    true,
-    true,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    true,
-    true,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    false,
-    true,
-    true,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    true,
     false,
     96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
 
@@ -199,38 +103,6 @@ extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
     false,
     true,
     false,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    false,
-    true,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    false,
-    false,
-    true,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    false,
-    true,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    false,
-    false,
-    true,
     96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
 
 extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
@@ -270,38 +142,6 @@ extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
     true,
     true,
     true,
-    true,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    false,
-    true,
-    true,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    true,
-    true,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    false,
-    true,
-    true,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    true,
     false,
     128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
 
@@ -327,38 +167,6 @@ extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
     false,
     true,
     false,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    false,
-    true,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    false,
-    false,
-    true,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    false,
-    true,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    false,
-    false,
-    true,
     128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
 
 extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
@@ -392,38 +200,6 @@ extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
     false,
     false,
     128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    true,
-    true,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    false,
-    true,
-    true,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    true,
-    true,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    false,
-    true,
-    true,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
 
 extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
     ck_tile::bf16_t,
@@ -455,38 +231,6 @@ extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
     false,
     true,
     false,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    false,
-    true,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    true,
-    false,
-    false,
-    true,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    false,
-    true,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    false,
-    false,
-    true,
     256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
 
 extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
