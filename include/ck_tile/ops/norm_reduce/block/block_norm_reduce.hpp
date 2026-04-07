@@ -303,11 +303,11 @@ struct BlockNormReduceCrossWarpSync
         index_t local_warp_id = warp_id / num_reduce_warps;
         index_t local_smem_os = local_warp_id * num_reduce_warps;
         smem_dtype all_scratch[thread_buf_size * num_reduce_warps];
-        static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
-            static_for<0, num_reduce_warps, 1>{}([&](auto i_1) {
-                all_scratch[i_0 * num_reduce_warps + i_1] =
-                    smem_ptr[i_0 * num_warps + local_smem_os + i_1];
-            });
+        static_ford<sequence<thread_buf_size, num_reduce_warps>>{}([&](auto ii) {
+            constexpr auto i_0 = number<ii[number<0>{}]>{};
+            constexpr auto i_1 = number<ii[number<1>{}]>{};
+            all_scratch[i_0 * num_reduce_warps + i_1] =
+                smem_ptr[i_0 * num_warps + local_smem_os + i_1];
         });
         block_sync_lds(); // TODO: we don't need sync here
 

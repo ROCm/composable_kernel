@@ -250,74 +250,74 @@ struct BlockGemmARegBRegCRegV2
         // hot loop:
         if constexpr(BlockGemmLoopOrder == GemmLoopOrder::KMN)
         {
-            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                    // read A warp tensor from A Block window
-                    AWarpTensor a_warp_tensor;
-                    a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
-                        merge_sequences(sequence<kIter, mIter>{}, a_warp_y_index_zeros),
-                        merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+            static_ford<sequence<KIterPerWarp, MIterPerWarp>>{}([&](auto km) {
+                constexpr auto kIter = number<km[number<0>{}]>{};
+                constexpr auto mIter = number<km[number<1>{}]>{};
+                // read A warp tensor from A Block window
+                AWarpTensor a_warp_tensor;
+                a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
+                    merge_sequences(sequence<kIter, mIter>{}, a_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
-                    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                        // read B warp tensor from B block tensor
-                        BWarpTensor b_warp_tensor;
-                        b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
-                            merge_sequences(sequence<kIter, nIter>{}, b_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                    // read B warp tensor from B block tensor
+                    BWarpTensor b_warp_tensor;
+                    b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
+                        merge_sequences(sequence<kIter, nIter>{}, b_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 
-                        CWarpTensor c_warp_tensor;
-                        c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+                    CWarpTensor c_warp_tensor;
+                    c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-                        // warp GEMM
-                        WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                    // warp GEMM
+                    WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
 
-                        // write C warp tensor into C block tensor
-                        c_block_tensor.set_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-                            c_warp_tensor.get_thread_buffer());
-                    });
+                    // write C warp tensor into C block tensor
+                    c_block_tensor.set_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                        c_warp_tensor.get_thread_buffer());
                 });
             });
         }
         else if constexpr(BlockGemmLoopOrder == GemmLoopOrder::MNK)
         {
-            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                    static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                        // read A warp tensor from A Block window
-                        AWarpTensor a_warp_tensor;
+            static_ford<sequence<MIterPerWarp, NIterPerWarp, KIterPerWarp>>{}([&](auto mnk) {
+                constexpr auto mIter = number<mnk[number<0>{}]>{};
+                constexpr auto nIter = number<mnk[number<1>{}]>{};
+                constexpr auto kIter = number<mnk[number<2>{}]>{};
 
-                        a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+                // read A warp tensor from A Block window
+                AWarpTensor a_warp_tensor;
 
-                        // read B warp tensor from B block tensor
-                        BWarpTensor b_warp_tensor;
+                a_warp_tensor.get_thread_buffer() = a_block_tensor.get_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
-                        b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
-                            merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+                // read B warp tensor from B block tensor
+                BWarpTensor b_warp_tensor;
 
-                        // read C warp tensor from C block tensor
-                        CWarpTensor c_warp_tensor;
+                b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
+                    merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 
-                        c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+                // read C warp tensor from C block tensor
+                CWarpTensor c_warp_tensor;
 
-                        // warp GEMM
-                        WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-                        // write C warp tensor into C block tensor
-                        c_block_tensor.set_y_sliced_thread_data(
-                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-                            c_warp_tensor.get_thread_buffer());
-                    });
-                });
+                // warp GEMM
+                WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+
+                // write C warp tensor into C block tensor
+                c_block_tensor.set_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                    c_warp_tensor.get_thread_buffer());
             });
         }
     }
