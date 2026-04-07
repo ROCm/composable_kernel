@@ -82,19 +82,22 @@ MODE_GROUP_OR_NOT_MAP = {
     "group": "Group",
 }
 
+
 def create_forward_instances(instance_dir: Path, headdims: List) -> None:
     for mode in ["batched", "jagged", "group"]:
         for dtype in ["fp16", "bf16"]:
             for has_causal in [True, False]:
                 for use_softmax in [True, False]:
                     for has_bias in [True, False]:
-                        for has_dropout in [True, False]:
+                        for has_dropout in [False]:
                             for max_k in headdims:
                                 fname = HSTU_FORWARD_INSTANCE_FNAME.format(
                                     mode=mode,
                                     dtype_str=dtype,
                                     has_or_no_causal_str=BOOL_MAP_CAUSAL[has_causal],
-                                    use_softmax_or_not_str=BOOL_MAP_SOFTMAX[use_softmax],
+                                    use_softmax_or_not_str=BOOL_MAP_SOFTMAX[
+                                        use_softmax
+                                    ],
                                     has_or_no_bias_str=BOOL_MAP_BIAS[has_bias],
                                     has_or_no_dropout_str=BOOL_MAP_DROPOUT[has_dropout],
                                     max_k_str=INT_MAP_MAX_K[max_k],
@@ -105,22 +108,24 @@ def create_forward_instances(instance_dir: Path, headdims: List) -> None:
                                         dtype_file=TYPE_FNAME_MAP[dtype],
                                     )
                                 )
-                                forward_instance = HSTU_FORWARD_INSTANCE_TEMPLATE.format(
-                                    extern="",
-                                    mode=mode,
-                                    dtype=TYPE_CTYPE_MAP[dtype],
-                                    has_causal=BOOL_MAP[has_causal],
-                                    use_softmax=BOOL_MAP[use_softmax],
-                                    has_bias=BOOL_MAP[has_bias],
-                                    has_dropout=BOOL_MAP[has_dropout],
-                                    max_k=max_k,
-                                    group_or_not=MODE_GROUP_OR_NOT_MAP[mode],
+                                forward_instance = (
+                                    HSTU_FORWARD_INSTANCE_TEMPLATE.format(
+                                        extern="",
+                                        mode=mode,
+                                        dtype=TYPE_CTYPE_MAP[dtype],
+                                        has_causal=BOOL_MAP[has_causal],
+                                        use_softmax=BOOL_MAP[use_softmax],
+                                        has_bias=BOOL_MAP[has_bias],
+                                        has_dropout=BOOL_MAP[has_dropout],
+                                        max_k=max_k,
+                                        group_or_not=MODE_GROUP_OR_NOT_MAP[mode],
+                                    )
                                 )
                                 (instance_dir / fname).write_text(
-                                     HSTU_COPYRIGHT_HEADER
-                                     + forward_instance_inc
-                                     + forward_instance
-                                )    
+                                    HSTU_COPYRIGHT_HEADER
+                                    + forward_instance_inc
+                                    + forward_instance
+                                )
 
 
 def create_forward_instances_ref(instance_dir: Path, headdims: List) -> None:
@@ -141,7 +146,7 @@ def create_forward_instances_ref(instance_dir: Path, headdims: List) -> None:
                 file.write(forward_instance_inc)
                 for max_k in headdims:
                     for has_bias in [True, False]:
-                        for has_dropout in [True, False]:
+                        for has_dropout in [False]:
                             for has_causal in [True, False]:
                                 for use_softmax in [True, False]:
                                     forward_instance = (
@@ -156,8 +161,9 @@ def create_forward_instances_ref(instance_dir: Path, headdims: List) -> None:
                                             max_k=max_k,
                                             group_or_not=MODE_GROUP_OR_NOT_MAP[mode],
                                         )
-                                    )   
+                                    )
                                     file.write(forward_instance)
+
 
 if __name__ == "__main__":
     headdims_fwd = [64, 96, 128, 256]
