@@ -16,6 +16,7 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdlops_v2r3.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
+#include "ck/library/utility/numeric.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -492,6 +493,10 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                     c_grid_desc_m_n_container_.push_back(descs[I2]);
                 }
             }
+            c_space_size_bytes =
+                ck::accumulate_n<long_index_t>(
+                    input_spatial_lengths.begin(), NDimSpatial, 1, std::multiplies<>()) *
+                Conv_N_ * Conv_C_ * sizeof(CDataType);
         }
 
         const ADataType* p_a_grid_;
@@ -512,6 +517,8 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         std::vector<ck::index_t> conv_filter_dilations_;
         std::vector<ck::index_t> input_left_pads_;
         std::vector<ck::index_t> input_right_pads_;
+
+        long_index_t c_space_size_bytes;
     };
 
     // Invoker
@@ -571,18 +578,47 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                                                 DeviceOp::BGridDesc_K0_N_K1,
                                                 DeviceOp::CGridDesc_M_N,
                                                 true>;
-
-                    ave_time += launch_and_time_kernel(stream_config,
-                                                       kernel,
-                                                       dim3(gdx, gdy, gdz),
-                                                       dim3(BlockSize),
-                                                       0,
-                                                       arg.p_a_grid_,
-                                                       arg.p_b_grid_,
-                                                       arg.p_c_grid_,
-                                                       arg.a_grid_desc_k0_m_k1_container_[i],
-                                                       arg.b_grid_desc_k0_n_k1_container_[i],
-                                                       arg.c_grid_desc_m_n_container_[i]);
+                    if(stream_config.flush_cache)
+                    {
+                        // Clear input only for perf measurement.
+                        // For non-grouped solver user has to clear input on his own.
+                        const auto clear_input = [&]() {
+                            if(i == 0)
+                            {
+                                hip_check_error(hipMemsetAsync(arg.p_c_grid_,
+                                                               0,
+                                                               arg.c_space_size_bytes,
+                                                               stream_config.stream_id_));
+                            }
+                        };
+                        ave_time += launch_and_time_kernel_with_preprocess_flush_cache(
+                            stream_config,
+                            clear_input,
+                            kernel,
+                            dim3(gdx, gdy, gdz),
+                            dim3(BlockSize),
+                            0,
+                            arg.p_a_grid_,
+                            arg.p_b_grid_,
+                            arg.p_c_grid_,
+                            arg.a_grid_desc_k0_m_k1_container_[i],
+                            arg.b_grid_desc_k0_n_k1_container_[i],
+                            arg.c_grid_desc_m_n_container_[i]);
+                    }
+                    else
+                    {
+                        ave_time += launch_and_time_kernel(stream_config,
+                                                           kernel,
+                                                           dim3(gdx, gdy, gdz),
+                                                           dim3(BlockSize),
+                                                           0,
+                                                           arg.p_a_grid_,
+                                                           arg.p_b_grid_,
+                                                           arg.p_c_grid_,
+                                                           arg.a_grid_desc_k0_m_k1_container_[i],
+                                                           arg.b_grid_desc_k0_n_k1_container_[i],
+                                                           arg.c_grid_desc_m_n_container_[i]);
+                    }
                 }
                 else
                 {
@@ -594,18 +630,47 @@ struct DeviceConv2dBwdDataXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
                                                 DeviceOp::BGridDesc_K0_N_K1,
                                                 DeviceOp::CGridDesc_M_N,
                                                 false>;
-
-                    ave_time += launch_and_time_kernel(stream_config,
-                                                       kernel,
-                                                       dim3(gdx, gdy, gdz),
-                                                       dim3(BlockSize),
-                                                       0,
-                                                       arg.p_a_grid_,
-                                                       arg.p_b_grid_,
-                                                       arg.p_c_grid_,
-                                                       arg.a_grid_desc_k0_m_k1_container_[i],
-                                                       arg.b_grid_desc_k0_n_k1_container_[i],
-                                                       arg.c_grid_desc_m_n_container_[i]);
+                    if(stream_config.flush_cache)
+                    {
+                        // Clear input only for perf measurement.
+                        // For non-grouped solver user has to clear input on his own.
+                        const auto clear_input = [&]() {
+                            if(i == 0)
+                            {
+                                hip_check_error(hipMemsetAsync(arg.p_c_grid_,
+                                                               0,
+                                                               arg.c_space_size_bytes,
+                                                               stream_config.stream_id_));
+                            }
+                        };
+                        ave_time += launch_and_time_kernel_with_preprocess_flush_cache(
+                            stream_config,
+                            clear_input,
+                            kernel,
+                            dim3(gdx, gdy, gdz),
+                            dim3(BlockSize),
+                            0,
+                            arg.p_a_grid_,
+                            arg.p_b_grid_,
+                            arg.p_c_grid_,
+                            arg.a_grid_desc_k0_m_k1_container_[i],
+                            arg.b_grid_desc_k0_n_k1_container_[i],
+                            arg.c_grid_desc_m_n_container_[i]);
+                    }
+                    else
+                    {
+                        ave_time += launch_and_time_kernel(stream_config,
+                                                           kernel,
+                                                           dim3(gdx, gdy, gdz),
+                                                           dim3(BlockSize),
+                                                           0,
+                                                           arg.p_a_grid_,
+                                                           arg.p_b_grid_,
+                                                           arg.p_c_grid_,
+                                                           arg.a_grid_desc_k0_m_k1_container_[i],
+                                                           arg.b_grid_desc_k0_n_k1_container_[i],
+                                                           arg.c_grid_desc_m_n_container_[i]);
+                    }
                 }
             }
             return ave_time;

@@ -355,6 +355,102 @@ TEST(SequenceSort, SortSingleElement)
     EXPECT_TRUE((std::is_same<Result, Expected>::value));
 }
 
+// Test sequence_sort sorted2unsorted_map (index tracking)
+TEST(SequenceSort, SortedMapUnsorted)
+{
+    using Seq  = sequence<5, 2, 8, 1, 9>;
+    using Sort = sequence_sort<Seq, less<index_t>>;
+    using Map  = typename Sort::sorted2unsorted_map;
+    // sorted = <1,2,5,8,9>, original indices = <3,1,0,2,4>
+    using Expected = sequence<3, 1, 0, 2, 4>;
+    EXPECT_TRUE((std::is_same<Map, Expected>::value));
+}
+
+TEST(SequenceSort, SortedMapAlreadySorted)
+{
+    using Seq  = sequence<1, 2, 3, 4, 5>;
+    using Sort = sequence_sort<Seq, less<index_t>>;
+    using Map  = typename Sort::sorted2unsorted_map;
+    // Already sorted: map should be identity
+    using Expected = sequence<0, 1, 2, 3, 4>;
+    EXPECT_TRUE((std::is_same<Map, Expected>::value));
+}
+
+TEST(SequenceSort, SortedMapRoundTrip)
+{
+    // Verify: sorted_values[i] == original[sorted2unsorted_map[i]]
+    using Seq  = sequence<5, 2, 8, 1, 9>;
+    using Sort = sequence_sort<Seq, less<index_t>>;
+    // sorted = <1,2,5,8,9>, map = <3,1,0,2,4>
+    EXPECT_EQ(Seq::at(Sort::sorted2unsorted_map::at(0)), Sort::type::at(0));
+    EXPECT_EQ(Seq::at(Sort::sorted2unsorted_map::at(1)), Sort::type::at(1));
+    EXPECT_EQ(Seq::at(Sort::sorted2unsorted_map::at(2)), Sort::type::at(2));
+    EXPECT_EQ(Seq::at(Sort::sorted2unsorted_map::at(3)), Sort::type::at(3));
+    EXPECT_EQ(Seq::at(Sort::sorted2unsorted_map::at(4)), Sort::type::at(4));
+}
+
+TEST(SequenceSort, SortedMapWithDuplicates)
+{
+    using Seq    = sequence<3, 1, 3, 1>;
+    using Sort   = sequence_sort<Seq, less<index_t>>;
+    using Sorted = typename Sort::type;
+    using Map    = typename Sort::sorted2unsorted_map;
+    // sorted = <1,1,3,3>
+    using ExpectedSorted = sequence<1, 1, 3, 3>;
+    EXPECT_TRUE((std::is_same<Sorted, ExpectedSorted>::value));
+    // Verify round-trip: original[map[i]] == sorted[i] for all i
+    // (don't assert specific index order for duplicates — sort stability may vary)
+    EXPECT_EQ(Seq::at(Map::at(0)), Sorted::at(0));
+    EXPECT_EQ(Seq::at(Map::at(1)), Sorted::at(1));
+    EXPECT_EQ(Seq::at(Map::at(2)), Sorted::at(2));
+    EXPECT_EQ(Seq::at(Map::at(3)), Sorted::at(3));
+}
+
+TEST(SequenceSort, SortedMapReverseSorted)
+{
+    using Seq       = sequence<5, 4, 3, 2, 1>;
+    using Sort      = sequence_sort<Seq, less<index_t>>;
+    using Sorted    = typename Sort::type;
+    using Map       = typename Sort::sorted2unsorted_map;
+    using ExpSorted = sequence<1, 2, 3, 4, 5>;
+    using ExpMap    = sequence<4, 3, 2, 1, 0>;
+    EXPECT_TRUE((std::is_same<Sorted, ExpSorted>::value));
+    EXPECT_TRUE((std::is_same<Map, ExpMap>::value));
+}
+
+TEST(SequenceSort, SortedMapEmpty)
+{
+    using Sort = sequence_sort<sequence<>, less<index_t>>;
+    using Map  = typename Sort::sorted2unsorted_map;
+    EXPECT_TRUE((std::is_same<Map, sequence<>>::value));
+}
+
+TEST(SequenceSort, SortedMapSingleElement)
+{
+    using Sort = sequence_sort<sequence<42>, less<index_t>>;
+    using Map  = typename Sort::sorted2unsorted_map;
+    EXPECT_TRUE((std::is_same<Map, sequence<0>>::value));
+}
+
+// Test sequence_unique_sort sorted2unsorted_map
+TEST(SequenceUniqueSort, UniqueSortMap)
+{
+    using Seq    = sequence<3, 1, 4, 1, 5, 9, 2, 6, 5>;
+    using Result = sequence_unique_sort<Seq, less<index_t>, equal<index_t>>;
+    using Map    = typename Result::sorted2unsorted_map;
+    // sorted unique = <1,2,3,4,5,6,9>
+    // The map should reference the first occurrence of each unique value in the original
+    // Verify round-trip: for each i, original[map[i]] == sorted_unique[i]
+    using Values = typename Result::type;
+    EXPECT_EQ(Seq::at(Map::at(0)), Values::at(0)); // 1
+    EXPECT_EQ(Seq::at(Map::at(1)), Values::at(1)); // 2
+    EXPECT_EQ(Seq::at(Map::at(2)), Values::at(2)); // 3
+    EXPECT_EQ(Seq::at(Map::at(3)), Values::at(3)); // 4
+    EXPECT_EQ(Seq::at(Map::at(4)), Values::at(4)); // 5
+    EXPECT_EQ(Seq::at(Map::at(5)), Values::at(5)); // 6
+    EXPECT_EQ(Seq::at(Map::at(6)), Values::at(6)); // 9
+}
+
 // Test sequence_unique_sort
 TEST(SequenceUniqueSort, UniqueSort)
 {
@@ -404,6 +500,24 @@ TEST(SequenceMap, InvalidMapMissing)
     using Map = sequence<0, 1, 3, 4>;
     EXPECT_FALSE((is_valid_sequence_map<Map>::value));
 }
+
+TEST(SequenceMap, InvalidMapNegative)
+{
+    using Map = sequence<0, -1, 2>;
+    EXPECT_FALSE((is_valid_sequence_map<Map>::value));
+}
+
+TEST(SequenceMap, ValidMapSingleElement)
+{
+    EXPECT_TRUE((is_valid_sequence_map<sequence<0>>::value));
+}
+
+TEST(SequenceMap, InvalidMapSingleElement)
+{
+    EXPECT_FALSE((is_valid_sequence_map<sequence<1>>::value));
+}
+
+TEST(SequenceMap, ValidMapEmpty) { EXPECT_TRUE((is_valid_sequence_map<sequence<>>::value)); }
 
 // Test sequence_map_inverse
 // Note: sequence_map_inverse inverts a mapping where Map[i] = j means old position i maps to new

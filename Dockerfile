@@ -2,22 +2,33 @@
 FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
 ARG ROCMVERSION=7.1.1
+ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
+ARG TARBALL_URL=https://rocm.nightlies.amd.com/tarball/therock-dist-linux-gfx90X-dcgpu-7.12.0a20260218.tar.gz
 ARG compiler_version=""
 ARG compiler_commit=""
-ARG CK_SCCACHE=""
-ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
 ENV APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=DontWarn
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH=$PATH:/opt/rocm/bin
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/rocm/lib
+ENV HIP_PLATFORM=amd
 
 # Add rocm repository
 RUN set -xe && \
     apt-get update && apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl
 
-RUN wget https://repo.radeon.com/amdgpu-install/7.1.1/ubuntu/noble/amdgpu-install_7.1.1.70101-1_all.deb && \
-    apt install ./amdgpu-install_7.1.1.70101-1_all.deb -y && \
-    apt update && \
-    apt install python3-setuptools python3-wheel -y && \
-    apt install rocm-dev -y
+RUN if [ "$compiler_version" = "therock" ]; then \
+        rm -rf /opt/rocm && mkdir /opt/rocm && \
+        echo "Downloading ROCm tarball from $TARBALL_URL..." && \
+        wget -q -O /tmp/rocm.tar.gz "$TARBALL_URL" && \
+        echo "Extracting tarball to /opt/rocm..." && \
+        tar -xzf /tmp/rocm.tar.gz -C /opt/rocm --strip-components=1 ; \
+    else echo "using the release compiler" && \
+        wget https://repo.radeon.com/amdgpu-install/7.1.1/ubuntu/noble/amdgpu-install_7.1.1.70101-1_all.deb && \
+        apt install ./amdgpu-install_7.1.1.70101-1_all.deb -y && \
+        apt update && \
+        apt install python3-setuptools python3-wheel -y && \
+        apt install rocm-dev -y; \
+    fi
     
 # Install SCCACHE
 ENV SCCACHE_VERSION="0.14.0"
@@ -34,7 +45,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     build-essential \
     cmake \
     git \
-    hip-rocclr \
     iputils-ping \
     jq \
     libelf-dev \
@@ -44,8 +54,8 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     net-tools \
     pkg-config \
     python3-full \
+    python3-pip \
     redis \
-    rocm-llvm-dev \
     sshpass \
     stunnel \
     software-properties-common \
@@ -88,26 +98,3 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     git clone -b master https://github.com/ROCm/rocm-cmake.git  && \
     cd rocm-cmake && mkdir build && cd build && \
     cmake  .. && cmake --build . && cmake --build . --target install
-
-WORKDIR /
-# Add alternative compilers, if necessary
-ENV compiler_version=$compiler_version
-ENV compiler_commit=$compiler_commit
-RUN sh -c "echo compiler version = '$compiler_version'" && \
-    sh -c "echo compiler commit = '$compiler_commit'"
-
-RUN if ( [ "$compiler_version" = "develop" ] || [ "$compiler_version" = "amd-mainline" ] ) && [ "$compiler_commit" = "" ]; then \
-        git clone -b "$compiler_version" https://github.com/ROCm/llvm-project.git && \
-        cd llvm-project && mkdir build && cd build && \
-        cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld" -DLLVM_ENABLE_RUNTIMES="compiler-rt" ../llvm && \
-        make -j 8 ; \
-    else echo "using the release compiler"; \
-    fi
-
-RUN if ( [ "$compiler_version" = "develop" ] || [ "$compiler_version" = "amd-mainline" ] ) && [ "$compiler_commit" != "" ]; then \
-        git clone -b "$compiler_version" https://github.com/ROCm/llvm-project.git && \
-        cd llvm-project && git checkout "$compiler_commit" && echo "checking out commit $compiler_commit" && mkdir build && cd build && \
-        cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld" -DLLVM_ENABLE_RUNTIMES="compiler-rt" ../llvm && \
-        make -j 8 ; \
-    else echo "using the release compiler"; \
-    fi

@@ -9,7 +9,7 @@ ENV compiler_commit=$compiler_commit
 RUN sh -c "echo compiler version = '$compiler_version'" && \
     sh -c "echo compiler commit = '$compiler_commit'"
 
-RUN if ( [ "$compiler_version" = "develop" ] || [ "$compiler_version" = "amd-staging" ] || [ "$compiler_version" = "amd-mainline" ] ) && [ "$compiler_commit" = "" ]; then \
+RUN if ( [ "$compiler_version" = "develop" ] || [ "$compiler_version" = "amd-staging" ] ) && [ "$compiler_commit" = "" ]; then \
         git clone -b "$compiler_version" https://github.com/ROCm/llvm-project.git && \
         cd llvm-project && git log -1 && mkdir build && cd build && \
         cmake -G Ninja \
@@ -43,7 +43,7 @@ RUN if ( [ "$compiler_version" = "develop" ] || [ "$compiler_version" = "amd-sta
     else echo "using the release compiler"; \
     fi
 
-RUN if ( [ "$compiler_version" = "develop" ] || [ "$compiler_version" = "amd-staging" ] || [ "$compiler_version" = "amd-mainline" ] ) && [ "$compiler_commit" != "" ]; then \
+RUN if ( [ "$compiler_version" = "develop" ] || [ "$compiler_version" = "amd-staging" ] ) && [ "$compiler_commit" != "" ]; then \
         git clone -b "$compiler_version" https://github.com/ROCm/llvm-project.git && \
         cd llvm-project && git checkout "$compiler_commit" && echo "checking out commit $compiler_commit" && mkdir build && cd build && \
         cmake -G Ninja \

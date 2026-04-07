@@ -25,6 +25,16 @@ ELEMENT_SIZE_MAP = {
     "fp64": 8,
 }
 
+def get_warp_size_for_gpu(gpu_target: str) -> int:
+    """Get the warp size for a given GPU target.
+
+    CDNA architectures (gfx9xx) use WAVE64 (64 threads per wavefront).
+    RDNA architectures (gfx10xx, gfx11xx, gfx12xx) use WAVE32 (32 threads per wavefront).
+    """
+    if gpu_target.startswith("gfx9"):
+        return 64  # CDNA - WAVE64
+    return 32  # RDNA and others - WAVE32
+
 WARP_SUPPORTED_COMBINATIONS = {
     "gfx90a": [
         [1, 4, 1],
@@ -586,10 +596,11 @@ def validate_whole_wg_cover_configuration(
     layout,
     a_datatype,
     b_datatype,
+    gpu_target: str = "gfx90a",
 ) -> Tuple[bool, str]:
     # Validate whole workgroup cover configuration
 
-    warp_size = 64
+    warp_size = get_warp_size_for_gpu(gpu_target)
     NumWarps = warp_m * warp_n * warp_k
     BlockSize = NumWarps * warp_size
 
@@ -704,6 +715,73 @@ def wg_cover_core_validation(
     return True, ""
 
 
+def validate_cshuffle_epilogue_distribution(
+    tile_m: int,
+    tile_n: int,
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    warp_tile_m: int,
+    warp_tile_n: int,
+    warp_size: int,
+    c_datatype: str,
+) -> Tuple[bool, str]:
+    """
+    Validate that the CShuffleEpilogue tile distribution pattern is valid.
+
+    This mirrors the static_assert in static_encoding_pattern.hpp:
+        static_assert(X0 * Y1 == warp_size, "X0 * Y1 must cover whole wavefront!");
+
+    The CShuffleEpilogue creates a tile_distribution_encoding_pattern_2d<BlockSize, YPerTile, XPerTile, VecSize, thread_raked>
+    where:
+    - BlockSize = warp_m * warp_n * warp_k * warp_size
+    - YPerTile = MPerIterationShuffle (derived from tile_m / (warp_m * warp_tile_m / some_factor))
+    - XPerTile = NPerIterationShuffle (derived from tile_n)
+    - VecSize = vector size based on element size (typically 8 for fp16)
+
+    The key constraint is that X0 must evenly divide warp_size, where:
+    - X0 = min(warp_size, XPerTile / X1)
+    - X1 = min(VecSize, LargestVec)
+    - LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size)
+    """
+    NumWarps = warp_m * warp_n * warp_k
+    BlockSize = NumWarps * warp_size
+
+    elem_size = ELEMENT_SIZE_MAP.get(c_datatype, 2)
+    VecSize = 16 // elem_size
+
+    XPerTile = tile_n
+    YPerTile = tile_m // warp_m
+
+    if XPerTile <= 0 or YPerTile <= 0:
+        return False, f"Invalid tile dimensions: XPerTile={XPerTile}, YPerTile={YPerTile}"
+
+    num_warps = BlockSize // warp_size
+    if num_warps * warp_size == 0:
+        return False, "Invalid BlockSize or warp_size"
+
+    LargestVec = (XPerTile * YPerTile) // (num_warps * warp_size)
+    if LargestVec <= 0:
+        LargestVec = 1
+
+    X1 = min(VecSize, LargestVec) if LargestVec > 0 else VecSize
+    if X1 <= 0:
+        X1 = 1
+
+    X0 = min(warp_size, XPerTile // X1) if X1 > 0 else warp_size
+
+    Y1 = warp_size // X0 if X0 > 0 else 0
+
+    if X0 * Y1 != warp_size:
+        return (
+            False,
+            f"CShuffleEpilogue distribution invalid: X0({X0}) * Y1({Y1}) = {X0 * Y1} != warp_size({warp_size}). "
+            f"XPerTile={XPerTile}, YPerTile={YPerTile}, VecSize={VecSize}, BlockSize={BlockSize}"
+        )
+
+    return True, ""
+
+
 def get_global_vector_load_size(
     BlockSize: int,
     KPerBlock: int,
@@ -766,6 +844,8 @@ def validate_gemm(
     trait_name: str = None,
 ) -> bool:
     # GEMM Validation
+    warp_size = get_warp_size_for_gpu(gpu_target)
+
     # Validate whole workgroup cover configuration
     whole_workgroup_cover_valid, whole_workgroup_cover_error = (
         validate_whole_wg_cover_configuration(
@@ -778,6 +858,7 @@ def validate_gemm(
             layout,
             a_datatype,
             b_datatype,
+            gpu_target,
         )
     )
     if not whole_workgroup_cover_valid:
@@ -785,6 +866,23 @@ def validate_gemm(
             f"Whole workgroup cover configuration validation failed: {whole_workgroup_cover_error}"
         )
         return False, whole_workgroup_cover_error
+
+    # Validate CShuffleEpilogue distribution pattern (for cshuffle epilogue)
+    # This validation ensures the tile distribution pattern is valid for the output tile
+    cshuffle_valid, cshuffle_error = validate_cshuffle_epilogue_distribution(
+        tile_m,
+        tile_n,
+        warp_m,
+        warp_n,
+        warp_k,
+        warp_tile_m,
+        warp_tile_n,
+        warp_size,
+        c_datatype,
+    )
+    if not cshuffle_valid:
+        logging.debug(f"CShuffleEpilogue validation failed: {cshuffle_error}")
+        return False, cshuffle_error
 
     return True, ""
 
@@ -808,6 +906,8 @@ def validate_gemm_preshuffle(
     trait_name: str = None,
 ) -> bool:
     # Preshuffle Validations
+    warp_size = get_warp_size_for_gpu(gpu_target)
+
     # Validate vector load alignment
     m_iter_per_warp = tile_m / (warp_m * warp_tile_m)
     vector_valid, vector_error = validate_vector_load_alignment(
@@ -815,7 +915,7 @@ def validate_gemm_preshuffle(
         warp_tile_k,
         a_datatype,
         m_iter_per_warp,
-        wave_size=64,
+        wave_size=warp_size,
         vector_load_size=16,
     )
     if not vector_valid:
@@ -831,7 +931,7 @@ def validate_gemm_preshuffle(
         warp_k,
         a_datatype,
         vector_load_size=16,
-        warp_size=64,
+        warp_size=warp_size,
     )
     if not m0_m1_m2_valid:
         logging.debug(f"M0/M1/M2 configuration validation failed: {m0_m1_m2_error}")

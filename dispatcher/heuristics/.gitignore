@@ -1,0 +1,60 @@
+# Python bytecode and caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test output and logs
+*.log
+test_output.log
+custom_shapes_gpu_test.log
+
+# Benchmark and analysis output files
+*.csv
+*.json
+!models/*/feature_spec.json
+!models/*/train_manifest.json
+
+# Data files (parquet, arrow)
+*.parquet
+*.arrow
+
+# Temporary and NFS files
+.nfs*
+*.tmp
+*.bak
+
+# Decompressed model files (compressed .lgbm.gz versions are tracked)
+models/**/*.lgbm
+
+# User-specific test and analysis scripts
+test_*.py
+!tests/test_*.py
+find_*.py
+oracle_*.json
+validation_results_*.csv
+custom_shapes_*.csv
+fp16_bf16_*.csv
+
+# Ignore all markdown files except tracked documentation
+*.md
+!DATA_GENERATION.md
+!LEARNINGS.md
+!README.md

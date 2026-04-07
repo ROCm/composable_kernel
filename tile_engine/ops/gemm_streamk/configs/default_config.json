@@ -98,7 +98,7 @@
         },
         "reduction_strategy": {
             "values": [
-                "atomic"
+                "atomic", "linear", "tree"
             ]
         }
     }
