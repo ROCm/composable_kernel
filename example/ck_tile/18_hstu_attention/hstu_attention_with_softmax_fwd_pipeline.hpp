@@ -6,13 +6,13 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_dropout.hpp"
 
-#include "hstu_attention_fwd_pipeline_default_policy.hpp"
+#include "hstu_attention_fwd_pipeline_policy.hpp"
 
 namespace ck_tile {
 
 template <typename Problem_,
           typename Traits_,
-          typename Policy_ = HstuAttentionFwdPipelineQRKSVSDefaultPolicy>
+          typename Policy_ = HstuAttentionFwdPipelineQRKSVSPolicy>
 struct HstuAttentionWithSoftmaxFwdPipelineQRKSVS
 {
     using Problem         = remove_cvref_t<Problem_>;

@@ -17,7 +17,7 @@
 
 namespace ck_tile {
 
-struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
+struct HstuAttentionFwdPipelineQRKSVSPolicy
 {
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetNumKVLdsBuffers()
