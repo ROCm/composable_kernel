@@ -12,7 +12,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CK_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 configure_file(${CK_ROOT}/include/ck/config.h.in ${CK_ROOT}/include/ck/config.h)
 
-find_package(ROCmCMakeBuildTools REQUIRED PATHS /opt/rocm)
+find_package(ROCmCMakeBuildTools REQUIRED)
     
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
