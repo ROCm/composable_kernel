@@ -542,6 +542,9 @@ struct fmha_bwd_traits
     bool has_dropout;
     bool is_store_randval;
     bool is_deterministic;
+    // Raw pointers for group mode: cumulative physical seqlen arrays of length batch+1.
+    // Only need to remain valid during fmha_bwd_launcher construction (i.e. through
+    // PrepareWorkspaceHost); they are not retained afterward.
     const int* seqstart_qs = nullptr;
     const int* seqstart_ks = nullptr;
     // TODO: padding check is inside this api
@@ -603,7 +606,6 @@ struct fmha_bwd_launcher
     size_t device_ws_size = 0;
     std::unique_ptr<char[]> ws_host;
 
-    public:
     template <typename T0 /*dot_do_o_trait*/,
               typename T1 /*dq_dk_dv_trait*/,
               typename T2 /*convert_dq_trait*/,
@@ -634,6 +636,7 @@ struct fmha_bwd_launcher
         };
     }
 
+    public:
     template <typename... Args>
     float operator()(Args&&... args) const
     {
