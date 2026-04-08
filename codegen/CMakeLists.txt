@@ -12,13 +12,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CK_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 configure_file(${CK_ROOT}/include/ck/config.h.in ${CK_ROOT}/include/ck/config.h)
 
-if (WIN32)
-    find_package(ROCmCMakeBuildTools REQUIRED PATHS C:/dist/TheRock)
-    set(HIP_PLATFORM "amd" CACHE STRING "HIP platform")
-else()
-    find_package(ROCM REQUIRED PATHS /opt/rocm)
-endif()
-
+find_package(ROCmCMakeBuildTools REQUIRED PATHS /opt/rocm)
+    
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(ROCMSetupVersion)
