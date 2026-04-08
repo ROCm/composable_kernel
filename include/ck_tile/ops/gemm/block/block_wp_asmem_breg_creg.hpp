@@ -156,55 +156,54 @@ struct BlockWeightPreshuffleASmemBRegCReg
             uniform_sequence_gen_t<BFlatDistribution::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                constexpr auto AwarpIter = (kIter * MIterPerWarp + mIter) % m_preload;
-                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                    // read C warp tensor from C block tensor
-                    BWarpTensor b_warp_tensor;
-                    CWarpTensor c_warp_tensor;
+        static_ford<sequence<KIterPerWarp, MIterPerWarp>>{}([&](auto km) {
+            constexpr auto kIter     = number<km[number<0>{}]>{};
+            constexpr auto mIter     = number<km[number<1>{}]>{};
+            constexpr auto AwarpIter = (kIter * MIterPerWarp + mIter) % m_preload;
+            static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                // read C warp tensor from C block tensor
+                BWarpTensor b_warp_tensor;
+                CWarpTensor c_warp_tensor;
 
-                    b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
-                        merge_sequences(sequence<nIter, kIter>{},
-                                        typename sequence_split<decltype(b_block_y_index_zeros),
-                                                                2>::right_type{}),
-                        merge_sequences(
-                            sequence<1, 1>{},
-                            typename sequence_split<decltype(b_block_y_lengths), 2>::right_type{}));
+                b_warp_tensor.get_thread_buffer() = b_block_tensor.get_y_sliced_thread_data(
+                    merge_sequences(
+                        sequence<nIter, kIter>{},
+                        typename sequence_split<decltype(b_block_y_index_zeros), 2>::right_type{}),
+                    merge_sequences(
+                        sequence<1, 1>{},
+                        typename sequence_split<decltype(b_block_y_lengths), 2>::right_type{}));
 
-                    c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
-                        merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+                c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
-                    // warp GEMM
-                    WarpGemm{}(
-                        c_warp_tensor, preloaded_a_warp_tensor(number<AwarpIter>{}), b_warp_tensor);
+                // warp GEMM
+                WarpGemm{}(
+                    c_warp_tensor, preloaded_a_warp_tensor(number<AwarpIter>{}), b_warp_tensor);
 
-                    // write C warp tensor into C block tensor
-                    c_block_tensor.set_y_sliced_thread_data(
-                        merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-                        c_warp_tensor.get_thread_buffer());
+                // write C warp tensor into C block tensor
+                c_block_tensor.set_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                    c_warp_tensor.get_thread_buffer());
 
-                    __builtin_amdgcn_sched_barrier(0x7F6);
-                });
-                // preload next A from lds
-                if constexpr((kIter * MIterPerWarp + mIter) <
-                             (KIterPerWarp * MIterPerWarp - m_preload))
-                {
-                    constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
-                    constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
-
-                    load_tile(preloaded_a_warp_tensor(number<AwarpIter>{}),
-                              a_load_windows[number<AkIter>{}][number<AmIter>{}]);
-                }
-
-                // barrier
-                if constexpr((kIter == KIterPerWarp - 1) && (mIter == MIter_2nd_last))
-                {
-                    block_sync_lds();
-                }
+                __builtin_amdgcn_sched_barrier(0x7F6);
             });
+            // preload next A from lds
+            if constexpr((kIter * MIterPerWarp + mIter) < (KIterPerWarp * MIterPerWarp - m_preload))
+            {
+                constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
+                constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
+
+                load_tile(preloaded_a_warp_tensor(number<AwarpIter>{}),
+                          a_load_windows[number<AkIter>{}][number<AmIter>{}]);
+            }
+
+            // barrier
+            if constexpr((kIter == KIterPerWarp - 1) && (mIter == MIter_2nd_last))
+            {
+                block_sync_lds();
+            }
         });
     }
 };
