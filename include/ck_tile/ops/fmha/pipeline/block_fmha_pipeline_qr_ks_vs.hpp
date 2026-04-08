@@ -14,7 +14,9 @@
 namespace ck_tile {
 
 // This pipeline is qkv all located in LDS
-template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSDefaultPolicy>
+template <typename Problem_,
+          typename Policy_         = BlockFmhaPipelineQRKSVSDefaultPolicy,
+          bool PaddedVecLoadStore_ = false>
 struct BlockFmhaPipelineQRKSVS
 {
     using Problem               = remove_cvref_t<Problem_>;
@@ -54,17 +56,18 @@ struct BlockFmhaPipelineQRKSVS
 
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
-    static constexpr bool kIsGroupMode      = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ       = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK       = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ      = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV      = Problem::kPadHeadDimV;
-    static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
-    static constexpr auto BiasEnum          = Problem::BiasEnum;
-    static constexpr bool kStoreLSE         = Problem::kStoreLSE;
-    static constexpr bool kHasDropout       = Problem::kHasDropout;
-    static constexpr auto QScaleEnum        = Problem::QScaleEnum;
-    static constexpr bool kHasSink          = Problem::kHasSink;
+    static constexpr bool kIsGroupMode        = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ         = Problem::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK         = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ        = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV        = Problem::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap   = Problem::kHasLogitsSoftCap;
+    static constexpr auto BiasEnum            = Problem::BiasEnum;
+    static constexpr bool kStoreLSE           = Problem::kStoreLSE;
+    static constexpr bool kHasDropout         = Problem::kHasDropout;
+    static constexpr auto QScaleEnum          = Problem::QScaleEnum;
+    static constexpr bool kHasSink            = Problem::kHasSink;
+    static constexpr bool kPaddedVecLoadStore = PaddedVecLoadStore_;
 
     static constexpr ck_tile::index_t kQKScaleGranularity = Problem::kQKScaleGranularity;
     static constexpr ck_tile::index_t kVScaleGranularity  = Problem::kVScaleGranularity;
@@ -80,23 +83,29 @@ struct BlockFmhaPipelineQRKSVS
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
                     !kHasLogitsSoftCap)) ||
                   (!CK_TILE_FMHA_FWD_FAST_EXP2 && !kHasLogitsSoftCap));
+    static_assert(!kPaddedVecLoadStore || (kPadHeadDimQ && kPadHeadDimV),
+                  "padded vector load/store fast path only applies to padded head-dim kernels");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
-    static constexpr index_t kAlignmentQ = kPadHeadDimQ ? numeric_traits<QDataType>::PackedSize
-                                                        : Policy::template GetAlignmentQ<Problem>();
-    static constexpr index_t kAlignmentK = kPadHeadDimQ ? numeric_traits<KDataType>::PackedSize
-                                                        : Policy::template GetAlignmentK<Problem>();
+    static constexpr index_t kAlignmentQ = (kPadHeadDimQ && !kPaddedVecLoadStore)
+                                               ? numeric_traits<QDataType>::PackedSize
+                                               : Policy::template GetAlignmentQ<Problem>();
+    static constexpr index_t kAlignmentK = (kPadHeadDimQ && !kPaddedVecLoadStore)
+                                               ? numeric_traits<KDataType>::PackedSize
+                                               : Policy::template GetAlignmentK<Problem>();
     static constexpr index_t kAlignmentV = []() {
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            return kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
+            return (kPadHeadDimV && !kPaddedVecLoadStore)
+                       ? 1
+                       : Policy::template GetAlignmentV<Problem>();
         else
             return kPadSeqLenK ? numeric_traits<VDataType>::PackedSize
                                : Policy::template GetAlignmentV<Problem>();
     }();
 
     static constexpr index_t kAlignmentO =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
+        (kPadHeadDimV && !kPaddedVecLoadStore) ? 1 : Policy::template GetAlignmentO<Problem>();
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
     static constexpr index_t kAlignmentRandVal =
@@ -548,8 +557,25 @@ struct BlockFmhaPipelineQRKSVS
                 });
             }
 
-            const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
-            {                                                 // tail
+            auto v_prefetch = decltype(load_tile(v_dram_window)){};
+            enum class VPrefetchPoint
+            {
+                BeforeGemm0Tail,
+                AfterGemm0Tail,
+                AfterSoftmax
+            };
+
+#if defined(__gfx11__) || defined(__gfx12__)
+            constexpr auto kVPrefetch =
+                kPadHeadDimV ? VPrefetchPoint::AfterSoftmax : VPrefetchPoint::AfterGemm0Tail;
+#else
+            constexpr auto kVPrefetch = VPrefetchPoint::BeforeGemm0Tail;
+#endif
+            if constexpr(kVPrefetch == VPrefetchPoint::BeforeGemm0Tail)
+            {
+                load_tile(v_prefetch, v_dram_window); // prefetch load v tile
+            }
+            { // tail
                 block_sync_lds();
                 run_gemm_0(number<k0_loops - 2>{});
                 block_sync_lds();
@@ -561,6 +587,10 @@ struct BlockFmhaPipelineQRKSVS
                 block_sync_lds();
 
                 run_gemm_0(number<k0_loops - 1>{});
+            }
+            if constexpr(kVPrefetch == VPrefetchPoint::AfterGemm0Tail)
+            {
+                load_tile(v_prefetch, v_dram_window);
             }
             // dequant
             auto s_acc_element_func_ = [&s_acc_element_func, k_descale]() {
@@ -817,6 +847,11 @@ struct BlockFmhaPipelineQRKSVS
 
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     randval_ptr, seq_offset, p_compute, randval_dram_window);
+            }
+
+            if constexpr(kVPrefetch == VPrefetchPoint::AfterSoftmax)
+            {
+                load_tile(v_prefetch, v_dram_window);
             }
 
             block_sync_lds();
@@ -1097,5 +1132,8 @@ struct BlockFmhaPipelineQRKSVS
                           sink_v);
     }
 };
+
+template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSDefaultPolicy>
+using BlockFmhaPipelineQRKSVSHpad = BlockFmhaPipelineQRKSVS<Problem_, Policy_, true>;
 
 } // namespace ck_tile
