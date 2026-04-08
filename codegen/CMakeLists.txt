@@ -12,6 +12,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CK_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 configure_file(${CK_ROOT}/include/ck/config.h.in ${CK_ROOT}/include/ck/config.h)
 
+set(CMAKE_INSTALL_PREFIX "/opt/rocm" CACHE PATH "")
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -26,7 +27,6 @@ include(CheckCXXCompilerFlag)
 include(ROCMCheckTargetIds)
 include(TargetFlags)
 
-list(APPEND CMAKE_PREFIX_PATH /opt/rocm $ENV{ROCM_PATH})
 find_package(hiprtc REQUIRED)
 
 rocm_setup_version(VERSION 1.0)
