@@ -189,7 +189,7 @@ git log --oneline -5
 
 log_section "Step 3: Analyze Changed Files"
 log_info "Files changed vs $BASE_BRANCH:"
-CHANGED_FILES=$(git diff --name-only ${BASE_BRANCH}...HEAD -- projects/composablekernel)
+CHANGED_FILES=$(git diff --name-only ${BASE_BRANCH}..HEAD -- projects/composablekernel)
 NUM_FILES=$(echo "$CHANGED_FILES" | wc -l)
 echo "$CHANGED_FILES" | head -20
 if [ "$NUM_FILES" -gt 20 ]; then
