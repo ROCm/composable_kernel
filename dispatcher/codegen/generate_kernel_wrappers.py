@@ -17,10 +17,10 @@ Usage:
 
 Output structure:
     build/kernel_wrappers/
-    ├── gemm_fp16_rcr_128x128x32.cpp
-    ├── gemm_fp16_rcr_256x256x64.cpp
-    ├── conv_fwd_fp16_2d_128x128.cpp
-    └── ...
+    |---- gemm_fp16_rcr_128x128x32.cpp
+    |---- gemm_fp16_rcr_256x256x64.cpp
+    |---- conv_fwd_fp16_2d_128x128.cpp
+    +---- ...
 
 Each .cpp simply includes its corresponding .hpp and forces symbol emission.
 """

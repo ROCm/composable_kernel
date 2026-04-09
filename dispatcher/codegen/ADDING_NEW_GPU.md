@@ -9,8 +9,8 @@ Guide for adding support for a new AMD GPU architecture to the CK Tile Dispatche
 The dispatcher uses `arch_specs.json` as the **single source of truth** for GPU specifications:
 
 ```
-arch_specs.json → generate_arch_specs.py → arch_specs_generated.py (Python)
-                                        → arch_specs_generated.hpp (C++)
+arch_specs.json -> generate_arch_specs.py -> arch_specs_generated.py (Python)
+                                        -> arch_specs_generated.hpp (C++)
 ```
 
 ## Quick Start
@@ -175,14 +175,14 @@ for error in result.errors:
 
 ```
 codegen/
-├── arch_specs.json              # Single source of truth (EDIT THIS)
-├── generate_arch_specs.py       # Generator script
-├── arch_specs_generated.py      # Generated Python module
-└── ADDING_NEW_GPU.md           # This file
+|---- arch_specs.json              # Single source of truth (EDIT THIS)
+|---- generate_arch_specs.py       # Generator script
+|---- arch_specs_generated.py      # Generated Python module
++---- ADDING_NEW_GPU.md           # This file
 
 include/ck_tile/dispatcher/
-├── arch_specs_generated.hpp     # Generated C++ header
-└── arch_filter.hpp              # C++ filter
+|---- arch_specs_generated.hpp     # Generated C++ header
++---- arch_filter.hpp              # C++ filter
 ```
 
 ## Best Practices

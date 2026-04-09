@@ -1,8 +1,6 @@
 # CK Tile Dispatcher Examples
 
-Comprehensive examples for GEMM operations with GPU execution.
-
-> **Note**: Convolution examples have been moved to `ck-2/conv_archive/` for reference.
+Comprehensive examples for GEMM and Grouped Convolution operations with GPU execution.
 
 ---
 
@@ -60,11 +58,11 @@ python3 examples/gemm/python/08_heuristics.py
 
 ```
 examples/
-├── gemm/
-│   ├── cpp/           # 6 C++ GEMM examples
-│   └── python/        # 11 Python GEMM examples
-│
-└── README.md
+|---- gemm/
+|   |---- cpp/           # 6 C++ GEMM examples
+|   +---- python/        # 11 Python GEMM examples
+|
++---- README.md
 ```
 
 ---
@@ -201,10 +199,31 @@ rocminfo | grep "Name:"
 
 ---
 
-## Archived Examples
+## Grouped Convolution
 
-Convolution examples have been archived to `ck-2/conv_archive/dispatcher/`:
-- `examples/conv/cpp/` - 11 C++ convolution examples
-- `examples/conv/python/` - 14 Python convolution examples
+Grouped convolution support has been re-introduced with a unified infrastructure shared with GEMM.
 
-See the archive for convolution functionality reference.
+### Infrastructure
+
+The grouped convolution code generation, utilities, and build scripts are available:
+
+| Component | Location |
+|-----------|----------|
+| C++ Headers | `include/ck_tile/dispatcher/grouped_conv_*.hpp` |
+| Python Codegen | `codegen/unified_grouped_conv_codegen.py` |
+| Python Utils | `python/grouped_conv_utils.py` |
+| Build Script | `scripts/compile_grouped_conv_examples.py` |
+
+### Building Grouped Conv Kernels
+
+```bash
+# Generate grouped conv kernels
+python3 codegen/unified_grouped_conv_codegen.py \
+    --output-dir build/generated_kernels \
+    --datatype fp16 --variant forward --ndim-spatial 2
+
+# Compile a grouped conv example
+python3 scripts/compile_grouped_conv_examples.py my_grouped_conv_example.cpp
+```
+
+See the [main README](../README.md#grouped-convolution-support) for more details.

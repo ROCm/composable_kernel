@@ -94,17 +94,17 @@ def find_hipcc() -> str:
 
 
 def extract_conv_kernel_declarations(source_file: Path) -> list:
-    """Extract CONVOLUTION kernel declarations from C++ source file.
+    """Extract GROUPED CONVOLUTION kernel declarations from C++ source file.
 
-    Supports DECL_CONV_KERNEL_SET macro with ConvSig/ConvAlgo pattern.
+    Supports DECL_GROUPED_CONV_KERNEL_SET macro with ConvSig/ConvAlgo pattern.
     Extracts all parameters: dtype, layout, conv_type, dims, tile, wave, warp, pipeline, scheduler.
     """
     content = source_file.read_text()
     declarations = []
     seen = set()
 
-    # Pattern: DECL_CONV_KERNEL_SET(name, .add(...).add(...))
-    set_pattern = r"DECL_CONV_KERNEL_SET\s*\(\s*(\w+)\s*,([^;]+)\)"
+    # Pattern: DECL_GROUPED_CONV_KERNEL_SET(name, .add(...).add(...))
+    set_pattern = r"DECL_GROUPED_CONV_KERNEL_SET\s*\(\s*(\w+)\s*,([^;]+)\)"
 
     for match in re.finditer(set_pattern, content, re.DOTALL):
         set_name = match.group(1)
@@ -396,24 +396,23 @@ def expand_conv_declaration_with_arch_filter(decl: dict, arch: str = "gfx942") -
 
 
 def generate_conv_kernels(declarations: list, gpu_target: str = "gfx942") -> int:
-    """Generate convolution kernels using unified_conv_codegen."""
+    """Generate grouped convolution kernels using unified_grouped_conv_codegen."""
     kernel_dir = get_generated_kernels_dir()
     kernel_dir.mkdir(parents=True, exist_ok=True)
 
-    # Import conv codegen
     codegen_dir = get_dispatcher_root() / "codegen"
     sys.path.insert(0, str(codegen_dir))
 
     try:
-        from unified_conv_codegen import (
-            UnifiedConvCodegen,
-            ConvKernelConfig,
-            ConvVariant,
+        from unified_grouped_conv_codegen import (
+            UnifiedGroupedConvCodegen as UnifiedConvCodegen,
+            GroupedConvKernelConfig as ConvKernelConfig,
+            GroupedConvVariant as ConvVariant,
             TileConfig,
-            TraitConfig,
+            GroupedConvTraitConfig as TraitConfig,
         )
     except ImportError as e:
-        print_error(f"  Failed to import conv codegen: {e}")
+        print_error(f"  Failed to import grouped conv codegen: {e}")
         return 0
 
     codegen = UnifiedConvCodegen(kernel_dir)
@@ -1564,9 +1563,9 @@ def build_exact_conv_kernel_filename(decl: dict) -> str:
     if conv_type == "forward":
         type_prefix = "fwd"
     elif conv_type == "bwd_data":
-        type_prefix = "bwdd"
+        type_prefix = "bwd_data"
     elif conv_type == "bwd_weight":
-        type_prefix = "bwdw"
+        type_prefix = "bwd_weight"
     else:
         type_prefix = conv_type
 
@@ -1601,9 +1600,9 @@ def generate_specific_conv_kernel(decl: dict, gpu_target: str = "gfx942") -> boo
     else:
         variant = "forward"
 
-    # Use unified_conv_codegen
+    # Use unified_grouped_conv_codegen
     codegen_dir = get_dispatcher_root() / "codegen"
-    codegen_script = codegen_dir / "unified_conv_codegen.py"
+    codegen_script = codegen_dir / "unified_grouped_conv_codegen.py"
     output_dir = get_generated_kernels_dir()
 
     cmd = [
@@ -1661,9 +1660,9 @@ def find_conv_kernel_header(decl: dict, gpu_target: str = "gfx942") -> Path:
     if conv_type == "forward":
         type_prefix = "fwd"
     elif conv_type == "bwd_data":
-        type_prefix = "bwdd"
+        type_prefix = "bwd_data"
     elif conv_type == "bwd_weight":
-        type_prefix = "bwdw"
+        type_prefix = "bwd_weight"
     else:
         type_prefix = conv_type
 
@@ -1865,7 +1864,9 @@ In your C++ code, declare kernels like:
 
     if not gemm_declarations and not conv_declarations:
         print_error("  No kernel declarations found!")
-        print("  Add DECL_KERNEL_SET for GEMM or DECL_CONV_KERNEL_SET for Conv")
+        print(
+            "  Add DECL_KERNEL_SET for GEMM or DECL_GROUPED_CONV_KERNEL_SET for Grouped Conv"
+        )
         return 1
 
     # Handle GEMM declarations
@@ -1913,7 +1914,7 @@ In your C++ code, declare kernels like:
 
             is_valid, error_msg = validate_kernel_config(decl, arch)
             if not is_valid:
-                print(f"\n    ⚠ Invalid configuration: {decl_name}")
+                print(f"\n    WARNING Invalid configuration: {decl_name}")
 
                 # Parse the error and show specific auto-corrections
                 corrections = []
@@ -1926,7 +1927,7 @@ In your C++ code, declare kernels like:
                     decl["wave_m"] = -1
                     decl["wave_n"] = -1
                     corrections.append(
-                        f"wave: {original_values['wave']} → [wildcard expansion]"
+                        f"wave: {original_values['wave']} -> [wildcard expansion]"
                     )
 
                 if "warp tile" in error_msg.lower():
@@ -1936,7 +1937,7 @@ In your C++ code, declare kernels like:
                     decl["warp_m"] = -1
                     decl["warp_n"] = -1
                     corrections.append(
-                        f"warp_tile: {original_values['warp']} → [wildcard expansion]"
+                        f"warp_tile: {original_values['warp']} -> [wildcard expansion]"
                     )
 
                 if "trait combination" in error_msg.lower():
@@ -1945,16 +1946,16 @@ In your C++ code, declare kernels like:
                     decl["pipeline"] = "*"
                     decl["scheduler"] = "*"
                     corrections.append(
-                        f"pipeline: {original_values['pipeline']} → [wildcard expansion]"
+                        f"pipeline: {original_values['pipeline']} -> [wildcard expansion]"
                     )
                     corrections.append(
-                        f"scheduler: {original_values['scheduler']} → [wildcard expansion]"
+                        f"scheduler: {original_values['scheduler']} -> [wildcard expansion]"
                     )
 
                 # Print the auto-corrections
                 print("      AUTO-CORRECTION:")
                 for corr in corrections:
-                    print(f"        • {corr}")
+                    print(f"        - {corr}")
                 auto_corrections.append((decl_name, corrections))
 
                 invalid_count += 1
@@ -1962,15 +1963,15 @@ In your C++ code, declare kernels like:
 
         if invalid_count > 0:
             print(
-                f"\n    ⚠ {invalid_count} invalid config(s) auto-corrected via wildcard expansion"
+                f"\n    WARNING {invalid_count} invalid config(s) auto-corrected via wildcard expansion"
             )
 
         if wildcard_count > 0:
             print(
-                f"    ✓ {len(gemm_declarations) - wildcard_count} explicit + {wildcard_count} wildcard (will expand)"
+                f"    OK {len(gemm_declarations) - wildcard_count} explicit + {wildcard_count} wildcard (will expand)"
             )
         else:
-            print(f"    ✓ All {len(gemm_declarations)} configurations valid")
+            print(f"    OK All {len(gemm_declarations)} configurations valid")
 
         # Expand GEMM declarations (for wildcards)
         print("\n    Expanding wildcards to valid configurations...")
@@ -1994,7 +1995,7 @@ In your C++ code, declare kernels like:
                     wave_str = f"[{exp['wave_m']}, {exp['wave_n']}, {exp['wave_k']}]"
                     warp_str = f"[{exp['warp_m']}, {exp['warp_n']}, {exp['warp_k']}]"
                     print(
-                        f"        → wave={wave_str}, warp={warp_str}, pipeline={exp['pipeline']}, scheduler={exp['scheduler']}"
+                        f"        -> wave={wave_str}, warp={warp_str}, pipeline={exp['pipeline']}, scheduler={exp['scheduler']}"
                     )
                 if len(expanded) > 3:
                     print(f"        ... and {len(expanded) - 3} more")
@@ -2002,11 +2003,11 @@ In your C++ code, declare kernels like:
                 exp = expanded[0]
                 wave_str = f"[{exp['wave_m']}, {exp['wave_n']}, {exp['wave_k']}]"
                 warp_str = f"[{exp['warp_m']}, {exp['warp_n']}, {exp['warp_k']}]"
-                print(f"      {decl_name}: → wave={wave_str}, warp={warp_str}")
+                print(f"      {decl_name}: -> wave={wave_str}, warp={warp_str}")
 
         if len(expanded_gemm) > len(gemm_declarations):
             print(
-                f"\n    Total: {len(gemm_declarations)} declarations → {len(expanded_gemm)} configurations"
+                f"\n    Total: {len(gemm_declarations)} declarations -> {len(expanded_gemm)} configurations"
             )
 
         gemm_declarations = expanded_gemm
@@ -2054,7 +2055,7 @@ In your C++ code, declare kernels like:
 
             is_valid, error_msg = validate_conv_kernel_config(decl, arch)
             if not is_valid:
-                print(f"\n    ⚠ Invalid conv configuration: {decl_name}")
+                print(f"\n    WARNING Invalid conv configuration: {decl_name}")
 
                 # Parse the error and show specific auto-corrections
                 corrections = []
@@ -2067,7 +2068,7 @@ In your C++ code, declare kernels like:
                     decl["wave_m"] = -1
                     decl["wave_n"] = -1
                     corrections.append(
-                        f"wave: {original_values['wave']} → [wildcard expansion]"
+                        f"wave: {original_values['wave']} -> [wildcard expansion]"
                     )
 
                 if "warp tile" in error_msg.lower():
@@ -2077,7 +2078,7 @@ In your C++ code, declare kernels like:
                     decl["warp_m"] = -1
                     decl["warp_n"] = -1
                     corrections.append(
-                        f"warp_tile: {original_values['warp']} → [wildcard expansion]"
+                        f"warp_tile: {original_values['warp']} -> [wildcard expansion]"
                     )
 
                 if "trait combination" in error_msg.lower():
@@ -2086,16 +2087,16 @@ In your C++ code, declare kernels like:
                     decl["pipeline"] = "*"
                     decl["scheduler"] = "*"
                     corrections.append(
-                        f"pipeline: {original_values['pipeline']} → [wildcard expansion]"
+                        f"pipeline: {original_values['pipeline']} -> [wildcard expansion]"
                     )
                     corrections.append(
-                        f"scheduler: {original_values['scheduler']} → [wildcard expansion]"
+                        f"scheduler: {original_values['scheduler']} -> [wildcard expansion]"
                     )
 
                 # Print the auto-corrections
                 print("      AUTO-CORRECTION:")
                 for corr in corrections:
-                    print(f"        • {corr}")
+                    print(f"        - {corr}")
                 auto_corrections.append((decl_name, corrections))
 
                 invalid_count += 1
@@ -2103,15 +2104,15 @@ In your C++ code, declare kernels like:
 
         if invalid_count > 0:
             print(
-                f"\n    ⚠ {invalid_count} invalid config(s) auto-corrected via wildcard expansion"
+                f"\n    WARNING {invalid_count} invalid config(s) auto-corrected via wildcard expansion"
             )
 
         if wildcard_count > 0:
             print(
-                f"    ✓ {len(conv_declarations) - wildcard_count} explicit + {wildcard_count} wildcard (will expand)"
+                f"    OK {len(conv_declarations) - wildcard_count} explicit + {wildcard_count} wildcard (will expand)"
             )
         else:
-            print(f"    ✓ All {len(conv_declarations)} configurations valid")
+            print(f"    OK All {len(conv_declarations)} configurations valid")
 
         # Expand Conv declarations (for wildcards)
         print("\n    Expanding wildcards to valid configurations...")
@@ -2134,7 +2135,7 @@ In your C++ code, declare kernels like:
                     wave_str = f"[{exp['wave_m']}, {exp['wave_n']}, {exp['wave_k']}]"
                     warp_str = f"[{exp['warp_m']}, {exp['warp_n']}, {exp['warp_k']}]"
                     print(
-                        f"        → wave={wave_str}, warp={warp_str}, pipeline={exp['pipeline']}, scheduler={exp['scheduler']}"
+                        f"        -> wave={wave_str}, warp={warp_str}, pipeline={exp['pipeline']}, scheduler={exp['scheduler']}"
                     )
                 if len(expanded) > 3:
                     print(f"        ... and {len(expanded) - 3} more")
@@ -2142,11 +2143,11 @@ In your C++ code, declare kernels like:
                 exp = expanded[0]
                 wave_str = f"[{exp['wave_m']}, {exp['wave_n']}, {exp['wave_k']}]"
                 warp_str = f"[{exp['warp_m']}, {exp['warp_n']}, {exp['warp_k']}]"
-                print(f"      {decl_name}: → wave={wave_str}, warp={warp_str}")
+                print(f"      {decl_name}: -> wave={wave_str}, warp={warp_str}")
 
         if len(expanded_conv) > len(conv_declarations):
             print(
-                f"\n    Total: {len(conv_declarations)} declarations → {len(expanded_conv)} configurations"
+                f"\n    Total: {len(conv_declarations)} declarations -> {len(expanded_conv)} configurations"
             )
 
         conv_declarations = expanded_conv

@@ -187,7 +187,7 @@ int main()
     for(const auto& r : results)
     {
         char size_str[32];
-        snprintf(size_str, sizeof(size_str), "%4d×%4d×%4d", r.M, r.N, r.K);
+        snprintf(size_str, sizeof(size_str), "%4dx%4dx%4d", r.M, r.N, r.K);
 
         printf("  %-14s | %9.4f | %6.2f | %7.2f%% | %s\n",
                size_str,
