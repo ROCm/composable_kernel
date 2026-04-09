@@ -132,7 +132,7 @@ def main():
         print(f"Linking failed: {result.stderr}")
         return 1
 
-    print(f"✓ Built: {lib_path}")
+    print(f"OK Built: {lib_path}")
     return 0
 
 

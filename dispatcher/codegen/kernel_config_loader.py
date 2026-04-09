@@ -359,8 +359,8 @@ class ConvTraitConfig:
 
 
 @dataclass
-class ConvKernelConfig:
-    """Complete convolution kernel configuration"""
+class GroupedConvKernelConfig:
+    """Complete grouped convolution kernel configuration"""
 
     tile: ConvTileConfig = field(default_factory=ConvTileConfig)
     trait: ConvTraitConfig = field(default_factory=ConvTraitConfig)
@@ -419,7 +419,11 @@ class ConvKernelConfig:
 
     def kernel_name(self) -> str:
         """Generate kernel name from config"""
-        variant_map = {"forward": "fwd", "bwd_data": "bwdd", "bwd_weight": "bwdw"}
+        variant_map = {
+            "forward": "fwd",
+            "bwd_data": "bwd_data",
+            "bwd_weight": "bwd_weight",
+        }
         var_str = variant_map.get(self.variant, self.variant)
 
         name = f"conv_{var_str}_{self.dtype_input}_{self.ndim}d"
@@ -433,11 +437,11 @@ class ConvKernelConfig:
 
 
 @dataclass
-class ConvKernelConfigSet:
+class GroupedConvKernelConfigSet:
     """A set of convolution kernel configurations loaded from JSON"""
 
     name: str = "default"
-    configs: List[ConvKernelConfig] = field(default_factory=list)
+    configs: List[GroupedConvKernelConfig] = field(default_factory=list)
 
     # Tile parameter ranges
     tile_m_values: List[int] = field(default_factory=lambda: [128])
@@ -481,7 +485,7 @@ class ConvKernelConfigSet:
     layout: str = "nhwgc"
     gpu_targets: List[str] = field(default_factory=lambda: ["gfx942"])
 
-    def generate_configs(self) -> Iterator[ConvKernelConfig]:
+    def generate_configs(self) -> Iterator[GroupedConvKernelConfig]:
         """Generate all kernel configurations (cartesian product)"""
         # Tile parameters
         tile_params = itertools.product(
@@ -548,7 +552,7 @@ class ConvKernelConfigSet:
                             double_smem_buffer=trait[6],
                             num_groups_to_merge=trait[7],
                         )
-                        yield ConvKernelConfig(
+                        yield GroupedConvKernelConfig(
                             tile=tile_cfg,
                             trait=trait_cfg,
                             dtype_input=self.dtype_input,
@@ -599,7 +603,9 @@ class ConvKernelConfigSet:
         return tile_count * trait_count * extra_count * len(self.gpu_targets)
 
 
-def load_conv_kernel_configs(json_path: str | Path) -> ConvKernelConfigSet:
+def load_grouped_conv_kernel_configs(
+    json_path: str | Path,
+) -> GroupedConvKernelConfigSet:
     """
     Load convolution kernel configurations from a JSON file.
 
@@ -607,14 +613,14 @@ def load_conv_kernel_configs(json_path: str | Path) -> ConvKernelConfigSet:
         json_path: Path to JSON configuration file
 
     Returns:
-        ConvKernelConfigSet with all parameter values loaded
+        GroupedConvKernelConfigSet with all parameter values loaded
     """
     json_path = Path(json_path)
 
     with open(json_path) as f:
         data = json.load(f)
 
-    config_set = ConvKernelConfigSet()
+    config_set = GroupedConvKernelConfigSet()
 
     # Name
     config_set.name = data.get("kernel_set_name", json_path.stem)
@@ -680,15 +686,15 @@ def load_conv_kernel_configs(json_path: str | Path) -> ConvKernelConfigSet:
 
 
 def generate_cpp_conv_kernel_set_declaration(
-    config_set: ConvKernelConfigSet,
+    config_set: GroupedConvKernelConfigSet,
     set_name: Optional[str] = None,
 ) -> str:
     """
-    Generate C++ DECL_CONV_KERNEL_SET code from a ConvKernelConfigSet.
+    Generate C++ DECL_GROUPED_CONV_KERNEL_SET code from a GroupedConvKernelConfigSet.
     """
     name = set_name or config_set.name
 
-    lines = [f"DECL_CONV_KERNEL_SET({name},"]
+    lines = [f"DECL_GROUPED_CONV_KERNEL_SET({name},"]
 
     for config in config_set.generate_configs():
         line = f'    .add("{config.dtype_input}", "{config.variant}", {config.ndim}, '

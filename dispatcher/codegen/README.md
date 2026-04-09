@@ -1,10 +1,21 @@
-# CK Tile GEMM Unified Code Generator
+# CK Tile Unified Code Generators
 
-Single source of truth for all GEMM kernel generation.
+Single source of truth for GEMM and Grouped Convolution kernel generation.
 
 > **See also:** [Main Dispatcher README](../README.md) for installation and core concepts.
 
+## Shared Infrastructure
+
+Both GEMM and Grouped Conv generators share common code via `codegen_common.py`:
+- `TileConfig` - Dataclass for tile dimensions
+- `TraitConfigBase` - Base for kernel trait configurations with arch-aware validation
+- `CommonTypeMappings` - Dtype-to-C++ type mappings
+- `parallel_generate()` - Parallel kernel generation with per-kernel progress logging
+- Arch-aware expansion helpers (`valid_wave_configs`, `valid_warp_configs`, etc.)
+
 ## Quick Start
+
+### GEMM
 
 ```bash
 cd dispatcher/codegen
@@ -20,6 +31,25 @@ python3 unified_gemm_codegen.py \
 python3 unified_gemm_codegen.py \
     --output-dir ../build/generated_kernels \
     --variants standard preshuffle multi_d
+```
+
+### Grouped Convolution
+
+```bash
+cd dispatcher/codegen
+
+# Generate forward FP16 grouped conv kernels
+python3 unified_grouped_conv_codegen.py \
+    --output-dir ../build/generated_kernels \
+    --datatype fp16 \
+    --variant forward \
+    --ndim-spatial 2
+
+# Generate backward data kernels
+python3 unified_grouped_conv_codegen.py \
+    --output-dir ../build/generated_kernels \
+    --variant backward_data \
+    --ndim-spatial 2
 ```
 
 ## Using from Python
@@ -58,13 +88,13 @@ results = codegen.generate_all()
 ## Variants
 
 ### Standard
-Basic GEMM: `C = A × B`
+Basic GEMM: `C = A x B`
 
 ### PreShuffle
 Optimized weight access with LDS pre-shuffling. Best for large matrices.
 
 ### Multi-D
-Element-wise fusion: `C = op(A × B + D0 + D1 + ...)`
+Element-wise fusion: `C = op(A x B + D0 + D1 + ...)`
 
 Supported ops: `PassThrough`, `MultiDAdd`, `Relu`, `Gelu`, `Sigmoid`, `Tanh`
 
@@ -72,10 +102,11 @@ Supported ops: `PassThrough`, `MultiDAdd`, `Relu`, `Gelu`, `Sigmoid`, `Tanh`
 
 ```
 generated_kernels/
-├── gemm_fp16_rcr_compv4_..._128x128x32_....hpp
-├── gemm_fp16_rcr_compv4_..._preshuffle.hpp
-├── gemm_fp16_rcr_compv4_..._multid_Relu_d1.hpp
-└── ...
+|---- gemm_fp16_rcr_compv4_..._128x128x32_....hpp          # GEMM kernels
+|---- gemm_fp16_rcr_compv4_..._preshuffle.hpp
+|---- gemm_fp16_rcr_compv4_..._multid_Relu_d1.hpp
+|---- grouped_conv_fwd_fp16_nhwgc_..._128x128x32_....hpp   # Grouped conv kernels
++---- ...
 ```
 
 ## Configuration Files
