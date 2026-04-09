@@ -109,7 +109,7 @@ inline void register_all_kernels()
 """
 
     output_file.write_text(content)
-    print(f"✓ Generated registration header: {output_file}")
+    print(f"OK Generated registration header: {output_file}")
 
 
 def generate_registration_cpp(kernels: List[KernelConfig], output_file: Path):
@@ -143,7 +143,7 @@ namespace generated {
 """
 
     output_file.write_text(content)
-    print(f"✓ Generated registration implementation: {output_file}")
+    print(f"OK Generated registration implementation: {output_file}")
 
 
 def generate_kernel_wrapper_header(kernel: KernelConfig, output_dir: Path):
@@ -414,8 +414,8 @@ def main():
     with open(manifest_output, "w") as f:
         json.dump(manifest_data, f, indent=2)
 
-    print(f"✓ Generated manifest: {manifest_output}")
-    print("\n✓ Registration code generation complete!")
+    print(f"OK Generated manifest: {manifest_output}")
+    print("\nOK Registration code generation complete!")
     print(f"  Total kernels: {len(kernels)}")
     print("  Output files:")
     print(f"    - {registration_header}")

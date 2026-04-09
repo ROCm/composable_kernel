@@ -19,7 +19,7 @@ class ProblemDimensionInferenceTest : public ::testing::Test
 
 TEST_F(ProblemDimensionInferenceTest, FromAB_Basic)
 {
-    // A: M×K (1024×512), B: K×N (512×2048)
+    // A: MxK (1024x512), B: KxN (512x2048)
     auto problem = Problem::from_ab(1024, 512, 512, 2048);
 
     EXPECT_EQ(problem.M, 1024);
@@ -30,7 +30,7 @@ TEST_F(ProblemDimensionInferenceTest, FromAB_Basic)
 
 TEST_F(ProblemDimensionInferenceTest, FromDimensions_Valid)
 {
-    // A: 1024×512, B: 512×2048, C: 1024×2048
+    // A: 1024x512, B: 512x2048, C: 1024x2048
     auto problem = Problem::from_dimensions(1024, 512, 512, 2048, 1024, 2048);
 
     EXPECT_EQ(problem.M, 1024);
@@ -55,7 +55,7 @@ TEST_F(ProblemDimensionInferenceTest, FromShapes_WithC)
 
 TEST_F(ProblemDimensionInferenceTest, FromShapes_TransposedA)
 {
-    // A stored as K×M (transposed)
+    // A stored as KxM (transposed)
     TensorShape A{512, 1024, true};
     TensorShape B{512, 2048, false};
     TensorShape C{1024, 2048, false};
@@ -70,7 +70,7 @@ TEST_F(ProblemDimensionInferenceTest, FromShapes_TransposedA)
 TEST_F(ProblemDimensionInferenceTest, FromShapes_TransposedB)
 {
     TensorShape A{1024, 512, false};
-    // B stored as N×K (transposed)
+    // B stored as NxK (transposed)
     TensorShape B{2048, 512, true};
     TensorShape C{1024, 2048, false};
 
