@@ -6,9 +6,7 @@
 """
 Example 04: Validation
 
-Validates GPU GEMM against NumPy reference.
-
-Complexity: ★★★☆☆
+Validates GPU GEMM against NumPy reference using JIT compilation.
 
 Usage:
     python3 04_validation.py
@@ -26,9 +24,8 @@ import numpy as np
 from ctypes_utils import (
     KernelConfig,
     Validator,
-    setup_gemm_dispatcher,
-    cleanup_gemm,
-    reset_for_example,
+    Registry,
+    detect_gpu_arch,
 )
 
 
@@ -56,20 +53,20 @@ Examples:
         "--atol", type=float, default=1e-2, help="Absolute tolerance (default: 1e-2)"
     )
     parser.add_argument(
-        "--arch", default="gfx942", help="Target architecture (default: gfx942)"
+        "--arch",
+        default=detect_gpu_arch(),
+        help="Target architecture (auto-detected from rocminfo)",
     )
     args = parser.parse_args()
-
-    reset_for_example()
 
     print("=" * 60)
     print("Example 04: Validation")
     print("=" * 60)
 
     # =========================================================================
-    # Step 1: Setup dispatcher
+    # Step 1: JIT build dispatcher
     # =========================================================================
-    print("\nStep 1: Setup Dispatcher")
+    print("\nStep 1: JIT Build Dispatcher")
 
     config = KernelConfig(
         dtype_a=args.dtype,
@@ -81,12 +78,16 @@ Examples:
         gfx_arch=args.arch,
     )
 
-    setup = setup_gemm_dispatcher(config, registry_name="validation", verbose=True)
-    if not setup.success:
-        print(f"  ERROR: {setup.error}")
+    reg = Registry(name="validation")
+    reg.register_kernel(config)
+
+    setups = reg.build(verbose=True)
+    if not setups or not setups[0].success:
+        error = setups[0].error if setups else "No kernels built"
+        print(f"  ERROR: {error}")
         return 1
 
-    dispatcher = setup.dispatcher
+    dispatcher = setups[0].dispatcher
 
     # =========================================================================
     # Step 2: Run validation tests
@@ -138,9 +139,6 @@ Examples:
         else:
             print(f"  {name:<15} | {M}x{N}x{K:<5} | {max_err:>10.2e} | FAILED")
             failed += 1
-
-    # Cleanup
-    cleanup_gemm()
 
     # Summary
     print("\n" + "=" * 60)

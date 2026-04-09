@@ -6,13 +6,13 @@ This directory contains language bindings for the CK Tile Dispatcher.
 
 ```
 bindings/
-├── ctypes/              # Python ctypes bindings (C API)
-│   ├── gemm_ctypes_lib.cpp      # GEMM dispatcher C API
-│   ├── conv_ctypes_lib.cpp      # Convolution dispatcher C API (fwd + bwd_data)
-│   ├── conv_bwdw_ctypes_lib.cpp # Convolution backward weight C API
-│   ├── gpu_helper.cpp           # CLI helper for Python
-│   └── CMakeLists.txt
-└── README.md
+|---- ctypes/              # Python ctypes bindings (C API)
+|   |---- gemm_ctypes_lib.cpp      # GEMM dispatcher C API
+|   |---- conv_ctypes_lib.cpp      # Grouped conv dispatcher C API (fwd + bwd_data)
+|   |---- conv_bwdw_ctypes_lib.cpp # Grouped conv backward weight C API (separate library)
+|   |---- gpu_helper.cpp           # CLI helper for Python
+|   +---- CMakeLists.txt
++---- README.md
 ```
 
 ## ctypes Bindings
@@ -65,7 +65,7 @@ lib.dispatcher_cleanup()
 | `dispatcher_export_registry_json()` | Export registry as JSON |
 | `dispatcher_cleanup()` | Release resources |
 
-### Convolution API
+### Grouped Convolution API
 
 | Function | Description |
 |----------|-------------|
@@ -105,5 +105,11 @@ Output is JSON for easy parsing:
 See the examples that use these bindings:
 
 - **GEMM**: `dispatcher/examples/gemm/python/`
-- **Conv**: `dispatcher/examples/conv/python/`
+
+### Grouped Convolution
+
+Grouped convolution C++ headers and Python utilities are in:
+- **C++ Headers**: `dispatcher/include/ck_tile/dispatcher/grouped_conv_*.hpp`
+- **Python Utils**: `dispatcher/python/grouped_conv_utils.py`
+- **Build Script**: `dispatcher/scripts/compile_grouped_conv_examples.py`
 
