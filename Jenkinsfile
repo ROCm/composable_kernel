@@ -414,54 +414,86 @@ def getDockerImage(Map conf=[:]){
     return [retimage, image]
 }
 
-def buildDocker(install_prefix){
+// Build and push a docker image, capturing its digest into the specified env var.
+// If forceBuild is false, will skip building if the image already exists in the registry.
+def buildAndPushDockerImage(String install_prefix, String image_name, String dockerExtraArgs, boolean forceBuild){
     show_node_info()
     env.DOCKER_BUILDKIT=1
     checkoutComposableKernel()
-    def image_name = getDockerImageName()
-    def base_image_name = getBaseDockerImageName()
-    echo "Building Docker for ${image_name}"
     def dockerArgs = "--build-arg PREFIX=${install_prefix} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
-    if(params.COMPILER_VERSION == "develop" || params.COMPILER_VERSION == "amd-staging" || params.COMPILER_COMMIT != ""){
-        dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f projects/composablekernel/Dockerfile.compiler . "
-    }
-    else if(params.COMPILER_VERSION == "therock"){
-        dockerArgs = dockerArgs + " --no-cache -f projects/composablekernel/Dockerfile . "
-    }
-    else if(params.RUN_AITER_TESTS){
-        image_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
-        dockerArgs = dockerArgs + " --no-cache -f projects/composablekernel/Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
-    }
-     else if(params.RUN_PYTORCH_TESTS){
-        image_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_pytorch"
-        dockerArgs = dockerArgs + " --no-cache -f projects/composablekernel/Dockerfile.pytorch --build-arg CK_PYTORCH_BRANCH='${params.ck_pytorch_branch}' . "
-    }
-   else{
-        dockerArgs = dockerArgs + " -f projects/composablekernel/Dockerfile . "
-    }
-    echo "Build Args: ${dockerArgs}"
-    try{
-        if(params.BUILD_DOCKER || params.RUN_AITER_TESTS || params.RUN_PYTORCH_TESTS){
-            //force building the new docker if that parameter is true
-            echo "Building image: ${image_name}"
-            retimage = docker.build("${image_name}", dockerArgs)
-            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
-                retimage.push()
-            }
-            sh 'docker images -q -f dangling=true | xargs --no-run-if-empty docker rmi'
-        }
-        else{
+    dockerArgs += " " + dockerExtraArgs
+
+    if(!forceBuild){
+        try{
             echo "Checking for image: ${image_name}"
             sh "docker manifest inspect --insecure ${image_name}"
             echo "Image: ${image_name} found! Skipping building image"
+            return image_name
+        }
+        catch(Exception ex){
+            echo "Unable to locate image: ${image_name}. Will attempt to build image now."
         }
     }
-    catch(Exception ex){
-        echo "Unable to locate image: ${image_name}. Building image now"
-        retimage = docker.build("${image_name}", dockerArgs)
-        withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
-            retimage.push()
-        }
+
+    echo "Building image: ${image_name} with args: ${dockerArgs}"
+    def retimage = docker.build("${image_name}", dockerArgs)
+    withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
+        retimage.push()
+    }
+    def digest = sh(returnStdout: true, script: "docker inspect --format='{{index .RepoDigests 0}}' ${image_name}").trim()
+    echo "Built image digest: ${digest}"
+    echo "Pruning dangling Docker images to free disk space on CI agent"
+    sh "docker image prune -f --filter 'dangling=true' || true"
+    return digest
+}
+
+def buildDockerBase(install_prefix){
+    def image_name = getDockerImageName()
+    def base_image_name = getBaseDockerImageName()
+    echo "Building Docker for ${image_name}"
+    def dockerExtraArgs = " -f projects/composablekernel/Dockerfile . "
+    if(params.COMPILER_VERSION == "develop" || params.COMPILER_VERSION == "amd-staging" || params.COMPILER_COMMIT != ""){
+        dockerExtraArgs = " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f projects/composablekernel/Dockerfile.compiler . "
+    }
+    else if(params.COMPILER_VERSION == "therock"){
+        dockerExtraArgs = " --no-cache -f projects/composablekernel/Dockerfile . "
+    }
+    env.CK_BASE_IMAGE = buildAndPushDockerImage(install_prefix, image_name, dockerExtraArgs, params.BUILD_DOCKER.toBoolean())
+}
+
+def buildDockerPytorch(install_prefix){
+    def image_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_pytorch"
+    def dockerExtraArgs = " --no-cache -f projects/composablekernel/Dockerfile.pytorch --build-arg CK_PYTORCH_BRANCH='${params.ck_pytorch_branch}' . "
+    env.CK_PYTORCH_IMAGE = buildAndPushDockerImage(install_prefix, image_name, dockerExtraArgs, true)
+}
+
+def buildDockerAiter(install_prefix){
+    def image_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
+    def dockerExtraArgs = " --no-cache -f projects/composablekernel/Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
+    env.CK_AITER_IMAGE = buildAndPushDockerImage(install_prefix, image_name, dockerExtraArgs, true)
+}
+
+def buildDockerFa(install_prefix){
+    def image_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_fa"
+    def dockerExtraArgs = " --no-cache -f projects/composablekernel/Dockerfile.fa"
+    dockerExtraArgs += " --build-arg BASE_DOCKER='${params.fa_base_docker}'"
+    dockerExtraArgs += " --build-arg FA_BRANCH='${params.fa_branch}'"
+    dockerExtraArgs += " --build-arg CK_FA_BRANCH='${params.ck_fa_branch}'"
+    dockerExtraArgs += " --build-arg GPU_ARCHS='gfx942;gfx950'"
+    dockerExtraArgs += " . "
+    env.CK_FA_IMAGE = buildAndPushDockerImage(install_prefix, image_name, dockerExtraArgs, true)
+}
+
+def buildDocker(install_prefix){
+    buildDockerBase(install_prefix)
+    if (params.RUN_PYTORCH_TESTS.toBoolean()) {
+        buildDockerPytorch(install_prefix)
+    }
+    if (params.RUN_AITER_TESTS.toBoolean()) {
+        buildDockerAiter(install_prefix)
+    }
+    if (params.RUN_FA_TESTS.toBoolean()) {
+        buildDockerFa(install_prefix)
     }
 }
 
@@ -1086,99 +1118,73 @@ def process_results(Map conf=[:]){
     }
 }
 
-def run_aiter_tests(Map conf=[:]){
+def run_downstream_tests(Map conf=[:]){
     show_node_info()
     checkoutComposableKernel()
-    //use the latest pytorch image
-    def image = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
-    def dockerOpts=get_docker_options() + ' --group-add irc '
+    def dockerOpts = get_docker_options() + ' --group-add irc '
 
     gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
         try
         {
-            echo "Pulling image: ${image}"
-            retimage = docker.image("${image}")
+            echo "Pulling image: ${conf.image}"
+            retimage = docker.image("${conf.image}")
             withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
                 retimage.pull()
             }
         }
         catch(Exception ex)
         {
-            error "Unable to locate image: ${image}"
+            error "Unable to locate image: ${conf.image}"
         }
     }
 
-    withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 5, unit: 'HOURS'){
+    withDockerContainer(image: conf.image, args: dockerOpts) {
+        timeout(time: conf.get("timeoutHours", 2), unit: 'HOURS'){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_batch_prefill.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_2stage.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_blockscale.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_ep.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting_mxfp4.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_tkw1.py"
+                for (cmd in conf.execute_cmds) {
+                    sh "${cmd}"
+                }
             }
             catch(e){
-                echo "Throwing error exception while running AITER tests"
+                echo "Throwing error exception while running ${env.STAGE_NAME}"
                 echo 'Exception occurred: ' + e.toString()
                 throw e
             }
             finally{
-                echo "Finished running AITER tests"
+                echo "Finished running ${env.STAGE_NAME}"
             }
         }
     }
 }
 
-
-def run_pytorch_tests(Map conf=[:]){
-    show_node_info()
-    checkoutComposableKernel()
-    //use the latest pytorch-nightly image
-    def image = "${env.CK_DOCKERHUB_PRIVATE}:ck_pytorch"
-    def dockerOpts=get_docker_options() + ' --group-add irc '
-
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
-        try
-        {
-            echo "Pulling image: ${image}"
-            retimage = docker.image("${image}")
-            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
-                retimage.pull()
-            }
-        }
-        catch(Exception ex)
-        {
-            error "Unable to locate image: ${image}"
-        }
-    }
-
-    withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 2, unit: 'HOURS'){
-            try{
-                sh "rocminfo"
-                sh "python3 --version"
-                sh "python3 /tmp/pytorch/tools/amd_build/build_amd.py"
-                sh "USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python /tmp/pytorch/setup.py develop"
-            }
-            catch(e){
-                echo "Throwing error exception while building Pytorch"
-                echo 'Exception occurred: ' + e.toString()
-                throw e
-            }
-            finally{
-                echo "Finished building Pytorch"
-            }
-        }
-    }
+def getPytorchTestsCmds() {
+    return [
+        "python3 /tmp/pytorch/tools/amd_build/build_amd.py",
+        "USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python /tmp/pytorch/setup.py develop"
+    ]
+}
+def getAiterTestsCmds() {
+    return [
+        "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py",
+        "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py",
+        "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py",
+        "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py",
+        "python3 /home/jenkins/workspace/aiter/op_tests/test_batch_prefill.py",
+        "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py",
+        "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_2stage.py",
+        "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_blockscale.py",
+        "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_ep.py",
+        "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting.py",
+        "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting_mxfp4.py",
+        "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_tkw1.py"
+    ]
+}
+def getFaTestsCmds() {
+    return [
+        "python3 -u -m pytest /home/jenkins/workspace/flash-attention/tests/test_flash_attn_ck.py"
+    ]
 }
 
 //launch develop branch daily jobs
@@ -1189,8 +1195,9 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=therock;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 15 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 13 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
-                                              0 11 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
+                                              0 11 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;RUN_FA_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
                                               0 9 * * * % RUN_PYTORCH_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
+CURRENT_BRANCH_NAME = env.CHANGE_BRANCH ? env.CHANGE_BRANCH : env.BRANCH_NAME
 
 POLL_SPEC = BRANCH_NAME == "develop" ? 'H H/6 * * *' : ''
 
@@ -1351,8 +1358,8 @@ pipeline {
             description: "Try building PYTORCH with latest CK develop branch (default: OFF)")
         string(
             name: 'ck_pytorch_branch',
-            defaultValue: 'develop',
-            description: 'Specify which branch of CK to test with Pytorch (default: develop)')
+            defaultValue: CURRENT_BRANCH_NAME,
+            description: 'Specify which branch of CK to test with Pytorch (default: current branch)')
         booleanParam(
             name: "RUN_AITER_TESTS",
             defaultValue: false,
@@ -1367,8 +1374,24 @@ pipeline {
             description: 'Specify which branch of AITER to use (default: main)')
         string(
             name: 'ck_aiter_branch',
-            defaultValue: 'develop',
-            description: 'Specify which branch of CK to test with AITER (default: develop)')
+            defaultValue: CURRENT_BRANCH_NAME,
+            description: 'Specify which branch of CK to test with AITER (default: current branch)')
+        booleanParam(
+            name: "RUN_FA_TESTS",
+            defaultValue: false,
+            description: "Run Flash Attention tests with latest CK develop branch (default: OFF)")
+        string(
+            name: 'fa_base_docker',
+            defaultValue: 'rocm/pytorch:rocm7.1.1_ubuntu24.04_py3.12_pytorch_release_2.9.1',
+            description: 'Specify which base docker image to use for flash-attention tests')
+        string(
+            name: 'fa_branch',
+            defaultValue: 'ck_improve_main',
+            description: 'Specify which branch of flash-attention to use (default: ck_improve_main)')
+        string(
+            name: 'ck_fa_branch',
+            defaultValue: CURRENT_BRANCH_NAME,
+            description: 'Specify which branch of CK to test with flash-attention (default: current branch)')
         booleanParam(
             name: "FORCE_CI",
             defaultValue: false,
@@ -1461,7 +1484,7 @@ pipeline {
                 }
             }
         }
-         stage("Run Pytorch Tests")
+         stage("Run Downstream Tests")
         {
             when {
                 beforeAgent true
@@ -1477,20 +1500,10 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx942")}
                     steps{
-                        run_pytorch_tests()
+                        run_downstream_tests(image: "${env.CK_PYTORCH_IMAGE}", timeoutHours: 2, execute_cmds: getPytorchTestsCmds())
                         cleanWs()
                     }
                 }
-            }
-        }
-        stage("Run AITER Tests")
-        {
-            when {
-                beforeAgent true
-                expression { env.SHOULD_RUN_CI.toBoolean() }
-            }
-            parallel
-            {
                 stage("Run AITER Tests on gfx942")
                 {
                     when {
@@ -1499,7 +1512,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx942")}
                     steps{
-                        run_aiter_tests()
+                        run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: getAiterTestsCmds())
                         cleanWs()
                     }
                 }
@@ -1511,7 +1524,31 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx950")}
                     steps{
-                        run_aiter_tests()
+                        run_downstream_tests(image: "${env.CK_AITER_IMAGE}", timeoutHours: 5, execute_cmds: getAiterTestsCmds())
+                        cleanWs()
+                    }
+                }
+                stage("Run FA Tests on gfx942")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_FA_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx942")}
+                    steps{
+                        run_downstream_tests(image: "${env.CK_FA_IMAGE}", timeoutHours: 5, execute_cmds: getFaTestsCmds())
+                        cleanWs()
+                    }
+                }
+                stage("Run FA Tests on gfx950")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_FA_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx950")}
+                    steps{
+                        run_downstream_tests(image: "${env.CK_FA_IMAGE}", timeoutHours: 5, execute_cmds: getFaTestsCmds())
                         cleanWs()
                     }
                 }
