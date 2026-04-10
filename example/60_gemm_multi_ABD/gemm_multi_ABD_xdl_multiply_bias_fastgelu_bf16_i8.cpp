@@ -238,16 +238,6 @@ int main(int argc, char* argv[])
 
         Tensor<B1DataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
 
-#if 0
-        for(int n = 0; n < N; ++n)
-        {
-            for(int k = 0; k < K; ++k)
-            {
-                b_element_op(b_k_n(k, n), b0_k_n(k, n), b1_k_n(k, n));
-            }
-        }
-#endif
-
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<A0DataType,
                                                                                 B0DataType,
                                                                                 CShuffleDataType,

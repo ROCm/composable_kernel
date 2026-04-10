@@ -198,10 +198,6 @@ struct Epilogue
                                                               input_left_pads,
                                                               input_right_pads);
 
-        // auto res = rtc::from_gpu(out_dev);
-        // pass &= ck::utils::check_err(res, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
-        // assert(pass);
-
         // Simple check: this checks that the output from each instance matches the output from the
         // first instance
         CHECK(report(solution, check(rtc::from_gpu(out_dev))));

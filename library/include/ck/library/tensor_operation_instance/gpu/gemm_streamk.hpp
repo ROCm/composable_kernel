@@ -52,66 +52,6 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmSt
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-#if 0
-        if constexpr(is_same_v<ADataType, float> && is_same_v<BDataType, float> &&
-                     is_same_v<CDataType, float>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_splitk_f32_f32_f32_mk_kn_mn_instances(op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_splitk_f32_f32_f32_mk_nk_mn_instances(op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_splitk_f32_f32_f32_km_kn_mn_instances(op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_splitk_f32_f32_f32_km_nk_mn_instances(op_ptrs);
-            }
-        }
-        else if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
-                          is_same_v<CDataType, half_t>)
-        {
-            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
-                         is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_v1_instances(op_ptrs);
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_v1_irregular_instances(op_ptrs);
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_v1_interwave_instances(op_ptrs);
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_v1_interwave_irregular_instances(op_ptrs);
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_v2_instances(op_ptrs);
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_kn_mn_v2_irregular_instances(op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_instances(op_ptrs);
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_irregular__instances(op_ptrs);
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_interwave_instances(op_ptrs);
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v1_interwave_irregular_instances(op_ptrs);
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v2_instances(op_ptrs);
-                add_device_gemm_xdl_splitk_f16_f16_f16_mk_nk_mn_v2_irregular_instances(op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Row> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_splitk_f16_f16_f16_km_kn_mn_instances(op_ptrs);
-            }
-            else if constexpr(is_same_v<ALayout, Col> && is_same_v<BLayout, Col> &&
-                              is_same_v<CLayout, Row>)
-            {
-                add_device_gemm_xdl_splitk_f16_f16_f16_km_nk_mn_instances(op_ptrs);
-            }
-        }
-#endif
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<CDataType, half_t>)
         {

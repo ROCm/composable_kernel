@@ -14,14 +14,6 @@
 
 namespace ck_tile {
 
-// template <typename Problem_, typename Policy_ = MoeSortingPolicy>
-// struct MoeSortingPipeline
-// {
-//     // TODO: this kernel only support warp per row
-//     using Problem    = remove_cvref_t<Problem_>;
-//     using Policy     = remove_cvref_t<Policy_>;
-//     using WeightType = typename Problem::WeightType;
-
 //     template <typename TopkIdWindow, typename WeightWindow>
 //     CK_TILE_DEVICE auto operator()(const TopkIdWindow& topk_id_window,
 //                                    const WeightWindow& weight_window,

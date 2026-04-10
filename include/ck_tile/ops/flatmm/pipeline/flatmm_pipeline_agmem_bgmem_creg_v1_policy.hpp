@@ -392,10 +392,6 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t M1 = BlockSize / get_warp_size();
         static_assert(M2 != 0, "M2 is zero, which will lead to a division by zero error.");
         static_assert(M1 != 0, "M1 is zero, which will lead to a division by zero error.");
-        // constexpr index_t M0 = MPerBlock / (M2 * M1);
-        // static_assert(M0 * M1 * M2 == MPerBlock,
-        //                 "Incorrect M0, M2, M1 configuration! "
-        //                 "M0, M1, M2 must cover whole MPerBlock!");
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,

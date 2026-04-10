@@ -390,10 +390,6 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                                     ? Aload_rep
                                     : 0;
                 }
-                // if((kIter % KPerScaleLoad == 0) && (mIter == 0))
-                // {
-                //     load_perM = load_perM + 1;
-                // }
                 SchedulerPerM(dsread_perM, dswrite_perM, load_perM);
             }
         }
