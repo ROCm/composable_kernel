@@ -73,27 +73,6 @@ struct numeric<int8_t>
     CK_TILE_HOST_DEVICE static constexpr int8_t zero() { return 0; }
 };
 
-#if 0
-
-template <>
-struct numeric_traits<int8_t>
-{
-    static constexpr int exp            = 5;
-    static constexpr int mant           = 10;
-    static constexpr int bias           = 15;
-    static constexpr uint16_t nan_mask  = 0x7C00;
-    static constexpr uint16_t head_mask = 0xFC00;
-    static constexpr uint16_t mant_mask = 0x3FF;
-    static constexpr uint16_t exp_mask  = 0x1F;
-    static constexpr uint32_t Inf       = 0x7C00;
-    static constexpr uint32_t NegInf    = 0xFC00;
-    static constexpr uint32_t NaN       = 0x7C01;
-    static constexpr uint32_t Neg0      = 0x8000;
-    static constexpr int PackedSize           = 1;
-    using bitwise_type                  = uint16_t;
-};
-#endif
-
 CK_TILE_HOST_DEVICE
 constexpr float int8_to_float(const int8_t& x) { return static_cast<float>(x); }
 

@@ -120,17 +120,7 @@ struct block_dispatcher_t
 
     uint32_t get_grid_dims_x() { return dp_start_block_idx + dp_num_blocks; }
 
-    uint32_t get_block_idx(uint32_t bid)
-    {
-        // block id is linearily allocated along sk blocks (dp blocks are fine)
-        // this function will compute blockIdx.x and the linear sk block mapping
-        // uint32_t block_idx = 0;
-        // if(bid < sk_num_big_blocks) {
-        //     uint32_t current_k_iter = bid * k_iters_per_big_block;
-        //     tile_idx = current_k_iter / k_iters_per_tile;
-        // }
-        return bid;
-    }
+    uint32_t get_block_idx(uint32_t bid) { return bid; }
 
     uint32_t get_current_itr(uint32_t block_idx)
     {

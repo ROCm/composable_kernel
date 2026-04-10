@@ -476,16 +476,6 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
             hip_check_error(hipGetLastError());
             // end real kernel
 
-            //             hip_check_error(hipEventRecord(stop, stream_config.stream_id_));
-            //             hip_check_error(hipEventSynchronize(stop));
-            //             float cur_time = 0;
-            //             hip_check_error(hipEventElapsedTime(&cur_time, start, stop));
-            // #if MEDIAN
-            //             times.insert(cur_time);
-            // #else
-            //             total_time += cur_time;
-            // #endif
-
 #if !defined(CK_USE_WMMA)
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {

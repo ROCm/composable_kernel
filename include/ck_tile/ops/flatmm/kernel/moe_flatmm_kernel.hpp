@@ -483,13 +483,6 @@ struct MoeFlatmmKernel
 
         if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
         {
-            // if(kargs.N % TilePartitioner::NPerBlock != 0 && FlatmmPipeline::kPadN == false)
-            // {
-            //     std::cerr << "Can't support N that is not a multiple of NPerBlock"
-            //                  " without padding!"
-            //               << std::endl;
-            //     return false;
-            // }
             if(kargs.N % FlatmmPipeline::GetVectorSizeB() != 0)
             {
                 std::cerr << "N is not a multiple of vector load size for B tensor!" << std::endl;

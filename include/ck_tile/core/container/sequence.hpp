@@ -480,32 +480,6 @@ struct sequence_split
     using right_type = decltype(Seq::extract(range1{}));
 };
 
-#if 0
-// reverse sequence
-template <typename Seq>
-struct sequence_reverse
-{
-    static constexpr index_t NSize = Seq{}.size();
-
-    using seq_split = sequence_split<Seq, NSize / 2>;
-    using type      = typename sequence_merge<
-        typename sequence_reverse<typename seq_split::right_type>::type,
-        typename sequence_reverse<typename seq_split::left_type>::type>::type;
-};
-
-template <index_t I>
-struct sequence_reverse<sequence<I>>
-{
-    using type = sequence<I>;
-};
-
-template <index_t I0, index_t I1>
-struct sequence_reverse<sequence<I0, I1>>
-{
-    using type = sequence<I1, I0>;
-};
-#endif
-
 namespace detail {
 template <typename Id, index_t... Ns>
 struct seq_reverse;
