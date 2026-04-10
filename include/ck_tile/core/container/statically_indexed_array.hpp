@@ -24,18 +24,4 @@ using statically_indexed_array = array<T, N>;
 #endif
 
 // consider always use ck_tile::array for this purpose
-#if 0
-template <typename X, typename... Xs>
-CK_TILE_HOST_DEVICE constexpr auto make_statically_indexed_array(const X& x, const Xs&... xs)
-{
-    return statically_indexed_array<X, sizeof...(Xs) + 1>(x, static_cast<X>(xs)...);
-}
-
-// make empty statically_indexed_array
-template <typename X>
-CK_TILE_HOST_DEVICE constexpr auto make_statically_indexed_array()
-{
-    return statically_indexed_array<X, 0>();
-}
-#endif
 } // namespace ck_tile

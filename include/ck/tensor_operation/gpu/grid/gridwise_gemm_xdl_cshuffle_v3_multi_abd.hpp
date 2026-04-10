@@ -806,58 +806,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
         index_t b_k_split_offset;
     };
 
-#if 0
-    struct SplitKBatchOffsetMultiABD
-    {
-        __device__ SplitKBatchOffsetMultiABD(AsGridPointer& p_as_grid,
-                                             BsGridPointer& p_bs_grid,
-                                             Argument& karg)
-        {
-            static_for<0, NumATensor, 1>{}([&](auto i) {
-                using ALayout_ = remove_cvref_t<tuple_element_t<i.value, AsLayout>>;
-                if constexpr(is_same_v<tensor_layout::gemm::RowMajor, ALayout_>)
-                {
-                    as_k_split_offset[i] = blockIdx.z * karg.KRead;
-                }
-                else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout_>)
-                {
-                    as_k_split_offset[i] = blockIdx.z * karg.KRead * karg.StrideAs[i];
-                }
-
-                p_as_grid_(i) = p_as_grid[i] + as_k_split_offset[i];
-            });
-
-            static_for<0, NumBTensor, 1>{}([&](auto i) {
-                using BLayout_ = remove_cvref_t<tuple_element_t<i.value, BsLayout>>;
-                if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout_>)
-                {
-                    bs_k_split_offset[i] = blockIdx.z * karg.KRead * karg.StrideBs[i];
-                }
-                else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout_>)
-                {
-                    bs_k_split_offset[i] = blockIdx.z * karg.KRead;
-                }
-
-                p_bs_grid_(i) = p_bs_grid[i] + bs_k_split_offset[i];
-            });
-
-            if(blockIdx.z < static_cast<uint32_t>(karg.KBatch - 1))
-            {
-                karg.K = karg.KRead;
-            }
-            else
-            {
-                karg.K = karg.K - karg.KRead * (karg.KBatch - 1);
-            }
-        }
-
-        AsGridPointer p_as_grid_;
-        BsGridPointer p_bs_grid_;
-        std::array<index_t, NumATensor> as_k_split_offset;
-        std::array<index_t, NumBTensor> bs_k_split_offset;
-    };
-#endif
-
     using BlockwiseGemmPipe = remove_cvref_t<
         decltype(BlockGemmPipeline_Selector<
                  BlkGemmPipelineVer,
@@ -1129,10 +1077,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // BsGridPointer p_bs_grid;
         // DsGridPointer p_ds_grid;
 
-        // const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
-        //    problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
-        // const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(
-        //    problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideB, problem.BK0);
         const auto as_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
         const auto bs_grid_desc_bk0_n_bk1 = MakeBsGridDescriptor_BK0_N_BK1(
@@ -1147,21 +1091,9 @@ struct GridwiseGemm_xdl_cshuffle_v3
         const auto ds_grid_desc_m_n = MakeDsGridDescriptor_M_N(
             problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideDs);
 
-#if 0
-        static_for<0, NumDTensor, 1>{}([&](auto j) {
-            ds_grid_desc_m_n(j) = MakeCGridDescriptor_M_N(
-                problem.M, problem.MPadded, problem.N, problem.NPadded, problem.StrideDs[j]);
-        });
-#endif
-
         const auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 ds_grid_desc_m_n, problem.MBlock, problem.NBlock);
-
-        // const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-        //    p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-        // const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-        //    p_bs_grid[I0], b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
 
         const auto as_grid_buf = generate_tuple(
             [&](auto i) {
@@ -1406,10 +1338,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                     const BElementwiseOperation& b_element_op,
                                     const CElementwiseOperation& c_element_op)
     {
-        // const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
-        //    problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
-        // const auto b_grid_desc_bk0_n_bk1 = MakeBGridDescriptor_BK0_N_BK1(
-        //    problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideB, problem.BK0);
         const auto as_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
         const auto bs_grid_desc_bk0_n_bk1 = MakeBsGridDescriptor_BK0_N_BK1(
@@ -1428,10 +1356,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
             MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 ds_grid_desc_m_n, problem.MBlock, problem.NBlock);
 
-        // const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-        //    p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
-        // const auto b_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-        //    p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize());
         const auto as_grid_buf = generate_tuple(
             [&](auto i) {
                 return make_dynamic_buffer<AddressSpaceEnum::Global>(

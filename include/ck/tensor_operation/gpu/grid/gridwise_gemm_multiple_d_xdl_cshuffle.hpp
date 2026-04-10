@@ -464,12 +464,6 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
             return false;
         }
 
-        // check block-to-E-tile
-        // if(!block_2_etile_map.CheckValidity(e_grid_desc_m_n))
-        //{
-        // return false;
-        //}
-
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         // check tensor size: cannot be larger than 2GB each
         constexpr long_index_t TwoGB = (long_index_t{1} << 31);
