@@ -745,14 +745,6 @@ struct PassThroughPack2
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
 
-#if 0
-    CK_TILE_HOST_DEVICE constexpr void operator()(ck_tile::fp16x2_t& y, const ck_tile::f8x2_t& x) const
-    {
-        auto t = type_convert<float2_t>(x);
-        y      = type_convert<fp16x2_t>(t);
-    }
-#endif
-
     CK_TILE_HOST_DEVICE constexpr void operator()(fp16x2_t& y, const pk_int4_t& x) const
     {
         uint8_t x_u8 = bit_cast<uint8_t>(x);
@@ -870,61 +862,6 @@ struct UnaryConvert
         y = type_convert<Y>(x);
     }
 };
-
-#if 0
-struct ConvertBF16RTN
-{
-    // convert to bf16 using round to nearest (rtn)
-    template <typename Y, typename X>
-    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
-    {
-        // check Y datatype
-        static_assert(std::is_same_v<Y, ck_tile::bf16_t>, "Data type is not supported by this operation!");
-
-        // check X datatype
-        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t>,
-                      "Data type is not supported by this operation!");
-
-        y = bf16_convert_rtn<Y>(x);
-    }
-};
-
-struct ConvertF8SR
-{
-    // convert to fp8 using stochastic rounding (SR)
-    template <typename Y, typename X>
-    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
-    {
-        // check Y datatype
-        static_assert(std::is_same_v<Y, ck_tile::fp8_t> || std::is_same_v<Y, ck_tile::bf8_t>,
-                      "Data type is not supported by this operation!");
-
-        // check X datatype
-        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t>,
-                      "Data type is not supported by this operation!");
-
-        y = f8_convert_sr<Y>(x);
-    }
-};
-
-struct ConvertF8RNE
-{
-    // convert to fp8 using rounding to nearest even
-    template <typename Y, typename X>
-    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
-    {
-        // check Y datatype
-        static_assert(std::is_same_v<Y, ck_tile::fp8_t> || std::is_same_v<Y, ck_tile::bf8_t>,
-                      "Data type is not supported by this operation!");
-
-        // check X datatype
-        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t>,
-                      "Data type is not supported by this operation!");
-
-        y = f8_convert_rne<Y>(x);
-    }
-};
-#endif
 
 struct Scale
 {

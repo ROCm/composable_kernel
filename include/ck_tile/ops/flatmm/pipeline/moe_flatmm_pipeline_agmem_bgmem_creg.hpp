@@ -103,13 +103,8 @@ struct MoeFlatmmPipelineAGmemBGmemCRegV1
     static constexpr index_t Aload_num_perK = dswrite_num_perK;
     static constexpr index_t Aload_rep      = dswrite_rep;
     static constexpr index_t Bload_num_perK = kNPerBlock * WG::kK / NWarp / BK1 / WaveSize;
-    // static constexpr index_t ScaleBload_K1  = ContinuousScaleNPerThread *
-    // ContinuousScaleKPerThread; static constexpr index_t ScaleBload_num =
-    //     kNPerBlock * kKPerBlock / NWarp / 32 / ScaleBload_K1 /
-    //     WaveSize; // BlockN * BlockK / NWarp / ScalePerK / ScaleB_K1 / wavesize
-    // static constexpr index_t KPerScaleLoad = KIterPerWarp / ScaleBload_num;
-    static constexpr index_t HalfMIter = (MIterPerWarp + 1) / 2;
-    static constexpr index_t Bload_rep = (Bload_num_perK + HalfMIter - 1) / HalfMIter;
+    static constexpr index_t HalfMIter      = (MIterPerWarp + 1) / 2;
+    static constexpr index_t Bload_rep      = (Bload_num_perK + HalfMIter - 1) / HalfMIter;
 
     static constexpr index_t mfma_perM_perK = NIterPerWarp * mfma_per_wg;
     static constexpr index_t dswrite_mIter  = (DsWritePreIssue - 1) % MIterPerWarp;
@@ -352,10 +347,6 @@ struct MoeFlatmmPipelineAGmemBGmemCRegV1
                                     ? Aload_rep
                                     : 0;
                 }
-                // if((kIter % KPerScaleLoad == 0) && (mIter == 0))
-                // {
-                //     load_perM = load_perM + 1;
-                // }
                 SchedulerPerM(dsread_perM, dswrite_perM, load_perM);
             }
         }

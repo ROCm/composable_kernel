@@ -70,50 +70,6 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
 #endif // end of if (defined(__gfx9__))
 }
 
-#if 0
-template <typename GridwiseGemm,
-          bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Even>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
-#endif
-    // __attribute__((amdgpu_waves_per_eu(1, 1)))
-    kernel_moe_mxgemm_2lds(typename GridwiseGemm::Argument karg)
-{
-#if defined(__gfx9__)
-    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
-    {
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    __shared__ char p_shared1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    // auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
-
-    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_sorted_token_ids,
-        karg.p_sorted_expert_ids,
-        karg.p_max_token_id,
-        karg.p_a_grid,
-        karg.p_a_scale_grid,
-        karg.p_b_grid,
-        karg.p_b_scale_grid,
-        karg.p_ds_grid,
-        karg.p_c_grid,
-        p_shared,
-        p_shared1,
-        karg,
-        karg.a_element_op,
-        karg.b_element_op,
-        karg.c_element_op);
-    }
-#else
-    ignore = karg;
-#endif // end of if (defined(__gfx9__))
-}
-#endif
-
 template <typename ALayout,
           typename BLayout,
           typename DsLayout,

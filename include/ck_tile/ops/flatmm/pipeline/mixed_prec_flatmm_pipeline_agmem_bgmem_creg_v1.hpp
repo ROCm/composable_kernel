@@ -1151,11 +1151,6 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                             a_warp_tensor(number<AwarpIter>{}) =
                                 load_tile(a_warp_windows_pong(number<AmIter>{})(number<AkIter>{}));
                         }
-                        // barrier
-                        // if constexpr((kIter == KIterPerWarp - 1) && (mIter == MIter_2nd_last))
-                        // {
-                        //     block_sync_lds();
-                        // }
                     });
                 }
             });
@@ -1636,10 +1631,6 @@ struct F8xMXF4FlatmmPipelineAGmemBGmemCRegV1
                                     ? Aload_rep
                                     : 0;
                 }
-                // if((kIter % KPerScaleLoad == 0) && (mIter == 0))
-                // {
-                //     load_perM = load_perM + 1;
-                // }
                 SchedulerPerM(dsread_perM, dswrite_perM, load_perM);
             }
         }

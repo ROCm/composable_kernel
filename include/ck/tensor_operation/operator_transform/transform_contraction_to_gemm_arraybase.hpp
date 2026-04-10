@@ -20,11 +20,6 @@ __host__ __device__ static auto
 MakeGridDescriptorPair(const std::array<index_t, NumDimG + NumDimM + NumDimN>& gs_ms_ns_lengths_vec,
                        const std::array<index_t, NumDimG + NumDimM + NumDimN>& gs_ms_ns_strides_vec)
 {
-    // if(!(gs_ms_ns_lengths_vec.size() == NumDimG + NumDimM + NumDimN &&
-    //      gs_ms_ns_strides_vec.size() == NumDimG + NumDimM + NumDimN))
-    // {
-    //     throw std::runtime_error("wrong! dimension must match input lengths");
-    // }
 
     const auto to_tuple = [&](auto& vec, auto start, auto end) {
         return generate_tuple([&](auto i) { return vec[start + i]; }, Number<end - start>{});
