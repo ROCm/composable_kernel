@@ -23,63 +23,9 @@ using AElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using CDEElementOp = ck::tensor_operation::element_wise::Bilinear;
 
-using DeviceOpInstanceKKNN = DeviceOpInstanceKK_Generic<NumDimM,
-                                                        NumDimN,
-                                                        NumDimK,
-                                                        ADataType,
-                                                        BDataType,
-                                                        AccDataType,
-                                                        CShuffleDataType,
-                                                        DsDataType,
-                                                        EDataType,
-                                                        ComputeDataType,
-                                                        AElementOp,
-                                                        BElementOp,
-                                                        CDEElementOp>;
-
-using DeviceOpInstanceKNNN = DeviceOpInstanceKN_Generic<NumDimM,
-                                                        NumDimN,
-                                                        NumDimK,
-                                                        ADataType,
-                                                        BDataType,
-                                                        AccDataType,
-                                                        CShuffleDataType,
-                                                        DsDataType,
-                                                        EDataType,
-                                                        ComputeDataType,
-                                                        AElementOp,
-                                                        BElementOp,
-                                                        CDEElementOp>;
-
-using DeviceOpInstanceMKNN = DeviceOpInstanceMK_Generic<NumDimM,
-                                                        NumDimN,
-                                                        NumDimK,
-                                                        ADataType,
-                                                        BDataType,
-                                                        AccDataType,
-                                                        CShuffleDataType,
-                                                        DsDataType,
-                                                        EDataType,
-                                                        ComputeDataType,
-                                                        AElementOp,
-                                                        BElementOp,
-                                                        CDEElementOp>;
-
-using DeviceOpInstanceMNNN = DeviceOpInstanceMN_Generic<NumDimM,
-                                                        NumDimN,
-                                                        NumDimK,
-                                                        ADataType,
-                                                        BDataType,
-                                                        AccDataType,
-                                                        CShuffleDataType,
-                                                        DsDataType,
-                                                        EDataType,
-                                                        ComputeDataType,
-                                                        AElementOp,
-                                                        BElementOp,
-                                                        CDEElementOp>;
-
-using DeviceOpInstance = DeviceOpInstanceKKNN;
+// Instantiate DeviceOpInstance for all four layout variants (KK, KN, MK, MN).
+// See common_instances.hpp for macro definition and available BASE/SUFFIX options.
+CK_CONTRACTION_DEVICE_OP_INSTANCES(Generic, NN);
 
 #include "run_contraction_bilinear_example.inc"
 
