@@ -1,22 +1,8 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include "ck_tile/host.hpp"
-#include "ck_tile/ops/gemm.hpp"
+#include "test_gemm_quant_common.hpp"
 
-#include <gtest/gtest.h>
-#include <memory>
-
-#include "test_gemm_quant_fixtures.hpp"
-
-// Type aliases for readability
-using RowMajor      = ck_tile::tensor_layout::gemm::RowMajor;
-using ColumnMajor   = ck_tile::tensor_layout::gemm::ColumnMajor;
-using FP8           = ck_tile::fp8_t;
-using BF8           = ck_tile::bf8_t;
-using Half          = ck_tile::half_t;
-using PkInt4        = ck_tile::pk_int4_t;
-using BQuantGrouped = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::BQuantGrouped>;
 using GroupSize2D128N = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
 
 // Type combinations for BQuant tests - 2D Large N (128N)

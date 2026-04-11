@@ -22,63 +22,9 @@ using AElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using BElementOp   = ck::tensor_operation::element_wise::PassThrough;
 using CDEElementOp = ck::tensor_operation::element_wise::Scale;
 
-using DeviceOpInstanceKKN = DeviceOpInstanceKK_FP64<NumDimM,
-                                                    NumDimN,
-                                                    NumDimK,
-                                                    ADataType,
-                                                    BDataType,
-                                                    AccDataType,
-                                                    CShuffleDataType,
-                                                    DsDataType,
-                                                    EDataType,
-                                                    ComputeDataType,
-                                                    AElementOp,
-                                                    BElementOp,
-                                                    CDEElementOp>;
-
-using DeviceOpInstanceKNN = DeviceOpInstanceKN_FP64<NumDimM,
-                                                    NumDimN,
-                                                    NumDimK,
-                                                    ADataType,
-                                                    BDataType,
-                                                    AccDataType,
-                                                    CShuffleDataType,
-                                                    DsDataType,
-                                                    EDataType,
-                                                    ComputeDataType,
-                                                    AElementOp,
-                                                    BElementOp,
-                                                    CDEElementOp>;
-
-using DeviceOpInstanceMKN = DeviceOpInstanceMK_FP64<NumDimM,
-                                                    NumDimN,
-                                                    NumDimK,
-                                                    ADataType,
-                                                    BDataType,
-                                                    AccDataType,
-                                                    CShuffleDataType,
-                                                    DsDataType,
-                                                    EDataType,
-                                                    ComputeDataType,
-                                                    AElementOp,
-                                                    BElementOp,
-                                                    CDEElementOp>;
-
-using DeviceOpInstanceMNN = DeviceOpInstanceMN_FP64<NumDimM,
-                                                    NumDimN,
-                                                    NumDimK,
-                                                    ADataType,
-                                                    BDataType,
-                                                    AccDataType,
-                                                    CShuffleDataType,
-                                                    DsDataType,
-                                                    EDataType,
-                                                    ComputeDataType,
-                                                    AElementOp,
-                                                    BElementOp,
-                                                    CDEElementOp>;
-
-using DeviceOpInstance = DeviceOpInstanceKKN;
+// Instantiate DeviceOpInstance for all four layout variants (KK, KN, MK, MN).
+// See common_instances.hpp for macro definition and available BASE/SUFFIX options.
+CK_CONTRACTION_DEVICE_OP_INSTANCES(FP64, N);
 
 #include "run_contraction_scale_example.inc"
 
