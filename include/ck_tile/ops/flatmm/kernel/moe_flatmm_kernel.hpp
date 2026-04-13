@@ -483,13 +483,6 @@ struct MoeFlatmmKernel
 
         if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
         {
-            // if(kargs.N % TilePartitioner::NPerBlock != 0 && FlatmmPipeline::kPadN == false)
-            // {
-            //     std::cerr << "Can't support N that is not a multiple of NPerBlock"
-            //                  " without padding!"
-            //               << std::endl;
-            //     return false;
-            // }
             if(kargs.N % FlatmmPipeline::GetVectorSizeB() != 0)
             {
                 std::cerr << "N is not a multiple of vector load size for B tensor!" << std::endl;
@@ -1105,15 +1098,14 @@ struct MoeFlatmmKernel
             statically_indexed_array<index_t, ScaleMRepeat> scale_m_offsets;
 
             if constexpr(!BMXFP4_Pipeline)
-                static_for<0, MRepeat, 1>{}([&](auto mIter) {
-                    static_for<0, kM0, 1>{}([&](auto m0) {
-                        static_for<0, kM2, 1>{}([&](auto m2) {
-                            const auto row_idx =
-                                coord_m + mIter * MPerXdl + m0 * kM1 * kM2 + m2 + scale_m_coord[I0];
-                            scale_m_offsets[mIter * number<kM0 * kM2>{} + m0 * number<kM2>{} + m2] =
-                                row_to_token_idx(row_idx);
-                        });
-                    });
+                static_ford<sequence<MRepeat, kM0, kM2>>{}([&](auto mmm) {
+                    constexpr auto mIter = number<mmm[number<0>{}]>{};
+                    constexpr auto m0    = number<mmm[number<1>{}]>{};
+                    constexpr auto m2    = number<mmm[number<2>{}]>{};
+                    const auto row_idx =
+                        coord_m + mIter * MPerXdl + m0 * kM1 * kM2 + m2 + scale_m_coord[I0];
+                    scale_m_offsets[mIter * number<kM0 * kM2>{} + m0 * number<kM2>{} + m2] =
+                        row_to_token_idx(row_idx);
                 });
 
             constexpr int DynamicTileOffsetFlag = 0;
@@ -1426,19 +1418,19 @@ struct MoeFlatmmKernel
             statically_indexed_array<statically_indexed_array<bool, MPerThread>, NumMEpiTile>
                 c_scatter_valids;
             auto c_coord = dram_tile_distribution.calculate_index();
-            static_for<0, NumMEpiTile, 1>{}([&](auto mIter) {
-                static_for<0, MPerThread, 1>{}([&](auto m0) {
-                    auto row_idx = coord_m + mIter * MPerIterationShuffle + c_coord[0] + m0;
-                    auto fused_token =
-                        kargs.p_sorted_token_ids[row_idx]; // topk-idx[31:24] + token_idx[23:0]
+            static_ford<sequence<NumMEpiTile, MPerThread>>{}([&](auto mm) {
+                constexpr auto mIter = number<mm[number<0>{}]>{};
+                constexpr auto m0    = number<mm[number<1>{}]>{};
+                auto row_idx         = coord_m + mIter * MPerIterationShuffle + c_coord[0] + m0;
+                auto fused_token =
+                    kargs.p_sorted_token_ids[row_idx]; // topk-idx[31:24] + token_idx[23:0]
 
-                    index_t scatter_token_id    = fused_token & token_id_mask;
-                    c_scatter_valids[mIter][m0] = (scatter_token_id < kargs.NumTokens);
-                    if constexpr(IsInputGemm)
-                        scatter_token_id =
-                            scatter_token_id * kargs.TopK + (fused_token >> token_id_offset);
-                    c_scatter_offsets[mIter][m0] = scatter_token_id * kargs.stride_C;
-                });
+                index_t scatter_token_id    = fused_token & token_id_mask;
+                c_scatter_valids[mIter][m0] = (scatter_token_id < kargs.NumTokens);
+                if constexpr(IsInputGemm)
+                    scatter_token_id =
+                        scatter_token_id * kargs.TopK + (fused_token >> token_id_offset);
+                c_scatter_offsets[mIter][m0] = scatter_token_id * kargs.stride_C;
             });
 
             //===----------------------------------------------------------------------===//

@@ -23,6 +23,7 @@
 
 #pragma once
 
+#include "ck_tile/dispatcher/dispatcher_error.hpp"
 #include "ck_tile/dispatcher/kernel_instance.hpp"
 #include "ck_tile/dispatcher/problem.hpp"
 #include "ck_tile/dispatcher/registry.hpp"
@@ -52,7 +53,11 @@ class Dispatcher
 
     /// Constructor
     /// @param registry Registry instance to use (default: global singleton)
-    explicit Dispatcher(Registry* registry = nullptr);
+    /// @param gfx_arch Target GPU architecture (e.g. "gfx950")
+    explicit Dispatcher(Registry* registry = nullptr, const std::string& gfx_arch = "");
+
+    void set_arch(const std::string& arch) { gfx_arch_ = arch; }
+    [[nodiscard]] const std::string& arch() const { return gfx_arch_; }
 
     /// Register a heuristic function for kernel selection
     /// @param heuristic Function that maps problems to ranked kernel identifiers
@@ -74,7 +79,7 @@ class Dispatcher
     /// @param problem Problem configuration
     /// @param stream HIP stream for kernel launch (nullptr = default stream)
     /// @return Kernel execution time in milliseconds
-    /// @throws std::runtime_error if no suitable kernel found
+    /// @throws NoKernelFound if no suitable kernel found
     [[nodiscard]] float run(const void* a_ptr,
                             const void* b_ptr,
                             void* c_ptr,
@@ -89,7 +94,7 @@ class Dispatcher
     /// @param problem Problem configuration
     /// @param stream HIP stream for kernel launch (nullptr = default stream)
     /// @return Kernel execution time in milliseconds
-    /// @throws std::runtime_error if no suitable kernel found
+    /// @throws NoKernelFound if no suitable kernel found
     [[nodiscard]] float run_fused(const void* a_ptr,
                                   const void* b_ptr,
                                   void* c_ptr,
@@ -106,7 +111,8 @@ class Dispatcher
     /// @param problem Problem configuration
     /// @param stream HIP stream for kernel launch (nullptr = default stream)
     /// @return Kernel execution time in milliseconds
-    /// @throws std::runtime_error if kernel not found or doesn't support problem
+    /// @throws NoKernelFound if the kernel identifier is not registered
+    /// @throws UnsupportedProblem if the selected kernel does not support the problem
     [[nodiscard]] float run_explicit(const std::string& kernel_id,
                                      const void* a_ptr,
                                      const void* b_ptr,
@@ -130,10 +136,18 @@ class Dispatcher
                                 const Problem& problem,
                                 float tolerance = 1e-3f) const;
 
+    /// Enable or disable GPU benchmarking (timing) on all kernels.
+    /// When disabled, kernels execute once with no timing overhead
+    /// (one-shot mode for production plugins).
+    void set_benchmarking(bool enable) { benchmarking_ = enable; }
+    [[nodiscard]] bool benchmarking_enabled() const { return benchmarking_; }
+
     private:
     Registry* registry_;
     HeuristicFunction heuristic_;
     SelectionStrategy strategy_;
+    std::string gfx_arch_;
+    bool benchmarking_ = true;
 
     /// Select kernel using first-fit strategy
     [[nodiscard]] KernelInstancePtr select_first_fit(const Problem& problem) const;

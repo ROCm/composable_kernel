@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: MIT
 
 set(GEMM_STREAMK_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
-set(GEMM_STREAMK_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
-set(GEMM_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
+set(GEMM_STREAMK_LAYOUT "rcr;rrr;crr;ccr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
+set(GEMM_STREAMK_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 option(ENABLE_CCACHE_GEMM "Enable ccache for GEMM ops compilation" OFF)
 
 # Store the directory path for use in functions
@@ -116,23 +116,23 @@ function(build_individual_gemm_targets datatype layout)
     
     # Choose config file
     # Priority order:
-    # 1. Environment variable GEMM_CONFIG_FILE
-    # 2. CMake variable GEMM_CONFIG_FILE  
+    # 1. Environment variable GEMM_STREAMK_CONFIG_FILE
+    # 2. CMake variable GEMM_STREAMK_CONFIG_FILE  
     # 3. Default based on layout
     
     # Check environment variable first
-    if(DEFINED ENV{GEMM_CONFIG_FILE} AND NOT "$ENV{GEMM_CONFIG_FILE}" STREQUAL "")
-        set(config_filename "$ENV{GEMM_CONFIG_FILE}")
+    if(DEFINED ENV{GEMM_STREAMK_CONFIG_FILE} AND NOT "$ENV{GEMM_STREAMK_CONFIG_FILE}" STREQUAL "")
+        set(config_filename "$ENV{GEMM_STREAMK_CONFIG_FILE}")
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${config_filename}")
-        message(STATUS "  Using config from environment variable: ${config_filename}")
-    elseif(NOT "${GEMM_CONFIG_FILE}" STREQUAL "")
+        message(VERBOSE "  Using config from environment variable: ${config_filename}")
+    elseif(NOT "${GEMM_STREAMK_CONFIG_FILE}" STREQUAL "")
         # Use CMake variable if set
-        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${GEMM_CONFIG_FILE}")
-        message(STATUS "  Using custom config: ${GEMM_CONFIG_FILE}")
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${GEMM_STREAMK_CONFIG_FILE}")
+        message(VERBOSE "  Using custom config: ${GEMM_STREAMK_CONFIG_FILE}")
     else()
         # Use default config for all layouts
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
-        message(STATUS "  Using default config for layout ${layout}")
+        message(VERBOSE "  Using default config for layout ${layout}")
     endif()
     
     # Check if config file exists
@@ -153,17 +153,17 @@ function(build_individual_gemm_targets datatype layout)
     endif()
     
     # Generate individual kernel files using parallel version
-    message(STATUS "Generating individual kernels for ${datatype} ${layout} using ${num_workers} workers...")
-    message(STATUS "  Working path: ${working_path}")
-    message(STATUS "  Config file: ${json_blob}")
-    message(STATUS "  Python executable: ${Python3_EXECUTABLE}")
-    message(STATUS "  Script path: ${CMAKE_CURRENT_LIST_DIR}/gemm_streamk_instance_builder.py")
+    message(VERBOSE "Generating individual kernels for ${datatype} ${layout} using ${num_workers} workers...")
+    message(VERBOSE "  Working path: ${working_path}")
+    message(VERBOSE "  Config file: ${json_blob}")
+    message(VERBOSE "  Python executable: ${Python3_EXECUTABLE}")
+    message(VERBOSE "  Script path: ${CMAKE_CURRENT_LIST_DIR}/gemm_streamk_instance_builder.py")
     
     # Create working directory first
     file(MAKE_DIRECTORY ${working_path})
     
     # First, just list the kernels (fast operation)
-    message(STATUS "  Listing kernel configurations...")
+    message(VERBOSE "  Listing kernel configurations...")
     execute_process(
         COMMAND ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/gemm_streamk_instance_builder.py
                 --working_path ${working_path}
@@ -185,7 +185,7 @@ function(build_individual_gemm_targets datatype layout)
     if(EXISTS ${working_path}/gemm_kernel_count.txt)
         file(READ ${working_path}/gemm_kernel_count.txt kernel_count)
         string(STRIP "${kernel_count}" kernel_count)
-        message(STATUS "  Found ${kernel_count} kernel configurations")
+        message(VERBOSE "  Found ${kernel_count} kernel configurations")
     else()
         message(FATAL_ERROR "Kernel count file not found")
     endif()
@@ -209,10 +209,10 @@ function(build_individual_gemm_targets datatype layout)
 endfunction()
 
 # Main build logic - Only individual builds supported
-message(STATUS "=== Starting Tile Engine StreamK GEMM Configuration ===")
-message(STATUS "GEMM_STREAMK_DATATYPE: ${GEMM_STREAMK_DATATYPE}")
-message(STATUS "GEMM_STREAMK_LAYOUT: ${GEMM_STREAMK_LAYOUT}")
-message(STATUS "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+message(VERBOSE "=== Starting Tile Engine StreamK GEMM Configuration ===")
+message(VERBOSE "GEMM_STREAMK_DATATYPE: ${GEMM_STREAMK_DATATYPE}")
+message(VERBOSE "GEMM_STREAMK_LAYOUT: ${GEMM_STREAMK_LAYOUT}")
+message(VERBOSE "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 
 # Filter GPU targets to only gfx90a, gfx942
 set(GEMM_GPU_TARGETS_INDIVIDUAL "")
@@ -221,15 +221,15 @@ set(DESIRED_TARGETS "gfx90a;gfx942") # TODO: Add gfx950 when supported
 foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
     if(target IN_LIST DESIRED_TARGETS)
         list(APPEND GEMM_GPU_TARGETS_INDIVIDUAL ${target})
-        message(STATUS "  Adding GPU target: ${target}")
+        message(VERBOSE "  Adding GPU target: ${target}")
     endif()
 endforeach()
 
 # Skip build if no matching targets found
 if(NOT GEMM_GPU_TARGETS_INDIVIDUAL)
-    message(WARNING "Skipping Tile Engine GEMM build: No supported GPU targets (gfx90a, gfx942, gfx950) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+    message(WARNING "Skipping Tile Engine GEMM build: No supported GPU targets (gfx90a, gfx942) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 else()
-    message(STATUS "Building individual GEMM targets for GPU targets: ${GEMM_GPU_TARGETS_INDIVIDUAL}")
+    message(VERBOSE "Building individual GEMM targets for GPU targets: ${GEMM_GPU_TARGETS_INDIVIDUAL}")
 
     # Enable parallel compilation optimizations
     # Set up job pools for better parallel compilation control
@@ -244,12 +244,12 @@ else()
         find_program(CCACHE_PROGRAM ccache)
         if(CCACHE_PROGRAM)
             set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-            message(STATUS "Using ccache for faster compilation")
+            message(VERBOSE "Using ccache for faster compilation")
         else()
             message(WARNING "ccache requested but not found")
         endif()
     else()
-        message(STATUS "ccache disabled for GEMM ops (use -DENABLE_CCACHE_GEMM=ON to enable)")
+        message(VERBOSE "ccache disabled for GEMM ops (use -DENABLE_CCACHE_GEMM=ON to enable)")
     endif()
 
     # Create master collection targets

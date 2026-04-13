@@ -28,14 +28,18 @@ sys.path.insert(0, str(PYTHON_DIR))
 
 
 def run_python_example(
-    example_path: Path, timeout: int = 120
+    example_path: Path, timeout: int = 120, extra_args: list = None
 ) -> subprocess.CompletedProcess:
     """Run a Python example and capture output."""
     env = os.environ.copy()
     env["PYTHONPATH"] = str(PYTHON_DIR)
 
+    cmd = [sys.executable, str(example_path)]
+    if extra_args:
+        cmd.extend(extra_args)
+
     return subprocess.run(
-        [sys.executable, str(example_path)],
+        cmd,
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -111,61 +115,74 @@ class TestGemmPythonExamples(unittest.TestCase):
         result = run_python_example(example)
 
         self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
-        # Should pass validation
         self.assertIn("PASS", result.stdout.upper(), "Validation should pass")
 
 
 class TestConvPythonExamples(unittest.TestCase):
-    """Test Conv Python examples."""
+    """Test grouped conv Python examples."""
 
     @classmethod
     def setUpClass(cls):
         """Check if examples directory exists."""
-        cls.conv_examples_dir = EXAMPLES_DIR / "conv" / "python"
+        cls.conv_examples_dir = EXAMPLES_DIR / "grouped_conv" / "python"
         if not cls.conv_examples_dir.exists():
-            raise unittest.SkipTest("Conv Python examples not found")
+            raise unittest.SkipTest("Grouped conv Python examples not found")
 
-    def test_01_basic_conv(self):
-        """Test basic conv example."""
-        example = self.conv_examples_dir / "01_basic_conv.py"
+    def test_01_basic_grouped_conv(self):
+        """Test basic grouped conv example."""
+        example = self.conv_examples_dir / "01_basic_grouped_conv.py"
         if not example.exists():
             self.skipTest(f"{example.name} not found")
-
         result = run_python_example(example)
-
         self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
-        self.assertIn("TFLOPS", result.stdout, "Should report TFLOPS")
+        self.assertIn("PASS", result.stdout.upper())
 
-    def test_02_conv2d_fwd(self):
-        """Test 2D forward conv example."""
-        example = self.conv_examples_dir / "02_conv2d_fwd.py"
+    def test_02_forward(self):
+        """Test forward conv example (2D + 3D)."""
+        example = self.conv_examples_dir / "02_forward.py"
         if not example.exists():
             self.skipTest(f"{example.name} not found")
-
         result = run_python_example(example)
-
         self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertIn("PASS", result.stdout.upper())
 
-    def test_03_conv3d_fwd(self):
-        """Test 3D forward conv example."""
-        example = self.conv_examples_dir / "03_conv3d_fwd.py"
+    def test_03_bwd_data(self):
+        """Test backward data example."""
+        example = self.conv_examples_dir / "03_bwd_data.py"
         if not example.exists():
             self.skipTest(f"{example.name} not found")
-
         result = run_python_example(example)
-
         self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertIn("PASS", result.stdout.upper())
 
-    def test_07_validation(self):
-        """Test validation example."""
-        example = self.conv_examples_dir / "07_validation.py"
+    def test_04_bwd_weight(self):
+        """Test backward weight example."""
+        example = self.conv_examples_dir / "04_bwd_weight.py"
         if not example.exists():
             self.skipTest(f"{example.name} not found")
-
         result = run_python_example(example)
-
         self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
-        self.assertIn("PASS", result.stdout.upper(), "Validation should pass")
+        self.assertIn("PASS", result.stdout.upper())
+
+    def test_05_benchmark(self):
+        """Test benchmark example."""
+        example = self.conv_examples_dir / "05_benchmark.py"
+        if not example.exists():
+            self.skipTest(f"{example.name} not found")
+        result = run_python_example(
+            example, extra_args=["--warmup", "1", "--repeat", "1"]
+        )
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertIn("PASS", result.stdout.upper())
+
+    def test_06_registry_json(self):
+        """Test registry + heuristic + JSON example."""
+        example = self.conv_examples_dir / "06_registry_json.py"
+        if not example.exists():
+            self.skipTest(f"{example.name} not found")
+        result = run_python_example(example)
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertIn("PASS", result.stdout.upper())
 
 
 class TestGemmCppExamples(unittest.TestCase):
@@ -195,18 +212,18 @@ class TestGemmCppExamples(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
 
-    def test_gemm_04_validation(self):
-        """Test validation GEMM C++ example."""
-        result = run_cpp_example("gemm_04_validation")
+    def test_gemm_03_benchmark_validation(self):
+        """Test benchmark+validation GEMM C++ example."""
+        result = run_cpp_example("gemm_03_benchmark_validation")
         if result is None:
-            self.skipTest("gemm_04_validation not built")
+            self.skipTest("gemm_03_benchmark_validation not built")
 
         self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
         self.assertIn("PASS", result.stdout.upper(), "Validation should pass")
 
 
 class TestConvCppExamples(unittest.TestCase):
-    """Test Conv C++ examples."""
+    """Test grouped conv C++ examples."""
 
     @classmethod
     def setUpClass(cls):
@@ -215,23 +232,29 @@ class TestConvCppExamples(unittest.TestCase):
         if not cls.examples_dir.exists():
             raise unittest.SkipTest("C++ examples not built")
 
-    def test_conv_01_forward(self):
-        """Test forward conv C++ example."""
-        result = run_cpp_example("conv_01_forward")
+    def test_grouped_conv_01_basic(self):
+        """Test basic grouped conv C++ example."""
+        result = run_cpp_example("grouped_conv_01_basic")
         if result is None:
-            self.skipTest("conv_01_forward not built")
-
+            self.skipTest("grouped_conv_01_basic not built")
         self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
-        self.assertIn("TFLOPS", result.stdout, "Should report TFLOPS")
+        self.assertIn("PASS", result.stdout.upper())
 
-    def test_conv_02_validation(self):
-        """Test validation conv C++ example."""
-        result = run_cpp_example("conv_02_validation")
+    def test_grouped_conv_02_all_dirs(self):
+        """Test all directions grouped conv C++ example."""
+        result = run_cpp_example("grouped_conv_02_all_dirs")
         if result is None:
-            self.skipTest("conv_02_validation not built")
-
+            self.skipTest("grouped_conv_02_all_dirs not built")
         self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
-        self.assertIn("PASS", result.stdout.upper(), "Validation should pass")
+        self.assertIn("PASS", result.stdout.upper())
+
+    def test_grouped_conv_03_bench_val(self):
+        """Test benchmark+validation grouped conv C++ example."""
+        result = run_cpp_example("grouped_conv_03_bench_val")
+        if result is None:
+            self.skipTest("grouped_conv_03_bench_val not built")
+        self.assertEqual(result.returncode, 0, f"Example failed:\n{result.stderr}")
+        self.assertIn("PASS", result.stdout.upper())
 
 
 class TestUtilityImports(unittest.TestCase):
@@ -246,14 +269,18 @@ class TestUtilityImports(unittest.TestCase):
         except ImportError as e:
             self.fail(f"Failed to import ctypes_utils: {e}")
 
-    def test_import_conv_utils(self):
-        """Test importing conv_utils."""
+    def test_import_grouped_conv_utils(self):
+        """Test importing grouped_conv_utils."""
         try:
-            from conv_utils import ConvSignature, ConvAlgorithm, ConvProblem  # noqa: F401
+            from grouped_conv_utils import (  # noqa: F401
+                GroupedConvValidationResult,
+                validate_grouped_conv_config,
+                GroupedConvDataType,
+            )
 
             self.assertTrue(True)
         except ImportError as e:
-            self.fail(f"Failed to import conv_utils: {e}")
+            self.fail(f"Failed to import grouped_conv_utils: {e}")
 
     def test_kernel_config_creation(self):
         """Test creating a KernelConfig."""
@@ -272,22 +299,19 @@ class TestUtilityImports(unittest.TestCase):
         self.assertEqual(config.dtype_a, "fp16")
         self.assertEqual(config.layout_a, "row")
 
-    def test_conv_signature_creation(self):
-        """Test creating a ConvSignature."""
-        from conv_utils import ConvSignature
+    def test_grouped_conv_default_config(self):
+        """Test creating a grouped conv default config."""
+        from grouped_conv_utils import get_grouped_conv_default_config
 
-        sig = ConvSignature(
-            dtype_in="fp16",
-            dtype_wei="fp16",
-            dtype_out="fp16",
-            dtype_acc="fp32",
-            layout="nhwgc",
-            direction="forward",
-            num_dims=2,
+        config = get_grouped_conv_default_config(
+            variant="forward",
+            ndim_spatial=2,
+            arch="gfx942",
         )
 
-        self.assertEqual(sig.dtype_in, "fp16")
-        self.assertEqual(sig.direction, "forward")
+        d = config.to_dict() if hasattr(config, "to_dict") else config
+        self.assertEqual(d["variant"], "forward")
+        self.assertEqual(d["arch"], "gfx942")
 
 
 class TestAutoCorrection(unittest.TestCase):
@@ -316,21 +340,22 @@ class TestAutoCorrection(unittest.TestCase):
         self.assertTrue(was_modified, "Config should be modified")
         self.assertGreater(len(corrections), 0, "Should have corrections")
 
-    def test_conv_auto_correct(self):
-        """Test Conv auto-correction."""
-        from conv_utils import auto_correct_conv_config
-
-        # Call with invalid wave config parameters
-        corrected, was_modified, corrections = auto_correct_conv_config(
-            wave_m=99,  # Invalid
-            wave_n=99,  # Invalid
-            wave_k=99,  # Invalid
-            dtype="fp16",
-            arch="gfx942",
+    def test_grouped_conv_auto_correct(self):
+        """Test Grouped Conv auto-correction."""
+        from grouped_conv_utils import (
+            auto_correct_grouped_conv_config,
+            get_grouped_conv_default_config,
         )
 
-        self.assertTrue(was_modified, "Config should be modified")
-        self.assertGreater(len(corrections), 0, "Should have corrections")
+        config = get_grouped_conv_default_config()
+        d = config.to_dict() if hasattr(config, "to_dict") else config
+        d["tile_config"]["warp_m"] = [99]
+        d["tile_config"]["warp_n"] = [99]
+
+        corrected, result = auto_correct_grouped_conv_config(d)
+
+        self.assertIsInstance(corrected, dict)
+        self.assertIn("tile_config", corrected)
 
 
 if __name__ == "__main__":

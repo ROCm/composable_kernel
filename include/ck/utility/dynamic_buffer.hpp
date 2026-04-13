@@ -361,14 +361,8 @@ struct DynamicBuffer
         {
             if(is_valid_element)
             {
-#if 0
-                X tmp = x;
-
-                __builtin_memcpy(&(p_data_[i]), &tmp, sizeof(X));
-#else
                 // if(i >= 2169041600)
                 *c_style_pointer_cast<X*>(&p_data_[i]) = x;
-#endif
             }
         }
     }

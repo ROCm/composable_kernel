@@ -116,6 +116,9 @@ struct fmha_bwd_args
     void* dv_ptr;
     void* dbias_ptr;
     void* dq_acc_ptr;
+    const void*
+        sink_ptr; // sink scores [batch, nhead] in log-space (LSEDataType); nullptr disables sink
+    void* d_sink_ptr; // sink gradient output [nhead] (LSEDataType); nullptr disables sink gradient
 
     // Usage notes for sequence length pointer parameters:
     //
@@ -362,11 +365,15 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_args args)
             return FmhaBwdOGradDotOKernel::MakeKargs(args.o_ptr,
                                                      args.do_ptr,
                                                      args.d_ptr,
+                                                     args.lse_ptr,
+                                                     args.sink_ptr,
+                                                     args.d_sink_ptr,
                                                      args.p_undrop,
                                                      args.seqstart_q_ptr,
                                                      args.seqlen_q_ptr,
                                                      args.cu_seqlen_q_ptr,
                                                      args.hdim_v,
+                                                     args.nhead_q,
                                                      args.stride_do,
                                                      args.stride_o,
                                                      args.nhead_stride_do,
@@ -378,9 +385,13 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_args args)
             return FmhaBwdOGradDotOKernel::MakeKargs(args.o_ptr,
                                                      args.do_ptr,
                                                      args.d_ptr,
+                                                     args.lse_ptr,
+                                                     args.sink_ptr,
+                                                     args.d_sink_ptr,
                                                      args.p_undrop,
                                                      args.seqlen_q,
                                                      args.hdim_v,
+                                                     args.nhead_q,
                                                      args.stride_do,
                                                      args.stride_o,
                                                      args.nhead_stride_do,

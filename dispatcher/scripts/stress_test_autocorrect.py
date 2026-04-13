@@ -34,9 +34,9 @@ from compile_gemm_examples import (  # noqa: E402
     validate_kernel_config,
     expand_declaration_with_arch_filter,
 )
-from compile_conv_examples import (  # noqa: E402
-    validate_conv_kernel_config,
-    expand_conv_declaration_with_arch_filter,
+from compile_grouped_conv_examples import (  # noqa: E402
+    validate_grouped_conv_kernel_config as validate_conv_kernel_config,
+    expand_grouped_conv_declaration_with_arch_filter as expand_conv_declaration_with_arch_filter,
 )
 
 
@@ -316,7 +316,7 @@ def test_python_autocorrect(verbose=False):
                 if was_modified:
                     print(f"    Modified: {len(corrections)} correction(s)")
                     for c in corrections:
-                        print(f"      • {c}")
+                        print(f"      - {c}")
 
         except Exception as e:
             results["failed"] += 1
@@ -465,7 +465,7 @@ def run_stress_test(arch, num_samples, verbose):
             }
 
             expanded = expand_declaration_with_arch_filter(config, test_arch)
-            status = "✓" if expanded else "✗"
+            status = "OK" if expanded else "FAIL"
             expected = test_arch in test["expected_archs"]
             match = "OK" if (bool(expanded) == expected) else "MISMATCH"
 

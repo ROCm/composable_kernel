@@ -382,6 +382,15 @@ struct TileOptimizations
 };
 static_assert(ckb::TileOptimizationsDescriptor<TileOptimizations>);
 
+struct TileStreamKConfig
+{
+    // StreamK reduction strategy (Linear or Tree).
+    StreamKReductionStrategy reduction_strategy;
+    // Use persistent DP (true) or non-persistent DP (false).
+    bool persistent;
+};
+static_assert(ckb::StreamKDescriptor<TileStreamKConfig>);
+
 struct TileConvSpecialization_
 {
     TileConvSpecialization specialization;
@@ -405,6 +414,11 @@ struct TileBlockGemm_
 struct TileOptimizations_
 {
     TileOptimizations optimizations;
+};
+
+struct TileStreamK_
+{
+    TileStreamKConfig streamk;
 };
 
 // Factory
@@ -614,6 +628,15 @@ struct ConvAlgorithmTemplate : Components...
         result.optimizations = o;
         return result;
     }
+
+    template <typename SK>
+    constexpr auto with_streamk(const SK& sk) const
+    {
+        static_assert(std::is_base_of_v<TileStreamK_, ConvAlgorithmTemplate>);
+        auto result    = *this;
+        result.streamk = sk;
+        return result;
+    }
 };
 
 // Fwd algorithm types
@@ -673,6 +696,15 @@ using ConvAlgorithm_Tile_GroupedConvolutionKernel = ConvAlgorithmTemplate<TileTh
                                                                           TileTransfer_,
                                                                           TileConvSpecialization_,
                                                                           TileOptimizations_>;
+
+// CK Tile algorithm with StreamK work distribution
+using ConvAlgorithm_Tile_GroupedConvolutionKernel_StreamK =
+    ConvAlgorithmTemplate<TileThreadBlock_,
+                          TileBlockGemm_,
+                          TileTransfer_,
+                          TileConvSpecialization_,
+                          TileOptimizations_,
+                          TileStreamK_>;
 
 // Reference algorithm descriptor - for GPU reference validation
 // This is a simple algorithm that requires no complex configuration,

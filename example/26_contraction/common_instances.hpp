@@ -194,3 +194,35 @@ using DeviceOpInstanceMN_FP64 = ck::tensor_operation::device::
         //#####################################|        |        |        |          |          |            |                 |           |          |            |            |             |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |                |
         DeviceContractionMultipleD_Xdl_CShuffle< NumDimM, NumDimN, NumDimK, ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,  AElementOp,  BElementOp, CDEElementOp,       GemmSpec,        1,   256,   128,   128,    16,   1,   1,   16,   16,    4,    4,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              1,         0,     S<8, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              1,         0,           1,           1,              S<1, 16, 1, 16>,               1, ComputeDataType>;
 // clang-format on
+
+// Macro to instantiate all four layout variants of DeviceOpInstance.
+//
+// BASE:   Generic (for fp16/bf16/fp32) or FP64 (for fp64 — different tile sizes)
+// SUFFIX: NN for bilinear (DsDataType = Tuple<DDataType>),
+//         N  for scale    (DsDataType = Tuple<>)
+//
+// Requires these names to be defined in the calling TU before invocation:
+//   NumDimM, NumDimN, NumDimK, ADataType, BDataType, AccDataType,
+//   CShuffleDataType, DsDataType, EDataType, ComputeDataType,
+//   AElementOp, BElementOp, CDEElementOp
+//
+// Example: CK_CONTRACTION_DEVICE_OP_INSTANCES(Generic, NN);
+//   expands to DeviceOpInstanceKKNN, DeviceOpInstanceKNNN,
+//              DeviceOpInstanceMKNN, DeviceOpInstanceMNNN,
+//   and sets DeviceOpInstance = DeviceOpInstanceKKNN.
+// clang-format off
+#define CK_CONTRACTION_DEVICE_OP_INSTANCES(BASE, SUFFIX)                                          \
+    using DeviceOpInstanceKK##SUFFIX = DeviceOpInstanceKK_##BASE<NumDimM, NumDimN, NumDimK,       \
+        ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,               \
+        ComputeDataType, AElementOp, BElementOp, CDEElementOp>;                                   \
+    using DeviceOpInstanceKN##SUFFIX = DeviceOpInstanceKN_##BASE<NumDimM, NumDimN, NumDimK,       \
+        ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,               \
+        ComputeDataType, AElementOp, BElementOp, CDEElementOp>;                                   \
+    using DeviceOpInstanceMK##SUFFIX = DeviceOpInstanceMK_##BASE<NumDimM, NumDimN, NumDimK,       \
+        ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,               \
+        ComputeDataType, AElementOp, BElementOp, CDEElementOp>;                                   \
+    using DeviceOpInstanceMN##SUFFIX = DeviceOpInstanceMN_##BASE<NumDimM, NumDimN, NumDimK,       \
+        ADataType, BDataType, AccDataType, CShuffleDataType, DsDataType, EDataType,               \
+        ComputeDataType, AElementOp, BElementOp, CDEElementOp>;                                   \
+    using DeviceOpInstance = DeviceOpInstanceKK##SUFFIX
+// clang-format on

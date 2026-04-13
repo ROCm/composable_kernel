@@ -12,20 +12,6 @@ struct workgroup_barrier
 
     __device__ uint32_t ld(uint32_t offset)
     {
-#if 0
-        float d = llvm_amdgcn_raw_buffer_load_fp32(
-                        amdgcn_make_buffer_resource(base_ptr),
-                        0,
-                        offset,
-                        AMDGCN_BUFFER_GLC);
-        union cvt {
-            float f32;
-            uint32_t u32;
-        };
-        cvt x;
-        x.f32 = d;
-        return x.u32;
-#endif
         return __atomic_load_n(base_ptr + offset, __ATOMIC_RELAXED);
     }
 

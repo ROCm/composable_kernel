@@ -12,6 +12,9 @@
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 // use aggregate initialization for this type
@@ -81,42 +84,29 @@ struct array
             data[i] = static_cast<value_type>(c);
     }
 
-    // template <typename Y>
-    // CK_TILE_HOST_DEVICE constexpr array(const array& o)
-    // {
-    //     // static_assert(ArrayType::size() == size(), "wrong! size not the same");
-    //     __content = o.__content;
-    // }
-    // CK_TILE_HOST_DEVICE constexpr array& operator=(const array& o)
-    // {
-    //     // static_assert(ArrayType::size() == size(), "wrong! size not the same");
-    //     __content = o.__content;
-    //     return *this;
-    // }
-
     CK_TILE_HOST_DEVICE static constexpr auto size() { return N; }
     CK_TILE_HOST_DEVICE static constexpr bool is_static() { return is_static_v<value_type>; }
 
     // clang-format off
     CK_TILE_HOST_DEVICE constexpr auto& get()                                           { return data; }
     CK_TILE_HOST_DEVICE constexpr const auto& get() const                               { return data; }
-    CK_TILE_HOST_DEVICE constexpr auto& get(index_t i)                                  { return data[i]; }
-    CK_TILE_HOST_DEVICE constexpr const auto& get(index_t i) const                      { return data[i]; }
+    CK_TILE_HOST_DEVICE constexpr auto& get(index_t i) [[clang::lifetimebound]]                                 { return data[i]; }
+    CK_TILE_HOST_DEVICE constexpr const auto& get(index_t i) const [[clang::lifetimebound]]                     { return data[i]; }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& get()                      { return data[I]; }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& get() const          { return data[I]; }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& get(number<I>)             { return data[I]; }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& get(number<I>)[[clang::lifetimebound]]             { return data[I]; }
     template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& get(number<I>) const { return data[I]; }
 
     CK_TILE_HOST_DEVICE constexpr auto& at(index_t i)                                   { return get(i); }
-    CK_TILE_HOST_DEVICE constexpr const auto& at(index_t i) const                       { return get(i); }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at()                       { return get(I); }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at() const           { return get(I); }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at(number<I>)              { return get(I); }
-    template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at(number<I>) const  { return get(I); }
+    CK_TILE_HOST_DEVICE constexpr const auto& at(index_t i) const  [[clang::lifetimebound]]                     { return get(i); }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at() [[clang::lifetimebound]]                      { return get(I); }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at() const [[clang::lifetimebound]]          { return get(I); }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr auto& at(number<I>) [[clang::lifetimebound]]              { return get(I); }
+    template <index_t I> CK_TILE_HOST_DEVICE constexpr const auto& at(number<I>) const [[clang::lifetimebound]] { return get(I); }
 
-    CK_TILE_HOST_DEVICE constexpr const value_type& operator[](index_t i) const { return get(i); }
-    CK_TILE_HOST_DEVICE constexpr value_type& operator[](index_t i)             { return get(i); }
-    CK_TILE_HOST_DEVICE constexpr value_type& operator()(index_t i)             { return get(i); }     // TODO: compatible
+    CK_TILE_HOST_DEVICE constexpr const value_type& operator[](index_t i) const [[clang::lifetimebound]] { return get(i); }
+    CK_TILE_HOST_DEVICE constexpr value_type& operator[](index_t i) [[clang::lifetimebound]]            { return get(i); }
+    CK_TILE_HOST_DEVICE constexpr value_type& operator()(index_t i) [[clang::lifetimebound]]            { return get(i); }     // TODO: compatible
 #if 0
     template <typename ArrayLike>
     CK_TILE_HOST_DEVICE constexpr auto operator=(const ArrayLike& arr)
@@ -244,13 +234,6 @@ CK_TILE_HOST_DEVICE constexpr details::return_type<D, Ts...> make_array(Ts&&... 
     return {std::forward<Ts>(ts)...};
 }
 
-// // make empty array
-// template <typename T>
-// CK_TILE_HOST_DEVICE constexpr auto make_array()
-// {
-//     return array<T, 0>{};
-// }
-
 // compatible with old ck's initializer, make an array and fill it withe the last element from
 // initializer_list
 template <typename T, index_t Size>
@@ -305,3 +288,5 @@ CK_TILE_HOST_DEVICE constexpr auto to_array(const X& x)
 }
 
 } // namespace ck_tile
+
+#pragma clang diagnostic pop

@@ -4,7 +4,7 @@ ARG AITER_BRANCH="main"
 ARG CK_AITER_BRANCH="develop"
 # CK_FROM_ROCM_LIBRARIES - 1: CK from rocm-libraries sparse-checkout; 0: direct clone from ROCm/composable_kernel
 ARG CK_FROM_ROCM_LIBRARIES=1
-RUN pip install pandas zmq einops ninja tabulate && \
+RUN pip install pandas zmq einops ninja tabulate vcs_versioning && \
     pip install numpy==1.26.2 && \
     sudo mkdir /home/jenkins && \
     sudo mkdir /home/jenkins/workspace && \

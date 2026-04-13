@@ -42,10 +42,10 @@ from compile_gemm_examples import (  # noqa: E402
     expand_declaration_with_arch_filter,
     is_wildcard_declaration,
 )
-from compile_conv_examples import (  # noqa: E402
-    validate_conv_kernel_config,
-    expand_conv_declaration_with_arch_filter,
-    is_conv_wildcard_declaration,
+from compile_grouped_conv_examples import (  # noqa: E402
+    validate_grouped_conv_kernel_config as validate_conv_kernel_config,
+    expand_grouped_conv_declaration_with_arch_filter as expand_conv_declaration_with_arch_filter,
+    is_grouped_conv_wildcard_declaration as is_conv_wildcard_declaration,
 )
 from ctypes_utils import auto_correct_kernel_config, KernelConfig  # noqa: E402
 

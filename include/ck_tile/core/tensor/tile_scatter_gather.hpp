@@ -631,24 +631,21 @@ struct tile_scatter_gather
         // issues * warps * lanes
         static_assert(LdsTileWindow::get_num_of_dimension() == 3); // TODO: hard coded
 
-        // buffer load with dwordx3 requires 128-bit alignment
-        constexpr index_t lds_stride = lds_padded_sizeof<LdsDataType>();
-
         const index_t size_per_buf =
             lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
                 make_tuple(number<0>{}, number<0>{}, number<0>{})) *
-            lds_stride;
+            sizeof(LdsDataType);
 
         const index_t size_per_wave =
             lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
                 make_tuple(number<0>{}, number<1>{}, number<0>{})) *
-                lds_stride -
+                sizeof(LdsDataType) -
             size_per_buf;
 
         const index_t size_per_issue =
             lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
                 make_tuple(number<1>{}, number<0>{}, number<0>{})) *
-                lds_stride -
+                sizeof(LdsDataType) -
             size_per_buf;
 
         const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
@@ -783,12 +780,9 @@ struct tile_scatter_gather
                     make_tensor_coordinate(tensor_descriptor, lds_bottom_tensor_thread_idx);
 
                 // Calculate SMEM address using base pointer
-                // Use byte arithmetic for dwordx3 padding (12-byte elements use 16-byte LDS stride)
-                CK_TILE_LDS_ADDR LdsDataType* smem =
-                    reinterpret_cast<CK_TILE_LDS_ADDR LdsDataType*>(
-                        reinterpret_cast<CK_TILE_LDS_ADDR char*>(lds_base_ptr) +
-                        (lds_coord.get_offset() + lds_ys_offset) / Traits::PackedSize *
-                            lds_padded_sizeof<LdsDataType>());
+                CK_TILE_LDS_ADDR LdsDataType* smem = lds_base_ptr +
+                                                     lds_coord.get_offset() / Traits::PackedSize +
+                                                     lds_ys_offset / Traits::PackedSize;
 
                 const auto dram_ys_offset = [&]() {
                     if constexpr(static_move_ys)

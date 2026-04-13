@@ -69,6 +69,28 @@ test_h_s_mask -prec=fp16 -d=$hdim -bias=a -dbias=0 -p_drop=0.2 -iperm=0 -operm=0
 test_h_s_mask -prec=bf16 -d=$hdim -bias=n -dbias=0 -p_drop=0   -iperm=1 -operm=1 -deterministic=0 -v=1 -mode=1 -kname=$KNAME $COMMON_ARGS
 test_h_s_mask -prec=bf16 -d=$hdim -bias=a -dbias=0 -p_drop=0.2 -iperm=1 -operm=1 -deterministic=0 -v=1 -mode=1 -kname=$KNAME $COMMON_ARGS
 done
+
+# sink gradient tests: same coverage as main tests but with -sink_grad=1
+for prec in "fp16" "bf16" ; do
+for perm in 0 1 ; do
+for hdim in 64 128 256 ; do
+for mode in 0 1 ; do
+for bias in "n" "a" ; do
+for p_drop in 0.0 0.2 ; do
+test_h_s_mask -prec=$prec -d=$hdim -bias=$bias -dbias=0 -p_drop=$p_drop -iperm=$perm -operm=$perm -deterministic=0 -v=1 -mode=$mode -kname=$KNAME $COMMON_ARGS -sink_grad=1
+done
+done
+done
+done
+done
+done
+
+# sink gradient additional cases: non-standard hdim
+for hdim in 40 48 72 96 ; do
+test_h_s_mask -prec=fp16 -d=$hdim -bias=n -dbias=0 -p_drop=0   -iperm=0 -operm=0 -deterministic=0 -v=1 -mode=0 -kname=$KNAME $COMMON_ARGS -sink_grad=1
+test_h_s_mask -prec=fp16 -d=$hdim -bias=a -dbias=0 -p_drop=0.2 -iperm=1 -operm=1 -deterministic=0 -v=1 -mode=1 -kname=$KNAME $COMMON_ARGS -sink_grad=1
+test_h_s_mask -prec=bf16 -d=$hdim -bias=n -dbias=0 -p_drop=0   -iperm=1 -operm=1 -deterministic=0 -v=1 -mode=1 -kname=$KNAME $COMMON_ARGS -sink_grad=1
+done
 set +x
 
 new_fails_count=0

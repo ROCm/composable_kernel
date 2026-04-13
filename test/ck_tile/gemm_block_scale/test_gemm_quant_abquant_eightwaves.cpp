@@ -1,26 +1,8 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include "ck_tile/host.hpp"
-#include "ck_tile/ops/gemm.hpp"
+#include "test_gemm_quant_common.hpp"
 
-#include <gtest/gtest.h>
-#include <memory>
-
-#include "test_gemm_quant_fixtures.hpp"
-
-// Type aliases for readability
-using RowMajor    = ck_tile::tensor_layout::gemm::RowMajor;
-using ColumnMajor = ck_tile::tensor_layout::gemm::ColumnMajor;
-using FP8         = ck_tile::fp8_t;
-using BF8         = ck_tile::bf8_t;
-using Half        = ck_tile::half_t;
-using PkInt4      = ck_tile::pk_int4_t;
-using ABQuantGrouped =
-    std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::ABQuantGrouped>;
-using GroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
-
-// 2d block sizes for BQuant
 using GroupSize2D128N = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>;
 #ifdef CK_GFX950_SUPPORT
 // Type combinations for ABQuant tests
@@ -29,8 +11,8 @@ using GroupSize2D128N = ck_tile::QuantGroupShape<ck_tile::sequence<1, 128, 128>>
 // clang-format off
 using ABQuantEightWavesTypes = ::testing::Types<
     // PreshuffleQuant = false && TransposeC = false (RCR layout with RowMajor AQ)
-    std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigEightWaves, GroupSize, GroupSize2D128N, ColumnMajor>,
-    std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigEightWaves_PreshuffleB, GroupSize, GroupSize2D128N, ColumnMajor>
+    std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigEightWaves, GroupSize1D_128, GroupSize2D128N, ColumnMajor>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, ColumnMajor, FP8, FP8, float, Half, ABQuantGrouped, GemmConfigEightWaves_PreshuffleB, GroupSize1D_128, GroupSize2D128N, ColumnMajor>
 >;
 // clang-format on
 
