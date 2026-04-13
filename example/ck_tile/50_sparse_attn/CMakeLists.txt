@@ -266,11 +266,41 @@ target_compile_options(${SPARGE_VSA_INSTANCES} PRIVATE
   -Wno-float-equal
 )
 
-# Sparge + VSA Example executable
+# ============================================================================
+# Sparge BlockMap GPU Kernel (hand-written instantiation, no codegen)
+# ============================================================================
+set(SPARGE_BLOCKMAP_INSTANCES "tile_sparge_blockmap_instances")
+
+add_library(${SPARGE_BLOCKMAP_INSTANCES} OBJECT EXCLUDE_FROM_ALL
+  ${CMAKE_CURRENT_LIST_DIR}/sparge_blockmap_inst.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sparge_blockmap.cpp
+)
+target_include_directories(${SPARGE_BLOCKMAP_INSTANCES} PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}
+  ${PROJECT_SOURCE_DIR}/include/ck_tile/ops/sparse_attn
+)
+set_source_files_properties(
+  ${CMAKE_CURRENT_LIST_DIR}/sparge_blockmap_inst.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sparge_blockmap.cpp
+  PROPERTIES LANGUAGE HIP
+)
+set_property(TARGET ${SPARGE_BLOCKMAP_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
+
+target_compile_options(${SPARGE_BLOCKMAP_INSTANCES} PRIVATE
+  -DCK_TILE_USE_BUFFER_ADDRESSING_BUILTIN
+  -DCK_TILE_FMHA_FWD_FAST_EXP2
+  -Wno-undefined-func-template
+  -Wno-float-equal
+)
+
+# Sparge + VSA Example executable (now links blockmap kernel too)
 set(EXAMPLE_SPARGE_VSA_SPARSE_ATTN "tile_example_sparge_vsa_sparse_attn")
 message(DEBUG "adding example ${EXAMPLE_SPARGE_VSA_SPARSE_ATTN}")
 add_executable(${EXAMPLE_SPARGE_VSA_SPARSE_ATTN} EXCLUDE_FROM_ALL test_sparge_vsa_sparse_attn.cpp)
-target_link_libraries(${EXAMPLE_SPARGE_VSA_SPARSE_ATTN} ${SPARGE_VSA_INSTANCES})
+target_link_libraries(${EXAMPLE_SPARGE_VSA_SPARSE_ATTN}
+  ${SPARGE_VSA_INSTANCES}
+  ${SPARGE_BLOCKMAP_INSTANCES}
+)
 target_include_directories(${EXAMPLE_SPARGE_VSA_SPARSE_ATTN} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_compile_options(${EXAMPLE_SPARGE_VSA_SPARSE_ATTN} PRIVATE
   -Wno-undefined-func-template

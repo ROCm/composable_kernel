@@ -17,6 +17,7 @@
 #include "ck_tile/core/utility/bit_cast.hpp"
 
 #include "vsa_sparge_attention.h"
+#include "sparge_blockmap.h"
 #include "sparge_tool.hpp"
 
 // ============================================================================
@@ -198,53 +199,37 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<T> output_host =
         o_perm ? ck_tile::HostTensor<T>({batch, nhead, seqlen_q, hdim_v})
                : ck_tile::HostTensor<T>({batch, seqlen_q, nhead, hdim_v});
-    ck_tile::HostTensor<T> output_ref({batch, nhead, seqlen_q, hdim_v});
 
     std::cout << "\nInitializing tensors..." << std::endl;
     ck_tile::FillUniformDistribution<T>{-0.5f, 0.5f, seed}(q_host);
     ck_tile::FillUniformDistribution<T>{-0.5f, 0.5f, seed + 1}(k_host);
     ck_tile::FillUniformDistribution<T>{-0.5f, 0.5f, seed + 2}(v_host);
 
-    // Build block map using Sparge tool
-    std::cout << "Building Sparge block map..." << std::endl;
-    sparge::SpargeParams p;
-    p.BLKQ        = static_cast<int>(BLKQ);
-    p.BLKK        = static_cast<int>(BLKK);
-    p.simthreshd1 = simthreshd1;
-    p.cdfthreshd  = cdfthreshd;
-    p.topk        = topk;
-    p.i_perm      = i_perm;
+    // ==================================================================
+    // GPU: Build block map + VSA LUT in one kernel (always run)
+    // ==================================================================
+    std::cout << "Building Sparge block map + VSA LUT (GPU)..." << std::endl;
+    ck_tile::HostTensor<uint8_t> block_map_gpu({batch, nhead, num_q_blocks, num_k_blocks});
+    auto vsa_lut_gpu = sparge_blockmap_gpu<T>(q_host,
+                                               k_host,
+                                               block_map_gpu,
+                                               batch,
+                                               nhead,
+                                               nhead_k,
+                                               seqlen_q,
+                                               seqlen_k,
+                                               hdim_q,
+                                               i_perm,
+                                               simthreshd1,
+                                               cdfthreshd,
+                                               topk,
+                                               static_cast<int>(BLKQ),
+                                               static_cast<int>(BLKK),
+                                               0);
 
-    ck_tile::HostTensor<uint8_t> block_relation_onehot =
-        sparge::build_block_map_meansim(q_host, k_host, p);
-
-    // Convert to VSA LUT (delta-encoded) + valid_block_num
-    std::cout << "Converting block map to VSA LUT (delta)..." << std::endl;
-    auto vsa_lut = sparge::block_map_to_vsa_lut_delta(block_relation_onehot);
-
-    // Print actual sparsity (based on one-hot)
-    std::size_t total_blocks  = 0;
-    std::size_t active_blocks = 0;
-    for(ck_tile::index_t b = 0; b < batch; ++b)
-    {
-        for(ck_tile::index_t h = 0; h < nhead; ++h)
-        {
-            for(ck_tile::index_t qb = 0; qb < num_q_blocks; ++qb)
-            {
-                for(ck_tile::index_t kb = 0; kb < num_k_blocks; ++kb)
-                {
-                    total_blocks++;
-                    if(block_relation_onehot(b, h, qb, kb) != 0)
-                        active_blocks++;
-                }
-            }
-        }
-    }
-    float actual_sparsity =
-        1.0f - static_cast<float>(active_blocks) / static_cast<float>(total_blocks);
-    std::cout << "  Actual sparsity: " << actual_sparsity << " (" << active_blocks << "/"
-              << total_blocks << " blocks active)" << std::endl;
-
+    // ==================================================================
+    // VSA sparse attention kernel (always run)
+    // ==================================================================
     std::cout << "\n--- Running VSA sparse attention kernel ---" << std::endl;
 
     try
@@ -254,8 +239,8 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
             vsa_sparge_attention<T>(q_host,
                                     k_host,
                                     v_host,
-                                    vsa_lut.lut,
-                                    vsa_lut.valid_block_num,
+                                    vsa_lut_gpu.lut,
+                                    vsa_lut_gpu.valid_block_num,
                                     output_host,
                                     batch,
                                     nhead,
@@ -276,8 +261,8 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
             vsa_sparge_attention<T>(q_host,
                                     k_host,
                                     v_host,
-                                    vsa_lut.lut,
-                                    vsa_lut.valid_block_num,
+                                    vsa_lut_gpu.lut,
+                                    vsa_lut_gpu.valid_block_num,
                                     output_host,
                                     batch,
                                     nhead,
@@ -301,8 +286,8 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
             vsa_sparge_attention<T>(q_host,
                                     k_host,
                                     v_host,
-                                    vsa_lut.lut,
-                                    vsa_lut.valid_block_num,
+                                    vsa_lut_gpu.lut,
+                                    vsa_lut_gpu.valid_block_num,
                                     output_host,
                                     batch,
                                     nhead,
@@ -332,17 +317,168 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         return false;
     }
 
+    // ==================================================================
+    // Sparsity statistics (always run, pure CPU read of HostTensor)
+    // ==================================================================
+    std::size_t total_blocks  = 0;
+    std::size_t active_blocks = 0;
+    for(ck_tile::index_t b = 0; b < batch; ++b)
+    {
+        for(ck_tile::index_t h = 0; h < nhead; ++h)
+        {
+            for(ck_tile::index_t qb = 0; qb < num_q_blocks; ++qb)
+            {
+                for(ck_tile::index_t kb = 0; kb < num_k_blocks; ++kb)
+                {
+                    total_blocks++;
+                    if(block_map_gpu(b, h, qb, kb) != 0)
+                        active_blocks++;
+                }
+            }
+        }
+    }
+    float actual_sparsity =
+        1.0f - static_cast<float>(active_blocks) / static_cast<float>(total_blocks);
+    std::cout << "\n  Actual sparsity: " << actual_sparsity << " (" << active_blocks << "/"
+              << total_blocks << " blocks active)" << std::endl;
+
+    // ==================================================================
+    // Validation (only when -v=1)
+    // ==================================================================
     bool pass = true;
     if(do_validation)
     {
         std::cout << "\n--- Performing CPU validation ---" << std::endl;
+
+        // CPU golden: block map + VSA LUT
+        std::cout << "Building Sparge block map (CPU golden)..." << std::endl;
+        sparge::SpargeParams p;
+        p.BLKQ        = static_cast<int>(BLKQ);
+        p.BLKK        = static_cast<int>(BLKK);
+        p.simthreshd1 = simthreshd1;
+        p.cdfthreshd  = cdfthreshd;
+        p.topk        = topk;
+        p.i_perm      = i_perm;
+
+        ck_tile::HostTensor<uint8_t> block_relation_onehot =
+            sparge::build_block_map_meansim(q_host, k_host, p);
+
+        std::cout << "Converting block map to VSA LUT (delta, CPU)..." << std::endl;
+        auto vsa_lut_cpu = sparge::block_map_to_vsa_lut_delta(block_relation_onehot);
+
+        // Validate block map
+        std::cout << "\n--- Validating GPU block map vs CPU golden ---" << std::endl;
+        {
+            std::size_t bmap_mismatches = 0;
+            for(ck_tile::index_t b = 0; b < batch; ++b)
+            {
+                for(ck_tile::index_t h = 0; h < nhead; ++h)
+                {
+                    for(ck_tile::index_t qb = 0; qb < num_q_blocks; ++qb)
+                    {
+                        for(ck_tile::index_t kb = 0; kb < num_k_blocks; ++kb)
+                        {
+                            if(block_map_gpu(b, h, qb, kb) !=
+                               block_relation_onehot(b, h, qb, kb))
+                            {
+                                bmap_mismatches++;
+                                if(bmap_mismatches <= 10)
+                                {
+                                    std::cout
+                                        << "  block_map mismatch at [" << b << "," << h << ","
+                                        << qb << "," << kb
+                                        << "]: GPU="
+                                        << static_cast<int>(block_map_gpu(b, h, qb, kb))
+                                        << " CPU="
+                                        << static_cast<int>(
+                                               block_relation_onehot(b, h, qb, kb))
+                                        << std::endl;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            std::cout << "  Block map mismatches: " << bmap_mismatches << " / "
+                      << (batch * nhead * num_q_blocks * num_k_blocks) << std::endl;
+            if(bmap_mismatches > 0)
+            {
+                std::cout << ">>> GPU BLOCK MAP VALIDATION FAILED <<<" << std::endl;
+                pass = false;
+            }
+            else
+            {
+                std::cout << ">>> GPU BLOCK MAP VALIDATION PASSED <<<" << std::endl;
+            }
+        }
+
+        // Validate VSA LUT
+        std::cout << "\n--- Validating GPU VSA LUT vs CPU golden ---" << std::endl;
+        {
+            std::size_t lut_mismatches   = 0;
+            std::size_t valid_mismatches = 0;
+            for(ck_tile::index_t b = 0; b < batch; ++b)
+            {
+                for(ck_tile::index_t h = 0; h < nhead; ++h)
+                {
+                    for(ck_tile::index_t qb = 0; qb < num_q_blocks; ++qb)
+                    {
+                        if(vsa_lut_gpu.valid_block_num(b, h, qb) !=
+                           vsa_lut_cpu.valid_block_num(b, h, qb))
+                        {
+                            valid_mismatches++;
+                            if(valid_mismatches <= 5)
+                            {
+                                std::cout
+                                    << "  valid_block_num mismatch at [" << b << "," << h
+                                    << "," << qb
+                                    << "]: GPU=" << vsa_lut_gpu.valid_block_num(b, h, qb)
+                                    << " CPU=" << vsa_lut_cpu.valid_block_num(b, h, qb)
+                                    << std::endl;
+                            }
+                        }
+                        for(ck_tile::index_t kb = 0; kb < num_k_blocks; ++kb)
+                        {
+                            if(vsa_lut_gpu.lut(b, h, qb, kb) !=
+                               vsa_lut_cpu.lut(b, h, qb, kb))
+                            {
+                                lut_mismatches++;
+                                if(lut_mismatches <= 10)
+                                {
+                                    std::cout
+                                        << "  LUT mismatch at [" << b << "," << h << "," << qb
+                                        << "," << kb
+                                        << "]: GPU=" << vsa_lut_gpu.lut(b, h, qb, kb)
+                                        << " CPU=" << vsa_lut_cpu.lut(b, h, qb, kb)
+                                        << std::endl;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            std::cout << "  LUT mismatches: " << lut_mismatches << std::endl;
+            std::cout << "  valid_block_num mismatches: " << valid_mismatches << std::endl;
+            if(lut_mismatches == 0 && valid_mismatches == 0)
+            {
+                std::cout << ">>> GPU VSA LUT VALIDATION PASSED <<<" << std::endl;
+            }
+            else
+            {
+                std::cout << ">>> GPU VSA LUT VALIDATION FAILED <<<" << std::endl;
+                pass = false;
+            }
+        }
+
+        // Validate attention output
         float scale = 1.0f / std::sqrt(static_cast<float>(hdim_q));
 
-        std::cout << "Computing reference output..." << std::endl;
+        std::cout << "\nComputing reference attention output..." << std::endl;
         auto q_ref = to_bhsd(q_host, i_perm);
         auto k_ref = to_bhsd(k_host, i_perm);
         auto v_ref = to_bhsd(v_host, i_perm);
 
+        ck_tile::HostTensor<T> output_ref({batch, nhead, seqlen_q, hdim_v});
         ck_tile::reference_blocked_attention<T, uint8_t>(
             q_ref, k_ref, v_ref, block_relation_onehot, output_ref, BLKQ, BLKK, scale);
 
@@ -374,7 +510,7 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
             }
         }
 
-        std::cout << "\nValidation results:" << std::endl;
+        std::cout << "\nAttention validation results:" << std::endl;
         std::cout << "  Max absolute difference: " << max_diff << std::endl;
         std::cout << "  Max relative difference: " << max_rel_diff << std::endl;
         std::cout << "  Number of mismatches: " << num_errors << " / "
