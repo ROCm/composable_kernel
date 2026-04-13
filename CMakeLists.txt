@@ -274,6 +274,11 @@ if (SUPPORTED_GPU_TARGETS MATCHES "gfx950" AND NOT FORCE_DISABLE_XDL)
     add_definitions(-DCK_USE_GFX950)
     set(CK_USE_GFX950 "ON")
 endif()
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx90a" AND NOT FORCE_DISABLE_XDL)
+    add_definitions(-DCK_USE_GFX90A)
+    set(CK_USE_GFX90A "ON")
+endif()
+
 
 # new macro CK_TILE_USE_WMMA in order to separately compile examples for MFMA/WMMA
 set(CK_TILE_USE_WMMA 0)
