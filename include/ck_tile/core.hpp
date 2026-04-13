@@ -32,6 +32,7 @@
 #include "ck_tile/core/arch/mma/sparse/sparse_transforms.hpp"
 #include "ck_tile/core/arch/mma/sparse/wmma/selector.hpp"
 #include "ck_tile/core/arch/mma/sparse/wmma/sparse_gfx12.hpp"
+#include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_calculator.hpp"
 #include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_register_mapper.hpp"
 #include "ck_tile/core/arch/mma/wmma/wmma.hpp"
 #include "ck_tile/core/arch/mma/wmma/wmma_gfx11.hpp"
