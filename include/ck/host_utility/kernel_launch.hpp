@@ -70,6 +70,11 @@ float launch_and_time_kernel(const StreamConfig& stream_config,
 
         hip_check_error(hipEventElapsedTime(&total_time, start, stop));
 
+        // hipEventElapsedTime can return a small negative value on Windows for a
+        // very fast kernel. Clamp to zero, as negative elapsed time is never physical.
+        if(total_time < 0)
+            total_time = 0;
+
         hip_check_error(hipEventDestroy(start));
         hip_check_error(hipEventDestroy(stop));
 
