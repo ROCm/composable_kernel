@@ -205,6 +205,20 @@ struct Unsupported;
 
 #include <concepts>
 /**
+ * @concept HasExecSignature
+ * @brief  Helper concept for exec signature check.
+ */
+template <typename MmaOp, typename... ExecArgs>
+concept HasExecSignature = requires {
+    {
+        MmaOp::exec(typename MmaOp::AVecType{},
+                    typename MmaOp::BVecType{},
+                    typename MmaOp::CVecType{},
+                    std::declval<ExecArgs>()...)
+    } -> std::convertible_to<typename MmaOp::CVecType>;
+};
+
+/**
  * @concept MmaOpI
  * @brief  Expresses the meta-data interface required for each MmaOp policy.
  */
@@ -213,7 +227,7 @@ template <typename MmaOp>
 concept MmaOpI = requires(MmaOp op) {
     // Requires an op context
     typename MmaOp::OpType;
-    typename MmaOp::OpFamily;
+    { MmaOp::OpFamily } -> std::convertible_to<MmaOpFamily>;
 
     // Captures types for inputs / outputs to mma function
     typename MmaOp::ADataType;
@@ -230,13 +244,8 @@ concept MmaOpI = requires(MmaOp op) {
     { MmaOp::kBRepeat } -> std::convertible_to<unsigned int>;
     { MmaOp::kCMPerLane } -> std::convertible_to<unsigned int>;
     { MmaOp::kCMNumAccess } -> std::convertible_to<unsigned int>;
-
-    // Static exec function
-    {
-        MmaOp::exec(
-            typename MmaOp::AVecType{}, typename MmaOp::BVecType{}, typename MmaOp::CVecType{})
-    } -> std::convertible_to<typename MmaOp::CVecType>;
-};
+    { MmaOp::kCompressionRatio } -> std::convertible_to<unsigned int>;
+} && (HasExecSignature<MmaOp> || HasExecSignature<MmaOp, int>);
 
 #endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
@@ -275,7 +284,7 @@ struct amdgcn_mma : amdgcn_mma_base<fp32_t, fp32_t, fp32_t, 1u, 1u, 1u, 1u, 1, 1
 // clang-format on
 {
     // This is a default pass-through implementation that doesn't do anything practical.
-    CK_TILE_DEVICE static CVecType const&
+    CK_TILE_DEVICE static auto
     exec(AVecType const& regsA, BVecType const& regsB, CVecType const& regsC)
     {
         // Prints once across all thread blocks and threads.
