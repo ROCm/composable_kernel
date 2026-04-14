@@ -209,6 +209,17 @@
 #endif
 #endif
 
+// workaround for AMDGPU compiler VGPR aliasing bug in dropout codegen (ROCm >= 7.12)
+// Philox RNG VGPR parameters get aliased under high register pressure (d256 tile).
+// fp16 is affected; bf16 is not (different type conversion codegen path).
+#ifndef CK_TILE_WORKAROUND_ROCM_7_12_FP16_DROPOUT_MISCOMPILE
+#if(HIP_VERSION_MAJOR == 7 && HIP_VERSION_MINOR >= 12) || (HIP_VERSION_MAJOR > 7)
+#define CK_TILE_WORKAROUND_ROCM_7_12_FP16_DROPOUT_MISCOMPILE 1
+#else
+#define CK_TILE_WORKAROUND_ROCM_7_12_FP16_DROPOUT_MISCOMPILE 0
+#endif
+#endif
+
 #ifndef CK_TILE_DEBUG_LOG
 #define CK_TILE_DEBUG_LOG 0
 #endif
