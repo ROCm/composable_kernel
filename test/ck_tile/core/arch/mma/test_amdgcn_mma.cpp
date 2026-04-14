@@ -7,7 +7,7 @@
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
 #include "ck_tile/core/arch/mma/mma_selector.hpp"
-#include "ck_tile/core/arch/mma/mma.hpp"
+#include "ck_tile/core/arch/mma/mma_wavewise.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
 

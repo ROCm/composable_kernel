@@ -28,9 +28,11 @@ struct MmaDefaultTransformsGfx9
 // TODO: c++20 template <MmaOpI MmaOp, amdgcn_target_arch_id CompilerTarget>
 // TODO: c++20 requires
 template <typename MmaOp, typename CompilerTarget>
-struct MmaTransformsDefaultSelector<MmaOp,
-                                    CompilerTarget,
-                                    enable_if_target_family_gfx9_t<CompilerTarget>>
+struct MmaTransformsDefaultSelector<
+    MmaOp,
+    CompilerTarget,
+    enable_if_all<enable_if_target_family_gfx9_t<CompilerTarget>,
+                  std::enable_if_t<MmaOp::OpFamily == MmaOpFamily::DENSE>>>
 {
     using SelectedTransforms = MmaDefaultTransformsGfx9;
 };
