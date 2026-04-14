@@ -2,36 +2,27 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
+#include <iostream>
+#include <string>
+#include <fstream>
+#include <stdexcept>
+#include <iomanip>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "gemm_preshuffle_common.hpp"
 #include "gemm/gemm_benchmark.hpp"
 
-struct KernelConfig
-{
-    static constexpr ck_tile::index_t M_Tile = SelectedKernel::TileM;
-    static constexpr ck_tile::index_t N_Tile = SelectedKernel::TileN;
-    static constexpr ck_tile::index_t K_Tile = SelectedKernel::TileK;
-
-    static constexpr ck_tile::index_t M_Warp = SelectedKernel::WarpPerBlock_M;
-    static constexpr ck_tile::index_t N_Warp = SelectedKernel::WarpPerBlock_N;
-    static constexpr ck_tile::index_t K_Warp = SelectedKernel::WarpPerBlock_K;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = SelectedKernel::WarpTileM;
-    static constexpr ck_tile::index_t N_Warp_Tile = SelectedKernel::WarpTileN;
-    static constexpr ck_tile::index_t K_Warp_Tile = SelectedKernel::WarpTileK;
-
-    static constexpr bool permuteN = SelectedKernel::PermuteN;
-};
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+// Data types and Layouts are defined by the generated kernel headers
+// No hardcoded type definitions here to avoid conflicts
 
 /// @brief Function to get the kernel output with reference implementation on CPU/GPU
 void gemm_host_reference(int verify,
                          ck_tile::HostTensor<ADataType>& a_m_k,
                          ck_tile::HostTensor<BDataType>& b_k_n,
-                         ck_tile::HostTensor<CDataType>& c_m_n_ref,
+                         ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                          ck_tile::DeviceMem& a_m_k_dev_buf,
                          ck_tile::DeviceMem& b_k_n_dev_buf,
                          ck_tile::index_t M,
@@ -43,15 +34,21 @@ void gemm_host_reference(int verify,
 {
     if(verify == 1)
     {
+        c_m_n_host_result.SetZero();
+
         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
-            a_m_k, b_k_n, c_m_n_ref);
+            a_m_k, b_k_n, c_m_n_host_result);
     }
     else if(verify == 2)
     {
-        a_m_k_dev_buf.ToDevice(a_m_k.data());
-        b_k_n_dev_buf.ToDevice(b_k_n.data());
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        {
+            // Restore input for B for gpu reference
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
+        }
 
-        ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_ref.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem c_m_n_gpu_buf_ref(c_m_n_host_result.get_element_space_size_in_bytes());
+        c_m_n_host_result.SetZero();
         c_m_n_gpu_buf_ref.SetZero();
 
         ADataType* d_A = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
@@ -66,7 +63,7 @@ void gemm_host_reference(int verify,
                                     BLayout,
                                     CLayout>(d_A, d_B, d_C, M, N, K, stride_A, stride_B, stride_C);
 
-        c_m_n_gpu_buf_ref.FromDevice(c_m_n_ref.data());
+        c_m_n_gpu_buf_ref.FromDevice(c_m_n_host_result.data());
     }
 }
 #pragma clang diagnostic pop

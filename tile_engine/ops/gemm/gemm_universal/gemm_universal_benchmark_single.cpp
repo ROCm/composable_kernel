@@ -12,8 +12,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "gemm/gemm_common.hpp"
-#include "gemm_preshuffle_profiler.hpp"
-#include "gemm_preshuffle_common.hpp"
+#include "gemm_universal_profiler.hpp"
 
 // The kernel header is included via the compile command line with -include flag
 // It defines SelectedKernel struct and KERNEL_NAME
@@ -62,10 +61,11 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
                      arg_parser.get_bool("json_output")};
 
     // Get the profiler instance
-    auto& profiler = GemmPreshuffleProfiler::instance(setting);
+    auto& profiler = UniversalGemmProfiler::GemmProfiler::instance(setting);
 
     try
     {
+        // Create a lambda that wraps the kernel launch
         auto kernel_func = [](const ck_tile::GemmHostArgs& args,
                               const ck_tile::stream_config& stream) {
             return SelectedKernel::launch(args, stream);

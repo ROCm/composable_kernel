@@ -3,21 +3,25 @@
 
 #pragma once
 
-#include "ck_tile/host/device_prop.hpp"
-#include "ck_tile/host/tensor_shuffle_utils.hpp"
-#include "ck_tile/ops/gemm.hpp"
-#include "gemm/gemm_profiler.hpp"
-#include "gemm_preshuffle_benchmark.hpp"
+#include <iostream>
+#include <fstream>
+#include <iomanip>
 
-class GemmPreshuffleProfiler
-    : public GemmProfiler<GemmPreshuffleProfiler, GemmProblem, ck_tile::GemmHostArgs>
+#include "ck_tile/host/device_prop.hpp"
+#include "ck_tile/ops/gemm.hpp"
+#include "gemm/gemm_benchmark.hpp"
+#include "gemm/gemm_profiler.hpp"
+#include "gemm_universal_benchmark.hpp"
+
+class UniversalGemmProfiler
+    : public GemmProfiler<UniversalGemmProfiler, GemmProblem, ck_tile::GemmHostArgs>
 {
     public:
-    using BaseGemm = GemmProfiler<GemmPreshuffleProfiler, GemmProblem, ck_tile::GemmHostArgs>;
+    using BaseGemm = GemmProfiler<UniversalGemmProfiler, GemmProblem, ck_tile::GemmHostArgs>;
     using BaseGemm::benchmark;
 
-    GemmPreshuffleProfiler(Settings setting)
-        : GemmProfiler<GemmPreshuffleProfiler, GemmProblem, ck_tile::GemmHostArgs>(setting)
+    UniversalGemmProfiler(Settings setting)
+        : GemmProfiler<UniversalGemmProfiler, GemmProblem, ck_tile::GemmHostArgs>(setting)
     {
     }
 
@@ -45,8 +49,8 @@ class GemmPreshuffleProfiler
 
         if(setting_.init_method == 0)
         {
-            ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_k_n);
+            ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
         }
         else if(setting_.init_method == 1)
         {
@@ -55,8 +59,8 @@ class GemmPreshuffleProfiler
         }
         else if(setting_.init_method == 2)
         {
-            ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n);
+            ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m_k);
+            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_k_n);
         }
         else
         {
@@ -64,21 +68,54 @@ class GemmPreshuffleProfiler
             b_k_n.SetZero();
         }
 
+        if(gemm_problem.structured_sparsity_)
+        {
+            ck_tile::AdjustToStructuredSparsity<ADataType>{}(a_m_k);
+        }
+
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
         ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
-        // Reference Verification
-        ck_tile::HostTensor<CDataType> c_m_n_ref(ck_tile::host_tensor_descriptor(
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        {
+            // Permute vector pk_i4x4 data for device implementation
+            ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
+            // permute_tensor_b<decltype(b_k_n_dev)>(b_k_n_dev);
+            ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
+            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+        }
+        else
+        {
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
+        }
+
+        a_m_k_dev_buf.ToDevice(a_m_k.data());
+        c_m_n_dev_buf.SetZero();
+        c_m_n_dev_result.SetZero();
+
+        ck_tile::GemmHostArgs gemm_args = {
+            a_m_k_dev_buf.GetDeviceBuffer(),
+            b_k_n_dev_buf.GetDeviceBuffer(),
+            c_m_n_dev_buf.GetDeviceBuffer(),
+            gemm_problem.split_k_,
+            gemm_problem.m_,
+            gemm_problem.n_,
+            gemm_problem.k_,
+            gemm_problem.stride_a_,
+            gemm_problem.stride_b_,
+            gemm_problem.stride_c_,
+        };
+
+        ck_tile::HostTensor<CDataType> c_m_n_host_result(ck_tile::host_tensor_descriptor(
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
-        c_m_n_ref.SetZero();
 
         if(setting_.verify)
         {
             gemm_host_reference(setting_.verify,
                                 a_m_k,
                                 b_k_n,
-                                c_m_n_ref,
+                                c_m_n_host_result,
                                 a_m_k_dev_buf,
                                 b_k_n_dev_buf,
                                 gemm_problem.m_,
@@ -89,40 +126,8 @@ class GemmPreshuffleProfiler
                                 gemm_problem.stride_c_);
         }
 
-        // Kernel Execution
-
-        a_m_k_dev_buf.ToDevice(a_m_k.data());
-        c_m_n_dev_buf.SetZero();
-        c_m_n_dev_result.SetZero();
-
-        for(const auto& callable : callables)
+        for(auto& callable : callables)
         {
-            ck_tile::HostTensor<BDataType> b_shuffle_host = [&]() {
-                if(KernelConfig::permuteN)
-                {
-                    return ck_tile::shuffle_b_permuteN<KernelConfig>(b_k_n);
-                }
-                else
-                {
-                    return ck_tile::shuffle_b<KernelConfig>(b_k_n);
-                }
-            }();
-
-            b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
-
-            ck_tile::GemmHostArgs gemm_args = {
-                a_m_k_dev_buf.GetDeviceBuffer(),
-                b_k_n_dev_buf.GetDeviceBuffer(),
-                c_m_n_dev_buf.GetDeviceBuffer(),
-                gemm_problem.split_k_,
-                gemm_problem.m_,
-                gemm_problem.n_,
-                gemm_problem.k_,
-                gemm_problem.stride_a_,
-                gemm_problem.stride_b_,
-                gemm_problem.stride_c_,
-            };
-
             auto kernel_run_result = callable(gemm_args,
                                               ck_tile::stream_config{nullptr,
                                                                      true,
@@ -132,9 +137,11 @@ class GemmPreshuffleProfiler
                                                                      setting_.is_gpu_timer,
                                                                      setting_.flush_cache,
                                                                      setting_.rotating_count});
-
-            process_result(
-                gemm_problem, c_m_n_dev_buf, c_m_n_ref, c_m_n_dev_result, kernel_run_result);
+            process_result(gemm_problem,
+                           c_m_n_dev_buf,
+                           c_m_n_host_result,
+                           c_m_n_dev_result,
+                           kernel_run_result);
         }
     }
 };
