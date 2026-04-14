@@ -221,7 +221,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                              1,     /*kNumWaveGroups_*/
                                              false, /*FixedVectorSize_*/
                                              1,     /*VectorSizeC_*/
-                                             false, /*TiledMMAPermuteN_*/
                                              1,     /*BlockedXDLN_PerWarp_*/
                                              DoubleSmemBuffer /*DoubleSmemBuffer*/>>;
 
