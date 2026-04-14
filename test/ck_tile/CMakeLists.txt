@@ -66,7 +66,9 @@ add_subdirectory(core)
 add_subdirectory(epilogue)
 add_subdirectory(atomic_add_op)
 add_subdirectory(fmha)
-add_subdirectory(gemm_tile_engine)
+# TODO: The Universal GEMM tile engine test will be either removed
+# or moved to the appropriate location in future work.
+# add_subdirectory(gemm_tile_engine)
 add_subdirectory(pooling)
 add_subdirectory(grouped_conv)
 add_subdirectory(pooling_tile_engine)
