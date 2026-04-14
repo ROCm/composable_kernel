@@ -249,14 +249,12 @@ set(SPARGE_VSA_INSTANCES "tile_sparge_vsa_instances")
 
 add_library(${SPARGE_VSA_INSTANCES} OBJECT EXCLUDE_FROM_ALL
   ${SPARGE_VSA_GEN_BLOBS}
-  ${CMAKE_CURRENT_LIST_DIR}/vsa_sparge_attention.cpp
 )
 target_include_directories(${SPARGE_VSA_INSTANCES} PRIVATE 
   ${CMAKE_CURRENT_LIST_DIR}
   ${PROJECT_SOURCE_DIR}/include/ck_tile/ops/sparse_attn
 )
 set_source_files_properties(${SPARGE_VSA_GEN_BLOBS} PROPERTIES LANGUAGE HIP)
-set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/vsa_sparge_attention.cpp PROPERTIES LANGUAGE HIP)
 set_property(TARGET ${SPARGE_VSA_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 
 target_compile_options(${SPARGE_VSA_INSTANCES} PRIVATE
@@ -273,7 +271,6 @@ set(SPARGE_BLOCKMAP_INSTANCES "tile_sparge_blockmap_instances")
 
 add_library(${SPARGE_BLOCKMAP_INSTANCES} OBJECT EXCLUDE_FROM_ALL
   ${CMAKE_CURRENT_LIST_DIR}/sparge_blockmap_inst.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/sparge_blockmap.cpp
 )
 target_include_directories(${SPARGE_BLOCKMAP_INSTANCES} PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}
@@ -281,7 +278,6 @@ target_include_directories(${SPARGE_BLOCKMAP_INSTANCES} PRIVATE
 )
 set_source_files_properties(
   ${CMAKE_CURRENT_LIST_DIR}/sparge_blockmap_inst.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/sparge_blockmap.cpp
   PROPERTIES LANGUAGE HIP
 )
 set_property(TARGET ${SPARGE_BLOCKMAP_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
