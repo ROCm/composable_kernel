@@ -52,6 +52,22 @@
             }
         },
         {
+            "name": "dev-minimal",
+            "binaryDir": "${sourceDir}/build",
+            "displayName": "CK Dev - Minimal Build",
+            "description": "Fast iteration build with minimal components (configure ~5s vs ~150s)",
+            "inherits": ["dev"],
+            "cacheVariables": {
+                "BUILD_CK_DEVICE_INSTANCES": "OFF",
+                "BUILD_CK_PROFILER": "OFF",
+                "BUILD_CK_EXAMPLES": "OFF",
+                "BUILD_CK_TUTORIALS": "OFF",
+                "BUILD_CK_TILE_ENGINE": "OFF",
+                "BUILD_CK_TILE_ENGINE_TESTS": "OFF",
+                "BUILD_CK_TILE_FMHA_TESTS": "OFF"
+            }
+        },
+        {
             "name": "dev-gfx908",
             "displayName": "CK Dev - gfx908",
             "description": "Development build for AMD GPU gfx908",
