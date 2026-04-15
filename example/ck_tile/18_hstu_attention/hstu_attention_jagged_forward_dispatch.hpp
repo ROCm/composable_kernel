@@ -22,6 +22,8 @@
 #include "hstu_attention_fwd_kernel.hpp"
 #include "hstu_attention_epilogue.hpp"
 
+#include "hstu_attention_jagged_forward_splitkv_dispatch.hpp"
+
 template <typename InOutDataType,
           bool kUseCausal,
           bool kUseSoftmax,
@@ -188,11 +190,36 @@ void run_jagged_forward_causal_softmax_bias_dropout_dispatch(HstuAttentionNoGrou
                                                             MaxK,
                                                             128>::Run(param, stream);
     else
-        jagged_forward_causal_softmax_bias_dropout_dispatch<InOutDataType,
-                                                            kUseCausal,
-                                                            kUseSoftmax,
-                                                            kHasBias,
-                                                            kHasDropout,
-                                                            MaxK,
-                                                            64>::Run(param, stream);
+    {
+        const bool disable_fwd_splitkv = []() {
+            const char* env_p = std::getenv("HSTU_DISABLE_SPLITKV");
+            if(env_p == nullptr)
+                return false;
+            return static_cast<bool>(atoi(env_p));
+        }();
+
+        // ToDo: enable splitkv when kUseSoftmax is true
+        if(!disable_fwd_splitkv && !kUseSoftmax &&
+           shall_use_splitkv(param.num_batch, param.num_head, param.max_seqlen))
+        {
+            if constexpr(!kUseSoftmax)
+            {
+                jagged_forward_splitkv_causal_softmax_bias_dropout_dispatch<InOutDataType,
+                                                                            kUseCausal,
+                                                                            kUseSoftmax,
+                                                                            kHasBias,
+                                                                            kHasDropout,
+                                                                            MaxK,
+                                                                            64>::Run(param, stream);
+            };
+        }
+        else
+            jagged_forward_causal_softmax_bias_dropout_dispatch<InOutDataType,
+                                                                kUseCausal,
+                                                                kUseSoftmax,
+                                                                kHasBias,
+                                                                kHasDropout,
+                                                                MaxK,
+                                                                64>::Run(param, stream);
+    };
 };

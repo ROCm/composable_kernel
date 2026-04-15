@@ -22,4 +22,15 @@ struct HstuAttentionFwdTraits
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 
+template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
+          bool kPadHeadDimO_ /* paddding for hdim_o */,
+          index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
+struct HstuAttentionFwdSplitKVCombineTraits
+{
+    static constexpr bool kPadSeqLenQ  = kPadSeqLenQ_;
+    static constexpr bool kPadHeadDimO = kPadHeadDimO_;
+
+    static constexpr index_t kBlockPerCu = kBlockPerCu_;
+};
+
 } // namespace ck_tile
