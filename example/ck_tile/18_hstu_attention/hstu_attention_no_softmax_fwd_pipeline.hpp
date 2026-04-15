@@ -180,6 +180,14 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
         using OaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
         OaccBlockTileType o_acc;
 
+        if(seqlen_k_end <= seqlen_k_start)
+        {
+            clear_tile(o_acc);
+            o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
+
+            return o_acc;
+        };
+
         auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
                                               make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
                                               q_dram_block_window_tmp.get_window_origin(),
