@@ -484,3 +484,36 @@ static int get_hstu_attention_fwd_mtile(int num_batches, int num_heads, int max_
     // mtile-64 can be added through tuning/verification
     return 64;
 };
+
+static float get_estimated_cu_coverage_ratio(int num_batches, int num_heads, int max_seqlen_q)
+{
+    int num_CUs  = get_number_of_cu();
+    auto ceildiv = [](int a, int b) { return (a + b - 1) / b; };
+
+    int nbatch_nhead_mblocks = num_batches * num_heads * ceildiv(max_seqlen_q, 64);
+
+    // assume each CU can run two work-groups, common cases for hdim128
+    return static_cast<float>(nbatch_nhead_mblocks) / (2.0f * num_CUs);
+};
+
+static bool shall_use_splitkv(int num_batches, int num_heads, int max_seqlen_q)
+{
+    // Please tune the threshold here
+    const float threshold = 0.8f;
+
+    if(get_estimated_cu_coverage_ratio(num_batches, num_heads, max_seqlen_q) < threshold)
+        return true;
+    return false;
+};
+
+static int get_suggested_num_splits(int num_batches, int num_heads, int max_seqlen_q)
+{
+    int i = 2;
+
+    // Please tune the threshold here
+    const float threshold = 1.5f;
+    while(get_estimated_cu_coverage_ratio(num_batches, num_heads, max_seqlen_q) * i < threshold)
+        i++;
+
+    return i;
+};

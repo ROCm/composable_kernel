@@ -133,4 +133,42 @@ struct HstuAttentionFwdPipelineProblem
     };
 };
 
+template <typename OaccDataType_,
+          typename ODataType_,
+          bool kIsJagged_,
+          bool kUseSoftmax_,
+          typename CombineTileSetting_>
+struct HstuAttentionFwdSplitKVCombinePipelineProblem
+{
+    using OaccDataType = remove_cvref_t<OaccDataType_>;
+    using ODataType    = remove_cvref_t<ODataType_>;
+
+    static constexpr bool kIsJagged   = kIsJagged_;
+    static constexpr bool kUseSoftmax = kUseSoftmax_;
+
+    static constexpr index_t kM           = CombineTileSetting_::kM;
+    static constexpr index_t NumWarps     = CombineTileSetting_::NumWarps;
+    static constexpr index_t kOHeaddim    = CombineTileSetting_::kOHeaddim;
+    static constexpr index_t kSubOHeaddim = CombineTileSetting_::kSubOHeaddim;
+    static constexpr index_t kBlockSize   = CombineTileSetting_::NumWarps * get_warp_size();
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetOaccDramTileAccessMaxVectorSize()
+    {
+        constexpr index_t kMPerBlock = kM;
+        constexpr index_t kKPerBlock = kOHeaddim;
+
+        return detail::
+            GetDramTileAccessMaxVectorSize<OaccDataType, kBlockSize, kMPerBlock, kKPerBlock>();
+    };
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetODramTileAccessMaxVectorSize()
+    {
+        constexpr index_t kMPerBlock = kM;
+        constexpr index_t kKPerBlock = kOHeaddim;
+
+        return detail::
+            GetDramTileAccessMaxVectorSize<ODataType, kBlockSize, kMPerBlock, kKPerBlock>();
+    };
+};
+
 } // namespace ck_tile

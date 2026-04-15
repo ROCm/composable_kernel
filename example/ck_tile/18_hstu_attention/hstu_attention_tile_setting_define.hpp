@@ -64,4 +64,21 @@ struct HstuAttentionFwdTileSettingClass
     static_assert(kSubQKHeaddim % kN1 == 0, "Check failed!");
 };
 
+template <index_t kM_,       // tile size in seqlen_q dimension
+          index_t NumWarps_, // assume all warps are assigned to seqlen_q dimension
+          index_t kOHeaddim_>
+struct HstuAttentionFwdSplitKVCombineTileSettingClass
+{
+    static constexpr index_t kM       = kM_;
+    static constexpr index_t NumWarps = NumWarps_;
+
+    static_assert(kM % NumWarps == 0, "Check failed!");
+
+    static constexpr index_t kOHeaddim = kOHeaddim_;
+
+    static_assert((kM * kOHeaddim) % (NumWarps * get_warp_size()) == 0, "Check failed!");
+
+    static constexpr index_t kSubOHeaddim = ceil_to_qualified_tile_length(kOHeaddim);
+};
+
 } // namespace ck_tile
