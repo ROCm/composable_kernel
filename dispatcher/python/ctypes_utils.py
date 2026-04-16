@@ -1946,8 +1946,16 @@ class CodegenRunner:
         Returns: Path to new library, or None on failure
         """
         build_dir = get_build_dir()
-        # Use unique filename based on dtype/layout to avoid overwriting loaded library
-        lib_name = f"libdispatcher_gemm_{config.dtype_a}_{config.layout}_lib.so"
+        # Use unique filename based on ALL distinguishing config parameters
+        # Include: dtype, layout, tile, wave, warp, pipeline, epilogue, scheduler
+        # This ensures different configs don't collide even if tile/pipeline match
+        wave_str = f"{config.wave_m}x{config.wave_n}x{config.wave_k}"
+        warp_str = f"{config.warp_m}x{config.warp_n}x{config.warp_k}"
+        lib_name = (
+            f"libdispatcher_gemm_{config.dtype_a}_{config.layout}_"
+            f"{config.tile_str}_{wave_str}_{warp_str}_"
+            f"{config.pipeline}_{config.epilogue}_{config.scheduler}.so"
+        )
         lib_path = build_dir / "examples" / lib_name
 
         print(f"  Rebuilding library: {lib_name}")
@@ -2548,29 +2556,66 @@ def setup_gemm_dispatcher(
 
     if needs_rebuild and auto_rebuild:
         log(f"  Library kernel doesn't match config: {', '.join(mismatches)}")
-        log("  Rebuilding library for exact config match...")
 
-        # First ensure we have a kernel header for this exact config
-        if not kernel_header:
-            # Generate kernel for the exact config
-            log("  Generating kernel for config...")
-            codegen_result = codegen.generate_from_config(config, force=True)
-            kernel_header = find_matching_kernel_header(config)
-            result.kernel_header = kernel_header
+        # Check if a rebuilt library for this exact config already exists
+        build_dir = get_build_dir()
+        wave_str = f"{config.wave_m}x{config.wave_n}x{config.wave_k}"
+        warp_str = f"{config.warp_m}x{config.warp_n}x{config.warp_k}"
+        cached_lib_name = (
+            f"libdispatcher_gemm_{config.dtype_a}_{config.layout}_"
+            f"{config.tile_str}_{wave_str}_{warp_str}_"
+            f"{config.pipeline}_{config.epilogue}_{config.scheduler}.so"
+        )
+        cached_lib_path = build_dir / "examples" / cached_lib_name
 
-        if kernel_header:
-            new_lib_path = codegen._rebuild_library_for_config(config, kernel_header)
-            if new_lib_path:
-                lib = DispatcherLib.load(new_lib_path)
-                if lib is None or not lib.initialize():
-                    result.error = "Failed to load rebuilt library"
-                    return result
+        if cached_lib_path.exists():
+            log(f"  Using cached library: {cached_lib_name}")
+            lib = DispatcherLib.load(cached_lib_path)
+            if lib is not None and lib.initialize():
                 result.lib = lib
-                log(f"  OK Rebuilt library: {lib.get_kernel_name()}")
+                log(f"  OK Loaded cached library: {lib.get_kernel_name()}")
             else:
-                log("  WARNING Rebuild failed, using existing library")
+                log("  WARNING Cached library failed to load/initialize")
+                cached_lib_path = None  # Force rebuild
         else:
-            log("  WARNING No kernel header found for config, using existing library")
+            log("  Rebuilding library for exact config match...")
+
+            # First ensure we have a kernel header for this exact config
+            if not kernel_header:
+                # Generate kernel for the exact config
+                log("  Generating kernel for config...")
+                codegen_result = codegen.generate_from_config(config, force=True)
+
+                # Check if generation succeeded
+                if not codegen_result.success:
+                    log(f"  WARNING Kernel generation failed:")
+                    if codegen_result.stderr:
+                        # Show first few lines of error
+                        error_lines = codegen_result.stderr.split('\n')[:5]
+                        for line in error_lines:
+                            if line.strip():
+                                log(f"    {line}")
+                    log("  This config may not be valid for the target architecture")
+                    log("  Falling back to existing library")
+                    # Don't try to rebuild without a valid kernel
+                    kernel_header = None
+                else:
+                    kernel_header = find_matching_kernel_header(config)
+                    result.kernel_header = kernel_header
+
+            if kernel_header:
+                new_lib_path = codegen._rebuild_library_for_config(config, kernel_header)
+                if new_lib_path:
+                    lib = DispatcherLib.load(new_lib_path)
+                    if lib is None or not lib.initialize():
+                        result.error = "Failed to load rebuilt library"
+                        return result
+                    result.lib = lib
+                    log(f"  OK Rebuilt library: {lib.get_kernel_name()}")
+                else:
+                    log("  WARNING Rebuild failed, using existing library")
+            else:
+                log("  WARNING No kernel header found for config, using existing library")
 
     # Step 5: Create registry and dispatcher
     log("  Creating registry and dispatcher...")
