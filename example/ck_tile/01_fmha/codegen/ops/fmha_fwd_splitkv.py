@@ -835,6 +835,17 @@ class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
         else:
             return None
 
+    @staticmethod
+    def get_tuning_extra_tiles(dtype: str) -> dict:
+        """Additional tile sizes only available via tuning receipts (150, 250).
+        These tiles are NOT used by the heuristic dispatch path."""
+        extra = {}
+        if dtype in ["fp16", "bf16"]:
+            extra["256"] = [
+                FmhaFwdTileSize(128, 128,  64, 256, 128, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            ]  # fmt: skip
+        return extra
+
 
 class KernelComponentFactoryGfx11(KernelComponentFactoryBase):
     arch = ArchTrait("gfx11")
@@ -899,85 +910,96 @@ def get_fwd_splitkv_blobs(
 
     factories = get_factories_for_targets(targets, get_factory)
 
+    # Tuning receipts (150, 250) include extended tile sizes for CSV-driven selection
+    _TUNING_RECEIPTS = frozenset({150, 250})
+
     for factory, dtype in itertools.product(factories, FWD_DTYPE_MAP.keys()):
         d = factory.get_hdim_tile_size_dict(dtype)
         if d is None:
             continue
+        # Build per-hdim tile lists: original (single) tile + optional tuning extras
+        hdim_tiles = {}
+        for hdim_str in d.keys():
+            hdim_tiles[hdim_str] = [d[hdim_str]]
+        if receipt in _TUNING_RECEIPTS and hasattr(factory, 'get_tuning_extra_tiles'):
+            for hdim_str, extra_list in factory.get_tuning_extra_tiles(dtype).items():
+                if hdim_str in hdim_tiles:
+                    hdim_tiles[hdim_str].extend(extra_list)
         # for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
-            tile = d[hdim_str]
             hdim = int(hdim_str)
-            for pipeline in factory.get_pipelines(dtype, hdim, mask_impl):
-                if mode == "group":
-                    if pipeline.F_spad != "t" or pipeline.F_skpad != "t":
-                        # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
+            for tile in hdim_tiles[hdim_str]:
+                for pipeline in factory.get_pipelines(dtype, hdim, mask_impl):
+                    if mode == "group":
+                        if pipeline.F_spad != "t" or pipeline.F_skpad != "t":
+                            # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
+                            continue
+                    # logits_soft_cap is only allowed if no bias
+                    if not (
+                        (pipeline.F_logits == "t" and pipeline.F_bias == "no")
+                        or pipeline.F_logits == "f"
+                    ):
                         continue
-                # logits_soft_cap is only allowed if no bias
-                if not (
-                    (pipeline.F_logits == "t" and pipeline.F_bias == "no")
-                    or pipeline.F_logits == "f"
-                ):
-                    continue
-                k = Kernel(
-                    F_arch=factory.arch,
-                    F_idx=0,
-                    F_hdim=hdim,
-                    F_dtype=dtype,
-                    F_mode=mode,
-                    F_tile=tile,
-                    F_pipeline=pipeline,
-                    mask_impl=mask_impl,
-                )
-                if kernel_filter != "":
-                    if not fnmatch.fnmatch(k.name, kernel_filter):
-                        continue
-                if optdim_list != [-1]:
-                    if hdim not in optdim_list:
-                        continue
-                # Flash attention integration
-                if receipt == 2:
-                    cond = dtype in ["fp16", "bf16"]
-                    cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_bias in ["no", "alibi"]
-                    # FlashAttention splitkv paths use softcap-disabled kernels only.
-                    cond &= pipeline.F_logits == "f"
-                    cond &= pipeline.F_squant == "f"
-                    cond &= pipeline.F_sink == "f"
-                    if not cond:
-                        continue
-                # PyTorch integration
-                elif receipt == 4:
-                    cond = dtype in ["fp16, bf16"]
-                    cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_bias in ["no", "bias"]
-                    cond &= pipeline.F_squant == "f"
-                    cond &= mode == "batch"
-                    cond &= pipeline.F_sink == "f"
-                    if not cond:
-                        continue
-                # Aiter(mha_varlen_fwd) integration
-                elif receipt == 200:
-                    cond = dtype in ["fp16", "bf16"]
-                    cond &= mode == "group"
-                    cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_squant == "f"
-                    if not cond:
-                        continue
-                # aiter::mha_fwd_splikv C++ api integration
-                elif receipt == 600:
-                    cond = dtype in ["fp16", "bf16"]
-                    cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_squant == "f"
-                    if not cond:
-                        continue
+                    k = Kernel(
+                        F_arch=factory.arch,
+                        F_idx=0,
+                        F_hdim=hdim,
+                        F_dtype=dtype,
+                        F_mode=mode,
+                        F_tile=tile,
+                        F_pipeline=pipeline,
+                        mask_impl=mask_impl,
+                    )
+                    if kernel_filter != "":
+                        if not fnmatch.fnmatch(k.name, kernel_filter):
+                            continue
+                    if optdim_list != [-1]:
+                        if hdim not in optdim_list:
+                            continue
+                    # Flash attention integration
+                    if receipt == 2:
+                        cond = dtype in ["fp16", "bf16"]
+                        cond &= pipeline.F_vlayout == "row"
+                        cond &= pipeline.F_bias in ["no", "alibi"]
+                        # FlashAttention splitkv paths use softcap-disabled kernels only.
+                        cond &= pipeline.F_logits == "f"
+                        cond &= pipeline.F_squant == "f"
+                        cond &= pipeline.F_sink == "f"
+                        if not cond:
+                            continue
+                    # PyTorch integration
+                    elif receipt == 4:
+                        cond = dtype in ["fp16, bf16"]
+                        cond &= pipeline.F_vlayout == "row"
+                        cond &= pipeline.F_bias in ["no", "bias"]
+                        cond &= pipeline.F_squant == "f"
+                        cond &= mode == "batch"
+                        cond &= pipeline.F_sink == "f"
+                        if not cond:
+                            continue
+                    # Aiter(mha_varlen_fwd) integration
+                    elif receipt == 200:
+                        cond = dtype in ["fp16", "bf16"]
+                        cond &= mode == "group"
+                        cond &= pipeline.F_vlayout == "row"
+                        cond &= pipeline.F_squant == "f"
+                        if not cond:
+                            continue
+                    # aiter::mha_fwd_splikv C++ api integration
+                    elif receipt == 600:
+                        cond = dtype in ["fp16", "bf16"]
+                        cond &= pipeline.F_vlayout == "row"
+                        cond &= pipeline.F_squant == "f"
+                        if not cond:
+                            continue
 
-                # fp32 only
-                if receipt == 800 or receipt == 801:
-                    cond = dtype == "fp32"
-                    if not cond:
-                        continue
+                    # fp32 only
+                    if receipt == 800 or receipt == 801:
+                        cond = dtype == "fp32"
+                        if not cond:
+                            continue
 
-                gen.append(k)
+                    gen.append(k)
 
     return gen
 

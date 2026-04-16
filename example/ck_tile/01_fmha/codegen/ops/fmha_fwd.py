@@ -970,6 +970,17 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                 (128, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
             }  # fmt: skip
 
+    @classmethod
+    def get_tuning_extra_tiles(cls, dtype: str) -> dict:
+        """Additional tile sizes only available via tuning receipts (150, 250).
+        These tiles are NOT used by the heuristic dispatch path."""
+        extra = {}
+        if dtype in cls._DT_FP16_BF16:
+            extra[(256, 256)] = [
+                FmhaFwdTileSize(128, 128,  64, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            ]  # fmt: skip
+        return extra
+
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
     #       support this in future
     @classmethod
@@ -1357,6 +1368,18 @@ def get_product(receipt: int) -> Product:
             return cond
 
         return Product(name="Aiter(mha_fwd) integration", rule=fit)
+    # Aiter(mha_fwd) tuning integration - includes extended tiles
+    elif receipt == 150:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            cond = problem_ctx.dtype in ["fp16", "bf16", "fp8bf16"]
+            cond &= problem_ctx.mode == "batch"
+            cond &= kernel_ctx.pipeline.F_vlayout == "row"
+            if problem_ctx.dtype == "fp8bf16":
+                cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 192
+            return cond
+
+        return Product(name="Aiter(mha_fwd) tuning integration", rule=fit)
     # Aiter(mha_varlen_fwd) integration
     elif receipt == 200:
 
@@ -1369,6 +1392,18 @@ def get_product(receipt: int) -> Product:
             return cond
 
         return Product(name="Aiter(mha_varlen_fwd) integration", rule=fit)
+    # Aiter(mha_varlen_fwd) tuning integration - includes extended tiles
+    elif receipt == 250:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            cond = problem_ctx.dtype in ["fp16", "bf16", "fp8bf16"]
+            cond &= problem_ctx.mode == "group"
+            cond &= kernel_ctx.pipeline.F_vlayout == "row"
+            if problem_ctx.dtype == "fp8bf16":
+                cond &= problem_ctx.hdim == 128 or problem_ctx.hdim == 192
+            return cond
+
+        return Product(name="Aiter(mha_varlen_fwd) tuning integration", rule=fit)
     # aiter::mha_fwd C++ api integration
     elif receipt == 600:
 
@@ -1432,8 +1467,17 @@ def get_fwd_blobs(
 
     factories = get_factories_for_targets(targets, get_factory)
 
+    # Tuning receipts (150, 250) include extended tile sizes for CSV-driven selection
+    _TUNING_RECEIPTS = frozenset({150, 250})
+
     for factory, dtype in ((f, t) for f in factories for t in f.supported_dtypes()):
         d = factory.get_hdim_tile_size_dict(dtype)
+        if receipt in _TUNING_RECEIPTS and hasattr(factory, 'get_tuning_extra_tiles'):
+            for key, extra_tiles in factory.get_tuning_extra_tiles(dtype).items():
+                if key in d:
+                    d[key] = d[key] + extra_tiles
+                else:
+                    d[key] = list(extra_tiles)
         # for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for ((hdim, hdim_v), tiles), mode in itertools.product(
             d.items(), MODE_MAP.keys()
