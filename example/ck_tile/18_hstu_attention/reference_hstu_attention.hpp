@@ -43,7 +43,7 @@ struct reference_no_group_hstu_attention
                     float alpha,
                     float attn_scale,
                     int max_seqlen_q,
-                    int max_seqlen_kv,
+                    int max_seqlen_kv, // only used as last dim of the tensor for saving the mask
                     std::vector<int> seq_q_offsets,
                     std::vector<int> seq_kv_offsets,
                     std::vector<int> num_targets, // define masking length at the end of token
@@ -116,9 +116,7 @@ struct reference_no_group_hstu_attention
 
             int num_target = num_targets.empty() ? 0 : num_targets[i_batch];
 
-            float scale_p = attn_scale
-                                ? attn_scale
-                                : 1.0f / static_cast<float>(max(max_seqlen_q, max_seqlen_kv));
+            float scale_p = attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen_q);
 
             BOOL_SWITCH_2(window_size > 0, kHasLocal, is_cross_attention, kIsCrossAttention, [&] {
                 using HstuMaskType =
@@ -335,12 +333,15 @@ struct reference_group_hstu_attention
         int num_batch,
         int num_batch_per_group,
         float alpha,
-        int max_max_seqlen, // the maximum of all groups's max_seqlen
+        int max_max_seqlen_q,  // the maximum of all groups's max_seqlen_q, only used as second last
+                               // dim of the tensor for saving the mask
+        int max_max_seqlen_kv, // the maximum of all groups's max_seqlen_k, only used as last dim of
+                               // the tensor for saving the mask
         const std::vector<int>& seq_q_offsets,
         const std::vector<int>& seq_kv_offsets,
-        const std::vector<int>& num_targets,       // define masking length at the end of token
-                                                   // sequence to be excluded for attention
-        const std::vector<int>& group_max_seqlens, // max seqlen list by groups
+        const std::vector<int>& num_targets,         // define masking length at the end of token
+                                                     // sequence to be excluded for attention
+        const std::vector<int>& group_max_seqlens_q, // max seqlen_q list by groups
         const std::vector<int>& group_contextual_seqlens,    // contextual seqlen list by groups
         const std::vector<int>& group_window_sizes,          // window_size list by groups
         const std::vector<int>& group_min_full_attn_seqlens, // min_full_attn_seqlen list by groups
@@ -374,8 +375,8 @@ struct reference_group_hstu_attention
 
         if(static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[0]) == num_batch &&
            static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[1]) == num_head &&
-           static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[2]) == max_max_seqlen &&
-           static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[3]) == max_max_seqlen)
+           static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[2]) == max_max_seqlen_q &&
+           static_cast<int>(mask_batch_nhead_seq_seq.get_lengths()[3]) == max_max_seqlen_kv)
             save_mask = true;
 
         // check num_tagets
@@ -394,10 +395,10 @@ struct reference_group_hstu_attention
 
             int num_target = num_targets.empty() ? 0 : num_targets[i_batch];
 
-            int max_seqlen   = group_max_seqlens[i_group];
+            int max_seqlen_q = group_max_seqlens_q[i_group];
             float attn_scale = group_attn_scales[i_group];
 
-            float scale_p = (attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen));
+            float scale_p = (attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen_q));
 
             int contextual_seqlen    = group_contextual_seqlens[i_group];
             int window_size          = group_window_sizes[i_group];
@@ -468,8 +469,8 @@ struct reference_group_hstu_attention
 
                 if(save_mask)
                 {
-                    for(int sq = 0; sq < max_seqlen; sq++)
-                        for(int sk = 0; sk < max_seqlen; sk++)
+                    for(int sq = 0; sq < max_max_seqlen_q; sq++)
+                        for(int sk = 0; sk < max_max_seqlen_kv; sk++)
                             mask_batch_nhead_seq_seq(i_batch, i_head, sq, sk) = 0;
 
                     for(int sq = 0; sq < seqlen_q; sq++)
