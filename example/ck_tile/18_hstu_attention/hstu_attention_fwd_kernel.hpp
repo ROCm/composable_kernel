@@ -174,7 +174,7 @@ struct HstuAttentionFwdKernel
         int32_t window_size;          // to be set by the per-group window_size
         int32_t min_full_attn_seqlen; // to be set by the per-group min_full_attn_seqlen
 
-        const int32_t* group_max_seqlen_ptr;
+        const int32_t* group_max_seqlen_q_ptr;
         const int32_t* group_contextual_seqlen_ptr;
         const int32_t* group_window_size_ptr;
         const int32_t* group_min_full_attn_seqlen_ptr;
@@ -318,8 +318,7 @@ struct HstuAttentionFwdKernel
              seq_stride_o,
              num_head,
              scale_s,
-             attn_scale ? attn_scale
-                        : 1.0f / static_cast<float>(max(seqlen_q, seqlen_kv)), // max_seqlen
+             attn_scale ? attn_scale : 1.0f / static_cast<float>(seqlen_q),
              contextual_seqlen,
              window_size,
              min_full_attn_seqlen}, // args for common karg
@@ -351,7 +350,7 @@ struct HstuAttentionFwdKernel
               void* o_ptr,
               const void* seq_q_offsets_ptr,
               const void* seq_kv_offsets_ptr,
-              ck_tile::index_t max_seqlen,
+              ck_tile::index_t max_seqlen_q,
               ck_tile::index_t hdim_qk,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head,
@@ -397,7 +396,7 @@ struct HstuAttentionFwdKernel
              -1, // seqlen_kv will be updated by another pointer
              num_head,
              scale_s,
-             attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen),
+             attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen_q),
              contextual_seqlen,
              window_size,
              min_full_attn_seqlen}, // args for common karg
@@ -429,7 +428,7 @@ struct HstuAttentionFwdKernel
               ck_tile::index_t num_batch_per_group,
               const void* seq_q_offsets_ptr,
               const void* seq_kv_offsets_ptr,
-              const void* group_max_seqlen_ptr,
+              const void* group_max_seqlen_q_ptr,
               const void* group_contextual_seqlen_ptr,
               const void* group_window_size_ptr,
               const void* group_min_full_attn_seqlen_ptr,
@@ -480,7 +479,7 @@ struct HstuAttentionFwdKernel
              0,    // to be set by the per-group contextual_seqlen
              0,    // to be set by the per-group window_size
              0,    // to be set by the per-group min_full_attn_seqlen
-             reinterpret_cast<const int32_t*>(group_max_seqlen_ptr),
+             reinterpret_cast<const int32_t*>(group_max_seqlen_q_ptr),
              reinterpret_cast<const int32_t*>(group_contextual_seqlen_ptr),
              reinterpret_cast<const int32_t*>(group_window_size_ptr),
              reinterpret_cast<const int32_t*>(group_min_full_attn_seqlen_ptr),
@@ -654,9 +653,9 @@ struct HstuAttentionFwdKernel
                 index_t i_group =
                     __builtin_amdgcn_readfirstlane(i_batch / kargs.num_batch_per_group);
 
-                float attn_scale   = kargs.group_attn_scale_ptr[i_group];
-                index_t max_seqlen = kargs.group_max_seqlen_ptr[i_group];
-                kargs.scale_p = (attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen));
+                float attn_scale     = kargs.group_attn_scale_ptr[i_group];
+                index_t max_seqlen_q = kargs.group_max_seqlen_q_ptr[i_group];
+                kargs.scale_p = (attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen_q));
                 kargs.contextual_seqlen    = kargs.group_contextual_seqlen_ptr[i_group];
                 kargs.window_size          = kargs.group_window_size_ptr[i_group];
                 kargs.min_full_attn_seqlen = kargs.group_min_full_attn_seqlen_ptr[i_group];

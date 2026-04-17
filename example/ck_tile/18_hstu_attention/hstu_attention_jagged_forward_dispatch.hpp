@@ -132,7 +132,7 @@ struct jagged_forward_causal_softmax_bias_dropout_dispatch
                                          param.seq_q_offsets_ptr,
                                          param.is_cross_attention ? param.seq_kv_offsets_ptr
                                                                   : param.seq_q_offsets_ptr,
-                                         param.max_seqlen,
+                                         param.max_seqlen_q,
                                          param.hdim_qk,
                                          param.hdim_v,
                                          param.num_head,
@@ -160,7 +160,7 @@ struct jagged_forward_causal_softmax_bias_dropout_dispatch
         bool has_minfull_attn_seqlen           = (param.min_full_attn_seqlen > 0);
         dim3 kGridSize                         = HstuKernel::GridSize(param.num_batch,
                                               param.num_head,
-                                              param.max_seqlen,
+                                              param.max_seqlen_q,
                                               param.hdim_v,
                                               has_minfull_attn_seqlen);
         constexpr dim3 kBlockSize              = HstuKernel::BlockSize();
@@ -181,7 +181,7 @@ template <typename InOutDataType,
 void run_jagged_forward_causal_softmax_bias_dropout_dispatch(HstuAttentionNoGroupFwdParams& param,
                                                              hipStream_t stream)
 {
-    if(get_hstu_attention_fwd_mtile(param.num_batch, param.num_head, param.max_seqlen) == 128)
+    if(get_hstu_attention_fwd_mtile(param.num_batch, param.num_head, param.max_seqlen_q) == 128)
         jagged_forward_causal_softmax_bias_dropout_dispatch<InOutDataType,
                                                             kUseCausal,
                                                             kUseSoftmax,
@@ -200,7 +200,7 @@ void run_jagged_forward_causal_softmax_bias_dropout_dispatch(HstuAttentionNoGrou
 
         // ToDo: enable splitkv when kUseSoftmax is true
         if(!disable_fwd_splitkv && !kUseSoftmax &&
-           shall_use_splitkv(param.num_batch, param.num_head, param.max_seqlen))
+           shall_use_splitkv(param.num_batch, param.num_head, param.max_seqlen_q))
         {
             if constexpr(!kUseSoftmax)
             {
