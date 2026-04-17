@@ -270,6 +270,15 @@ float fmha_fwd_splitkv_(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a
 }}
 
 float fmha_fwd_splitkv(fmha_fwd_splitkv_traits t, fmha_fwd_splitkv_args a, const ck_tile::stream_config& s) {{
+    // Force-kernel override: dispatch a specific kernel via fmha_fwd_splitkv_all()
+    {{ const char* fk = std::getenv("CK_TILE_FMHA_FWD_SPLITKV_FORCE_KERNEL");
+       if(fk && fk[0]) {{
+           auto results = fmha_fwd_splitkv_all(t, a, s);
+           if(!results.empty()) return results[0].second;
+           return -1;
+       }}
+    }}
+
     float r = -1;
 
     [[maybe_unused]] const std::string device_name = ck_tile::get_device_name();
@@ -313,6 +322,12 @@ FMHA_FWD_SPLITKV_ALL_API_FUNC_TEMPLATE = """
 std::vector<std::pair<std::string, float>> {F_func_name}([[maybe_unused]] fmha_fwd_splitkv_traits t, [[maybe_unused]] fmha_fwd_splitkv_args a, [[maybe_unused]] const ck_tile::stream_config& s) {{
     std::vector<std::pair<std::string, float>> results;
 
+    // Force-kernel filter: when set, only the matching kernel is dispatched.
+    // Used by per-kernel verification (-v=1 -run_all_kernels=1).
+    std::string __fmha_force_kernel;
+    {{ const char* __fk = std::getenv("CK_TILE_FMHA_FWD_SPLITKV_FORCE_KERNEL");
+       if(__fk && __fk[0]) __fmha_force_kernel = __fk; }}
+
     [[maybe_unused]] const std::string device_name = ck_tile::get_device_name();
 
 {F_dispatch}
@@ -323,7 +338,8 @@ std::vector<std::pair<std::string, float>> {F_func_name}([[maybe_unused]] fmha_f
 # Key differences from FMHA_FWD_SPLITKV_API_INNER_DISPATCH:
 # 1. Always uses "if" (not "else if") — doesn't skip after first match
 # 2. Pushes result into vector instead of returning
-FMHA_FWD_SPLITKV_ALL_API_INNER_DISPATCH = """if((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.do_fp8_static_quant == {F_squant}) &&
+FMHA_FWD_SPLITKV_ALL_API_INNER_DISPATCH = """if((__fmha_force_kernel.empty() || __fmha_force_kernel == \"{F_kname}\") &&
+   (t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.do_fp8_static_quant == {F_squant}) &&
         ((a.block_table_ptr != nullptr) == {F_pagedkv}) && (t.has_sink == {F_sink}) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
     using traits_ = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, true, {F_squant}, {F_pagedkv},{F_sink}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
@@ -993,7 +1009,11 @@ class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
                 FmhaFwdTileSize( 32, 128, 32, 128, 32, 128, 2, 1, 1, 2, 1, 1, 16, 16, 16, 16, 16, 16, -1),
             ]  # fmt: skip
             extra["256"] = [
+                FmhaFwdTileSize(128, 128,  32, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                FmhaFwdTileSize(128, 128,  64, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                 FmhaFwdTileSize(128, 128,  64, 256, 128, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                FmhaFwdTileSize(128, 128, 128, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                FmhaFwdTileSize(128, 128, 128, 256,  64, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
             ]  # fmt: skip
         return extra
 

@@ -206,6 +206,15 @@ float {F_func_name}([[maybe_unused]] fmha_fwd_traits t, [[maybe_unused]] fmha_fw
 """
 FMHA_FWD_API_FOOTER_TEMPLATE = """
 float fmha_fwd(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::stream_config& config) {{
+    // Force-kernel override: dispatch a specific kernel via fmha_fwd_all()
+    {{ const char* fk = std::getenv("CK_TILE_FMHA_FWD_FORCE_KERNEL");
+       if(fk && fk[0]) {{
+           auto results = fmha_fwd_all(traits, args, config);
+           if(!results.empty()) return results[0].second;
+           return -1;
+       }}
+    }}
+
     const std::string device_name = ck_tile::get_device_name();
 
     const bool is_swa = (traits.mask_type != mask_enum::no_mask) and
@@ -229,6 +238,12 @@ float fmha_fwd(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::stream
 FMHA_FWD_ALL_API_FUNC_TEMPLATE = """
 std::vector<std::pair<std::string, float>> {F_func_name}([[maybe_unused]] fmha_fwd_traits t, [[maybe_unused]] fmha_fwd_args a, [[maybe_unused]] const ck_tile::stream_config& s) {{
     std::vector<std::pair<std::string, float>> results;
+
+    // Force-kernel filter: when set, only the matching kernel is dispatched.
+    // Used by per-kernel verification (-v=1 -run_all_kernels=1).
+    std::string __fmha_force_kernel;
+    {{ const char* __fk = std::getenv("CK_TILE_FMHA_FWD_FORCE_KERNEL");
+       if(__fk && __fk[0]) __fmha_force_kernel = __fk; }}
 
     [[maybe_unused]] const float min_cu_util_rate = 0.8; // minimum CU utilization rate
 
@@ -267,7 +282,8 @@ FMHA_FWD_ALL_API_PER_HDIM_CASE = """{F_if}(t.hdim_q <= {F_hdim} && t.hdim_v <= {
 # 1. Always uses "if" (not "else if") — doesn't skip after first match
 # 2. No seqtune heuristic — runs all tile sizes
 # 3. Pushes result into vector instead of returning
-FMHA_FWD_ALL_API_INNER_DISPATCH = """if((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.qscale_type == {F_qscale_check}) && (t.skip_min_seqlen_q == {F_skip}) &&(t.has_sink == {F_sink}) &&
+FMHA_FWD_ALL_API_INNER_DISPATCH = """if((__fmha_force_kernel.empty() || __fmha_force_kernel == \"{F_kname}\") &&
+   (t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.qscale_type == {F_qscale_check}) && (t.skip_min_seqlen_q == {F_skip}) &&(t.has_sink == {F_sink}) &&
         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
     using trait_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}, {F_sink}>;
     float t_ = fmha_fwd_<trait_, {F_arch.tag}>(s, a);
@@ -1138,6 +1154,9 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
             ]  # fmt: skip
             extra[(256, 256)] = [
                 FmhaFwdTileSize(128, 128,  64, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                FmhaFwdTileSize(128, 128, 128, 256,  64, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                FmhaFwdTileSize(256, 128,  32, 256,  32, 256,  8, 1, 1,  8, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                FmhaFwdTileSize(256, 128,  64, 256,  32, 256,  8, 1, 1,  8, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
             ]  # fmt: skip
         return extra
 

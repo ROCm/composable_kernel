@@ -1784,57 +1784,13 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
         if(do_validation != 0)
         {
+            const char* force_kernel_env =
 #if CK_TILE_FMHA_FWD_SPLITKV_API
-            if(use_splitkv_all)
-            {
-                std::cout << "[run_all_kernels] per-kernel verification is currently supported "
-                             "for fwd kernels only (not splitkv path); running heuristic "
-                             "verification pass instead (-run_all_kernels=0, -v="
-                          << do_validation << ")"
-                          << std::endl;
-
-                return fmha_fwd_run<DataTypeConfig>(mode,
-                                                    batch,
-                                                    nhead,
-                                                    nhead_k,
-                                                    seqlen_qs,
-                                                    seqlen_ks,
-                                                    hdim_q,
-                                                    hdim_v,
-                                                    seqlen_knew,
-                                                    seqlen_qpads,
-                                                    seqlen_kpads,
-                                                    q_eff_lens_per_batch,
-                                                    kv_eff_lens_per_batch,
-                                                    rotary_dim,
-                                                    i_perm,
-                                                    o_perm,
-                                                    scale_s,
-                                                    logits_soft_cap,
-                                                    is_v_rowmajor,
-                                                    lse,
-                                                    page_block_size,
-                                                    use_cache_batch_idx,
-                                                    bias_str,
-                                                    p_drop,
-                                                    drop_seed,
-                                                    drop_offset,
-                                                    drop_prefs,
-                                                    mask_str,
-                                                    qscale_str,
-                                                    is_rotary_interleaved,
-                                                    num_splits,
-                                                    init_method,
-                                                    seed,
-                                                    do_validation,
-                                                    init_sink_value,
-                                                    stream_config,
-                                                    false,
-                                                    json);
-            }
+                use_splitkv_all ? "CK_TILE_FMHA_FWD_SPLITKV_FORCE_KERNEL"
+                                : "CK_TILE_FMHA_FWD_FORCE_KERNEL";
+#else
+                "CK_TILE_FMHA_FWD_FORCE_KERNEL";
 #endif
-
-            constexpr const char* force_kernel_env = "CK_TILE_FMHA_FWD_FORCE_KERNEL";
 
             ck_tile::stream_config verify_sc{stream_config.stream_id_,
                                              false,
