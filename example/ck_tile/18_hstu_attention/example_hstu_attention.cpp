@@ -103,6 +103,7 @@ auto create_args(int argc, char* argv[])
         .insert("max_seqlen", "0", "max uih_seqlen, can be ignored, or else must be equal/bigger than the maximum of all uih seqlens")
         .insert("max_seqlen_kv", "0", "max uih_seqlen_kv, can be ignored, or else must be equal/bigger than the maximum of all uih seqlens")
         .insert("g_max_seqlens", "0", "max uih_seqlen of groups, can be ignored, or else each must be equal/bigger than maximum of all uih seqlens in its group")
+        .insert("g_max_seqlens_kv", "0", "max uih_seqlen of groups, can be ignored, or else each must be equal/bigger than maximum of all uih seqlens in its group")
         .insert("targets", "", "sequence length at the end of query/key token sequence that should be excluded from attention") 
         .insert("max_target", "0", "max target, can be ignored, or else must be equal/bigger than the maximum of all targets")
         .insert("softmax", "0", "use softmax or not")
@@ -478,7 +479,7 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
         params.num_batch          = num_batch;
         params.seq_q_offsets_ptr  = seq_offsets_q_dev.GetDeviceBuffer();
         params.seq_kv_offsets_ptr = seq_offsets_kv_dev.GetDeviceBuffer();
-        params.max_seqlen         = max(max_seqlen_q, max_seqlen_kv);
+        params.max_seqlen_q       = max_seqlen_q;
         params.q_ptr              = q_dev.GetDeviceBuffer();
         params.k_ptr              = k_dev.GetDeviceBuffer();
         params.v_ptr              = v_dev.GetDeviceBuffer();
@@ -697,10 +698,11 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
     else
         is_cross_attention = true;
 
-    str_of_integers                              = arg_parser.get_str("g_max_seqlens");
-    std::vector<int> group_input_max_uih_seqlens = get_integers_from_string(str_of_integers);
+    str_of_integers                                = arg_parser.get_str("g_max_seqlens");
+    std::vector<int> group_input_max_uih_seqlens_q = get_integers_from_string(str_of_integers);
 
-    HSTU_CHECK(!group_input_max_uih_seqlens.empty(), "group window sizes shoud be defined!");
+    str_of_integers                                 = arg_parser.get_str("g_max_seqlens_kv");
+    std::vector<int> group_input_max_uih_seqlens_kv = get_integers_from_string(str_of_integers);
 
     str_of_integers                           = arg_parser.get_str("g_context_lens");
     std::vector<int> group_contextual_seqlens = get_integers_from_string(str_of_integers);
@@ -721,10 +723,8 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
     std::vector<float> group_attn_scales = get_floats_from_string(str_of_floats);
     HSTU_CHECK(!group_attn_scales.empty(), "group attn_scales shoud be defined!");
 
-    // supplement seq_lengths_q using the last input value if user-provided lengths not enough
+    // supplement seq_lengths using the last input value if user-provided lengths not enough
     supplement_array_by_last_element(seq_lengths_q, num_batch);
-
-    // supplement seq_lengths_kv using the last input value if user-provided lengths not enough
     supplement_array_by_last_element(seq_lengths_kv, num_batch);
 
     if(!num_targets.empty())
@@ -735,7 +735,8 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
 
     // supplement group_input_max_uih_seqlens using the last input value if user-provided lengths
     // not enough
-    supplement_array_by_last_element(group_input_max_uih_seqlens, num_group);
+    supplement_array_by_last_element(group_input_max_uih_seqlens_q, num_group);
+    supplement_array_by_last_element(group_input_max_uih_seqlens_kv, num_group);
 
     // supplement group_contextual_seqlens using the last input value if user-provided lengths not
     // enough
@@ -751,45 +752,64 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
     // supplement group_attn_scales using the last input value if user-provided values not enough
     supplement_array_by_last_element(group_attn_scales, num_group);
 
-    int phy_seqlen_q   = 0;
-    int phy_seqlen_kv  = 0;
-    int max_max_seqlen = 0;
+    int phy_seqlen_q      = 0;
+    int phy_seqlen_kv     = 0;
+    int max_max_seqlen_q  = 0;
+    int max_max_seqlen_kv = 0;
 
-    std::vector<int> group_max_uih_seqlens;
+    std::vector<int> group_max_uih_seqlens_q;
+    std::vector<int> group_max_uih_seqlens_kv;
 
-    group_max_uih_seqlens.resize(num_group);
+    group_max_uih_seqlens_q.resize(num_group);
+    group_max_uih_seqlens_kv.resize(num_group);
 
     for(int i_grp = 0; i_grp < num_group; i_grp++)
     {
-        group_max_uih_seqlens[i_grp] = 0;
+        group_max_uih_seqlens_q[i_grp]  = 0;
+        group_max_uih_seqlens_kv[i_grp] = 0;
 
         for(int i_batch = 0; i_batch < num_batch_per_group; i_batch++)
         {
             auto i_global_batch = i_grp * num_batch_per_group + i_batch;
 
-            group_max_uih_seqlens[i_grp] =
-                max(group_max_uih_seqlens[i_grp], seq_lengths_q[i_global_batch]);
+            group_max_uih_seqlens_q[i_grp] =
+                max(group_max_uih_seqlens_q[i_grp], seq_lengths_q[i_global_batch]);
+            group_max_uih_seqlens_kv[i_grp] =
+                max(group_max_uih_seqlens_kv[i_grp], seq_lengths_kv[i_global_batch]);
         };
 
-        HSTU_CHECK(group_input_max_uih_seqlens[i_grp] <= 0 ||
-                       group_input_max_uih_seqlens[i_grp] >= group_max_uih_seqlens[i_grp],
+        HSTU_CHECK(group_input_max_uih_seqlens_q[i_grp] <= 0 ||
+                       group_input_max_uih_seqlens_q[i_grp] >= group_max_uih_seqlens_q[i_grp],
                    "the user input of each group max_uih_seqlen can either be ignored or be bigger "
                    "than all uih_seqlens[] of the group");
 
-        group_max_uih_seqlens[i_grp] = group_input_max_uih_seqlens[i_grp] > 0
-                                           ? group_input_max_uih_seqlens[i_grp]
-                                           : group_max_uih_seqlens[i_grp];
+        HSTU_CHECK(group_input_max_uih_seqlens_kv[i_grp] <= 0 ||
+                       group_input_max_uih_seqlens_kv[i_grp] >= group_max_uih_seqlens_kv[i_grp],
+                   "the user input of each group max_uih_seqlen can either be ignored or be bigger "
+                   "than all uih_seqlens[] of the group");
+
+        group_max_uih_seqlens_q[i_grp]  = group_input_max_uih_seqlens_q[i_grp] > 0
+                                              ? group_input_max_uih_seqlens_q[i_grp]
+                                              : group_max_uih_seqlens_q[i_grp];
+        group_max_uih_seqlens_kv[i_grp] = group_input_max_uih_seqlens_kv[i_grp] > 0
+                                              ? group_input_max_uih_seqlens_kv[i_grp]
+                                              : group_max_uih_seqlens_kv[i_grp];
     };
 
-    std::vector<int> group_max_seqlens;
+    std::vector<int> group_max_seqlens_q;
+    std::vector<int> group_max_seqlens_kv;
 
-    group_max_seqlens.resize(num_group);
+    group_max_seqlens_q.resize(num_group);
+    group_max_seqlens_kv.resize(num_group);
 
     for(int i_grp = 0; i_grp < num_group; i_grp++)
     {
-        group_max_seqlens[i_grp] =
-            group_max_uih_seqlens[i_grp] + group_contextual_seqlens[i_grp] + num_targets[i_grp];
-        max_max_seqlen = max(max_max_seqlen, group_max_seqlens[i_grp]);
+        group_max_seqlens_q[i_grp] =
+            group_max_uih_seqlens_q[i_grp] + group_contextual_seqlens[i_grp] + num_targets[i_grp];
+        max_max_seqlen_q = max(max_max_seqlen_q, group_max_seqlens_q[i_grp]);
+        group_max_seqlens_kv[i_grp] =
+            group_max_uih_seqlens_kv[i_grp] + group_contextual_seqlens[i_grp] + num_targets[i_grp];
+        max_max_seqlen_kv = max(max_max_seqlen_kv, group_max_seqlens_kv[i_grp]);
     };
 
     std::vector<int> seq_offsets_q;
@@ -859,10 +879,12 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
     ck_tile::HostTensor<InOutDataType> o_host_ref(
         std::array<ck_tile::index_t, 4>{batches_for_alloc, phy_seqlen_q, num_head, hdim_v});
 
-    ck_tile::HostTensor<int8_t> mask_host(
-        save_mask
-            ? std::array<ck_tile::index_t, 4>{num_batch, num_head, max_max_seqlen, max_max_seqlen}
-            : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
+    ck_tile::HostTensor<int8_t> mask_host(save_mask
+                                              ? std::array<ck_tile::index_t, 4>{num_batch,
+                                                                                num_head,
+                                                                                max_max_seqlen_q,
+                                                                                max_max_seqlen_q}
+                                              : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
 
     if(!initialize_qkv)
     {
@@ -904,14 +926,14 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
     if(!num_targets.empty())
         num_targets_dev.ToDevice(num_targets.data());
 
-    ck_tile::DeviceMem group_max_seqlens_dev(group_max_seqlens.size() * sizeof(int));
+    ck_tile::DeviceMem group_max_seqlens_q_dev(group_max_seqlens_q.size() * sizeof(int));
     ck_tile::DeviceMem group_contextual_seqlens_dev(group_contextual_seqlens.size() * sizeof(int));
     ck_tile::DeviceMem group_window_sizes_dev(group_window_sizes.size() * sizeof(int));
     ck_tile::DeviceMem group_min_full_attn_seqlens_dev(group_min_full_attn_seqlens.size() *
                                                        sizeof(int));
     ck_tile::DeviceMem group_attn_scales_dev(group_attn_scales.size() * sizeof(float));
 
-    group_max_seqlens_dev.ToDevice(group_max_seqlens.data());
+    group_max_seqlens_q_dev.ToDevice(group_max_seqlens_q.data());
     group_contextual_seqlens_dev.ToDevice(group_contextual_seqlens.data());
     group_window_sizes_dev.ToDevice(group_window_sizes.data());
     group_min_full_attn_seqlens_dev.ToDevice(group_min_full_attn_seqlens.data());
@@ -921,38 +943,38 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
 
     float scale_s = (alpha != 0.f) ? alpha : 1.0f / std::sqrt(hdim_qk);
 
-    params.is_cross_attention   = is_cross_attention;
-    params.num_batch            = num_batch;
-    params.num_group            = num_group;
-    params.seq_q_offsets_ptr    = seq_offsets_q_dev.GetDeviceBuffer();
-    params.seq_kv_offsets_ptr   = seq_offsets_kv_dev.GetDeviceBuffer();
-    params.max_seqlen           = max_max_seqlen;
-    params.q_ptr                = q_dev.GetDeviceBuffer();
-    params.k_ptr                = k_dev.GetDeviceBuffer();
-    params.v_ptr                = v_dev.GetDeviceBuffer();
-    params.bias_ptr             = nullptr; // bias is not supported at present
-    params.o_ptr                = o_dev.GetDeviceBuffer();
-    params.hdim_qk              = hdim_qk;
-    params.hdim_v               = hdim_v;
-    params.num_head             = num_head;
-    params.scale_s              = scale_s;
-    params.seq_stride_q         = q_host.get_strides()[1];
-    params.seq_stride_k         = k_host.get_strides()[1];
-    params.seq_stride_v         = v_host.get_strides()[1];
-    params.seq_stride_bias      = 0;
-    params.seq_stride_o         = o_host_ref.get_strides()[1];
-    params.nhead_stride_q       = q_host.get_strides()[2];
-    params.nhead_stride_k       = k_host.get_strides()[2];
-    params.nhead_stride_v       = v_host.get_strides()[2];
-    params.nhead_stride_bias    = 0;
-    params.nhead_stride_o       = o_host_ref.get_strides()[2];
-    params.num_targets_ptr      = num_targets.empty() ? nullptr : num_targets_dev.GetDeviceBuffer();
-    params.use_softmax          = use_softmax;
-    params.use_causal           = use_causal;
-    params.p_drop               = 0.0f; // dropout is not supported at present
-    params.philox_seed          = 0UL;
-    params.philox_offset        = 0UL;
-    params.group_max_seqlen_ptr = group_max_seqlens_dev.GetDeviceBuffer();
+    params.is_cross_attention = is_cross_attention;
+    params.num_batch          = num_batch;
+    params.num_group          = num_group;
+    params.seq_q_offsets_ptr  = seq_offsets_q_dev.GetDeviceBuffer();
+    params.seq_kv_offsets_ptr = seq_offsets_kv_dev.GetDeviceBuffer();
+    params.max_seqlen_q       = max_max_seqlen_q;
+    params.q_ptr              = q_dev.GetDeviceBuffer();
+    params.k_ptr              = k_dev.GetDeviceBuffer();
+    params.v_ptr              = v_dev.GetDeviceBuffer();
+    params.bias_ptr           = nullptr; // bias is not supported at present
+    params.o_ptr              = o_dev.GetDeviceBuffer();
+    params.hdim_qk            = hdim_qk;
+    params.hdim_v             = hdim_v;
+    params.num_head           = num_head;
+    params.scale_s            = scale_s;
+    params.seq_stride_q       = q_host.get_strides()[1];
+    params.seq_stride_k       = k_host.get_strides()[1];
+    params.seq_stride_v       = v_host.get_strides()[1];
+    params.seq_stride_bias    = 0;
+    params.seq_stride_o       = o_host_ref.get_strides()[1];
+    params.nhead_stride_q     = q_host.get_strides()[2];
+    params.nhead_stride_k     = k_host.get_strides()[2];
+    params.nhead_stride_v     = v_host.get_strides()[2];
+    params.nhead_stride_bias  = 0;
+    params.nhead_stride_o     = o_host_ref.get_strides()[2];
+    params.num_targets_ptr    = num_targets.empty() ? nullptr : num_targets_dev.GetDeviceBuffer();
+    params.use_softmax        = use_softmax;
+    params.use_causal         = use_causal;
+    params.p_drop             = 0.0f; // dropout is not supported at present
+    params.philox_seed        = 0UL;
+    params.philox_offset      = 0UL;
+    params.group_max_seqlen_q_ptr         = group_max_seqlens_q_dev.GetDeviceBuffer();
     params.group_contextual_seqlen_ptr    = group_contextual_seqlens_dev.GetDeviceBuffer();
     params.group_window_size_ptr          = group_window_sizes_dev.GetDeviceBuffer();
     params.group_min_full_attn_seqlen_ptr = group_min_full_attn_seqlens_dev.GetDeviceBuffer();
@@ -994,11 +1016,12 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
                                                                      num_batch,
                                                                      num_batch / num_group,
                                                                      scale_s,
-                                                                     max_max_seqlen,
+                                                                     max_max_seqlen_q,
+                                                                     max_max_seqlen_kv,
                                                                      seq_offsets_q,
                                                                      seq_offsets_kv,
                                                                      num_targets,
-                                                                     group_max_seqlens,
+                                                                     group_max_seqlens_q,
                                                                      group_contextual_seqlens,
                                                                      group_window_sizes,
                                                                      group_min_full_attn_seqlens,

@@ -19,7 +19,7 @@ struct HstuAttentionNoGroupFwdParams
     ck_tile::index_t seqlen_kv;     // batched mode only
     const void* seq_q_offsets_ptr;  // jagged mode only
     const void* seq_kv_offsets_ptr; // jagged mode only
-    ck_tile::index_t max_seqlen;    // jagged mode only
+    ck_tile::index_t max_seqlen_q;  // jagged mode only
 
     const void* q_ptr;
     const void* k_ptr;
@@ -84,7 +84,7 @@ struct HstuAttentionGroupFwdParams
     ck_tile::index_t num_batch;
     const void* seq_q_offsets_ptr;
     const void* seq_kv_offsets_ptr;
-    ck_tile::index_t max_seqlen; // the maximum of all the groups' max_seqlen
+    ck_tile::index_t max_seqlen_q; // the maximum of all the groups' max_seqlen_q
 
     const void* q_ptr;
     const void* k_ptr;
@@ -122,7 +122,7 @@ struct HstuAttentionGroupFwdParams
 
     // parameters used by Group HSTU
     const void* group_attn_scale_ptr;
-    const void* group_max_seqlen_ptr;
+    const void* group_max_seqlen_q_ptr; // use for setting attn_scales
     const void* group_window_size_ptr;
     const void* group_contextual_seqlen_ptr;
     const void* group_min_full_attn_seqlen_ptr;

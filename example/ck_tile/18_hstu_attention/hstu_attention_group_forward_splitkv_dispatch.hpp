@@ -176,11 +176,11 @@ struct group_forward_splitkv_causal_softmax_bias_dropout_dispatch
     static void RunWithFwdSplitKVKernel(HstuAttentionGroupFwdParams& param, hipStream_t stream)
     {
         param.num_splits =
-            get_suggested_num_splits(param.num_batch, param.num_head, param.max_seqlen);
+            get_suggested_num_splits(param.num_batch, param.num_head, param.max_seqlen_q);
 
         // assume the workspace for o_acc is in compact shape of [num_batch, max_seqlen, num_head,
         // num_splits, hdim]
-        size_t workspace_bytes = static_cast<size_t>(param.num_batch) * param.max_seqlen *
+        size_t workspace_bytes = static_cast<size_t>(param.num_batch) * param.max_seqlen_q *
                                  param.num_head * param.num_splits * param.hdim_v *
                                  sizeof(OaccDataType);
 
@@ -197,7 +197,7 @@ struct group_forward_splitkv_causal_softmax_bias_dropout_dispatch
                                          param.seq_q_offsets_ptr,
                                          param.is_cross_attention ? param.seq_kv_offsets_ptr
                                                                   : param.seq_q_offsets_ptr,
-                                         param.group_max_seqlen_ptr,
+                                         param.group_max_seqlen_q_ptr,
                                          param.group_contextual_seqlen_ptr,
                                          param.group_window_size_ptr,
                                          param.group_min_full_attn_seqlen_ptr,
@@ -221,7 +221,7 @@ struct group_forward_splitkv_causal_softmax_bias_dropout_dispatch
         }();
 
         dim3 kGridSize = HstuKernel::GridSize(
-            param.num_batch, param.num_head, param.max_seqlen, param.hdim_v, param.num_splits);
+            param.num_batch, param.num_head, param.max_seqlen_q, param.hdim_v, param.num_splits);
         constexpr dim3 kBlockSize              = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;
 
@@ -245,7 +245,7 @@ struct group_forward_splitkv_causal_softmax_bias_dropout_dispatch
                                          param.hdim_v);
         }();
 
-        dim3 kGridSize = HstuKernel::GridSize(param.num_batch, param.num_head, param.max_seqlen);
+        dim3 kGridSize = HstuKernel::GridSize(param.num_batch, param.num_head, param.max_seqlen_q);
         constexpr dim3 kBlockSize              = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;
 
