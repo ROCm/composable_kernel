@@ -10,14 +10,17 @@
 #include "utils.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <cmath>
+#include <iomanip>
 #include <numeric>
 #include <optional>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -249,6 +252,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         int do_validation,
                         int init_sink_value,
                         const ck_tile::stream_config& stream_config,
+                        bool run_all_kernels = false,
                         std::optional<std::string> json = std::nullopt)
 {
     using TypeConfig = FmhaFwdTypeConfig<DataTypeConfig>;
@@ -1563,6 +1567,355 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
         return fmha_fwd(fmha_traits, fmha_args, sc);
     };
+
+    // RAII guard for std::cout.rdbuf() redirect — restores original buffer
+    // even if the called function throws.
+    struct rdbuf_guard
+    {
+        std::ostream& os;
+        std::streambuf* orig;
+        rdbuf_guard(std::ostream& s, std::streambuf* buf) : os(s), orig(s.rdbuf(buf)) {}
+        ~rdbuf_guard() { os.rdbuf(orig); }
+    };
+
+    // --- run_all_kernels path: benchmark every matching instance ---
+    if(run_all_kernels)
+    {
+        std::vector<std::pair<std::string, float>> all_results;
+        std::string heuristic_full_kname;
+        std::string captured_kernel_log; // full kernel names from log_level=1
+
+        // Use the user's log_level but capture stdout so we can reformat it.
+        // This way log_level=1 (kname=1) produces full kernel names we can
+        // print one-per-line instead of comma-separated on one line.
+        ck_tile::stream_config all_sc{stream_config.stream_id_,
+                                      stream_config.time_kernel_,
+                                      stream_config.log_level_,
+                                      stream_config.cold_niters_,
+                                      stream_config.nrepeat_};
+
+#if CK_TILE_FMHA_FWD_SPLITKV_API
+        const bool use_splitkv_all = (1 < num_splits || use_kvcache);
+        if(use_splitkv_all)
+        {
+            fmha_fwd_splitkv_traits fmha_splitkv_traits;
+            init_traits(fmha_splitkv_traits);
+
+            fmha_fwd_splitkv_args fmha_splitkv_args;
+            init_args(fmha_splitkv_args);
+
+            {
+                std::ostringstream log_oss;
+                rdbuf_guard guard(std::cout, log_oss.rdbuf());
+                all_results =
+                    fmha_fwd_splitkv_all(fmha_splitkv_traits, fmha_splitkv_args, all_sc);
+                captured_kernel_log = log_oss.str();
+            }
+
+            // Identify which kernel the heuristic would select
+            {
+                std::ostringstream oss;
+                rdbuf_guard guard(std::cout, oss.rdbuf());
+                ck_tile::stream_config hsc{nullptr,
+                                           false,
+                                           /*log_level=*/1,
+                                           /*warmup=*/0,
+                                           /*repeat=*/1,
+                                           false};
+                fmha_fwd_splitkv(fmha_splitkv_traits, fmha_splitkv_args, hsc);
+                std::string captured = oss.str();
+                auto pos             = captured.find("fmha_fwd_splitkv_");
+                if(pos != std::string::npos)
+                {
+                    // extract just the main kernel name (before the combine kernel name)
+                    heuristic_full_kname = captured.substr(pos);
+                    // the output has ", <combine_name>" after the main name
+                    auto comma_pos = heuristic_full_kname.find(", ");
+                    if(comma_pos != std::string::npos)
+                        heuristic_full_kname.resize(comma_pos);
+                    auto end = heuristic_full_kname.find_last_not_of(" \n\r\t");
+                    if(end != std::string::npos)
+                        heuristic_full_kname.resize(end + 1);
+                }
+            }
+        }
+        else
+#endif // CK_TILE_FMHA_FWD_SPLITKV_API
+        {
+            fmha_fwd_traits fmha_traits;
+            init_traits(fmha_traits);
+
+            fmha_fwd_args fmha_args;
+            init_args(fmha_args);
+
+            {
+                std::ostringstream log_oss;
+                rdbuf_guard guard(std::cout, log_oss.rdbuf());
+                all_results = fmha_fwd_all(fmha_traits, fmha_args, all_sc);
+                captured_kernel_log = log_oss.str();
+            }
+
+            // Identify which kernel the heuristic would select
+            {
+                std::ostringstream oss;
+                rdbuf_guard guard(std::cout, oss.rdbuf());
+                ck_tile::stream_config hsc{nullptr,
+                                           false,
+                                           /*log_level=*/1,
+                                           /*warmup=*/0,
+                                           /*repeat=*/1,
+                                           false};
+                fmha_fwd(fmha_traits, fmha_args, hsc);
+                std::string captured = oss.str();
+                auto pos             = captured.find("fmha_fwd_");
+                if(pos != std::string::npos)
+                {
+                    heuristic_full_kname = captured.substr(pos);
+                    auto end             = heuristic_full_kname.find_last_not_of(" \n\r\t");
+                    if(end != std::string::npos)
+                        heuristic_full_kname.resize(end + 1);
+                }
+            }
+        }
+
+        if(all_results.empty())
+        {
+            std::cout << " no matching instances" << std::flush << std::endl;
+            return fwd_result::no_instance;
+        }
+
+        // Match short kname against the heuristic's full kname
+        // Short: "fmha_fwd_d128_bf16_batch_b32x32x128x128x32x128_npad"
+        //   or:  "fmha_fwd_d128_bf16_batch_b32x32x128x128x32x128_npad [ext]"
+        // Full:  "fmha_fwd_d128_bf16_batch_b32x32x128x128x32x128_r1x1x1_..._vr_npad_nlogits_..."
+        auto is_heuristic = [&](const std::string& raw_name) -> bool {
+            if(heuristic_full_kname.empty())
+                return false;
+            // Strip [ext] tag if present
+            std::string short_name = raw_name;
+            auto bracket = short_name.find(" [");
+            if(bracket != std::string::npos)
+                short_name.resize(bracket);
+            auto last_sep = short_name.rfind('_');
+            if(last_sep == std::string::npos)
+                return false;
+            std::string tile_prefix = short_name.substr(0, last_sep);
+            std::string pad_suffix  = short_name.substr(last_sep); // e.g. "_npad" or "_ps"
+            // Check tile prefix matches
+            if(heuristic_full_kname.find(tile_prefix) == std::string::npos)
+                return false;
+            // Match pad suffix as a delimited token: suffix must be followed by '_' or
+            // end-of-string to avoid "_ps" matching "_psk" or "_psskddv"
+            auto pos = heuristic_full_kname.find(pad_suffix);
+            while(pos != std::string::npos)
+            {
+                auto end_pos = pos + pad_suffix.size();
+                if(end_pos == heuristic_full_kname.size() || heuristic_full_kname[end_pos] == '_')
+                    return true;
+                pos = heuristic_full_kname.find(pad_suffix, pos + 1);
+            }
+            return false;
+        };
+
+        std::cout << std::endl;
+        // sort by time (fastest first)
+        std::sort(all_results.begin(), all_results.end(), [](const auto& a, const auto& b) {
+            return a.second < b.second;
+        });
+        std::cout << "[run_all_kernels] " << all_results.size() << " instance(s) benchmarked:"
+#if CK_TILE_FMHA_FWD_SPLITKV_API
+                  << (use_splitkv_all ? " (num_splits=" + std::to_string(num_splits) + ")" : "")
+#endif
+                  << std::endl;
+        // find max kernel name length for alignment
+        size_t max_kname_len = 0;
+        for(const auto& [kname, t] : all_results)
+            max_kname_len = std::max(max_kname_len, kname.size());
+
+        // compute index width for alignment
+        int idx_width = 1;
+        {
+            size_t n = all_results.size();
+            while(n >= 10)
+            {
+                ++idx_width;
+                n /= 10;
+            }
+        }
+
+        for(size_t i = 0; i < all_results.size(); i++)
+        {
+            const auto& [kname, t] = all_results[i];
+            const float total_t    = appendkv_ave_time + t;
+            const float tf         = static_cast<float>(flop) / 1.E9 / total_t;
+            const float bw         = num_byte / 1.E6 / total_t;
+            std::cout << std::fixed << "  [" << std::setw(idx_width) << (i + 1) << "] " << std::left
+                      << std::setw(max_kname_len) << kname << std::right << ", " << std::setw(7)
+                      << std::setprecision(3) << total_t << " ms" << ", " << std::setw(8)
+                      << std::setprecision(2) << tf << " TFlops" << ", " << std::setw(8)
+                      << std::setprecision(2) << bw << " GB/s"
+                      << (is_heuristic(kname) ? "  <-- heuristic" : "")
+                      << std::endl;
+        }
+
+        // When kname=1 (log_level >= 1), print full kernel names one per line
+        if(stream_config.log_level_ >= 1 && !captured_kernel_log.empty())
+        {
+            std::cout << std::endl << "[run_all_kernels] full kernel names:" << std::endl;
+            // The captured log is comma-separated kernel names on one line.
+            // For splitkv, it alternates: main_kernel, combine_kernel, main_kernel, ...
+            // We skip combine kernels (contain "_combine_").
+            std::string token;
+            std::istringstream iss(captured_kernel_log);
+            while(std::getline(iss, token, ','))
+            {
+                auto start = token.find_first_not_of(" \n\r\t");
+                if(start == std::string::npos)
+                    continue;
+                auto end     = token.find_last_not_of(" \n\r\t");
+                auto display = token.substr(start, end - start + 1);
+                // Skip combine kernel names
+                if(display.find("_combine_") != std::string::npos)
+                    continue;
+                if(!display.empty())
+                    std::cout << "  " << display << std::endl;
+            }
+        }
+
+        if(do_validation != 0)
+        {
+#if CK_TILE_FMHA_FWD_SPLITKV_API
+            if(use_splitkv_all)
+            {
+                std::cout << "[run_all_kernels] per-kernel verification is currently supported "
+                             "for fwd kernels only (not splitkv path); running heuristic "
+                             "verification pass instead (-run_all_kernels=0, -v="
+                          << do_validation << ")"
+                          << std::endl;
+
+                return fmha_fwd_run<DataTypeConfig>(mode,
+                                                    batch,
+                                                    nhead,
+                                                    nhead_k,
+                                                    seqlen_qs,
+                                                    seqlen_ks,
+                                                    hdim_q,
+                                                    hdim_v,
+                                                    seqlen_knew,
+                                                    seqlen_qpads,
+                                                    seqlen_kpads,
+                                                    q_eff_lens_per_batch,
+                                                    kv_eff_lens_per_batch,
+                                                    rotary_dim,
+                                                    i_perm,
+                                                    o_perm,
+                                                    scale_s,
+                                                    logits_soft_cap,
+                                                    is_v_rowmajor,
+                                                    lse,
+                                                    page_block_size,
+                                                    use_cache_batch_idx,
+                                                    bias_str,
+                                                    p_drop,
+                                                    drop_seed,
+                                                    drop_offset,
+                                                    drop_prefs,
+                                                    mask_str,
+                                                    qscale_str,
+                                                    is_rotary_interleaved,
+                                                    num_splits,
+                                                    init_method,
+                                                    seed,
+                                                    do_validation,
+                                                    init_sink_value,
+                                                    stream_config,
+                                                    false,
+                                                    json);
+            }
+#endif
+
+            constexpr const char* force_kernel_env = "CK_TILE_FMHA_FWD_FORCE_KERNEL";
+
+            ck_tile::stream_config verify_sc{stream_config.stream_id_,
+                                             false,
+                                             0,
+                                             0,
+                                             1,
+                                             false};
+
+            bool all_pass = true;
+            for(size_t i = 0; i < all_results.size(); i++)
+            {
+                const auto& [kname, _] = all_results[i];
+
+                if(setenv(force_kernel_env, kname.c_str(), 1) != 0)
+                {
+                    std::cout << "[run_all_kernels] failed to set " << force_kernel_env
+                              << " for kernel: " << kname << std::endl;
+                    all_pass = false;
+                    break;
+                }
+
+                std::cout << "[run_all_kernels] verifying [" << (i + 1) << "/" << all_results.size()
+                          << "] " << kname << std::endl;
+
+                const auto verify_result = fmha_fwd_run<DataTypeConfig>(mode,
+                                                                         batch,
+                                                                         nhead,
+                                                                         nhead_k,
+                                                                         seqlen_qs,
+                                                                         seqlen_ks,
+                                                                         hdim_q,
+                                                                         hdim_v,
+                                                                         seqlen_knew,
+                                                                         seqlen_qpads,
+                                                                         seqlen_kpads,
+                                                                         q_eff_lens_per_batch,
+                                                                         kv_eff_lens_per_batch,
+                                                                         rotary_dim,
+                                                                         i_perm,
+                                                                         o_perm,
+                                                                         scale_s,
+                                                                         logits_soft_cap,
+                                                                         is_v_rowmajor,
+                                                                         lse,
+                                                                         page_block_size,
+                                                                         use_cache_batch_idx,
+                                                                         bias_str,
+                                                                         p_drop,
+                                                                         drop_seed,
+                                                                         drop_offset,
+                                                                         drop_prefs,
+                                                                         mask_str,
+                                                                         qscale_str,
+                                                                         is_rotary_interleaved,
+                                                                         num_splits,
+                                                                         init_method,
+                                                                         seed,
+                                                                         do_validation,
+                                                                         init_sink_value,
+                                                                         verify_sc,
+                                                                         false,
+                                                                         std::nullopt);
+
+                if(verify_result != fwd_result::success)
+                    all_pass = false;
+            }
+
+            unsetenv(force_kernel_env);
+
+            if(!all_pass)
+                return fwd_result::failure;
+
+            std::cout << "[run_all_kernels] per-kernel verification passed for "
+                      << all_results.size() << " kernel(s)" << std::endl;
+
+            return fwd_result::success;
+        }
+
+        return fwd_result::success;
+    }
+    // --- normal (heuristic) path ---
 
     float fwd_ave_time = -1.0f;
 #if CK_TILE_FMHA_ENABLE_HEAD_GROUPING

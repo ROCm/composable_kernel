@@ -7,7 +7,7 @@ import itertools
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 from codegen.arch import ArchTrait, get_factories_for_targets
 from codegen.cmake_config import GEN_DIR
@@ -308,6 +308,45 @@ FMHA_FWD_SPLITKV_API_INNER_DISPATCH = """{F_if}((t.is_group_mode == {F_mode}) &&
 """
 
 
+# --- Templates for fmha_fwd_splitkv_all() "run all kernels" benchmarking mode ---
+FMHA_FWD_SPLITKV_ALL_API_FUNC_TEMPLATE = """
+std::vector<std::pair<std::string, float>> {F_func_name}([[maybe_unused]] fmha_fwd_splitkv_traits t, [[maybe_unused]] fmha_fwd_splitkv_args a, [[maybe_unused]] const ck_tile::stream_config& s) {{
+    std::vector<std::pair<std::string, float>> results;
+
+    [[maybe_unused]] const std::string device_name = ck_tile::get_device_name();
+
+{F_dispatch}
+    return results;
+}}
+"""
+
+# Key differences from FMHA_FWD_SPLITKV_API_INNER_DISPATCH:
+# 1. Always uses "if" (not "else if") — doesn't skip after first match
+# 2. Pushes result into vector instead of returning
+FMHA_FWD_SPLITKV_ALL_API_INNER_DISPATCH = """if((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.do_fp8_static_quant == {F_squant}) &&
+        ((a.block_table_ptr != nullptr) == {F_pagedkv}) && (t.has_sink == {F_sink}) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
+    using traits_ = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, true, {F_squant}, {F_pagedkv},{F_sink}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+
+    using OaccDataType = typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType;
+    constexpr ck_tile::index_t kM0 = ck_tile::BlockFmhaSplitKVCombinePipelineTileSizes<OaccDataType, {F_bn1comb}>::kM0;
+    static_assert({F_bm0} % kM0 == 0);
+    static_assert({F_bn1} % {F_bn1comb} == 0);
+
+    if (t.has_lse) {{
+        if constexpr (!std::is_same_v<{F_dtype}, FmhaFwdFp8>) {{
+            using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bn1comb}, true, {F_squant}, {F_spad}, {F_dvpad}>;
+            float t_ = fmha_fwd_splitkv_<traits_, traits2_, {F_arch.tag}>(s, a);
+            if(t_ >= 0) results.push_back({{ \"{F_kname}\", t_ }});
+        }}
+    }} else {{
+        using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bn1comb}, false, {F_squant}, {F_spad}, {F_dvpad}>;
+        float t_ = fmha_fwd_splitkv_<traits_, traits2_, {F_arch.tag}>(s, a);
+        if(t_ >= 0) results.push_back({{ \"{F_kname}\", t_ }});
+    }}
+}}
+"""
+
+
 @dataclass
 class FmhaFwdSplitKVApiTrait:
     arch: ArchTrait
@@ -335,6 +374,7 @@ class FmhaFwdSplitKVApiTrait:
     pagedkv: str
     sink: str  # sink or not
     bn1comb: int  # tile size along v head_dim of combine kernel
+    is_tuning_extra: bool = False  # True for extended tiles from get_tuning_extra_tiles()
 
     @property
     def name(self) -> str:
@@ -558,8 +598,10 @@ class FmhaFwdSplitKVApiPool:
             for i_dtype, (dtype, pool_by_dtype) in enumerate(pool_by_arch.items()):
                 per_hdim_case = str()
                 for i_hdim, (hdim, pool_by_hdim) in enumerate(pool_by_dtype.items()):
+                    # Exclude tuning-extra tiles from the heuristic dispatch
+                    heuristic_traits = [t for t in pool_by_hdim if not t.is_tuning_extra]
                     inners = str()
-                    for i_trait, trait in enumerate(pool_by_hdim):
+                    for i_trait, trait in enumerate(heuristic_traits):
                         inners += FMHA_FWD_SPLITKV_API_INNER_DISPATCH.format(
                             F_if=if_(i_trait),
                             F_arch=arch,
@@ -612,6 +654,110 @@ class FmhaFwdSplitKVApiPool:
             per_arch = "(void)t; (void)s; (void)a;"
         return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_SPLITKV_API.format(
             F_dispatch=indent(per_arch)
+        )
+
+    def render_all(
+        self,
+        func_name,
+        filter_fn: Optional[Callable[[FmhaFwdSplitKVApiTrait], bool]] = None,
+    ) -> str:
+        """Render a function that runs ALL matching splitkv kernel instances (no heuristic)."""
+        if filter_fn is None:
+
+            def accept_all(trait: FmhaFwdSplitKVApiTrait) -> bool:
+                return True
+
+            filter_fn = accept_all
+
+        def has_traits(node) -> bool:
+            if isinstance(node, list):
+                return any(filter_fn(elem) for elem in node)
+            elif isinstance(node, OrderedDict):
+                return any(has_traits(val) for val in node.values())
+            return False
+
+        per_arch = str()
+        for i_arch, (arch, pool_by_arch) in enumerate(
+            item for item in self.pool.items() if has_traits(item[1])
+        ):
+            per_dtypes = str()
+            for i_dtype, (dtype, pool_by_dtype) in enumerate(
+                item for item in pool_by_arch.items() if has_traits(item[1])
+            ):
+                per_hdim_case = str()
+                for i_hdim, (hdim, pool_by_hdim) in enumerate(
+                    item for item in pool_by_dtype.items() if has_traits(item[1])
+                ):
+                    inners = str()
+                    for trait in (t for t in pool_by_hdim if filter_fn(t)):
+                        # Build the kernel name string with padding suffix
+                        pad_suffix = ""
+                        for flag, tag in [
+                            (trait.spad, "s"),
+                            (trait.skpad, "sk"),
+                            (trait.dpad, "d"),
+                            (trait.dvpad, "dv"),
+                        ]:
+                            if flag == "t":
+                                pad_suffix += tag
+                        pad_suffix = f"_p{pad_suffix}" if pad_suffix else "_npad"
+                        kname = (
+                            f"fmha_fwd_splitkv_d{hdim}_{dtype}"
+                            f"_{'group' if trait.mode == 'group' else 'batch'}"
+                            f"_b{trait.bm0}x{trait.bn0}x{trait.bk0}x{trait.bn1}x{trait.bk1}x{trait.bk0max}"
+                            f"{pad_suffix}"
+                        )
+                        if trait.is_tuning_extra:
+                            kname += " [ext]"
+                        inners += FMHA_FWD_SPLITKV_ALL_API_INNER_DISPATCH.format(
+                            F_arch=arch,
+                            F_mode=MODE_MAP[trait.mode],
+                            F_vlayout=LAYOUT_MAP[trait.vlayout],
+                            F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag],
+                            F_logits=BOOL_MAP[trait.logits],
+                            F_mask=get_mask_map(self.mask_impl)[trait.mask],
+                            F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask],
+                            F_bias_check=BIAS_CHECK_MAP[trait.bias],
+                            F_bias=BIAS_MAP[trait.bias],
+                            F_lse=BOOL_MAP[trait.lse],
+                            F_squant=BOOL_MAP[trait.squant],
+                            F_pagedkv=BOOL_MAP[trait.pagedkv],
+                            F_sink=BOOL_MAP[trait.sink],
+                            F_scheck=trait.scheck,
+                            F_skcheck=trait.skcheck,
+                            F_dcheck=trait.dcheck,
+                            F_dvcheck=trait.dvcheck,
+                            F_spad=BOOL_MAP[trait.spad],
+                            F_skpad=BOOL_MAP[trait.skpad],
+                            F_dpad=BOOL_MAP[trait.dpad],
+                            F_dvpad=BOOL_MAP[trait.dvpad],
+                            F_bm0=trait.bm0,
+                            F_bn0=trait.bn0,
+                            F_bk0=trait.bk0,
+                            F_bn1=trait.bn1,
+                            F_bk1=trait.bk1,
+                            F_bk0max=trait.bk0max,
+                            F_hdim=hdim,
+                            F_dtype=FWD_DTYPE_MAP[dtype],
+                            F_bn1comb=trait.bn1comb,
+                            F_kname=kname,
+                        )
+                    per_hdim_case += FMHA_FWD_API_PER_HDIM_CASE.format(
+                        F_if=if_(i_hdim),
+                        F_hdim=hdim,
+                        F_hdim_v=hdim,
+                        F_inner_dispatch=indent(inners),
+                    )
+                per_dtypes += FMHA_FWD_API_PER_DTYPE.format(
+                    F_if=if_(i_dtype), F_dtype=dtype, F_hdim_case=indent(per_hdim_case)
+                )
+            per_arch += FMHA_FWD_API_PER_ARCH.format(
+                F_if=if_(i_arch),
+                F_arch=arch,
+                F_dtype_case=indent(per_dtypes),
+            )
+        return FMHA_FWD_SPLITKV_ALL_API_FUNC_TEMPLATE.format(
+            F_func_name=func_name, F_dispatch=indent(per_arch)
         )
 
 
@@ -837,10 +983,15 @@ class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
 
     @staticmethod
     def get_tuning_extra_tiles(dtype: str) -> dict:
-        """Additional tile sizes only available via tuning receipts (150, 250).
-        These tiles are NOT used by the heuristic dispatch path."""
+        """Additional tile sizes merged for tuning/benchmarking receipts (0, 3, 150, 250).
+        For CK standalone (0/3) these are tagged is_tuning_extra and excluded from heuristic.
+        For AITER tuning (150/250) they participate in heuristic, selected via CSV."""
         extra = {}
         if dtype in ["fp16", "bf16"]:
+            extra["128"] = [
+                FmhaFwdTileSize( 16, 128, 32, 128, 32, 128, 1, 1, 1, 1, 1, 1, 16, 16, 16, 16, 16, 16, -1),
+                FmhaFwdTileSize( 32, 128, 32, 128, 32, 128, 2, 1, 1, 2, 1, 1, 16, 16, 16, 16, 16, 16, -1),
+            ]  # fmt: skip
             extra["256"] = [
                 FmhaFwdTileSize(128, 128,  64, 256, 128, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
             ]  # fmt: skip
@@ -910,21 +1061,30 @@ def get_fwd_splitkv_blobs(
 
     factories = get_factories_for_targets(targets, get_factory)
 
-    # Tuning receipts (150, 250) include extended tile sizes for CSV-driven selection
-    _TUNING_RECEIPTS = frozenset({150, 250})
-
     for factory, dtype in itertools.product(factories, FWD_DTYPE_MAP.keys()):
         d = factory.get_hdim_tile_size_dict(dtype)
         if d is None:
             continue
         # Build per-hdim tile lists: original (single) tile + optional tuning extras
+        # Receipts that include extended tuning tiles from get_tuning_extra_tiles().
+        # - 150/250: AITER tuning receipts (tiles are part of heuristic, selected via CSV)
+        # - 0/3: CK standalone build (tiles compiled for fmha_fwd_splitkv_all()
+        #   benchmarking but excluded from heuristic via is_tuning_extra flag)
+        _EXTRA_TILE_RECEIPTS = frozenset({0, 3, 150, 250})
+        _MARK_AS_TUNING_EXTRA = frozenset({0, 3})
+        # Track which tiles are standard so we can tag extras with is_tuning_extra.
         hdim_tiles = {}
+        standard_tile_ids = {}  # hdim_str -> set of id() for standard tiles
         for hdim_str in d.keys():
             hdim_tiles[hdim_str] = [d[hdim_str]]
-        if receipt in _TUNING_RECEIPTS and hasattr(factory, 'get_tuning_extra_tiles'):
+            standard_tile_ids[hdim_str] = {id(d[hdim_str])}
+        if receipt in _EXTRA_TILE_RECEIPTS and hasattr(factory, 'get_tuning_extra_tiles'):
             for hdim_str, extra_list in factory.get_tuning_extra_tiles(dtype).items():
                 if hdim_str in hdim_tiles:
-                    hdim_tiles[hdim_str].extend(extra_list)
+                    hdim_tiles[hdim_str] = sorted(hdim_tiles[hdim_str] + extra_list, key=lambda t: t.F_bm0)
+                else:
+                    hdim_tiles[hdim_str] = sorted(extra_list, key=lambda t: t.F_bm0)
+                    standard_tile_ids[hdim_str] = set()  # all tiles are extra
         # for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
             hdim = int(hdim_str)
@@ -940,6 +1100,7 @@ def get_fwd_splitkv_blobs(
                         or pipeline.F_logits == "f"
                     ):
                         continue
+                    is_extra = (receipt in _MARK_AS_TUNING_EXTRA) and (id(tile) not in standard_tile_ids.get(hdim_str, set()))
                     k = Kernel(
                         F_arch=factory.arch,
                         F_idx=0,
@@ -950,6 +1111,7 @@ def get_fwd_splitkv_blobs(
                         F_pipeline=pipeline,
                         mask_impl=mask_impl,
                     )
+                    k._is_tuning_extra = is_extra
                     if kernel_filter != "":
                         if not fnmatch.fnmatch(k.name, kernel_filter):
                             continue
@@ -1070,7 +1232,10 @@ def write_single_kernel(
 
 
 def write_fwd_splitkv_api(api_pool: FmhaFwdSplitKVApiPool, autogen_dir: Path) -> None:
-    update_file(autogen_dir / FMHA_FWD_SPLITKV_API_FILENAME, api_pool.api)
+    update_file(
+        autogen_dir / FMHA_FWD_SPLITKV_API_FILENAME,
+        api_pool.api + api_pool.render_all("fmha_fwd_splitkv_all"),
+    )
 
 
 def write_blobs(
@@ -1139,6 +1304,7 @@ def write_blobs(
                 dpad=kernel.F_pipeline.F_dpad,
                 dvpad=kernel.F_pipeline.F_dvpad,
                 bn1comb=combine_kernel.F_tile.F_bn1,
+                is_tuning_extra=getattr(kernel, '_is_tuning_extra', False),
             )
         )
     write_fwd_splitkv_api(api_pool, output_dir)

@@ -119,7 +119,10 @@ auto create_args(int argc, char* argv[])
                 "",
                 "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
                 "Comma-separated list of length 'b'. If empty, no override.")
-        .insert("init_sink", "0", "value to init the output tensor sink value for validation");
+        .insert("init_sink", "0", "value to init the output tensor sink value for validation")
+        .insert("run_all_kernels",
+                "0",
+                "benchmark ALL kernel instances and print sorted results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -163,6 +166,7 @@ auto run(const ck_tile::ArgParser& arg_parser)
     std::string init_method          = arg_parser.get_str("init");
     uint32_t seed                    = arg_parser.get_uint32("seed");
     int init_sink_value              = arg_parser.get_int("init_sink");
+    bool run_all_kernels             = arg_parser.get_bool("run_all_kernels");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -211,6 +215,7 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         do_validation,
                                         init_sink_value,
                                         stream_config,
+                                        run_all_kernels,
                                         json);
 }
 
