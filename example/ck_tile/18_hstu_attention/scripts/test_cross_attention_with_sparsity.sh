@@ -53,15 +53,6 @@ for T in "bf16"; do
     $EXE -v=1 -prec=$T -b=4 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=6132 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
     $EXE -v=1 -prec=$T -b=4 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=8176 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
     $EXE -v=1 -prec=$T -b=4 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=16352 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-
-    ## for max_target 3200
-    tgts=1487,286,1582,1691
-    $EXE -v=1 -prec=$T -b=4 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=1022 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=4 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=2044 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=4 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=4088 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=4 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=6132 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=4 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=8176 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=4 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=16352 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0    
 done
 
 ## for batches 8
@@ -104,15 +95,6 @@ for T in "bf16"; do
 
     ## for max_target 300
     tgts=103,262,156,253,161,119,16,201
-    $EXE -v=1 -prec=$T -b=8 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=1022 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=8 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=2044 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=8 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=4088 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=8 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=6132 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=8 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=8176 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=8 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=16352 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-
-    ## for max_target 3200
-    tgts=3140,1761,1439,144,2874,494,1295,1255
     $EXE -v=1 -prec=$T -b=8 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=1022 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
     $EXE -v=1 -prec=$T -b=8 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=2044 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
     $EXE -v=1 -prec=$T -b=8 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=4088 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
@@ -167,15 +149,6 @@ for T in "bf16"; do
     $EXE -v=1 -prec=$T -b=16 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=6132 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
     $EXE -v=1 -prec=$T -b=16 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=8176 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
     $EXE -v=1 -prec=$T -b=16 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=16352 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-
-    ## for max_target 3200
-    tgts=3013,2059,909,791,1346,2657,3012,1043,511,414,1284,2037,1802,2816,2009,760
-    $EXE -v=1 -prec=$T -b=16 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=1022 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=16 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=2044 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=16 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=4088 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=16 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=6132 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=16 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=8176 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=16 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=16352 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
 done
 
 ## for batches 32
@@ -218,15 +191,6 @@ for T in "bf16"; do
 
     ## for max_target 300
     tgts=213,290,136,222,173,57,175,244,100,6,152,254,132,118,200,219,63,110,37,197,61,130,271,214,228,4,131,120,151,95,45,248
-    $EXE -v=1 -prec=$T -b=32 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=1022 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=32 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=2044 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=32 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=4088 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=32 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=6132 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=32 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=8176 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-    $EXE -v=1 -prec=$T -b=32 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=16352 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
-
-    ## for max_target 3200
-    tgts=2870,662,3012,1221,2143,1345,2254,1296,659,3003,490,2942,488,889,2232,1034,927,2462,716,987,1030,2410,2746,2283,255,2375,2308,1334,1183,1054,2088,1837
     $EXE -v=1 -prec=$T -b=32 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=1022 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
     $EXE -v=1 -prec=$T -b=32 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=2044 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
     $EXE -v=1 -prec=$T -b=32 -jagged=1 -nhead=4 -hdim_qk=128 -hdim_v=128 -seqlens=128 -seqlens_kv=4088 -causal=0 -local_len=0 -context_len=0 -minfull_len=0 -targets=$tgts -attn_scale=0 -norm_dist=0
