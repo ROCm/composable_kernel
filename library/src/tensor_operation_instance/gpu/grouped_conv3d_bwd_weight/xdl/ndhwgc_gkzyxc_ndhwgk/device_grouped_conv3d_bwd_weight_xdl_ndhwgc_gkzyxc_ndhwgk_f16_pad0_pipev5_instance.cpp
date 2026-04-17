@@ -3,6 +3,7 @@
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight/device_grouped_conv_bwd_weight_v3_xdl_instance.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -22,15 +23,30 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_pad0_pipe
                                                            PassThrough,
                                                            PassThrough>>>& instances)
 {
-    add_device_operation_instances(instances,
-                                   device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_f16_instances<
-                                       3,
-                                       NDHWGC,
-                                       GKZYXC,
-                                       NDHWGK,
-                                       ConvBwdWeightFilter1x1Stride1Pad0,
-                                       BlockGemmPipelineScheduler::Intrawave,
-                                       BlockGemmPipelineVersion::v5>{});
+    add_device_operation_instances(
+        instances,
+        device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_f16_base_instances<
+            3,
+            NDHWGC,
+            GKZYXC,
+            NDHWGK,
+            ConvBwdWeightFilter1x1Stride1Pad0,
+            BlockGemmPipelineScheduler::Intrawave,
+            BlockGemmPipelineVersion::v5>{});
+    if(!is_gfx90a())
+    {
+        add_device_operation_instances(
+            instances,
+            device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_high_reg_usage_instances<
+                3,
+                ck::half_t,
+                NDHWGC,
+                GKZYXC,
+                NDHWGK,
+                ConvBwdWeightFilter1x1Stride1Pad0,
+                BlockGemmPipelineScheduler::Intrawave,
+                BlockGemmPipelineVersion::v5>{});
+    }
 }
 
 } // namespace instance
