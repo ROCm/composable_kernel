@@ -19,7 +19,7 @@ void test_grouped_conv_registry_basic()
     reg.clear();
 
     reg.set_name("test_registry");
-    assert(reg.name() == "test_registry");
+    assert(reg.get_name() == "test_registry");
 
     assert(reg.size() == 0);
     assert(reg.empty());

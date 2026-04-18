@@ -71,7 +71,12 @@ TEST(KernelKeyTest, EncodeIdentifier)
     EXPECT_NE(id.find("256x256x32"), std::string::npos); // tile shape
     EXPECT_NE(id.find("2x2x1"), std::string::npos);      // wave shape
     EXPECT_NE(id.find("32x32x16"), std::string::npos);   // warp tile shape
-    EXPECT_NE(id.find("persist"), std::string::npos);    // persistent flag
+
+    // Verify persistent flag is encoded by toggling it and asserting the
+    // identifier changes. Robust to encoding spelling changes.
+    KernelKey non_persistent_key            = key;
+    non_persistent_key.algorithm.persistent = false;
+    EXPECT_NE(id, non_persistent_key.encode_identifier());
 }
 
 TEST(KernelKeyTest, EncodeIdentifierWithFusion)
@@ -97,7 +102,12 @@ TEST(KernelKeyTest, EncodeIdentifierWithFusion)
     // Check fusion-specific components
     EXPECT_NE(id.find("Relu"), std::string::npos);
     EXPECT_NE(id.find("_d2"), std::string::npos);
-    EXPECT_NE(id.find("nopers"), std::string::npos);
+
+    // Verify persistent flag is encoded by toggling it and asserting the
+    // identifier changes. Robust to encoding spelling changes.
+    KernelKey persistent_key            = key;
+    persistent_key.algorithm.persistent = true;
+    EXPECT_NE(id, persistent_key.encode_identifier());
 }
 
 TEST(KernelKeyTest, EncodeIdentifierWithSplitK)
