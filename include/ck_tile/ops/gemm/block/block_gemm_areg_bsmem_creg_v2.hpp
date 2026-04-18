@@ -21,13 +21,18 @@ struct BlockGemmARegBSmemCRegV2
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    static constexpr index_t kBlockSize = Problem::kBlockSize;
+    static constexpr index_t kBlockSize     = Problem::kBlockSize;
+    static constexpr bool kSupportsPartialK = true;
+    static constexpr bool kSupportsPartialN = true;
 
-    // C += A * B
-    template <typename CBlockTensor, typename ABlockTensorTmp, typename BBlockWindowTmp>
-    CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
-                                   const ABlockTensorTmp& a_block_tensor_tmp,
-                                   const BBlockWindowTmp& b_block_window_tmp) const
+    template <bool UsePartialN,
+              typename CBlockTensor,
+              typename ABlockTensorTmp,
+              typename BBlockWindowTmp>
+    CK_TILE_DEVICE void Impl(CBlockTensor& c_block_tensor,
+                             const ABlockTensorTmp& a_block_tensor_tmp,
+                             const BBlockWindowTmp& b_block_window_tmp,
+                             [[maybe_unused]] const index_t valid_n_iters) const
     {
         static_assert(
             std::is_same_v<ADataType, remove_cv_t<typename ABlockTensorTmp::DataType>> &&
@@ -134,10 +139,7 @@ struct BlockGemmARegBSmemCRegV2
         constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        // hot loop:
-        static_ford<sequence<KIterPerWarp, NIterPerWarp>>{}([&](auto kn) {
-            constexpr auto kIter = number<kn[number<0>{}]>{};
-            constexpr auto nIter = number<kn[number<1>{}]>{};
+        auto run_n_iter = [&](auto kIter, auto nIter) {
             // read B warp tensor from B Block window
             const auto b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
 
@@ -166,7 +168,44 @@ struct BlockGemmARegBSmemCRegV2
                     merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
                     c_warp_tensor.get_thread_buffer());
             });
-        });
+        };
+
+        // hot loop:
+        if constexpr(UsePartialN)
+        {
+            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                    if(static_cast<index_t>(nIter.value) < valid_n_iters)
+                    {
+                        run_n_iter(kIter, nIter);
+                    }
+                });
+            });
+        }
+        else
+        {
+            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) { run_n_iter(kIter, nIter); });
+            });
+        }
+    }
+
+    // C += A * B (executing only the first valid_n_iters N sub-iterations)
+    template <typename CBlockTensor, typename ABlockTensorTmp, typename BBlockWindowTmp>
+    CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
+                                   const ABlockTensorTmp& a_block_tensor_tmp,
+                                   const BBlockWindowTmp& b_block_window_tmp,
+                                   const index_t valid_n_iters) const
+    {
+        Impl<true>(c_block_tensor, a_block_tensor_tmp, b_block_window_tmp, valid_n_iters);
+    }
+
+    template <typename CBlockTensor, typename ABlockTensorTmp, typename BBlockWindowTmp>
+    CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
+                                   const ABlockTensorTmp& a_block_tensor_tmp,
+                                   const BBlockWindowTmp& b_block_window_tmp) const
+    {
+        Impl<false>(c_block_tensor, a_block_tensor_tmp, b_block_window_tmp, 0);
     }
 
     template <index_t MPerBlock = BlockGemmShape::kM, index_t KPerBlock = BlockGemmShape::kK>
@@ -227,7 +266,17 @@ struct BlockGemmARegBSmemCRegV2
         return c_block_tensor;
     }
 
-    // C = A * B
+    // C = A * B (executing only the first valid_n_iters N sub-iterations)
+    template <typename ABlockTensorTmp, typename BBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ABlockTensorTmp& a_block_tensor_tmp,
+                                   const BBlockWindowTmp& b_block_window_tmp,
+                                   const index_t valid_n_iters) const
+    {
+        auto c_block_tensor = MakeCBlockTile();
+        operator()(c_block_tensor, a_block_tensor_tmp, b_block_window_tmp, valid_n_iters);
+        return c_block_tensor;
+    }
+
     template <typename ABlockTensorTmp, typename BBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ABlockTensorTmp& a_block_tensor_tmp,
                                    const BBlockWindowTmp& b_block_window_tmp) const
