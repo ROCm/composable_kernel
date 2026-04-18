@@ -55,7 +55,10 @@ bool Registry::register_kernel(KernelInstancePtr instance, Priority priority)
     if(!instance)
         return false;
 
-    if(Base::register_kernel(instance->get_name(), instance, priority))
+    // Store under the encoded identifier so Registry::lookup(KernelKey) finds it.
+    // Previously stored under instance->get_name(), but lookup(KernelKey) queries by
+    // key.encode_identifier() — those keys never matched, breaking key-based lookup.
+    if(Base::register_kernel(instance->get_key().encode_identifier(), instance, priority))
     {
         if(auto_export_enabled_ && auto_export_on_every_registration_)
         {

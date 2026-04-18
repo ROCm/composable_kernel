@@ -600,7 +600,7 @@ struct {kernel_name}_Launcher {{
             GroupedConvTraitsType::FixedGemmParams::TransposeC,
             Config::NumWaveGroups,
             GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
-            Config::VectorSizeC, false, 1, Config::DoubleSmemBuffer>>;
+            Config::VectorSizeC, 1, Config::DoubleSmemBuffer>>;
         
         using Kernel = {kernel_type}<
             GroupedConvTraitsType, TilePartitioner, GemmPipeline, ConvEpilogue>;
