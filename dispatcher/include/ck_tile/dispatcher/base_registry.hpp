@@ -69,14 +69,14 @@ class BaseRegistry
     BaseRegistry& operator=(const BaseRegistry&) = delete;
 
     /// Register a kernel. If the key already exists, the new entry replaces it
-    /// unless the existing entry has strictly higher priority.
-    /// Same-priority registration overwrites (last-writer-wins at equal priority).
+    /// only when its priority is strictly higher than the existing entry's
+    /// priority. Same-priority registration is rejected (first-writer-wins).
     bool
     register_kernel(const KeyType& key, InstancePtr instance, Priority priority = Priority::Normal)
     {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = entries_.find(key);
-        if(it != entries_.end() && it->second.priority > priority)
+        if(it != entries_.end() && it->second.priority >= priority)
         {
             return false;
         }
