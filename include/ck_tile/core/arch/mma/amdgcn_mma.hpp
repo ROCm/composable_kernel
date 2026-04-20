@@ -245,7 +245,7 @@ concept MmaOpI = requires(MmaOp op) {
     { MmaOp::kCMPerLane } -> std::convertible_to<unsigned int>;
     { MmaOp::kCMNumAccess } -> std::convertible_to<unsigned int>;
     { MmaOp::kCompressionRatio } -> std::convertible_to<unsigned int>;
-} && (HasExecSignature<MmaOp> || HasExecSignature<MmaOp, int>);
+} && (HasExecSignature<MmaOp> || HasExecSignature<MmaOp, int> || HasExecSignature<MmaOp, int, int>);
 
 #endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
@@ -303,6 +303,8 @@ struct amdgcn_mma : amdgcn_mma_base<fp32_t, fp32_t, fp32_t, 1u, 1u, 1u, 1u, 1, 1
 #pragma clang diagnostic pop
 
 // Include the implementations
-#include "wmma/wmma.hpp"
+#include "wmma/wmma.hpp" // should be included before the below headers
+
 #include "mfma/mfma.hpp"
+#include "scale/scale.hpp"
 #include "sparse/sparse.hpp"
