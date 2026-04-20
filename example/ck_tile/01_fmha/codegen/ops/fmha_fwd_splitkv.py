@@ -1011,7 +1011,6 @@ class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
             extra["256"] = [
                 FmhaFwdTileSize(128, 128,  32, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                 FmhaFwdTileSize(128, 128,  64, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-                FmhaFwdTileSize(128, 128,  64, 256, 128, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                 FmhaFwdTileSize(128, 128, 128, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                 FmhaFwdTileSize(128, 128, 128, 256,  64, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
             ]  # fmt: skip
