@@ -180,6 +180,34 @@ if(CK_USE_OCP_FP8)
   list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
 endif()
 
+set(FMHA_HAS_RDNA_TARGET OFF)
+set(FMHA_HAS_NON_RDNA_TARGET OFF)
+foreach(inst_target ${INST_TARGETS})
+  if(inst_target MATCHES "^(gfx11|gfx12)")
+    set(FMHA_HAS_RDNA_TARGET ON)
+  else()
+    set(FMHA_HAS_NON_RDNA_TARGET ON)
+  endif()
+endforeach()
+
+if(FMHA_HAS_RDNA_TARGET)
+  set(FMHA_FWD_RDNA_GEN_BLOBS)
+  foreach(fwd_blob ${FMHA_FWD_GEN_BLOBS})
+    if(fwd_blob MATCHES "_gfx1[12][^/]*\\.cpp$")
+      list(APPEND FMHA_FWD_RDNA_GEN_BLOBS ${fwd_blob})
+    endif()
+  endforeach()
+
+  if(FMHA_FWD_RDNA_GEN_BLOBS)
+    set_property(SOURCE ${FMHA_FWD_RDNA_GEN_BLOBS}
+      APPEND PROPERTY COMPILE_DEFINITIONS CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=5)
+  endif()
+
+  if(NOT FMHA_HAS_NON_RDNA_TARGET)
+    list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=5)
+  endif()
+endif()
+
 # use RTN_ASM on float to bfloat16 conversion by default, align with FA upstream
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
 list(APPEND FMHA_BWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
