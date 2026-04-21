@@ -911,7 +911,8 @@ class CompatibilityRuleFactoryGfx950(CompatibilityRuleFactoryGfx9):
                     and kernel_ctx.tile.F_bn0 == 128
                 )
                 or (
-                    (problem_ctx.hdim, problem_ctx.hdim_v) not in [(64, 64), (128, 128)]
+                    (problem_ctx.hdim, problem_ctx.hdim_v)
+                    not in [(64, 64), (128, 128), (192, 128)]
                 )
             ):
                 return False
@@ -1113,9 +1114,7 @@ class KernelComponentFactoryGfx950(
     def get_pipelines(
         cls, dtype, hdim, hdim_v, receipt, mask_impl
     ) -> List[FmhaFwdPipeline]:
-        pipelines = KernelComponentFactoryGfx9.get_pipelines(
-            dtype, hdim, hdim_v, receipt, mask_impl
-        )
+        pipelines = []
         if dtype in cls._DT_FP16_BF16:
             qscale = "no"
             for logits, mask, bias, lse, dropout, skip, sink in itertools.product(
@@ -1128,7 +1127,7 @@ class KernelComponentFactoryGfx950(
                 ["t", "f"],
             ):
                 if (
-                    (hdim, hdim_v) in [(64, 64), (128, 128)]
+                    (hdim, hdim_v) in [(64, 64), (128, 128), (192, 128)]
                     and logits == "f"
                     and bias == "no"
                     and dropout == "f"
@@ -1164,6 +1163,10 @@ class KernelComponentFactoryGfx950(
             ):
                 pipelines.append(FmhaFwdPipeline("qr", "col", "f", "f", "f", "f", logits, bias, lse, dropout, qscale, mask, "f", "f", sink))  # fmt: skip
                 pipelines.append(FmhaFwdPipeline("qr", "col", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, "f", "f", sink))  # fmt: skip
+
+        pipelines += KernelComponentFactoryGfx9.get_pipelines(
+            dtype, hdim, hdim_v, receipt, mask_impl
+        )
         return pipelines
 
 

@@ -935,10 +935,14 @@ struct WaitcntLayoutGfx11
 
 struct WaitcntLayoutLegacy
 { // FE'DC'BA98'7'654'3210 => VV'UU'LLLL'U'EEE'VVVV
-    CK_TILE_DEVICE static constexpr index_t VM_MASK   = 0x3F; // split: low4 + hi2
+    CK_TILE_DEVICE static constexpr index_t VM_MASK = 0x3F; // split: low4 + hi2
+#if defined(__gfx94__)
+    CK_TILE_DEVICE static constexpr index_t LGKM_MASK = 0x3F; // [13:8] gfx940+ extended to 6 bits
+#else
     CK_TILE_DEVICE static constexpr index_t LGKM_MASK = 0x0F; // [11:8]
-    CK_TILE_DEVICE static constexpr index_t EXP_MASK  = 0x07; // [6:4]
-    CK_TILE_DEVICE static constexpr bool HAS_EXP      = true;
+#endif
+    CK_TILE_DEVICE static constexpr index_t EXP_MASK = 0x07; // [6:4]
+    CK_TILE_DEVICE static constexpr bool HAS_EXP     = true;
 
     CK_TILE_DEVICE static constexpr index_t pack_vm(index_t c)
     {
@@ -968,7 +972,7 @@ struct waitcnt_arg
     CK_TILE_DEVICE static constexpr index_t kMaxVmCnt   = 0x3F; // 6 bits
     CK_TILE_DEVICE static constexpr index_t kMaxLgkmCnt = 0x3F; // 6 bits
     CK_TILE_DEVICE static constexpr index_t kMaxExpCnt  = 0x0;  // none
-#elif defined(__gfx11__)
+#elif defined(__gfx11__) || defined(__gfx94__)
     CK_TILE_DEVICE static constexpr index_t kMaxVmCnt   = 0x3F; // 6 bits
     CK_TILE_DEVICE static constexpr index_t kMaxLgkmCnt = 0x3F; // 6 bits
     CK_TILE_DEVICE static constexpr index_t kMaxExpCnt  = 0x07; // 3 bits
