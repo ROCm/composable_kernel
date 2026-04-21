@@ -22,6 +22,7 @@ RUN groupadd -g 109 render && \
     chmod -R a+rwx /tmp/pytorch && \
     sudo usermod -aG irc jenkins && \
     #install hipblaslt
+    cd /tmp && \
     git clone --no-checkout --filter=blob:none https://github.com/ROCm/rocm-libraries.git && \
     cd rocm-libraries && \
     git checkout develop && \
@@ -29,4 +30,4 @@ RUN groupadd -g 109 render && \
     git sparse-checkout set projects/hipblaslt shared/origami && \
     cd projects/hipblaslt && \
     git show --oneline -s && \
-    CPLUS_INCLUDE_PATH="/opt/amdgpu/include/" ./install.sh -idc --architecture="gfx942;gfx950" -j 128 --skip_rocroller
+    CPLUS_INCLUDE_PATH="/opt/amdgpu/include/" ./install.sh -idc --use-system-packages --architecture="gfx942;gfx950" -j 128 --skip_rocroller
