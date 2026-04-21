@@ -39,9 +39,9 @@ struct group_forward_causal_softmax_bias_dropout_dispatch
                                     HstuAttentionNoSoftmaxFwdTileSetting<MaxK, MTile>>::Type;
 
 #ifdef BUILD_HSTU_FOR_GFX95_ONLY
-    static constexpr bool kUseTrLoad = true;
+    static constexpr bool use_trload_pipeline = true;
 #else
-    static constexpr bool kUseTrLoad = false;
+    static constexpr bool use_trload_pipeline = false;
 #endif
 
     template <bool kIsCrossAttention>
@@ -57,7 +57,6 @@ struct group_forward_causal_softmax_bias_dropout_dispatch
         kHasDropout,
         kUseCausal,
         kUseSoftmax,
-        kUseTrLoad,
         HstuAttentionTileSetting>;
 
     static void Run(HstuAttentionGroupFwdParams& param, hipStream_t stream)
@@ -89,7 +88,7 @@ struct group_forward_causal_softmax_bias_dropout_dispatch
             BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
                 using HstuPipelineProblem = HstuPipelineProblemTemp<kIsCrossAttention>;
 
-                if constexpr(!kUseTrLoad)
+                if constexpr(!use_trload_pipeline)
                 {
                     using HstuPipeline = std::conditional_t<
                         kUseSoftmax,
