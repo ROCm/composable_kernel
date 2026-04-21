@@ -118,14 +118,11 @@ template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename Ou
 
         if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
         {
-            if(kargs.k_batch > 1)
-            {
-                ck_tile::hip_check_error(
-                    hipMemsetAsync(kargs.in_ptr,
-                                   0,
-                                   zeroing_size * sizeof(typename Types::EDataType),
-                                   s_conf.stream_id_));
-            }
+            ck_tile::hip_check_error(
+                hipMemsetAsync(kargs.in_ptr,
+                               0,
+                               zeroing_size * sizeof(typename Types::EDataType),
+                               s_conf.stream_id_));
         }
     };
 
