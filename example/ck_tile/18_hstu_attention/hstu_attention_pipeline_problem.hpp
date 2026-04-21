@@ -57,8 +57,6 @@ CK_TILE_HOST_DEVICE static constexpr auto GetDramTileAccessMaxVectorSize()
 // but it also contains other information needed by the pipeline, which includes
 // TileShape -- which determines how block-layer calculation is done in tiles and
 //              how warps are allocated on dimensions
-// Traits -- other information required for running the kernel and pipeline
-
 template <typename InOutDataType_,
           typename GemmAccDataType_,
           typename CompDataType_, // data type for SiLU and other non-linear calculation
@@ -70,7 +68,6 @@ template <typename InOutDataType_,
           bool kHasDropout_,
           bool kHasCausal_,
           bool kUseSoftmax_,
-          bool kUseTrLoad_, // use transposed loading to load V tile from lds to vgprs
           typename AttentionTileSetting_>
 struct HstuAttentionFwdPipelineProblem
 {
@@ -94,7 +91,6 @@ struct HstuAttentionFwdPipelineProblem
     static constexpr bool kHasDropout       = kHasDropout_;
     static constexpr bool kHasCausal        = kHasCausal_;
     static constexpr bool kUseSoftmax       = kUseSoftmax_;
-    static constexpr bool kUseTrLoad        = kUseTrLoad_;
 
     static_assert(!kUseGroup || (kUseGroup && kIsJagged),
                   "Group HSTU is only used with jagged mode!");

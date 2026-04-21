@@ -13,6 +13,7 @@
 #include <variant>
 
 #include "hstu_block_masking.hpp"
+#include "hstu_attention_util.hpp"
 
 #ifndef HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
 #define HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM 1
@@ -48,12 +49,13 @@ struct HstuAttentionFwdSplitKVKernel
     static constexpr auto kHasBias          = HstuAttentionPipeline::Problem::kHasBias;
     static constexpr bool kHasDropout       = HstuAttentionPipeline::Problem::kHasDropout;
     static constexpr bool kHasCausalMask    = HstuAttentionPipeline::Problem::kHasCausal;
-    static constexpr bool kUseTrLoad        = HstuAttentionPipeline::Problem::kUseTrLoad;
 
     static constexpr bool kPadSeqLenQ   = HstuAttentionPipeline::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK   = HstuAttentionPipeline::kPadSeqLenK;
     static constexpr bool kPadHeadDimQK = HstuAttentionPipeline::kPadHeadDimQK;
     static constexpr bool kPadHeadDimV  = HstuAttentionPipeline::kPadHeadDimV;
+
+    static constexpr bool kUseTrLoad = detail::is_using_trload_v<HstuAttentionPipeline>;
 
     template <ck_tile::index_t I> // to avoid duplicated base class problem, introduce an template
                                   // arg

@@ -45,10 +45,10 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         return WG::WarpGemmAttribute::kKPerThread;
     };
 
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetKVWarpGemmKPerThreadSize()
     {
-        using BlockGemm       = remove_cvref_t<decltype(GetKVBlockGemm<Problem>())>;
+        using BlockGemm       = remove_cvref_t<decltype(GetKVBlockGemm<Problem, kUseTrLoad>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
 
@@ -58,26 +58,14 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBiasDramTileDistribution()
     {
-        if constexpr(!Problem::kUseTrLoad)
-        {
-            using BlockGemm = remove_cvref_t<decltype(GetKVBlockGemm<Problem>())>;
+        using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
 
-            return BlockGemm::template MakeABlockTileDistribution<
-                Problem::HstuAttentionTileSetting::kM0,
-                Problem::HstuAttentionTileSetting::kN0>();
-        }
-        else
-        {
-            using BlockGemm = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+        constexpr auto bias_block_dstr_encode = BlockGemm::template MakeCBlockDistributionEncode<
+            Problem::HstuAttentionTileSetting::kM0,
+            Problem::HstuAttentionTileSetting::kN0>();
+        constexpr auto bias_block_dstr = make_static_tile_distribution(bias_block_dstr_encode);
 
-            constexpr auto bias_block_dstr_encode =
-                BlockGemm::template MakeCBlockDistributionEncode<
-                    Problem::HstuAttentionTileSetting::kM0,
-                    Problem::HstuAttentionTileSetting::kN0>();
-            constexpr auto bias_block_dstr = make_static_tile_distribution(bias_block_dstr_encode);
-
-            return bias_block_dstr;
-        };
+        return bias_block_dstr;
     }
 
     template <typename Problem>
@@ -117,20 +105,20 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         return Problem::GetKDramTileAccessMaxVectorSize();
     }
 
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
     {
-        if constexpr(GetKVWarpGemmKPerThreadSize<Problem>() >= 8)
+        if constexpr(GetKVWarpGemmKPerThreadSize<Problem, kUseTrLoad>() >= 8)
             return 8;
         else
             return 4;
     }
 
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentV()
     {
         // special consideration when shuffling is required before storing V to LDS
-        if constexpr(!Problem::kUseTrLoad)
+        if constexpr(!kUseTrLoad)
         {
             using VDataType = remove_cvref_t<typename Problem::QKVDataType>;
 
@@ -183,13 +171,13 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     };
 
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetVSingleSmemElementSpaceSize()
     {
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
 
-        if constexpr(!Problem::kUseTrLoad)
+        if constexpr(!kUseTrLoad)
         {
             constexpr index_t N1     = GetAlignmentV<Problem>();
             constexpr index_t N0     = kNPerBlock / N1;
@@ -203,14 +191,14 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     };
 
-    template <typename Problem>
+    template <typename Problem, bool kPipelineUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetSingleSmemElementSpaceSize()
     {
         return max(GetKSingleSmemElementSpaceSize<Problem>(),
-                   GetVSingleSmemElementSpaceSize<Problem>());
+                   GetVSingleSmemElementSpaceSize<Problem, kPipelineUseTrLoad>());
     };
 
-    template <typename Problem>
+    template <typename Problem, bool kPipelineUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeKLdsBlockDescriptor()
     {
         constexpr index_t NumKLdsBuffers = GetNumKVLdsBuffers<Problem>();
@@ -219,14 +207,15 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr index_t kKPack         = GetSmemKPackK<Problem>();
         constexpr index_t kKVector       = GetAlignmentK<Problem>();
 
+        constexpr index_t SingleSmemElementSpaceSize =
+            GetSingleSmemElementSpaceSize<Problem, kPipelineUseTrLoad>();
+
         // for hdim96 and hdim160, use simplest layout
         if constexpr(kKPerBlock < Problem::HstuAttentionTileSetting::kSubQKHeaddim)
         {
             constexpr index_t KSingleSmemElementSpaceSize = kNPerBlock * kKPerBlock;
 
             static_assert(KSingleSmemElementSpaceSize == GetKSingleSmemElementSpaceSize<Problem>());
-
-            constexpr index_t SingleSmemElementSpaceSize = GetSingleSmemElementSpaceSize<Problem>();
 
             constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<NumKLdsBuffers>{}, number<kNPerBlock>{}, number<kKPerBlock>{}),
@@ -251,8 +240,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             constexpr index_t KSingleSmemElementSpaceSize = kNPerBlock * kKPerBlock;
 
             static_assert(KSingleSmemElementSpaceSize == GetKSingleSmemElementSpaceSize<Problem>());
-
-            constexpr index_t SingleSmemElementSpaceSize = GetSingleSmemElementSpaceSize<Problem>();
 
             using KDataType = remove_cvref_t<typename Problem::QKVDataType>;
 
@@ -321,8 +308,6 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                 kKPerBlock * kNPerBlock + kKPerBlock * kKPack / kKVector;
 
             static_assert(KSingleSmemElementSpaceSize == GetKSingleSmemElementSpaceSize<Problem>());
-
-            constexpr index_t SingleSmemElementSpaceSize = GetSingleSmemElementSpaceSize<Problem>();
 
             constexpr auto k_lds_block_desc_0 =
                 make_naive_tensor_descriptor(make_tuple(number<NumKLdsBuffers>{},
@@ -405,7 +390,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     }
 
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
     {
         constexpr index_t NumVLdsBuffers = GetNumKVLdsBuffers<Problem>();
@@ -413,7 +398,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr index_t kNPerBlock     = Problem::HstuAttentionTileSetting::kN1;
         constexpr index_t kKPerBlock     = Problem::HstuAttentionTileSetting::kK1;
 
-        if constexpr(!Problem::kUseTrLoad)
+        if constexpr(!kUseTrLoad)
         {
             constexpr index_t N1 = GetAlignmentV<Problem>();
             constexpr index_t N0 = kNPerBlock / N1;
@@ -456,14 +441,15 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         }
         else
         {
-            constexpr index_t kKPack = GetSmemKPackV<Problem>();
+            constexpr index_t kKPack = GetSmemKPackV<Problem, true>();
 
             constexpr auto XorGroupSize =
                 Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<0>{});
 
             constexpr index_t VSingleSmemElementSpaceSize = kNPerBlock * kKPerBlock;
 
-            static_assert(VSingleSmemElementSpaceSize == GetVSingleSmemElementSpaceSize<Problem>());
+            static_assert(VSingleSmemElementSpaceSize ==
+                          GetVSingleSmemElementSpaceSize<Problem, true>());
 
             constexpr auto v_lds_block_desc_naive =
                 make_naive_tensor_descriptor(make_tuple(number<NumVLdsBuffers>{},
@@ -497,14 +483,14 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     }
 
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_DEVICE static constexpr auto MakeVDramTileDistribution()
     {
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kNPerBlock = Problem::HstuAttentionTileSetting::kN1;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kK1;
 
-        if constexpr(!Problem::kUseTrLoad)
+        if constexpr(!kUseTrLoad)
         {
             constexpr index_t NPerThread = GetAlignmentV<Problem>();
             constexpr index_t NThreads   = kNPerBlock / NPerThread;
@@ -526,7 +512,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         }
         else
         {
-            constexpr index_t NPerThread = GetAlignmentV<Problem>();
+            constexpr index_t NPerThread = GetAlignmentV<Problem, true>();
             constexpr index_t NThreads   = kNPerBlock / NPerThread;
 
             constexpr index_t ElemPerThread = kNPerBlock * kKPerBlock / kBlockSize;
@@ -652,7 +638,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
                Problem::HstuAttentionTileSetting::Gemm1BlockWarps::at(number<1>{});
     };
 
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetKVBlockGemm()
     {
         using GemmProblem = BlockGemmProblem<
@@ -727,7 +713,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             typename Problem::HstuAttentionTileSetting::Gemm1BlockWarps,
             WarpGemm>;
 
-        if constexpr(!Problem::kUseTrLoad)
+        if constexpr(!kUseTrLoad)
         {
             return BlockGemmARegBSmemCRegV2Hack_1<GemmProblem, BlockGemmPolicy>{};
         }
@@ -737,22 +723,22 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         };
     }
 
-    template <typename Problem>
+    template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentO()
     {
-        using BlockGemm       = remove_cvref_t<decltype(GetKVBlockGemm<Problem>())>;
+        using BlockGemm       = remove_cvref_t<decltype(GetKVBlockGemm<Problem, kUseTrLoad>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
 
         return WG::WarpGemmAttribute::Impl::kCM1PerLane;
     }
 
-    template <typename Problem>
+    template <typename Problem, bool kPipelineUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeKV()
     {
         constexpr index_t num_kv_lds_buffers = GetNumKVLdsBuffers<Problem>();
 
-        return num_kv_lds_buffers * GetSingleSmemElementSpaceSize<Problem>() *
+        return num_kv_lds_buffers * GetSingleSmemElementSpaceSize<Problem, kPipelineUseTrLoad>() *
                sizeof(typename Problem::QKVDataType);
     };
 
@@ -762,10 +748,10 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         return 0;
     };
 
-    template <typename Problem>
+    template <typename Problem, bool kPipelineUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return GetSmemSizeKV<Problem>() + GetSmemSizeDropout<Problem>();
+        return GetSmemSizeKV<Problem, kPipelineUseTrLoad>() + GetSmemSizeDropout<Problem>();
     }
 };
 

@@ -45,9 +45,9 @@ struct group_forward_splitkv_causal_softmax_bias_dropout_dispatch
         typename HstuAttentionFwdSplitKVCombineTileSetting<MaxK>::Type;
 
 #ifdef BUILD_HSTU_FOR_GFX95_ONLY
-    static constexpr bool kUseTrLoad = true;
+    static constexpr bool use_trload_pipeline = true;
 #else
-    static constexpr bool kUseTrLoad = false;
+    static constexpr bool use_trload_pipeline = false;
 #endif
 
     template <bool kIsCrossAttention>
@@ -63,7 +63,6 @@ struct group_forward_splitkv_causal_softmax_bias_dropout_dispatch
         kHasDropout,
         kUseCausal,
         kUseSoftmax,
-        kUseTrLoad,
         HstuAttentionFwdTileSetting>;
 
     using OaccDataType = HstuAttentionFwdTypeConfig<InOutDataType>::OaccDataType;
@@ -101,7 +100,7 @@ struct group_forward_splitkv_causal_softmax_bias_dropout_dispatch
                 BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
                     using HstuPipelineProblem = HstuFwdPipelineProblemTemp<kIsCrossAttention>;
 
-                    if constexpr(!kUseTrLoad)
+                    if constexpr(!use_trload_pipeline)
                     {
                         using HstuPipeline = std::conditional_t<
                             kUseSoftmax,

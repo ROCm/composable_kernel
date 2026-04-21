@@ -46,8 +46,6 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
     static constexpr bool kHasDropout = Problem::kHasDropout;
     static constexpr bool kHasCausal  = Problem::kHasCausal;
 
-    static_assert(Problem::kUseTrLoad == true, "Check failed!");
-
     static constexpr bool kUseTrLoad = true;
 
     static constexpr bool kPadSeqLenQ   = Traits::kPadSeqLenQ;
@@ -62,10 +60,10 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
     static constexpr index_t kAlignmentK =
         kPadHeadDimQK ? 1 : Policy::template GetAlignmentK<Problem>();
     static constexpr index_t kAlignmentV =
-        Traits::kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
+        Traits::kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem, true /*kUseTrLoad*/>();
 
     static constexpr index_t kAlignmentO =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
+        kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem, true /*kUseTrLoad*/>();
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
 
@@ -110,7 +108,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
     CK_TILE_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return Policy::template GetSmemSize<Problem>();
+        return Policy::template GetSmemSize<Problem, true /*kPipelineUseTrLoad*/>();
     }
 
     template <typename QDramBlockWindowTmp,
@@ -169,7 +167,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
-        constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
+        constexpr auto gemm_1 =
+            Policy::template GetKVBlockGemm<Problem, true /*kPipelineUseTrLoad*/>();
 
         // SaccBlockTile size is [kM0, kN0Sub]
         // PcompBlockTile size is [kM0, kN0]
@@ -230,9 +229,13 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
         // K tile in LDS
         QKVDataType* k_lds_ptr = static_cast<QKVDataType*>(smem_ptr);
         auto k_lds             = make_tensor_view<address_space_enum::lds>(
-            k_lds_ptr, Policy::template MakeKLdsBlockDescriptor<Problem>());
+            k_lds_ptr,
+            Policy::template MakeKLdsBlockDescriptor<Problem, true /*kPipelineUseTrLoad*/>());
         auto k_lds_window = make_tile_window(
-            k_lds, Policy::template MakeKLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+            k_lds,
+            Policy::template MakeKLdsBlockDescriptor<Problem, true /*kPipelineUseTrLoad*/>()
+                .get_lengths(),
+            {0, 0});
 
         using k_lds_window_type = decltype(get_slice_tile(
             k_lds_window, sequence<0, 0>{}, sequence<kN0Sub, kQKHeaddim>{}));
@@ -248,9 +251,11 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
         // V tile in LDS
         auto v_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<QKVDataType*>(smem_ptr),
-            Policy::template MakeVLdsBlockDescriptor<Problem>());
+            Policy::template MakeVLdsBlockDescriptor<Problem, true /*kUseTrLoad*/>());
         auto v_lds_window = make_tile_window(
-            v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
+            v_lds,
+            Policy::template MakeVLdsBlockDescriptor<Problem, true /*kUseTrLoad*/>().get_lengths(),
+            {0, 0});
 
         using v_lds_window_type =
             decltype(get_slice_tile(v_lds_window, sequence<0, 0>{}, sequence<kK1, kN1>{}));
@@ -262,11 +267,11 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                 v_lds_window, sequence<i_buf * kK1, 0>{}, sequence<(i_buf + 1) * kK1, kN1>{});
         });
 
-        auto v_dram_window =
-            make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
-                             v_dram_block_window_tmp.get_window_lengths(),
-                             {seqlen_k_start, 0},
-                             Policy::template MakeVDramTileDistribution<Problem>());
+        auto v_dram_window = make_tile_window(
+            v_dram_block_window_tmp.get_bottom_tensor_view(),
+            v_dram_block_window_tmp.get_window_lengths(),
+            {seqlen_k_start, 0},
+            Policy::template MakeVDramTileDistribution<Problem, true /*kUseTrLoad*/>());
 
         const auto f_exp = [&](CompDataType x) {
             if constexpr(std::is_same_v<CompDataType, float>)
@@ -508,7 +513,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
             if constexpr(kHasDropout)
             {
                 auto randval_lds_ptr =
-                    reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
+                    reinterpret_cast<char*>(smem_ptr) +
+                    Policy::template GetSmemSizeKV<Problem, true /*kPipelineUseTrLoad*/>();
 
                 dropout.template Run<decltype(gemm_0), CompDataType, uint8_t>(
                     randval_lds_ptr, seqlen_k_curr, pcomp_tile, null_randval_window);
