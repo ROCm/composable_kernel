@@ -34,6 +34,8 @@ RUN pip install pandas zmq einops ninja tabulate vcs_versioning && \
     python3 setup.py develop && \
     groupadd -g 1001 jenkins && \
     useradd -u 1001 -g 1001 -m -s /bin/bash jenkins && \
+    groupadd -f video && \
+    groupadd -f render && \
     chown -R jenkins:jenkins /home/jenkins && \
     chmod -R a+rwx /home/jenkins && \
     chown -R jenkins:jenkins /tmp && \
