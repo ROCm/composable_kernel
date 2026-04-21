@@ -53,6 +53,7 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           BlockAttentionQuantScaleEnum QScaleEnum_,
           index_t kBlockPerCu_    = -1,    /* overwrite occupancy if not -1 */
           bool kSkipMinSeqlenQ_   = false, /* skip min seqlen q while chunked prefill */
+          bool kHasSink_          = false, /* StreamLLM sink tokens */
           index_t kPageBlockSize_ = 1,
           BlockAttentionKVCacheMemoryLayoutEnum kKVMemoryLayout_ =
               BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT,
@@ -70,7 +71,7 @@ struct TileFmhaBatchPrefillTraits : public TileFmhaTraits<kPadSeqLenQ_,
                                                           QScaleEnum_,
                                                           kBlockPerCu_,
                                                           kSkipMinSeqlenQ_,
-                                                          false>
+                                                          kHasSink_>
 {
     static constexpr auto kKVMemoryLayout   = kKVMemoryLayout_;
     static constexpr auto kKVLookupTable    = kKVLookupTable_;

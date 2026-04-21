@@ -387,7 +387,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     }
 
 #if(!(CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API || \
-      CK_TILE_FMHA_FWD_PAGEDKV_API))
+      CK_TILE_FMHA_FWD_PAGEDKV_API || CK_TILE_FMHA_FWD_BATCH_PREFILL_API))
     if(0 < page_block_size)
     {
         std::cerr << "paged-kvcache is not supported. ignoring the 'page_block_size' option"
@@ -395,7 +395,11 @@ fwd_result fmha_fwd_run(mode_enum mode,
         page_block_size = 0;
     }
 #endif
-    if(!(page_block_size % 128 == 0))
+    // batch_prefill supports flexible page sizes (not just multiples of 128)
+    const bool need_128_aligned_page =
+        (CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API ||
+         CK_TILE_FMHA_FWD_PAGEDKV_API);
+    if(need_128_aligned_page && 0 < page_block_size && !(page_block_size % 128 == 0))
     {
         std::cerr << "only paged-kvcache block size divisible by 128 are currently supported"
                   << std::endl;
@@ -972,9 +976,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::DeviceMem seqlen_q_buf(has_group_q_padding ? seqlen_qs.size() * sizeof(int32_t) : 0);
     // Buffers for key/value per-sequence logical (unpadded) lengths (used in batch mode with
     // kvcache or group mode with padding enabled)
-    ck_tile::DeviceMem seqlen_k_buf((mode == mode_enum::batch && use_kvcache) || has_group_k_padding
-                                        ? seqlen_ks.size() * sizeof(int32_t)
-                                        : 0);
+    // batch_prefill (group+kvcache) also needs per-batch seqlen_k for VLLM_BLOCK_TABLE_2D
+    const bool need_seqlen_k_buf = (mode == mode_enum::batch && use_kvcache) ||
+                                   has_group_k_padding || (mode == mode_enum::group && use_kvcache);
+    ck_tile::DeviceMem seqlen_k_buf(need_seqlen_k_buf ? seqlen_ks.size() * sizeof(int32_t) : 0);
     ck_tile::DeviceMem cu_seqlen_q_buf(cuq_cum.empty() ? 0
                                                        : cuq_cum.size() * sizeof(ck_tile::index_t));
     ck_tile::DeviceMem cu_seqlen_kv_buf(
@@ -1013,9 +1018,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     cu_seqlen_q_buf.ToDevice(cuq_cum.empty() ? nullptr : cuq_cum.data());
     cu_seqlen_kv_buf.ToDevice(cukv_cum.empty() ? nullptr : cukv_cum.data());
     seqlen_q_buf.ToDevice(has_group_q_padding ? seqlen_qs.data() : nullptr);
-    seqlen_k_buf.ToDevice((mode == mode_enum::batch && use_kvcache) || has_group_k_padding
-                              ? seqlen_ks.data()
-                              : nullptr);
+    seqlen_k_buf.ToDevice(need_seqlen_k_buf ? seqlen_ks.data() : nullptr);
     cache_seqlen_k_buf.ToDevice(need_append_kvcache ? cache_seqlen_ks.data() : nullptr);
     rotary_cos_buf.ToDevice(rotary_cos_host.data());
     rotary_sin_buf.ToDevice(rotary_sin_host.data());
@@ -1145,6 +1148,17 @@ fwd_result fmha_fwd_run(mode_enum mode,
                                              std::decay_t<decltype(traits)>>)
             {
                 traits.use_pagedkv = (0 < page_block_size);
+            }
+            else if constexpr(std::is_same_v<fmha_batch_prefill_traits,
+                                             std::decay_t<decltype(traits)>>)
+            {
+                traits.has_dropout = (p_drop > 0.0f);
+                traits.qscale_type = qscale.type;
+                traits.kv_memory_layout =
+                    ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT;
+                traits.kv_lookup_table =
+                    ck_tile::BlockAttentionKVCacheLookupTableEnum::VLLM_BLOCK_TABLE_2D;
+                traits.page_size = page_block_size;
             }
         }
     };
@@ -1498,6 +1512,67 @@ fwd_result fmha_fwd_run(mode_enum mode,
                          ? seqlen_k_buf.GetDeviceBuffer()
                          : nullptr);
             }
+            else if constexpr(std::is_same_v<fmha_batch_prefill_args, std::decay_t<decltype(args)>>)
+            {
+                // Fields already set by the outer else block above:
+                //   bias_ptr, lse_ptr, o_ptr, seqlen_k, max_seqlen_q, scale_s,
+                //   logits_soft_cap, stride_bias/o, nhead/batch stride for bias/lse/o,
+                //   window_size_left/right, sink_size, mask_type.
+
+                // scale_p/scale_o: batch_prefill-specific fields absent from fmha_fwd_args.
+                args.scale_p = 1.f;
+                args.scale_o = 1.f;
+
+                // Dropout fields: the outer fmha_fwd_args branch sets these; set them here
+                // for batch_prefill since it takes a separate inner branch.
+                args.rand_val_ptr         = randval_buf.GetDeviceBuffer();
+                args.stride_randval       = stride_randval;
+                args.nhead_stride_randval = nhead_stride_randval;
+                args.batch_stride_randval = batch_stride_randval;
+                args.p_drop               = p_drop;
+                args.s_randval            = s_randval;
+                if(drop_prefs)
+                    args.drop_seed_offset = std::make_pair(drop_seed_buf.GetDeviceBuffer(),
+                                                           drop_offset_buf.GetDeviceBuffer());
+                else
+                    args.drop_seed_offset = std::make_pair(drop_seed, drop_offset);
+
+                // Paged KV: LINEAR_LAYOUT + VLLM_BLOCK_TABLE_2D
+                // block_table_buf: [batch, max_blocks_per_seq] of physical page ids
+                // seqlen_k_buf: [batch] of per-batch seqlen_k values
+                args.num_total_pages = max_num_page_blocks;
+                args.page_block_size = page_block_size;
+                args.kv_memory_layout =
+                    ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT;
+                args.kv_lookup_table =
+                    ck_tile::BlockAttentionKVCacheLookupTableEnum::VLLM_BLOCK_TABLE_2D;
+                args.kv_indptr                = nullptr;
+                args.kv_page_indices          = block_table_buf.GetDeviceBuffer();
+                args.kv_last_page_lens        = nullptr;
+                args.seqlen_k_ptr             = seqlen_k_buf.GetDeviceBuffer();
+                args.batch_stride_block_table = batch_stride_block_table;
+
+                // group mode required: seqstart_q is prefix-sum of per-batch seqlen_q
+                args.seqstart_q_ptr = seqstart_q_buf.GetDeviceBuffer();
+
+                // batch_prefill LINEAR_LAYOUT strides for runner's K layout
+                // [max_num_page_blocks, nhead_k, page_block_size, hdim]:
+                //   stride_k       = hdim_q           (token stride within one head's page slice)
+                //   nhead_stride_k = page_block_size * hdim_q  (head stride)
+                //   batch_stride_k = nhead_k * page_block_size * hdim_q  (page stride, already set)
+                args.stride_k       = hdim_q;
+                args.nhead_stride_k = page_block_size * hdim_q;
+                // V is row-major, same layout convention
+                args.stride_v       = hdim_v;
+                args.nhead_stride_v = page_block_size * hdim_v;
+
+                // descale: not used for fp16/bf16
+                args.q_descale_ptr                  = nullptr;
+                args.k_descale_ptr                  = nullptr;
+                args.v_descale_ptr                  = nullptr;
+                args.nblock_stride_kv_block_descale = 0;
+                args.nhead_stride_kv_block_descale  = 0;
+            }
         }
     };
 
@@ -1524,6 +1599,21 @@ fwd_result fmha_fwd_run(mode_enum mode,
     }
 
     auto run_fwd = [&](const ck_tile::stream_config& sc) {
+#if CK_TILE_FMHA_FWD_BATCH_PREFILL_API
+        // batch_prefill: group mode + paged KV, tested against the same CPU reference
+        if(1 == num_splits && use_kvcache && mode == mode_enum::group)
+        {
+            fmha_batch_prefill_traits bp_traits;
+            init_traits(bp_traits);
+
+            fmha_batch_prefill_args bp_args;
+            init_args(bp_args);
+
+            const float ave_time = fmha_batch_prefill(bp_traits, bp_args, sc);
+            if(ave_time >= 0.0f)
+                return ave_time;
+        }
+#endif // CK_TILE_FMHA_FWD_BATCH_PREFILL_API
 #if CK_TILE_FMHA_FWD_PAGEDKV_API
         if(1 == num_splits && use_kvcache)
         {
@@ -1844,7 +1934,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                 q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host_ref_ro(i); });
             }
 #endif
-#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
+#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API || \
+    CK_TILE_FMHA_FWD_BATCH_PREFILL_API
             if(0 < page_block_size)
             {
                 // clang-format off
@@ -1895,7 +1986,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                 });
             }
 #endif
-#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API
+#if CK_TILE_FMHA_FWD_SPLITKV_API || CK_TILE_FMHA_FWD_PAGEDKV_API || \
+    CK_TILE_FMHA_FWD_BATCH_PREFILL_API
             if(0 < page_block_size)
             {
                 if(is_v_rowmajor)
