@@ -209,4 +209,21 @@ template <typename ADataType, typename BDataType>
 using largest_type_t =
     std::conditional_t<sizeof(ADataType) >= sizeof(BDataType), ADataType, BDataType>;
 
+/**
+ * @brief Type trait to detect whether a type is a @c std::tuple specialization.
+ * @tparam T The type to inspect.
+ */
+template <typename T>
+struct is_std_tuple : std::false_type
+{
+};
+
+template <typename... Args>
+struct is_std_tuple<std::tuple<Args...>> : std::true_type
+{
+};
+
+template <typename T>
+static constexpr bool is_std_tuple_v = is_std_tuple<T>::value;
+
 } // namespace ck_tile

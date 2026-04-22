@@ -303,14 +303,10 @@ struct wmma_type<WmmaInstr::wmma_f32_16x16x16_f16_gfx12,
 {
     // Absolute fixing property
     // * Data Pixel
-    static constexpr index_t m_per_wmma = 16;
-    static constexpr index_t n_per_wmma = 16;
-    static constexpr index_t k_per_wmma = 16;
-    static constexpr index_t k_per_blk  = 8;
-    // static constexpr index_t src_a_data_size = 2;
-    // static constexpr index_t src_b_data_size = 2;
-    // static constexpr index_t acc_data_size   = 4;
-    // * Thread mapping inside wave, num_thread_per_subgroups always alone N direction
+    static constexpr index_t m_per_wmma               = 16;
+    static constexpr index_t n_per_wmma               = 16;
+    static constexpr index_t k_per_wmma               = 16;
+    static constexpr index_t k_per_blk                = 8;
     static constexpr index_t acc_data_size            = 4;
     static constexpr index_t acc_pack_number          = 1;
     static constexpr index_t num_thread_per_subgroups = n_per_wmma;

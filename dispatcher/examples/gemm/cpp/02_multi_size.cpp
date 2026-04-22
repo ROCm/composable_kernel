@@ -21,9 +21,9 @@
  *   - pipeline: "compv3"               -> 1 option (compv4 requires special handling)
  *   - scheduler: "intrawave"           -> 1 option
  *
- * Raw expansion: 3 × 2 = 6 configs, but arch filter validates each:
- *   - tile_m must be divisible by (warp_m × warp_tile_m)
- *   - tile_n must be divisible by (warp_n × warp_tile_n)
+ * Raw expansion: 3 x 2 = 6 configs, but arch filter validates each:
+ *   - tile_m must be divisible by (warp_m x warp_tile_m)
+ *   - tile_n must be divisible by (warp_n x warp_tile_n)
  *   - Some wave/warp combos invalid: (4,1,1)+(32,32,16), (1,4,1)+(32,32,16)
  * Result: 4 valid wildcard kernels + 1 explicit = 5 total
  *
@@ -70,13 +70,13 @@ DECL_KERNEL_SET(multi_size_kernels,
                     .add(Signature().dtype("fp16").layout("rcr"),
                          Algorithm()
                              .tile(64, 64, 64)
-                             .wave(ANY_INT, ANY_INT, 1) // ANY_INT → (1,4,1), (2,2,1), (4,1,1)
-                             .warp(-1, -1, -1) // -1 same as ANY_INT → (16,16,32), (32,32,16)
-                             .pipeline("*")    // "*" → valid pipelines
-                             .scheduler("*")   // "*" → valid schedulers
+                             .wave(ANY_INT, ANY_INT, 1) // ANY_INT -> (1,4,1), (2,2,1), (4,1,1)
+                             .warp(-1, -1, -1) // -1 same as ANY_INT -> (16,16,32), (32,32,16)
+                             .pipeline("*")    // "*" -> valid pipelines
+                             .scheduler("*")   // "*" -> valid schedulers
                              .epilogue("cshuffle"),
                          "gfx942"));
-// Raw: 3×2=6, arch filter removes 2 invalid → 4 valid kernels
+// Raw: 3x2=6, arch filter removes 2 invalid -> 4 valid kernels
 
 // =============================================================================
 // MAIN
@@ -116,8 +116,8 @@ int main(int argc, char* argv[])
     .pipeline("*")              -> expands to valid pipelines = 1
     .scheduler("*")             -> expands to valid schedulers = 1
 
-  Expanded: 3 × 2 = 6 configs, but arch filter validates each:
-    - wave×warp must divide tile: (4,1,1)×(32,32,16) invalid for 64x64
+  Expanded: 3 x 2 = 6 configs, but arch filter validates each:
+    - wave x warp must divide tile: (4,1,1)x(32,32,16) invalid for 64x64
     - Result: 4 valid kernels from wildcard + 1 explicit = 5 total
 )";
 

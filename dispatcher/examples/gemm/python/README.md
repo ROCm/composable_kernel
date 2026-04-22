@@ -295,5 +295,5 @@ Compilation time scales roughly linearly with kernel count.
 ## Related Documentation
 
 - [C++ GEMM Examples](../cpp/README.md)
-- [Python Conv Examples](../../conv/python/README.md)
+- [Python Utilities](../../../python/README.md)
 - [Main Dispatcher README](../../../README.md)

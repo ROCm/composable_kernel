@@ -4,13 +4,13 @@
 version: 2
 
 sphinx:
-   configuration: docs/conf.py
+   configuration: projects/composablekernel/docs/conf.py
 
 formats: [htmlzip, pdf, epub]
 
 python:
    install:
-   - requirements: docs/sphinx/requirements.txt
+   - requirements: projects/composablekernel/docs/sphinx/requirements.txt
 
 build:
    os: ubuntu-22.04

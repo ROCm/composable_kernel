@@ -10,7 +10,7 @@
 # ============================================================================
 
 # Locate tile_engine GEMM scripts directory
-set(TILE_ENGINE_GEMM_DIR "${PROJECT_SOURCE_DIR}/tile_engine/ops/gemm")
+set(TILE_ENGINE_GEMM_DIR "${PROJECT_SOURCE_DIR}/tile_engine/ops/gemm/gemm_universal")
 
 if(NOT EXISTS ${TILE_ENGINE_GEMM_DIR})
     message(WARNING "Tile engine directory not found: ${TILE_ENGINE_GEMM_DIR}")
@@ -32,11 +32,11 @@ endif()
 #   config_json  - Full path to JSON configuration file
 # ============================================================================
 function(create_individual_gemm_test_target datatype layout config_name trait tile_config config_json)
-    set(target_name "test_gemm_tile_engine_${datatype}_${layout}_${config_name}_${trait}_${tile_config}")
+    set(target_name "test_gemm_universal_tile_engine_${datatype}_${layout}_${config_name}_${trait}_${tile_config}")
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}/${config_name}")
     
     # Generated header path (already created during cmake configuration)
-    set(test_header "${working_path}/gemm_single_${datatype}_${layout}_${trait}_${tile_config}.hpp")
+    set(test_header "${working_path}/gemm_universal_single_${datatype}_${layout}_${trait}_${tile_config}.hpp")
     set(test_params_header "${working_path}/test_params.hpp")
     
     # Verify header exists (should have been generated during cmake configuration)
@@ -118,7 +118,7 @@ function(build_gemm_test_targets datatype layout config_name)
 
     # STEP 1: Discovery phase - list all valid kernel configurations
     execute_process(
-        COMMAND ${Python3_EXECUTABLE} -u ${TILE_ENGINE_GEMM_DIR}/gemm_instance_builder.py
+        COMMAND ${Python3_EXECUTABLE} -u ${TILE_ENGINE_GEMM_DIR}/gemm_universal_instance_builder.py
                 --working_path ${working_path}
                 --datatype ${datatype}
                 --layout ${layout}
@@ -178,7 +178,7 @@ function(build_gemm_test_targets datatype layout config_name)
                     
                     # Generate header using --gen_single
                     execute_process(
-                        COMMAND ${Python3_EXECUTABLE} -u ${TILE_ENGINE_GEMM_DIR}/gemm_instance_builder.py
+                        COMMAND ${Python3_EXECUTABLE} -u ${TILE_ENGINE_GEMM_DIR}/gemm_universal_instance_builder.py
                                 --working_path ${working_path}
                                 --gpu_target "${GEMM_TEST_GPU_TARGETS}"
                                 --datatype ${datatype}

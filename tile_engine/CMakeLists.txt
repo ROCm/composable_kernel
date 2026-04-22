@@ -3,6 +3,7 @@
 
 include_directories(BEFORE
         ${CMAKE_CURRENT_LIST_DIR}/include
+        ${CMAKE_CURRENT_LIST_DIR}/ops
     )
 
 add_subdirectory(ops/gemm EXCLUDE_FROM_ALL)

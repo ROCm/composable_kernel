@@ -1592,6 +1592,25 @@ struct GridwiseMoeGemmBlockScale
                                 tensor_operation::element_wise::Silu{}(gate, gate);
                                 c_thread_buf(cidx) = gate * up;
                             }
+                            else if constexpr(ActivationOperation == Activation::swiglustep_and_mul)
+                            {
+                                float gate = c_thread_buf[cidx];
+                                float up   = c_thread_buf_up[cidx];
+                                if constexpr(MulRoutedWeight)
+                                {
+                                    gate = gate * topk_weight;
+                                    up   = up * topk_weight;
+                                }
+                                if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+                                {
+                                    gate *= 16;
+                                    up *= 16;
+                                }
+                                tensor_operation::element_wise::Silu{}(gate, gate);
+                                gate               = gate < 7.0f ? gate : 7.0f;
+                                up                 = up < 7.0f ? (up > -7.0f ? up : -7.0f) : 7.0f;
+                                c_thread_buf(cidx) = gate * up;
+                            }
                             else if(ActivationOperation == Activation::gelu_and_mul)
                             {
                                 float gate = c_thread_buf[cidx];
@@ -2116,6 +2135,25 @@ struct GridwiseMoeGemmBlockScale
                                     up *= 16;
                                 }
                                 tensor_operation::element_wise::Silu{}(gate, gate);
+                                c_thread_buf(cidx) = gate * up;
+                            }
+                            else if constexpr(ActivationOperation == Activation::swiglustep_and_mul)
+                            {
+                                float gate = c_thread_buf[cidx];
+                                float up   = c_thread_buf_up[cidx];
+                                if constexpr(MulRoutedWeight)
+                                {
+                                    gate = gate * topk_weight;
+                                    up   = up * topk_weight;
+                                }
+                                if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+                                {
+                                    gate *= 16;
+                                    up *= 16;
+                                }
+                                tensor_operation::element_wise::Silu{}(gate, gate);
+                                gate               = gate < 7.0f ? gate : 7.0f;
+                                up                 = up < 7.0f ? (up > -7.0f ? up : -7.0f) : 7.0f;
                                 c_thread_buf(cidx) = gate * up;
                             }
                             else if(ActivationOperation == Activation::gelu_and_mul)

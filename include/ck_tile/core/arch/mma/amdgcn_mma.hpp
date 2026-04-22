@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/arch/mma/wmma/wmma_traits.hpp"
+#include "ck_tile/core/arch/mma/mfma/mfma_traits.hpp"
 #include "ck_tile/core/arch/mma/mma_op_family.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
@@ -87,7 +89,7 @@ namespace ck_tile::core::arch::mma {
  *
  * (logical correctness). Applies to scale MFMA fp8, which due to the index matrix layout does not
  * allow arbitrary K perms to simplify layouts. This means the layout can only properly be described
- * with a Num Access value of at least 2.
+ * with a Num Access value which is a multiple of 2.
  *
  * (load / store manipulation). It seems like the load and store tile functions end up looking for
  * the size of the smallest unmerged K dimension (K0) to determine how many elements should be
@@ -102,13 +104,16 @@ namespace ck_tile::core::arch::mma {
  *
  * -- CMPerLane --
  * The number of M dim elements in each lane. In terms of unmerge sizes, it's equal to M0 * M2, i.e
- * the product of the sizes of the outermost and innermost dimensions after a double M unmerge.
+ * the product of the sizes of the outermost and innermost dimensions after a double M unmerge. This
+ * does not count a potential increased M dimension size from block hiding. In this case, we have M
+ * = kCMBlock * M2 * M1 * M0 instead.
  *
  * -- CNumAccess --
  * Same as A / B NumAccess but for the M dim (so M2), but the mid-level code doesn't care about this
  * and will not try to request a specific value. Absolutely needed for logical correctness of
  * register mappings since we can not perform arbitrary M permutations without messing up the A
- * layout.
+ * layout. This does not count a potential increased M dimension size from block hiding. In this
+ * case, we have M = kCMBlock * M2 * M1 * M0 instead.
  */
 
 /**
@@ -144,7 +149,7 @@ struct amdgcn_mma_base
     using CDataType = CDataType_;
 
     // Fragment (MmaTile) sizes, check description above.
-    static constexpr index_t kM = FragM; // M = M2 * M1 * M0
+    static constexpr index_t kM = FragM; // M = M2 * M1 * M0 (* kCMBlocks when block-hiding)
     static constexpr index_t kN = FragN;
     static constexpr index_t kK = FragK; // K = K2 * K1 * K0
 
@@ -157,15 +162,37 @@ struct amdgcn_mma_base
     static constexpr index_t kCMPerLane   = kCMPerLane_;   // M2 * M0
     static constexpr index_t kCMNumAccess = kCMNumAccess_; // M2
 
+    // K-dimension compression ratio for A matrix, always 2 for sparse intrinsics.
+    static constexpr index_t kCompressionRatio = (OpFamily == MmaOpFamily::SPARSE) ? 2 : 1;
+
+    // Layout checks
+    static_assert(kK % kABKPerLane == 0);
+    static_assert(kABKPerLane % kAKNumAccess == 0);
+    static_assert(kABKPerLane % kBKNumAccess == 0);
+    static_assert(kCMPerLane % kCMNumAccess == 0);
+
     // Register types (derived)
     static constexpr index_t WaveSize = WaveSize_;
-    static_assert((kM * kK * kARepeat) % WaveSize == 0);
+    static_assert((kM * kK * kARepeat) % (WaveSize * kCompressionRatio) == 0);
     static_assert((kN * kK * kBRepeat) % WaveSize == 0);
     static_assert((kM * kN) % WaveSize == 0);
 
-    using AVecType = ext_vector_t<ADataType, kM * kK * kARepeat / WaveSize>;
+    using AVecType = ext_vector_t<ADataType, kM * kK * kARepeat / WaveSize / kCompressionRatio>;
     using BVecType = ext_vector_t<BDataType, kN * kK * kBRepeat / WaveSize>;
     using CVecType = ext_vector_t<CDataType, kM * kN / WaveSize>;
+
+    // Block-hiding / repeat related traits (derived)
+    static_assert(kARepeat == kBRepeat || !std::is_same_v<OpType, WmmaOp>);
+    static_assert(kARepeat == 1 || kBRepeat == 1 || !std::is_same_v<OpType, MfmaOp>);
+    static constexpr index_t kCMBlocks = std::is_same_v<OpType, MfmaOp> ? kBRepeat : 1;
+    static constexpr index_t kCNBlocks = std::is_same_v<OpType, MfmaOp> ? kARepeat : 1;
+    static_assert(kM % (kCMBlocks * kCMPerLane) == 0);
+    static_assert(kN % kCNBlocks == 0);
+
+    // For the C matrix, the block dimension B is either put in the Vector dimension or the Lane
+    // dimension. We can tell which by checking if we get the right Vector size.
+    static constexpr bool CBlockDimInVecDim =
+        kCMBlocks * kCNBlocks * kCMPerLane == vector_traits<CVecType>::vector_size;
 };
 
 /**
@@ -178,14 +205,29 @@ struct Unsupported;
 
 #include <concepts>
 /**
+ * @concept HasExecSignature
+ * @brief  Helper concept for exec signature check.
+ */
+template <typename MmaOp, typename... ExecArgs>
+concept HasExecSignature = requires {
+    {
+        MmaOp::exec(typename MmaOp::AVecType{},
+                    typename MmaOp::BVecType{},
+                    typename MmaOp::CVecType{},
+                    std::declval<ExecArgs>()...)
+    } -> std::convertible_to<typename MmaOp::CVecType>;
+};
+
+/**
  * @concept MmaOpI
  * @brief  Expresses the meta-data interface required for each MmaOp policy.
  */
+// TODO: Make sure this actually matches amdgcn_mma.
 template <typename MmaOp>
 concept MmaOpI = requires(MmaOp op) {
     // Requires an op context
     typename MmaOp::OpType;
-    typename MmaOp::OpFamily;
+    { MmaOp::OpFamily } -> std::convertible_to<MmaOpFamily>;
 
     // Captures types for inputs / outputs to mma function
     typename MmaOp::ADataType;
@@ -194,7 +236,6 @@ concept MmaOpI = requires(MmaOp op) {
     typename MmaOp::AVecType;
     typename MmaOp::BVecType;
     typename MmaOp::CVecType;
-
     // Captures CK-specific layout properties
     { MmaOp::kABKPerLane } -> std::convertible_to<unsigned int>;
     { MmaOp::kAKNumAccess } -> std::convertible_to<unsigned int>;
@@ -203,13 +244,8 @@ concept MmaOpI = requires(MmaOp op) {
     { MmaOp::kBRepeat } -> std::convertible_to<unsigned int>;
     { MmaOp::kCMPerLane } -> std::convertible_to<unsigned int>;
     { MmaOp::kCMNumAccess } -> std::convertible_to<unsigned int>;
-
-    // Static exec function
-    {
-        MmaOp::exec(
-            typename MmaOp::AVecType{}, typename MmaOp::BVecType{}, typename MmaOp::CVecType{})
-    } -> std::convertible_to<typename MmaOp::CVecType>;
-};
+    { MmaOp::kCompressionRatio } -> std::convertible_to<unsigned int>;
+} && (HasExecSignature<MmaOp> || HasExecSignature<MmaOp, int> || HasExecSignature<MmaOp, int, int>);
 
 #endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
@@ -248,7 +284,7 @@ struct amdgcn_mma : amdgcn_mma_base<fp32_t, fp32_t, fp32_t, 1u, 1u, 1u, 1u, 1, 1
 // clang-format on
 {
     // This is a default pass-through implementation that doesn't do anything practical.
-    CK_TILE_DEVICE static CVecType const&
+    CK_TILE_DEVICE static auto
     exec(AVecType const& regsA, BVecType const& regsB, CVecType const& regsC)
     {
         // Prints once across all thread blocks and threads.
@@ -267,6 +303,8 @@ struct amdgcn_mma : amdgcn_mma_base<fp32_t, fp32_t, fp32_t, 1u, 1u, 1u, 1u, 1, 1
 #pragma clang diagnostic pop
 
 // Include the implementations
-#include "wmma/wmma.hpp"
+#include "wmma/wmma.hpp" // should be included before the below headers
+
 #include "mfma/mfma.hpp"
+#include "scale/scale.hpp"
 #include "sparse/sparse.hpp"

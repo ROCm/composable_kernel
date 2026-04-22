@@ -291,6 +291,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     static constexpr bool kHasDropout       = Problem::kHasDropout;
     static constexpr auto kKVMemoryLayout   = Problem::kKVMemoryLayout;
     static constexpr auto QScaleEnum        = Problem::QScaleEnum;
+    static constexpr bool kHasSink          = Problem::kHasSink;
 
     // For KV_BLOCKSCALE: shift value for exp2(x + shift) to scale P to [0, 2^shift]
     // This avoids explicit P *= scale_p and v_descale /= scale_p operations
@@ -546,11 +547,25 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         }
 
         __builtin_amdgcn_sched_barrier(0);
-        const auto q_origin = q_dram_window.get_window_origin();
-        const auto [seqlen_k_start, seqlen_k_end] =
-            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
-
-        const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+        const auto q_origin          = q_dram_window.get_window_origin();
+        const auto tile_range_result = [&mask, &q_origin]() {
+            if constexpr(kHasSink)
+                return mask.GetSinkTileRangeAlongX(
+                    q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+            else
+            {
+                auto [start, end] =
+                    mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+                return ck_tile::make_tuple(0, start, end);
+            }
+        }();
+        const auto sink_seq_end   = tile_range_result.get(ck_tile::number<0>{});
+        const auto seqlen_k_start = tile_range_result.get(ck_tile::number<1>{});
+        const auto seqlen_k_end   = tile_range_result.get(ck_tile::number<2>{});
+        const auto num_sink_loop  = integer_divide_ceil(sink_seq_end, kN0);
+        const auto kv_load_start  = (sink_seq_end == 0 && seqlen_k_start > 0) ? seqlen_k_start : 0;
+        const auto num_total_loop =
+            integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0) + num_sink_loop;
 
         // check early exit if no work to do
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
@@ -576,7 +591,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         auto k_dram_block_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
                              k_dram_block_window_tmp.get_window_lengths(),
-                             {seqlen_k_start, 0});
+                             {kv_load_start, 0});
 
         auto k_dist               = Policy::template MakeKDramTileDistribution<Problem>();
         auto k_coord              = k_dist.calculate_index();
@@ -585,7 +600,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         // kPageBlockSize >= kN0: within-page offset only (SRD rebased per page via rebase_k_window)
         // kPageBlockSize <  kN0: global offset, must fit int32
         statically_indexed_array<index_t, NRepeat> k_offsets;
-        index_t current_seq_k = seqlen_k_start;
+        index_t current_seq_k = kv_load_start;
 
         // Load physical pages first, then compute offsets.
         // k_physical_pages can be reused for descale lookup later.
@@ -668,11 +683,11 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
                              bias_dram_block_window_tmp.get_window_lengths(),
-                             {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
+                             {bias_origin.at(number<0>{}), kv_load_start}, // M/N
                              Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
-            randval_dram_block_window_tmp, seqlen_k_start);
+            randval_dram_block_window_tmp, kv_load_start);
 
         auto v_dist       = Policy::template MakeVDramTileDistribution<Problem>();
         auto v_coord      = v_dist.calculate_index();
@@ -895,7 +910,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         auto v_dram_window =
             make_tile_scatter_gather(v_dram_block_window_tmp.get_bottom_tensor_view(),
                                      v_dram_block_window_tmp.get_window_lengths(),
-                                     {0, seqlen_k_start}, // TODO: hdim split?
+                                     {0, kv_load_start}, // TODO: hdim split?
                                      v_dist,
                                      v_offsets,
                                      number<1>{}, // HsGatherDim
@@ -1097,6 +1112,11 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 #endif
                     }
                 }
+                if constexpr(kHasSink)
+                {
+                    if(i_total_loops == num_sink_loop - 1)
+                        move_tile_window(bias_dram_window, {0, seqlen_k_start - sink_seq_end});
+                }
                 move_tile_window(bias_dram_window, {0, kN0});
                 if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
                 {
@@ -1108,19 +1128,36 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 
                     if(need_perpixel_check)
                     {
-                        set_tile_if(
-                            s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                                const auto row =
-                                    q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                                const auto col =
-                                    k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                                return !variant.LogitsMask(variant_params,
-                                                           block_indices.batch_idx,
-                                                           row,
-                                                           col,
-                                                           block_indices.qo_head_idx,
-                                                           block_indices.kv_head_idx);
+                        auto apply_mask = [&](auto&& mask_func) {
+                            set_tile_if(s_acc,
+                                        -numeric<SMPLComputeDataType>::infinity(),
+                                        [&](auto tile_idx) {
+                                            const auto row =
+                                                q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                                            const auto col =
+                                                k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                            return !mask_func(variant_params,
+                                                              block_indices.batch_idx,
+                                                              row,
+                                                              col,
+                                                              block_indices.qo_head_idx,
+                                                              block_indices.kv_head_idx);
+                                        });
+                        };
+
+                        if constexpr(kHasSink)
+                        {
+                            apply_mask([&](auto&&... args) {
+                                return variant.LogitsSinkMask(
+                                    std::forward<decltype(args)>(args)...);
                             });
+                        }
+                        else
+                        {
+                            apply_mask([&](auto&&... args) {
+                                return variant.LogitsMask(std::forward<decltype(args)>(args)...);
+                            });
+                        }
                     }
                 }
 
@@ -1297,12 +1334,23 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 {
                     auto randval_ptr = reinterpret_cast<char*>(smem_ptr) +
                                        Policy::template GetSmemSizeKV<Problem>();
+                    index_t seq_offset = [&]() {
+                        if constexpr(kHasSink)
+                        {
+                            const bool in_sink_phase = (num_sink_loop > i_total_loops);
+                            if(i_total_loops == num_sink_loop)
+                                move_tile_window(randval_dram_window,
+                                                 {0, seqlen_k_start - sink_seq_end});
+                            return in_sink_phase
+                                       ? (kv_load_start + i_total_loops * kN0)
+                                       : (seqlen_k_start + (i_total_loops - num_sink_loop) * kN0);
+                        }
+                        else
+                            return seqlen_k_start + i_total_loops * kN0;
+                    }();
                     dropout
                         .template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                            randval_ptr,
-                            seqlen_k_start + i_total_loops * kN0,
-                            p_compute,
-                            randval_dram_window);
+                            randval_ptr, seq_offset, p_compute, randval_dram_window);
                 }
 
 #if CK_TILE_FMHA_FLOAT_TO_FLOAT16_RTN
@@ -1396,9 +1444,19 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             i_total_loops++;
             if(i_total_loops < num_total_loop)
             {
-                current_seq_k += kN0;
+                // For sink: after the last sink tile, jump K/V to seqlen_k_start;
+                // otherwise advance by one normal tile.
+                const index_t k_advance = [&]() -> index_t {
+                    if constexpr(kHasSink)
+                        return (i_total_loops == num_sink_loop)
+                                   ? (seqlen_k_start - sink_seq_end + kN0)
+                                   : kN0;
+                    else
+                        return kN0;
+                }();
+                current_seq_k += k_advance;
                 // move K tile windows
-                move_tile_window(k_dram_block_window, {kN0, 0});
+                move_tile_window(k_dram_block_window, {k_advance, 0});
                 k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
 
                 // KV_BLOCKSCALE: reload physical pages for the new tile
@@ -1427,6 +1485,21 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     k_physical_pages, stride_k, page_stride_k, k_coord, k_offsets, current_seq_k);
                 k_dram_window.update_page_idx(k_offsets);
                 rebase_k_window(k_dram_window, k_physical_pages[number<0>{}]);
+
+                // After sink→window transition (i_total_loops == num_sink_loop), V window
+                // was advanced by kN0 (one normal iter), but current_seq_k jumped by k_advance
+                // = seqlen_k_start - sink_seq_end + kN0 > kN0.  Re-init V to current_seq_k.
+                if constexpr(kHasSink)
+                {
+                    if(i_total_loops == num_sink_loop && num_sink_loop > 0)
+                    {
+                        prefetch_v_physical_pages(number<0>{});
+                        update_v_offsets(number<0>{});
+                        v_dram_window.update_page_idx(v_offsets);
+                        rebase_v_window(v_dram_window, v_physical_pages[number<0>{}]);
+                    }
+                }
+
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
                     __builtin_amdgcn_s_barrier();

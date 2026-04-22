@@ -1452,6 +1452,7 @@ template <ck_tile::index_t HDim_,
           bool kPadDv_,
           bool kUseTrLoad_,
           bool kSkipMinSeqlenQ_            = false,
+          bool kHasSink_                   = false,
           ck_tile::index_t kPageBlockSize_ = 1,
           ck_tile::BlockAttentionKVCacheMemoryLayoutEnum kKVMemoryLayout_ =
               ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT,
@@ -1480,7 +1481,7 @@ struct fmha_fwd_batch_prefill_traits_ : public fmha_fwd_traits_<HDim_,
                                                                 kPadDv_,
                                                                 kUseTrLoad_,
                                                                 kSkipMinSeqlenQ_,
-                                                                false>
+                                                                kHasSink_>
 {
     static constexpr auto kKVMemoryLayout            = kKVMemoryLayout_;
     static constexpr auto kKVLookupTable             = kKVLookupTable_;

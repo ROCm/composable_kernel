@@ -737,11 +737,6 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
 
         // Batch Offset
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch_;
-
-        // for checking vector load/store
-        // index_t MRaw_;
-        // index_t NRaw_;
-        // index_t KRaw_;
     };
 
     // Invoker

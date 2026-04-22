@@ -97,8 +97,10 @@ TEST(TileBackendTest, TileKernelIdentifierEncoding)
     EXPECT_NE(id.find("2x2x1"), std::string::npos);
     EXPECT_NE(id.find("32x32x16"), std::string::npos);
 
-    // Should contain persistent flag
-    EXPECT_NE(id.find("nopers"), std::string::npos); // persistent = false
+    // Verify persistent flag affects identifier
+    KernelKey persistent_key            = key;
+    persistent_key.algorithm.persistent = true;
+    EXPECT_NE(id, persistent_key.encode_identifier());
 }
 
 TEST(TileBackendTest, MultipleKernelRegistration)

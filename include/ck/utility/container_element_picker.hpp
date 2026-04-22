@@ -15,9 +15,6 @@ template <typename Arr, typename Picks>
 struct ContainerElementPicker
 {
     using type = ContainerElementPicker;
-#if 0
-    using data_type = typename Arr::data_type;
-#endif
 
     __host__ __device__ constexpr ContainerElementPicker() = delete;
 
@@ -81,9 +78,6 @@ template <typename Arr, typename Picks>
 struct ConstantContainerElementPicker
 {
     using type = ConstantContainerElementPicker;
-#if 0
-    using data_type = typename Arr::data_type;
-#endif
 
     __host__ __device__ constexpr ConstantContainerElementPicker() = delete;
 

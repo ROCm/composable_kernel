@@ -144,7 +144,7 @@ int main()
         all_passed  = all_passed && passed;
 
         char size_label[32];
-        snprintf(size_label, sizeof(size_label), "%s %d³", label, M);
+        snprintf(size_label, sizeof(size_label), "%s %d^3", label, M);
 
         printf("  %-9s | %9.4f | %6.2f | %9.1f | %s\n",
                size_label,

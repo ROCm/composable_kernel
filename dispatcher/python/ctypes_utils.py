@@ -38,6 +38,43 @@ import time
 
 
 # =============================================================================
+# GPU Architecture Auto-Detection
+# =============================================================================
+
+_detected_arch: Optional[str] = None
+
+
+def detect_gpu_arch(fallback: str = "gfx942") -> str:
+    """
+    Auto-detect the GPU architecture by querying rocminfo.
+
+    Caches the result after the first call. Falls back to `fallback` if
+    detection fails (e.g. no GPU, rocminfo not installed).
+    """
+    global _detected_arch
+    if _detected_arch is not None:
+        return _detected_arch
+
+    try:
+        result = subprocess.run(
+            ["/opt/rocm/bin/rocminfo"], capture_output=True, text=True, timeout=10
+        )
+        for line in result.stdout.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("Name:") and "gfx" in stripped:
+                # Extract e.g. "gfx950" from "Name:                    gfx950"
+                name = stripped.split(":", 1)[1].strip()
+                if name.startswith("gfx") and name[3:].isdigit():
+                    _detected_arch = name
+                    return _detected_arch
+    except Exception:
+        pass
+
+    _detected_arch = fallback
+    return _detected_arch
+
+
+# =============================================================================
 # Path Configuration
 # =============================================================================
 
@@ -159,9 +196,9 @@ class ValidationResult:
     def print_result(self, indent: str = "  "):
         """Print validation result."""
         if self.is_valid:
-            print(f"{indent}✓ Configuration valid")
+            print(f"{indent}OK Configuration valid")
         else:
-            print(f"{indent}⚠ Configuration has issues:")
+            print(f"{indent}WARNING Configuration has issues:")
             for err in self.errors:
                 print(f"{indent}  - {err}")
 
@@ -300,7 +337,7 @@ def auto_correct_kernel_config(
     # Check each fix and describe what changed
     if "scheduler" in fixes and fixes["scheduler"] != config.scheduler:
         corrections.append(
-            f"Scheduler: {config.scheduler} → {fixes['scheduler']} "
+            f"Scheduler: {config.scheduler} -> {fixes['scheduler']} "
             f"('{config.scheduler}' not supported with pipeline={config.pipeline}, epilogue={config.epilogue})"
         )
 
@@ -309,7 +346,7 @@ def auto_correct_kernel_config(
         new_wave = f"[{fixes.get('wave_m', config.wave_m)}, {fixes.get('wave_n', config.wave_n)}, {fixes.get('wave_k', config.wave_k)}]"
         if old_wave != new_wave:
             corrections.append(
-                f"Wave config: {old_wave} → {new_wave} "
+                f"Wave config: {old_wave} -> {new_wave} "
                 f"(original not supported on {config.gfx_arch})"
             )
 
@@ -318,7 +355,7 @@ def auto_correct_kernel_config(
         new_warp = f"[{fixes.get('warp_m', config.warp_m)}, {fixes.get('warp_n', config.warp_n)}, {fixes.get('warp_k', config.warp_k)}]"
         if old_warp != new_warp:
             corrections.append(
-                f"Warp tile: {old_warp} → {new_warp} "
+                f"Warp tile: {old_warp} -> {new_warp} "
                 f"(original not supported for {config.dtype_a} on {config.gfx_arch})"
             )
 
@@ -386,13 +423,13 @@ def print_auto_correction(
         indent: Indentation for output
     """
     if not corrections:
-        print(f"{indent}✓ Configuration valid - no corrections needed")
+        print(f"{indent}OK Configuration valid - no corrections needed")
         return
 
-    print(f"\n{indent}⚠ AUTO-CORRECTION APPLIED:")
+    print(f"\n{indent}WARNING AUTO-CORRECTION APPLIED:")
     print(f"{indent}" + "-" * 50)
     for correction in corrections:
-        print(f"{indent}  • {correction}")
+        print(f"{indent}  - {correction}")
     print(f"{indent}" + "-" * 50)
     print()
 
@@ -976,6 +1013,226 @@ def _run_codegen_subprocess(args: Dict[str, Any]) -> CodegenResult:
         )
 
 
+def _run_hipcc_subprocess(args: dict) -> Tuple[bool, Optional[Path], str]:
+    """Module-level function to run hipcc compilation in parallel."""
+    import subprocess
+    from pathlib import Path
+
+    compile_cmd = args["compile_cmd"]
+    link_cmd = args["link_cmd"]
+    lib_path = Path(args["lib_path"])
+
+    try:
+        res_c = subprocess.run(compile_cmd, capture_output=True, text=True, timeout=300)
+        if res_c.returncode != 0:
+            return False, None, f"Compile failed: {res_c.stderr[:200]}"
+
+        res_l = subprocess.run(link_cmd, capture_output=True, text=True, timeout=300)
+        if res_l.returncode != 0:
+            return False, None, f"Link failed: {res_l.stderr[:200]}"
+
+        return True, lib_path, ""
+    except subprocess.TimeoutExpired:
+        return False, None, "Timeout"
+    except Exception as e:
+        return False, None, str(e)
+
+
+def _generate_single_kernel_subprocess(args: dict) -> Tuple[bool, Optional[str], str]:
+    """Module-level function: generate ONE kernel .hpp via --config JSON file.
+
+    Used by setup_multiple_gemm_dispatchers for per-config parallel codegen.
+    Returns (success, header_path_or_None, error_msg).
+    """
+    import subprocess
+    import json
+    import tempfile
+    import os
+    from pathlib import Path
+
+    try:
+        out_dir = Path(args["output_dir"])
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Write the single-config JSON to a temp file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(args["tile_config_json"], f)
+            config_file = f.name
+
+        cmd = [
+            args["python"],
+            str(args["codegen_script"]),
+            "--output-dir",
+            str(out_dir),
+            "--datatype",
+            args["dtype"],
+            "--layout",
+            args["layout"],
+            "--gpu-target",
+            args["gpu_target"],
+            "--config",
+            config_file,
+            "--variants",
+            "standard",
+        ]
+
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        os.unlink(config_file)
+
+        if res.returncode != 0:
+            return False, None, f"Codegen failed: {res.stderr[:200]}"
+
+        # Find the generated .hpp using the expected name pattern
+        pattern = args["hpp_glob_pattern"]
+        matches = sorted(out_dir.glob(pattern))
+        if matches:
+            return True, str(matches[0]), ""
+        else:
+            return False, None, f"No .hpp matching {pattern} after codegen"
+
+    except Exception as e:
+        return False, None, str(e)
+
+
+def _parse_triplet(text: str) -> Optional[Tuple[int, int, int]]:
+    parts = text.split("x")
+    if len(parts) != 3:
+        return None
+    try:
+        return (int(parts[0]), int(parts[1]), int(parts[2]))
+    except ValueError:
+        return None
+
+
+def _parse_gemm_header_metadata(header: Path) -> Optional[Dict[str, Any]]:
+    """
+    Parse GEMM header name into configuration metadata.
+
+    Expected stem format:
+      gemm_{dtype}_{layout}_{pipeline}_{epilogue}_{scheduler}
+           _{pad_m}_{pad_n}_{pad_k}_{persistent}
+           _{tile_m}x{tile_n}x{tile_k}_{wave_m}x{wave_n}x{wave_k}_{warp_m}x{warp_n}x{warp_k}
+    """
+    parts = header.stem.split("_")
+    if len(parts) < 13 or parts[0] != "gemm":
+        return None
+
+    tile = _parse_triplet(parts[10])
+    wave = _parse_triplet(parts[11])
+    warp = _parse_triplet(parts[12])
+    if tile is None or wave is None or warp is None:
+        return None
+
+    def _as_bool(v: str) -> bool:
+        return v.lower() == "true"
+
+    return {
+        "dtype": parts[1],
+        "layout": parts[2],
+        "pipeline": parts[3],
+        "epilogue": parts[4],
+        "scheduler": parts[5],
+        "pad_m": _as_bool(parts[6]),
+        "pad_n": _as_bool(parts[7]),
+        "pad_k": _as_bool(parts[8]),
+        "persistent": _as_bool(parts[9]),
+        "tile": tile,
+        "wave": wave,
+        "warp": warp,
+    }
+
+
+def _generate_arch_valid_gemm_headers(
+    python_exe: str,
+    codegen_script: Path,
+    output_dir: Path,
+    dtype: str,
+    layout: str,
+    gpu_target: str,
+    variant: str = "standard",
+) -> Tuple[bool, List[Path], str]:
+    """Generate (or reuse) an arch-filtered kernel catalog for fallback selection."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pattern = f"gemm_{dtype}_{layout}_*.hpp"
+    existing = sorted(output_dir.glob(pattern))
+    if existing:
+        return True, existing, ""
+
+    cmd = [
+        python_exe,
+        str(codegen_script),
+        "--output-dir",
+        str(output_dir),
+        "--datatype",
+        dtype,
+        "--layout",
+        layout,
+        "--gpu-target",
+        gpu_target,
+        "--variants",
+        variant,
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    if res.returncode != 0:
+        err = (res.stderr or res.stdout or "").strip()[:500]
+        return False, [], f"Catalog codegen failed: {err}"
+
+    generated = sorted(output_dir.glob(pattern))
+    if not generated:
+        return False, [], "Catalog codegen produced no GEMM headers"
+    return True, generated, ""
+
+
+def _select_best_arch_valid_gemm_header(
+    config: "KernelConfig",
+    headers: List[Path],
+) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
+    """Choose nearest arch-valid header for a requested GEMM config."""
+    best: Optional[Path] = None
+    best_meta: Optional[Dict[str, Any]] = None
+    best_score: Optional[Tuple[int, int, int, int, int, int]] = None
+
+    for h in headers:
+        meta = _parse_gemm_header_metadata(h)
+        if meta is None:
+            continue
+        if meta["dtype"] != config.dtype_a or meta["layout"] != config.layout:
+            continue
+
+        tile = meta["tile"]
+        wave = meta["wave"]
+        warp = meta["warp"]
+        tile_delta = (
+            abs(tile[0] - config.tile_m)
+            + abs(tile[1] - config.tile_n)
+            + abs(tile[2] - config.tile_k)
+        )
+        wave_delta = (
+            abs(wave[0] - config.wave_m)
+            + abs(wave[1] - config.wave_n)
+            + abs(wave[2] - config.wave_k)
+        )
+        warp_delta = (
+            abs(warp[0] - config.warp_m)
+            + abs(warp[1] - config.warp_n)
+            + abs(warp[2] - config.warp_k)
+        )
+        score = (
+            0 if meta["pipeline"] == config.pipeline else 1,
+            0 if meta["scheduler"] == config.scheduler else 1,
+            0 if meta["epilogue"] == config.epilogue else 1,
+            tile_delta,
+            wave_delta,
+            warp_delta,
+        )
+        if best_score is None or score < best_score:
+            best_score = score
+            best = h
+            best_meta = meta
+
+    return best, best_meta
+
+
 # =============================================================================
 # Preshuffle Utilities
 # =============================================================================
@@ -1319,7 +1576,7 @@ class CodegenRunner:
                     result = future.result()
                     results.append(result)
                     if verbose:
-                        status = "✓" if result.success else "✗"
+                        status = "OK" if result.success else "FAIL"
                         print(
                             f"  {status} {variant}: {result.kernel_count} kernels in {result.elapsed_seconds:.2f}s"
                         )
@@ -1337,7 +1594,7 @@ class CodegenRunner:
                         )
                     )
                     if verbose:
-                        print(f"  ✗ {variant}: FAILED - {e}")
+                        print(f"  FAIL {variant}: FAILED - {e}")
 
         total_time = time.time() - start_total
         if verbose:
@@ -1399,7 +1656,7 @@ class CodegenRunner:
                     result = future.result()
                     results.append(result)
                     if verbose:
-                        status = "✓" if result.success else "✗"
+                        status = "OK" if result.success else "FAIL"
                         print(
                             f"  {status} {tile_str}: {result.kernel_count} kernels in {result.elapsed_seconds:.2f}s"
                         )
@@ -1417,7 +1674,7 @@ class CodegenRunner:
                         )
                     )
                     if verbose:
-                        print(f"  ✗ {tile_str}: FAILED - {e}")
+                        print(f"  FAIL {tile_str}: FAILED - {e}")
 
         total_time = time.time() - start_total
         if verbose:
@@ -1481,7 +1738,7 @@ class CodegenRunner:
                     result = future.result()
                     results.append(result)
                     if verbose:
-                        status = "✓" if result.success else "✗"
+                        status = "OK" if result.success else "FAIL"
                         print(
                             f"  {status} {variant}: {result.kernel_count} kernels in {result.elapsed_seconds:.2f}s"
                         )
@@ -1499,7 +1756,7 @@ class CodegenRunner:
                         )
                     )
                     if verbose:
-                        print(f"  ✗ {variant}: FAILED - {e}")
+                        print(f"  FAIL {variant}: FAILED - {e}")
 
         total_time = time.time() - start_total
         if verbose:
@@ -1689,8 +1946,16 @@ class CodegenRunner:
         Returns: Path to new library, or None on failure
         """
         build_dir = get_build_dir()
-        # Use unique filename based on dtype/layout to avoid overwriting loaded library
-        lib_name = f"libdispatcher_gemm_{config.dtype_a}_{config.layout}_lib.so"
+        # Use unique filename based on ALL distinguishing config parameters
+        # Include: dtype, layout, tile, wave, warp, pipeline, epilogue, scheduler
+        # This ensures different configs don't collide even if tile/pipeline match
+        wave_str = f"{config.wave_m}x{config.wave_n}x{config.wave_k}"
+        warp_str = f"{config.warp_m}x{config.warp_n}x{config.warp_k}"
+        lib_name = (
+            f"libdispatcher_gemm_{config.dtype_a}_{config.layout}_"
+            f"{config.tile_str}_{wave_str}_{warp_str}_"
+            f"{config.pipeline}_{config.epilogue}_{config.scheduler}.so"
+        )
         lib_path = build_dir / "examples" / lib_name
 
         print(f"  Rebuilding library: {lib_name}")
@@ -1767,7 +2032,7 @@ class CodegenRunner:
                 link_cmd, capture_output=True, text=True, timeout=300
             )
             if result.returncode == 0:
-                print(f"  ✓ Library rebuilt: {lib_path.name}")
+                print(f"  OK Library rebuilt: {lib_path.name}")
                 # Clean up object file
                 obj_file.unlink(missing_ok=True)
                 return lib_path
@@ -1780,6 +2045,105 @@ class CodegenRunner:
         except Exception as e:
             print(f"  Build error: {e}")
             return None
+
+    def build_libraries_parallel(
+        self, configs_and_headers: List[Tuple[KernelConfig, Path]], verbose: bool = True
+    ) -> List[Optional[Path]]:
+        """
+        Build multiple libraries in parallel using ProcessPoolExecutor.
+        Returns a list of library paths (or None if a build failed) in the same order.
+        """
+        import time
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+
+        start_time = time.time()
+        build_dir = get_build_dir()
+        root = get_dispatcher_root()
+        ck_root = root.parent
+        ctypes_source = root / "bindings/ctypes/gemm_ctypes_lib.cpp"
+        static_lib = build_dir / "libck_tile_dispatcher.a"
+
+        if not ctypes_source.exists() or not static_lib.exists():
+            if verbose:
+                print("  Required source or static library missing for parallel build.")
+            return [None] * len(configs_and_headers)
+
+        args_list = []
+        for config, kernel_header in configs_and_headers:
+            lib_name = f"libdispatcher_gemm_{config.dtype_a}_{config.layout}_{config.tile_str}_{config.pipeline}.so"
+            lib_path = build_dir / "examples" / lib_name
+            obj_file = lib_path.with_suffix(".o")
+
+            compile_cmd = [
+                "/opt/rocm/bin/hipcc",
+                "-c",
+                "-fPIC",
+                "-O3",
+                f"-I{root / 'include'}",
+                f"-I{ck_root / 'include'}",
+                f"-I{ck_root}",
+                f"-I{root / 'build/generated_kernels'}",
+                "-DCK_TILE_SINGLE_KERNEL_INCLUDE",
+                f"-include{kernel_header}",
+                "-D__HIP_PLATFORM_AMD__",
+                f"--offload-arch={config.gfx_arch}",
+                f'-DGFX_ARCH="{config.gfx_arch}"',
+                "-mllvm",
+                "-enable-noalias-to-md-conversion=0",
+                "-Wno-undefined-func-template",
+                "-Wno-float-equal",
+                str(ctypes_source),
+                "-o",
+                str(obj_file),
+            ]
+
+            link_cmd = [
+                "/opt/rocm/bin/hipcc",
+                "-shared",
+                "-fPIC",
+                f"--offload-arch={config.gfx_arch}",
+                "--hip-link",
+                str(obj_file),
+                str(static_lib),
+                "-o",
+                str(lib_path),
+            ]
+
+            args_list.append(
+                {
+                    "compile_cmd": compile_cmd,
+                    "link_cmd": link_cmd,
+                    "lib_path": str(lib_path),
+                    "config_name": f"{config.dtype_a}_{config.layout}_{config.tile_str}",
+                }
+            )
+
+        if verbose:
+            print(
+                f"Building {len(args_list)} libraries in parallel (workers={self.max_workers})..."
+            )
+
+        results_map = {}
+        with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {
+                executor.submit(_run_hipcc_subprocess, args): i
+                for i, args in enumerate(args_list)
+            }
+            for future in as_completed(futures):
+                idx = futures[future]
+                success, lib_path, err = future.result()
+                results_map[idx] = Path(lib_path) if success else None
+                if verbose:
+                    status = "OK" if success else f"FAIL ({err})"
+                    print(
+                        f"  {status} {Path(lib_path).name if success else args_list[idx]['config_name']}"
+                    )
+
+        if verbose:
+            elapsed = time.time() - start_time
+            print(f"Parallel build finished in {elapsed:.2f}s")
+
+        return [results_map[i] for i in range(len(configs_and_headers))]
 
     def generate_preselected(
         self, preset: str = "fp16_rcr_essential", output_dir: Optional[Path] = None
@@ -1932,6 +2296,28 @@ class Registry:
     def bind_library(self, lib: DispatcherLib):
         """Bind to a loaded dispatcher library."""
         self._lib = lib
+
+    def build(
+        self,
+        verbose: bool = False,
+        max_workers: Optional[int] = None,
+    ) -> List["GemmSetupResult"]:
+        """Parallel JIT compile all kernels in this registry.
+
+        Args:
+            verbose:     Print progress during build.
+            max_workers: Max parallel codegen/compile processes (default: cpu_count capped at 8).
+
+        Returns a GemmSetupResult per registered kernel (same order as get_kernels()).
+        """
+        if not self._kernels:
+            return []
+        return setup_multiple_gemm_dispatchers(
+            self._kernels,
+            registry_name=self._name,
+            verbose=verbose,
+            max_workers=max_workers,
+        )
 
     def __repr__(self) -> str:
         return f"Registry(name='{self._name}', kernels={self.kernel_count})"
@@ -2109,7 +2495,7 @@ def setup_gemm_dispatcher(
     log("  Validating config...")
     validation = validate_kernel_config(config)
     if not validation.is_valid:
-        log("  ⚠ Auto-correcting configuration...")
+        log("  WARNING Auto-correcting configuration...")
         config, was_modified, corrections = auto_correct_kernel_config(
             config, verbose=verbose
         )
@@ -2128,13 +2514,13 @@ def setup_gemm_dispatcher(
 
     codegen_result = codegen.generate_from_config(config)
     if not codegen_result.success:
-        log("  ⚠ Kernel generation: using existing")
+        log("  WARNING Kernel generation: using existing")
 
     # Step 3: Find matching kernel header
     kernel_header = find_matching_kernel_header(config)
     result.kernel_header = kernel_header
     if not kernel_header:
-        log("  ⚠ No matching kernel header found")
+        log("  WARNING No matching kernel header found")
 
     # Step 4: Load library
     log("  Loading library...")
@@ -2170,29 +2556,66 @@ def setup_gemm_dispatcher(
 
     if needs_rebuild and auto_rebuild:
         log(f"  Library kernel doesn't match config: {', '.join(mismatches)}")
-        log("  Rebuilding library for exact config match...")
 
-        # First ensure we have a kernel header for this exact config
-        if not kernel_header:
-            # Generate kernel for the exact config
-            log("  Generating kernel for config...")
-            codegen_result = codegen.generate_from_config(config, force=True)
-            kernel_header = find_matching_kernel_header(config)
-            result.kernel_header = kernel_header
+        # Check if a rebuilt library for this exact config already exists
+        build_dir = get_build_dir()
+        wave_str = f"{config.wave_m}x{config.wave_n}x{config.wave_k}"
+        warp_str = f"{config.warp_m}x{config.warp_n}x{config.warp_k}"
+        cached_lib_name = (
+            f"libdispatcher_gemm_{config.dtype_a}_{config.layout}_"
+            f"{config.tile_str}_{wave_str}_{warp_str}_"
+            f"{config.pipeline}_{config.epilogue}_{config.scheduler}.so"
+        )
+        cached_lib_path = build_dir / "examples" / cached_lib_name
 
-        if kernel_header:
-            new_lib_path = codegen._rebuild_library_for_config(config, kernel_header)
-            if new_lib_path:
-                lib = DispatcherLib.load(new_lib_path)
-                if lib is None or not lib.initialize():
-                    result.error = "Failed to load rebuilt library"
-                    return result
+        if cached_lib_path.exists():
+            log(f"  Using cached library: {cached_lib_name}")
+            lib = DispatcherLib.load(cached_lib_path)
+            if lib is not None and lib.initialize():
                 result.lib = lib
-                log(f"  ✓ Rebuilt library: {lib.get_kernel_name()}")
+                log(f"  OK Loaded cached library: {lib.get_kernel_name()}")
             else:
-                log("  ⚠ Rebuild failed, using existing library")
+                log("  WARNING Cached library failed to load/initialize")
+                cached_lib_path = None  # Force rebuild
         else:
-            log("  ⚠ No kernel header found for config, using existing library")
+            log("  Rebuilding library for exact config match...")
+
+            # First ensure we have a kernel header for this exact config
+            if not kernel_header:
+                # Generate kernel for the exact config
+                log("  Generating kernel for config...")
+                codegen_result = codegen.generate_from_config(config, force=True)
+
+                # Check if generation succeeded
+                if not codegen_result.success:
+                    log(f"  WARNING Kernel generation failed:")
+                    if codegen_result.stderr:
+                        # Show first few lines of error
+                        error_lines = codegen_result.stderr.split('\n')[:5]
+                        for line in error_lines:
+                            if line.strip():
+                                log(f"    {line}")
+                    log("  This config may not be valid for the target architecture")
+                    log("  Falling back to existing library")
+                    # Don't try to rebuild without a valid kernel
+                    kernel_header = None
+                else:
+                    kernel_header = find_matching_kernel_header(config)
+                    result.kernel_header = kernel_header
+
+            if kernel_header:
+                new_lib_path = codegen._rebuild_library_for_config(config, kernel_header)
+                if new_lib_path:
+                    lib = DispatcherLib.load(new_lib_path)
+                    if lib is None or not lib.initialize():
+                        result.error = "Failed to load rebuilt library"
+                        return result
+                    result.lib = lib
+                    log(f"  OK Rebuilt library: {lib.get_kernel_name()}")
+                else:
+                    log("  WARNING Rebuild failed, using existing library")
+            else:
+                log("  WARNING No kernel header found for config, using existing library")
 
     # Step 5: Create registry and dispatcher
     log("  Creating registry and dispatcher...")
@@ -2203,10 +2626,303 @@ def setup_gemm_dispatcher(
     dispatcher = Dispatcher(registry=registry, lib=lib)
     result.dispatcher = dispatcher
 
-    log(f"  ✓ Ready: {lib.get_kernel_name()}")
+    log(f"  OK Ready: {lib.get_kernel_name()}")
 
     result.success = True
     return result
+
+
+def setup_multiple_gemm_dispatchers(
+    configs: List[KernelConfig],
+    registry_name: str = "gemm_registry",
+    verbose: bool = True,
+    max_workers: Optional[int] = None,
+) -> List[GemmSetupResult]:
+    """
+    Setup multiple GEMM dispatchers in parallel.
+
+    Pipeline:
+      1. Validate + auto-correct each config
+      2. Parallel codegen: generate .hpp for each config via --config JSON
+      3. Parallel hipcc: compile each .hpp -> .so
+      4. Load + wire up each .so into a GemmSetupResult
+
+    Each config gets its own .so, so different tile sizes can coexist.
+
+    Args:
+        max_workers: Max parallel processes for codegen/compile (default: cpu_count capped at 8).
+    """
+    import sys
+
+    results = [GemmSetupResult(success=False, config=c) for c in configs]
+    max_workers = max_workers or min(multiprocessing.cpu_count(), 8)
+
+    # -- Step 1: Validate & correct ---------------------------------------
+    valid_configs = []
+    for i, c in enumerate(configs):
+        val = validate_kernel_config(c)
+        if not val.is_valid:
+            c, modified, corrections = auto_correct_kernel_config(c, verbose=False)
+            results[i].config = c
+            results[i].corrections = corrections
+        valid_configs.append(c)
+
+    # -- Step 2: Parallel codegen (one --config JSON per config) ----------
+    codegen_script = get_codegen_path()
+    output_dir = get_generated_kernels_dir()
+
+    codegen_args = []
+    for c in valid_configs:
+        tile_str = c.tile_str
+        wave_str = f"{c.wave_m}x{c.wave_n}x{c.wave_k}"
+        warp_str = f"{c.warp_m}x{c.warp_n}x{c.warp_k}"
+
+        tile_config_json = {
+            "tile_config": {
+                "tile_m": [c.tile_m],
+                "tile_n": [c.tile_n],
+                "tile_k": [c.tile_k],
+                "warp_m": [c.wave_m],
+                "warp_n": [c.wave_n],
+                "warp_k": [c.wave_k],
+                "warp_tile_m": [c.warp_m],
+                "warp_tile_n": [c.warp_n],
+                "warp_tile_k": [c.warp_k],
+            },
+            "trait_config": {
+                "pipeline": [c.pipeline],
+                "epilogue": [c.epilogue],
+                "scheduler": [c.scheduler],
+                "pad_m": [c.pad_m],
+                "pad_n": [c.pad_n],
+                "pad_k": [c.pad_k],
+                "persistent": [False],
+            },
+        }
+
+        hpp_pattern = (
+            f"gemm_{c.dtype_a}_{c.layout}_{c.pipeline}_{c.epilogue}_{c.scheduler}"
+            f"_*_{tile_str}_{wave_str}_{warp_str}.hpp"
+        )
+
+        codegen_args.append(
+            {
+                "python": sys.executable,
+                "codegen_script": str(codegen_script),
+                "output_dir": str(output_dir),
+                "dtype": c.dtype_a,
+                "layout": c.layout,
+                "gpu_target": c.gfx_arch,
+                "tile_config_json": tile_config_json,
+                "hpp_glob_pattern": hpp_pattern,
+            }
+        )
+
+    if verbose:
+        print(
+            f"Generating {len(codegen_args)} kernel headers in parallel (workers={max_workers})..."
+        )
+
+    headers: List[Optional[Path]] = [None] * len(valid_configs)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_generate_single_kernel_subprocess, a): i
+            for i, a in enumerate(codegen_args)
+        }
+        for future in as_completed(futures):
+            idx = futures[future]
+            ok, hdr_str, err = future.result()
+            if ok and hdr_str:
+                headers[idx] = Path(hdr_str)
+                results[idx].kernel_header = Path(hdr_str)
+                if verbose:
+                    print(
+                        f"  OK [{idx}] {valid_configs[idx].tile_str}: {Path(hdr_str).name}"
+                    )
+            else:
+                results[idx].error = f"Codegen: {err}"
+                if verbose:
+                    print(f"  FAIL [{idx}] {valid_configs[idx].tile_str}: {err}")
+
+    # For configs rejected by arch filter, map to nearest arch-valid header.
+    fallback_needed = [i for i, h in enumerate(headers) if h is None]
+    if fallback_needed:
+        if verbose:
+            print(
+                f"Resolving {len(fallback_needed)} configs via arch-valid GEMM catalog..."
+            )
+
+        catalog_cache: Dict[Tuple[str, str, str, str], List[Path]] = {}
+        for i in fallback_needed:
+            c = valid_configs[i]
+            key = (c.gfx_arch, c.dtype_a, c.layout, c.variant)
+            if key not in catalog_cache:
+                catalog_dir = (
+                    output_dir
+                    / "_arch_valid_catalog"
+                    / (f"{c.gfx_arch}_{c.dtype_a}_{c.layout}_{c.variant}")
+                )
+                ok, catalog_headers, err = _generate_arch_valid_gemm_headers(
+                    python_exe=sys.executable,
+                    codegen_script=codegen_script,
+                    output_dir=catalog_dir,
+                    dtype=c.dtype_a,
+                    layout=c.layout,
+                    gpu_target=c.gfx_arch,
+                    variant=c.variant,
+                )
+                if not ok:
+                    catalog_headers = []
+                    if verbose:
+                        print(f"  FAIL [{i}] catalog generation: {err}")
+                catalog_cache[key] = catalog_headers
+
+            chosen, meta = _select_best_arch_valid_gemm_header(c, catalog_cache[key])
+            if chosen is None or meta is None:
+                continue
+
+            headers[i] = chosen
+            results[i].kernel_header = chosen
+            results[i].error = ""
+
+            # Keep Python-side config aligned with the selected kernel header.
+            valid_configs[i].pipeline = str(meta["pipeline"])
+            valid_configs[i].epilogue = str(meta["epilogue"])
+            valid_configs[i].scheduler = str(meta["scheduler"])
+            valid_configs[i].pad_m = bool(meta["pad_m"])
+            valid_configs[i].pad_n = bool(meta["pad_n"])
+            valid_configs[i].pad_k = bool(meta["pad_k"])
+            valid_configs[i].tile_m = int(meta["tile"][0])
+            valid_configs[i].tile_n = int(meta["tile"][1])
+            valid_configs[i].tile_k = int(meta["tile"][2])
+            valid_configs[i].wave_m = int(meta["wave"][0])
+            valid_configs[i].wave_n = int(meta["wave"][1])
+            valid_configs[i].wave_k = int(meta["wave"][2])
+            valid_configs[i].warp_m = int(meta["warp"][0])
+            valid_configs[i].warp_n = int(meta["warp"][1])
+            valid_configs[i].warp_k = int(meta["warp"][2])
+            results[i].config = valid_configs[i]
+
+            if verbose:
+                print(f"  INFO [{i}] mapped to arch-valid header: {chosen.name}")
+
+    # -- Step 3: Parallel hipcc compilation -------------------------------
+    root = get_dispatcher_root()
+    ck_root = root.parent
+    build_dir = get_build_dir()
+    ctypes_source = root / "bindings" / "ctypes" / "gemm_ctypes_lib.cpp"
+    static_lib = build_dir / "libck_tile_dispatcher.a"
+
+    if not ctypes_source.exists() or not static_lib.exists():
+        for i in range(len(valid_configs)):
+            if results[i].error == "":
+                results[
+                    i
+                ].error = "Missing ctypes source or static library for compilation"
+        return results
+
+    compile_jobs = []
+    compile_index_map = {}
+    for i, c in enumerate(valid_configs):
+        hdr = headers[i]
+        if hdr is None:
+            continue
+
+        lib_name = (
+            f"libdispatcher_gemm_{c.dtype_a}_{c.layout}_{c.tile_str}_{c.pipeline}.so"
+        )
+        lib_path = build_dir / "examples" / lib_name
+        obj_file = lib_path.with_suffix(".o")
+
+        compile_cmd = [
+            "/opt/rocm/bin/hipcc",
+            "-c",
+            "-fPIC",
+            "-O3",
+            f"-I{root / 'include'}",
+            f"-I{ck_root / 'include'}",
+            f"-I{ck_root}",
+            f"-I{str(output_dir)}",
+            "-DCK_TILE_SINGLE_KERNEL_INCLUDE",
+            f"-include{hdr}",
+            "-D__HIP_PLATFORM_AMD__",
+            f"--offload-arch={c.gfx_arch}",
+            f'-DGFX_ARCH="{c.gfx_arch}"',
+            "-mllvm",
+            "-enable-noalias-to-md-conversion=0",
+            "-Wno-undefined-func-template",
+            "-Wno-float-equal",
+            str(ctypes_source),
+            "-o",
+            str(obj_file),
+        ]
+        link_cmd = [
+            "/opt/rocm/bin/hipcc",
+            "-shared",
+            "-fPIC",
+            f"--offload-arch={c.gfx_arch}",
+            "--hip-link",
+            str(obj_file),
+            str(static_lib),
+            "-o",
+            str(lib_path),
+        ]
+
+        compile_index_map[len(compile_jobs)] = i
+        compile_jobs.append(
+            {
+                "compile_cmd": compile_cmd,
+                "link_cmd": link_cmd,
+                "lib_path": str(lib_path),
+            }
+        )
+
+    if verbose and compile_jobs:
+        print(
+            f"Compiling {len(compile_jobs)} libraries in parallel (workers={max_workers})..."
+        )
+
+    lib_paths: Dict[int, Optional[Path]] = {}
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_run_hipcc_subprocess, job): j
+            for j, job in enumerate(compile_jobs)
+        }
+        for future in as_completed(futures):
+            j = futures[future]
+            i = compile_index_map[j]
+            ok, lp, err = future.result()
+            if ok and lp:
+                lib_paths[i] = Path(lp)
+                if verbose:
+                    print(f"  OK [{i}] {valid_configs[i].tile_str}: {Path(lp).name}")
+            else:
+                results[i].error = f"Compile: {err}"
+                if verbose:
+                    print(f"  FAIL [{i}] {valid_configs[i].tile_str}: {err}")
+
+    # -- Step 4: Load libraries and create dispatchers --------------------
+    for i, c in enumerate(valid_configs):
+        lp = lib_paths.get(i)
+        if lp is None:
+            continue
+
+        lib = DispatcherLib.load(lp)
+        if lib is not None and lib.initialize():
+            results[i].lib = lib
+            reg = Registry(name=f"{registry_name}_{i}", lib=lib)
+            reg.register_kernel(c)
+            results[i].registry = reg
+            results[i].dispatcher = Dispatcher(registry=reg, lib=lib)
+            results[i].success = True
+        else:
+            results[i].error = "Failed to load compiled library"
+
+    if verbose:
+        ok_count = sum(1 for r in results if r.success)
+        print(f"Setup complete: {ok_count}/{len(results)} dispatchers ready")
+
+    return results
 
 
 def cleanup_gemm():

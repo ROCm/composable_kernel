@@ -36,9 +36,6 @@ struct BlockGemmARegBSmemCRegOneWarpV1
                 std::is_same_v<CDataType, remove_cv_t<typename CBlockTensor::DataType>>,
             "wrong!");
 
-        // constexpr index_t MPerBlock = ABlockTensorTmp{}.get_lengths()[number<0>{}];
-        // constexpr index_t NPerBlock = BBlockWindowTmp{}.get_window_lengths()[number<0>{}];
-        // constexpr index_t KPerBlock = ABlockTensorTmp{}.get_lengths()[number<1>{}];
         constexpr index_t MPerBlock = BlockGemmShape::kM;
         constexpr index_t NPerBlock = BlockGemmShape::kN;
         constexpr index_t KPerBlock = BlockGemmShape::kK;

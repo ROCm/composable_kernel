@@ -51,6 +51,82 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarg
     }
 };
 
+template <typename CtrlFlags, typename CompilerTarget>
+// clang-format off
+//               | A B C DataTypes      | MNK + WaveSize   |AParams |BPar |CPar  |
+struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 64u, 32u, 4u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx9_t<CompilerTarget>>
+: amdgcn_mma_base<fp16_t, fp16_t, fp32_t, 64u, 32u, 4u, 64u, 4, 1, 1, 1, 2, 16, 4, MfmaOp, MmaOpFamily::DENSE>
+// clang-format on
+{
+    CK_TILE_DEVICE static auto
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
+    {
+        return {__builtin_amdgcn_mfma_f32_32x32x4f16(aVec,
+                                                     bVec,
+                                                     cVec,
+                                                     static_cast<int>(CtrlFlags::Cbsz),
+                                                     static_cast<int>(CtrlFlags::Abid),
+                                                     static_cast<int>(CtrlFlags::Blgp))};
+    }
+};
+
+template <typename CtrlFlags, typename CompilerTarget>
+// clang-format off
+//               | A B C DataTypes      | MNK + WaveSize   |AParams |BPar |CPar  |
+struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 32u, 64u, 4u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx9_t<CompilerTarget>>
+: amdgcn_mma_base<fp16_t, fp16_t, fp32_t, 32u, 64u, 4u, 64u, 4, 1, 2, 1, 1, 16, 4, MfmaOp, MmaOpFamily::DENSE>
+// clang-format on
+{
+    CK_TILE_DEVICE static auto
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
+    {
+        return {__builtin_amdgcn_mfma_f32_32x32x4f16(aVec,
+                                                     bVec,
+                                                     cVec,
+                                                     static_cast<int>(CtrlFlags::Cbsz),
+                                                     static_cast<int>(CtrlFlags::Abid),
+                                                     static_cast<int>(CtrlFlags::Blgp))};
+    }
+};
+
+template <typename CtrlFlags, typename CompilerTarget>
+// clang-format off
+//               | A B C DataTypes      | MNK + WaveSize  |AParams |BPar  |CPar |
+struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 64u, 4u, 4u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx9_t<CompilerTarget>>
+: amdgcn_mma_base<fp16_t, fp16_t, fp32_t, 64u, 4u, 4u, 64u, 4, 1, 1, 1, 16, 4, 1, MfmaOp, MmaOpFamily::DENSE>
+// clang-format on
+{
+    CK_TILE_DEVICE static auto
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
+    {
+        return {__builtin_amdgcn_mfma_f32_4x4x4f16(aVec,
+                                                   bVec,
+                                                   cVec,
+                                                   static_cast<int>(CtrlFlags::Cbsz),
+                                                   static_cast<int>(CtrlFlags::Abid),
+                                                   static_cast<int>(CtrlFlags::Blgp))};
+    }
+};
+
+template <typename CtrlFlags, typename CompilerTarget>
+// clang-format off
+//               | A B C DataTypes      | MNK + WaveSize  |AParams  |BPar |CPar |
+struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 4u, 64u, 4u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx9_t<CompilerTarget>>
+: amdgcn_mma_base<fp16_t, fp16_t, fp32_t, 4u, 64u, 4u, 64u, 4, 1, 16, 1, 1, 4, 1, MfmaOp, MmaOpFamily::DENSE>
+// clang-format on
+{
+    CK_TILE_DEVICE static auto
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
+    {
+        return {__builtin_amdgcn_mfma_f32_4x4x4f16(aVec,
+                                                   bVec,
+                                                   cVec,
+                                                   static_cast<int>(CtrlFlags::Cbsz),
+                                                   static_cast<int>(CtrlFlags::Abid),
+                                                   static_cast<int>(CtrlFlags::Blgp))};
+    }
+};
+
 /**
  * @struct amdgcn_mma
  * @brief Specialization of amdgcn_mma for MFMA on GFX950 targets

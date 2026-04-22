@@ -77,6 +77,30 @@ using device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_f32_tf32_instances = std::
     // clang-format on
     >;
 
+// Problematic instance on gfx90a due to register splillage in block-GEMM v5 pipeline.
+// Compiler doesn't handle correctly the register presure on gfx90a, which results in failing
+// accuracy tests fail for 3D bwd weight conv. The problem occurs at least for compiler version
+//      22.0.0git (https://github.com/ROCm/llvm-project.git
+//      2de9eb6063dd56b109cf139a75550b7b06808273+PATCHED:9a6ac45c97a1e511db838c5b46257324d2de1780)
+// Older compilers from the 20.0 family produce correct results.
+template <ck::index_t NDimSpatial,
+          typename Dt,
+          typename ALayout,
+          typename BLayout,
+          typename ELayout,
+          ConvolutionBackwardWeightSpecialization ConvSpec,
+          BlockGemmPipelineScheduler Scheduler,
+          BlockGemmPipelineVersion PipelineVersion>
+using device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_high_reg_usage_instances = std::tuple<
+    // clang-format off
+        //#########################################|     Num| InLayout| WeiLayout| OutLayout| InData| WeiData| OutData| AccData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer| BlockGemm|        BlockGemm|
+        //#########################################|     Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|  Pipeline|         Pipeline|
+        //#########################################| Spatial|         |          |          |       |        |        |        |   Operation|   Operation|   Operation|            Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|     ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| MBlock_MPerBlock|    NWaveNPerXdl| Scheduler|          Version|
+        //#########################################|        |         |          |          |       |        |        |        |            |            |            |                          |      |      |      |      |   |     |     |     |     |                |                 |               |               |               |               |          |                |               |               |              |               |               |          |            |            | NBlock_NPerBlock|                |          |                 |
+        DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,   Dt,       Dt,      Dt,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,   128,    32,    32,  8,   32,   32,    4,    1,     S<4, 16, 1>,       S<2, 0, 1>,     S<1, 0, 2>,              1,              8,              8,     false,     S<4, 4,  1>,     S<2, 0, 1>,     S<1, 0, 2>,             1,              8,              8,     false,           1,           1,   S<1, 8, 1, 8>,                2, Scheduler, PipelineVersion>
+    // clang-format on
+    >;
+
 template <ck::index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
@@ -84,7 +108,7 @@ template <ck::index_t NDimSpatial,
           ConvolutionBackwardWeightSpecialization ConvSpec,
           BlockGemmPipelineScheduler Scheduler,
           BlockGemmPipelineVersion PipelineVersion>
-using device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_f16_instances = std::tuple<
+using device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_f16_base_instances = std::tuple<
     // clang-format off
         //#########################################|     Num| InLayout| WeiLayout| OutLayout| InData| WeiData| OutData| AccData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer| BlockGemm| BlockGemm|
         //#########################################|     Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|  Pipeline|  Pipeline|
@@ -95,11 +119,36 @@ using device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_f16_instances = std::tuple
         DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    32,    64,     32,   8,   32,   32,    1,    2,  S<4, 8,  1>, S<2, 0, 1>,  S<1, 0, 2>,                   1,              4,              4,      false,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              4,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  2, Scheduler, PipelineVersion>,
         DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    32,   128,     32,   8,   32,   32,    1,    4,  S<4, 4,  1>, S<2, 0, 1>,  S<1, 0, 2>,                   1,              8,              8,      false,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              8,              8,      false,           1,           1,   S<1, 8, 1, 8>,                  2, Scheduler, PipelineVersion>,
         DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    64,    32,     32,   8,   32,   32,    2,    1,  S<4, 16, 1>, S<2, 0, 1>,  S<1, 0, 2>,                   1,              4,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              4,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  2, Scheduler, PipelineVersion>,
-        DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,   128,    32,     32,   8,   32,   32,    4,    1,  S<4, 16, 1>, S<2, 0, 1>,  S<1, 0, 2>,                   1,              8,              8,      false,  S<4, 4,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              8,              8,      false,           1,           1,   S<1, 8, 1, 8>,                  2, Scheduler, PipelineVersion>,       
         DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    64,    80,     32,   8,   16,   16,    4,    5,  S<4, 16, 1>, S<2, 0, 1>,  S<2, 0, 1>,                   1,              4,              4,      false,  S<4, 16, 1>,  S<2, 0, 1>,  S<2, 0, 1>,                1,              5,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  2, Scheduler, PipelineVersion>,
         DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    64,   112,     32,   8,   16,   16,    4,    7,  S<4, 16, 1>, S<2, 0, 1>,  S<2, 0, 1>,                   1,              4,              4,      false,  S<4, 16, 1>,  S<2, 0, 1>,  S<2, 0, 1>,                1,              7,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  2, Scheduler, PipelineVersion>
     // clang-format on
     >;
+
+template <ck::index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename ELayout,
+          ConvolutionBackwardWeightSpecialization ConvSpec,
+          BlockGemmPipelineScheduler Scheduler,
+          BlockGemmPipelineVersion PipelineVersion>
+using device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_f16_instances = decltype(::std::tuple_cat(
+    ::std::declval<
+        device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_f16_base_instances<NDimSpatial,
+                                                                           ALayout,
+                                                                           BLayout,
+                                                                           ELayout,
+                                                                           ConvSpec,
+                                                                           Scheduler,
+                                                                           PipelineVersion>>(),
+    ::std::declval<device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_high_reg_usage_instances<
+        NDimSpatial,
+        F16,
+        ALayout,
+        BLayout,
+        ELayout,
+        ConvSpec,
+        Scheduler,
+        PipelineVersion>>()));
 
 template <ck::index_t NDimSpatial,
           typename ALayout,
@@ -157,7 +206,7 @@ template <ck::index_t NDimSpatial,
           ConvolutionBackwardWeightSpecialization ConvSpec,
           BlockGemmPipelineScheduler Scheduler,
           BlockGemmPipelineVersion PipelineVersion>
-using device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_bf16_instances = std::tuple<
+using device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_bf16_base_instances = std::tuple<
     // clang-format off
         //#########################################|     Num| InLayout| WeiLayout| OutLayout| InData| WeiData| OutData| AccData|          In|         Wei|         Out|              ConvBackward| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer|   ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|   CBlockTransfer|  CBlockTransfer| BlockGemm| BlockGemm|
         //#########################################|     Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                    Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|  Pipeline|  Pipeline|
@@ -168,11 +217,22 @@ using device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_bf16_instances = std::tupl
         DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    32,    64,     32,   8,   32,   32,    1,    2,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              4,              4,      false,  S<4, 16,  1>, S<2, 0, 1>,  S<1, 0, 2>,                1,              4,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  2, Scheduler, PipelineVersion>,
         DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    32,   128,     32,   8,   32,   32,    1,    4,  S<4, 4,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              8,              8,      false,  S<4, 16,  1>, S<2, 0, 1>,  S<1, 0, 2>,                1,              8,              8,      false,           1,           1,   S<1, 8, 1, 8>,                  2, Scheduler, PipelineVersion>,
         DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    64,    32,     32,   8,   32,   32,    2,    1,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              4,              4,      false,  S<4, 8,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              4,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  2, Scheduler, PipelineVersion>,
-        DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,   128,    32,     32,   8,   32,   32,    4,    1,  S<4, 16, 1>,  S<2, 0, 1>,  S<1, 0, 2>,                  1,              8,              8,      false,  S<4, 4,  1>,  S<2, 0, 1>,  S<1, 0, 2>,                1,              8,              8,      false,           1,           1,   S<1, 8, 1, 8>,                  2, Scheduler, PipelineVersion>,
         DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    64,    80,     32,   8,   16,   16,    4,    5,  S<4, 16, 1>,  S<2, 0, 1>,  S<2, 0, 1>,                  1,              4,              4,      false,  S<4, 16,  1>,  S<2, 0, 1>,  S<2, 0, 1>,               1,              5,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  2, Scheduler, PipelineVersion>,
         DeviceGroupedConvBwdWeight_Xdl_CShuffleV3< NDimSpatial,  ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,    64,    64,   112,     32,   8,   16,   16,    4,    7,  S<4, 16, 1>,  S<2, 0, 1>,  S<2, 0, 1>,                  1,              4,              4,      false,  S<4, 16,  1>,  S<2, 0, 1>,  S<2, 0, 1>,               1,              7,              4,      false,           1,           1,   S<1, 8, 1, 8>,                  2, Scheduler, PipelineVersion>
     //clang-format on
     >;
+
+template <ck::index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename ELayout,
+          ConvolutionBackwardWeightSpecialization ConvSpec,
+          BlockGemmPipelineScheduler Scheduler,
+          BlockGemmPipelineVersion PipelineVersion>
+using device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_bf16_instances =
+    decltype(::std::tuple_cat(
+        ::std::declval<device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_bf16_base_instances<NDimSpatial, ALayout, BLayout, ELayout, ConvSpec, Scheduler, PipelineVersion>>(),
+        ::std::declval<device_grouped_conv_bwd_weight_v3_xdl_c_shuffle_high_reg_usage_instances<NDimSpatial, BF16, ALayout, BLayout, ELayout, ConvSpec, Scheduler, PipelineVersion>>()));
 
 } // namespace instance
 } // namespace device

@@ -39,6 +39,9 @@ struct FmhaFwdKernel
     using EpiloguePipeline                       = ck_tile::remove_cvref_t<EpiloguePipeline_>;
     static constexpr ck_tile::index_t kBlockSize = FmhaPipeline::kBlockSize;
 
+    template <typename T>
+    using has_hdim_tail_args = decltype(T::kUseHdimTailArgs);
+
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
@@ -1891,6 +1894,35 @@ struct FmhaFwdKernel
             }();
 
             BlockIndices block_indices{i_batch, i_nhead, i_nhead_k};
+            constexpr bool kPassHdimTailArgs = [] {
+                if constexpr(ck_tile::is_detected<has_hdim_tail_args, FmhaPipeline>::value)
+                    return static_cast<bool>(FmhaPipeline::kUseHdimTailArgs);
+                else
+                    return false;
+            }();
+            auto invoke_fmha_pipeline = [&](auto&&... args) -> decltype(auto) {
+                if constexpr(kPassHdimTailArgs)
+                {
+                    const ck_tile::index_t valid_k0_loops =
+                        ck_tile::integer_divide_ceil(kargs.hdim_q, FmhaPipeline::kK0);
+                    const ck_tile::index_t valid_last_k0_length =
+                        kargs.hdim_q - (valid_k0_loops - 1) * FmhaPipeline::kK0;
+                    const ck_tile::index_t valid_n1_length = [&]() {
+                        const ck_tile::index_t remaining_n1 = kargs.hdim_v - i_n1;
+                        return ck_tile::min(remaining_n1,
+                                            static_cast<ck_tile::index_t>(FmhaPipeline::kN1));
+                    }();
+                    return FmhaPipeline{}(static_cast<decltype(args)&&>(args)...,
+                                          sink_value,
+                                          valid_k0_loops,
+                                          valid_last_k0_length,
+                                          valid_n1_length);
+                }
+                else
+                {
+                    return FmhaPipeline{}(static_cast<decltype(args)&&>(args)..., sink_value);
+                }
+            };
 
             auto o_acc_tile = [&, i_nhead_ = i_nhead, i_nhead_k_ = i_nhead_k]() {
                 if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
@@ -1910,36 +1942,35 @@ struct FmhaFwdKernel
                         else
                             return ck_tile::scales<remove_cvref_t<decltype(scale_o)>>{scale_o};
                     }();
-                    return FmhaPipeline{}(q_dram_window,
-                                          identity{}, // q_element_func
-                                          k_dram_window,
-                                          identity{}, // k_element_func
-                                          v_dram_window,
-                                          identity{}, // v_element_func
-                                          bias_dram_window,
-                                          identity{}, // bias_element_func
-                                          randval_dram_window,
-                                          lse_dram_window,
-                                          identity{}, // lse_element_func
-                                          identity{}, // s_acc_element_func
-                                          scales<remove_cvref_t<decltype(scale_p)>>{
-                                              scale_p},       // p_compute_element_func
-                                          o_acc_element_func, // o_acc_element_func
-                                          mask,
-                                          position_encoding,
-                                          variant_params.sm_scale,
-                                          variant,
-                                          variant_params,
-                                          block_indices,
-                                          smem_ptr,
-                                          dropout,
-                                          nullptr,
-                                          nullptr,
-                                          1,
-                                          make_null_tile_window(make_tuple()),
-                                          make_null_tile_window(make_tuple()),
-                                          make_null_tile_window(make_tuple()),
-                                          sink_value);
+                    return invoke_fmha_pipeline(q_dram_window,
+                                                identity{}, // q_element_func
+                                                k_dram_window,
+                                                identity{}, // k_element_func
+                                                v_dram_window,
+                                                identity{}, // v_element_func
+                                                bias_dram_window,
+                                                identity{}, // bias_element_func
+                                                randval_dram_window,
+                                                lse_dram_window,
+                                                identity{}, // lse_element_func
+                                                identity{}, // s_acc_element_func
+                                                scales<remove_cvref_t<decltype(scale_p)>>{
+                                                    scale_p},       // p_compute_element_func
+                                                o_acc_element_func, // o_acc_element_func
+                                                mask,
+                                                position_encoding,
+                                                variant_params.sm_scale,
+                                                variant,
+                                                variant_params,
+                                                block_indices,
+                                                smem_ptr,
+                                                dropout,
+                                                nullptr,
+                                                nullptr,
+                                                1,
+                                                make_null_tile_window(make_tuple()),
+                                                make_null_tile_window(make_tuple()),
+                                                make_null_tile_window(make_tuple()));
                 }
                 else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
                 {
@@ -1964,7 +1995,7 @@ struct FmhaFwdKernel
                     // Both P and rowsum are scaled by 2^shift, canceling in normalization
                     // No additional scaling needed in p_compute_element_func or o_acc_element_func
 
-                    return FmhaPipeline{}(
+                    return invoke_fmha_pipeline(
                         q_dram_window,
                         identity{}, // q_element_func
                         k_dram_window,
@@ -1992,8 +2023,7 @@ struct FmhaFwdKernel
                         kargs.block_scale_size_kv,
                         make_null_tile_window(make_tuple()),
                         make_null_tile_window(make_tuple()),
-                        make_null_tile_window(make_tuple()),
-                        sink_value);
+                        make_null_tile_window(make_tuple()));
                 }
                 else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::MX)
                 {
@@ -2098,53 +2128,51 @@ struct FmhaFwdKernel
                                    number<FmhaPipeline::kK1 / kVScaleGranularity>{}),
                         {i_n1, 0});
 
-                    return FmhaPipeline{}(q_dram_window,
-                                          identity{}, // q_element_func
-                                          k_dram_window,
-                                          identity{}, // k_element_func
-                                          v_dram_window,
-                                          identity{}, // v_element_func
-                                          bias_dram_window,
-                                          identity{}, // bias_element_func
-                                          randval_dram_window,
-                                          lse_dram_window,
-                                          identity{}, // lse_element_func
-                                          identity{}, // s_acc_element_func
-                                          identity{}, // p_compute_element_func
-                                          identity{}, // o_acc_element_func
-                                          mask,
-                                          position_encoding,
-                                          kargs.scale_s,
-                                          variant,
-                                          variant_params,
-                                          block_indices,
-                                          smem_ptr,
-                                          dropout,
-                                          nullptr,
-                                          nullptr,
-                                          1,
-                                          q_scale_dram_window,
-                                          k_scale_dram_window,
-                                          v_scale_dram_window,
-                                          sink_value);
+                    return invoke_fmha_pipeline(q_dram_window,
+                                                identity{}, // q_element_func
+                                                k_dram_window,
+                                                identity{}, // k_element_func
+                                                v_dram_window,
+                                                identity{}, // v_element_func
+                                                bias_dram_window,
+                                                identity{}, // bias_element_func
+                                                randval_dram_window,
+                                                lse_dram_window,
+                                                identity{}, // lse_element_func
+                                                identity{}, // s_acc_element_func
+                                                identity{}, // p_compute_element_func
+                                                identity{}, // o_acc_element_func
+                                                mask,
+                                                position_encoding,
+                                                kargs.scale_s,
+                                                variant,
+                                                variant_params,
+                                                block_indices,
+                                                smem_ptr,
+                                                dropout,
+                                                nullptr,
+                                                nullptr,
+                                                1,
+                                                q_scale_dram_window,
+                                                k_scale_dram_window,
+                                                v_scale_dram_window);
                 }
                 else
                 {
-                    return FmhaPipeline{}(q_dram_window,
-                                          k_dram_window,
-                                          v_dram_window,
-                                          bias_dram_window,
-                                          randval_dram_window,
-                                          lse_dram_window,
-                                          mask,
-                                          position_encoding,
-                                          variant_params.sm_scale,
-                                          variant,
-                                          variant_params,
-                                          block_indices,
-                                          smem_ptr,
-                                          dropout,
-                                          sink_value);
+                    return invoke_fmha_pipeline(q_dram_window,
+                                                k_dram_window,
+                                                v_dram_window,
+                                                bias_dram_window,
+                                                randval_dram_window,
+                                                lse_dram_window,
+                                                mask,
+                                                position_encoding,
+                                                variant_params.sm_scale,
+                                                variant,
+                                                variant_params,
+                                                block_indices,
+                                                smem_ptr,
+                                                dropout);
                 }
             }();
 

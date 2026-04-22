@@ -14,7 +14,9 @@
 namespace ck_tile {
 
 // This pipeline is qkv all located in LDS
-template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSDefaultPolicy>
+template <typename Problem_,
+          typename Policy_         = BlockFmhaPipelineQRKSVSDefaultPolicy,
+          bool PaddedVecLoadStore_ = false>
 struct BlockFmhaPipelineQRKSVS
 {
     using Problem               = remove_cvref_t<Problem_>;
@@ -37,6 +39,11 @@ struct BlockFmhaPipelineQRKSVS
     using AttentionVariant      = remove_cvref_t<typename Problem::AttentionVariant>;
     using FmhaMask              = remove_cvref_t<typename Problem::FmhaMask>;
 
+    template <typename T>
+    using has_partial_k_support = decltype(T::kSupportsPartialK);
+    template <typename T>
+    using has_partial_n_support = decltype(T::kSupportsPartialN);
+
     using BlockFmhaShape             = remove_cvref_t<typename Problem::BlockFmhaShape>;
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
@@ -54,17 +61,19 @@ struct BlockFmhaPipelineQRKSVS
 
     static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
-    static constexpr bool kIsGroupMode      = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ       = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK       = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ      = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV      = Problem::kPadHeadDimV;
-    static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
-    static constexpr auto BiasEnum          = Problem::BiasEnum;
-    static constexpr bool kStoreLSE         = Problem::kStoreLSE;
-    static constexpr bool kHasDropout       = Problem::kHasDropout;
-    static constexpr auto QScaleEnum        = Problem::QScaleEnum;
-    static constexpr bool kHasSink          = Problem::kHasSink;
+    static constexpr bool kIsGroupMode        = Problem::kIsGroupMode;
+    static constexpr bool kPadSeqLenQ         = Problem::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK         = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ        = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV        = Problem::kPadHeadDimV;
+    static constexpr bool kHasLogitsSoftCap   = Problem::kHasLogitsSoftCap;
+    static constexpr auto BiasEnum            = Problem::BiasEnum;
+    static constexpr bool kStoreLSE           = Problem::kStoreLSE;
+    static constexpr bool kHasDropout         = Problem::kHasDropout;
+    static constexpr auto QScaleEnum          = Problem::QScaleEnum;
+    static constexpr bool kHasSink            = Problem::kHasSink;
+    static constexpr bool kPaddedVecLoadStore = PaddedVecLoadStore_;
+    static constexpr bool kUseHdimTailArgs    = kPadHeadDimQ || kPadHeadDimV;
 
     static constexpr ck_tile::index_t kQKScaleGranularity = Problem::kQKScaleGranularity;
     static constexpr ck_tile::index_t kVScaleGranularity  = Problem::kVScaleGranularity;
@@ -80,23 +89,29 @@ struct BlockFmhaPipelineQRKSVS
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
                     !kHasLogitsSoftCap)) ||
                   (!CK_TILE_FMHA_FWD_FAST_EXP2 && !kHasLogitsSoftCap));
+    static_assert(!kPaddedVecLoadStore || (kPadHeadDimQ && kPadHeadDimV),
+                  "padded vector load/store fast path only applies to padded head-dim kernels");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
-    static constexpr index_t kAlignmentQ = kPadHeadDimQ ? numeric_traits<QDataType>::PackedSize
-                                                        : Policy::template GetAlignmentQ<Problem>();
-    static constexpr index_t kAlignmentK = kPadHeadDimQ ? numeric_traits<KDataType>::PackedSize
-                                                        : Policy::template GetAlignmentK<Problem>();
+    static constexpr index_t kAlignmentQ = (kPadHeadDimQ && !kPaddedVecLoadStore)
+                                               ? numeric_traits<QDataType>::PackedSize
+                                               : Policy::template GetAlignmentQ<Problem>();
+    static constexpr index_t kAlignmentK = (kPadHeadDimQ && !kPaddedVecLoadStore)
+                                               ? numeric_traits<KDataType>::PackedSize
+                                               : Policy::template GetAlignmentK<Problem>();
     static constexpr index_t kAlignmentV = []() {
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-            return kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
+            return (kPadHeadDimV && !kPaddedVecLoadStore)
+                       ? 1
+                       : Policy::template GetAlignmentV<Problem>();
         else
             return kPadSeqLenK ? numeric_traits<VDataType>::PackedSize
                                : Policy::template GetAlignmentV<Problem>();
     }();
 
     static constexpr index_t kAlignmentO =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
+        (kPadHeadDimV && !kPaddedVecLoadStore) ? 1 : Policy::template GetAlignmentO<Problem>();
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
     static constexpr index_t kAlignmentRandVal =
@@ -194,7 +209,10 @@ struct BlockFmhaPipelineQRKSVS
                    k_scale_dram_block_window_tmp, // N0*(K0/kQKScaleGranularity) tile
                const VScaleDramBlockWindowTmp&
                    v_scale_dram_block_window_tmp, // N1*(K1/kVScaleGranularity) tile
-               const float sink_v) const
+               const float sink_v,
+               const index_t valid_k0_loops,
+               const index_t valid_last_k0_length,
+               const index_t valid_n1_length) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -252,8 +270,30 @@ struct BlockFmhaPipelineQRKSVS
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
         // Block GEMM
-        constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
-        constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
+        constexpr auto gemm_0                      = Policy::template GetQKBlockGemm<Problem>();
+        constexpr auto gemm_1                      = Policy::template GetKVBlockGemm<Problem>();
+        using BlockGemm0                           = remove_cvref_t<decltype(gemm_0)>;
+        using BlockGemm1                           = remove_cvref_t<decltype(gemm_1)>;
+        constexpr bool kBlockGemm0SupportsPartialK = [] {
+            if constexpr(ck_tile::is_detected<has_partial_k_support, BlockGemm0>::value)
+                return static_cast<bool>(BlockGemm0::kSupportsPartialK);
+            else
+                return false;
+        }();
+        constexpr bool kBlockGemm1SupportsPartialN = [] {
+            if constexpr(ck_tile::is_detected<has_partial_n_support, BlockGemm1>::value)
+                return static_cast<bool>(BlockGemm1::kSupportsPartialN);
+            else
+                return false;
+        }();
+
+        constexpr auto gemm_0_config =
+            BlockGemm0::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using Gemm0WarpGemm           = remove_cvref_t<decltype(gemm_0_config.template at<0>())>;
+        constexpr index_t kGemm0WarpK = Gemm0WarpGemm::kK;
+        constexpr index_t kGemm0KItersPerBlock = kK0 / kGemm0WarpK;
+        constexpr bool kUsePartialKForGemm0Tail =
+            kPadHeadDimQ && kBlockGemm0SupportsPartialK && (kGemm0KItersPerBlock > 1);
 
         auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
                                               q_dram_block_window_tmp.get_window_lengths(),
@@ -419,10 +459,26 @@ struct BlockFmhaPipelineQRKSVS
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
+        // Number of k0 iterations prefetched ahead of the current compute iteration.
+        // The skip decision must be made this many iterations before the last k0 loop.
+        constexpr index_t kK0PrefetchDepth = 2;
+        const index_t gemm0_tail_k_iters   = [&]() {
+            if constexpr(kUsePartialKForGemm0Tail)
+            {
+                return ck_tile::integer_divide_ceil(valid_last_k0_length, kGemm0WarpK);
+            }
+            return static_cast<index_t>(kGemm0KItersPerBlock);
+        }();
+        const bool skip_last_k0_loop = [&]() {
+            if constexpr(kPadHeadDimQ)
+            {
+                return valid_k0_loops == (k0_loops - 1);
+            }
+            return false;
+        }();
         // Use compile-time conditional for group barrier sequence
         // (No runtime lambda selection)
         auto schedule_gemm_0 = [] {
-            using BlockGemm0 = remove_cvref_t<decltype(gemm_0)>;
             constexpr auto WarpGemmConfig =
                 BlockGemm0::Policy::template GetWarpGemmMWarpNWarp<Problem>();
             using WarpGemm0 = remove_cvref_t<decltype(WarpGemmConfig.template at<0>())>;
@@ -447,7 +503,7 @@ struct BlockFmhaPipelineQRKSVS
             }
         };
 
-        static_assert(2 <= k0_loops);
+        static_assert(kK0PrefetchDepth <= k0_loops);
         static_assert(1 <= k1_loops);
         do
         {
@@ -514,6 +570,46 @@ struct BlockFmhaPipelineQRKSVS
             }
 
             auto run_gemm_0 = [&](auto i_k0) {
+                if constexpr(kUsePartialKForGemm0Tail)
+                {
+                    if(static_cast<index_t>(i_k0.value) == (valid_k0_loops - 1) &&
+                       gemm0_tail_k_iters < kGemm0KItersPerBlock)
+                    {
+                        static_for<1, kGemm0KItersPerBlock, 1>{}([&](auto i_tail_k_iter) {
+                            constexpr index_t kTailKIters = i_tail_k_iter;
+                            constexpr index_t kTailK0     = kTailKIters * kGemm0WarpK;
+
+                            if(gemm0_tail_k_iters == kTailKIters)
+                            {
+                                using Gemm0TailProblem = BlockGemmProblem<
+                                    QDataType,
+                                    KDataType,
+                                    SaccDataType,
+                                    Problem::kNumGemm0Warps * get_warp_size(),
+                                    TileGemmShape<
+                                        sequence<kM0, kN0, kTailK0>,
+                                        typename BlockFmhaShape::Gemm0BlockWarps,
+                                        sequence<BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                                 BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                                 kGemm0WarpK>>>;
+                                constexpr auto gemm_0_tail =
+                                    BlockGemmARegBSmemCRegV2<Gemm0TailProblem,
+                                                             typename BlockGemm0::Policy>{};
+
+                                auto q_slice =
+                                    get_slice_tile(q_tile,
+                                                   sequence<0, i_k0 * kK0>{},
+                                                   sequence<kM0, i_k0 * kK0 + kTailK0>{});
+                                auto k_tail_window = make_tile_window(
+                                    k_lds, make_tuple(number<kN0>{}, number<kTailK0>{}), {0, 0});
+
+                                gemm_0_tail(s_acc, q_slice, k_tail_window);
+                            }
+                        });
+                        return;
+                    }
+                }
+
                 auto q_slice = get_slice_tile(
                     q_tile, sequence<0, i_k0 * kK0>{}, sequence<kM0, (i_k0 + 1) * kK0>{});
                 if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::MX)
@@ -531,36 +627,78 @@ struct BlockFmhaPipelineQRKSVS
                 }
             };
 
-            if constexpr(k0_loops > 2)
+            if constexpr(k0_loops > kK0PrefetchDepth)
             {
-                static_for<0, k0_loops - 2, 1>{}([&](auto i_k0) {
+                static_for<0, k0_loops - kK0PrefetchDepth, 1>{}([&](auto i_k0) {
                     block_sync_lds();
                     run_gemm_0(number<i_k0>{});
                     block_sync_lds();
-                    move_tile_window(k_dram_window, {0, kK0});
+                    if constexpr(kPadHeadDimQ && i_k0 == (k0_loops - 1 - kK0PrefetchDepth))
+                    {
+                        if(!skip_last_k0_loop)
+                        {
+                            move_tile_window(k_dram_window, {0, kK0});
+                        }
 
-                    store_tile(
-                        k_lds_window,
-                        tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
-                    k_block_tile = load_tile(k_dram_window);                // global read i + 2
+                        store_tile(
+                            k_lds_window,
+                            tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
 
+                        if(!skip_last_k0_loop)
+                        {
+                            k_block_tile = load_tile(k_dram_window); // global read i + 2
+                        }
+                    }
+                    else
+                    {
+                        move_tile_window(k_dram_window, {0, kK0});
+
+                        store_tile(
+                            k_lds_window,
+                            tile_elementwise_in(k_element_func, k_block_tile)); // LDS write i + 1
+                        k_block_tile = load_tile(k_dram_window);                // global read i + 2
+                    }
                     k_scale_block_tile = load_k_scale_block_tile();
                 });
             }
 
-            const auto v_prefetch = load_tile(v_dram_window); // prefetch load v tile
-            {                                                 // tail
+            auto v_prefetch = decltype(load_tile(v_dram_window)){};
+            enum class VPrefetchPoint
+            {
+                BeforeGemm0Tail,
+                AfterGemm0Tail,
+                AfterSoftmax
+            };
+
+#if defined(__gfx11__) || defined(__gfx12__)
+            constexpr auto kVPrefetch =
+                kPadHeadDimV ? VPrefetchPoint::AfterSoftmax : VPrefetchPoint::AfterGemm0Tail;
+#else
+            constexpr auto kVPrefetch = VPrefetchPoint::BeforeGemm0Tail;
+#endif
+            if constexpr(kVPrefetch == VPrefetchPoint::BeforeGemm0Tail)
+            {
+                load_tile(v_prefetch, v_dram_window); // prefetch load v tile
+            }
+            { // tail
                 block_sync_lds();
-                run_gemm_0(number<k0_loops - 2>{});
-                block_sync_lds();
+                run_gemm_0(number<k0_loops - kK0PrefetchDepth>{});
+                if(!skip_last_k0_loop)
+                {
+                    block_sync_lds();
 
-                store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
+                    store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
 
-                k_scale_block_tile = load_k_scale_block_tile();
+                    k_scale_block_tile = load_k_scale_block_tile();
 
-                block_sync_lds();
+                    block_sync_lds();
 
-                run_gemm_0(number<k0_loops - 1>{});
+                    run_gemm_0(number<k0_loops - 1>{});
+                }
+            }
+            if constexpr(kVPrefetch == VPrefetchPoint::AfterGemm0Tail)
+            {
+                load_tile(v_prefetch, v_dram_window);
             }
             // dequant
             auto s_acc_element_func_ = [&s_acc_element_func, k_descale]() {
@@ -819,6 +957,11 @@ struct BlockFmhaPipelineQRKSVS
                     randval_ptr, seq_offset, p_compute, randval_dram_window);
             }
 
+            if constexpr(kVPrefetch == VPrefetchPoint::AfterSoftmax)
+            {
+                load_tile(v_prefetch, v_dram_window);
+            }
+
             block_sync_lds();
             if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
@@ -898,6 +1041,31 @@ struct BlockFmhaPipelineQRKSVS
             auto o_acc0 = decltype(o_acc){};
             clear_tile(o_acc0);
 
+            constexpr auto gemm_1_config =
+                BlockGemm1::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using Gemm1WarpGemm = remove_cvref_t<decltype(gemm_1_config.template at<0>())>;
+            constexpr index_t kGemm1NWarp    = gemm_1_config.template at<2>();
+            constexpr index_t kGemm1NPerIter = kGemm1NWarp * Gemm1WarpGemm::kN;
+            const index_t valid_n_iters      = [&]() {
+                if constexpr(kPadHeadDimV && kBlockGemm1SupportsPartialN)
+                {
+                    return ck_tile::integer_divide_ceil(valid_n1_length, kGemm1NPerIter);
+                }
+                return static_cast<index_t>(0);
+            }();
+
+            auto run_gemm_1_impl =
+                [&](auto& o_acc_tensor, const auto& p_slice, const auto&... gemm_1_args) {
+                    if constexpr(kPadHeadDimV && kBlockGemm1SupportsPartialN)
+                    {
+                        gemm_1(o_acc_tensor, p_slice, gemm_1_args..., valid_n_iters);
+                    }
+                    else
+                    {
+                        gemm_1(o_acc_tensor, p_slice, gemm_1_args...);
+                    }
+                };
+
             auto run_gemm_1 = [&](auto i_k1) {
                 auto p_slice =
                     get_slice_tile(p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{});
@@ -907,15 +1075,19 @@ struct BlockFmhaPipelineQRKSVS
                         get_slice_tile(p_scale,
                                        sequence<0, i_k1*(kK1 / kVScaleGranularity)>{},
                                        sequence<kM0, (i_k1 + 1) * (kK1 / kVScaleGranularity)>{});
-                    gemm_1(o_acc, p_slice, p_scale_slice, v_lds_window, v_scale_block_tile);
-                }
-                else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
-                {
-                    gemm_1(o_acc0, p_slice, v_lds_window);
+                    run_gemm_1_impl(
+                        o_acc, p_slice, p_scale_slice, v_lds_window, v_scale_block_tile);
                 }
                 else
                 {
-                    gemm_1(o_acc, p_slice, v_lds_window);
+                    if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                    {
+                        run_gemm_1_impl(o_acc0, p_slice, v_lds_window);
+                    }
+                    else
+                    {
+                        run_gemm_1_impl(o_acc, p_slice, v_lds_window);
+                    }
                 }
             };
 
@@ -1046,6 +1218,94 @@ struct BlockFmhaPipelineQRKSVS
               typename BiasDramBlockWindowTmp,
               typename RandValDramBlockWindowTmp,
               typename LSEDramBlockWindowTmp,
+              typename QElementFunction,
+              typename KElementFunction,
+              typename VElementFunction,
+              typename BiasElementFunction,
+              typename LSEElementFunction,
+              typename SAccElementFunction,
+              typename PComputeElementFunction,
+              typename OAccElementFunction,
+              typename PositionEncoding,
+              typename AttentionVariantParams,
+              typename BlockIndices,
+              typename QScaleDramBlockWindowTmp,
+              typename KScaleDramBlockWindowTmp,
+              typename VScaleDramBlockWindowTmp>
+    CK_TILE_HOST_DEVICE auto
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
+               const QElementFunction& q_element_func,
+               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
+               const KElementFunction& k_element_func,
+               const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+               const VElementFunction& v_element_func,
+               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
+               const BiasElementFunction& bias_element_func,
+               RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
+               LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
+               const LSEElementFunction& lse_element_func,
+               const SAccElementFunction& s_acc_element_func,
+               const PComputeElementFunction& p_compute_element_func,
+               const OAccElementFunction& o_acc_element_func,
+               FmhaMask mask,
+               PositionEncoding position_encoding,
+               float scale_s,
+               const AttentionVariant& variant,
+               const AttentionVariantParams& variant_params,
+               const BlockIndices& block_indices,
+               void* smem_ptr,
+               DropoutType& dropout,
+               const float* k_descale_ptr,
+               const float* v_descale_ptr,
+               const index_t block_scale_size_kv,
+               const QScaleDramBlockWindowTmp&
+                   q_scale_dram_block_window_tmp, // M0*(K0/kQKScaleGranularity) tile
+               const KScaleDramBlockWindowTmp&
+                   k_scale_dram_block_window_tmp, // N0*(K0/kQKScaleGranularity) tile
+               const VScaleDramBlockWindowTmp&
+                   v_scale_dram_block_window_tmp, // N1*(K1/kVScaleGranularity) tile
+               const float sink_v) const
+    {
+        return operator()(q_dram_block_window_tmp,
+                          q_element_func,
+                          k_dram_block_window_tmp,
+                          k_element_func,
+                          v_dram_block_window_tmp,
+                          v_element_func,
+                          bias_dram_block_window_tmp,
+                          bias_element_func,
+                          randval_dram_block_window_tmp,
+                          lse_dram_window_tmp,
+                          lse_element_func,
+                          s_acc_element_func,
+                          p_compute_element_func,
+                          o_acc_element_func,
+                          mask,
+                          position_encoding,
+                          scale_s,
+                          variant,
+                          variant_params,
+                          block_indices,
+                          smem_ptr,
+                          dropout,
+                          k_descale_ptr,
+                          v_descale_ptr,
+                          block_scale_size_kv,
+                          q_scale_dram_block_window_tmp,
+                          k_scale_dram_block_window_tmp,
+                          v_scale_dram_block_window_tmp,
+                          sink_v,
+                          kQKHeaddim / kK0,
+                          kK0,
+                          kN1);
+    }
+
+    template <typename QDramBlockWindowTmp,
+              typename KDramBlockWindowTmp,
+              typename VDramBlockWindowTmp,
+              typename BiasDramBlockWindowTmp,
+              typename RandValDramBlockWindowTmp,
+              typename LSEDramBlockWindowTmp,
               typename PositionEncoding,
               typename AttentionVariantParams,
               typename BlockIndices>
@@ -1064,7 +1324,10 @@ struct BlockFmhaPipelineQRKSVS
                const BlockIndices& block_indices,
                void* smem_ptr,
                DropoutType& dropout,
-               const float sink_v) const
+               const float sink_v,
+               const index_t valid_k0_loops,
+               const index_t valid_last_k0_length,
+               const index_t valid_n1_length) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -1094,8 +1357,60 @@ struct BlockFmhaPipelineQRKSVS
                           make_null_tile_window(make_tuple()),
                           make_null_tile_window(make_tuple()),
                           make_null_tile_window(make_tuple()),
-                          sink_v);
+                          sink_v,
+                          valid_k0_loops,
+                          valid_last_k0_length,
+                          valid_n1_length);
+    }
+
+    template <typename QDramBlockWindowTmp,
+              typename KDramBlockWindowTmp,
+              typename VDramBlockWindowTmp,
+              typename BiasDramBlockWindowTmp,
+              typename RandValDramBlockWindowTmp,
+              typename LSEDramBlockWindowTmp,
+              typename PositionEncoding,
+              typename AttentionVariantParams,
+              typename BlockIndices>
+    CK_TILE_HOST_DEVICE auto
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
+               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
+               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
+               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
+               RandValDramBlockWindowTmp& randval_dram_block_window_tmp, // M0*N0 tile
+               LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile
+               FmhaMask mask,
+               PositionEncoding position_encoding,
+               float scale_s,
+               const AttentionVariant& variant,
+               const AttentionVariantParams& variant_params,
+               const BlockIndices& block_indices,
+               void* smem_ptr,
+               DropoutType& dropout,
+               const float sink_v) const
+    {
+        return operator()(q_dram_block_window_tmp,
+                          k_dram_block_window_tmp,
+                          v_dram_block_window_tmp,
+                          bias_dram_block_window_tmp,
+                          randval_dram_block_window_tmp,
+                          lse_dram_block_window_tmp,
+                          mask,
+                          position_encoding,
+                          scale_s,
+                          variant,
+                          variant_params,
+                          block_indices,
+                          smem_ptr,
+                          dropout,
+                          sink_v,
+                          kQKHeaddim / kK0,
+                          kK0,
+                          kN1);
     }
 };
+
+template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSDefaultPolicy>
+using BlockFmhaPipelineQRKSVSHpad = BlockFmhaPipelineQRKSVS<Problem_, Policy_, true>;
 
 } // namespace ck_tile

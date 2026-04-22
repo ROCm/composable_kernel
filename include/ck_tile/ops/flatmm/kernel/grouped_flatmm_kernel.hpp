@@ -339,16 +339,6 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
     {
         return hostArgs;
     }
-    // CK_TILE_HOST static constexpr auto
-    // MakeKernelArgs(const ContiguousGroupedFlatmmHostArgs& hostArgs)
-    // {
-    //     return hostArgs;
-    // }
-    // CK_TILE_HOST static constexpr auto
-    // MakeKernelArgs(const MaskedGroupedFlatmmHostArgs& hostArgs)
-    // {
-    //     return hostArgs;
-    // }
 
     template <class ScaleM       = FlatmmScalePointer<-1>,
               class ScaleN       = FlatmmScalePointer<-1>,

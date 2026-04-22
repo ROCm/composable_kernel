@@ -152,12 +152,6 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
                       "When loading more than one element per thread at once, the contiguous "
                       "dimension must be the same between source and destination.");
 
-        // constexpr auto dword_bytes           = 4;
-        // constexpr auto bytes_per_thread_load = ScalarPerVector * sizeof(SrcData);
-        // static_assert(bytes_per_thread_load == dword_bytes,
-        //               "Direct load transfer requires each thread to load exactly a single "
-        //               "DWORD of data.");
-
         static_assert(nDim == remove_cvref_t<SrcDesc>::GetNumOfDimension() &&
                           nDim == remove_cvref_t<DstDesc>::GetNumOfDimension() &&
                           nDim == ThreadClusterLengths::Size(),

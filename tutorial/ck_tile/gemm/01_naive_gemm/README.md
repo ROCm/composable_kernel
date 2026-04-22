@@ -141,10 +141,10 @@ int main()
 ```bash
 # From composable_kernel root directory
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh ../ <arch>
-make tile_example_practice_gemm -j
+../script/cmake-ck-dev.sh ../ <arch>
+make tile_tutorial_naive_gemm -j
 
 # Run with sample sizes
-./bin/tile_example_practice_gemm
+./bin/tile_tutorial_naive_gemm
 ```
 This example serves as a foundation for understanding more complex GEMM implementations and optimization strategies in the CK Tile framework.

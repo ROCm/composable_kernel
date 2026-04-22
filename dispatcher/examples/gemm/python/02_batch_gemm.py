@@ -6,9 +6,7 @@
 """
 Example 02: Batch GEMM
 
-Runs multiple GEMM operations with different sizes.
-
-Complexity: ★★☆☆☆
+Runs multiple GEMM operations with different sizes using JIT compilation.
 
 Usage:
     python3 02_batch_gemm.py
@@ -25,9 +23,8 @@ import numpy as np
 
 from ctypes_utils import (
     KernelConfig,
-    setup_gemm_dispatcher,
-    cleanup_gemm,
-    reset_for_example,
+    Registry,
+    detect_gpu_arch,
 )
 
 
@@ -55,20 +52,20 @@ Examples:
         help="Maximum problem size (default: 4096)",
     )
     parser.add_argument(
-        "--arch", default="gfx942", help="Target architecture (default: gfx942)"
+        "--arch",
+        default=detect_gpu_arch(),
+        help="Target architecture (auto-detected from rocminfo)",
     )
     args = parser.parse_args()
-
-    reset_for_example()
 
     print("=" * 60)
     print("Example 02: Batch GEMM")
     print("=" * 60)
 
     # =========================================================================
-    # Step 1: Setup dispatcher
+    # Step 1: JIT build dispatcher
     # =========================================================================
-    print("\nStep 1: Setup Dispatcher")
+    print("\nStep 1: JIT Build Dispatcher")
 
     config = KernelConfig(
         dtype_a=args.dtype,
@@ -80,19 +77,22 @@ Examples:
         gfx_arch=args.arch,
     )
 
-    setup = setup_gemm_dispatcher(config, registry_name="batch_gemm", verbose=True)
-    if not setup.success:
-        print(f"  ERROR: {setup.error}")
+    reg = Registry(name="batch_gemm")
+    reg.register_kernel(config)
+
+    setups = reg.build(verbose=True)
+    if not setups or not setups[0].success:
+        error = setups[0].error if setups else "No kernels built"
+        print(f"  ERROR: {error}")
         return 1
 
-    dispatcher = setup.dispatcher
+    dispatcher = setups[0].dispatcher
 
     # =========================================================================
     # Step 2: Run batch of different sizes
     # =========================================================================
     print("\nStep 2: Run Batch")
 
-    # Generate sizes up to max_size
     all_sizes = [
         (256, 256, 256),
         (512, 512, 512),
@@ -134,9 +134,6 @@ Examples:
     if total_time > 0:
         avg_tflops = (total_ops / 1e12) / (total_time / 1000)
         print(f"\n  Total: {total_time:.2f} ms, Average: {avg_tflops:.2f} TFLOPS")
-
-    # Cleanup
-    cleanup_gemm()
 
     print("\n" + "=" * 60)
     print("Batch GEMM complete!")

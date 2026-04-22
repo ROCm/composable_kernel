@@ -74,6 +74,7 @@
 #define CK_TILE_FLOAT_TO_BFLOAT16_TRUNCATE 2
 #define CK_TILE_FLOAT_TO_BFLOAT16_STANDARD_ASM 3
 #define CK_TILE_FLOAT_TO_BFLOAT16_RTA_ASM 4
+#define CK_TILE_FLOAT_TO_BFLOAT16_STANDARD_CNAN 5
 
 #ifndef CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT
 #define CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT CK_TILE_FLOAT_TO_BFLOAT16_STANDARD
@@ -206,6 +207,17 @@
 #define CK_TILE_USE_LLVM_BUILTIN_BF16 1
 #else
 #define CK_TILE_USE_LLVM_BUILTIN_BF16 0
+#endif
+#endif
+
+// workaround for AMDGPU compiler VGPR aliasing bug in dropout codegen (ROCm >= 7.12)
+// Philox RNG VGPR parameters get aliased under high register pressure (d256 tile).
+// fp16 is affected; bf16 is not (different type conversion codegen path).
+#ifndef CK_TILE_WORKAROUND_ROCM_7_12_FP16_DROPOUT_MISCOMPILE
+#if(HIP_VERSION_MAJOR == 7 && HIP_VERSION_MINOR >= 12) || (HIP_VERSION_MAJOR > 7)
+#define CK_TILE_WORKAROUND_ROCM_7_12_FP16_DROPOUT_MISCOMPILE 1
+#else
+#define CK_TILE_WORKAROUND_ROCM_7_12_FP16_DROPOUT_MISCOMPILE 0
 #endif
 #endif
 
