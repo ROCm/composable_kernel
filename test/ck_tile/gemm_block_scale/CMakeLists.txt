@@ -86,6 +86,11 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_abquant_eightwaves PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
+    add_gtest_executable(test_tile_gemm_quant_abquant_eightwaves_padded_stride
+        test_gemm_quant_abquant_eightwaves_padded_stride.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_abquant_eightwaves_padded_stride PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
     # ABQuant split-K tests
     add_gtest_executable(test_tile_gemm_quant_abquant_splitk_decode
         test_gemm_quant_abquant_splitk_decode.cpp
@@ -281,6 +286,7 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         test_tile_gemm_quant_abquant_a4w4_padding
         test_tile_gemm_quant_abquant_a4w4_preshuffle
         test_tile_gemm_quant_abquant_eightwaves
+        test_tile_gemm_quant_abquant_eightwaves_padded_stride
         # ABQuant split-K tests
         test_tile_gemm_quant_abquant_splitk_decode
         test_tile_gemm_quant_abquant_splitk_prefill
