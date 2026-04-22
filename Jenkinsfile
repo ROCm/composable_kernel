@@ -915,13 +915,7 @@ def Build_CK(Map conf=[:]){
                     cmake_build(conf)
                     if ( params.RUN_INDUCTOR_TESTS && arch == "gfx90a" ){
                             echo "Run inductor codegen tests"
-                            sh """
-                                  python3 -m venv ${env.WORKSPACE}/projects/composablekernel
-                                  . ${env.WORKSPACE}/projects/composablekernel/bin/activate
-                                  python3 -m pip install pytest build setuptools setuptools_scm
-                                  python3 -m pip install .
-                                  python3 -m pytest python/test/test_gen_instances.py
-                            """
+                            sh "projects/composablekernel/script/run_inductor_tests.sh"
                     }
                     // run performance tests, stash the logs, results will be processed on the master node
 					dir("projects/composablekernel/script"){
@@ -1338,8 +1332,8 @@ pipeline {
             description: "Generate a detailed time trace (default: OFF)")
         booleanParam(
             name: "RUN_INDUCTOR_TESTS",
-            defaultValue: false,
-            description: "Run inductor codegen tests (default: OFF)")
+            defaultValue: true,
+            description: "Run inductor codegen tests (default: ON)")
         booleanParam(
             name: "RUN_CODEGEN_TESTS",
             defaultValue: true,
