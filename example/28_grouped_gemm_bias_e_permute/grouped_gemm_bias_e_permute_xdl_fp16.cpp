@@ -18,6 +18,9 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/numeric.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 using ::ck::DeviceMem;
 using ::ck::HostTensorDescriptor;
 using ::ck::make_ParallelTensorFunctor;
@@ -478,3 +481,4 @@ int main(int argc, char* argv[])
 
     return pass ? 0 : 1;
 }
+#pragma clang diagnostic pop

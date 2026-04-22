@@ -12,6 +12,9 @@
 
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer_util.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 // Assume:
 //   1. src:
@@ -2093,3 +2096,5 @@ struct ThreadwiseTensorSliceTransfer_StaticToStatic_IntraRow
 };
 
 } // namespace ck
+
+#pragma clang diagnostic pop

@@ -10,6 +10,9 @@
 
 #include "ck/library/utility/host_tensor.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 namespace tensor_operation {
 namespace host {
@@ -451,3 +454,5 @@ struct ReferenceConvBwdWeight : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

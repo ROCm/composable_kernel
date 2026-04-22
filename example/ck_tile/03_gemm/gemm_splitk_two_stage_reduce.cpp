@@ -16,6 +16,9 @@
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 /**
  * @brief Tile partitioner with output offset support.
  *
@@ -961,3 +964,5 @@ int main(int argc, char* argv[])
     }
     return EXIT_SUCCESS;
 }
+
+#pragma clang diagnostic pop

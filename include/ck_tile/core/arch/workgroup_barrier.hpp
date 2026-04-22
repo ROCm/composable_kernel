@@ -10,7 +10,7 @@ namespace ck_tile {
 
 struct workgroup_barrier
 {
-    CK_TILE_DEVICE workgroup_barrier(uint32_t* ptr) : base_ptr(ptr) {}
+    CK_TILE_DEVICE workgroup_barrier([[clang::lifetimebound]] uint32_t* ptr) : base_ptr(ptr) {}
 
     CK_TILE_DEVICE uint32_t ld(uint32_t offset = 0)
     {

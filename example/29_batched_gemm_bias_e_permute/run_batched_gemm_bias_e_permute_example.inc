@@ -1,3 +1,5 @@
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 
 // hardcoded for NumDimM == NumDimN == NumDimK == 2
 template <ck::index_t NumDimG,
@@ -348,3 +350,4 @@ int run_batched_gemm_bias_e_permute_example(int argc, char* argv[])
 
     return 1;
 }
+#pragma clang diagnostic pop

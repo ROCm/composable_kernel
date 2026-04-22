@@ -36,7 +36,7 @@ struct UniversalGemmHostArgs
         const std::array<const void*, NumATensor>& as_ptr_,
         const std::array<const void*, NumBTensor>& bs_ptr_,
         const std::array<const void*, NumDTensor>& ds_ptr_,
-        void* e_ptr_,
+        [[clang::lifetimebound]] void* e_ptr_,
         index_t k_batch_,
         index_t M_,
         index_t N_,

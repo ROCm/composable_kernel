@@ -10,6 +10,9 @@
 #include <string>
 #include <type_traits>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 #if !defined(CK_TILE_HAS_ROW_NEWBCAST)
 // row_newbcast (DPP modifier 0x157) support by architecture:
 // - Not supported: gfx908 (MI100) and older
@@ -3125,3 +3128,5 @@ struct MoeSortingMultiPhaseKernel_P23
 #undef MOE_SORTING_MOCK_ID
 
 } // namespace ck_tile
+
+#pragma clang diagnostic pop

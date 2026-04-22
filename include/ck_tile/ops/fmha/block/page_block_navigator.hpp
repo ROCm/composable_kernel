@@ -6,6 +6,9 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/core/tensor/tile_window.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 // assume that we have only 1 page-block/tensor view
@@ -356,3 +359,5 @@ CK_TILE_HOST_DEVICE auto make_page_block_navigator(copy_const_t<DataType, void>*
 }
 
 } // namespace ck_tile
+
+#pragma clang diagnostic pop

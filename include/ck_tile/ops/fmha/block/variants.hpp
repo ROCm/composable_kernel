@@ -19,6 +19,9 @@
 #define CK_TILE_ATTENTION_USE_SOFTSIGN_ASM 0
 #endif
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 namespace internal {
 __device__ inline float
@@ -333,3 +336,5 @@ struct ComposedAttention
 };
 
 } // namespace ck_tile
+
+#pragma clang diagnostic pop

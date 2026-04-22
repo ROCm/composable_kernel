@@ -23,6 +23,9 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm_multiple_d.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 using ::ck::DeviceMem;
 using ::ck::hip_check_error;
 using ::ck::HostTensorDescriptor;
@@ -74,3 +77,5 @@ using DeviceGemmInstance =
 #include "run_grouped_gemm_multiple_d_example.inc"
 
 int main(int argc, char* argv[]) { return !run_grouped_gemm_example(argc, argv); }
+
+#pragma clang diagnostic pop
