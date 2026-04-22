@@ -103,7 +103,7 @@ template <
     typename PY,
     typename PX,
     typename std::enable_if<std::is_pointer_v<PY> && std::is_pointer_v<PX>, bool>::type = false>
-CK_TILE_HOST_DEVICE PY c_style_pointer_cast(PX p_x)
+CK_TILE_HOST_DEVICE PY c_style_pointer_cast([[clang::lifetimebound]] PX p_x)
 {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"

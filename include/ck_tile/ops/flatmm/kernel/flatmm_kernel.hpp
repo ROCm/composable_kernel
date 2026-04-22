@@ -10,6 +10,9 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 struct FlatmmProblem
 {
@@ -970,3 +973,5 @@ struct FlatmmKernel
 };
 
 } // namespace ck_tile
+
+#pragma clang diagnostic pop

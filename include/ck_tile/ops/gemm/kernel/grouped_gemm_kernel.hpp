@@ -14,6 +14,9 @@
 
 #include <hip/hip_runtime.h>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 /// @brief The Grouped GEMM kernel host arguments.
@@ -575,3 +578,5 @@ struct GroupedGemmKernel
 };
 
 } // namespace ck_tile
+
+#pragma clang diagnostic pop

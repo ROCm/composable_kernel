@@ -5,6 +5,9 @@
 #include <hip/hip_runtime.h>
 #include <stdint.h>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 struct workgroup_barrier
 {
@@ -60,3 +63,5 @@ struct workgroup_barrier
     uint32_t* base_ptr;
 };
 } // namespace ck
+
+#pragma clang diagnostic pop

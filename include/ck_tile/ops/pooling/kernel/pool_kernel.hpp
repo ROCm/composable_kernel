@@ -8,6 +8,9 @@
 #include "ck_tile/ops/common.hpp"
 #include <type_traits>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 /// @brief Host arguments for pooling operations
@@ -575,3 +578,5 @@ struct PoolKernel
 };
 
 } // namespace ck_tile
+
+#pragma clang diagnostic pop

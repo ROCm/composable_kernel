@@ -14,6 +14,9 @@
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/ops/gemm_quant/pipeline/tile_gemm_quant_traits.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 namespace detail {
@@ -1574,3 +1577,4 @@ struct QuantGemmKernel
 };
 
 } // namespace ck_tile
+#pragma clang diagnostic pop

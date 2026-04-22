@@ -14,6 +14,9 @@
 
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 namespace tensor_operation {
 namespace host {
@@ -192,3 +195,5 @@ struct ReferenceGemmMultiABD : public device::BaseOperator
 } // namespace host
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

@@ -12,7 +12,7 @@ namespace ck_tile::core::arch::mma {
 struct PassThroughTransform
 {
     template <typename VecType>
-    CK_TILE_DEVICE static decltype(auto) exec(VecType&& v)
+    CK_TILE_DEVICE static decltype(auto) exec([[clang::lifetimebound]] VecType&& v)
     {
         return std::forward<VecType>(v);
     }

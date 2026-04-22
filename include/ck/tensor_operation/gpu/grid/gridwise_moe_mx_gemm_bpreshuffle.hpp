@@ -19,6 +19,9 @@
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_gather_direct_load.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_common.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 #define DEBUG_LOG 0
 
 namespace ck {
@@ -2200,3 +2203,4 @@ struct GridwiseMoeGemmMX_BPreshuffle
 };
 
 } // namespace ck
+#pragma clang diagnostic pop

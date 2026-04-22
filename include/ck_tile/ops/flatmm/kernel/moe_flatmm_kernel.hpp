@@ -10,6 +10,9 @@
 #include "ck_tile/ops/gemm/kernel/gemm_tile_partitioner.hpp"
 #include "ck_tile/host.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 // #define disable_tile_gs
 
 namespace ck_tile {
@@ -1493,3 +1496,5 @@ struct MoeFlatmmKernel
 };
 
 } // namespace ck_tile
+
+#pragma clang diagnostic pop

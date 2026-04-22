@@ -26,7 +26,8 @@ struct GemmProblem
 
     bool structured_sparsity_;
 
-    friend std::ostream& operator<<(std::ostream& os, const GemmProblem& problem)
+    friend std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                                    const GemmProblem& problem)
     {
         os << "{\n"
            << "   \"split_k\":" << problem.split_k_ << ",\n"
