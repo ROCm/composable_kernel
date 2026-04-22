@@ -176,10 +176,15 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
         const index_t M0     = integer_divide_ceil(rows, M1);
         const auto row_lens  = make_tuple(M0, number<M1>{});
 
-        const auto d0 = make_naive_tensor_descriptor_packed(container_concat(row_lens, col_lens));
-        const auto desc_0 = decltype(d0)( // set correct size (without padding)
-            d0.get_transforms(),
-            tensor_view_tmp.get_tensor_descriptor().get_element_space_size());
+        // Build the 6D view by composing unmerge transforms on top of the
+        // input view's existing descriptor. This preserves the input's actual
+        // strides (so a non-packed leading-dim stride is honored) and inherits
+        // its element_space_size for bounds checking.
+        const auto desc_0 = transform_tensor_descriptor(
+            tensor_view_tmp.get_tensor_descriptor(),
+            make_tuple(make_unmerge_transform(row_lens), make_unmerge_transform(col_lens)),
+            make_tuple(sequence<0>{}, sequence<1>{}),
+            make_tuple(sequence<0, 1>{}, sequence<2, 3, 4, 5>{}));
         const auto desc_1 = transform_tensor_descriptor(
             desc_0,
             make_tuple(make_pass_through_transform(M0),
