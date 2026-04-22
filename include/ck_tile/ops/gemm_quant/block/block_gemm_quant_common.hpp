@@ -5,6 +5,9 @@
 
 #include "ck_tile/core.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 // Common utilities for quantized GEMM block operations
@@ -224,3 +227,4 @@ struct AQPickerCommon : public BlockGemmQuantBase
     float scale_reg_f = 0.0f;
 };
 } // namespace ck_tile
+#pragma clang diagnostic pop

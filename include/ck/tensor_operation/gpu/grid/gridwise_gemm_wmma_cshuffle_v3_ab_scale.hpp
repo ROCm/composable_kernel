@@ -16,6 +16,9 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3_common.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 template <typename ALayout,
@@ -866,3 +869,4 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
 };
 
 } // namespace ck
+#pragma clang diagnostic pop

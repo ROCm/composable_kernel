@@ -18,6 +18,9 @@
 #include "ck/utility/scheduler_enum.hpp"
 #include "ck/utility/integral_constant.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -900,3 +903,4 @@ struct DeviceGemmGemm_Wmma_CShuffleV3_Common_Invoker_Arg
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#pragma clang diagnostic pop

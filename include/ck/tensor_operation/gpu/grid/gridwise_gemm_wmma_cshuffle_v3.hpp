@@ -19,6 +19,9 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3_common.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 /// @brief \"Universal\" GEMM kernel with SplitK support.
@@ -1096,3 +1099,4 @@ struct GridwiseGemm_wmma_cshuffle_v3
 };
 
 } // namespace ck
+#pragma clang diagnostic pop

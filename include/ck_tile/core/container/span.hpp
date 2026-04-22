@@ -8,6 +8,9 @@
 #include <array>
 #include <type_traits>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 // implement the c++20 std::span, lightweight, non-owning reference to a sequence
@@ -76,3 +79,4 @@ class span
 };
 
 } // namespace ck_tile
+#pragma clang diagnostic pop

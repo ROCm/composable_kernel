@@ -15,6 +15,9 @@
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_direct_load.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_common.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 template <typename ALayout,
@@ -977,3 +980,5 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 };
 
 } // namespace ck
+
+#pragma clang diagnostic pop

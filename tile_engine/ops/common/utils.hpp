@@ -72,7 +72,8 @@ struct KernelInstance
 };
 
 template <typename Problem>
-std::ostream& operator<<(std::ostream& os, const KernelInstance<Problem>& obj)
+std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                         const KernelInstance<Problem>& obj)
 {
     os << "{\n"
        << " \"name\": \"" << obj.name_ << "\",\n"
@@ -82,7 +83,7 @@ std::ostream& operator<<(std::ostream& os, const KernelInstance<Problem>& obj)
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const PerformanceResult& result)
+std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os, const PerformanceResult& result)
 {
     os << "{\n"
        << "   \"latency(ms)\": " << std::fixed << std::setprecision(2) << result.latency_ << ",\n"

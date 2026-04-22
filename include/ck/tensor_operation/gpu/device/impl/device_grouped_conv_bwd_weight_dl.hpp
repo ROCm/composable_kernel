@@ -25,6 +25,9 @@
 #include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_bwd_weight_dl.hpp"
 #endif
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -1255,3 +1258,4 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#pragma clang diagnostic pop

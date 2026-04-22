@@ -1,5 +1,5 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier: MIT
+// SDX-License-Identifier: MIT
 
 #ifndef CK_C_STYLE_POINTER_CAST_HPP
 #define CK_C_STYLE_POINTER_CAST_HPP
@@ -12,7 +12,7 @@ namespace ck {
 template <typename PY,
           typename PX,
           typename enable_if<is_pointer_v<PY> && is_pointer_v<PX>, bool>::type = false>
-__host__ __device__ PY c_style_pointer_cast(PX p_x)
+__host__ __device__ PY c_style_pointer_cast([[clang::lifetimebound]] PX p_x)
 {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wold-style-cast"

@@ -20,6 +20,9 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_common.hpp"
 #include "ck/host_utility/device_prop.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 template <typename GridwiseGemm>
@@ -1172,3 +1175,5 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
 };
 
 } // namespace ck
+
+#pragma clang diagnostic pop

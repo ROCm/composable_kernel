@@ -16,6 +16,9 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_common.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 // Currently we do not have a elegant way to put single lds buffer & double lds buffer pipe in same
@@ -1577,3 +1580,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
 };
 
 } // namespace ck
+
+#pragma clang diagnostic pop
+
