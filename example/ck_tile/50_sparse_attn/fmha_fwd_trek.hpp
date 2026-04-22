@@ -277,13 +277,13 @@ struct fmha_jenga_fwd_traits
 
 float fmha_jenga_fwd(fmha_jenga_fwd_traits, fmha_jenga_fwd_args, const ck_tile::stream_config&);
 
-// sparge jenga
-float sparge_jenga_fwd(fmha_jenga_fwd_traits, fmha_jenga_fwd_args, const ck_tile::stream_config&);
-
 template <typename Traits_>
 float fmha_jenga_fwd_(const ck_tile::stream_config&, fmha_jenga_fwd_args);
 
-float fmha_jenga_fwd(fmha_jenga_fwd_args, const ck_tile::stream_config&);
+template <typename Traits_>
+void fmha_jenga_fwd_oneshot_(const ck_tile::stream_config&, fmha_jenga_fwd_args);
+
+void fmha_jenga_fwd_oneshot(fmha_jenga_fwd_traits, fmha_jenga_fwd_args, const ck_tile::stream_config&);
 
 // VSA uses the same traits structure as Jenga; aliases for clarity
 template <ck_tile::index_t HDim_,
@@ -325,10 +325,10 @@ using fmha_vsa_fwd_traits = fmha_jenga_fwd_traits;
 
 float fmha_vsa_fwd(fmha_vsa_fwd_traits, fmha_vsa_fwd_args, const ck_tile::stream_config&);
 
-// sparge vsa
-float sparge_vsa_fwd(fmha_vsa_fwd_traits, fmha_vsa_fwd_args, const ck_tile::stream_config&);
-
 template <typename Traits_>
 float fmha_vsa_fwd_(const ck_tile::stream_config&, fmha_vsa_fwd_args);
 
-float fmha_vsa_fwd(fmha_vsa_fwd_args, const ck_tile::stream_config&);
+template <typename Traits_>
+void fmha_vsa_fwd_oneshot_(const ck_tile::stream_config&, fmha_vsa_fwd_args);
+
+void fmha_vsa_fwd_oneshot(fmha_vsa_fwd_traits, fmha_vsa_fwd_args, const ck_tile::stream_config&);

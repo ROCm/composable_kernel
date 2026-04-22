@@ -141,6 +141,17 @@ float fmha_jenga_fwd_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_jenga
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
     return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs));
 }}
+
+template<>
+void fmha_jenga_fwd_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_jenga_fwd_args a)
+{{
+    using k_ = fmha_kernel_{F_idx};
+    auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
+    const dim3 blocks                      = k_::BlockSize();
+    constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
+    ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(
+        ck_tile::stream_config{{s.stream_id_}});
+}}
 """
 
 FMHA_FWD_API_FILENAME = "fmha_jenga_fwd_api.cpp"
@@ -219,6 +230,45 @@ FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_v_rowmajor == {F_vlayo
             }}
 """
 
+FMHA_FWD_ONESHOT_API_FILENAME = "fmha_jenga_fwd_oneshot_api.cpp"
+FMHA_FWD_ONESHOT_API = """
+#include "fmha_fwd_trek.hpp"
+#include <iostream>
+
+void fmha_jenga_fwd_oneshot(fmha_jenga_fwd_traits t, fmha_jenga_fwd_args a, const ck_tile::stream_config& s){{
+
+    const bool has_load_tr = ck_tile::is_load_tr_supported();
+
+{F_dispatch}
+    std::cerr << "fmha_jenga_fwd_oneshot: no matching dispatch (dtype=" << t.data_type
+              << " hdim_q=" << t.hdim_q << " hdim_v=" << t.hdim_v
+              << " seqlen_q=" << a.seqlen_q << " seqlen_k=" << a.seqlen_k
+              << " mask=" << static_cast<int>(t.mask_type) << ")" << std::endl;
+}}
+"""
+
+FMHA_FWD_ONESHOT_API_PER_TRLOAD = """    {F_if}({F_trload_cond}){{
+{F_dtype_case}
+    }}
+"""
+
+FMHA_FWD_ONESHOT_API_PER_DTYPE = """    {F_if}(t.data_type.compare(\"{F_dtype}\") == 0){{
+{F_hdim_case}
+    }}
+"""
+FMHA_FWD_ONESHOT_API_PER_HDIM_CASE = """        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v <= {F_hdim_v}) {{
+{F_inner_dispatch}
+        }}
+"""
+
+FMHA_FWD_ONESHOT_API_INNER_DISPATCH = """            {F_if}((t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) &&
+                        ({F_scheck}) && ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
+                using trait_ = fmha_jenga_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, false/*logits*/, {F_mask}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
+                fmha_jenga_fwd_oneshot_<trait_>(s, a);
+                return;
+            }}
+"""
+
 
 @dataclass
 class CppConstraint:
@@ -274,10 +324,7 @@ class FmhaFwdApiTrait:
 
     @property
     def seqtune(self) -> str:
-        if self.bm0 == 128:
-            return "true/*fall back to largest tile*/"  # group mode only generate spad/skpad == true
-        else:
-            return f"a.seqlen_q <= {self.bm0}"
+        return "true"
 
     @property
     def skcheck(self) -> str:
@@ -447,6 +494,67 @@ class FmhaFwdApiPool:
             per_tr_load += "    (void)t ; (void)s ; (void)a;"
         return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_API.format(F_dispatch=per_tr_load)
 
+    @property
+    def oneshot_api(self) -> str:
+        tr_load_cond_map = {"t": "has_load_tr", "f": "true"}
+
+        per_tr_load = str()
+        for tr_load in ["t", "f"]:
+            per_dtypes = str()
+            for i, dtype in enumerate(self.pool.keys()):
+                per_hdim_case = str()
+                for j, (hdim, hdim_v) in enumerate(self.pool[dtype].keys()):
+                    traits = [
+                        t
+                        for t in self.pool[dtype][(hdim, hdim_v)]
+                        if tr_load == t.tr_load
+                    ]
+                    inners = str()
+                    for k, trait in enumerate(traits):
+                        if_k = "if" if k == 0 else "else if"
+                        inners = inners + FMHA_FWD_ONESHOT_API_INNER_DISPATCH.format(
+                            F_if=if_k,
+                            F_vlayout=LAYOUT_MAP[trait.vlayout],
+                            F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag],
+                            F_mask=get_mask_map(self.mask_impl)[trait.mask],
+                            F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask],
+                            F_trload=BOOL_MAP[trait.tr_load],
+                            F_scheck=trait.scheck,
+                            F_seqtune=trait.seqtune,
+                            F_skcheck=trait.skcheck,
+                            F_dcheck=trait.dcheck,
+                            F_dvcheck=trait.dvcheck,
+                            F_constraint=trait.constraint,
+                            F_spad=BOOL_MAP[trait.spad],
+                            F_skpad=BOOL_MAP[trait.skpad],
+                            F_dpad=BOOL_MAP[trait.dpad],
+                            F_dvpad=BOOL_MAP[trait.dvpad],
+                            F_bm0=trait.bm0,
+                            F_bn0=trait.bn0,
+                            F_bk0=trait.bk0,
+                            F_bn1=trait.bn1,
+                            F_bk1=trait.bk1,
+                            F_bk0max=trait.bk0max,
+                            F_hdim=hdim,
+                            F_dtype=FWD_DTYPE_MAP[dtype],
+                        )
+                    if_j = "if" if j == 0 else "else if"
+                    per_hdim_case = per_hdim_case + FMHA_FWD_ONESHOT_API_PER_HDIM_CASE.format(
+                        F_if=if_j, F_hdim=hdim, F_hdim_v=hdim_v, F_inner_dispatch=inners
+                    )
+                if_i = "if" if i == 0 else "else if"
+                per_dtypes = per_dtypes + FMHA_FWD_ONESHOT_API_PER_DTYPE.format(
+                    F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case
+                )
+            per_tr_load += FMHA_FWD_ONESHOT_API_PER_TRLOAD.format(
+                F_if="if",
+                F_trload_cond=tr_load_cond_map[tr_load],
+                F_dtype_case=per_dtypes,
+            )
+        if not per_tr_load:
+            per_tr_load += "    (void)t ; (void)s ; (void)a;"
+        return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_ONESHOT_API.format(F_dispatch=per_tr_load)
+
 
 @dataclass
 class FmhaFwdTileSize:
@@ -582,6 +690,27 @@ class KernelComponentFactory:
                 #              FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 # (96, 128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (128, 128): [
+                    FmhaFwdTileSize(  # fmt: skip  -- 64x128 tile matching blockmap kM0=64, kN0=128
+                        64,
+                        128,
+                        64,
+                        128,
+                        64,
+                        128,
+                        4,
+                        1,
+                        1,
+                        4,
+                        1,
+                        1,
+                        16,
+                        16,
+                        16,
+                        16,
+                        16,
+                        16,
+                        -1,
+                    ),
                     FmhaFwdTileSize(  # fmt: skip
                         16,
                         32,
@@ -780,7 +909,7 @@ def get_fwd_blobs(
             for tile, pipeline in itertools.product(
                 tiles, factory.get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl)
             ):
-                if tile.F_bm0 != 128 or tile.F_bn0 != 128:
+                if tile.F_bm0 != 64 or tile.F_bn0 != 128:
                     continue
                 if pipeline.tag != "qr_async":
                     continue
@@ -846,6 +975,7 @@ def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
 
 def write_fwd_api(api_pool: FmhaFwdApiPool, autogen_dir: Path) -> None:
     update_file(autogen_dir / FMHA_FWD_API_FILENAME, api_pool.api)
+    update_file(autogen_dir / FMHA_FWD_ONESHOT_API_FILENAME, api_pool.oneshot_api)
 
 
 def write_blobs(
@@ -865,3 +995,4 @@ def list_blobs(
         for kernel in kernels:
             f.write((file_path.parent / GEN_DIR / kernel.filename).as_posix() + "\n")
         f.write((file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME).as_posix() + "\n")
+        f.write((file_path.parent / GEN_DIR / FMHA_FWD_ONESHOT_API_FILENAME).as_posix() + "\n")

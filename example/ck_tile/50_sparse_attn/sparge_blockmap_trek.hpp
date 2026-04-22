@@ -91,3 +91,16 @@ auto sparge_blockmap_create_kargs_and_grids(sparge_blockmap_args args)
 float sparge_blockmap_fwd(sparge_blockmap_traits traits,
                           sparge_blockmap_args args,
                           const ck_tile::stream_config& stream_config);
+
+void sparge_blockmap_fwd_oneshot(sparge_blockmap_traits traits,
+                                 sparge_blockmap_args args,
+                                 const ck_tile::stream_config& stream_config);
+
+// Combined functions: blockmap + attention with unified timing
+float sparge_jenga_fwd(sparge_blockmap_traits, sparge_blockmap_args,
+                       fmha_jenga_fwd_traits, fmha_jenga_fwd_args,
+                       const ck_tile::stream_config&);
+
+float sparge_vsa_fwd_combined(sparge_blockmap_traits, sparge_blockmap_args,
+                              fmha_vsa_fwd_traits, fmha_vsa_fwd_args,
+                              const ck_tile::stream_config&);
