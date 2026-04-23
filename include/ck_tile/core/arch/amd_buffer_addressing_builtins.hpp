@@ -1319,6 +1319,87 @@ CK_TILE_DEVICE void async_buffer_load_fence(index_t cnt = 0)
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
 }
 
+// Flat async load from global memory to LDS using 64-bit global addressing.
+// Bypasses the SRD's 32-bit offset limit; required when the KV cache exceeds
+// INT32_MAX (2GB) byte offset on the SRD voffset path.
+//
+// !!! M0 PRECONDITION — IMPLICIT INPUT NOT VISIBLE IN OPERAND LIST !!!
+//
+//   The LDS destination address is taken from M0 (per AMD CDNA3 ISA §10.3:
+//   `LDS_ADDR = LDSbase + LDSoffset(M0[17:2] * 4) + INST.OFFSET + ThreadID*4`).
+//   M0 does NOT appear as an operand of these instructions or of the inline
+//   asm below — the compiler cannot see the dependency. Caller must:
+//
+//     1. Initialize M0 once before the load loop:
+//          `m0_set_with_memory(amd_wave_read_first_lane(lds_byte_offset));`
+//        M0 is SALU-only — `m0_set_with_memory` uses an "s" constraint to
+//        enforce this. Direct VALU writes to M0 are illegal.
+//
+//     2. Advance M0 between successive issues:
+//          `m0_inc_with_memory(size_per_issue);`
+//        `size_per_issue` MUST be a multiple of 4 — GLOBAL/FLAT LDS path
+//        only honors M0[17:2]*4 (dword-aligned), so low 2 bits are silently
+//        dropped (NOTE: this differs from MUBUF buffer_load_lds which uses
+//        M0[15:0] as a raw byte offset).
+//
+//     3. Never bundle `m0_inc_with_memory` and the next call to this
+//        function into a single inline asm. The compiler auto-inserts a
+//        hazard NOP between an SALU write to M0 and the consuming
+//        `global_load_lds_*`; bundling bypasses that and may read stale M0.
+//
+//   The "memory" clobber on this asm is load-bearing: it prevents the
+//   compiler from reordering this load across other M0-touching helpers
+//   (`m0_set_with_memory` / `m0_inc_with_memory`, also "memory"-clobbered).
+//
+// Verified instruction emission (HIP 6.4 / clang 19, gfx942 + gfx950):
+//   `global_load_lds_dwordx4` is a single instruction (encoding 0xDDF48000
+//   0x007F0000), NOT software-expanded into 4× dword. Same encoding on both
+//   arches. The opcode is undocumented in CDNA3 ISA spec §13.6.2 but
+//   supported by the LLVM AMDGPU backend.
+//
+// Available on gfx940+ (CDNA3: MI300, MI355, MI350 series).
+template <unsigned num_dwords, bool pre_nop = false>
+CK_TILE_DEVICE void
+async_global_load_lds_dwordxn(void* smem, const void* global_addr, bool_constant<pre_nop> = {})
+{
+#if !defined(__gfx94__) && !defined(__gfx950__)
+    static_assert(always_false_v<integral_constant<unsigned, num_dwords>>,
+                  "global_load_lds requires CDNA3+ (gfx940/gfx950). "
+                  "Ensure kKVLoadMode is BUFFER_LOAD on this architecture.");
+#endif
+
+    static_assert(num_dwords == 1 || num_dwords == 4,
+                  "global_load_lds supports num_dwords == 1 or 4 only "
+                  "(2 dwords does not exist on any supported arch; "
+                  "3 dwords only on CDNA4 and unused in FMHA pipeline)");
+
+// Inline asm: only the global address is an explicit operand. The LDS
+// destination is implicit via M0 (see contract above). `"=r"(smem)` is a
+// SSA scheduling anchor only — `smem` is NOT written by this asm; the
+// load goes to LDS at `M0[17:2]*4 + offset:0 + ThreadID*4`.
+#define CK_TILE_GLOBAL_LOAD_LDS_INSTR(instr)                                 \
+    if constexpr(pre_nop)                                                    \
+        asm volatile("s_nop 4\n" instr " %1, off offset:0"                   \
+                     : "=r"(smem) /*scheduling anchor; real LDS dest is M0*/ \
+                     : "v"(global_addr)                                      \
+                     : "memory" /*prevents reorder across m0_{set,inc}*/);   \
+    else                                                                     \
+        asm volatile(instr " %1, off offset:0"                               \
+                     : "=r"(smem) /*scheduling anchor; real LDS dest is M0*/ \
+                     : "v"(global_addr)                                      \
+                     : "memory" /*prevents reorder across m0_{set,inc}*/);
+
+    if constexpr(num_dwords == 1)
+    {
+        CK_TILE_GLOBAL_LOAD_LDS_INSTR("global_load_lds_dword");
+    }
+    else if constexpr(num_dwords == 4)
+    {
+        CK_TILE_GLOBAL_LOAD_LDS_INSTR("global_load_lds_dwordx4");
+    }
+#undef CK_TILE_GLOBAL_LOAD_LDS_INSTR
+}
+
 template <index_t N,
           amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default>
 CK_TILE_DEVICE thread_buffer<int8_t, N>
