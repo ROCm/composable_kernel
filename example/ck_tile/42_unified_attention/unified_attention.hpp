@@ -72,6 +72,8 @@ struct unified_attention_args
 std::ostream& operator<<(std::ostream& stream,
                          const unified_attention_args::data_type_enum& data_type);
 
+std::ostream& operator<<(std::ostream& stream, const unified_attention_args& args);
+
 // return value:
 //   first  = whether the kernel was launched (true = launched, false = skipped)
 //   second = elapsed time (ms) of the kernel launch, valid only if first == true

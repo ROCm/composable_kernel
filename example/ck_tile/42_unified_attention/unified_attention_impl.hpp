@@ -5,6 +5,7 @@
 
 #include <utility>
 
+#include <iostream>
 #include "ck_tile/core/numeric/bfloat16.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/container/sequence.hpp"
@@ -33,9 +34,10 @@
     template <>                                                                                      \
     std::pair<bool, float> unified_attention_kernel_dispatch_decode<kernel_traits>(                  \
         const unified_attention_args& args, const stream_config& config)                             \
-    {                                                                                                \
-        return std::make_pair(                                                                       \
-            true, unified_attention_kernel_launch<kernel_traits::kernel, true>(args, config));       \
+    {                                                                                                 \
+        std::cout << "INST_UNIFIED_ATTENTION_DISPATCH_DECODE, " << args << std::endl;                 \
+        return std::make_pair(                                                                        \
+            true, unified_attention_kernel_launch<kernel_traits::kernel, true>(args, config));          \
     }
 
 namespace ck_tile {
