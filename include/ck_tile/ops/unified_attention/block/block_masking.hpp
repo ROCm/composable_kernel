@@ -180,6 +180,12 @@ struct GenericAttentionMask
         }
     }
 
+    // Alias kept for compatibility with reference_batched_masking.hpp
+    CK_TILE_HOST_DEVICE constexpr auto IsOutOfSinkBound(index_t i_y, index_t i_x) const
+    {
+        return IsOutOfBound(i_y, i_x);
+    }
+
     // per-pixel check if out-of-bound, if true, need mask a value(like -INF)
     CK_TILE_HOST_DEVICE constexpr auto IsOutOfBound(index_t i_y, index_t i_x) const
     {
