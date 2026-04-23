@@ -448,8 +448,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
               << (sink_grad ? ", sink:(rand[30,60], grad)" : "") << ", s_randval:" << s_randval
               << ", deterministic:" << deterministic
               << ", workspace:" << std::to_string(workspace_size_in_megabytes) << "MiB"
-              << ", mask:" << mask
-              << ", init:" << launcher_ctor_ms << "ms"
+              << ", mask:" << mask << ", init:" << launcher_ctor_ms << "ms"
               << ", prws:" << prepare_ws_timer.duration() << "ms" << std::flush;
 
     auto fmha_args = [&]() {
