@@ -162,6 +162,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
             id_off += grid_size_grp;
             id_local += grid_size_grp;
+            block_sync_lds();
         }
     }
 #else
