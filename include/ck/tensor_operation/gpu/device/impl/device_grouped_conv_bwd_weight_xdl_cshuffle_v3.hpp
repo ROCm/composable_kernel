@@ -638,6 +638,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             {
                 k_batch_ = split_k;
             }
+            k_batch_ = clamp_gemm_k_batch(k_batch_);
 
             // Create descriptors first (with hack flags temporarily set to false)
             // so we can check if element space sizes match product of dimensions

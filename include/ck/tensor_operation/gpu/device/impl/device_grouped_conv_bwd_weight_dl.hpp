@@ -19,6 +19,7 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
 
 #ifdef CK_EXPERIMENTAL_BUILDER
 #include "ck_tile/builder/reflect/description.hpp"
@@ -856,6 +857,7 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
               input_right_pads_{input_right_pads}
         {
             k_batch_ = split_k;
+            k_batch_ = clamp_gemm_k_batch(k_batch_);
 
             const auto descs =
                 DeviceOp::MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
