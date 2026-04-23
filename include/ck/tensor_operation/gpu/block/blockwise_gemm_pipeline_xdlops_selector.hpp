@@ -32,12 +32,13 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
-          bool DirectLoad          = false,
-          bool LdsScalarLoadToVgpr = false>
+          bool DirectLoad           = false,
+          bool ALdsScalarLoadToVgpr = false,
+          bool BLdsScalarLoadToVgpr = false>
 constexpr auto BlockGemmPipeline_Selector()
 {
     // Supported for Direct Load and V1
-    if constexpr(LdsScalarLoadToVgpr)
+    if constexpr(ALdsScalarLoadToVgpr || BLdsScalarLoadToVgpr)
     {
         static_assert(DirectLoad && BlkGemmPipelineVer == BlockGemmPipelineVersion::v1);
     }
@@ -65,7 +66,8 @@ constexpr auto BlockGemmPipeline_Selector()
                                                              MRepeat,
                                                              NRepeat,
                                                              KPack,
-                                                             LdsScalarLoadToVgpr>{};
+                                                             ALdsScalarLoadToVgpr,
+                                                             BLdsScalarLoadToVgpr>{};
         }
         else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
         {
