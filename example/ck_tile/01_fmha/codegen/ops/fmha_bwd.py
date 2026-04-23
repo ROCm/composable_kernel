@@ -187,11 +187,10 @@ size_t fmha_bwd_dq_dk_dv_dq_prepare_ws_host_<dq_dk_dv_trait_{F_idx}, {F_arch.tag
 }}
 
 template <>
-void fmha_bwd_dq_dk_dv_dq_prepare_ws_device_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>(
-    void* device_ws, const void* host_ws, size_t device_ws_size, size_t host_ws_size)
+bool fmha_bwd_dq_dk_dv_needs_zero_dq_acc_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>()
 {{
     using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
-    k_::PrepareWorkspaceDevice(device_ws, host_ws, device_ws_size, host_ws_size);
+    return k_::NeedsZeroDqAcc();
 }}
 
 template <>
