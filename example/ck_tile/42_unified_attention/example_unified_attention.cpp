@@ -420,6 +420,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     };
 
     ck_tile::index_t max_kv_len = max_element(eff_kv_lens);
+    args.max_seqlen_k           = max_kv_len;
 
     ck_tile::index_t max_num_blocks_per_seq =
         (max_kv_len + problem.page_blk_size - 1) / problem.page_blk_size;

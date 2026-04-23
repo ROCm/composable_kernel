@@ -80,7 +80,8 @@ std::ostream& operator<<(std::ostream& stream, const unified_attention_args& arg
     // stream << ", query_start_len_ptr=";
     // write_ptr(stream, static_cast<const void*>(args.query_start_len_ptr));
     return stream << ", num_seqs=" << args.num_seqs
-                  << ", max_seqlen_q=" << args.max_seqlen_q << " }";
+                  << ", max_seqlen_q=" << args.max_seqlen_q
+                  << ", max_seqlen_k=" << args.max_seqlen_k << " }";
 }
 
 // Helper macro to reduce dispatch boilerplate.

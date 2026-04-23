@@ -66,7 +66,8 @@ struct unified_attention_args
     const int32_t* query_start_len_ptr; // [num_seqs+1]
 
     index_t num_seqs; // number of batches for q
-    index_t max_seqlen_q = 0; // max query length across all batches (0 = unknown)
+    index_t max_seqlen_q   = 0; // max query length across all batches (0 = unknown)
+    index_t max_seqlen_k   = 0; // max KV length across seqs in seq_lens (0 = unknown / not set)
 };
 
 std::ostream& operator<<(std::ostream& stream,
