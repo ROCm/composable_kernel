@@ -117,6 +117,12 @@ struct BlockFmhaBatchPrefillPipelineProblem
     static_assert((kPageBlockSize & (kPageBlockSize - 1)) == 0,
                   "kPageBlockSize must be power of two");
 
+    // KV cache load addressing mode. GLOBAL_LOAD_LDS handles >2GB pools via
+    // 64-bit addressing; BUFFER_LOAD (default) uses SRD buffer_load for the
+    // <2GB fast path. The 2GB bound = INT32_MAX byte offset, matching CK's
+    // existing TwoGB convention.
+    static constexpr auto kKVLoadMode = Traits_::kKVLoadMode;
+
     static constexpr index_t kVectorSize  = 16 / sizeof(KDataType_); // Dwordx4
     static constexpr auto kKVMemoryLayout = Traits_::kKVMemoryLayout;
     static constexpr auto kKVLookupTable  = Traits_::kKVLookupTable;
