@@ -555,6 +555,7 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
             {
                 k_batch_ = split_k;
             }
+            k_batch_ = clamp_gemm_k_batch(k_batch_);
 
             std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_strides_transposed =
                 conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(a_g_n_k_wos_lengths,

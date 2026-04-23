@@ -21,6 +21,10 @@ template <index_t NDimSpatial,
           device::ConvolutionBackwardWeightSpecialization ConvBackwardWeightSpecialization>
 struct TransformConvBwdWeightToGemm
 {
+    // Same contract as TransformConvBwdWeightToGemmV2 (non-zero K tile factors).
+    static_assert(GemmK1Number > 0, "GemmK1Number must be positive");
+    static_assert(K0PerBlock > 0, "K0PerBlock must be positive");
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
