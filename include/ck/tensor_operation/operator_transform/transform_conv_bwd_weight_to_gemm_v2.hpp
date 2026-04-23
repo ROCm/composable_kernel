@@ -31,6 +31,11 @@ template <index_t NDimSpatial,
           device::ConvolutionBackwardWeightSpecialization ConvBackwardWeightSpecialization>
 struct TransformConvBwdWeightToGemmV2
 {
+    // Compile-time contract: divisor GemmK1Number * K0PerBlock * GemmKBatch in
+    // integer_divide_ceil(GemmKTotal, ...) must stay non-zero (GemmKBatch clamped at runtime).
+    static_assert(GemmK1Number > 0, "GemmK1Number must be positive");
+    static_assert(K0PerBlock > 0, "K0PerBlock must be positive");
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 

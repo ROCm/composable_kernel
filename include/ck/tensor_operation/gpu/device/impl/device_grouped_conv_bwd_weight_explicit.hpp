@@ -179,6 +179,7 @@ struct DeviceGroupedConvBwdWeight_Explicit
                     k_batch_ = split_k;
                 }
             }
+            k_batch_ = clamp_gemm_k_batch(k_batch_);
 
             if constexpr(IsTwoStageNeeded)
             {
