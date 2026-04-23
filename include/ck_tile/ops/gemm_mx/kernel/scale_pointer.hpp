@@ -5,6 +5,9 @@
 
 #include "ck_tile/core.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 template <typename ScaleType, int SharedGranularityMN, int SharedGranularityK = 0>
@@ -111,3 +114,4 @@ struct MXScalePointer<ScaleType, -1, 0>
 };
 
 } // namespace ck_tile
+#pragma clang diagnostic pop

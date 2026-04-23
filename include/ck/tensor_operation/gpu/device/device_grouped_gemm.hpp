@@ -12,6 +12,9 @@
 #include "device_base.hpp"
 #include "ck/utility/ignore.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -178,3 +181,5 @@ struct DeviceGroupedGemm : public BaseOperator
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

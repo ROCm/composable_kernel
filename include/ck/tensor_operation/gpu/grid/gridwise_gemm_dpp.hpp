@@ -16,6 +16,9 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 template <typename GridwiseGemm, bool HasMainKBlockLoop>
@@ -692,3 +695,5 @@ struct GridwiseGemm_ak0mak1_bk0nbk1_mn_dpp
 };
 
 } // namespace ck
+
+#pragma clang diagnostic pop

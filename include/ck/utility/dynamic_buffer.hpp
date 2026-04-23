@@ -15,6 +15,9 @@
 #include "amd_transpose_load.hpp"
 #include "generic_memory_space_atomic.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 // T may be scalar or vector
@@ -46,7 +49,8 @@ struct DynamicBuffer
             return 1;
     }();
 
-    __host__ __device__ constexpr DynamicBuffer(T* p_data, ElementSpaceSize element_space_size)
+    __host__ __device__ constexpr DynamicBuffer([[clang::lifetimebound]] T* p_data,
+                                                ElementSpaceSize element_space_size)
         : p_data_{p_data}, element_space_size_{element_space_size}
     {
     }
@@ -498,3 +502,5 @@ make_dynamic_buffer(T* p, ElementSpaceSize element_space_size, X invalid_element
 }
 
 } // namespace ck
+
+#pragma clang diagnostic pop

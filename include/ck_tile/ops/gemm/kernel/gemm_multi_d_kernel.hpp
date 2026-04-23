@@ -15,6 +15,9 @@
 #include "ck_tile/ops/gemm/kernel/universal_gemm_kernel.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck_tile {
 
 /// @brief The MultiD GEMM kernel host arguments.
@@ -190,3 +193,5 @@ struct GemmKernelMultiD
     }
 };
 } // namespace ck_tile
+
+#pragma clang diagnostic pop

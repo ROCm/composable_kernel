@@ -1038,12 +1038,17 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
     void run_test_with_validation(ck_tile::index_t M,
                                   ck_tile::index_t N,
                                   ck_tile::index_t K,
-                                  ck_tile::index_t k_batch = 1)
+                                  ck_tile::index_t k_batch      = 1,
+                                  ck_tile::index_t stride_B_pad = 0)
     {
         const ck_tile::index_t stride_A =
             ck_tile::get_default_stride(M, K, 0, this->is_row_major(ALayout{}));
+        // stride_B_pad lets a test exercise a B tensor whose leading-dim stride is
+        // larger than the packed value (e.g. row-aligned padding). The host tensor,
+        // device buffer, and kernel args are all built with this padded stride so
+        // the kernel must honor the runtime stride to address B correctly.
         const ck_tile::index_t stride_B =
-            ck_tile::get_default_stride(K, N, 0, this->is_row_major(BLayout{}));
+            ck_tile::get_default_stride(K, N, 0, this->is_row_major(BLayout{})) + stride_B_pad;
         const ck_tile::index_t stride_C =
             ck_tile::get_default_stride(M, N, 0, this->is_row_major(CLayout{}));
 

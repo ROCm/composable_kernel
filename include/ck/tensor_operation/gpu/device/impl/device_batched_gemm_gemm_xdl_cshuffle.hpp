@@ -18,6 +18,9 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -779,3 +782,5 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+
+#pragma clang diagnostic pop

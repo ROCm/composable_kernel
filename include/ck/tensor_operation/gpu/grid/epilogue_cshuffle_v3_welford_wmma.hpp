@@ -8,6 +8,9 @@
 #include "ck/tensor_operation/gpu/block/blockwise_welford.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_welford.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+
 namespace ck {
 
 template <typename DsDataType,
@@ -508,3 +511,4 @@ struct EpilogueWelfordCShuffle
 };
 
 } // namespace ck
+#pragma clang diagnostic pop
