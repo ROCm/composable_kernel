@@ -12,7 +12,7 @@
 namespace ck_tile {
 
 template <typename Problem_, typename Policy_ = BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy>
-struct BlockFmhaPipelineQRKSVSWholeKPrefetch
+struct BlockFmhaPipelineQRKSVSWholeKPrefetchTrLoad
 {
     using Problem               = remove_cvref_t<Problem_>;
     using Policy                = remove_cvref_t<Policy_>;
@@ -34,7 +34,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true;
     static_assert(kQLoadOnce == Policy::QLoadOnce);
-    static_assert(!Problem::kUseTrLoad, "This pipeline does not use trload!");
     static_assert(sizeof(KDataType) == sizeof(VDataType) &&
                       alignof(KDataType) == alignof(VDataType),
                   "K and V share the same LDS region; their element types must have identical "
@@ -66,6 +65,10 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
     static constexpr bool kHasLogitsSoftCap = Problem::kHasLogitsSoftCap;
+
+    static_assert(Problem::kUseTrLoad == true, "Check failed!");
+
+    static constexpr bool kUseTrLoad = true;
 
     // since this pipeline is only used by the inference path of xformers, the Dropout function is
     // not well tested with the pipeline, so here we have Dropout disabled
@@ -116,7 +119,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
         }
     }();
 
-    static constexpr const char* name = "qr_async";
+    static constexpr const char* name = "qr_async_whole_k_prefetch_trload";
 
     using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
 
@@ -186,6 +189,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                       "wrong!");
 
         constexpr auto I0 = number<0>{};
+        constexpr auto I1 = number<1>{};
 
         constexpr index_t n0_loops = kN0 / kN0Sub;
         constexpr index_t k1_loops = kN0 / kK1;
@@ -202,6 +206,13 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
         constexpr bool kPreloadWholeNextIterationK =
             Policy::template IsPreloadWholeNextIterationK<Problem>();
+
+        // This path prefetches two k_tiles for next iteration, so it has the opportunity to
+        // prefetch two v_tiles during Gemm0
+        if constexpr(!kPreloadWholeNextIterationK)
+        {
+            static_assert(NumPrefetchV >= 2);
+        };
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
@@ -251,20 +262,25 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                              {seqlen_k_start, 0},
                              Policy::template MakeKDramTileDistribution<Problem>());
 
+        auto q_tile = load_tile(q_dram_window);
+
         using k_tile_type = decltype(load_tile(k_dram_window));
 
-        // only prefetch two k tiles to save vgprs consumption
         auto k_tiles = [&]() {
             if constexpr(kPreloadWholeNextIterationK)
                 return statically_indexed_array<k_tile_type, n0_loops>{};
             else
-                return statically_indexed_array<k_tile_type, 1>{};
+                return statically_indexed_array<k_tile_type, 2>{};
         }();
 
         k_tiles[I0] = load_tile(k_dram_window);
         move_tile_window(k_dram_window, {kN0Sub, 0});
 
-        auto q_tile = load_tile(q_dram_window);
+        if constexpr(!kPreloadWholeNextIterationK)
+        {
+            k_tiles[I1] = load_tile(k_dram_window);
+            move_tile_window(k_dram_window, {kN0Sub, 0});
+        };
 
         __builtin_amdgcn_sched_barrier(0x00000001);
 
@@ -297,19 +313,19 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
         using v_lds_window_type =
-            decltype(get_slice_tile(v_lds_window, sequence<0, 0>{}, sequence<kN1, kK1>{}));
+            decltype(get_slice_tile(v_lds_window, sequence<0, 0>{}, sequence<kK1, kN1>{}));
 
         statically_indexed_array<v_lds_window_type, NumKVLdsBuffers> v_lds_windows;
 
         static_for<0, NumKVLdsBuffers, 1>{}([&](auto i_buf) {
             v_lds_windows[i_buf] = get_slice_tile(
-                v_lds_window, sequence<i_buf * kN1, 0>{}, sequence<(i_buf + 1) * kN1, kK1>{});
+                v_lds_window, sequence<i_buf * kK1, 0>{}, sequence<(i_buf + 1) * kK1, kN1>{});
         });
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kN1>{}, number<kK1>{}),
-                             {0, seqlen_k_start},
+                             make_tuple(number<kK1>{}, number<kN1>{}),
+                             {seqlen_k_start, 0},
                              Policy::template MakeVDramTileDistribution<Problem>());
 
         const auto f_exp = [&](CompDataType x) {
@@ -322,10 +338,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 return exp(x);
             }
         };
-
-        clear_tile(o_acc);
-        set_tile(m, -numeric<CompDataType>::infinity());
-        clear_tile(l);
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
         auto bias_dram_window =
@@ -361,6 +373,10 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 return make_null_tile_window(make_tuple(number<1>{}, number<1>{}));
         }();
 
+        clear_tile(o_acc);
+        set_tile(m, -numeric<CompDataType>::infinity());
+        clear_tile(l);
+
         q_tile = tile_elementwise_in(q_element_func, q_tile);
 
         auto seqlen_k_curr = seqlen_k_start;
@@ -392,7 +408,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                             if constexpr(i_n0 == n0_loops - 1)
                             {
                                 v_tiles[I0] = load_tile(v_dram_window);
-                                move_tile_window(v_dram_window, {0, kK1});
+                                move_tile_window(v_dram_window, {kK1, 0});
 
                                 // prefetch all k_tiles for next iteration
                                 static_for<0, n0_loops, 1>{}([&](auto ii_n0) {
@@ -429,7 +445,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                             if constexpr(i_n0 == n0_loops - 1)
                             {
                                 v_tiles[I0] = load_tile(v_dram_window);
-                                move_tile_window(v_dram_window, {0, kK1});
+                                move_tile_window(v_dram_window, {kK1, 0});
                             };
 
                             block_sync_lds();
@@ -457,7 +473,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                             if constexpr(i_n0 == 0)
                             {
                                 v_tiles[I0] = load_tile(v_dram_window);
-                                move_tile_window(v_dram_window, {0, kK1});
+                                move_tile_window(v_dram_window, {kK1, 0});
                             };
 
                             // prefetch k_tile for next iteration
@@ -486,7 +502,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                             if constexpr(i_n0 == 0)
                             {
                                 v_tiles[I0] = load_tile(v_dram_window);
-                                move_tile_window(v_dram_window, {0, kK1});
+                                move_tile_window(v_dram_window, {kK1, 0});
                             };
 
                             block_sync_lds();
@@ -507,21 +523,21 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
             {
                 static_for<0, n0_loops, 1>{}([&](auto i_n0) {
                     store_tile(k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}],
-                               tile_elementwise_in(k_element_func, k_tiles[I0]),
+                               tile_elementwise_in(k_element_func, k_tiles[number<i_n0 % 2>{}]),
                                partition_index);
 
                     __builtin_amdgcn_sched_barrier(0x00000001);
 
-                    if constexpr(i_n0 < n0_loops - 1)
+                    if constexpr(i_n0 < n0_loops - 2)
                     {
-                        k_tiles[I0] = load_tile(k_dram_window);
+                        k_tiles[number<i_n0 % 2>{}] = load_tile(k_dram_window);
                         move_tile_window(k_dram_window, {kN0Sub, 0});
                     };
 
-                    if constexpr(i_n0 == n0_loops - 1)
+                    if constexpr(i_n0 >= n0_loops - 2)
                     {
-                        v_tiles[I0] = load_tile(v_dram_window);
-                        move_tile_window(v_dram_window, {0, kK1});
+                        v_tiles[number<i_n0 - (n0_loops - 2)>{}] = load_tile(v_dram_window);
+                        move_tile_window(v_dram_window, {kK1, 0});
                     };
 
                     __builtin_amdgcn_sched_barrier(0x00000001);
@@ -539,7 +555,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 });
             }
 
-            __builtin_amdgcn_sched_barrier(0x00000001);
+            __builtin_amdgcn_sched_barrier(0x000000001);
 
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
 
@@ -595,16 +611,16 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
+            auto m_local = block_tile_reduce<CompDataType>(
+                pcomp_tile, sequence<1>{}, f_max, -numeric<CompDataType>::infinity());
+            block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
+
             const auto m_old = m;
 
-            block_tile_reduce(m, pcomp_tile, sequence<1>{}, f_max);
-            block_tile_reduce_sync(m, f_max, bool_constant<false>{});
+            tile_elementwise_inout(
+                [](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); }, m, m_old, m_local);
 
             __builtin_amdgcn_sched_barrier(0);
-
-            auto v_shuffled_tile = make_static_distributed_tensor<VDataType>(
-                Policy::template MakeShuffledVRegTileDistribution<Problem>());
-            shuffle_tile(v_shuffled_tile, tile_elementwise_in(v_element_func, v_tiles[I0]));
 
             // check whether first V-LdsBufer overlap with last K-LdsBuffer,
             // this does not occur when k1_loops == 2 and NumKVLdsBuffers == 4
@@ -613,15 +629,26 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 __builtin_amdgcn_s_barrier();
             };
 
-            store_tile(
-                v_lds_windows[number<2 % NumKVLdsBuffers>{}], v_shuffled_tile, partition_index);
+            store_tile(v_lds_windows[number<2 % NumKVLdsBuffers>{}],
+                       tile_elementwise_in(v_element_func, v_tiles[I0]),
+                       partition_index);
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
-            static_for<1, NumPrefetchV, 1>{}([&](auto i_k1) {
-                v_tiles[i_k1] = load_tile(v_dram_window);
-                move_tile_window(v_dram_window, {0, kK1});
-            });
+            if constexpr(kPreloadWholeNextIterationK)
+            {
+                static_for<1, NumPrefetchV, 1>{}([&](auto i_k1) {
+                    v_tiles[i_k1] = load_tile(v_dram_window);
+                    move_tile_window(v_dram_window, {kK1, 0});
+                });
+            }
+            else
+            {
+                static_for<2, NumPrefetchV, 1>{}([&](auto i_k1) {
+                    v_tiles[i_k1] = load_tile(v_dram_window);
+                    move_tile_window(v_dram_window, {kK1, 0});
+                });
+            };
 
             __builtin_amdgcn_sched_barrier(0);
 
@@ -694,7 +721,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 if constexpr(i_k1 < k1_loops - NumPrefetchV)
                 {
                     v_tiles[number<i_k1 % NumPrefetchV>{}] = load_tile(v_dram_window);
-                    move_tile_window(v_dram_window, {0, kK1});
+                    move_tile_window(v_dram_window, {kK1, 0});
                 };
 
                 if constexpr(i_k1 == k1_loops - NumPrefetchV)
@@ -709,6 +736,18 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                     }
                 };
 
+                if constexpr(i_k1 == k1_loops - NumPrefetchV + 1)
+                {
+                    if constexpr(!kPreloadWholeNextIterationK)
+                    {
+                        if(seqlen_k_curr < seqlen_k_end)
+                        {
+                            k_tiles[I1] = load_tile(k_dram_window);
+                            move_tile_window(k_dram_window, {kN0Sub, 0});
+                        };
+                    }
+                };
+
                 block_sync_lds();
                 gemm_1(
                     o_acc,
@@ -717,11 +756,9 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
                 if constexpr(i_k1 < k1_loops - 1)
                 {
-                    shuffle_tile(v_shuffled_tile,
-                                 tile_elementwise_in(v_element_func,
-                                                     v_tiles[number<(i_k1 + 1) % NumPrefetchV>{}]));
                     store_tile(v_lds_windows[number<(i_k1 + 3) % NumKVLdsBuffers>{}],
-                               v_shuffled_tile,
+                               tile_elementwise_in(v_element_func,
+                                                   v_tiles[number<(i_k1 + 1) % NumPrefetchV>{}]),
                                partition_index);
                 };
             });

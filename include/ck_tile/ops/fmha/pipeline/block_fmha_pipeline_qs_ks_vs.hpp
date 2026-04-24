@@ -692,8 +692,11 @@ struct BlockFmhaPipelineQSKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                void* smem_ptr,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const float sink_v) const
     {
+        ignore = sink_v;
+
         return operator()(q_dram_block_window_tmp,
                           identity{},
                           k_dram_block_window_tmp,
