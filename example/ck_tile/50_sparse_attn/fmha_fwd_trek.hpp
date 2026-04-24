@@ -272,7 +272,7 @@ struct fmha_jenga_fwd_traits
     std::string data_type;
     bool is_v_rowmajor;
     mask_enum mask_type;
-    // TODO: padding check is inside this api
+    int bm0 = 0; // preferred Q-tile size; 0 = don't care (dispatch picks largest)
 };
 
 float fmha_jenga_fwd(fmha_jenga_fwd_traits, fmha_jenga_fwd_args, const ck_tile::stream_config&);

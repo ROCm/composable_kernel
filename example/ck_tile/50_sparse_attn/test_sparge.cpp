@@ -249,6 +249,7 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         attn_traits.data_type     = std::is_same_v<T, ck_tile::half_t> ? "fp16" : "bf16";
         attn_traits.is_v_rowmajor = true;
         attn_traits.mask_type     = mask_enum::no_mask;
+        attn_traits.bm0           = BLKQ;
 
         fmha_jenga_fwd_args attn_args;
         attn_args.q_ptr                    = q_dev.GetDeviceBuffer();
@@ -291,6 +292,7 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         attn_traits.data_type     = std::is_same_v<T, ck_tile::half_t> ? "fp16" : "bf16";
         attn_traits.is_v_rowmajor = true;
         attn_traits.mask_type     = mask_enum::no_mask;
+        attn_traits.bm0           = BLKQ;
 
         fmha_vsa_fwd_args attn_args;
         attn_args.q_ptr              = q_dev.GetDeviceBuffer();
