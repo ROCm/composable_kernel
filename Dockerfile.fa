@@ -12,27 +12,31 @@ RUN set -x ; \
     sudo mkdir /home/jenkins/workspace && \
     cd /home/jenkins/workspace && rm -rf rocm-libraries ck && \
     if [ "$CK_FROM_ROCM_LIBRARIES" = "1" ]; then \
-        git clone --depth 1 -b "$CK_FA_BRANCH" --no-checkout --filter=blob:none https://github.com/$CK_FA_ORIGIN/rocm-libraries.git && \
-        cd rocm-libraries && \
+        mkdir rocm-libraries && cd rocm-libraries && \
+        git init -q && \
+        git remote add origin https://github.com/$CK_FA_ORIGIN/rocm-libraries.git && \
+        git fetch --depth 1 --filter=blob:none origin "$CK_FA_BRANCH" && \
         git sparse-checkout init --cone && \
         git sparse-checkout set projects/composablekernel && \
-        git checkout "$CK_FA_BRANCH" && \
+        git checkout FETCH_HEAD && \
         ROCM_LIBRARIES_SHA=$(git rev-parse --short HEAD) && \
+        LOCAL_BRANCH="ck-import-${ROCM_LIBRARIES_SHA}" && \
         mv projects/composablekernel ../ck && \
         cd ../ck && rm -rf ../rocm-libraries && \
-        git init && \
+        git init -b "$LOCAL_BRANCH" && \
         git config user.name "assistant-librarian[bot]" && \
         git config user.email "assistant-librarian[bot]@users.noreply.github.com" && \
-        git branch -m "$CK_FA_BRANCH" && git add -A && \
+        git add -A && \
         git commit -m "import from ROCm/rocm-libraries@$ROCM_LIBRARIES_SHA" > /dev/null ; \
     else \
-        git clone --depth 1 -b "$CK_FA_BRANCH" https://github.com/$CK_FA_ORIGIN/composable_kernel.git ck ; \
+        git clone --depth 1 -b "$CK_FA_BRANCH" https://github.com/$CK_FA_ORIGIN/composable_kernel.git ck && \
+        LOCAL_BRANCH="$CK_FA_BRANCH" ; \
     fi && \
     cd /home/jenkins/workspace && rm -rf flash-attention && \
     git clone --depth 1 -b "$FA_BRANCH" --recursive "https://github.com/$FA_ORIGIN/flash-attention.git" && \
     cd flash-attention && \
     rm -rf csrc/composable_kernel/ && \
-    git clone -b "$CK_FA_BRANCH" ../ck csrc/composable_kernel/ && git add csrc/composable_kernel && \
+    git clone -b "$LOCAL_BRANCH" ../ck csrc/composable_kernel/ && git add csrc/composable_kernel && \
     MAX_JOBS=$(nproc) GPU_ARCHS="$GPU_ARCHS" /opt/venv/bin/python3 -u -m pip install --no-build-isolation -v . && \
     groupadd -g 1001 jenkins && \
     useradd -u 1001 -g 1001 -m -s /bin/bash jenkins && \
