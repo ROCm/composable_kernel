@@ -478,7 +478,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                 {
                     // use the m_old[i] as the m-for-stablization if m_old[i] - m[i] >= -8.0f
                     // and still keep the m-for-stablization in m[]
-                    if(m_old[i_idx] - m[i_idx] >= -8.0f)
+                    if(m_old[i_idx] - m[i_idx] >= type_convert<CompDataType>(-8.0f))
                         m(i_idx) = m_old[i_idx];
 
                     sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
