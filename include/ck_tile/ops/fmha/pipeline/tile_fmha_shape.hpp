@@ -57,7 +57,7 @@ struct TileFmhaShape
     static constexpr index_t kQKHeaddim =
         BlockTile::at(number<5>{}); // total length of K0, used for pipeline that need load Q at
                                     // once (or repeately load Q as a whole tile)
-    static_assert(kQKHeaddim % kK0 == 0, "kQKHeaddim should be divisible by kK0");
+    static_assert(kQKHeaddim % kK0 == 0, "kQKHeaddim must be divisible by kK0!");
 
     static constexpr index_t kSubQKHeaddim = ceil_to_qualified_tile_length<kQKHeaddim>();
 

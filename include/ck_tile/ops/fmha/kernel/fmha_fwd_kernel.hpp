@@ -32,6 +32,83 @@
 
 namespace ck_tile {
 
+namespace detail {
+
+// A helper struct for detecting n0loop
+template <typename T, typename = void>
+struct has_n0loop_flag : std::false_type
+{
+};
+
+template <typename T>
+struct has_n0loop_flag<
+    T,
+    std::enable_if_t<std::is_convertible_v<decltype(T::kUseN0Loop), bool> && T::kUseN0Loop>>
+    : std::true_type
+{
+};
+
+template <typename T>
+static inline constexpr bool is_n0loop_pipeline_v = has_n0loop_flag<T>::value;
+
+// A helper struct for detecting ignore_fast_exp2 flag
+template <typename T, typename = void>
+struct has_ignore_fast_exp2_flag : std::false_type
+{
+};
+
+// IgnoreFastExp2 is used by some pipeline which explicitly chooses not to use FAST_EXP2;
+// By detecting the kIgnoreFastExp2 from the pipeline, the kernel's MakeKargsImpl() interface
+// is able to avoid passing an in-correct scale_s parameter to the kernel layer
+template <typename T>
+struct has_ignore_fast_exp2_flag<
+    T,
+    std::enable_if_t<std::is_convertible_v<decltype(T::kIgnoreFastExp2), bool> &&
+                     T::kIgnoreFastExp2>> : std::true_type
+{
+};
+
+template <typename T>
+static inline constexpr bool ignore_fast_exp2_v = has_ignore_fast_exp2_flag<T>::value;
+
+// A helper struct for detecting naive_hdim_load, naive_hdim_load means load tiles of
+// hdim96/hdim160/hdim192 without padding the tensor_view/tile_window to hdim128/hdim256
+// naive_hdim_load is current supported by the qr_ks_vs_whole_k_prefetch_pipeline
+template <typename T, typename = void>
+struct has_naive_hdim_load_flag : std::false_type
+{
+};
+
+template <typename T>
+struct has_naive_hdim_load_flag<
+    T,
+    std::enable_if_t<std::is_convertible_v<decltype(T::kIsNaiveHDimLoad), bool> &&
+                     T::kIsNaiveHDimLoad>> : std::true_type
+{
+};
+
+template <typename T>
+static inline constexpr bool is_naive_hdim_load_v = has_naive_hdim_load_flag<T>::value;
+
+// A helper struct for detecting kUseTrLoad
+template <typename T, typename = void>
+struct has_use_trload_flag : std::false_type
+{
+};
+
+template <typename T>
+struct has_use_trload_flag<
+    T,
+    std::enable_if_t<std::is_convertible_v<decltype(T::kUseTrLoad), bool> && T::kUseTrLoad>>
+    : std::true_type
+{
+};
+
+template <typename T>
+static inline constexpr bool is_using_trload_v = has_use_trload_flag<T>::value;
+
+} // namespace detail
+
 template <typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaFwdKernel
 {
@@ -77,13 +154,14 @@ struct FmhaFwdKernel
     static constexpr bool kHasMask = FmhaMask::IsMasking;
 
     static constexpr bool kUseAsyncCopy = FmhaPipeline::Policy::AsyncCopy;
+    static constexpr bool kUseTrLoad    = detail::is_using_trload_v<FmhaPipeline>;
 
-    static constexpr bool kUseTrLoad = FmhaPipeline::Problem::kUseTrLoad;
 #if defined(__gfx950__)
     static constexpr bool kIsAvailable = true;
 #else
     static constexpr bool kIsAvailable = !kUseTrLoad;
 #endif
+
     static constexpr std::string_view kPipelineName = FmhaPipeline::name;
 
     template <ck_tile::index_t I> // to avoid duplicated base class prblem, introduce an template
@@ -444,7 +522,9 @@ struct FmhaFwdKernel
                      num_head_q,
                      nhead_ratio_qk,
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                     static_cast<float>(scale_s * ck_tile::log2e_v<>),
+                     detail::ignore_fast_exp2_v<FmhaPipeline>
+                         ? scale_s
+                         : static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
                      scale_s,
 #endif
@@ -897,7 +977,9 @@ struct FmhaFwdKernel
                      num_head_q,
                      nhead_ratio_qk,
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                     static_cast<float>(scale_s * ck_tile::log2e_v<>),
+                     detail::ignore_fast_exp2_v<FmhaPipeline>
+                         ? scale_s
+                         : static_cast<float>(scale_s * ck_tile::log2e_v<>),
 #else
                      scale_s,
 #endif
@@ -1039,6 +1121,7 @@ struct FmhaFwdKernel
               const void* seqlen_k_ptr,
               const void* block_scale_seqstart_q_ptr,
               const void* block_scale_seqstart_k_ptr,
+              const void* seqstart_v_scale_ptr,
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
@@ -1097,6 +1180,7 @@ struct FmhaFwdKernel
             seqlen_k_ptr,
             block_scale_seqstart_q_ptr,
             block_scale_seqstart_k_ptr,
+            seqstart_v_scale_ptr,
             hdim_q,
             hdim_v,
             num_head_q,
@@ -1158,6 +1242,7 @@ struct FmhaFwdKernel
               const void* seqlen_k_ptr,
               const void* block_scale_seqstart_q_ptr,
               const void* block_scale_seqstart_k_ptr,
+              const void* seqstart_v_scale_ptr,
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
@@ -1216,6 +1301,7 @@ struct FmhaFwdKernel
             seqlen_k_ptr,
             block_scale_seqstart_q_ptr,
             block_scale_seqstart_k_ptr,
+            seqstart_v_scale_ptr,
             hdim_q,
             hdim_v,
             num_head_q,
@@ -1602,6 +1688,10 @@ struct FmhaFwdKernel
                                static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_o +
                                batch_offset_o;
 
+            constexpr index_t kQKHeaddimToUse = detail::is_naive_hdim_load_v<FmhaPipeline>
+                                                    ? FmhaPipeline::kQKHeaddim
+                                                    : FmhaPipeline::kSubQKHeaddim;
+
             // Q/K/V DRAM and DRAM window
             const auto q_dram = [&]() {
                 const auto q_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -1612,10 +1702,10 @@ struct FmhaFwdKernel
                     number<1>{});
                 if constexpr(FmhaPipeline::kQLoadOnce)
                 {
-                    return pad_tensor_view(q_dram_naive,
-                                           make_tuple(number<FmhaPipeline::kM0>{},
-                                                      number<FmhaPipeline::kSubQKHeaddim>{}),
-                                           sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                    return pad_tensor_view(
+                        q_dram_naive,
+                        make_tuple(number<FmhaPipeline::kM0>{}, number<kQKHeaddimToUse>{}),
+                        sequence<kPadSeqLenQ, kPadHeadDimQ>{});
                 }
                 else
                 {
@@ -1634,10 +1724,21 @@ struct FmhaFwdKernel
                     number<1>{});
 
                 constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : false;
-                return pad_tensor_view(
-                    k_dram_naive,
-                    make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
-                    sequence<kPadSeqLenK_, kPadHeadDimQ>{});
+
+                if constexpr(detail::is_n0loop_pipeline_v<FmhaPipeline>)
+                {
+                    return pad_tensor_view(
+                        k_dram_naive,
+                        make_tuple(number<FmhaPipeline::kN0Sub>{}, number<kQKHeaddimToUse>{}),
+                        sequence<kPadSeqLenK_, kPadHeadDimQ>{});
+                }
+                else
+                {
+                    return pad_tensor_view(
+                        k_dram_naive,
+                        make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
+                        sequence<kPadSeqLenK_, kPadHeadDimQ>{});
+                }
             }();
             const auto v_dram = [&]() {
                 if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
@@ -1649,18 +1750,29 @@ struct FmhaFwdKernel
                         number<FmhaPipeline::kAlignmentV>{},
                         number<1>{});
 
-                    const auto v_dram_transposed = transform_tensor_view(
-                        v_dram_naive,
-                        make_tuple(make_pass_through_transform(kargs.hdim_v),
-                                   make_pass_through_transform(kargs.seqlen_k)),
-                        make_tuple(sequence<1>{}, sequence<0>{}),
-                        make_tuple(sequence<0>{}, sequence<1>{}));
+                    if constexpr(!kUseTrLoad)
+                    {
+                        const auto v_dram_transposed = transform_tensor_view(
+                            v_dram_naive,
+                            make_tuple(make_pass_through_transform(kargs.hdim_v),
+                                       make_pass_through_transform(kargs.seqlen_k)),
+                            make_tuple(sequence<1>{}, sequence<0>{}),
+                            make_tuple(sequence<0>{}, sequence<1>{}));
 
-                    constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : false;
-                    return pad_tensor_view(
-                        v_dram_transposed,
-                        make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
-                        sequence<kPadHeadDimV, kPadSeqLenK_>{});
+                        constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : false;
+
+                        return pad_tensor_view(
+                            v_dram_transposed,
+                            make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
+                            sequence<kPadHeadDimV, kPadSeqLenK_>{});
+                    }
+                    else
+                    {
+                        return pad_tensor_view(
+                            v_dram_naive,
+                            make_tuple(number<FmhaPipeline::kK1>{}, number<FmhaPipeline::kN1>{}),
+                            sequence<false, kPadHeadDimV>{});
+                    };
                 }
                 else
                 {
@@ -1683,17 +1795,28 @@ struct FmhaFwdKernel
                 q_dram,
                 [&]() {
                     if constexpr(FmhaPipeline::kQLoadOnce)
-                        return make_tuple(number<FmhaPipeline::kM0>{},
-                                          number<FmhaPipeline::kSubQKHeaddim>{});
+                        return make_tuple(number<FmhaPipeline::kM0>{}, number<kQKHeaddimToUse>{});
                     else
                         return make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kK0>{});
                 }(),
                 {i_m0, 0});
 
-            auto k_dram_window = make_tile_window(
-                k_dram,
-                make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
-                {0, 0});
+            auto k_dram_window = [&]() {
+                if constexpr(detail::is_n0loop_pipeline_v<FmhaPipeline>)
+                {
+                    return make_tile_window(
+                        k_dram,
+                        make_tuple(number<FmhaPipeline::kN0Sub>{}, number<kQKHeaddimToUse>{}),
+                        {0, 0});
+                }
+                else
+                {
+                    return make_tile_window(
+                        k_dram,
+                        make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
+                        {0, 0});
+                }
+            }();
 
             auto v_dram_window = make_tile_window(
                 v_dram,
@@ -1843,7 +1966,10 @@ struct FmhaFwdKernel
                         *(reinterpret_cast<const SaccDataType*>(kargs.alibi_slope_ptr) +
                           i_batch_ * kargs.alibi_slope_stride + i_nhead_);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                    slope *= ck_tile::log2e_v<>;
+                    if constexpr(!detail::ignore_fast_exp2_v<FmhaPipeline>)
+                    {
+                        slope *= ck_tile::log2e_v<>;
+                    }
 #endif
                     if constexpr(kHasMask)
                     {
@@ -2826,7 +2952,10 @@ struct FmhaFwdKernel
                         *(reinterpret_cast<const SaccDataType*>(kargs.alibi_slope_ptr) +
                           i_batch_ * kargs.alibi_slope_stride + i_nhead_);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                    slope *= ck_tile::log2e_v<>;
+                    if constexpr(!detail::ignore_fast_exp2_v<FmhaPipeline>)
+                    {
+                        slope *= ck_tile::log2e_v<>;
+                    }
 #endif
                     if constexpr(kHasMask)
                     {
