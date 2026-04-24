@@ -10,27 +10,31 @@ RUN pip install pandas zmq einops ninja tabulate vcs_versioning && \
     sudo mkdir /home/jenkins/workspace && \
     cd /home/jenkins/workspace && rm -rf rocm-libraries ck && \
     if [ "$CK_FROM_ROCM_LIBRARIES" = "1" ]; then \
-        git clone --depth 1 -b "$CK_AITER_BRANCH" --no-checkout --filter=blob:none https://github.com/ROCm/rocm-libraries.git && \
-        cd rocm-libraries && \
+        mkdir rocm-libraries && cd rocm-libraries && \
+        git init -q && \
+        git remote add origin https://github.com/ROCm/rocm-libraries.git && \
+        git fetch --depth 1 --filter=blob:none origin "$CK_AITER_BRANCH" && \
         git sparse-checkout init --cone && \
         git sparse-checkout set projects/composablekernel && \
-        git checkout "$CK_AITER_BRANCH" && \
+        git checkout FETCH_HEAD && \
         ROCM_LIBRARIES_SHA=$(git rev-parse --short HEAD) && \
+        LOCAL_BRANCH="ck-import-${ROCM_LIBRARIES_SHA}" && \
         mv projects/composablekernel ../ck && \
         cd ../ck && rm -rf ../rocm-libraries && \
-        git init && \
+        git init -b "$LOCAL_BRANCH" && \
         git config user.name "assistant-librarian[bot]" && \
         git config user.email "assistant-librarian[bot]@users.noreply.github.com" && \
-        git branch -m "$CK_AITER_BRANCH" && git add -A && \
+        git add -A && \
         git commit -m "import from ROCm/rocm-libraries@$ROCM_LIBRARIES_SHA" ; \
     else \
-        git clone --depth 1 -b "$CK_AITER_BRANCH" https://github.com/ROCm/composable_kernel.git ck ; \
+        git clone --depth 1 -b "$CK_AITER_BRANCH" https://github.com/ROCm/composable_kernel.git ck && \
+        LOCAL_BRANCH="$CK_AITER_BRANCH" ; \
     fi && \
     cd /home/jenkins/workspace && rm -rf aiter && \
     git clone --depth 1 -b "$AITER_BRANCH" --recursive https://github.com/ROCm/aiter.git && \
     cd aiter && \
     rm -rf 3rdparty/composable_kernel/ && \
-    git clone -b "$CK_AITER_BRANCH" ../ck 3rdparty/composable_kernel/ && \
+    git clone -b "$LOCAL_BRANCH" ../ck 3rdparty/composable_kernel/ && \
     python3 setup.py develop && \
     groupadd -g 1001 jenkins && \
     useradd -u 1001 -g 1001 -m -s /bin/bash jenkins && \
