@@ -79,8 +79,4 @@ concept SparseMfmaCtrlFlags = requires(CtrlFlags ctrlFlags) {
 };
 #endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
-struct DefaultSparseWmmaCtrlFlags
-{
-};
-
 } // namespace ck_tile::core::arch::mma

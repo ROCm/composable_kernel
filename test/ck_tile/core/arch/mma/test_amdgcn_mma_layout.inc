@@ -3,19 +3,16 @@
 
 #pragma once
 
+#include <hip/hip_runtime.h>
+#include <gtest/gtest.h>
+
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/mfma/mfma.hpp"
-#include "ck_tile/core/arch/mma/mma_op_family.hpp"
 #include "ck_tile/core/arch/mma/mma_traits.hpp"
-#include "ck_tile/core/arch/mma/scale/scale.hpp"
 #include "ck_tile/core/arch/mma/sparse/sparse.hpp"
 #include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_calculator.hpp"
 #include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_register_mapper.hpp"
 #include "ck_tile/core/arch/mma/wmma/wmma.hpp"
-#include "ck_tile/core/numeric/float8.hpp"
-#include "ck_tile/core/numeric/half.hpp"
-#include "ck_tile/core/numeric/integer.hpp"
-// #include "ck_tile/core/numeric/pk_fp4.hpp"
 #include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 #include "ck_tile/host/device_memory.hpp"
@@ -23,9 +20,9 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/host/stream_config.hpp"
 
-#include <gtest/gtest.h>
-#include <hip/hip_runtime.h>
-
+#include <cstdint>
+#include <utility>
+#include <vector>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -40,7 +37,12 @@ using namespace mma;
 using F8        = fp8_t;
 using BF8       = bf8_t;
 using F16       = fp16_t;
+using BF16      = bf16_t;
 using F32       = fp32_t;
+using I8        = int8_t;
+using FP8       = fp8_t;
+using BF8       = bf8_t;
+using I32       = int32_t;
 using Target908 = decltype(make_amdgcn_gfx9_target<amdgcn_target_id::GFX908>());
 using Target942 = decltype(make_amdgcn_gfx9_target<amdgcn_target_id::GFX942>());
 using Target950 = decltype(make_amdgcn_gfx9_target<amdgcn_target_id::GFX950>());
@@ -255,11 +257,21 @@ using Gfx950Intrinsics = ::testing::Types<
     // amdgcn_mma<F4,  F4,  F32, 32u, 32u, 64u,  DefaultScaleMfmaCtrlFlags,           Target950, MmaOpFamily::SCALE>  // mfma_scale_f32_32x32x64_f8f6f4
 >;
 using Gfx11Intrinsics = ::testing::Types<
-    amdgcn_mma<F16, F16, F32, 16u, 16u, 16u,  DefaultWmmaCtrlFlags<F16, F16, F32>, Target11,  MmaOpFamily::DENSE>  // wmma_f32_16x16x16_f16_w32
+    amdgcn_mma<F16,  F16,  F32, 16u, 16u, 16u, DefaultWmmaCtrlFlags,              Target11,  MmaOpFamily::DENSE>, // wmma_f32_16x16x16_f16_w32,
+    amdgcn_mma<BF16, BF16, F32, 16u, 16u, 16u, DefaultWmmaCtrlFlags,              Target11,  MmaOpFamily::DENSE>, // wmma_f32_16x16x16_bf16_w32,
+    amdgcn_mma<I8,   I8,   I32, 16u, 16u, 16u, DefaultWmmaCtrlFlags,              Target11,  MmaOpFamily::DENSE>  // wmma_i32_16x16x16_iu8_w32
 >;
 using Gfx12Intrinsics = ::testing::Types<
-    amdgcn_mma<F16, F16, F32, 16u, 16u, 16u,  DefaultWmmaCtrlFlags<F16, F16, F32>, Target12,  MmaOpFamily::DENSE>, // wmma_f32_16x16x16_f16_w32_gfx12
-    amdgcn_mma<F16, F16, F32, 16u, 16u, 32u,  DefaultSparseMfmaCtrlFlags,          Target12,  MmaOpFamily::SPARSE> // swmmac_f32_16x16x32_f16_w32
+    amdgcn_mma<F16,  F16,  F32,  16u, 16u, 16u, DefaultWmmaCtrlFlags,             Target12,  MmaOpFamily::DENSE>, // wmma_f32_16x16x16_f16_w32_gfx12,
+    amdgcn_mma<BF16, BF16, F32,  16u, 16u, 16u, DefaultWmmaCtrlFlags,             Target12,  MmaOpFamily::DENSE>, // wmma_f32_16x16x16_bf16_w32_gfx12,
+    amdgcn_mma<F16,  F16,  F16,  16u, 16u, 16u, DefaultWmmaCtrlFlags,             Target12,  MmaOpFamily::DENSE>, // wmma_f16_16x16x16_f16_w32_gfx12,
+    amdgcn_mma<BF16, BF16, BF16, 16u, 16u, 16u, DefaultWmmaCtrlFlags,             Target12,  MmaOpFamily::DENSE>, // wmma_bf16_16x16x16_bf16_w32_gfx12,
+    amdgcn_mma<I8,   I8,   I32,  16u, 16u, 16u, DefaultWmmaCtrlFlags,             Target12,  MmaOpFamily::DENSE>, // wmma_i32_16x16x16_iu8_w32_gfx12,
+    amdgcn_mma<FP8,  FP8,  F32,  16u, 16u, 16u, DefaultWmmaCtrlFlags,             Target12,  MmaOpFamily::DENSE>, // wmma_f32_16x16x16_fp8_fp8_w32_gfx12,
+    amdgcn_mma<FP8,  BF8,  F32,  16u, 16u, 16u, DefaultWmmaCtrlFlags,             Target12,  MmaOpFamily::DENSE>, // wmma_f32_16x16x16_fp8_bf8_w32_gfx12,
+    amdgcn_mma<BF8,  FP8,  F32,  16u, 16u, 16u, DefaultWmmaCtrlFlags,             Target12,  MmaOpFamily::DENSE>, // wmma_f32_16x16x16_bf8_fp8_w32_gfx12,
+    amdgcn_mma<BF8,  BF8,  F32,  16u, 16u, 16u, DefaultWmmaCtrlFlags,             Target12,  MmaOpFamily::DENSE>, // wmma_f32_16x16x16_bf8_bf8_w32_gfx12
+    amdgcn_mma<F16,  F16,  F32,  16u, 16u, 32u, DefaultSparseMfmaCtrlFlags,       Target12,  MmaOpFamily::SPARSE> // swmmac_f32_16x16x32_f16_w32
 >;
 // clang-format on
 
