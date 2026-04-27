@@ -7,6 +7,7 @@
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
 #include "ck_tile/core/arch/mma/mma_selector.hpp"
 #include "ck_tile/core/arch/mma/mma_traits.hpp"
+#include "ck_tile/core/arch/mma/wmma/wmma_traits.hpp"
 
 namespace ck_tile::core::arch::mma {
 
@@ -41,7 +42,7 @@ struct SparseWmmaDefaultSelector
                                    WaveTileM,
                                    WaveTileN,
                                    WaveTileKTest,
-                                   DefaultSparseWmmaCtrlFlags,
+                                   DefaultWmmaCtrlFlags,
                                    CompilerTarget,
                                    MmaOpFamily::SPARSE>;
 
