@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "ck_tile/core.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_default_policy.hpp"
+#include <ck_tile/core.hpp>
+#include <ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_default_policy.hpp>
 
 namespace ck_tile {
 

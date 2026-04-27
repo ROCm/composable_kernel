@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include "ck_tile/core.hpp"
-#include "ck_tile/ops/fmha/block/block_dropout.hpp"
+#include <ck_tile/core.hpp>
+#include <ck_tile/ops/fmha/block/block_dropout.hpp>
 
 #include "hstu_attention_fwd_pipeline_policy.hpp"
 
