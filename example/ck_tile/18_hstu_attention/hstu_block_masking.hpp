@@ -4,7 +4,7 @@
 #pragma once
 
 #include <type_traits>
-#include "ck_tile/core.hpp"
+#include <ck_tile/core.hpp>
 
 namespace ck_tile {
 
