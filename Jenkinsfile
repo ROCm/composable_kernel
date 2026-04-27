@@ -840,8 +840,10 @@ def cmake_build(Map conf=[:]){
 
     if (params.RUN_CK_TILE_FMHA_TESTS){
         try{
-            archiveArtifacts "perf_fmha_*.log"
-            stash includes: "perf_fmha_**.log", name: "perf_fmha_log_${arch_name}"
+            dir("projects/composablekernel"){
+            	archiveArtifacts "perf_fmha_*.log"
+            	stash includes: "perf_fmha_**.log", name: "perf_fmha_log_${arch_name}"
+            }
         }
         catch(Exception err){
             echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
@@ -918,7 +920,7 @@ def Build_CK(Map conf=[:]){
                             sh "projects/composablekernel/script/run_inductor_tests.sh"
                     }
                     // run performance tests, stash the logs, results will be processed on the master node
-					dir("projects/composablekernel/script"){
+		    dir("projects/composablekernel/script"){
                         if (params.RUN_PERFORMANCE_TESTS){
                         if (params.RUN_FULL_QA && (arch == "gfx90a" || arch == "gfx942")){
                             // run full tests on gfx90a or gfx942
@@ -1017,6 +1019,13 @@ def process_results(Map conf=[:]){
                         catch(Exception err){
                             echo "could not locate the FMHA performance logs for gfx90a: ${err.getMessage()}."
                         }
+                        try{
+                            unstash "perf_fmha_log_gfx950"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the FMHA performance logs for gfx950: ${err.getMessage()}."
+                        }
+
                     }
                     if (params.BUILD_INSTANCES_ONLY){
                         // unstash deb packages
@@ -1191,7 +1200,7 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_
                                               0 13 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
                                               0 11 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;RUN_FA_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
                                               0 9 * * * % RUN_PYTORCH_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
-CURRENT_BRANCH_NAME = env.CHANGE_BRANCH ? env.CHANGE_BRANCH : env.BRANCH_NAME
+CURRENT_BRANCH_NAME = env.CHANGE_ID ? "refs/pull/${env.CHANGE_ID}/head" : (env.CHANGE_BRANCH ? env.CHANGE_BRANCH : env.BRANCH_NAME)
 
 POLL_SPEC = BRANCH_NAME == "develop" ? 'H H/6 * * *' : ''
 

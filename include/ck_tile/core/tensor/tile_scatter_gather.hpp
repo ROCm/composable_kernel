@@ -45,9 +45,29 @@ template <typename BottomTensorView_,
           typename StaticValidArray_,
           index_t HsGatherDim   = 0,
           index_t NumCoord      = 1,
-          typename YsGatherDims = sequence<0>>
+          typename YsGatherDims = sequence<0>,
+          bool kUseGlobalLoad_  = false>
 struct tile_scatter_gather
 {
+    static constexpr bool kUseGlobalLoad = kUseGlobalLoad_;
+
+#if !defined(__gfx94__) && !defined(__gfx950__)
+    // global_load_lds instruction is only available on CDNA3+ (gfx940/gfx950).
+    // On other architectures, kUseGlobalLoad must be false.
+    static_assert(!kUseGlobalLoad_,
+                  "kUseGlobalLoad requires global_load_lds (CDNA3+: gfx940/gfx950). "
+                  "This kernel should not be instantiated on this architecture.");
+#endif
+
+    // Empty placeholder used by the SRD instantiation so physical_pages_ and
+    // page_stride_elements_ occupy zero bytes there (combined with
+    // [[no_unique_address]] on the member declarations). Access sites are all
+    // inside `if constexpr(kUseGlobalLoad_)` arms, which compile out in SRD
+    // mode, so no caller needs to change.
+    struct gl_field_empty_t
+    {
+    };
+
     using BottomTensorView = remove_reference_t<BottomTensorView_>;
     using WindowLengths    = remove_cvref_t<WindowLengths_>;
     using TileDstr         = remove_cvref_t<StaticTileDistribution_>;
@@ -233,15 +253,22 @@ struct tile_scatter_gather
                                                  const BottomTensorIndex& window_origin,
                                                  const TileDstr& tile_distribution,
                                                  const PageIdxArray& page_idx,
-                                                 const ValidArray& valids)
+                                                 const ValidArray& valids,
+                                                 index_t page_stride_elements = 0)
         : bottom_tensor_view_{bottom_tensor_view},
           window_lengths_{window_lengths},
           window_origin_{window_origin},
           tile_dstr_{tile_distribution},
           page_idx_{page_idx},
+          physical_pages_{},
+          page_stride_elements_{},
           valids_{valids},
           pre_computed_coords_{}
     {
+        if constexpr(kUseGlobalLoad_)
+        {
+            page_stride_elements_ = page_stride_elements;
+        }
 #if 0 // debug
       // TODO: this use more register for FA, but less register for GEMM
       // need investigation
@@ -357,6 +384,34 @@ struct tile_scatter_gather
         bottom_tensor_view_.buf_.p_data_ = data;
     }
 
+    // Override buffer size (input in RAW elements, NOT pre-divided by PackedSize) for
+    // SRD num_records control. Use to set max range when SRD is rebased per-tile
+    // (page_size >= kN0 path): each rebased SRD only needs to cover one page; without
+    // this the SRD claims validity for memory beyond the allocated buffer, which can
+    // fault on gfx950 page-table validation.
+    //
+    // Matches buffer_view ctor convention (buffer_view.hpp:245): input is raw element
+    // count and is divided by PackedSize before being stored. For PackedSize=1
+    // (fp16/bf16/fp8) the division is a no-op; for PackedSize=2 (FP4 / packed int4)
+    // skipping it would over-report num_records by 2x and silently mask OOB on SRD
+    // reads. batch_prefill currently does not exercise the packed-type path, but this
+    // setter is generic infrastructure (lives in tile_scatter_gather.hpp) so it must
+    // honor the same invariant the ctor enforces.
+    CK_TILE_DEVICE constexpr void set_bottom_tensor_view_buffer_size(index_t size)
+    {
+        // Hint the optimizer that size is positive without inserting a runtime
+        // branch. Using <cassert> assert() here corrupted gfx950 batch_prefill
+        // output: the __assert_fail handler's SGPR pressure forced the K-SRD
+        // register window to be reused as scratch and scattered the SRD writes
+        // across two conditional branches, which gfx950's packed
+        // buffer_load_dwordx4 issue window doesn't tolerate (gfx942 absorbs it
+        // via per-tile single-dword loads). __builtin_assume is hint-only —
+        // no branch, no scratch SGPRs, no codegen impact.
+        __builtin_assume(size > 0);
+        using BufType                         = remove_cvref_t<decltype(bottom_tensor_view_.buf_)>;
+        bottom_tensor_view_.buf_.buffer_size_ = size / BufType::PackedSize;
+    }
+
     // move thread's window adaptor coordinate and bottom tensor coordinate
     // [p0, p1, ..., y0, y1, ...] ==> [x0, x1, ...] ==> [x0', x1', ...] ==> [offset]
     template <typename ATopIndex>
@@ -458,7 +513,21 @@ struct tile_scatter_gather
 
                 // read from bottom tensor
                 const vector_t vec_value = [&]() {
-                    if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
+                    if constexpr(kUseGlobalLoad_)
+                    {
+                        // Global load mode: 64-bit typed pointer arithmetic
+                        const auto* base_ptr     = get_bottom_tensor_view().buf_.p_data_;
+                        const auto physical_page = physical_pages_[idx_gather];
+                        const auto coord_offset  = bottom_tensor_thread_coord.get_offset();
+                        const long_index_t total_offset =
+                            static_cast<long_index_t>(physical_page) * page_stride_elements_ +
+                            coord_offset + page_offset;
+                        const auto* addr = base_ptr + total_offset;
+                        vector_t v;
+                        __builtin_memcpy(&v, addr, sizeof(vector_t));
+                        return v;
+                    }
+                    else if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
                     {
                         return get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
                             bottom_tensor_thread_coord,
@@ -680,7 +749,23 @@ struct tile_scatter_gather
                 const auto page_offset      = page_idx_[idx_gather];
 
                 // read from bottom tensor
-                if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
+                if constexpr(kUseGlobalLoad_)
+                {
+                    // Global load mode: global_load_lds with 64-bit address
+                    constexpr index_t vector_size =
+                        sizeof(vector_t) / sizeof(uint32_t); // dwords per vector
+                    const auto* base_ptr     = get_bottom_tensor_view().buf_.p_data_;
+                    const auto physical_page = physical_pages_[idx_gather];
+                    const auto coord_offset  = bottom_tensor_thread_coord.get_offset();
+                    const long_index_t total_offset =
+                        static_cast<long_index_t>(physical_page) * page_stride_elements_ +
+                        coord_offset + page_offset;
+                    const auto* addr = base_ptr + total_offset;
+                    // global_load_lds takes a byte address; addr (const DataType*)
+                    // converts implicitly to const void*, no explicit cast needed.
+                    async_global_load_lds_dwordxn<vector_size>(smem, addr, pre_nop_);
+                }
+                else if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
                 {
                     get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
                         smem, bottom_tensor_thread_coord, page_offset, 0, pre_nop_);
@@ -1046,6 +1131,13 @@ struct tile_scatter_gather
 
     CK_TILE_DEVICE void update_page_idx(const PageIdxArray& new_idx) { page_idx_ = new_idx; }
 
+    CK_TILE_DEVICE void update_physical_pages(const PageIdxArray& pages)
+    {
+        static_assert(kUseGlobalLoad_,
+                      "global-load mode only; physical_pages_ is unused in SRD mode.");
+        physical_pages_ = pages;
+    }
+
     CK_TILE_DEVICE void update_valids(const ValidArray& new_valids)
     {
         if constexpr(std::is_same_v<ValidArray, std::nullptr_t> == false)
@@ -1139,7 +1231,29 @@ struct tile_scatter_gather
     //   2. thread descriptor for thread tensor in register: [y0, y1, ...] ==> [d]
     TileDstr tile_dstr_;
 
+    // Scatter/gather offsets for each element, set by update_page_idx().
+    // SRD mode (kUseGlobalLoad=false): buffer_load(SRD, page_idx_[i] + coord).
+    //   page_idx_[i] = within-page offset when kPageBlockSize >= kN0 (SRD rebased to page base)
+    //   page_idx_[i] = page_base + within-page offset when kPageBlockSize < kN0 (full voffset)
+    // Global load mode (kUseGlobalLoad=true): page_idx_[i] = within-page offset only.
+    //   Full address = base + physical_pages_[i] * page_stride_elements_ + page_idx_[i] + coord
     PageIdxArray page_idx_;
+
+    // Physical page indices for global load mode (kUseGlobalLoad=true only).
+    // Maps each gather element to its physical page in a paged memory pool.
+    // Updated via update_physical_pages() before each load call.
+    // SRD mode: collapsed to gl_field_empty_t so the storage disappears.
+    [[no_unique_address]] std::conditional_t<kUseGlobalLoad_, PageIdxArray, gl_field_empty_t>
+        physical_pages_;
+
+    // Page stride in elements for global load mode (kUseGlobalLoad=true only).
+    // physical_pages_[i] * page_stride_elements_ gives the page base offset in elements.
+    // Set at construction time via the make_tile_scatter_gather overload that
+    // takes bool_constant<kUseGlobalLoad>; immutable thereafter.
+    // SRD mode: collapsed to gl_field_empty_t so the storage disappears.
+    [[no_unique_address]] std::conditional_t<kUseGlobalLoad_, index_t, gl_field_empty_t>
+        page_stride_elements_;
+
     ValidArray valids_;
 
     // this contains:
@@ -1178,7 +1292,8 @@ template <typename TensorView_,
           typename StaticPageIndexArray_,
           index_t HsGatherDim,
           index_t NumCoord,
-          index_t... YsGatherDims>
+          index_t... YsGatherDims,
+          bool UseGlobalLoad = false>
 CK_TILE_DEVICE constexpr auto
 make_tile_scatter_gather(const TensorView_& tensor_view,
                          const WindowLengths_& window_lengths,
@@ -1187,7 +1302,9 @@ make_tile_scatter_gather(const TensorView_& tensor_view,
                          const StaticPageIndexArray_& page_idx,
                          number<HsGatherDim>,
                          number<NumCoord>,
-                         sequence<YsGatherDims...>)
+                         sequence<YsGatherDims...>,
+                         bool_constant<UseGlobalLoad> = {},
+                         index_t page_stride_elements = 0)
 {
     return tile_scatter_gather<remove_cvref_t<TensorView_>,
                                remove_cvref_t<WindowLengths_>,
@@ -1196,11 +1313,17 @@ make_tile_scatter_gather(const TensorView_& tensor_view,
                                std::nullptr_t,
                                HsGatherDim,
                                NumCoord,
-                               sequence<YsGatherDims...>>{
-        tensor_view, window_lengths, origin, tile_distribution, page_idx, nullptr};
+                               sequence<YsGatherDims...>,
+                               UseGlobalLoad>{tensor_view,
+                                              window_lengths,
+                                              origin,
+                                              tile_distribution,
+                                              page_idx,
+                                              nullptr,
+                                              page_stride_elements};
 }
 
-// Legacy overload (compatible with original API)
+// Legacy overload (compatible with original API, kUseGlobalLoad=false)
 template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
@@ -1225,6 +1348,42 @@ make_tile_scatter_gather(const TensorView_& tensor_view,
                                NumCoord,
                                sequence<0>>{
         tensor_view, window_lengths, origin, tile_distribution, page_idx, nullptr};
+}
+
+// Overload with kUseGlobalLoad (simple, used by K cache).
+// page_stride_elements is forwarded to the constructor; required (non-zero)
+// when UseGlobalLoad=true so that physical_pages_[i] * page_stride_elements_
+// produces a valid address. Defaulting to 0 keeps SRD-mode call sites unchanged
+// (page_stride_elements_ is unread in SRD mode).
+template <typename TensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_,
+          typename StaticPageIndexArray_,
+          bool UseGlobalLoad>
+CK_TILE_DEVICE constexpr auto
+make_tile_scatter_gather(const TensorView_& tensor_view,
+                         const WindowLengths_& window_lengths,
+                         const multi_index<TensorView_::get_num_of_dimension()>& origin,
+                         const StaticTileDistribution_& tile_distribution,
+                         const StaticPageIndexArray_& page_idx,
+                         bool_constant<UseGlobalLoad>,
+                         index_t page_stride_elements = 0)
+{
+    return tile_scatter_gather<remove_cvref_t<TensorView_>,
+                               remove_cvref_t<WindowLengths_>,
+                               remove_cvref_t<StaticTileDistribution_>,
+                               remove_cvref_t<StaticPageIndexArray_>,
+                               std::nullptr_t,
+                               0,
+                               1,
+                               sequence<0>,
+                               UseGlobalLoad>{tensor_view,
+                                              window_lengths,
+                                              origin,
+                                              tile_distribution,
+                                              page_idx,
+                                              nullptr,
+                                              page_stride_elements};
 }
 
 template <typename TensorView,
