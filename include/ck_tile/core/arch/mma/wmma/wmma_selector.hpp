@@ -36,7 +36,7 @@ struct WmmaDefaultSelector
 {
     private:
     // By default, let's assume no special flags for WMMA
-    using CtrlFlags = DefaultWmmaCtrlFlags<ADataType, BDataType, CDataType>;
+    using CtrlFlags = DefaultWmmaCtrlFlags;
 
     // Define our candidate WMMA implementation for the current parameters
     using CandidateOp = amdgcn_mma<ADataType,
@@ -93,7 +93,7 @@ struct WmmaDefaultSelector<ADataType,
                            CompilerTarget>
 {
     // By default, let's assume no special flags for WMMA
-    using CtrlFlags = DefaultWmmaCtrlFlags<ADataType, BDataType, CDataType>;
+    using CtrlFlags = DefaultWmmaCtrlFlags;
 
     // Default unsupported pass-through if no instruction is found
     using SelectedOp = amdgcn_mma<ADataType,

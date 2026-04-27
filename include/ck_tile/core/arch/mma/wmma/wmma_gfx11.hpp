@@ -8,8 +8,8 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
-#include "ck_tile/core/arch/mma/mma_traits.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
 
 namespace ck_tile::core::arch::mma {
 // TODO: Specifically for gfx11 wmma, we need to deal with quirks such as:
@@ -37,30 +37,6 @@ namespace ck_tile::core::arch::mma {
 // one packed register for each input to be able to process smaller K values by padding.
 
 /**
- * @class DefaultWmmaFlags
- * @brief Generates default WMMA control flags based on data types.
- * @tparam ADataType Data type of matrix A
- * @tparam BDataType Data type of matrix B
- * @tparam CDataType Data type of the accumulator
- */
-template <typename ADataType, typename BDataType, typename CDataType>
-struct DefaultWmmaCtrlFlags
-{
-    // Generate default flags for signage
-    // Only used currently for integer inputs / accum in gfx11 / gfx12
-    constexpr static WmmaCtrlFlags InputSignA =
-        std::is_signed_v<ADataType> ? WmmaCtrlFlags::SIGNED : WmmaCtrlFlags::UNSIGNED;
-    constexpr static WmmaCtrlFlags InputSignB =
-        std::is_signed_v<BDataType> ? WmmaCtrlFlags::SIGNED : WmmaCtrlFlags::UNSIGNED;
-    constexpr static WmmaCtrlFlags AccumSign =
-        std::is_signed_v<CDataType> ? WmmaCtrlFlags::SIGNED : WmmaCtrlFlags::UNSIGNED;
-
-    // Generate default flags for accumulator destination bits.
-    // Only used if accumulation size is 16-bit in gfx11
-    constexpr static WmmaCtrlFlags AccumBits = WmmaCtrlFlags::LOW;
-};
-
-/**
  * @struct amdgcn_mma
  * @brief Specialization of amdgcn_mma for fp16_t, fp16_t, fp32_t MMA operation on GFX11
  * architecture.
@@ -76,10 +52,61 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarg
 : amdgcn_mma_base<fp16_t, fp16_t, fp32_t, 16u, 16u, 16u, 32u, 16, 1, 2, 1, 2, 8, 8, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
 {
-    CK_TILE_DEVICE static auto
-    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
+    CK_TILE_DEVICE static CVecType
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
         return {__builtin_amdgcn_wmma_f32_16x16x16_f16_w32(aVec, bVec, cVec)};
+    }
+};
+
+/**
+ * @struct amdgcn_mma
+ * @brief Specialization of amdgcn_mma for bf16_t, bf16_t, fp32_t MMA operation on GFX11
+ * architecture.
+ * @tparam CtrlFlags Control flags for the WMMA operation
+ * @tparam CompilerTarget Current compiler target
+ */
+// TODO: c++20 template <CtrlFlagsGfx11I CtrlFlags, amdgcn_target CompilerTarget>
+// TODO: c++20 requires
+template <typename CtrlFlags, typename CompilerTarget>
+// clang-format off
+//               | A B C DataTypes      | MNK + WaveSize    |AParams  |BPar |CPar |
+struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx11<CompilerTarget>()>>
+: amdgcn_mma_base<bf16_t, bf16_t, fp32_t, 16u, 16u, 16u, 32u, 16, 1, 2, 1, 2, 8, 8, WmmaOp, MmaOpFamily::DENSE>
+// clang-format on
+{
+    CK_TILE_DEVICE static CVecType
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
+    {
+        return {__builtin_amdgcn_wmma_f32_16x16x16_bf16_w32(aVec, bVec, cVec)};
+    }
+};
+
+/**
+ * @struct amdgcn_mma
+ * @brief Specialization of amdgcn_mma for int8_t, int8_t, int32_t MMA operation on GFX11
+ * architecture.
+ * @tparam CtrlFlags Control flags for the WMMA operation
+ * @tparam CompilerTarget Current compiler target
+ */
+// TODO: c++20 template <CtrlFlagsGfx11I CtrlFlags, amdgcn_target CompilerTarget>
+// TODO: c++20 requires
+template <typename CtrlFlags, typename CompilerTarget>
+// clang-format off
+//               | A B C DataTypes       | MNK + WaveSize    |AParams  |BPar |CPar |
+struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx11<CompilerTarget>()>>
+: amdgcn_mma_base<int8_t, int8_t, int32_t, 16u, 16u, 16u, 32u, 16, 1, 2, 1, 2, 8, 8, WmmaOp, MmaOpFamily::DENSE>
+// clang-format on
+{
+    CK_TILE_DEVICE static CVecType
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
+    {
+        return {__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32(true, // A signedness
+                                                           bit_cast<int32x4_t>(aVec),
+                                                           true, // B signedness
+                                                           bit_cast<int32x4_t>(bVec),
+                                                           cVec,
+                                                           CtrlFlags::Clamp)};
     }
 };
 
