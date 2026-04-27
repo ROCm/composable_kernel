@@ -681,12 +681,13 @@ class KernelComponentFactory:
             ):
                 pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, sink, kv_memory_layout, kv_lookup_table))  # fmt: skip
         elif dtype in ["fp8bf16"]:
-            # no need lse/dropout/sink kernels
+            # no need lse/dropout kernels (sink is supported via kHasSink)
             for (
                 logits,
                 qscale,
                 mask,
                 bias,
+                sink,
                 kv_memory_layout,
                 kv_lookup_table,
             ) in itertools.product(
@@ -694,10 +695,11 @@ class KernelComponentFactory:
                 ["pertensor", "kv_blockscale"],
                 get_mask_map(mask_impl).keys(),
                 ["no"],
+                ["t", "f"],
                 SUPPORTED_KV_MEMORY_LAYOUT,
                 SUPPORTED_KV_LOOKUP_TABLE,
             ):
-                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", kv_memory_layout, kv_lookup_table))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, sink, kv_memory_layout, kv_lookup_table))  # fmt: skip
         else:
             assert False
         return pipelines
