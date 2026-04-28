@@ -242,16 +242,22 @@ struct GenericAttentionMask
         index_t x_start = -y + i_y + 1;
         index_t x_end   = min(i_y + x, x_total);
 
+        // Sink un-mask must respect causal/right-window: a query at row i_y
+        // sees keys in [..., i_y + x), so a sink column i_x is only attended
+        // when i_x < i_y + x. The previous (i_y + x) > 1 guard erroneously
+        // gated on the row index instead of the column index, which let
+        // queries 1..sink-1 attend to their own future sink positions and
+        // forced query 0 to fall back to the plain causal mask.
         if constexpr(IsLocal)
         {
-            if((i_x < sink) && (y < y_total) && ((i_y + x) > 1) && i_y < x_total)
+            if((i_x < sink) && (i_x < i_y + x) && (y < y_total) && i_y < x_total)
                 return false;
             else
                 return i_x < x_start || i_x >= x_end;
         }
         else
         {
-            if((i_x < sink) && (y < y_total) && ((i_y + x) > 1) && i_y < x_total)
+            if((i_x < sink) && (i_x < i_y + x) && (y < y_total) && i_y < x_total)
                 return false;
             else
                 return i_x >= x_end || i_y >= y_total;
@@ -498,7 +504,9 @@ struct SimplifiedGenericAttentionMask
             return i_x >= x_total;
         index_t x_start = -y + i_y + 1;          // this could be negative, but it's fine
         index_t x_end   = min(i_y + x, x_total); // need min in case x is padded
-        if((i_x < sink) && (y < y_total) && ((i_y + x) > 1) && i_y < x_total)
+        // See note in the local-mask IsOutOfSinkBound: the sink column i_x is
+        // only valid up to the right-window boundary i_y + x.
+        if((i_x < sink) && (i_x < i_y + x) && (y < y_total) && i_y < x_total)
             return false;
         else
             return i_x < x_start || i_x >= x_end || i_y >= y_total;
