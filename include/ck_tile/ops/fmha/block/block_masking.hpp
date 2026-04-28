@@ -242,12 +242,17 @@ struct GenericAttentionMask
         index_t x_start = -y + i_y + 1;
         index_t x_end   = min(i_y + x, x_total);
 
-        // Sink un-mask must respect causal/right-window: a query at row i_y
-        // sees keys in [..., i_y + x), so a sink column i_x is only attended
-        // when i_x < i_y + x. The previous (i_y + x) > 1 guard erroneously
-        // gated on the row index instead of the column index, which let
-        // queries 1..sink-1 attend to their own future sink positions and
-        // forced query 0 to fall back to the plain causal mask.
+        // Sink un-mask predicate, clause by clause:
+        //   i_x < sink       : the column lives inside the StreamLLM sink prefix.
+        //   i_x < i_y + x    : the column is not in the masked-out future of the
+        //                      window (= < x_end modulo the min with x_total);
+        //                      without this, queries <= sink-1 would be allowed
+        //                      to look at later sink rows than they should under
+        //                      causality / right-window.
+        //   y < y_total      : the local window doesn't already span everything
+        //                      (otherwise sink un-mask is meaningless).
+        //   i_y < x_total    : the query row is in-range vs. the key sequence
+        //                      (handles seqlen_q > seqlen_k padding).
         if constexpr(IsLocal)
         {
             if((i_x < sink) && (i_x < i_y + x) && (y < y_total) && i_y < x_total)
