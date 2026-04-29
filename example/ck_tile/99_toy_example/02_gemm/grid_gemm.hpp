@@ -39,9 +39,9 @@ struct GridGemm
         const auto id_tile = block2tile(id_block);
 
         const auto iM =
-            __builtin_amdgcn_readfirstlane(id_tile.template get(number<0>{}) * kMPerBlock);
+            __builtin_amdgcn_readfirstlane(id_tile.get(number<0>{}) * kMPerBlock);
         const auto iN =
-            __builtin_amdgcn_readfirstlane(id_tile.template get(number<1>{}) * kNPerBlock);
+            __builtin_amdgcn_readfirstlane(id_tile.get(number<1>{}) * kNPerBlock);
 
         // A block window
         auto a_block_window = make_tile_window(
