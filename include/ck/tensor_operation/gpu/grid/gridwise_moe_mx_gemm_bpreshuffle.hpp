@@ -56,6 +56,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
         karg.p_a_scale_grid + splitk_batch_offset.a_scale_k_split_offset,
         karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
         karg.p_b_scale_grid + splitk_batch_offset.b_scale_k_split_offset,
+            karg.p_bias_grid,
         karg.p_ds_grid,
         karg.p_c_grid,
         p_shared,
@@ -98,6 +99,7 @@ __launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
             karg.p_a_scale_grid + splitk_batch_offset.a_scale_k_split_offset,
             karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
             karg.p_b_scale_grid + splitk_batch_offset.b_scale_k_split_offset,
+            karg.p_bias_grid,
             karg.p_ds_grid,
             karg.p_c_grid,
             p_shared_0,
@@ -167,7 +169,8 @@ template <typename ALayout,
           bool MulRoutedWeight                        = true,
           typename IndexType                          = index_t,
           typename ComputeTypeA                       = ADataType,
-          typename ComputeTypeB                       = BDataType>
+          typename ComputeTypeB                       = BDataType,
+          typename BiasDataType                       = CDataType>
 struct GridwiseMoeGemmMX_BPreshuffle
     : public GridwiseGemm_xdl_cshuffle_base<
           ALayout,
@@ -842,6 +845,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
                           const AScaleDataType* p_a_scale_grid_,
                           const BDataType* p_b_grid_,
                           const BScaleDataType* p_b_scale_grid_,
+                          const BiasDataType* p_bias_grid_,
                           std::array<const void*, NumDTensor> p_ds_grid_,
                           CDataType* p_c_grid_,
                           index_t NumTokens_,
@@ -878,6 +882,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
               p_a_scale_grid{p_a_scale_grid_},
               p_b_grid{p_b_grid_},
               p_b_scale_grid{p_b_scale_grid_},
+              p_bias_grid{p_bias_grid_},
               p_ds_grid{},
               p_c_grid{p_c_grid_},
               a_element_op{a_element_op_},
@@ -901,6 +906,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
         const AScaleDataType* p_a_scale_grid;
         const BDataType* p_b_grid;
         const BScaleDataType* p_b_scale_grid;
+        const BiasDataType* p_bias_grid;
         DsGridPointer p_ds_grid;
         CDataType* p_c_grid;
 
@@ -1219,6 +1225,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
                                const AScaleDataType* p_a_scale_grid,
                                const BDataType* p_b_grid,
                                const BScaleDataType* p_b_scale_grid,
+                               const BiasDataType* p_bias_grid,
                                DsGridPointer& p_ds_grid,
                                CDataType* p_c_grid,
                                void* p_shared,
@@ -1610,10 +1617,34 @@ struct GridwiseMoeGemmMX_BPreshuffle
             static_assert(M5 == 4);
             const index_t m1 = get_warp_local_1d_id() / NWave;
             const index_t m4 = threadIdx.x % get_warp_size() / MPerXdl;
+            const BiasDataType* p_bias_col = nullptr;
+            const BiasDataType* p_bias_col_up = nullptr;
+            if(p_bias_grid != nullptr)
+            {
+                const long_index_t expert_bias_stride =
+                    static_cast<long_index_t>(problem.N) * (IsInputGemm ? 2 : 1);
+                const long_index_t base_n = static_cast<long_index_t>(block_n_id) * NPerBlock +
+                                            static_cast<long_index_t>(waveId_n) * NXdlPack *
+                                                NPerXdl +
+                                            threadIdx.x % NPerXdl;
+                p_bias_col =
+                    p_bias_grid + static_cast<long_index_t>(expert_id) * expert_bias_stride + base_n;
+                if constexpr(IsInputGemm)
+                {
+                    p_bias_col_up = p_bias_col + problem.N;
+                }
+            }
 
             vector_type<float, 4> topk_weights; // for gemm2 only
             static_for<0, NXdlPerWave / NXdlPack, 1>{}([&](auto n0) {
                 static_for<0, NXdlPack, 1>{}([&](auto inxdl) {                // NXdlPack
+                    constexpr index_t n_offset =
+                        n0 * NWave * NXdlPack * NPerXdl + inxdl * NPerXdl;
+                    const float bias =
+                        p_bias_col != nullptr ? type_convert<float>(p_bias_col[n_offset]) : 0.0f;
+                    const float bias_up = p_bias_col_up != nullptr
+                                              ? type_convert<float>(p_bias_col_up[n_offset])
+                                              : 0.0f;
                     static_for<0, MXdlPerWave / MXdlPack, 1>{}([&](auto m0) { // MXDLPerWave
                         static_for<0, MXdlPack, 1>{}([&](auto imxdl) {        // MXdlPack
                             static_for<0, M3, 1>{}([&](auto m3) { // m_inst_num_groups_per_blk
@@ -1645,8 +1676,31 @@ struct GridwiseMoeGemmMX_BPreshuffle
                                                 gate = gate * topk_weights.AsType<float>()[m5];
                                                 up   = up * topk_weights.AsType<float>()[m5];
                                             }
+                                            if(p_bias_col != nullptr)
+                                            {
+                                                gate += bias;
+                                                up += bias_up;
+                                            }
                                             tensor_operation::element_wise::Silu{}(gate, gate);
                                             c_thread_buf_fp32(cidx) = gate * up;
+                                        }
+                                        else if(ActivationOperation ==
+                                                Activation::swiglustep_and_mul)
+                                        {
+                                            float gate = c_thread_buf[cidx];
+                                            float up   = c_thread_buf_up[cidx];
+                                            if constexpr(MulRoutedWeight)
+                                            {
+                                                gate = gate * topk_weights.AsType<float>()[m5];
+                                                up   = up * topk_weights.AsType<float>()[m5];
+                                            }
+                                            if(p_bias_col != nullptr)
+                                            {
+                                                gate += bias;
+                                                up += bias_up;
+                                            }
+                                            c_thread_buf_fp32(cidx) =
+                                                compute_swiglu_and_mul(gate, up);
                                         }
                                         else if(ActivationOperation == Activation::gelu_and_mul)
                                         {
@@ -1657,19 +1711,27 @@ struct GridwiseMoeGemmMX_BPreshuffle
                                                 gate = gate * topk_weights.AsType<float>()[m5];
                                                 up   = up * topk_weights.AsType<float>()[m5];
                                             }
+                                            if(p_bias_col != nullptr)
+                                            {
+                                                gate += bias;
+                                                up += bias_up;
+                                            }
                                             tensor_operation::element_wise::Gelu{}(gate, gate);
                                             c_thread_buf_fp32(cidx) = gate * up;
                                         }
                                     }
                                     else
                                     {
-                                        c_thread_buf_fp32(cidx) = c_thread_buf[cidx];
+                                        float out_val = c_thread_buf[cidx];
+                                        if(p_bias_col != nullptr)
+                                        {
+                                            out_val += bias;
+                                        }
                                         if constexpr(MulRoutedWeight)
                                         {
-                                            c_thread_buf_fp32(cidx) =
-                                                topk_weights.AsType<float>()[m5] *
-                                                c_thread_buf_fp32[cidx];
+                                            out_val = topk_weights.AsType<float>()[m5] * out_val;
                                         }
+                                        c_thread_buf_fp32(cidx) = out_val;
                                     }
                                 });
                             });
@@ -1711,6 +1773,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
                                     const AScaleDataType* p_a_scale_grid,
                                     const BDataType* p_b_grid,
                                     const BScaleDataType* p_b_scale_grid,
+                                    const BiasDataType* p_bias_grid,
                                     DsGridPointer& p_ds_grid,
                                     CDataType* p_c_grid,
                                     void* p_shared_0,
@@ -2107,10 +2170,34 @@ struct GridwiseMoeGemmMX_BPreshuffle
             static_assert(M5 == 4);
             const index_t m1 = get_warp_local_1d_id() / NWave;
             const index_t m4 = threadIdx.x % get_warp_size() / MPerXdl;
+            const BiasDataType* p_bias_col = nullptr;
+            const BiasDataType* p_bias_col_up = nullptr;
+            if(p_bias_grid != nullptr)
+            {
+                const long_index_t expert_bias_stride =
+                    static_cast<long_index_t>(problem.N) * (IsInputGemm ? 2 : 1);
+                const long_index_t base_n = static_cast<long_index_t>(block_n_id) * NPerBlock +
+                                            static_cast<long_index_t>(waveId_n) * NXdlPack *
+                                                NPerXdl +
+                                            threadIdx.x % NPerXdl;
+                p_bias_col =
+                    p_bias_grid + static_cast<long_index_t>(expert_id) * expert_bias_stride + base_n;
+                if constexpr(IsInputGemm)
+                {
+                    p_bias_col_up = p_bias_col + problem.N;
+                }
+            }
 
             vector_type<float, 4> topk_weights; // for gemm2 only
             static_for<0, NXdlPerWave / NXdlPack, 1>{}([&](auto n0) {
                 static_for<0, NXdlPack, 1>{}([&](auto inxdl) {                // NXdlPack
+                    constexpr index_t n_offset =
+                        n0 * NWave * NXdlPack * NPerXdl + inxdl * NPerXdl;
+                    const float bias =
+                        p_bias_col != nullptr ? type_convert<float>(p_bias_col[n_offset]) : 0.0f;
+                    const float bias_up = p_bias_col_up != nullptr
+                                              ? type_convert<float>(p_bias_col_up[n_offset])
+                                              : 0.0f;
                     static_for<0, MXdlPerWave / MXdlPack, 1>{}([&](auto m0) { // MXDLPerWave
                         static_for<0, MXdlPack, 1>{}([&](auto imxdl) {        // MXdlPack
                             static_for<0, M3, 1>{}([&](auto m3) { // m_inst_num_groups_per_blk
@@ -2142,8 +2229,31 @@ struct GridwiseMoeGemmMX_BPreshuffle
                                                 gate = gate * topk_weights.AsType<float>()[m5];
                                                 up   = up * topk_weights.AsType<float>()[m5];
                                             }
+                                            if(p_bias_col != nullptr)
+                                            {
+                                                gate += bias;
+                                                up += bias_up;
+                                            }
                                             tensor_operation::element_wise::Silu{}(gate, gate);
                                             c_thread_buf_fp32(cidx) = gate * up;
+                                        }
+                                        else if(ActivationOperation ==
+                                                Activation::swiglustep_and_mul)
+                                        {
+                                            float gate = c_thread_buf[cidx];
+                                            float up   = c_thread_buf_up[cidx];
+                                            if constexpr(MulRoutedWeight)
+                                            {
+                                                gate = gate * topk_weights.AsType<float>()[m5];
+                                                up   = up * topk_weights.AsType<float>()[m5];
+                                            }
+                                            if(p_bias_col != nullptr)
+                                            {
+                                                gate += bias;
+                                                up += bias_up;
+                                            }
+                                            c_thread_buf_fp32(cidx) =
+                                                compute_swiglu_and_mul(gate, up);
                                         }
                                         else if(ActivationOperation == Activation::gelu_and_mul)
                                         {
@@ -2154,19 +2264,27 @@ struct GridwiseMoeGemmMX_BPreshuffle
                                                 gate = gate * topk_weights.AsType<float>()[m5];
                                                 up   = up * topk_weights.AsType<float>()[m5];
                                             }
+                                            if(p_bias_col != nullptr)
+                                            {
+                                                gate += bias;
+                                                up += bias_up;
+                                            }
                                             tensor_operation::element_wise::Gelu{}(gate, gate);
                                             c_thread_buf_fp32(cidx) = gate * up;
                                         }
                                     }
                                     else
                                     {
-                                        c_thread_buf_fp32(cidx) = c_thread_buf[cidx];
+                                        float out_val = c_thread_buf[cidx];
+                                        if(p_bias_col != nullptr)
+                                        {
+                                            out_val += bias;
+                                        }
                                         if constexpr(MulRoutedWeight)
                                         {
-                                            c_thread_buf_fp32(cidx) =
-                                                topk_weights.AsType<float>()[m5] *
-                                                c_thread_buf_fp32[cidx];
+                                            out_val = topk_weights.AsType<float>()[m5] * out_val;
                                         }
+                                        c_thread_buf_fp32(cidx) = out_val;
                                     }
                                 });
                             });

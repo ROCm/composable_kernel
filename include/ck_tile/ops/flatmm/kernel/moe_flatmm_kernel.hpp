@@ -1473,12 +1473,33 @@ struct MoeFlatmmKernel
                                              c_scatter_offsets[mIter],
                                              c_scatter_valids[mIter]);
 
-                if constexpr(!IsInputGemm ||
-                             decltype(c_block_window.get_bottom_tensor_view())::DstInMemOp ==
-                                 memory_operation_enum::atomic_add)
+                if constexpr(!IsInputGemm)
+                {
                     c_scatter_tile_window.update(c_out_tensor);
+                }
+                else if constexpr(decltype(c_block_window.get_bottom_tensor_view())::DstInMemOp ==
+                                  memory_operation_enum::atomic_add)
+                {
+                    if constexpr(IsGemm1SplitK)
+                    {
+                        if(kargs.k_batch == 1)
+                        {
+                            c_scatter_tile_window.store(c_out_tensor);
+                        }
+                        else
+                        {
+                            c_scatter_tile_window.update(c_out_tensor);
+                        }
+                    }
+                    else
+                    {
+                        c_scatter_tile_window.update(c_out_tensor);
+                    }
+                }
                 else
+                {
                     c_scatter_tile_window.store(c_out_tensor);
+                }
 
                 if constexpr(iAccess != num_access - 1)
                 {

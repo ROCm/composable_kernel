@@ -33,6 +33,15 @@ enum Activation
     swiglustep_and_mul = 2
 };
 
+__host__ __device__ inline float compute_swiglu_and_mul(float gate, float linear)
+{
+    constexpr float alpha = 1.702f;
+    constexpr float limit = 7.0f;
+    gate                  = gate < limit ? gate : limit;
+    linear                = linear < limit ? (linear > -limit ? linear : -limit) : limit;
+    return gate * (1.0f / (1.0f + math::exp(-alpha * gate))) * (linear + 1.0f);
+}
+
 template <typename ALayout,
           typename BLayout,
           typename ELayout,
