@@ -338,6 +338,7 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx950|gfx125")
 endif()
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx12")
     add_subdirectory(s_prefetch_op)
+    add_subdirectory(s_prefetch_inst_op)
 endif()
 
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx125")
