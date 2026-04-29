@@ -299,6 +299,8 @@ struct GenericAttentionMask
         }
     }
 
+    CK_TILE_HOST_DEVICE constexpr auto GetXTotal() const { return x_total; }
+
     private:
     index_t y, x, sink;
     index_t y_total, x_total;
@@ -536,6 +538,8 @@ struct SimplifiedGenericAttentionMask
         }
     }
 
+    CK_TILE_HOST_DEVICE constexpr auto GetXTotal() const { return x_total; }
+
     private:
     index_t y, x, sink;
     index_t y_total, x_total;
@@ -721,6 +725,8 @@ struct SimplifiedRatioAttentionMask
             return top_right_edge || bottom_left_edge;
         }
     }
+
+    CK_TILE_HOST_DEVICE constexpr auto GetXTotal() const { return x_total; }
 
     private:
     index_t y, x;
