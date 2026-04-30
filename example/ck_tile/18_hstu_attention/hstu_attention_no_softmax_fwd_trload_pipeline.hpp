@@ -7,6 +7,7 @@
 #include <ck_tile/ops/fmha/block/block_dropout.hpp>
 
 #include "hstu_attention_fwd_pipeline_policy.hpp"
+#include "hstu_attention_util.hpp"
 
 namespace ck_tile {
 
@@ -393,8 +394,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
             tile_elementwise_inout(f_silu, pcomp_tile);
 
-            tile_elementwise_inout([&](auto& x) { x = x * type_convert<CompDataType>(scale_p); },
-                                   pcomp_tile);
+            detail::scale_tile_in_pack(pcomp_tile, scale_p);
 
             seqlen_k_curr += kN0;
 
