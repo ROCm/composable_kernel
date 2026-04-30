@@ -231,7 +231,7 @@
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx101__) || defined(__gfx103__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx11__) || defined(__gfx12__) // for GPU code
+#elif defined(__gfx11__) || defined(__gfx12__) || defined(__gfx1250__) // for GPU code
 #define CK_TILE_BUFFER_RESOURCE_3RD_DWORD 0x31004000
 #endif
 
@@ -514,6 +514,12 @@ struct amdgcn_compiler_target_state
     static constexpr bool CK_TILE_ARCH_GFX1201 = false;
 #endif // __gfx1201__
 
+#if defined(__gfx1250__)
+    static constexpr bool CK_TILE_ARCH_GFX1250 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1250 = false;
+#endif // __gfx1250__
+
 #if defined(__gfx12_generic__)
     static constexpr bool CK_TILE_ARCH_GFX12_GENERIC = true;
 #else
@@ -570,6 +576,7 @@ CK_TILE_HOST_DEVICE static constexpr uint32_t count_values_of(T search, Ts... se
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX11_GENERIC,   \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1200,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1201,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1250,         \
         amdgcn_compiler_target_state::CK_TILE_ARCH_GFX12_GENERIC
 
 // Sanity check: make sure only one target architecture is defined during device compile
