@@ -3,7 +3,19 @@ FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
 ARG ROCMVERSION=7.1.1
 ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
-ARG TARBALL_URL=https://rocm.nightlies.amd.com/tarball/therock-dist-linux-gfx90X-dcgpu-7.12.0a20260218.tar.gz
+
+# TheRock nightly tarball configuration.
+# By default, discovers the latest tarball from the nightlies index.
+# Manual overrides:
+#   Pin a specific tarball:
+#     --build-arg TARBALL_URL=https://rocm.nightlies.amd.com/tarball-multi-arch/therock-dist-linux-multiarch-7.13.0a20260430.tar.gz
+#   Change the arch variant (default: multiarch):
+#     --build-arg TARBALL_PATTERN=therock-dist-linux-gfx90a
+#     --build-arg TARBALL_PATTERN=therock-dist-linux-gfx94X-dcgpu
+ARG TARBALL_URL=""
+ARG TARBALL_BASE=https://rocm.nightlies.amd.com/tarball-multi-arch
+ARG TARBALL_PATTERN=therock-dist-linux-multiarch
+
 ARG compiler_version=""
 ARG compiler_commit=""
 ENV APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=DontWarn
@@ -18,10 +30,18 @@ RUN set -xe && \
 
 RUN if [ "$compiler_version" = "therock" ]; then \
         rm -rf /opt/rocm && mkdir /opt/rocm && \
-        echo "Downloading ROCm tarball from $TARBALL_URL..." && \
+        if [ -n "$TARBALL_URL" ]; then \
+            echo "Using provided TARBALL_URL: $TARBALL_URL" ; \
+        else \
+            echo "Discovering latest tarball from $TARBALL_BASE..." && \
+            TARBALL_URL="${TARBALL_BASE}/$(curl -sL "${TARBALL_BASE}/" \
+                | grep -oP '"name":\s*"\K'"${TARBALL_PATTERN}"'-[^"]+\.tar\.gz' \
+                | sort -V | tail -1)" && \
+            echo "Found: $TARBALL_URL" ; \
+        fi && \
         wget -q -O /tmp/rocm.tar.gz "$TARBALL_URL" && \
-        echo "Extracting tarball to /opt/rocm..." && \
-        tar -xzf /tmp/rocm.tar.gz -C /opt/rocm --strip-components=1 ; \
+        tar -xzf /tmp/rocm.tar.gz -C /opt/rocm --strip-components=1 && \
+        rm /tmp/rocm.tar.gz ; \
     else echo "using the release compiler" && \
         wget https://repo.radeon.com/amdgpu-install/7.1.1/ubuntu/noble/amdgpu-install_7.1.1.70101-1_all.deb && \
         apt install ./amdgpu-install_7.1.1.70101-1_all.deb -y && \
@@ -36,7 +56,7 @@ ENV SCCACHE_INSTALL_LOCATION=/usr/local/.cargo/bin
 ENV PATH=$PATH:${SCCACHE_INSTALL_LOCATION}
 RUN set -x && \
     mkdir -p ${SCCACHE_INSTALL_LOCATION} && \
-    wget -qO sccache.tar.gz https://github.com/mozilla/sccache/releases/latest/download/sccache-v$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz && \
+    wget -qO sccache.tar.gz https://github.com/mozilla/sccache/releases/download/v$SCCACHE_VERSION/sccache-v$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz && \
     tar -xzf sccache.tar.gz --strip-components=1 -C ${SCCACHE_INSTALL_LOCATION} && \
     chmod +x ${SCCACHE_INSTALL_LOCATION}/sccache
 
