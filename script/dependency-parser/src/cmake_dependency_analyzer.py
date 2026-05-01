@@ -22,12 +22,10 @@ import os
 import re
 import shlex
 import subprocess
-import sys
 import tempfile
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 
 
 class CompileCommandsParser:
@@ -55,7 +53,9 @@ class CompileCommandsParser:
             json.JSONDecodeError: If file contains invalid JSON
         """
         if not os.path.exists(self.compile_commands_path):
-            raise FileNotFoundError(f"compile_commands.json not found: {self.compile_commands_path}")
+            raise FileNotFoundError(
+                f"compile_commands.json not found: {self.compile_commands_path}"
+            )
 
         with open(self.compile_commands_path, "r") as f:
             commands = json.load(f)
@@ -92,7 +92,9 @@ class DependencyExtractor:
         self.timeout = timeout
         self._temp_dir = None
 
-    def convert_to_dependency_command(self, compile_command: str, deps_output_file: str) -> List[str]:
+    def convert_to_dependency_command(
+        self, compile_command: str, deps_output_file: str
+    ) -> List[str]:
         """Convert a compile command to a dependency extraction command.
 
         Replaces -c with -MM and removes -o output specification.
@@ -158,7 +160,7 @@ class DependencyExtractor:
             return []
 
         # Everything after the colon is dependencies
-        deps_part = content[colon_pos + 1:]
+        deps_part = content[colon_pos + 1 :]
 
         # Split on whitespace and filter empty strings
         deps = [d.strip() for d in deps_part.split() if d.strip()]
@@ -180,7 +182,9 @@ class DependencyExtractor:
         basename = os.path.basename(source_file)
         return os.path.join(self._temp_dir, f"{basename}.d")
 
-    def extract(self, directory: str, compile_command: str, source_file: str) -> List[str]:
+    def extract(
+        self, directory: str, compile_command: str, source_file: str
+    ) -> List[str]:
         """Extract dependencies for a single source file.
 
         Args:
@@ -203,7 +207,7 @@ class DependencyExtractor:
                 cwd=directory,
                 capture_output=True,
                 text=True,
-                errors='replace',
+                errors="replace",
                 timeout=self.timeout,
             )
 
@@ -212,7 +216,7 @@ class DependencyExtractor:
 
             # Parse the generated .d file
             if os.path.exists(deps_file):
-                with open(deps_file, "r", errors='replace') as f:
+                with open(deps_file, "r", errors="replace") as f:
                     deps_content = f.read()
                 return self.parse_makefile_deps(deps_content)
 
@@ -335,7 +339,9 @@ class NinjaTargetParser:
 
         # Pattern to match object compilation rules
         # Example: build test/test.cpp.o: CXX_COMPILER__target /src/test.cpp
-        obj_pattern = re.compile(r"^build\s+([^:]+\.(?:cpp|cc|cu|hip)\.o):\s+\S+\s+(\S+)")
+        obj_pattern = re.compile(
+            r"^build\s+([^:]+\.(?:cpp|cc|cu|hip)\.o):\s+\S+\s+(\S+)"
+        )
 
         with open(self.ninja_file_path, "r") as f:
             for line in f:
@@ -371,7 +377,7 @@ class DependencyMapper:
             Normalized relative path
         """
         if self.workspace_root and path.startswith(self.workspace_root):
-            return path[len(self.workspace_root):]
+            return path[len(self.workspace_root) :]
         return path
 
     def is_project_file(self, file_path: str) -> bool:
@@ -567,7 +573,9 @@ class CMakeDependencyAnalyzer:
         """
         # Validate required paths
         if self.compile_commands_path is None:
-            raise ValueError("compile_commands_path is required for analysis but was None")
+            raise ValueError(
+                "compile_commands_path is required for analysis but was None"
+            )
         if self.ninja_path is None:
             raise ValueError("ninja_path is required for analysis but was None")
 
@@ -588,7 +596,9 @@ class CMakeDependencyAnalyzer:
             if progress_callback:
                 progress_callback("extracting_dependencies", current, total)
 
-        source_to_deps = extractor.extract_batch(commands, progress_callback=dep_progress)
+        source_to_deps = extractor.extract_batch(
+            commands, progress_callback=dep_progress
+        )
 
         # Phase 3: Parse ninja target mappings
         if progress_callback:
@@ -707,10 +717,8 @@ def main():
     args = parser.parse_args()
 
     def progress(phase, current, total):
-        if not args.quiet:
-            print(f"[{phase}] {current}/{total}", end="\r")
-            if current == total:
-                print()
+        if not args.quiet and current == total:
+            print(f"[{phase}] {current}/{total}")
 
     analyzer = CMakeDependencyAnalyzer(
         compile_commands_path=args.compile_commands,
@@ -721,12 +729,12 @@ def main():
 
     # Check if cache needs regeneration
     if not args.force and not analyzer.should_regenerate_cache(args.output):
-        print(f"Cache is valid, skipping analysis. Use --force to regenerate.")
+        print("Cache is valid, skipping analysis. Use --force to regenerate.")
         print(f"Using cached results from {args.output}")
         return
 
     if not args.force and os.path.exists(args.output):
-        print(f"Cache invalid or outdated, regenerating dependencies...")
+        print("Cache invalid or outdated, regenerating dependencies...")
 
     print(f"Analyzing dependencies from {args.compile_commands}...")
     analyzer.analyze(progress_callback=progress)
@@ -735,10 +743,12 @@ def main():
     analyzer.export_to_json(args.output)
 
     stats = analyzer.calculate_statistics()
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Total files: {stats['total_files']}")
     print(f"  Total executables: {stats['total_executables']}")
-    print(f"  Files with multiple executables: {stats['files_with_multiple_executables']}")
+    print(
+        f"  Files with multiple executables: {stats['files_with_multiple_executables']}"
+    )
 
 
 if __name__ == "__main__":
