@@ -1383,6 +1383,46 @@ CK_TILE_DEVICE void async_buffer_load_dwordxn_v(void* smem,
                                                 index_t /*flag*/       = 0,
                                                 bool_constant<pre_nop> = {})
 {
+#if defined(__gfx103__) || defined(__gfx11__) || defined(__gfx12__)
+    static_assert(num_dwords == 1 || num_dwords == 3 || num_dwords == 4,
+                  "wrong! not implemented data width");
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+    // RDNA uses a synchronous fallback through a VGPR because the direct global-to-LDS
+    // buffer_load ... lds forms below are not available there. The later vmcnt fence
+    // still works, but the load/compute overlap from the async path is lost.
+    if constexpr(pre_nop)
+    {
+        asm volatile("s_nop 4" : : : "memory");
+    }
+
+    // The asm path uses ioffset as the 12-bit immediate offset with soffset = 0.
+    // The raw_buffer_load intrinsics have no immediate field, so pass ioffset as
+    // soffset; the final address is still base + voffset + ioffset.
+    as3_uint32_ptr lds_ptr = (as3_uint32_ptr)(smem);
+    if constexpr(num_dwords == 1)
+    {
+        *lds_ptr = static_cast<uint32_t>(
+            llvm_amdgcn_raw_buffer_load_i32(rsrc, voffset, ioffset, 0));
+    }
+    else if constexpr(num_dwords == 3)
+    {
+        int32x3_t tmp = llvm_amdgcn_raw_buffer_load_i32x3(rsrc, voffset, ioffset, 0);
+        lds_ptr[0]    = static_cast<uint32_t>(tmp[0]);
+        lds_ptr[1]    = static_cast<uint32_t>(tmp[1]);
+        lds_ptr[2]    = static_cast<uint32_t>(tmp[2]);
+    }
+    else if constexpr(num_dwords == 4)
+    {
+        int32x4_t tmp = llvm_amdgcn_raw_buffer_load_i32x4(rsrc, voffset, ioffset, 0);
+        lds_ptr[0]    = static_cast<uint32_t>(tmp[0]);
+        lds_ptr[1]    = static_cast<uint32_t>(tmp[1]);
+        lds_ptr[2]    = static_cast<uint32_t>(tmp[2]);
+        lds_ptr[3]    = static_cast<uint32_t>(tmp[3]);
+    }
+#pragma clang diagnostic pop
+#else
 #define CK_TILE_ASYNC_LOAD_WITH_INSTR(instr)                            \
     if constexpr(pre_nop)                                               \
         asm volatile("s_nop 4\n" instr " %1, %2, 0 offen offset:%3 lds" \
@@ -1414,6 +1454,7 @@ CK_TILE_DEVICE void async_buffer_load_dwordxn_v(void* smem,
         static_assert(false, "wrong! not implemented data width");
     }
 #undef CK_TILE_ASYNC_LOAD_WITH_INSTR
+#endif
 }
 
 CK_TILE_DEVICE void async_buffer_load_fence(index_t cnt = 0)
