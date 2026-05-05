@@ -1383,7 +1383,7 @@ CK_TILE_DEVICE void async_buffer_load_dwordxn_v(void* smem,
                                                 index_t /*flag*/       = 0,
                                                 bool_constant<pre_nop> = {})
 {
-#if defined(__gfx103__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx103__) || defined(__gfx11__)
     static_assert(num_dwords == 1 || num_dwords == 3 || num_dwords == 4,
                   "wrong! not implemented data width");
 

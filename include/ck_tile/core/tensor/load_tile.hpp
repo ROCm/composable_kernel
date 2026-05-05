@@ -15,6 +15,7 @@
 #include "ck_tile/core/tensor/tile_window_linear.hpp"
 #include "ck_tile/core/tensor/null_tile_window.hpp"
 #include "ck_tile/core/tensor/null_tensor.hpp"
+#include "ck_tile/core/tensor/store_tile.hpp"
 
 namespace ck_tile {
 // Per-lane read-offset tweaks allow swizzling patterns not representable by tile_distribution.
@@ -159,7 +160,17 @@ CK_TILE_DEVICE void async_load_tile_with_offset(LdsTileWindow_&& lds_tile,
                                                 bool_constant<oob_conditional_check> occ = {},
                                                 bool_constant<static_move_ys> smy        = {})
 {
+#if defined(__gfx12__)
+    // gfx12 does not support the direct global-to-LDS async buffer load used by
+    // tile_window::async_load*. Keep the architecture choice at the tile-load layer by using a
+    // regular buffer load followed by an explicit LDS store instead of hiding it in the primitive.
+    static_assert(!static_move_ys,
+                  "gfx12 synchronous async_load_tile fallback does not support static_move_ys");
+    auto tile = load_tile_with_offset(tile_window, offset, number<i_access>{}, occ);
+    store_tile(lds_tile, tile);
+#else
     tile_window.async_load_with_offset(offset, lds_tile, number<i_access>{}, occ, smy);
+#endif
 }
 
 template <typename LdsTileWindow_,
@@ -187,10 +198,16 @@ CK_TILE_DEVICE void async_load_tile_raw(LdsTileWindow_&& lds_tile,
                                         bool_constant<oob_conditional_check> = {},
                                         bool_constant<pre_nop>               = {})
 {
+#if defined(__gfx12__)
+    // See async_load_tile_with_offset: gfx12 uses regular buffer loads plus explicit LDS stores.
+    auto tile = load_tile(tile_window, number<i_access>{}, bool_constant<oob_conditional_check>{});
+    store_tile(lds_tile, tile);
+#else
     tile_window.async_load_raw(lds_tile,
                                number<i_access>{},
                                bool_constant<oob_conditional_check>{},
                                bool_constant<pre_nop>{});
+#endif
 }
 
 CK_TILE_DEVICE void async_load_fence(index_t cnt = 0)
