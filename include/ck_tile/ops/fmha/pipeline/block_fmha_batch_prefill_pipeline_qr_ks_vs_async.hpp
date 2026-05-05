@@ -1088,7 +1088,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 tile_elementwise_inout([&k_descale](auto& x) { x *= k_descale; }, s_acc);
             }
 
-            const auto p = [&]() {
+            const auto p_cast = [&]() {
                 const auto bias_tile = load_tile(bias_dram_window); // load bias tile
 
                 // STAGE 2, scale_s, add bias, mask, softmax
@@ -1423,6 +1423,15 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                         tile_elementwise_in(p_compute_element_func, p_compute));
 #endif
             }();
+#if defined(__gfx11__)
+            // gfx11 WMMA uses different lane layouts for GEMM C and GEMM A tiles, so remap
+            // softmax P from GEMM0's C layout into GEMM1's A layout before the PV GEMM.
+            auto p = make_static_distributed_tensor<PDataType>(
+                decltype(gemm_1)::template MakeABlockTileDistribution<kM0, kN0>());
+            PermuteWarpGemmCToA(p, p_cast);
+#else
+            const auto p = p_cast;
+#endif
 
             // STAGE 3, KV gemm
             // KV_BLOCKSCALE: accumulate P*V into temporary tile before applying v_descale

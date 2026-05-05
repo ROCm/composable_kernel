@@ -762,7 +762,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                     randval_ptr, seq_offset, p_compute, randval_dram_window);
             }
 
-            const auto p = [&]() {
+            const auto p_cast = [&]() {
 #if CK_TILE_FMHA_FLOAT_TO_FLOAT16_RTN
                 // For fp32 to fp16,
                 // impl::cast_tile_pkrtz_fp16_fp32 would cause precision issue,
@@ -777,6 +777,15 @@ struct BlockFmhaPipelineQRKSVSAsync
                         tile_elementwise_in(p_compute_element_func, p_compute));
 #endif
             }();
+#if defined(__gfx11__)
+            // gfx11 WMMA uses different lane layouts for GEMM C and GEMM A tiles, so remap
+            // softmax P from GEMM0's C layout into GEMM1's A layout before the PV GEMM.
+            auto p = make_static_distributed_tensor<PDataType>(
+                decltype(gemm_1)::template MakeABlockTileDistribution<kM0, kN0>());
+            PermuteWarpGemmCToA(p, p_cast);
+#else
+            const auto p = p_cast;
+#endif
 
             float v_descale = 1.0f;
             if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
