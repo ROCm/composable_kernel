@@ -35,7 +35,8 @@ template <typename IndexArrayType,
 CK_TILE_DEVICE void load_physical_pages(const index_t* page_idx,
                                         const CoordVecType& coord_vec,
                                         index_t global_seq_offset,
-                                        IndexArrayType& physical_pages)
+                                        IndexArrayType& physical_pages,
+                                        index_t max_page_table_idx)
 {
     static constexpr index_t kLog2PageSize = [] {
         index_t shift = 0;
@@ -56,8 +57,9 @@ CK_TILE_DEVICE void load_physical_pages(const index_t* page_idx,
         static_for<0, kLoopCount, 1>{}([&](auto k0) {
             const index_t global_token_idx =
                 global_seq_offset + thread_coord_start + kLoopStart + kLoopStride * k0.value;
-            const index_t page_id = global_token_idx >> kLog2PageSize;
-            physical_pages[k0]    = page_idx[page_id];
+            const index_t page_id =
+                ck_tile::min(global_token_idx >> kLog2PageSize, max_page_table_idx);
+            physical_pages[k0] = page_idx[page_id];
         });
     }
     else
@@ -75,7 +77,7 @@ CK_TILE_DEVICE void load_physical_pages(const index_t* page_idx,
             static_for<0, kLoopCount, 1>{}([&](auto k0) {
                 const index_t global_token_idx =
                     global_seq_offset + thread_coord_start + kLoopStart + kLoopStride * k0.value;
-                physical_pages[k0] = page_idx[global_token_idx];
+                physical_pages[k0] = page_idx[ck_tile::min(global_token_idx, max_page_table_idx)];
             });
         }
         else if constexpr(kVTileCrossesPages)
@@ -85,8 +87,9 @@ CK_TILE_DEVICE void load_physical_pages(const index_t* page_idx,
             static_for<0, kLoopCount, 1>{}([&](auto k0) {
                 const index_t global_token_idx =
                     global_seq_offset + thread_coord_start + kLoopStart + kLoopStride * k0.value;
-                const index_t page_id = global_token_idx >> kLog2PageSize;
-                physical_pages[k0]    = page_idx[page_id];
+                const index_t page_id =
+                    ck_tile::min(global_token_idx >> kLog2PageSize, max_page_table_idx);
+                physical_pages[k0] = page_idx[page_id];
             });
         }
         else
@@ -94,7 +97,8 @@ CK_TILE_DEVICE void load_physical_pages(const index_t* page_idx,
             // V tile fully contained in one page: lane0 lookup, broadcast to all
             const index_t lane0_start = __builtin_amdgcn_readfirstlane(thread_coord_start);
             const index_t lane0_page_id =
-                (global_seq_offset + lane0_start + kLoopStart) >> kLog2PageSize;
+                ck_tile::min((global_seq_offset + lane0_start + kLoopStart) >> kLog2PageSize,
+                             max_page_table_idx);
             const index_t shared_physical_page = page_idx[lane0_page_id];
 
             static_for<0, kLoopCount, 1>{}(
@@ -427,6 +431,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const index_t page_stride_v,
                DropoutType& dropout,
                const float sink_v,
+               const index_t max_page_table_idx,
                // KV_BLOCKSCALE parameters (only used when QScaleEnum == KV_BLOCKSCALE)
                const float* k_descale_ptr             = nullptr,
                const float* v_descale_ptr             = nullptr,
@@ -611,7 +616,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                             kN0 / NRepeat,
                             kKVMemoryLayout,
                             true,
-                            kN0>(page_idx, k_coord, current_seq_k, k_physical_pages);
+                            kN0>(
+            page_idx, k_coord, current_seq_k, k_physical_pages, max_page_table_idx);
 
         kv_offset_array_transform<statically_indexed_array<index_t, NRepeat>,
                                   decltype(k_coord),
@@ -839,7 +845,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                         1,
                                         kKVMemoryLayout,
                                         false,
-                                        kN0>(page_idx, v_coord, current_seq_k, v_physical_pages_k2);
+                                        kN0>(
+                        page_idx, v_coord, current_seq_k, v_physical_pages_k2, max_page_table_idx);
 
                     // Copy to merged array
                     static_for<0, V_KIterInner, 1>{}([&](auto k1) {
@@ -859,7 +866,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                     1,
                                     kKVMemoryLayout,
                                     false,
-                                    kN0>(page_idx, v_coord, current_seq_k, v_physical_pages);
+                                    kN0>(
+                    page_idx, v_coord, current_seq_k, v_physical_pages, max_page_table_idx);
             }
         };
 
@@ -1516,7 +1524,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                                     kN0 / NRepeat,
                                     kKVMemoryLayout,
                                     true,
-                                    kN0>(page_idx, k_coord, current_seq_k, k_physical_pages);
+                                    kN0>(
+                    page_idx, k_coord, current_seq_k, k_physical_pages, max_page_table_idx);
 
                 kv_offset_array_transform<statically_indexed_array<index_t, NRepeat>,
                                           decltype(k_coord),
@@ -1672,7 +1681,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const index_t page_stride_k,
                const index_t page_stride_v,
                DropoutType& dropout,
-               float sink_v) const
+               float sink_v,
+               const index_t max_page_table_idx) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -1701,7 +1711,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                           page_stride_k,
                           page_stride_v,
                           dropout,
-                          sink_v);
+                          sink_v,
+                          max_page_table_idx);
     }
 
     // Overload for KV_BLOCKSCALE: K/V descale is per-page
@@ -1736,6 +1747,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const index_t page_stride_v,
                DropoutType& dropout,
                float sink_v,
+               const index_t max_page_table_idx,
                const float* k_descale_ptr,
                const float* v_descale_ptr,
                index_t nblock_stride_kv_block_descale,
@@ -1769,6 +1781,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                           page_stride_v,
                           dropout,
                           sink_v,
+                          max_page_table_idx,
                           k_descale_ptr,
                           v_descale_ptr,
                           nblock_stride_kv_block_descale,
