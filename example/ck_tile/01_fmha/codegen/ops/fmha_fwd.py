@@ -328,6 +328,8 @@ class FmhaFwdApiTrait:
         if self.bm0 == max_bm0 or self.bm0 == 64:
             return "true/*fall back to largest tile*/"
         else:
+            if self.mode == "group":
+                return f"a.max_seqlen_q <= {self.bm0}"
             return f"a.seqlen_q <= {self.bm0}"
 
     @property
@@ -1136,6 +1138,7 @@ class KernelComponentFactoryGfx950(
                 ):
                     pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "f", "f", "f", "f", logits, bias, lse, dropout, qscale, mask, skip, "t", sink))  # fmt: skip
                     pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "f", "f", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "t", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "t", "t", "f", "f", logits, bias, lse, dropout, qscale, mask, skip, "t", sink))  # fmt: skip  # group mode spad
 
             # # qr_async_trload_v3 bf16/fp16 not ready
             # if (hdim, hdim_v) == (128, 128):
