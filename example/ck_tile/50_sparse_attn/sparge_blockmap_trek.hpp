@@ -8,7 +8,9 @@
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_problem.hpp"
 #include "ck_tile/ops/fmha/pipeline/tile_fmha_shape.hpp"
 #include "ck_tile/ops/sparse_attn/pipeline/sparge_blockmap_pipeline.hpp"
+#include "ck_tile/ops/sparse_attn/pipeline/sparge_kstats_pipeline.hpp"
 #include "ck_tile/ops/sparse_attn/kernel/sparge_blockmap_kernel.hpp"
+#include "ck_tile/ops/sparse_attn/kernel/sparge_kstats_kernel.hpp"
 
 #include "fmha_fwd_trek.hpp"
 
@@ -45,6 +47,15 @@ struct sparge_blockmap_args
     void* block_map_ptr;
     void* lut_ptr;
     void* valid_block_num_ptr;
+
+    // R21A Phase 4 + R21B fix: optional per-head superparams. nullptr => use scalar.
+    // Buffer sizes match SpargeAttn upstream contract (utils.py:324-328: all sized
+    // by Headnum=q.size(1)=nhead_q). K-side kernel still indexes [hk] into the
+    // first nhead_k entries — for MHA equivalent to old [nhead_k] sizing, for
+    // MQA/GQA aligns to upstream tuned ckpt layout.
+    const float* simthreshd1_per_head_ptr = nullptr; // size = nhead_q floats (kernel reads [0..nhead_k-1])
+    const float* cdfthreshd_per_head_ptr  = nullptr; // size = nhead_q floats
+    const float* topk_per_head_ptr        = nullptr; // size = nhead_q floats
 };
 
 struct sparge_blockmap_traits
@@ -57,7 +68,9 @@ struct sparge_blockmap_traits
 // Create kernel args and grid dimensions
 // ============================================================================
 template <typename BlockMapKernel>
-auto sparge_blockmap_create_kargs_and_grids(sparge_blockmap_args args)
+auto sparge_blockmap_create_kargs_and_grids(sparge_blockmap_args args,
+                                            const void* pooled_k_ws_ptr,
+                                            const void* sim_k_ws_ptr)
 {
     assert(args.nhead_q % args.nhead_k == 0);
     auto kargs = BlockMapKernel::MakeKargs(args.q_ptr,
@@ -79,9 +92,35 @@ auto sparge_blockmap_create_kargs_and_grids(sparge_blockmap_args args)
                                            args.scale,
                                            args.block_map_ptr,
                                            args.lut_ptr,
-                                           args.valid_block_num_ptr);
+                                           args.valid_block_num_ptr,
+                                           pooled_k_ws_ptr,
+                                           sim_k_ws_ptr,
+                                           args.topk_per_head_ptr,
+                                           args.cdfthreshd_per_head_ptr);
 
     dim3 grids = BlockMapKernel::GridSize(args.batch, args.nhead_q, args.seqlen_q);
+    return ck_tile::make_tuple(kargs, grids);
+}
+
+template <typename KStatsKernel>
+auto sparge_kstats_create_kargs_and_grids(sparge_blockmap_args args,
+                                          void* pooled_k_ws_ptr,
+                                          void* sim_k_ws_ptr)
+{
+    assert(args.nhead_q % args.nhead_k == 0);
+    auto kargs = KStatsKernel::MakeKargs(args.k_ptr,
+                                         args.seqlen_k,
+                                         args.hdim_q,
+                                         args.nhead_k,
+                                         args.stride_k,
+                                         args.nhead_stride_k,
+                                         args.batch_stride_k,
+                                         args.simthreshd1,
+                                         pooled_k_ws_ptr,
+                                         sim_k_ws_ptr,
+                                         args.simthreshd1_per_head_ptr);
+
+    dim3 grids = KStatsKernel::GridSize(args.batch, args.nhead_k, args.seqlen_k);
     return ck_tile::make_tuple(kargs, grids);
 }
 

@@ -5,6 +5,9 @@
 #include "sparge_blockmap_trek.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
 
+#include <hip/hip_runtime.h>
+#include <cstddef>
+#include <cstdint>
 #include <iostream>
 
 // ============================================================================
@@ -61,6 +64,9 @@ using bmap_fp16_problem = ck_tile::BlockFmhaPipelineProblem<ck_tile::half_t, // 
 using bmap_fp16_pipeline = ck_tile::SpargeBlockMapPipeline<bmap_fp16_problem>;
 using bmap_fp16_kernel   = ck_tile::SpargeBlockMapKernel<bmap_fp16_pipeline>;
 
+using kstats_fp16_pipeline = ck_tile::SpargeKStatsPipeline<bmap_fp16_problem>;
+using kstats_fp16_kernel   = ck_tile::SpargeKStatsKernel<kstats_fp16_pipeline>;
+
 // ============================================================================
 // bf16: D=128, kM0=64, kN0=128
 // ============================================================================
@@ -112,6 +118,78 @@ using bmap_bf16_problem = ck_tile::BlockFmhaPipelineProblem<ck_tile::bf16_t,  //
 using bmap_bf16_pipeline = ck_tile::SpargeBlockMapPipeline<bmap_bf16_problem>;
 using bmap_bf16_kernel   = ck_tile::SpargeBlockMapKernel<bmap_bf16_pipeline>;
 
+using kstats_bf16_pipeline = ck_tile::SpargeKStatsPipeline<bmap_bf16_problem>;
+using kstats_bf16_kernel   = ck_tile::SpargeKStatsKernel<kstats_bf16_pipeline>;
+
+// ============================================================================
+// Internal K-stat workspace (R20): process-lifetime lazy hipMalloc, sized
+// to the largest (batch, nhead_k, N_k, D) seen so far. Caller API unchanged.
+// ============================================================================
+
+namespace {
+
+struct KStatsWorkspace
+{
+    void* pooled_k_dev = nullptr; // [batch, nhead_k, N_k, D] fp32
+    void* sim_k_dev    = nullptr; // [batch, nhead_k, N_k] uint8
+    size_t pooled_k_bytes = 0;
+    size_t sim_k_bytes    = 0;
+
+    void ensure(int batch, int nhead_k, int N_k, int D)
+    {
+        const size_t need_p = static_cast<size_t>(batch) * nhead_k * N_k * D * sizeof(float);
+        const size_t need_s = static_cast<size_t>(batch) * nhead_k * N_k * sizeof(uint8_t);
+        if(need_p > pooled_k_bytes)
+        {
+            if(pooled_k_dev != nullptr) (void)hipFree(pooled_k_dev);
+            (void)hipMalloc(&pooled_k_dev, need_p);
+            pooled_k_bytes = need_p;
+        }
+        if(need_s > sim_k_bytes)
+        {
+            if(sim_k_dev != nullptr) (void)hipFree(sim_k_dev);
+            (void)hipMalloc(&sim_k_dev, need_s);
+            sim_k_bytes = need_s;
+        }
+    }
+};
+
+KStatsWorkspace& g_kstats_ws()
+{
+    static KStatsWorkspace ws;
+    return ws;
+}
+
+template <typename KStatsKernel, typename BlockMapKernel>
+void launch_kstats_then_blockmap(sparge_blockmap_args args, const ck_tile::stream_config& s)
+{
+    const int N_k = ck_tile::integer_divide_ceil(args.seqlen_k, BlockMapKernel::kN0);
+    const int D   = BlockMapKernel::D;
+    auto& ws      = g_kstats_ws();
+    ws.ensure(args.batch, args.nhead_k, N_k, D);
+
+    // Stage 1: K stats
+    {
+        auto [kargs, grids] =
+            sparge_kstats_create_kargs_and_grids<KStatsKernel>(args, ws.pooled_k_dev, ws.sim_k_dev);
+        const dim3 blocks                      = KStatsKernel::BlockSize();
+        constexpr ck_tile::index_t kBlockPerCu = KStatsKernel::kBlockPerCu;
+        ck_tile::make_kernel<kBlockPerCu>(KStatsKernel{}, grids, blocks, 0, kargs)(
+            ck_tile::stream_config{s.stream_id_});
+    }
+    // Stage 2: block_map (reads ws)
+    {
+        auto [kargs, grids] = sparge_blockmap_create_kargs_and_grids<BlockMapKernel>(
+            args, ws.pooled_k_dev, ws.sim_k_dev);
+        const dim3 blocks                      = BlockMapKernel::BlockSize();
+        constexpr ck_tile::index_t kBlockPerCu = BlockMapKernel::kBlockPerCu;
+        ck_tile::make_kernel<kBlockPerCu>(BlockMapKernel{}, grids, blocks, 0, kargs)(
+            ck_tile::stream_config{s.stream_id_});
+    }
+}
+
+} // namespace
+
 // ============================================================================
 // Dispatch
 // ============================================================================
@@ -122,26 +200,20 @@ float sparge_blockmap_fwd(sparge_blockmap_traits traits,
 {
     if(traits.data_type == "fp16" && traits.hdim_q == 128)
     {
-        using k_ = bmap_fp16_kernel;
         if(s.log_level_ > 0)
             std::cout << ", sparge_blockmap_fp16_d128" << std::flush;
-        auto [kargs, grids]                    = sparge_blockmap_create_kargs_and_grids<k_>(args);
-        const dim3 blocks                      = k_::BlockSize();
-        constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-        return ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<kBlockPerCu>(k_{}, grids, blocks, 0, kargs));
+        return ck_tile::launch_kernel(s, [=](const ck_tile::stream_config& s_) {
+            launch_kstats_then_blockmap<kstats_fp16_kernel, bmap_fp16_kernel>(args, s_);
+        });
     }
 
     if(traits.data_type == "bf16" && traits.hdim_q == 128)
     {
-        using k_ = bmap_bf16_kernel;
         if(s.log_level_ > 0)
             std::cout << ", sparge_blockmap_bf16_d128" << std::flush;
-        auto [kargs, grids]                    = sparge_blockmap_create_kargs_and_grids<k_>(args);
-        const dim3 blocks                      = k_::BlockSize();
-        constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-        return ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<kBlockPerCu>(k_{}, grids, blocks, 0, kargs));
+        return ck_tile::launch_kernel(s, [=](const ck_tile::stream_config& s_) {
+            launch_kstats_then_blockmap<kstats_bf16_kernel, bmap_bf16_kernel>(args, s_);
+        });
     }
 
     if(s.log_level_ > 0)
@@ -160,23 +232,13 @@ void sparge_blockmap_fwd_oneshot(sparge_blockmap_traits traits,
 {
     if(traits.data_type == "fp16" && traits.hdim_q == 128)
     {
-        using k_                               = bmap_fp16_kernel;
-        auto [kargs, grids]                    = sparge_blockmap_create_kargs_and_grids<k_>(args);
-        const dim3 blocks                      = k_::BlockSize();
-        constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-        ck_tile::make_kernel<kBlockPerCu>(k_{}, grids, blocks, 0, kargs)(
-            ck_tile::stream_config{s.stream_id_});
+        launch_kstats_then_blockmap<kstats_fp16_kernel, bmap_fp16_kernel>(args, s);
         return;
     }
 
     if(traits.data_type == "bf16" && traits.hdim_q == 128)
     {
-        using k_                               = bmap_bf16_kernel;
-        auto [kargs, grids]                    = sparge_blockmap_create_kargs_and_grids<k_>(args);
-        const dim3 blocks                      = k_::BlockSize();
-        constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-        ck_tile::make_kernel<kBlockPerCu>(k_{}, grids, blocks, 0, kargs)(
-            ck_tile::stream_config{s.stream_id_});
+        launch_kstats_then_blockmap<kstats_bf16_kernel, bmap_bf16_kernel>(args, s);
         return;
     }
 
