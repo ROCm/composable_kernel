@@ -1250,6 +1250,12 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                 ? kargs.hdim_v
                 : kargs.stride_v;
 
+        // Last valid index into this batch's page table; load_physical_pages clamps
+        // page-table reads to [0, max_page_table_idx] to prevent OOB into the next
+        // batch's pages. Empty batch (seqlen_k == 0) clamps to 0.
+        const index_t max_page_table_idx =
+            kargs.seqlen_k > 0 ? (kargs.seqlen_k - 1) / kPageBlockSize : 0;
+
         auto o_acc_tile = [&] {
             if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR)
             {
@@ -1296,7 +1302,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     kargs.batch_stride_k,
                     kargs.batch_stride_v,
                     dropout,
-                    sink_value);
+                    sink_value,
+                    max_page_table_idx);
             }
             else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
             {
@@ -1326,6 +1333,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       kargs.batch_stride_v,
                                       dropout,
                                       sink_value,
+                                      max_page_table_idx,
                                       k_descale_ptr,
                                       v_descale_ptr,
                                       kargs.nblock_stride_kv_block_descale,
@@ -1352,7 +1360,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       kargs.batch_stride_k,
                                       kargs.batch_stride_v,
                                       dropout,
-                                      sink_value);
+                                      sink_value,
+                                      max_page_table_idx);
             }
         }();
 
