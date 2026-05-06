@@ -164,6 +164,7 @@ CK_TILE_DEVICE void async_load_tile_with_offset(LdsTileWindow_&& lds_tile,
     // gfx12 does not support the direct global-to-LDS async buffer load used by
     // tile_window::async_load*. Keep the architecture choice at the tile-load layer by using a
     // regular buffer load followed by an explicit LDS store instead of hiding it in the primitive.
+    static_cast<void>(smy);
     static_assert(!static_move_ys,
                   "gfx12 synchronous async_load_tile fallback does not support static_move_ys");
     auto tile = load_tile_with_offset(tile_window, offset, number<i_access>{}, occ);

@@ -488,7 +488,9 @@ struct tile_window_linear
                                        bool_constant<pre_nop>               = {}) const
     {
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
+#if !defined(__gfx12__)
         using LdsDataType   = typename LdsTileWindow::DataType;
+#endif
 
         // currently we only support everything is non linear dim
         // actually it's not performant if we have linear dim(e.g. fast changing)

@@ -495,7 +495,9 @@ struct tile_window_with_static_distribution
     {
         using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
         // using LdsTensorView = typename LdsTileWindow::BottomTensorView;
+#if !defined(__gfx12__)
         using LdsDataType = typename LdsTileWindow::DataType;
+#endif
         // using LdsDescriptor = typename LdsTileWindow::BottomTensorDesc;
 
         // issues * warps * lanes
