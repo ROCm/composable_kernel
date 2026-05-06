@@ -24,6 +24,24 @@
 // Benefits: PR builds 5h → 30min (typical), nightly builds unchanged
 // See: script/dependency-parser/README.md for details
 //
+
+@NonCPS
+String getGitHubCommitHash(def build)
+{
+    def scmAction = build?.actions.find { action ->
+        action instanceof jenkins.scm.api.SCMRevisionAction
+    }
+    if (scmAction?.revision instanceof org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision)
+    {
+        return scmAction.revision.pullHash
+    }
+    else if (scmAction?.revision instanceof jenkins.plugins.git.AbstractGitSCMSource$SCMRevisionImpl)
+    {
+        return scmAction.revision.hash
+    }
+    return null
+}
+
 def rocmnode(name) {
     return '(rocmtest || miopen) && (' + name + ')'
 }
@@ -36,6 +54,30 @@ def show_node_info() {
         cat /sys/module/amdgpu/version
         ls /opt/ -la
     """
+}
+
+def setGithubStatus(String context, String state, String description) {
+    def sha = env.GIT_COMMIT
+    def targetUrl = env.RUN_DISPLAY_URL ?: env.BUILD_URL
+    def statusUrl = "https://api.github.com/repos/ROCm/rocm-libraries/statuses/${sha}"
+    withCredentials([usernamePassword(credentialsId: 'github-app-miopen', usernameVariable: 'GITHUB_APP', passwordVariable: 'GITHUB_TOKEN')]) {
+        def code = '0'
+        try {
+            retry(3) {
+                code = sh(returnStdout: true, script: """
+                    curl -s -w "%{http_code}" -o /dev/null -X POST '${statusUrl}' \\
+                        -H "Authorization: token \$GITHUB_TOKEN" \\
+                        -H 'Content-Type: application/json' \\
+                        -d '{"state":"${state}","context":"${context}","description":"${description}","target_url":"${targetUrl}"}'
+                """).trim()
+                if (!code.startsWith('2')) {
+                    error("GitHub status POST returned ${code}")
+                }
+            }
+        } catch (Exception e) {
+            echo "WARNING: GitHub status POST failed after retries (context=${context}, state=${state}, code=${code})"
+        }
+    }
 }
 
 def cloneUpdateRefRepo() {
@@ -78,7 +120,14 @@ def checkoutComposableKernel()
     //update ref repo
     cloneUpdateRefRepo()
     // checkout project
-    checkout scm
+    def scmVars = checkout scm
+    // getGitHubCommitHash reads SCMRevisionAction recorded before any local merge,
+    // giving the true PR branch tip (pullHash) or branch HEAD (hash).
+    // Falls back to ORIG_HEAD (pre-merge HEAD set by git merge) when SCMRevisionAction
+    // is unavailable, then to HEAD for branch builds where no merge occurred.
+    env.GIT_COMMIT = getGitHubCommitHash(currentBuild.rawBuild) ?: sh(returnStdout: true, script: '''
+        git rev-parse ORIG_HEAD 2>/dev/null || git rev-parse HEAD
+    ''').trim()
 }
 
 def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
@@ -860,13 +909,19 @@ def buildHipClangJob(Map conf=[:]){
         def retimage
         (retimage, image) = getDockerImage(conf)
 
-        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
+        setGithubStatus("${env.STAGE_NAME}", 'pending', "Starting ${env.STAGE_NAME}")
+        try {
             withDockerContainer(image: image, args: dockerOpts) {
                 timeout(time: 20, unit: 'HOURS')
                 {
                     cmake_build(conf)
                 }
             }
+            setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
+        }
+        catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
+                throw e
         }
         return retimage
 }
@@ -890,7 +945,8 @@ def Build_CK(Map conf=[:]){
         def image
         def retimage
 
-        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
+        setGithubStatus("${env.STAGE_NAME}", 'pending', "Starting ${env.STAGE_NAME}")
+        try {
             try {
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -907,6 +963,7 @@ def Build_CK(Map conf=[:]){
             }
             catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
                 echo "The job was cancelled or aborted"
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
                 throw e
             }
             withDockerContainer(image: image, args: dockerOpts) {
@@ -967,6 +1024,11 @@ def Build_CK(Map conf=[:]){
                     }
                 }
             }
+            setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
+        }
+        catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
+                throw e
         }
         return retimage
 }
@@ -987,7 +1049,8 @@ def process_results(Map conf=[:]){
     //use older image that has user jenkins
     def image = "${env.CK_DOCKERHUB}:ck_ub22.04_rocm6.3"
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
+    setGithubStatus("${env.STAGE_NAME}", 'pending', 'Processing results...')
+    try {
         try
         {
             echo "Pulling image: ${image}"
@@ -1000,6 +1063,10 @@ def process_results(Map conf=[:]){
         {
             error "Unable to locate image: ${image}"
         }
+    }
+    catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
+                throw e
     }
 
     withDockerContainer(image: image, args: '--cap-add=SYS_PTRACE --security-opt seccomp=unconfined -v=/var/jenkins/:/var/jenkins') {
@@ -1108,10 +1175,10 @@ def process_results(Map conf=[:]){
                     // process the logs
                     sh "./process_perf_data.sh"
                 }
+                setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
             }
-            catch(e){
-                echo "Throwing error exception while processing performance test results"
-                echo 'Exception occurred: ' + e.toString()
+            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
                 throw e
             }
             finally{
@@ -1126,7 +1193,8 @@ def run_downstream_tests(Map conf=[:]){
     checkoutComposableKernel()
     def dockerOpts = get_docker_options() + ' --group-add irc '
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
+    setGithubStatus("${env.STAGE_NAME}", 'pending', "Starting ${env.STAGE_NAME}")
+    try {
         try
         {
             echo "Pulling image: ${conf.image}"
@@ -1140,6 +1208,10 @@ def run_downstream_tests(Map conf=[:]){
             error "Unable to locate image: ${conf.image}"
         }
     }
+    catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
+                throw e
+    }
 
     withDockerContainer(image: conf.image, args: dockerOpts) {
         timeout(time: conf.get("timeoutHours", 2), unit: 'HOURS'){
@@ -1149,10 +1221,12 @@ def run_downstream_tests(Map conf=[:]){
                 for (cmd in conf.execute_cmds) {
                     sh "${cmd}"
                 }
+                setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
             }
             catch(e){
                 echo "Throwing error exception while running ${env.STAGE_NAME}"
                 echo 'Exception occurred: ' + e.toString()
+                setGithubStatus("${env.STAGE_NAME}", 'error', "Stage ${env.STAGE_NAME} failed")
                 throw e
             }
             finally{
@@ -1407,7 +1481,6 @@ pipeline {
         dbsshport = "${dbsshport}"
         dbsshuser = "${dbsshuser}"
         dbsshpassword = "${dbsshpassword}"
-        ck_git_creds = "${ck_git_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
     }
@@ -1908,6 +1981,7 @@ pipeline {
                         cleanWs()
                     }
                 }
+                /*
                 stage("Build CK and run Tests on gfx908")
                 {
                     when {
@@ -1924,6 +1998,7 @@ pipeline {
                         cleanWs()
                     }
                 }
+                */
                 stage("Build CK and run Tests on gfx90a")
                 {
                     when {
@@ -2041,9 +2116,8 @@ pipeline {
                 success {
                     script {
                         // Report the parent stage build ck and run tests status
-                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
-                            echo "Reporting success status for build ck and run tests"
-                        }
+                        setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
+                        echo "Reporting success status for build ck and run tests"
                     }
                 }
             }
@@ -2068,13 +2142,8 @@ pipeline {
                 success {
                     script {
                         // Report the skipped parent's stage status
-                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Process Performance Test Results", account: 'ROCm', repo: 'rocm-libraries') {
-                            echo "Process Performance Test Results stage skipped."
-                        }
-                        // Report the skipped stage's status
-                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Process results", account: 'ROCm', repo: 'rocm-libraries') {
-                            echo "Process Performance Test Results stage skipped."
-                        }
+                        setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
+                        echo "Process Performance Test Results stage skipped."
                     }
                 }
             }
@@ -2082,20 +2151,22 @@ pipeline {
     }
     post {
         success {
-            githubNotify context: 'Math CI Summary',
-                         status: 'SUCCESS',
-                         description: 'All checks have passed'
+            script {
+                node(rocmnode("nogpu")) {
+                    setGithubStatus('Math CI Summary', 'success', "Math CI passed")
+                }
+            }
         }
         failure {
-            githubNotify context: 'Math CI Summary',
-                         status: 'FAILURE',
-                         description: 'Some checks have failed'
-            node(rocmnode("nogpu")) {
-                script {
-                    checkoutComposableKernel()
-                }
-                withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
-                    sh 'bash projects/composablekernel/script/infra_helper/send_failure_notifications.sh'
+            script {
+                node(rocmnode("nogpu")) {
+                    setGithubStatus('Math CI Summary', 'failure', "Math CI failed")
+                    script {
+                        checkoutComposableKernel()
+                    }
+                    withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+                        sh 'bash projects/composablekernel/script/infra_helper/send_failure_notifications.sh'
+                    }
                 }
             }
         }
