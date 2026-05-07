@@ -64,6 +64,27 @@ std::ostream& operator<<(std::ostream& stream,
         return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
     }
 
+// Small-cache variants (7th template arg = MaxNumBlocks for compile-time overflow elimination).
+// For d64/GQA-8/bs32: overflow threshold = 2^31 / (32 * 64) = 1,048,575 blocks.
+// Set MaxNumBlocks = 100,000 (conservative, safe for ~98K blocks) to guarantee no overflow.
+#define DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32_SMALL_CACHE(DType, IsMask, HSize, BM, NQPKV) \
+    { \
+        using kernel_traits = unified_attention_decode_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32, 100000>; \
+        return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
+    }
+
+#define DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_SMALL_CACHE(DType, IsMask, HSize, BM, NQPKV) \
+    { \
+        using kernel_traits = unified_attention_decode_small_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32, 100000>; \
+        return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
+    }
+
+#define DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW_SMALL_CACHE(DType, IsMask, HSize, BM, NQPKV) \
+    { \
+        using kernel_traits = unified_attention_decode_bs32_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32, 100000>; \
+        return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
+    }
+
 enum class tile_tier { large, medium, small, tiny };
 
 static tile_tier select_tile_tier(const unified_attention_args& args)
@@ -85,6 +106,21 @@ static tile_tier select_tile_tier(const unified_attention_args& args)
         return tile_tier::small;
 
     return tile_tier::medium;
+}
+
+// Select between small-cache (compile-time overflow elimination) and large-cache variants.
+// For d64/bs32: overflow threshold = 2^31 / (32 * 64) = 1,048,575 blocks
+// We use 100,000 as the small-cache limit (conservative, safe for ~98K blocks)
+static bool use_small_cache_variant(const unified_attention_args& args)
+{
+    // Only optimize for d64 with block_size < 64 (bs32 variants)
+    if(args.hdim != 64 || args.page_blk_size >= 64)
+        return false;
+
+    // Conservative threshold: 100,000 blocks (~98K)
+    // This guarantees no int32 overflow for d64/bs32
+    constexpr index_t kSmallCacheThreshold = 100000;
+    return args.num_blks <= kSmallCacheThreshold;
 }
 
 std::pair<bool, float> unified_attention(const unified_attention_args& args,
@@ -112,6 +148,7 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
     if(args.hdim == 64 && args.num_queries_per_kv == 8)
     {
         const bool use_bs32 = (args.page_blk_size < 64);
+        const bool use_small_cache = use_small_cache_variant(args);
 
         if(tier == tile_tier::tiny)
         {
@@ -157,8 +194,13 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
             else if(args.data_type == unified_attention_args::data_type_enum::bf16)
             {
                 if(use_bs32) {
-                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(unified_attention_args::data_type_enum::bf16, false, 64, 64, 8)
-                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(unified_attention_args::data_type_enum::bf16, true,  64, 64, 8)
+                    if(use_small_cache) {
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_SMALL_CACHE(unified_attention_args::data_type_enum::bf16, false, 64, 64, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_SMALL_CACHE(unified_attention_args::data_type_enum::bf16, true,  64, 64, 8)
+                    } else {
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(unified_attention_args::data_type_enum::bf16, false, 64, 64, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(unified_attention_args::data_type_enum::bf16, true,  64, 64, 8)
+                    }
                 } else {
                     if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::bf16, false, 64, 64, 8)
                     else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::bf16, true,  64, 64, 8)
@@ -211,6 +253,9 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
     return std::make_pair(false, -1.f);
 }
 
+#undef DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW_SMALL_CACHE
+#undef DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_SMALL_CACHE
+#undef DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32_SMALL_CACHE
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32

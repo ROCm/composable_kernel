@@ -115,7 +115,8 @@ struct unified_attention_kernel_traits
         typename unified_attention_problem_traits<date_type>::o_dtype,
         unified_attention_shape,
         unified_attention_mask,
-        unified_attention_traits>;
+        unified_attention_traits,
+        -1>;  // MaxNumBlocks = -1 (runtime check) for prefill/large tiles
 
     using unified_attention_pipeline = UnifiedAttentionPipeline<unified_attention_pipeline_problem>;
 
@@ -137,7 +138,8 @@ template <unified_attention_args::data_type_enum DataType,
           index_t HeadSize_  = 128,
           index_t BlockM_    = 128,
           index_t NumQPerKV_ = 1,
-          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32>
+          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32,
+          index_t MaxNumBlocks_ = -1>  // -1 means no compile-time limit (runtime check)
 struct unified_attention_decode_kernel_traits
 {
     static constexpr auto date_type  = DataType;
@@ -146,6 +148,7 @@ struct unified_attention_decode_kernel_traits
     static constexpr index_t kBlockM    = BlockM_;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
     static constexpr index_t BLOCK_SIZE = BlockSize_;
+    static constexpr index_t MAX_NUM_BLOCKS = MaxNumBlocks_;
 
     static constexpr index_t num_queries_per_kv = NumQPerKV_;
     static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
@@ -179,7 +182,8 @@ struct unified_attention_decode_kernel_traits
         typename unified_attention_problem_traits<date_type>::o_dtype,
         unified_attention_shape,
         unified_attention_mask,
-        unified_attention_traits>;
+        unified_attention_traits,
+        -1>;  // MaxNumBlocks = -1 (runtime check) for prefill/large tiles
 
     using unified_attention_pipeline = UnifiedAttentionPipeline<unified_attention_pipeline_problem>;
 
@@ -198,7 +202,8 @@ template <unified_attention_args::data_type_enum DataType,
           index_t HeadSize_  = 64,
           index_t BlockM_    = 64,
           index_t NumQPerKV_ = 8,
-          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32>
+          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32,
+          index_t MaxNumBlocks_ = -1>
 struct unified_attention_decode_small_kernel_traits
 {
     static constexpr auto date_type  = DataType;
@@ -207,6 +212,7 @@ struct unified_attention_decode_small_kernel_traits
     static constexpr index_t kBlockM    = BlockM_;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
     static constexpr index_t BLOCK_SIZE = BlockSize_;
+    static constexpr index_t MAX_NUM_BLOCKS = MaxNumBlocks_;
 
     static constexpr index_t num_queries_per_kv = NumQPerKV_;
     static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
@@ -239,7 +245,8 @@ struct unified_attention_decode_small_kernel_traits
         typename unified_attention_problem_traits<date_type>::o_dtype,
         unified_attention_shape,
         unified_attention_mask,
-        unified_attention_traits>;
+        unified_attention_traits,
+        MAX_NUM_BLOCKS>;
 
     using unified_attention_pipeline =
         UnifiedAttentionPipeline<unified_attention_pipeline_problem,
@@ -261,15 +268,17 @@ template <unified_attention_args::data_type_enum DataType,
           index_t HeadSize_  = 64,
           index_t BlockM_    = 16,
           index_t NumQPerKV_ = 8,
-          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32>
+          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32,
+          index_t MaxNumBlocks_ = -1>  // -1 means no compile-time limit (runtime check)
 struct unified_attention_decode_tiny_kernel_traits
 {
     static constexpr auto date_type  = DataType;
     static constexpr bool is_masking = IsMasking;
 
-    static constexpr index_t kBlockM    = BlockM_;
-    static constexpr index_t HEAD_SIZE  = HeadSize_;
-    static constexpr index_t BLOCK_SIZE = BlockSize_;
+    static constexpr index_t kBlockM        = BlockM_;
+    static constexpr index_t HEAD_SIZE      = HeadSize_;
+    static constexpr index_t BLOCK_SIZE     = BlockSize_;
+    static constexpr index_t MAX_NUM_BLOCKS = MaxNumBlocks_;
 
     static constexpr index_t num_queries_per_kv = NumQPerKV_;
     static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
@@ -302,7 +311,8 @@ struct unified_attention_decode_tiny_kernel_traits
         typename unified_attention_problem_traits<date_type>::o_dtype,
         unified_attention_shape,
         unified_attention_mask,
-        unified_attention_traits>;
+        unified_attention_traits,
+        MAX_NUM_BLOCKS>;
 
     using unified_attention_pipeline =
         UnifiedAttentionPipeline<unified_attention_pipeline_problem,
@@ -324,15 +334,17 @@ template <unified_attention_args::data_type_enum DataType,
           index_t HeadSize_  = 64,
           index_t BlockM_    = 32,
           index_t NumQPerKV_ = 8,
-          index_t BlockSize_ = 32>
+          index_t BlockSize_ = 32,
+          index_t MaxNumBlocks_ = -1>  // -1 means no compile-time limit (runtime check)
 struct unified_attention_decode_bs32_kernel_traits
 {
     static constexpr auto date_type  = DataType;
     static constexpr bool is_masking = IsMasking;
 
-    static constexpr index_t kBlockM    = BlockM_;
-    static constexpr index_t HEAD_SIZE  = HeadSize_;
-    static constexpr index_t BLOCK_SIZE = BlockSize_;
+    static constexpr index_t kBlockM        = BlockM_;
+    static constexpr index_t HEAD_SIZE      = HeadSize_;
+    static constexpr index_t BLOCK_SIZE     = BlockSize_;
+    static constexpr index_t MAX_NUM_BLOCKS = MaxNumBlocks_;
 
     static constexpr index_t num_queries_per_kv = NumQPerKV_;
     static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
@@ -364,7 +376,8 @@ struct unified_attention_decode_bs32_kernel_traits
         typename unified_attention_problem_traits<date_type>::o_dtype,
         unified_attention_shape,
         unified_attention_mask,
-        unified_attention_traits>;
+        unified_attention_traits,
+        MAX_NUM_BLOCKS>;
 
     using unified_attention_pipeline =
         UnifiedAttentionPipeline<unified_attention_pipeline_problem,

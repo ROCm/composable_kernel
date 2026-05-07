@@ -19,7 +19,8 @@ template <typename QDataType_,
           typename ODataType_,
           typename UnifiedAttentionShape_,
           typename FmhaMask_,
-          typename Traits_>
+          typename Traits_,
+          index_t MaxNumBlocks_ = -1>
 struct UnifiedAttentionPipelineProblem
 {
     // TODO kM0 and KN1??
@@ -41,6 +42,7 @@ struct UnifiedAttentionPipelineProblem
     using Traits                = remove_cvref_t<Traits_>;
     using FmhaMask              = remove_cvref_t<FmhaMask_>;
 
+    static constexpr index_t kMaxNumBlocks  = MaxNumBlocks_;
     static constexpr index_t kNumGemm0Warps = UnifiedAttentionShape::NumGemm0Warps;
     static constexpr index_t kNumGemm1Warps = UnifiedAttentionShape::NumGemm1Warps;
     static constexpr index_t kBlockSize     = UnifiedAttentionShape::NumWarps * get_warp_size();
