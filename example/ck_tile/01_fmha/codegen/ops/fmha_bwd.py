@@ -169,10 +169,21 @@ int fmha_bwd_dq_dk_dv_maxq_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>()
 }}
 
 template <>
-int fmha_bwd_dq_dk_dv_dq_acc_splits_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>(const fmha_bwd_traits& t)
+size_t fmha_bwd_dq_dk_dv_dq_ws_host_size_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>(int batch_size)
 {{
     using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
-    return k_::GetDqAccSplits(t.batch, t.nhead_q, t.max_seqlen_k);
+    return k_::GetWorkspaceHostSize(batch_size);
+}}
+
+template <>
+size_t fmha_bwd_dq_dk_dv_dq_prepare_ws_host_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>(
+    void* cpu_ws, ck_tile::index_t batch_size, ck_tile::index_t hdim_q,
+    ck_tile::index_t nhead_q, ck_tile::index_t seqlen_q, ck_tile::index_t seqlen_k,
+    const ck_tile::index_t* seqstart_qs, const ck_tile::index_t* seqstart_ks)
+{{
+    using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
+    return k_::PrepareWorkspaceHost(
+        cpu_ws, batch_size, hdim_q, nhead_q, seqlen_q, seqlen_k, seqstart_qs, seqstart_ks);
 }}
 
 template <>
@@ -197,9 +208,6 @@ FMHA_BWD_API = """
 fmha_bwd_launcher::fmha_bwd_launcher(const fmha_bwd_traits& t){{
     [[maybe_unused]] const std::string device_name = ck_tile::get_device_name();
 {F_launcher}
-    run = [](fmha_bwd_args, const ck_tile::stream_config&) {{ return -1.0f; }};
-    dq_acc_splits = 1;
-    needs_zero_dq_acc = false;
 }}
 
 
@@ -228,7 +236,7 @@ FMHA_BWD_API_INNER_DISPATCH_COMMON = """{F_if}((t.is_group_mode == {F_mode}) && 
         ({F_scheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.is_deterministic == {F_deterministic}){F_max_seq_q_cond}{F_cond_extra}) {{
     using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, ({F_dvpad} > 0)>;
     using dq_dk_dv_trait_ = fmha_bwd_dq_dk_dv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_dropout}, {F_bias}, {F_dbias}, {F_dpad}, {F_dvpad}, {F_deterministic}, {F_trload}, {F_maxq}, {F_bn0}>;
-    using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, ({F_dpad} > 0), {F_deterministic}, {F_convert_dq_bn0}>;
+    using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, ({F_dpad} > 0), {F_deterministic}>;
 """
 FMHA_BWD_API_INNER_DISPATCH_RUN = """
     r = fmha_bwd_<dot_do_o_trait_, dq_dk_dv_trait_, std::conditional_t<{F_convert_dq_enabled}, convert_dq_trait_, void>, {F_arch.tag}>(s, a);
@@ -236,11 +244,7 @@ FMHA_BWD_API_INNER_DISPATCH_RUN = """
 }}
 """
 FMHA_BWD_API_INNER_DISPATCH_LAUNCHER = """
-    run = [](fmha_bwd_args a, const ck_tile::stream_config& s) {{
-        return fmha_bwd_<dot_do_o_trait_, dq_dk_dv_trait_, std::conditional_t<{F_convert_dq_enabled}, convert_dq_trait_, void>, {F_arch.tag}>(s, a);
-    }};
-    dq_acc_splits = fmha_bwd_dq_dk_dv_dq_acc_splits_<dq_dk_dv_trait_, {F_arch.tag}>(t);
-    needs_zero_dq_acc = fmha_bwd_dq_dk_dv_needs_zero_dq_acc_<dq_dk_dv_trait_, {F_arch.tag}>();
+    this->init<dot_do_o_trait_, dq_dk_dv_trait_, std::conditional_t<{F_convert_dq_enabled}, convert_dq_trait_, void>, {F_arch.tag}>(t);
     return;
 }}
 """
@@ -650,7 +654,6 @@ using fmha_bwd_convert_dq_pipeline_problem_{F_idx} =
         typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::QGradDataType,
         /* BlockSize = */ 256,
         {F_bm0},
-        {F_bn0},
         {F_hdim},
         {F_mode},
         {F_deterministic},
@@ -667,8 +670,7 @@ using convert_dq_trait_{F_idx} = fmha_bwd_convert_dq_traits_<{F_hdim},
                                                              {F_mode},
                                                              {F_spad},
                                                              {F_dpad},
-                                                             {F_deterministic},
-                                                             {F_bn0}>;
+                                                             {F_deterministic}>;
 
 template <>
 float fmha_bwd_convert_dq_<convert_dq_trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_bwd_args a)
@@ -712,7 +714,6 @@ class FmhaBwdConvertQGradKernel:
     F_hdim: int  # hdim
     F_dtype: str  # data type
     F_bm0: int  # tile size along q seqlen (block size)
-    F_bn0: int  # tile size along k seqlen
     F_spad: str  # true/false
     F_dpad: str  #
     F_mode: str  # value from MODE_MAP
@@ -728,7 +729,6 @@ class FmhaBwdConvertQGradKernel:
             F_hdim=self.F_hdim,
             F_dtype=BWD_DTYPE_MAP[self.F_dtype],
             F_bm0=self.F_bm0,
-            F_bn0=self.F_bn0,
             F_spad=BOOL_MAP[self.F_spad],
             F_dpad=BOOL_MAP[self.F_dpad],
             F_mode=MODE_MAP[self.F_mode],
@@ -749,7 +749,7 @@ class FmhaBwdConvertQGradKernel:
             return n
 
         pn = pad_name()
-        n = f"fmha_bwd_convert_dq_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}x{self.F_bn0}_{self.F_mode}_o{self.F_occupancy}"
+        n = f"fmha_bwd_convert_dq_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}_{self.F_mode}_o{self.F_occupancy}"
         if pn != "":
             n += f"_{pn}"
         else:
@@ -845,10 +845,6 @@ class FmhaBwdApiTrait:
             return ""
 
     @property
-    def convert_dq_bn0(self) -> int:
-        return self.tile.F_bn0 if self.deterministic == "t" else 0
-
-    @property
     def dot_do_o_kernel(self) -> FmhaBwdOGradDotOKernel:
         # TODO: we don't support tuning yet, so pick up one value for pad/occupancy
         #       support this in future
@@ -902,7 +898,6 @@ class FmhaBwdApiTrait:
             F_hdim=self.hdim,
             F_dtype=self.dtype,
             F_bm0=M0_1D,
-            F_bn0=self.convert_dq_bn0,
             F_spad=self.spad1d,
             F_dpad=F_dpad,
             F_mode=self.mode,
@@ -955,7 +950,6 @@ class FmhaBwdApiPool:
                 F_max_seq_q_cond=trait.max_seq_q_cond,
                 F_cond_extra=trait.extra_cond,
                 F_bn0=trait.tile.F_bn0,
-                F_convert_dq_bn0=trait.convert_dq_bn0,
             )
             inners += inners_common + FMHA_BWD_API_INNER_DISPATCH_RUN.format(
                 F_arch=trait.arch,

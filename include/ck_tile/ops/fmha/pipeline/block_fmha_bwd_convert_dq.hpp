@@ -15,7 +15,6 @@ struct BlockFmhaBwdConvertQGrad
     using QGradDataType = remove_cvref_t<typename Problem::QGradDataType>;
 
     static constexpr index_t kM0 = Problem::kM0;
-    static constexpr index_t kN0 = Problem::kN0;
 
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
