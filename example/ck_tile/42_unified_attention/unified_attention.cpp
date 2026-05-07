@@ -71,7 +71,7 @@ static tile_tier select_tile_tier(const unified_attention_args& args)
     const index_t avg_q = args.num_seqs > 0 ? args.num_tokens / args.num_seqs : args.num_tokens;
     const index_t kBlockQ_tiny = 16 / args.num_queries_per_kv;
     const index_t kBlockQ_small = 64 / args.num_queries_per_kv;
-    const index_t kBlockQ_medium = 128 / args.num_queries_per_kv;
+    [[maybe_unused]] const index_t kBlockQ_medium = 128 / args.num_queries_per_kv;
 
     // Decode tiers use a 2D grid (num_kv_heads, num_seqs) that assumes each
     // seq has at most kBlockQ tokens. For mixed batches where some seqs have
