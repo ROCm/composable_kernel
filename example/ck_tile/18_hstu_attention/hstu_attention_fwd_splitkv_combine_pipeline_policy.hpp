@@ -26,22 +26,40 @@ struct HstuAttentionFwdSplitKVCombinePipelinePolicy
 
             constexpr index_t KPerThread = KVector;
 
-            // try to assign more consecutive threads on dim-K
-            constexpr index_t KThreads = OtherK;
+            if constexpr(OtherK < get_warp_size())
+            {
+                // try to assign more consecutive threads on dim-K
+                constexpr index_t KThreads = OtherK;
 
-            static_assert(KThreads <= get_warp_size(), "Check failed!");
+                constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
+                constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
 
-            constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
-            constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
+                                                     sequence<KThreads, KPerThread>>,
+                                               tuple<sequence<1>, sequence<1, 2>>,
+                                               tuple<sequence<1>, sequence<2, 0>>,
+                                               sequence<1, 2>,
+                                               sequence<0, 1>>{});
+            }
+            else
+            {
+                // all threads in the warp are assigned on dim-K
+                constexpr index_t KThreads      = get_warp_size();
+                constexpr index_t KRepPerThread = OtherK / KThreads;
 
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<MPerThread, NumWarps, MThreadPerWarp>,
-                                                 sequence<KThreads, KPerThread>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<1>, sequence<2, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<0, 1>>{});
+                constexpr index_t MPerThread = kMPerBlock / NumWarps;
+
+                return make_static_tile_distribution(
+                    tile_distribution_encoding<sequence<1>,
+                                               tuple<sequence<MPerThread, NumWarps>,
+                                                     sequence<KRepPerThread, KThreads, KPerThread>>,
+                                               tuple<sequence<1>, sequence<2>>,
+                                               tuple<sequence<1>, sequence<1>>,
+                                               sequence<1, 2, 2>,
+                                               sequence<0, 0, 2>>{});
+            };
         }
         else // for kKPerBlock=96,160
         {
