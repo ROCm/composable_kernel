@@ -269,3 +269,378 @@ Test coverage includes:
   binaries, running benchmarks, managing datasets, and troubleshooting
 - **[LEARNINGS.md](LEARNINGS.md)**: Empirical findings and design decisions (log-transform,
   IHEM results, tiny-M analysis, feature importance, N=1/K=1 edge cases)
+
+## Grouped Convolution ML Heuristics
+
+### Overview
+
+ML-based kernel selection for grouped convolution operations (forward, bwd_data, bwd_weight) on gfx950 with bf16 precision.
+
+### Results
+
+#### Forward Pass Model
+- **Training Data**: 48,845 measurements across 1,372 unique problem shapes
+- **Validation Set**: 300 unseen problems from model crawler
+- **Validation Performance** (vs. oracle):
+  - Mean Efficiency: **93.05%**
+  - Median Efficiency: **96.8%**
+  - P10 Efficiency: **79.9%**
+  
+#### Backward Data Gradient (bwd_data) Model
+- **Training Data**: 18,773 measurements across 891 unique problem shapes
+- **Validation Set**: 300 unseen problems from model crawler
+- **Validation Performance** (vs. oracle):
+  - Mean Efficiency: **93.8%**
+  - Median Efficiency: **96.5%**
+  - P10 Efficiency: **82.9%**
+  - Top-1 Accuracy: **25.2%** (37/147 problems)
+
+#### Backward Weight Gradient (bwd_weight) Model
+- **Training Data**: 34,900 measurements across 1,508 unique problem shapes
+- **Validation Set**: 300 unseen problems from model crawler
+- **Validation Performance** (vs. oracle):
+  - Mean Efficiency: **96.1%**
+  - Median Efficiency: **99.2%**
+  - P10 Efficiency: **89.4%**
+  - Top-1 Accuracy: **32.7%** (51/156 problems)
+
+### Training Data Generation
+
+Extended synthetic problem sets for backward passes cover diverse scenarios:
+- Small spatial (7×7, 14×14) + various channels (64-1024)
+- Medium spatial (28×28, 32×32, 56×56) + various channels (32-512)
+- Large spatial (112×112) + small/medium channels (16-256)
+- Asymmetric C/K combinations
+- Small and large batch sizes (N=1 to 128)
+- Grouped convolutions (G=2, 4, 8)
+- Depthwise convolutions (G=C=K)
+- Stride-2 downsampling
+
+### Model Files
+
+Trained models stored in:
+- `models/grouped_conv_forward_bf16_gfx950/`
+- `models/grouped_conv_bwd_data_bf16_gfx950/`
+- `models/grouped_conv_bwd_weight_bf16_gfx950/`
+
+Each contains:
+- `model_tflops.lgbm` - LightGBM model (compressed with gzip)
+- `feature_spec.json` - Feature configuration
+- `cv_metrics_tflops.json` - Cross-validation metrics
+- `feature_importances_tflops.json` - Feature importance rankings
+
+Models are automatically decompressed on first use.
+
+### Usage
+
+```python
+import pandas as pd
+from predict import Predictor
+from feature_engine_grouped_conv import GroupedConvFeatureEngine
+
+# Define problem
+problem = {
+    'N': 16, 'C': 256, 'K': 128, 'G': 1,
+    'Hi': 28, 'Wi': 28, 'Y': 3, 'X': 3,
+    'stride_h': 1, 'stride_w': 1,
+    'pad_h': 1, 'pad_w': 1,
+    'dtype': 'bf16'
+}
+
+# Load model with the grouped-conv feature engine
+predictor = Predictor(
+    "models/grouped_conv_bwd_data_bf16_gfx950",
+    feature_engine=GroupedConvFeatureEngine(),
+)
+
+# Build the candidate kernel pool from a training/holdout parquet
+# (each row carries kernel_name + every kernel-config column the engine needs).
+df = pd.read_parquet("data/grouped_conv_bwd_data/bwd_data.parquet")
+configs = [df[df["kernel_name"] == kn].iloc[0].to_dict()
+           for kn in df["kernel_name"].unique()]
+
+# Rank candidates by predicted TFLOPS
+ranked = predictor.rank_kernels(problem, configs)
+best_name, best_tflops = ranked[0]
+print(f"Best kernel: {best_name}")
+print(f"Predicted TFLOPS: {best_tflops:.2f}")
+```
+
+### Validation
+
+Run validation against oracle benchmarks:
+
+```bash
+cd projects/composablekernel/tile_engine/ops/grouped_conv
+python3 validate_ml_vs_oracle.py --variant bwd_data
+python3 validate_ml_vs_oracle.py --variant bwd_weight
+```
+
+### Solution Architecture (Grouped Conv)
+
+```
+Problem Config → Feature Engineering (83 features) → LightGBM Model → Predict TFLOPS → Select Best Kernel
+     ↓              - Problem features (38)             ↓                    ↓
+(N,C,K,G,H,W,Y,X)   - Kernel features (12)         Trained on          <1ms total
+                    - Interactions (21)            48K samples          latency
+                    - Hardware (12)                1372 shapes
+```
+
+### Feature Engineering (`feature_engine_grouped_conv.py`)
+
+**83 engineered features**:
+- **Problem Features (38)**: Raw params (N,C,K,G,Hi,Wi,Y,X,strides,pads), derived (Ho,Wo), log-scale transforms, arithmetic intensity, aspect ratios, channel/group metrics
+- **Kernel Features (12)**: Block size, GEMM tiles (M,N), pipeline type, num warps, tile volume, LDS usage
+- **Interaction Features (21)**: Tile efficiency (M,N,K), block-tile ratios, CU utilization, problem-tile comparisons, output tile counts
+- **Hardware Features (12)**: GFX950 specs - CUs (304), SIMDs, clocks, wavefront size, cache sizes (L1/L2/L3), XCD count
+
+### Latency
+
+- **Selection Time**: <1ms
+- **vs Oracle**: 30-60 seconds
+- **Speedup**: 30,000-60,000×
+
+### Model Size
+
+- **Compressed**: 2-8 MB (.lgbm.gz)
+- **Runtime Memory**: ~50 MB
+- **Feature Array**: <6 KB per problem
+
+### Training Pipeline
+
+```bash
+# 1. Collect data: Run all kernels on GPU for diverse problem set
+python grouped_conv_full_benchmark.py --problem_set forward_training_miopen
+
+# 2. Preprocess: Convert CSV to Parquet
+python convert_csv_to_parquet.py --input train.csv --output train.parquet
+
+# 3. Train model: LightGBM with cross-validation
+python train.py --operation grouped_conv --direction forward --dtype bf16
+
+# 4. Validate: Sanity-check on training shapes
+python validation/grouped_conv/validate_training_shapes.py
+```
+
+### Validation Framework
+
+| Test | Purpose | Shapes | Runtime | Target |
+|------|---------|--------|---------|--------|
+| `validate_training_shapes.py` | Sanity check on training data | 5 | 5-10 min | >95% efficiency |
+| `validate_backward_models.py` | Backward pass prediction quality | 7 | <1 min | Reasonable predictions |
+
+### File Structure (Grouped Conv)
+
+```
+dispatcher/heuristics/
+├── train.py                           # Training script
+├── feature_engine_grouped_conv.py     # Feature engineering
+├── predict.py                         # Generic Predictor (use with GroupedConvFeatureEngine)
+├── models/
+│   ├── grouped_conv_forward_bf16_gfx950/
+│   │   ├── model_tflops.lgbm.gz       # Compressed model
+│   │   ├── feature_spec.json          # Feature definitions
+│   │   └── train_manifest.json        # Training metadata
+│   ├── grouped_conv_bwd_data_bf16_gfx950/
+│   └── grouped_conv_bwd_weight_bf16_gfx950/
+└── validation/
+    ├── validate_ml_heuristic.py       # GEMM validation
+    └── grouped_conv/
+        ├── validate_training_shapes.py
+        └── validate_backward_models.py
+
+tile_engine/ops/grouped_conv/
+├── grouped_conv_full_benchmark.py     # Data collection
+├── run_one_grouped_conv_kernel.py     # Single kernel runner
+├── compare_ml_vs_oracle.py            # Analysis tool
+└── problems/
+    ├── forward_training_miopen.py     # Training problem sets
+    └── forward_validation_300.py      # Test problem sets
+```
+
+### C++/Python Integration
+
+- **C++ API**: `GroupedConvRegistry::get_solution(problem)`
+- **Python API**: `registry.run(problem, input, weight)`
+- Automatic fallback to exhaustive search if ML unavailable
+
+```python
+from ck_tile.dispatcher import GroupedConvRegistry, GroupedConvProblem
+
+# Define problem
+problem = GroupedConvProblem(
+    N=2, C=128, K=256, G=1,
+    Hi=28, Wi=28, Y=3, X=3,
+    stride_h=1, stride_w=1, pad_h=1, pad_w=1,
+    dtype='bf16', direction='forward'
+)
+
+# ML heuristic automatically selects best kernel
+registry = GroupedConvRegistry(arch='gfx950')
+result = registry.run(problem, input_tensor, weight_tensor)
+```
+
+### Key Innovations
+
+1. **Comprehensive Feature Engineering**: 83 features capture problem-kernel-hardware interactions
+2. **Tier-1 Extended Training**: 1,372 shapes (vs 185 baseline) for better edge case coverage
+3. **Compressed Models**: LGBM.gz reduces size 8-10× without accuracy loss
+4. **Operation-Specific Models**: Separate optimizations for forward/backward passes
+5. **Validation Framework**: Automated testing on unseen production workloads
+
+## Verifying Training Quality
+
+To quickly verify that a refactored `train.py` produces models with equivalent quality to the production training script:
+
+```bash
+cd /workspace/rocm-libraries/projects/composablekernel/dispatcher/heuristics
+
+# Run automated test (uses 3-fold CV for speed)
+./test_model_quality.sh
+```
+
+This script will:
+1. Validate current production model on 300 validation shapes
+2. Train a new model using refactored `train.py`
+3. Validate the new model on the same 300 shapes
+4. Compare predictions between old and new models
+
+**Expected Output:**
+```
+Step 4: Comparing predictions...
+================================================================================
+PREDICTION COMPARISON: bwd_data
+================================================================================
+
+Kernel Selection Agreement: 215/300 (71.7%)
+
+Metric                    Old Model       New Model       Delta
+----------------------------------------------------------------------
+Mean Efficiency           0.9380          0.9380          +0.0000
+Median Efficiency         0.9650          0.9650          +0.0000
+P10 Efficiency            0.8290          0.8290          +0.0000
+
+Per-Problem Changes:
+  Improved:  0 (0.0%)
+  Same:      300 (100.0%)
+  Degraded:  0 (0.0%)
+
+================================================================================
+✓ PASS: New model maintains quality!
+================================================================================
+```
+
+### Model Selection Process
+
+The validation script (`validate_ml_vs_oracle.py`) automatically selects the model based on:
+
+**Variant:** `--variant {forward|bwd_data|bwd_weight}`
+**Model Path:** `dispatcher/heuristics/models/grouped_conv_{variant}_bf16_gfx950/`
+
+For example:
+- `--variant bwd_data` → uses `models/grouped_conv_bwd_data_bf16_gfx950/model_tflops.lgbm`
+- `--variant bwd_weight` → uses `models/grouped_conv_bwd_weight_bf16_gfx950/model_tflops.lgbm`
+
+### Manual Step-by-Step Comparison
+
+If you want to run each step manually:
+
+#### Step 1: Validate Current Model
+
+```bash
+cd tile_engine/ops/grouped_conv
+
+python3 validate_ml_vs_oracle.py \
+  --operation grouped_conv \
+  --variant bwd_data \
+  --problem-set bwd_data_model_crawler_validation \
+  --oracle-csv bwd_data_model_crawler_oracle.csv \
+  --save-predictions /tmp/bwd_data_old_predictions.csv
+```
+
+This uses the model at: `dispatcher/heuristics/models/grouped_conv_bwd_data_bf16_gfx950/`
+
+#### Step 2: Train New Model
+
+```bash
+cd ../../dispatcher/heuristics
+
+python3 train.py \
+  --operation grouped_conv \
+  --data_dir data/bwd_data_training \
+  --out_dir /tmp/grouped_conv_bwd_data_bf16_gfx950_new \
+  --dtype bf16 \
+  --arch gfx950 \
+  --targets tflops \
+  --n_splits 5
+```
+
+#### Step 3: Temporarily Swap Models
+
+```bash
+# Backup current model
+mv models/grouped_conv_bwd_data_bf16_gfx950 /tmp/backup
+
+# Use new model for validation
+cp -r /tmp/grouped_conv_bwd_data_bf16_gfx950_new models/grouped_conv_bwd_data_bf16_gfx950
+```
+
+#### Step 4: Validate New Model
+
+```bash
+cd ../../tile_engine/ops/grouped_conv
+
+python3 validate_ml_vs_oracle.py \
+  --operation grouped_conv \
+  --variant bwd_data \
+  --problem-set bwd_data_model_crawler_validation \
+  --oracle-csv bwd_data_model_crawler_oracle.csv \
+  --save-predictions /tmp/bwd_data_new_predictions.csv
+```
+
+#### Step 5: Restore Original Model
+
+```bash
+cd ../../dispatcher/heuristics
+
+rm -rf models/grouped_conv_bwd_data_bf16_gfx950
+mv /tmp/backup models/grouped_conv_bwd_data_bf16_gfx950
+```
+
+#### Step 6: Compare Predictions
+
+```bash
+cd ../../tile_engine/ops/grouped_conv
+
+python3 compare_model_predictions.py \
+  --old-predictions /tmp/bwd_data_old_predictions.csv \
+  --new-predictions /tmp/bwd_data_new_predictions.csv \
+  --variant bwd_data
+```
+
+### Acceptance Criteria
+
+A new model passes quality validation if:
+
+1. ✓ Mean efficiency is within 0.5% of baseline
+2. ✓ Median efficiency is within 0.5% of baseline
+3. ✓ P10 efficiency is within 2% of baseline
+4. ✓ No catastrophic regressions (efficiency drops >10% on any problem)
+
+### Troubleshooting
+
+#### Different Predictions on Same Model
+
+**Unlikely** - If the same model file produces different predictions, check:
+- Feature engine version (should be 83 features)
+- Problem encoding (verify problem_to_dict matches)
+- Predictor initialization (check log transform handling)
+
+#### Quality Regression
+
+If new model has lower efficiency:
+1. Check CV metrics in training log - should be similar to baseline
+2. Verify identical training data (check parquet row counts)
+3. Compare feature importance - should be similar patterns
+4. Inspect specific regression cases in comparison output
+

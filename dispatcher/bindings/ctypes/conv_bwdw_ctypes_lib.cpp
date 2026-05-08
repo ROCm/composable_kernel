@@ -129,7 +129,22 @@ float conv_bwdw_run(const void* input_ptr,
         return -1.0f;
     if(!input_ptr || !grad_output_ptr || !grad_weight_ptr)
         return -1.0f; // Null data pointer would cause kernel crash
-    return run_bwd_weight_impl(input_ptr, grad_output_ptr, grad_weight_ptr, prob, stream);
+
+    try
+    {
+        return run_bwd_weight_impl(input_ptr, grad_output_ptr, grad_weight_ptr, prob, stream);
+    }
+    catch(const std::exception&)
+    {
+        // Kernel rejected args (e.g. unsupported tile/channel combo)
+        // -3.0f matches conv_ctypes_lib.cpp:316 convention
+        // -2.0f is reserved for "no kernel / not compiled for this direction"
+        return -3.0f;
+    }
+    catch(...)
+    {
+        return -3.0f;
+    }
 #else
     return -1.0f;
 #endif

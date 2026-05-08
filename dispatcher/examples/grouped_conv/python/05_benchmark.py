@@ -68,16 +68,19 @@ def main():
     print("\n--- Step 1: Declare Kernels ---")
     reg = GroupedConvRegistry("benchmark")
 
-    # Forward 2D: compv4, 128x128 tile
+    # All tiles satisfy: tile_m == wave_m * warp_tile_m  (TileGemmShape)
+    # Small problem-M handled by kPadM=True (default).
+
+    # Forward 2D: compv4, 64x128x64 tile (LDS 24 KiB <= 32 KiB compv4 limit)
     reg.add(
         GroupedConvKernelConfig(
             variant="forward",
             ndim_spatial=2,
             arch=args.arch,
             dtype=args.dtype,
-            tile_m=1,
+            tile_m=64,  # = wave_m(2) * warp_tile_m(32)
             tile_n=128,
-            tile_k=128,
+            tile_k=64,
             wave_m=2,
             wave_n=2,
             wave_k=1,
@@ -91,18 +94,19 @@ def main():
             vector_size_b=8,
             vector_size_c=8,
             block_per_cu=1,
+            double_smem_buffer=True,  # required by compv4 pipeline
         )
     )
-    # Forward 3D: compv3, 64x64 tile
+    # Forward 3D: compv3, 16x64x128 tile
     reg.add(
         GroupedConvKernelConfig(
             variant="forward",
             ndim_spatial=3,
             arch=args.arch,
             dtype=args.dtype,
-            tile_m=1,
+            tile_m=16,  # = wave_m(1) * warp_tile_m(16)
             tile_n=64,
-            tile_k=64,
+            tile_k=128,
             wave_m=1,
             wave_n=4,
             wave_k=1,
@@ -118,16 +122,16 @@ def main():
             block_per_cu=1,
         )
     )
-    # BwdData 2D: compv3, 128x128 tile
+    # BwdData 2D: compv3, 64x128x64 tile
     reg.add(
         GroupedConvKernelConfig(
             variant="bwd_data",
             ndim_spatial=2,
             arch=args.arch,
             dtype=args.dtype,
-            tile_m=1,
+            tile_m=64,  # = wave_m(2) * warp_tile_m(32)
             tile_n=128,
-            tile_k=128,
+            tile_k=64,
             wave_m=2,
             wave_n=2,
             wave_k=1,
@@ -143,16 +147,16 @@ def main():
             block_per_cu=1,
         )
     )
-    # BwdWeight 2D: compv3, 128x128 tile
+    # BwdWeight 2D: compv3, 64x128x64 tile
     reg.add(
         GroupedConvKernelConfig(
             variant="bwd_weight",
             ndim_spatial=2,
             arch=args.arch,
             dtype=args.dtype,
-            tile_m=1,
+            tile_m=64,  # = wave_m(2) * warp_tile_m(32)
             tile_n=128,
-            tile_k=128,
+            tile_k=64,
             wave_m=2,
             wave_n=2,
             wave_k=1,

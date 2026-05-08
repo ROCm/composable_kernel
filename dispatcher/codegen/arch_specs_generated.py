@@ -1,11 +1,10 @@
-# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
 """
 AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
 
 Generated from: arch_specs.json
-Generated at: 2026-01-05T19:34:01.224422
+Generated at: 2026-04-10T20:07:11.665064
 
 To update this file:
 1. Edit arch_specs.json
@@ -50,7 +49,7 @@ WARP_SUPPORTED_COMBINATIONS: Dict[str, List[List[int]]] = {
     "gfx908": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
     "gfx90a": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
     "gfx942": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
-    "gfx950": [[1, 4, 1], [2, 2, 1], [4, 1, 1]],
+    "gfx950": [[1, 4, 1], [2, 2, 1], [4, 1, 1], [8, 2, 1], [4, 4, 1]],
     "gfx1100": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1]],
     "gfx1200": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1]],
     "gfx1201": [[2, 4, 1], [1, 8, 1], [8, 1, 1], [4, 2, 1]],
@@ -226,6 +225,8 @@ PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]
             [32, 32, 16],
             [16, 16, 32],
             [64, 4, 16],
+            [32, 32, 32],
+            [16, 16, 64],
         ],
         "bf16_bf16_fp32": [
             [32, 32, 8],
@@ -233,6 +234,8 @@ PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS: Dict[str, Dict[str, List[List[int]]
             [32, 32, 16],
             [16, 16, 32],
             [64, 4, 16],
+            [32, 32, 32],
+            [16, 16, 64],
         ],
         "fp8_fp8_fp32": [
             [32, 32, 16],
