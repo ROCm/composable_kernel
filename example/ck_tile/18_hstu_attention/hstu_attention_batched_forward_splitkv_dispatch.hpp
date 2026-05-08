@@ -236,7 +236,7 @@ struct batched_forward_splitkv_causal_softmax_bias_dropout_dispatch
                                               param.hdim_v,
                                               param.num_splits,
                                               has_minfull_attn_seqlen);
-        constexpr dim3 kBlockSize              = HstuKernel::BlockSize();
+        dim3 kBlockSize                        = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;
 
         (void)ck_tile::launch_kernel(
@@ -260,8 +260,8 @@ struct batched_forward_splitkv_causal_softmax_bias_dropout_dispatch
                                          param.hdim_v);
         }();
 
-        dim3 kGridSize = HstuKernel::GridSize(param.num_batch, param.num_head, param.seqlen_q);
-        constexpr dim3 kBlockSize              = HstuKernel::BlockSize();
+        dim3 kGridSize  = HstuKernel::GridSize(param.num_batch, param.num_head, param.seqlen_q);
+        dim3 kBlockSize = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;
 
         (void)ck_tile::launch_kernel(

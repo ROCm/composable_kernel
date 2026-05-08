@@ -159,7 +159,7 @@ struct group_forward_causal_softmax_bias_dropout_dispatch
 
         dim3 kGridSize =
             HstuKernel::GridSize(param.num_batch, param.num_head, param.max_seqlen_q, param.hdim_v);
-        constexpr dim3 kBlockSize              = HstuKernel::BlockSize();
+        dim3 kBlockSize                        = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;
 
         (void)ck_tile::launch_kernel(
