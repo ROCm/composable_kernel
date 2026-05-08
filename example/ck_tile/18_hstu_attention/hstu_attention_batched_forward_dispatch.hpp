@@ -173,7 +173,7 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
         bool has_minfull_attn_seqlen = (param.min_full_attn_seqlen > 0);
         dim3 kGridSize               = HstuKernel::GridSize(
             param.num_batch, param.num_head, param.seqlen_q, param.hdim_v, has_minfull_attn_seqlen);
-        constexpr dim3 kBlockSize              = HstuKernel::BlockSize();
+        dim3 kBlockSize                        = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;
 
         (void)ck_tile::launch_kernel(ck_tile::stream_config{stream, false},
