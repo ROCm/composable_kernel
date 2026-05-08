@@ -71,6 +71,7 @@ set(GTEST_CXX_FLAGS
      -Wno-lifetime-safety-intra-tu-suggestions
      -Wno-lifetime-safety-cross-tu-suggestions
      -Wno-character-conversion
+     -Wno-lifetime-safety-invalidation
 )
 
 if(WIN32)
@@ -78,7 +79,8 @@ if(WIN32)
             -Wno-suggest-destructor-override
             -Wno-suggest-override
             -Wno-nonportable-system-include-path
-            -Wno-language-extension-token)
+            -Wno-language-extension-token
+            -Wno-lifetime-safety-invalidation)
 endif()
 
 target_compile_options(gtest PRIVATE ${GTEST_CXX_FLAGS})

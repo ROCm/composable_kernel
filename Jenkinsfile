@@ -2120,9 +2120,11 @@ pipeline {
                 }
                 success {
                     script {
-                        // Report the parent stage build ck and run tests status
-                        setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
-                        echo "Reporting success status for build ck and run tests"
+                        node(rocmnode("nogpu")) {
+                            // Report the parent stage build ck and run tests status
+                            setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
+                            echo "Reporting success status for build ck and run tests"
+                        }
                     }
                 }
             }
@@ -2146,9 +2148,11 @@ pipeline {
             post {
                 success {
                     script {
-                        // Report the skipped parent's stage status
-                        setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
-                        echo "Process Performance Test Results stage skipped."
+                        node(rocmnode("nogpu")) {
+                            // Report the skipped parent's stage status
+                            setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
+                            echo "Process Performance Test Results stage skipped."
+                        }
                     }
                 }
             }

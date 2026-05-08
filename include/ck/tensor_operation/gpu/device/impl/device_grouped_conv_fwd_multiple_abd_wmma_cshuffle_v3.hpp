@@ -34,6 +34,8 @@
 #include "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_wmma_cshuffle_v3.hpp"
 #endif
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -2381,3 +2383,4 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
 #ifdef CK_EXPERIMENTAL_BUILDER
 #include "ck_tile/builder/reflect/reflect_device_grouped_conv_fwd_multiple_abd_wmma_cshuffle_v3.inc"
 #endif
+#pragma clang diagnostic pop

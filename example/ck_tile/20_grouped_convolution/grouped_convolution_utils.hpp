@@ -15,6 +15,9 @@
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "conv_configs.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
+
 template <typename InDataType, typename WeiDataType, typename AccDataType, typename OutDataType>
 auto calculate_rtol_atol(const ck_tile::index_t GemmK,
                          const ck_tile::index_t kbatch,
@@ -144,3 +147,4 @@ struct InvokerResult
     float ave_time;
     ck_tile::index_t split_k;
 };
+#pragma clang diagnostic pop
