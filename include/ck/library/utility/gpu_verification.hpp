@@ -18,6 +18,8 @@
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/library/utility/check_err.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 namespace profiler {
 
@@ -517,3 +519,4 @@ float gpu_reduce_max(Iterator device_buffer, std::size_t size, hipStream_t strea
 
 } // namespace profiler
 } // namespace ck
+#pragma clang diagnostic pop

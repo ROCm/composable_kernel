@@ -9,6 +9,8 @@
 #include <thread>
 #include <string>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck_tile {
 
 enum class naive_attention_layout_enum
@@ -824,3 +826,4 @@ CK_TILE_HOST float naive_attention_fwd(naive_attention_fwd_traits t,
 #undef CK_TILE_DISPATCH_NAIVE_ATTEN_FWD_INTERNAL_
 
 } // namespace ck_tile
+#pragma clang diagnostic pop

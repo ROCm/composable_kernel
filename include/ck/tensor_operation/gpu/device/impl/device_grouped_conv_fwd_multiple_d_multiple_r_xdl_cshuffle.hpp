@@ -24,6 +24,8 @@
 #include "ck/host_utility/io.hpp"
 #include "ck/library/utility/numeric.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -1141,3 +1143,4 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#pragma clang diagnostic pop

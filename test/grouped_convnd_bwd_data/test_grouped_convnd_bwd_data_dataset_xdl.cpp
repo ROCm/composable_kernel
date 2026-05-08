@@ -13,6 +13,8 @@
 
 using namespace ck::tensor_layout::convolution; // Import tensor layout names (GNHWK, GKYXC, etc.)
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
 // Load CSV data for 2D tests
 static std::vector<ck::utils::conv::ConvParam> Get2DTestCases()
 {
@@ -315,3 +317,4 @@ TEST_P(TestGroupedConvndBwdData3dNDHWGKBFloat16SplitK2, ConvTest)
 INSTANTIATE_TEST_SUITE_P(Dataset,
                          TestGroupedConvndBwdData3dNDHWGKBFloat16SplitK2,
                          ::testing::ValuesIn(Get3DTestCases()));
+#pragma clang diagnostic pop

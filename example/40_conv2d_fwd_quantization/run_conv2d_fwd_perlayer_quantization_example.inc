@@ -132,10 +132,7 @@ bool run_grouped_conv_fwd(bool do_verification,
 
         ref_invoker.Run(ref_argument);
 
-        out_host.ForEach([&](auto&, auto idx)
-        {
-            out_element_op(out_host(idx), c_host(idx));
-        });
+        out_host.ForEach([&](auto&, auto idx) { out_element_op(out_host(idx), c_host(idx)); });
 
         out_device_buf.FromDevice(out_device.mData.data());
 
