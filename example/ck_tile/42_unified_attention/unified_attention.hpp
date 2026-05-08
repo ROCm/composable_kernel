@@ -22,8 +22,19 @@ struct unified_attention_args
 
     data_type_enum data_type;
     // bool is_varlen;
-    index_t mask_type; // should be 0 for no mask; or 2 for causal mask (window_size_left < 0 and
-                       // window_size_right == 0).
+    index_t mask_type; // 0 = no mask; 1 = causal top-left; 2 = causal bottom-right.
+                       // Combined with window_size_left/right below to express SWA.
+
+    // Sliding-window-attention (SWA) parameters. They follow FA's convention:
+    //   window_size_left  <  0 : unbounded on the left  (causal-equivalent lower edge)
+    //   window_size_left  >= 0 : explicit left window size
+    //   window_size_right <  0 : unbounded on the right
+    //   window_size_right >= 0 : explicit right window size
+    // The familiar bottom-right causal corresponds to (left=-1, right=0, is_top_left=false).
+    // Dense SWA (e.g. xformers' window_size=N) is (left=N/2, right=N-1-N/2).
+    index_t window_size_left  = -1;
+    index_t window_size_right = -1;
+    bool    is_top_left       = false;
 
     index_t num_tokens; // total number of tokens in query
     index_t num_blks;

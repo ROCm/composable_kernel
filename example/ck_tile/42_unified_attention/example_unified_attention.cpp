@@ -375,6 +375,22 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.mask_type          = static_cast<int>(problem.mask.type);
     args.hdim               = problem.hdim;
 
+    // SWA / causal window plumbing. mask_info stores left/right exactly as the user
+    // passed them on the CLI ("-1" = unbounded on that side), and the kernel uses
+    // (left=-1, right=0, is_top_left=false) for classical bottom-right causal.
+    if(problem.mask.type == mask_enum::no_mask)
+    {
+        args.window_size_left  = -1;
+        args.window_size_right = -1;
+        args.is_top_left       = false;
+    }
+    else
+    {
+        args.window_size_left  = problem.mask.left;
+        args.window_size_right = problem.mask.right;
+        args.is_top_left       = (problem.mask.type == mask_enum::mask_top_left);
+    }
+
     args.num_blks = problem.num_blks;
 
     args.q_ptr          = q_buf.GetDeviceBuffer();

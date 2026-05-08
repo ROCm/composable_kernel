@@ -61,17 +61,20 @@ struct unified_attention_problem_traits<unified_attention_args::data_type_enum::
     using lse_dtype  = float;
 };
 
-// Parameterized kernel traits: DataType, IsMasking, HeadSize, BlockM, NumQueriesPerKV, BlockSize
+// Parameterized kernel traits: DataType, IsMasking, HeadSize, BlockM, NumQueriesPerKV, BlockSize, IsLocal
+// IsLocal=true selects the sliding-window-aware mask (and kernel iteration clipping).
 template <unified_attention_args::data_type_enum DataType,
           bool IsMasking,
           index_t HeadSize_     = 128,
           index_t BlockM_       = 256,
           index_t NumQPerKV_    = 1,
-          index_t BlockSize_    = (HeadSize_ <= 64) ? 64 : 32>
+          index_t BlockSize_    = (HeadSize_ <= 64) ? 64 : 32,
+          bool IsLocal_         = false>
 struct unified_attention_kernel_traits
 {
     static constexpr auto date_type  = DataType;
     static constexpr bool is_masking = IsMasking;
+    static constexpr bool is_local   = IsLocal_;
 
     static constexpr index_t kBlockM    = BlockM_;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
@@ -100,7 +103,7 @@ struct unified_attention_kernel_traits
                                                                 -1     // kBlockPerCu
                                                                 >;
 
-    using unified_attention_mask = GenericAttentionMask<IsMasking, /*IsLocal=*/false>;
+    using unified_attention_mask = GenericAttentionMask<IsMasking, IsLocal_>;
 
     using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
         typename unified_attention_problem_traits<date_type>::qkvp_dtype,
@@ -137,11 +140,13 @@ template <unified_attention_args::data_type_enum DataType,
           index_t HeadSize_  = 128,
           index_t BlockM_    = 128,
           index_t NumQPerKV_ = 1,
-          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32>
+          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32,
+          bool IsLocal_      = false>
 struct unified_attention_decode_kernel_traits
 {
     static constexpr auto date_type  = DataType;
     static constexpr bool is_masking = IsMasking;
+    static constexpr bool is_local   = IsLocal_;
 
     static constexpr index_t kBlockM    = BlockM_;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
@@ -164,7 +169,7 @@ struct unified_attention_decode_kernel_traits
                                                               true>;
 
     using unified_attention_traits = TileUnifiedAttentionTraits<true, false, -1>;
-    using unified_attention_mask   = GenericAttentionMask<IsMasking, false>;
+    using unified_attention_mask   = GenericAttentionMask<IsMasking, IsLocal_>;
 
     using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
         typename unified_attention_problem_traits<date_type>::qkvp_dtype,
@@ -198,11 +203,13 @@ template <unified_attention_args::data_type_enum DataType,
           index_t HeadSize_  = 64,
           index_t BlockM_    = 64,
           index_t NumQPerKV_ = 8,
-          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32>
+          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32,
+          bool IsLocal_      = false>
 struct unified_attention_decode_small_kernel_traits
 {
     static constexpr auto date_type  = DataType;
     static constexpr bool is_masking = IsMasking;
+    static constexpr bool is_local   = IsLocal_;
 
     static constexpr index_t kBlockM    = BlockM_;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
@@ -224,7 +231,7 @@ struct unified_attention_decode_small_kernel_traits
                                                               true>;
 
     using unified_attention_traits = TileUnifiedAttentionTraits<true, false, -1>;
-    using unified_attention_mask   = GenericAttentionMask<IsMasking, false>;
+    using unified_attention_mask   = GenericAttentionMask<IsMasking, IsLocal_>;
 
     using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
         typename unified_attention_problem_traits<date_type>::qkvp_dtype,
@@ -261,11 +268,13 @@ template <unified_attention_args::data_type_enum DataType,
           index_t HeadSize_  = 64,
           index_t BlockM_    = 16,
           index_t NumQPerKV_ = 8,
-          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32>
+          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32,
+          bool IsLocal_      = false>
 struct unified_attention_decode_tiny_kernel_traits
 {
     static constexpr auto date_type  = DataType;
     static constexpr bool is_masking = IsMasking;
+    static constexpr bool is_local   = IsLocal_;
 
     static constexpr index_t kBlockM    = BlockM_;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
@@ -287,7 +296,7 @@ struct unified_attention_decode_tiny_kernel_traits
                                                               true>;
 
     using unified_attention_traits = TileUnifiedAttentionTraits<true, false, -1>;
-    using unified_attention_mask   = GenericAttentionMask<IsMasking, false>;
+    using unified_attention_mask   = GenericAttentionMask<IsMasking, IsLocal_>;
 
     using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
         typename unified_attention_problem_traits<date_type>::qkvp_dtype,
@@ -324,11 +333,13 @@ template <unified_attention_args::data_type_enum DataType,
           index_t HeadSize_  = 64,
           index_t BlockM_    = 32,
           index_t NumQPerKV_ = 8,
-          index_t BlockSize_ = 32>
+          index_t BlockSize_ = 32,
+          bool IsLocal_      = false>
 struct unified_attention_decode_bs32_kernel_traits
 {
     static constexpr auto date_type  = DataType;
     static constexpr bool is_masking = IsMasking;
+    static constexpr bool is_local   = IsLocal_;
 
     static constexpr index_t kBlockM    = BlockM_;
     static constexpr index_t HEAD_SIZE  = HeadSize_;
@@ -349,7 +360,7 @@ struct unified_attention_decode_bs32_kernel_traits
                                                               true>;
 
     using unified_attention_traits = TileUnifiedAttentionTraits<true, false, -1>;
-    using unified_attention_mask   = GenericAttentionMask<IsMasking, false>;
+    using unified_attention_mask   = GenericAttentionMask<IsMasking, IsLocal_>;
 
     using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
         typename unified_attention_problem_traits<date_type>::qkvp_dtype,
@@ -414,7 +425,10 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
                                    args.block_table_stride,
                                    args.seq_lens_ptr,
                                    args.query_start_len_ptr,
-                                   args.num_seqs);
+                                   args.num_seqs,
+                                   args.window_size_left,
+                                   args.window_size_right,
+                                   args.is_top_left);
 
     dim3 grids;
     if constexpr(UseDecodeGrid)

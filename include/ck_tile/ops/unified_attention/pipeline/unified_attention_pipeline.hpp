@@ -360,8 +360,22 @@ struct UnifiedAttentionPipeline
         const ck_tile::index_t* block_tables_ptr_ =
             reinterpret_cast<const ck_tile::index_t*>(block_tables_ptr);
         assert(k_block_idx == v_block_idx); // because of the following line
-        block_table_offset += num_blocks_start;
-        index_t kv_blk_idx_initial = block_tables_ptr_[block_table_offset + k_block_idx];
+        // num_blocks_start is in kPageBlockSize sub-block units, but block_table_offset
+        // (and block_tables_ptr) are in PageSize-page units. Convert correctly so that
+        // a sub-block-aligned start position lands on the right page AND the right
+        // sub-block within that page. This matters for SWA (tile_lo > 0) and for
+        // split-KV when kv_page_size_in_blocks > 1.
+        const index_t page_advance         = num_blocks_start / kv_page_size_in_blocks;
+        const index_t init_sub_block_offset = num_blocks_start % kv_page_size_in_blocks;
+        block_table_offset += page_advance;
+        // k_block_idx counts sub-blocks relative to the first iterated page. Starting it
+        // at init_sub_block_offset lets the existing K_mem_load math (k_block_idx /
+        // kv_page_size_in_blocks for the page index, k_block_idx % kv_page_size_in_blocks
+        // for the within-page sub-block) keep working unchanged.
+        k_block_idx = init_sub_block_offset;
+        v_block_idx = init_sub_block_offset;
+        index_t kv_blk_idx_initial =
+            block_tables_ptr_[block_table_offset + (k_block_idx / kv_page_size_in_blocks)];
 
         // When row strides are provided, use pointer rebasing to avoid int32 overflow
         // in tensor_coordinate::get_offset() for large KV pools (>131K blocks for d64/GQA-8).
@@ -376,16 +390,25 @@ struct UnifiedAttentionPipeline
         auto* k_base_ptr = k_view.buf_.p_data_;
         auto* v_base_ptr = v_view.buf_.p_data_;
 
+        // Within-page byte offset (in K/V rows) for the very first iterated sub-block.
+        // Non-zero whenever num_blocks_start is not a multiple of kv_page_size_in_blocks.
+        const index_t initial_intra_page_row_offset =
+            init_sub_block_offset * kPageBlockSize;
+
         if(use_ptr_rebase)
         {
             long_index_t k_off =
-                static_cast<long_index_t>(kv_blk_idx_initial) * PageSize * k_row_stride;
+                (static_cast<long_index_t>(kv_blk_idx_initial) * PageSize +
+                 static_cast<long_index_t>(initial_intra_page_row_offset)) *
+                k_row_stride;
             k_view.buf_.p_data_ = k_base_ptr + k_off;
             auto new_k = k_view.buf_.buffer_size_ - k_off;
             k_view.buf_.buffer_size_ = new_k > 0 ? new_k : kPageBlockSize * kHeadDim;
 
             long_index_t v_off =
-                static_cast<long_index_t>(kv_blk_idx_initial) * PageSize * v_row_stride;
+                (static_cast<long_index_t>(kv_blk_idx_initial) * PageSize +
+                 static_cast<long_index_t>(initial_intra_page_row_offset)) *
+                v_row_stride;
             v_view.buf_.p_data_ = v_base_ptr + v_off;
             auto new_v = v_view.buf_.buffer_size_ - v_off;
             v_view.buf_.buffer_size_ = new_v > 0 ? new_v : kPageBlockSize * kHeadDim;
@@ -397,7 +420,10 @@ struct UnifiedAttentionPipeline
             v_view = v_dram_block_window_tmp.get_bottom_tensor_view();
         }
 
-        const index_t init_origin = use_ptr_rebase ? 0 : kv_blk_idx_initial * PageSize;
+        const index_t init_origin = use_ptr_rebase
+                                        ? 0
+                                        : kv_blk_idx_initial * PageSize +
+                                              initial_intra_page_row_offset;
 
         auto k_dram_window =
             make_tile_window(k_view,
@@ -1147,11 +1173,20 @@ struct UnifiedAttentionPipeline
             }
         }
     label_main_loops_exit:
-        if(num_total_loop % 2)
+        // Post-process must consume the *last iteration's* sp/V buffer slot. Pre-stage
+        // always writes to slot 0; the main loop alternates 1, 0, 1, ... So the last
+        // written slot is determined by the number of iterations actually executed
+        // (= num_total_loop - num_blocks_start), not by num_total_loop alone. Keying
+        // on num_total_loop matches when num_blocks_start is even but reads
+        // uninitialised sp(1)/V[1] when it is odd, which silently corrupts o_acc.
+        // This previously only mattered for split-KV with an odd split boundary; SWA
+        // exposes it whenever the per-Q-tile lower-bound clip is odd.
+        const index_t num_iters = num_total_loop - num_blocks_start;
+        if(num_iters % 2)
         {
             fmha_post_process(number<1>{});
         }
-        if(!(num_total_loop % 2))
+        if(!(num_iters % 2))
         {
             fmha_post_process(number<0>{});
         }

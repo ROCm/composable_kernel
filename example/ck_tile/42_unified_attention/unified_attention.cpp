@@ -26,6 +26,14 @@ std::ostream& operator<<(std::ostream& stream,
         return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
     }
 
+// SWA-aware variant: requires explicit BlockSize (since IsLocal is the 7th template arg).
+// HeadSize<=64 -> BlockSize=64; HeadSize=128 -> BlockSize=32. Caller must supply.
+#define DISPATCH_UNIFIED_ATTENTION_LOCAL(DType, HSize, BM, NQPKV, BSize) \
+    { \
+        using kernel_traits = unified_attention_kernel_traits<DType, /*IsMasking=*/true, HSize, BM, NQPKV, BSize, /*IsLocal=*/true>; \
+        return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
+    }
+
 // Dispatch macros for three tile tiers (default block_size).
 #define DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(DType, IsMask, HSize, BM, NQPKV) \
     { \
@@ -91,20 +99,31 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
                                          const stream_config& config)
 {
     const bool is_mask = (args.mask_type != static_cast<int>(mask_enum::no_mask));
-    const auto tier = select_tile_tier(args);
+    // SWA is only when masking AND at least one window edge is finite. Causal
+    // (left=-1, right=0) keeps is_local=false and uses the existing instances.
+    const bool is_local =
+        is_mask && (args.window_size_left >= 0 || args.window_size_right >= 0);
+    auto tier = select_tile_tier(args);
+    // For now SWA instances only exist at the large prefill tier (the dispatcher's
+    // final `else` branch — 8 warps, kBlockM=256). Forcing the largest tier for
+    // SWA keeps dispatch correct without proliferating instance combinations;
+    // perf for SWA-on-decode-shapes can be revisited later.
+    if(is_local) tier = tile_tier::large;
 
     // d128, MHA (num_queries_per_kv == 1)
     if(args.hdim == 128 && args.num_queries_per_kv == 1)
     {
         if(args.data_type == unified_attention_args::data_type_enum::fp16)
         {
-            if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, false, 128, 256, 1)
-            else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, true,  128, 256, 1)
+            if(!is_mask)       DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, false, 128, 256, 1)
+            else if(is_local)  DISPATCH_UNIFIED_ATTENTION_LOCAL(unified_attention_args::data_type_enum::fp16,         128, 256, 1, 32)
+            else               DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, true,  128, 256, 1)
         }
         else if(args.data_type == unified_attention_args::data_type_enum::bf16)
         {
-            if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, false, 128, 256, 1)
-            else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, true,  128, 256, 1)
+            if(!is_mask)       DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, false, 128, 256, 1)
+            else if(is_local)  DISPATCH_UNIFIED_ATTENTION_LOCAL(unified_attention_args::data_type_enum::bf16,         128, 256, 1, 32)
+            else               DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, true,  128, 256, 1)
         }
     }
 
@@ -194,13 +213,15 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
             // No bs32 variant -- NumIssues < 1 for 8-warp tier with block_size=32.
             if(args.data_type == unified_attention_args::data_type_enum::fp16)
             {
-                if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, false, 64, 256, 8)
-                else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, true,  64, 256, 8)
+                if(!is_mask)      DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, false, 64, 256, 8)
+                else if(is_local) DISPATCH_UNIFIED_ATTENTION_LOCAL(unified_attention_args::data_type_enum::fp16,         64, 256, 8, 64)
+                else              DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, true,  64, 256, 8)
             }
             else if(args.data_type == unified_attention_args::data_type_enum::bf16)
             {
-                if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, false, 64, 256, 8)
-                else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, true,  64, 256, 8)
+                if(!is_mask)      DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, false, 64, 256, 8)
+                else if(is_local) DISPATCH_UNIFIED_ATTENTION_LOCAL(unified_attention_args::data_type_enum::bf16,         64, 256, 8, 64)
+                else              DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, true,  64, 256, 8)
             }
         }
     }
@@ -217,6 +238,7 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_TINY
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM
+#undef DISPATCH_UNIFIED_ATTENTION_LOCAL
 #undef DISPATCH_UNIFIED_ATTENTION
 
 } // namespace ck_tile

@@ -205,6 +205,7 @@ list(APPEND EXAMPLE_UNIFIED_ATTENTION_COMPILE_OPTIONS
   -fgpu-flush-denormals-to-zero
   -Wno-undefined-func-template
   --save-temps
+  -Wno-gnu-line-marker
 )
 set(EXAMPLE_UNIFIED_ATTENTION_COMPILE_DEFINITIONS)
 
