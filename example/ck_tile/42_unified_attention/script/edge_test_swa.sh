@@ -5,10 +5,11 @@
 #   - window=1 (every Q row attends to its own K position only)
 #   - window > seq_k with right=0 (degenerates to plain causal)
 #   - explicit b:0,0 (alternative spelling of diagonal-only)
-#   - decode shapes (q=1, kv>>1) — exercises the SWA path on a single-token Q
-#     (today this is dispatched to the large-tier kernel via the
-#     `if(is_local) tier = tile_tier::large` hack; correctness should hold even
-#     though it's wasteful)
+#   - decode shapes (q=1, kv>>1) — exercises the SWA path on a single-token Q.
+#     For page_blk_size>=64 (Edge 4) we route to the large-tier kernel, which is
+#     wasteful but correct. For page_blk_size==32 (Edge 5) we route to the
+#     decode-tier IsLocal=true instances added in Phase 5 — that's the GPT-OSS
+#     production path.
 #
 # Same convention as smoke_test_swa.sh: every test must pass, exit code is the
 # number of failures.
@@ -35,6 +36,15 @@ BASELINE_B="-d=64  -h_k=1 -nqpkv=8 -b=4 -s=512 -s_k=512 -query_lens=400,256,512,
 DECODE_A="-d=128 -h_k=8 -nqpkv=1 -b=4 -s=1 -s_k=512 -query_lens=1,1,1,1 -kv_lens=512,512,512,512"
 DECODE_B="-d=64  -h_k=1 -nqpkv=8 -b=4 -s=1 -s_k=512 -query_lens=1,1,1,1 -kv_lens=512,512,512,512"
 
+# Decode + page_blk_size=32 fixtures for d=64 GQA-8. These exercise the NEW
+# decode-tier IsLocal=true instances added in Phase 5:
+#   - DECODE_BS32_Q1 (q=1)            → tiny+bs32 local (kBlockM=32, kBlockQ=4)
+#   - DECODE_BS32_QM (q in [256,1024]) → medium+bs32 local (kBlockM=128, kBlockQ=16)
+# Use the GPT-OSS-shaped window (left=127, right=0) to mirror the production
+# workload that motivated Phase 5.
+DECODE_BS32_Q1="-d=64 -h_k=1 -nqpkv=8 -b=4 -s=1 -s_k=512 -query_lens=1,1,1,1 -kv_lens=512,512,512,512"
+DECODE_BS32_QM="-d=64 -h_k=1 -nqpkv=8 -b=2 -s=1024 -s_k=1024 -query_lens=1024,512 -kv_lens=1024,512"
+
 TESTS=(
     # Edge 1: window=1 — diagonal-only attention. Smallest non-zero window.
     #         xb:1 decodes to left=0, right=0 via window/2 split.
@@ -55,8 +65,17 @@ TESTS=(
     # Edge 4: decode shapes (single-token query). The SWA mask trims the K range
     #         to a 64-wide window at the bottom-right corner of the (1, 512)
     #         attention matrix, so most of the kv tail is masked out.
-    "decode q=1 d128 xb:64|$DECODE_A -mask=xb:64"
-    "decode q=1 d64  xb:64|$DECODE_B -mask=xb:64"
+    "decode q=1 d128 xb:64    |$DECODE_A -mask=xb:64"
+    "decode q=1 d64  xb:64    |$DECODE_B -mask=xb:64"
+
+    # Edge 5 (Phase 5): GPT-OSS-shaped d64 GQA-8 SWA on page_blk_size=32. These
+    # MUST hit the new decode-tier IsLocal=true instances; if a regression takes
+    # them back to the bs64-only fallback they fail with "no matching kernel
+    # instance" or wrong numerics.
+    "decode q=1 d64 bs32 b:127,0    |$DECODE_BS32_Q1 -page_blk_size=32 -mask=b:127,0"
+    "decode q=1 d64 bs32 xb:128     |$DECODE_BS32_Q1 -page_blk_size=32 -mask=xb:128"
+    "shortpf  d64 bs32 b:127,0      |$DECODE_BS32_QM -page_blk_size=32 -mask=b:127,0"
+    "shortpf  d64 bs32 xb:128       |$DECODE_BS32_QM -page_blk_size=32 -mask=xb:128"
 )
 
 n_pass=0
@@ -66,7 +85,7 @@ for entry in "${TESTS[@]}"; do
     name="${entry%%|*}"
     args="${entry#*|}"
 
-    printf '== %-26s :: %s\n' "$name" "$args"
+    printf '== %-32s :: %s\n' "$name" "$args"
     set +e
     "$EXE" $COMMON $args > /tmp/swa_edge_out.$$ 2>&1
     ret=$?
