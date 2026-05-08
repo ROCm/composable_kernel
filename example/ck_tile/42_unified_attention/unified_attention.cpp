@@ -64,24 +64,43 @@ std::ostream& operator<<(std::ostream& stream,
         return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
     }
 
-// Small-cache variants (7th template arg = MaxNumBlocks for compile-time overflow elimination).
-// For d64/GQA-8/bs32: overflow threshold = 2^31 / (32 * 64) = 1,048,575 blocks.
-// Set MaxNumBlocks = 100,000 (conservative, safe for ~98K blocks) to guarantee no overflow.
+// Small-cache variants (7th template arg = CachePtrInt32OverflowPossible=false).
+// For small caches (<100K blocks), we can guarantee no int32 overflow, so compile-time eliminate overflow checks.
 #define DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32_SMALL_CACHE(DType, IsMask, HSize, BM, NQPKV) \
     { \
-        using kernel_traits = unified_attention_decode_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32, 100000>; \
+        using kernel_traits = unified_attention_decode_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32, false>; \
         return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
     }
 
 #define DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_SMALL_CACHE(DType, IsMask, HSize, BM, NQPKV) \
     { \
-        using kernel_traits = unified_attention_decode_small_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32, 100000>; \
+        using kernel_traits = unified_attention_decode_small_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32, false>; \
         return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
     }
 
 #define DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW_SMALL_CACHE(DType, IsMask, HSize, BM, NQPKV) \
     { \
-        using kernel_traits = unified_attention_decode_bs32_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32, 100000>; \
+        using kernel_traits = unified_attention_decode_bs32_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32, false>; \
+        return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
+    }
+
+// Large-cache variants (7th template arg = CachePtrInt32OverflowPossible=true).
+// For large caches (>=100K blocks), enable runtime overflow checking with pointer rebasing.
+#define DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32_LARGE_CACHE(DType, IsMask, HSize, BM, NQPKV) \
+    { \
+        using kernel_traits = unified_attention_decode_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32, true>; \
+        return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
+    }
+
+#define DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_LARGE_CACHE(DType, IsMask, HSize, BM, NQPKV) \
+    { \
+        using kernel_traits = unified_attention_decode_small_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32, true>; \
+        return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
+    }
+
+#define DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW_LARGE_CACHE(DType, IsMask, HSize, BM, NQPKV) \
+    { \
+        using kernel_traits = unified_attention_decode_bs32_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32, true>; \
         return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
     }
 
@@ -108,26 +127,14 @@ static tile_tier select_tile_tier(const unified_attention_args& args)
     return tile_tier::medium;
 }
 
-// Select between small-cache (compile-time overflow elimination) and large-cache variants.
-// For d64/bs32: overflow threshold = 2^31 / (32 * 64) = 1,048,575 blocks
-// We use 100,000 as the small-cache limit (conservative, safe for ~98K blocks)
-static bool use_small_cache_variant(const unified_attention_args& args)
-{
-    // Only optimize for d64 with block_size < 64 (bs32 variants)
-    if(args.hdim != 64 || args.page_blk_size >= 64)
-        return false;
-
-    // Conservative threshold: 100,000 blocks (~98K)
-    // This guarantees no int32 overflow for d64/bs32
-    constexpr index_t kSmallCacheThreshold = 100000;
-    return args.num_blks <= kSmallCacheThreshold;
-}
 
 std::pair<bool, float> unified_attention(const unified_attention_args& args,
                                          const stream_config& config)
 {
     const bool is_mask = (args.mask_type != static_cast<int>(mask_enum::no_mask));
     const auto tier = select_tile_tier(args);
+    // Python calculates overflow possibility and passes it directly
+    const bool use_small_cache = !args.cache_ptr_int32_overflow_possible;
 
     // d128, MHA (num_queries_per_kv == 1)
     if(args.hdim == 128 && args.num_queries_per_kv == 1)
@@ -148,7 +155,6 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
     if(args.hdim == 64 && args.num_queries_per_kv == 8)
     {
         const bool use_bs32 = (args.page_blk_size < 64);
-        const bool use_small_cache = use_small_cache_variant(args);
 
         if(tier == tile_tier::tiny)
         {
@@ -157,13 +163,23 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
                 // Avoids 1-warp race condition; 2x less waste than small tier.
                 if(args.data_type == unified_attention_args::data_type_enum::fp16)
                 {
-                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW(unified_attention_args::data_type_enum::fp16, false, 64, 32, 8)
-                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW(unified_attention_args::data_type_enum::fp16, true,  64, 32, 8)
+                    if(use_small_cache) {
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW_SMALL_CACHE(unified_attention_args::data_type_enum::fp16, false, 64, 32, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW_SMALL_CACHE(unified_attention_args::data_type_enum::fp16, true,  64, 32, 8)
+                    } else {
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW_LARGE_CACHE(unified_attention_args::data_type_enum::fp16, false, 64, 32, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW_LARGE_CACHE(unified_attention_args::data_type_enum::fp16, true,  64, 32, 8)
+                    }
                 }
                 else if(args.data_type == unified_attention_args::data_type_enum::bf16)
                 {
-                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW(unified_attention_args::data_type_enum::bf16, false, 64, 32, 8)
-                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW(unified_attention_args::data_type_enum::bf16, true,  64, 32, 8)
+                    if(use_small_cache) {
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW_SMALL_CACHE(unified_attention_args::data_type_enum::bf16, false, 64, 32, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW_SMALL_CACHE(unified_attention_args::data_type_enum::bf16, true,  64, 32, 8)
+                    } else {
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW_LARGE_CACHE(unified_attention_args::data_type_enum::bf16, false, 64, 32, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW_LARGE_CACHE(unified_attention_args::data_type_enum::bf16, true,  64, 32, 8)
+                    }
                 }
             } else {
                 // bs64 tiny: 1 warp, 16x16 MFMA, kBlockM=16, kBlockQ=2.
@@ -184,8 +200,13 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
             if(args.data_type == unified_attention_args::data_type_enum::fp16)
             {
                 if(use_bs32) {
-                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(unified_attention_args::data_type_enum::fp16, false, 64, 64, 8)
-                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(unified_attention_args::data_type_enum::fp16, true,  64, 64, 8)
+                    if(use_small_cache) {
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_SMALL_CACHE(unified_attention_args::data_type_enum::fp16, false, 64, 64, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_SMALL_CACHE(unified_attention_args::data_type_enum::fp16, true,  64, 64, 8)
+                    } else {
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_LARGE_CACHE(unified_attention_args::data_type_enum::fp16, false, 64, 64, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_LARGE_CACHE(unified_attention_args::data_type_enum::fp16, true,  64, 64, 8)
+                    }
                 } else {
                     if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::fp16, false, 64, 64, 8)
                     else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::fp16, true,  64, 64, 8)
@@ -198,8 +219,8 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
                         if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_SMALL_CACHE(unified_attention_args::data_type_enum::bf16, false, 64, 64, 8)
                         else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_SMALL_CACHE(unified_attention_args::data_type_enum::bf16, true,  64, 64, 8)
                     } else {
-                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(unified_attention_args::data_type_enum::bf16, false, 64, 64, 8)
-                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(unified_attention_args::data_type_enum::bf16, true,  64, 64, 8)
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_LARGE_CACHE(unified_attention_args::data_type_enum::bf16, false, 64, 64, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32_LARGE_CACHE(unified_attention_args::data_type_enum::bf16, true,  64, 64, 8)
                     }
                 } else {
                     if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(unified_attention_args::data_type_enum::bf16, false, 64, 64, 8)
@@ -212,8 +233,13 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
             if(args.data_type == unified_attention_args::data_type_enum::fp16)
             {
                 if(use_bs32) {
-                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(unified_attention_args::data_type_enum::fp16, false, 64, 128, 8)
-                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(unified_attention_args::data_type_enum::fp16, true,  64, 128, 8)
+                    if(use_small_cache) {
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32_SMALL_CACHE(unified_attention_args::data_type_enum::fp16, false, 64, 128, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32_SMALL_CACHE(unified_attention_args::data_type_enum::fp16, true,  64, 128, 8)
+                    } else {
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32_LARGE_CACHE(unified_attention_args::data_type_enum::fp16, false, 64, 128, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32_LARGE_CACHE(unified_attention_args::data_type_enum::fp16, true,  64, 128, 8)
+                    }
                 } else {
                     if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(unified_attention_args::data_type_enum::fp16, false, 64, 128, 8)
                     else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(unified_attention_args::data_type_enum::fp16, true,  64, 128, 8)
@@ -222,8 +248,13 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
             else if(args.data_type == unified_attention_args::data_type_enum::bf16)
             {
                 if(use_bs32) {
-                    if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(unified_attention_args::data_type_enum::bf16, false, 64, 128, 8)
-                    else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(unified_attention_args::data_type_enum::bf16, true,  64, 128, 8)
+                    if(use_small_cache) {
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32_SMALL_CACHE(unified_attention_args::data_type_enum::bf16, false, 64, 128, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32_SMALL_CACHE(unified_attention_args::data_type_enum::bf16, true,  64, 128, 8)
+                    } else {
+                        if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32_LARGE_CACHE(unified_attention_args::data_type_enum::bf16, false, 64, 128, 8)
+                        else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32_LARGE_CACHE(unified_attention_args::data_type_enum::bf16, true,  64, 128, 8)
+                    }
                 } else {
                     if(!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(unified_attention_args::data_type_enum::bf16, false, 64, 128, 8)
                     else         DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM(unified_attention_args::data_type_enum::bf16, true,  64, 128, 8)

@@ -7,7 +7,7 @@
 namespace ck_tile {
 
 using kernel_traits =
-    unified_attention_decode_kernel_traits<unified_attention_args::data_type_enum::bf16, true, 64, 128, 8, 32>;
+    unified_attention_decode_kernel_traits<unified_attention_args::data_type_enum::bf16, true, 64, 128, 8, 32, true>;  // Large cache: overflow checks enabled
 
 INST_UNIFIED_ATTENTION_DISPATCH(kernel_traits)
 

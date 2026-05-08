@@ -20,7 +20,7 @@ template <typename QDataType_,
           typename UnifiedAttentionShape_,
           typename FmhaMask_,
           typename Traits_,
-          index_t MaxNumBlocks_ = -1>
+          bool CachePtrInt32OverflowPossible_ = false>  // TODO: Default false = no overflow expected
 struct UnifiedAttentionPipelineProblem
 {
     // TODO kM0 and KN1??
@@ -42,10 +42,12 @@ struct UnifiedAttentionPipelineProblem
     using Traits                = remove_cvref_t<Traits_>;
     using FmhaMask              = remove_cvref_t<FmhaMask_>;
 
-    static constexpr index_t kMaxNumBlocks  = MaxNumBlocks_;
     static constexpr index_t kNumGemm0Warps = UnifiedAttentionShape::NumGemm0Warps;
     static constexpr index_t kNumGemm1Warps = UnifiedAttentionShape::NumGemm1Warps;
     static constexpr index_t kBlockSize     = UnifiedAttentionShape::NumWarps * get_warp_size();
+
+    // TODO: Overflow check flag - controls whether to check for int32 overflow in loop
+    static constexpr bool kCachePtrInt32OverflowPossible = CachePtrInt32OverflowPossible_;
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;

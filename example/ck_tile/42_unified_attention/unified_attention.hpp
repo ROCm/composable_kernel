@@ -67,6 +67,8 @@ struct unified_attention_args
 
     index_t num_seqs; // number of batches for q
     index_t max_seqlen_q = 0; // max query length across all batches (0 = unknown)
+
+    bool cache_ptr_int32_overflow_possible = false; // true = use large cache variant with overflow checks
 };
 
 std::ostream& operator<<(std::ostream& stream,

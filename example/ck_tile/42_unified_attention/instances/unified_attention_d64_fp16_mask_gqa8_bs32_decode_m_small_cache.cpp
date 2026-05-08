@@ -6,8 +6,9 @@
 
 namespace ck_tile {
 
+// Medium-tier small-cache optimized variant: MaxNumBlocks=false (zero rebasing overhead)
 using kernel_traits =
-    unified_attention_decode_kernel_traits<unified_attention_args::data_type_enum::bf16, false, 64, 128, 8, 32, true>;  // Large cache: overflow checks enabled
+    unified_attention_decode_kernel_traits<unified_attention_args::data_type_enum::fp16, true, 64, 128, 8, 32, false>;
 
 INST_UNIFIED_ATTENTION_DISPATCH(kernel_traits)
 
