@@ -99,16 +99,32 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
                                          const stream_config& config)
 {
     const bool is_mask = (args.mask_type != static_cast<int>(mask_enum::no_mask));
-    // SWA is only when masking AND at least one window edge is finite. Causal
-    // (left=-1, right=0) keeps is_local=false and uses the existing instances.
+    // Real SWA = "at least one non-trivial window edge". Plain causal lives at
+    // (left=-1, right=0); without this guard it would hit the IsLocal=true path
+    // and fail for shape tiers where we have not (yet) instantiated local kernels.
+    //   left  >= 0   : finite look-back  (e.g. causal SWA, dense SWA, diagonal-only)
+    //   right >  0   : finite look-ahead (bidirectional SWA, anti-causal SWA)
+    // Note "right >= 0" would mis-classify plain causal (right=0) as SWA.
     const bool is_local =
-        is_mask && (args.window_size_left >= 0 || args.window_size_right >= 0);
+        is_mask && (args.window_size_left >= 0 || args.window_size_right > 0);
     auto tier = select_tile_tier(args);
-    // For now SWA instances only exist at the large prefill tier (the dispatcher's
-    // final `else` branch — 8 warps, kBlockM=256). Forcing the largest tier for
-    // SWA keeps dispatch correct without proliferating instance combinations;
-    // perf for SWA-on-decode-shapes can be revisited later.
-    if(is_local) tier = tile_tier::large;
+    // SWA instances currently only exist at the large prefill tier (kBlockM=256,
+    // 8 warps). Each requires args.page_blk_size >= kBlockN of the instance —
+    // otherwise the kernel hits a device-side `kv_page_size_in_blocks >= 1`
+    // assertion. When SWA is requested on an unsupported (shape, page_blk_size)
+    // pair we return {false, 0} so the caller (e.g. _try_ck_unified_attention)
+    // can fall back to a backend that handles it (Triton). Falling through to
+    // the IsLocal=false path would silently ignore window_size_left and produce
+    // wrong outputs, so we reject explicitly.
+    if(is_local)
+    {
+        const bool d128_mha   = (args.hdim == 128 && args.num_queries_per_kv == 1);
+        const bool d64_gqa8   = (args.hdim == 64  && args.num_queries_per_kv == 8);
+        const index_t kBN_req = d128_mha ? 32 : (d64_gqa8 ? 64 : 0);
+        if(kBN_req == 0 || args.page_blk_size < kBN_req)
+            return {false, 0.f};
+        tier = tile_tier::large;
+    }
 
     // d128, MHA (num_queries_per_kv == 1)
     if(args.hdim == 128 && args.num_queries_per_kv == 1)

@@ -1,20 +1,15 @@
 #!/bin/bash
-# smoke_test_swa.sh - RED tests for Sliding Window Attention (SWA)
-# in the CK-tile unified attention kernel.
+# smoke_test_swa.sh - Sliding Window Attention (SWA) smoke tests for the
+# CK-tile unified attention kernel.
 #
-# Each test entry is "EXPECT|EXTRA_ARGS" where EXPECT is GREEN or RED.
-#   GREEN: the test must currently pass; failing it is a regression.
-#   RED:   the test must currently fail; passing it means SWA support landed
-#          and the test should be moved to GREEN.
+# Each test entry is "NAME|EXTRA_ARGS"; every test must pass against the host
+# reference. Failure exit code is the number of failed tests.
 #
 # Run with:
 #   ./smoke_test_swa.sh
-#
-# Exit code is the number of unexpected outcomes (0 = all matched expectation).
 
 set -uo pipefail
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 EXE_NAME=tile_example_unified_attention
 EXE="${EXE:-$(find . -name $EXE_NAME -type f | head -n 1)}"
 if [ -z "${EXE:-}" ] || [ ! -x "$EXE" ]; then
@@ -34,67 +29,48 @@ BASELINE_A="-d=128 -h_k=8 -nqpkv=1 -b=4 -s=512 -s_k=512 -query_lens=128,128,128,
 BASELINE_B="-d=64  -h_k=1 -nqpkv=8 -b=4 -s=512 -s_k=512 -query_lens=400,256,512,128 -kv_lens=400,256,512,128"
 
 TESTS=(
-    # Causal regression guards (must pass).
-    "GREEN|baseA causal     |$BASELINE_A -mask=b"
-    "GREEN|baseB causal     |$BASELINE_B -mask=b"
+    # Causal regression guards.
+    "baseA causal     |$BASELINE_A -mask=b"
+    "baseB causal     |$BASELINE_B -mask=b"
 
-    # SWA via xformer-style window: kernel is now expected to honor the SWA
-    # window on both axes (per-pixel mask + KV-block iteration clip).
-    "GREEN|baseA xb:64      |$BASELINE_A -mask=xb:64"
-    "GREEN|baseA xb:128     |$BASELINE_A -mask=xb:128"
-    "GREEN|baseB xb:64      |$BASELINE_B -mask=xb:64"
-    "GREEN|baseB xb:128     |$BASELINE_B -mask=xb:128"
+    # SWA via xformer-style window: per-pixel mask + KV-block iteration clip.
+    "baseA xb:64      |$BASELINE_A -mask=xb:64"
+    "baseA xb:128     |$BASELINE_A -mask=xb:128"
+    "baseB xb:64      |$BASELINE_B -mask=xb:64"
+    "baseB xb:128     |$BASELINE_B -mask=xb:128"
 
     # SWA via FA-style explicit left/right window.
-    "GREEN|baseA b:64,0     |$BASELINE_A -mask=b:64,0"
-    "GREEN|baseB b:64,0     |$BASELINE_B -mask=b:64,0"
+    "baseA b:64,0     |$BASELINE_A -mask=b:64,0"
+    "baseB b:64,0     |$BASELINE_B -mask=b:64,0"
 )
 
-n_green_pass=0
-n_green_fail=0   # regressions
-n_red_pass=0    # unexpected SWA passes (move to GREEN)
-n_red_fail=0    # expected RED
+n_pass=0
+n_fail=0
 
 for entry in "${TESTS[@]}"; do
-    expect="${entry%%|*}"
-    expect="${expect// /}"
-    rest="${entry#*|}"
-    name="${rest%%|*}"
-    args="${rest#*|}"
+    name="${entry%%|*}"
+    args="${entry#*|}"
 
-    printf '== [%-5s] %-22s :: %s\n' "$expect" "$name" "$args"
+    printf '== %-22s :: %s\n' "$name" "$args"
     set +e
     "$EXE" $COMMON $args > /tmp/swa_test_out.$$ 2>&1
     ret=$?
     set -e
 
-    if [ "$expect" = "GREEN" ]; then
-        if [ $ret -eq 0 ]; then
-            echo "   PASS (as expected)"
-            n_green_pass=$((n_green_pass + 1))
-        else
-            echo "   REGRESSION: expected GREEN but failed (rc=$ret). Tail of output:"
-            tail -3 /tmp/swa_test_out.$$ | sed 's/^/      /'
-            n_green_fail=$((n_green_fail + 1))
-        fi
+    if [ $ret -eq 0 ]; then
+        echo "   PASS"
+        n_pass=$((n_pass + 1))
     else
-        if [ $ret -ne 0 ]; then
-            echo "   FAIL (RED, as expected)"
-            n_red_fail=$((n_red_fail + 1))
-        else
-            echo "   UNEXPECTED PASS: SWA support may have landed. Move this test to GREEN."
-            n_red_pass=$((n_red_pass + 1))
-        fi
+        echo "   FAIL (rc=$ret). Tail of output:"
+        tail -3 /tmp/swa_test_out.$$ | sed 's/^/      /'
+        n_fail=$((n_fail + 1))
     fi
     rm -f /tmp/swa_test_out.$$
 done
 
 echo
 echo "Summary:"
-printf '  GREEN passed (good)              : %d\n' $n_green_pass
-printf '  GREEN failed (REGRESSION)        : %d\n' $n_green_fail
-printf '  RED   failed (expected today)    : %d\n' $n_red_fail
-printf '  RED   passed (flip to GREEN now) : %d\n' $n_red_pass
+printf '  passed : %d\n' $n_pass
+printf '  failed : %d\n' $n_fail
 
-# Exit code = number of unexpected outcomes.
-exit $((n_green_fail + n_red_pass))
+exit $n_fail
