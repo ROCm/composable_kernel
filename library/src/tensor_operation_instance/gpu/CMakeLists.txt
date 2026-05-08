@@ -133,6 +133,14 @@ function(add_instance_library INSTANCE_NAME)
 
     endforeach()
 
+    #set the target filters
+    set(UNSUPPORTED_TARGETS "gfx900;gfx906;gfx906:xnack-;gfx90c")
+    set(NON_XDL_TARGETS ${UNSUPPORTED_TARGETS} gfx1030 gfx1031 gfx1032 gfx1033 gfx1034 gfx1035 gfx1036 gfx10-3-generic)
+    set(NON_WMMA_TARGETS ${NON_XDL_TARGETS} gfx908 gfx90a gfx942 gfx950 gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack-)
+    set(NON_MHA_TARGETS ${NON_XDL_TARGETS} gfx908:xnack- gfx908:xnack+ gfx908 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx1200 gfx1201 gfx11-generic gfx12-generic)
+    set(NON_MX_TARGETS ${NON_XDL_TARGETS} gfx908:xnack- gfx908:xnack+ gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx1200 gfx1201 gfx11-generic gfx12-generic)
+    set(NON_F8_TARGETS ${NON_XDL_TARGETS} gfx908:xnack- gfx908:xnack+ gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx11-generic)
+
     message(DEBUG "remaining instances: ${ARGN}")
     #only continue if there are some source files left on the list
     if(ARGN)
@@ -142,25 +150,25 @@ function(add_instance_library INSTANCE_NAME)
 
             set(INST_TARGETS ${SUPPORTED_GPU_TARGETS})
             if(source_name MATCHES "_xdl")
-                list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx1030 gfx10-3-generic)
+                list(REMOVE_ITEM INST_TARGETS ${NON_XDL_TARGETS})
             elseif(source_name MATCHES "_wmma")
-                list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack+ gfx908:xnack- gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx950)
+                list(REMOVE_ITEM INST_TARGETS ${NON_WMMA_TARGETS})
             elseif(source_name MATCHES "mha")
-                list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack- gfx908:xnack+ gfx908 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
+                list(REMOVE_ITEM INST_TARGETS ${NON_MHA_TARGETS})
             endif()
 
             if(source_name MATCHES "_mx")
-                list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack- gfx908:xnack+ gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx942 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx1200 gfx1201 gfx10-3-generic gfx11-generic gfx12-generic)
+                list(REMOVE_ITEM INST_TARGETS ${NON_MX_TARGETS})
             endif()
 
             #only build the fp8 gemm instances for gfx90a if the build argument is set, otherwise only build for gfx942/gfx950 and gfx1200/gfx1201
             if(NOT CK_USE_FP8_ON_UNSUPPORTED_ARCH)
                 if(source_name MATCHES "gemm_xdl_universal|gemm_multiply_multiply|gemm_universal_preshuffle|gemm_blockscale" AND source_name MATCHES "_f8_")
-                    list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack- gfx908:xnack+ gfx90a:xnack+ gfx90a:xnack- gfx908 gfx90a gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx10-3-generic gfx11-generic)
+                    list(REMOVE_ITEM INST_TARGETS ${NON_F8_TARGETS})
                 endif()
             else()
                 if(source_name MATCHES "gemm_xdl_universal|gemm_multiply_multiply|gemm_universal_preshuffle|gemm_blockscale" AND source_name MATCHES "_f8_")
-                    list(REMOVE_ITEM INST_TARGETS gfx900 gfx906 gfx906:xnack- gfx908:xnack- gfx908:xnack+ gfx908 gfx1030 gfx1100 gfx1101 gfx1102 gfx1103 gfx1150 gfx1151 gfx1152 gfx1153 gfx10-3-generic gfx11-generic)
+                    list(REMOVE_ITEM INST_TARGETS ${NON_F8_TARGETS})
                 endif()
             endif()
             if(source_name MATCHES "gemm_wmma_universal" AND source_name MATCHES "f8")
