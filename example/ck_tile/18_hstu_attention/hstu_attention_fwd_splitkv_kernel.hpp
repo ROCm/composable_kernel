@@ -625,7 +625,17 @@ struct HstuAttentionFwdSplitKVKernel
         return ck_tile::make_tuple(my_seqlen_k_start, my_seqlen_k_end);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        if(is_wave32())
+        {
+            // it looks get_warp_size() always return 64 when called from host, so
+            // halfing is needed to get actual BlockSize
+            return dim3(kBlockSize / get_warp_size() * 32);
+        }
+        else
+            return dim3(kBlockSize);
+    }
 
     CK_TILE_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
