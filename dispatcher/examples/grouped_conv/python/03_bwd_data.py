@@ -80,16 +80,17 @@ def main():
     print("\n--- Step 1: Declare BwdData Kernels ---")
     reg = GroupedConvRegistry("bwd_data_conv")
 
-    # BwdData 2D: compv3, 128x128 tile
+    # BwdData 2D: compv3, 64x128x64 tile, wave 2x2x1, warp 32x32x16
+    # Constraint: tile_m == wave_m * warp_tile_m  (small M handled by kPadM=True)
     reg.add(
         GroupedConvKernelConfig(
             variant="bwd_data",
             ndim_spatial=2,
             arch=arch,
             dtype=args.dtype,
-            tile_m=1,
+            tile_m=64,  # = wave_m(2) * warp_tile_m(32)
             tile_n=128,
-            tile_k=128,
+            tile_k=64,
             wave_m=2,
             wave_n=2,
             wave_k=1,
@@ -105,16 +106,16 @@ def main():
             block_per_cu=1,
         )
     )
-    # BwdData 3D: compv3, 64x64 tile
+    # BwdData 3D: compv3, 16x64x128 tile
     reg.add(
         GroupedConvKernelConfig(
             variant="bwd_data",
             ndim_spatial=3,
             arch=arch,
             dtype=args.dtype,
-            tile_m=1,
+            tile_m=16,  # = wave_m(1) * warp_tile_m(16)
             tile_n=64,
-            tile_k=64,
+            tile_k=128,
             wave_m=1,
             wave_n=4,
             wave_k=1,

@@ -55,17 +55,21 @@ def main():
     print("\n--- Step 1: Declare Kernels + Build Registry ---")
     reg = GroupedConvRegistry("conv_tiles")
 
+    # All tiles satisfy: tile_m == wave_m * warp_tile_m  (TileGemmShape)
+    # Small problem-M handled by kPadM=True (default).
+
+    # Large tile: 128x128x64, wave 4x4x1, warp 32x32x16, compv3
     reg.add(
         GroupedConvKernelConfig(
             variant="forward",
             ndim_spatial=2,
             arch=arch,
             dtype=args.dtype,
-            tile_m=1,
-            tile_n=256,
-            tile_k=256,
-            wave_m=2,
-            wave_n=2,
+            tile_m=128,  # = wave_m(4) * warp_tile_m(32)
+            tile_n=128,
+            tile_k=64,
+            wave_m=4,
+            wave_n=4,
             wave_k=1,
             warp_tile_m=32,
             warp_tile_n=32,
@@ -81,15 +85,16 @@ def main():
             num_groups_to_merge=1,
         )
     )
+    # Medium tile: 64x128x64, wave 2x2x1, warp 32x32x16, compv4 (LDS 24 KiB <= 32 KiB)
     reg.add(
         GroupedConvKernelConfig(
             variant="forward",
             ndim_spatial=2,
             arch=arch,
             dtype=args.dtype,
-            tile_m=1,
+            tile_m=64,  # = wave_m(2) * warp_tile_m(32)
             tile_n=128,
-            tile_k=128,
+            tile_k=64,
             wave_m=2,
             wave_n=2,
             wave_k=1,
@@ -105,17 +110,19 @@ def main():
             block_per_cu=1,
             num_wave_groups=1,
             num_groups_to_merge=1,
+            double_smem_buffer=True,  # required by compv4 pipeline
         )
     )
+    # Small tile: 16x64x128, wave 1x4x1, warp 16x16x32, compv3
     reg.add(
         GroupedConvKernelConfig(
             variant="forward",
             ndim_spatial=2,
             arch=arch,
             dtype=args.dtype,
-            tile_m=1,
+            tile_m=16,  # = wave_m(1) * warp_tile_m(16)
             tile_n=64,
-            tile_k=64,
+            tile_k=128,
             wave_m=1,
             wave_n=4,
             wave_k=1,
@@ -217,15 +224,16 @@ def main():
             ndim_spatial=2,
             arch=arch,
             dtype=args.dtype,
-            tile_m=1,
+            tile_m=64,  # = wave_m(2) * warp_tile_m(32); LDS 24 KiB <= compv4 32 KiB
             tile_n=128,
-            tile_k=128,
+            tile_k=64,
             wave_m=2,
             wave_n=2,
             wave_k=1,
             warp_tile_m=32,
             warp_tile_n=32,
             warp_tile_k=16,
+            double_smem_buffer=True,  # required by compv4 pipeline
             pipeline="compv4",
             scheduler="intrawave",
             epilogue="cshuffle",

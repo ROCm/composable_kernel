@@ -7,11 +7,16 @@ Training script for CK Tile kernel performance prediction.
 
 Trains LGBMRegressor models (TFLOPS, latency, bandwidth) with:
   - Log-space regression (log1p transform) for scale-invariant accuracy
-  - GroupKFold cross-validation (group key = (M, N, K))
+  - GroupKFold cross-validation (operation-specific group keys)
   - Iterative Hard Example Mining (IHEM)
   - Model complexity bounds for C++ deployability
   - Optional Optuna hyperparameter tuning
   - Warm-start incremental training from a previous model via --warm_start
+
+Supports multiple operation types:
+  - gemm_universal: GEMM operations (group by M, N, K)
+  - grouped_conv: Grouped convolution (group by problem config)
+  - fmha: Fused multi-head attention (future)
 
 Log-transform rationale:
   GEMM TFLOPS spans 5 orders of magnitude (0.02 for M=1 to 2230 for large
@@ -32,13 +37,25 @@ import pandas as pd
 from sklearn.model_selection import GroupKFold
 
 from data_pipeline import build_training_dataset
-from feature_engine import GemmUniversalFeatureEngine
 
 
+# Operation-specific target column mappings
 TARGET_COLUMNS = {
-    "tflops": "measured_tflops",
-    "latency": "latency_ms",
-    "bandwidth": "bandwidth_gb_s",
+    "gemm_universal": {
+        "tflops": "measured_tflops",
+        "latency": "latency_ms",
+        "bandwidth": "bandwidth_gb_s",
+    },
+    "grouped_conv": {
+        "tflops": "tflops",
+        "latency": "latency_ms",
+        "bandwidth": "bandwidth_gb_s",
+    },
+    "fmha": {
+        "tflops": "tflops",
+        "latency": "latency_ms",
+        "bandwidth": "bandwidth_gb_s",
+    },
 }
 
 # Targets where log1p transform is applied by default.
@@ -66,15 +83,38 @@ MAX_ESTIMATORS = 5000
 WARM_START_N_ESTIMATORS = 500
 
 
+def get_feature_engine(operation: str, **hw_kwargs):
+    """Get the appropriate feature engine for the operation type."""
+    if operation == "gemm_universal":
+        from feature_engine import GemmUniversalFeatureEngine
+
+        return GemmUniversalFeatureEngine(**hw_kwargs)
+    elif operation == "grouped_conv":
+        from feature_engine_grouped_conv import GroupedConvFeatureEngine
+
+        return GroupedConvFeatureEngine(**hw_kwargs)
+    elif operation == "fmha":
+        raise NotImplementedError("FMHA feature engine not yet implemented")
+    else:
+        raise ValueError(f"Unknown operation type: {operation}")
+
+
 def check_feature_compatibility(
     prev_model_dir: Path,
-    feature_engine: GemmUniversalFeatureEngine,
+    feature_engine,
 ) -> None:
     """Verify that the previous model's feature spec matches the current engine.
 
     Raises ValueError with a detailed message on mismatch. This prevents silent
     corruption when warm-starting from a model trained with a different feature
     schema (e.g., after adding a new feature or changing an encoding).
+
+    Parameters
+    ----------
+    prev_model_dir : Path
+        Directory containing the previous model
+    feature_engine : FeatureEngine
+        Current feature engine instance (any operation type)
     """
     spec_path = prev_model_dir / "feature_spec.json"
     if not spec_path.exists():
@@ -138,35 +178,107 @@ def load_warm_start_model(prev_model_dir: Path, target: str) -> str | None:
     return str(model_path)
 
 
-def compute_group_keys(df: pd.DataFrame) -> np.ndarray:
-    """Create GroupKFold group keys from (M, N, K)."""
-    return (
-        df["m"].astype(str) + "_" + df["n"].astype(str) + "_" + df["k"].astype(str)
-    ).values
+def compute_group_keys(df: pd.DataFrame, operation: str) -> np.ndarray:
+    """Create GroupKFold group keys based on operation type.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Training data
+    operation : str
+        Operation type (gemm_universal, grouped_conv, fmha)
+
+    Returns
+    -------
+    np.ndarray
+        Group keys for GroupKFold cross-validation
+    """
+    if operation == "gemm_universal":
+        # Group by (M, N, K)
+        return (
+            df["m"].astype(str) + "_" + df["n"].astype(str) + "_" + df["k"].astype(str)
+        ).values
+    elif operation == "grouped_conv":
+        # Group by problem configuration (including 3D and dilation for FWD/BWD_DATA/BWD_WEIGHT)
+        return df.apply(
+            lambda r: f"{r['N']}_{r['C']}_{r['K']}_{r['G']}_{r['Hi']}_{r['Wi']}_{r['Y']}_{r['X']}_"
+            f"{r.get('Di', 1)}_{r.get('Z', 1)}_"
+            f"{r.get('dilation_h', 1)}_{r.get('dilation_w', 1)}",
+            axis=1,
+        ).values
+    elif operation == "fmha":
+        raise NotImplementedError("FMHA group key computation not yet implemented")
+    else:
+        raise ValueError(f"Unknown operation type: {operation}")
 
 
 def compute_tflops_efficiency(
-    df: pd.DataFrame, pred_col: str = "pred_tflops"
+    df: pd.DataFrame, operation: str, pred_col: str = "pred_tflops"
 ) -> pd.DataFrame:
-    """Compute per-shape efficiency: predicted-best TFLOPS / oracle-best TFLOPS."""
+    """Compute per-shape efficiency: predicted-best TFLOPS / oracle-best TFLOPS.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Dataframe with predictions and actual TFLOPS
+    operation : str
+        Operation type to determine grouping columns
+    pred_col : str
+        Column name for predicted TFLOPS
+
+    Returns
+    -------
+    pd.DataFrame
+        Per-shape efficiency metrics
+    """
     results = []
-    for (m, n, k), group in df.groupby(["m", "n", "k"]):
-        oracle_best = group["measured_tflops"].max()
+
+    if operation == "gemm_universal":
+        groupby_cols = ["m", "n", "k"]
+        tflops_col = "measured_tflops"
+    elif operation == "grouped_conv":
+        # Group by all problem parameters including 3D and dilation
+        base_cols = ["N", "C", "K", "G", "Hi", "Wi", "Y", "X"]
+        optional_cols = ["Di", "Z", "dilation_h", "dilation_w"]
+        groupby_cols = base_cols + [col for col in optional_cols if col in df.columns]
+        tflops_col = "tflops"
+    elif operation == "fmha":
+        raise NotImplementedError("FMHA efficiency computation not yet implemented")
+    else:
+        raise ValueError(f"Unknown operation type: {operation}")
+
+    for shape_key, group in df.groupby(groupby_cols):
+        oracle_best = group[tflops_col].max()
         if oracle_best <= 0:
             continue
         pred_best_idx = group[pred_col].idxmax()
-        selected_tflops = group.loc[pred_best_idx, "measured_tflops"]
+        selected_tflops = group.loc[pred_best_idx, tflops_col]
         efficiency = selected_tflops / oracle_best
-        results.append(
-            {
-                "m": m,
-                "n": n,
-                "k": k,
-                "oracle_best_tflops": oracle_best,
-                "selected_tflops": selected_tflops,
-                "efficiency": efficiency,
-            }
-        )
+
+        result = {
+            "oracle_best_tflops": oracle_best,
+            "selected_tflops": selected_tflops,
+            "efficiency": efficiency,
+        }
+        # Add shape-specific keys
+        if operation == "gemm_universal":
+            result.update({"m": shape_key[0], "n": shape_key[1], "k": shape_key[2]})
+        elif operation == "grouped_conv":
+            result.update(
+                {
+                    "N": shape_key[0],
+                    "C": shape_key[1],
+                    "K": shape_key[2],
+                    "G": shape_key[3],
+                    "Hi": shape_key[4],
+                    "Wi": shape_key[5],
+                    "Y": shape_key[6],
+                    "X": shape_key[7],
+                }
+            )
+
+        results.append(result)
+
     return pd.DataFrame(results)
 
 
@@ -212,9 +324,10 @@ def train_single_target(
 
 def run_cv(
     df: pd.DataFrame,
-    feature_engine: GemmUniversalFeatureEngine,
+    feature_engine,
     target: str,
     params: dict,
+    operation: str,
     n_splits: int = 5,
     use_log: bool = True,
 ) -> dict:
@@ -222,14 +335,32 @@ def run_cv(
 
     Parameters
     ----------
+    df : pd.DataFrame
+        Training data
+    feature_engine : FeatureEngine
+        Feature engine instance (operation-specific)
+    target : str
+        Target metric (tflops, latency, bandwidth)
+    params : dict
+        LightGBM parameters
+    operation : str
+        Operation type (gemm_universal, grouped_conv, fmha)
+    n_splits : int
+        Number of CV folds
     use_log : bool
         If True and target is in LOG_TARGETS, train on log1p(y) and invert
         predictions with expm1 for efficiency calculation. This normalizes
         the scale so that tiny-M shapes (TFLOPS ~ 1) get equal attention
         as large-M shapes (TFLOPS ~ 2000).
     """
-    target_col = TARGET_COLUMNS[target]
-    valid_mask = df["is_valid"].fillna(False) & (df[target_col] > 0)
+    target_col = TARGET_COLUMNS[operation][target]
+
+    # Handle is_valid column (present in GEMM, not in grouped_conv)
+    if "is_valid" in df.columns:
+        valid_mask = df["is_valid"].fillna(False) & (df[target_col] > 0)
+    else:
+        valid_mask = df[target_col] > 0
+
     df_valid = df[valid_mask].reset_index(drop=True)
 
     apply_log = use_log and target in LOG_TARGETS
@@ -242,7 +373,7 @@ def run_cv(
     X = feature_engine.extract_batch(df_valid)
     y_raw = df_valid[target_col].values
     y = np.log1p(y_raw) if apply_log else y_raw
-    groups = compute_group_keys(df_valid)
+    groups = compute_group_keys(df_valid, operation)
     feature_names = feature_engine.get_feature_names()
     cat_features = feature_engine.get_categorical_features()
 
@@ -275,7 +406,7 @@ def run_cv(
             val_df = df_valid.iloc[val_idx].copy()
             preds_raw = np.expm1(preds) if apply_log else preds
             val_df["pred_tflops"] = preds_raw
-            eff_df = compute_tflops_efficiency(val_df)
+            eff_df = compute_tflops_efficiency(val_df, operation)
             mean_eff = eff_df["efficiency"].mean() if len(eff_df) > 0 else 0
             p10_eff = eff_df["efficiency"].quantile(0.1) if len(eff_df) > 0 else 0
         else:
@@ -311,9 +442,10 @@ def run_cv(
 
 def train_final_model(
     df: pd.DataFrame,
-    feature_engine: GemmUniversalFeatureEngine,
+    feature_engine,
     target: str,
     params: dict,
+    operation: str,
     init_model=None,
     use_log: bool = True,
 ) -> lgb.LGBMRegressor:
@@ -321,6 +453,16 @@ def train_final_model(
 
     Parameters
     ----------
+    df : pd.DataFrame
+        Training data
+    feature_engine : FeatureEngine
+        Feature engine instance (operation-specific)
+    target : str
+        Target metric (tflops, latency, bandwidth)
+    params : dict
+        LightGBM parameters
+    operation : str
+        Operation type (gemm_universal, grouped_conv, fmha)
     init_model : str, Path, lgb.Booster, lgb.LGBMModel, or None
         If provided, training continues from this model (warm start).
     use_log : bool
@@ -328,8 +470,14 @@ def train_final_model(
         The saved model then predicts in log-space; callers must apply
         expm1() to get raw values.
     """
-    target_col = TARGET_COLUMNS[target]
-    valid_mask = df["is_valid"].fillna(False) & (df[target_col] > 0)
+    target_col = TARGET_COLUMNS[operation][target]
+
+    # Handle is_valid column (present in GEMM, not in grouped_conv)
+    if "is_valid" in df.columns:
+        valid_mask = df["is_valid"].fillna(False) & (df[target_col] > 0)
+    else:
+        valid_mask = df[target_col] > 0
+
     df_valid = df[valid_mask].reset_index(drop=True)
 
     apply_log = use_log and target in LOG_TARGETS
@@ -353,13 +501,23 @@ def train_final_model(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Train CK Tile kernel performance models"
+        description="Train CK Tile kernel performance models (GEMM, Grouped Conv, FMHA)"
     )
     parser.add_argument(
         "--data_dir", required=True, help="Directory with parquet files"
     )
     parser.add_argument("--out_dir", required=True, help="Output directory for models")
-    parser.add_argument("--op", default="gemm_universal", help="Operation type")
+    parser.add_argument(
+        "--operation",
+        default="gemm_universal",
+        choices=["gemm_universal", "grouped_conv", "fmha"],
+        help="Operation type (gemm_universal, grouped_conv, fmha)",
+    )
+    parser.add_argument(
+        "--op",
+        default=None,
+        help="Deprecated: use --operation instead. Kept for backward compatibility.",
+    )
     parser.add_argument("--dtype", default="fp8", help="Data type filter")
     parser.add_argument("--arch", default="gfx950", help="Architecture")
     parser.add_argument(
@@ -391,16 +549,37 @@ def main():
     )
     args = parser.parse_args()
 
+    # Handle backward compatibility for --op flag
+    operation = args.operation
+    if args.op is not None:
+        print("WARNING: --op is deprecated, use --operation instead")
+        operation = args.op
+
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     targets = [t.strip() for t in args.targets.split(",")]
 
-    print(f"Loading data from {args.data_dir}...")
-    df = build_training_dataset(args.data_dir, op_type=args.op, dtype=args.dtype)
-    print(f"  Total rows: {len(df)}")
-    print(f"  Unique shapes: {df.groupby(['m', 'n', 'k']).ngroups}")
-    print(f"  Unique kernels: {df['kernel_name'].nunique()}")
+    print(f"{'=' * 80}")
+    print(f"Training {operation} model")
+    print(f"{'=' * 80}")
+    print()
 
+    print(f"Loading data from {args.data_dir}...")
+    df = build_training_dataset(args.data_dir, op_type=operation, dtype=args.dtype)
+    print(f"  Total rows: {len(df)}")
+
+    # Print unique shapes based on operation type
+    if operation == "gemm_universal":
+        print(f"  Unique shapes: {df.groupby(['m', 'n', 'k']).ngroups}")
+    elif operation == "grouped_conv":
+        print(
+            f"  Unique shapes: {df.groupby(['N', 'C', 'K', 'G', 'Hi', 'Wi', 'Y', 'X']).ngroups}"
+        )
+
+    print(f"  Unique kernels: {df['kernel_name'].nunique()}")
+    print()
+
+    # Extract hardware parameters from data (if available)
     hw_cols = [c for c in df.columns if c.startswith("hw_")]
     hw_kwargs = {}
     if hw_cols:
@@ -424,7 +603,12 @@ def main():
         if "hw_l3_cache_kb" in df.columns:
             hw_kwargs["l3_cache_kb"] = int(row0.get("hw_l3_cache_kb", 262144))
 
-    fe = GemmUniversalFeatureEngine(**hw_kwargs)
+    # Get operation-specific feature engine
+    print(f"Initializing {operation} feature engine...")
+    fe = get_feature_engine(operation, **hw_kwargs)
+    print(f"  Feature count: {len(fe.get_feature_names())}")
+    print(f"  Categorical features: {len(fe.get_categorical_features())}")
+    print()
 
     params = dict(DEFAULT_PARAMS)
     use_log = not args.no_log_transform
@@ -448,7 +632,7 @@ def main():
 
     all_cv_results = {}
     for target in targets:
-        if target not in TARGET_COLUMNS:
+        if target not in TARGET_COLUMNS[operation]:
             print(f"  Skipping unknown target: {target}")
             continue
 
@@ -466,7 +650,7 @@ def main():
 
         t0 = time.time()
         cv_result = run_cv(
-            df, fe, target, params, n_splits=args.n_splits, use_log=use_log
+            df, fe, target, params, operation, n_splits=args.n_splits, use_log=use_log
         )
         cv_time = time.time() - t0
 
@@ -481,7 +665,7 @@ def main():
                 oof_df = cv_result["oof_df"]
                 oof_df.to_parquet(out_dir / "oof_predictions.parquet", index=False)
 
-                eff_df = compute_tflops_efficiency(oof_df, "oof_pred_tflops")
+                eff_df = compute_tflops_efficiency(oof_df, operation, "oof_pred_tflops")
                 if len(eff_df) > 0:
                     print("\n  OOF TFLOPS Efficiency:")
                     print(f"    Mean: {eff_df['efficiency'].mean():.4f}")
@@ -492,7 +676,13 @@ def main():
         print(f"\n  Training final {target} model on all data...")
         t0 = time.time()
         model = train_final_model(
-            df, fe, target, params, init_model=init_model_path, use_log=use_log
+            df,
+            fe,
+            target,
+            params,
+            operation,
+            init_model=init_model_path,
+            use_log=use_log,
         )
         train_time = time.time() - t0
 
@@ -512,7 +702,7 @@ def main():
 
     log_targets_used = sorted(LOG_TARGETS & set(targets)) if use_log else []
     spec = {
-        "op_type": args.op,
+        "op_type": operation,
         "dtype": args.dtype,
         "arch": args.arch,
         "feature_names": fe.get_feature_names(),
@@ -523,6 +713,16 @@ def main():
     }
     with open(out_dir / "feature_spec.json", "w") as f:
         json.dump(spec, f, indent=2)
+
+    # Compute unique shapes based on operation type
+    if operation == "gemm_universal":
+        unique_shapes = int(df.groupby(["m", "n", "k"]).ngroups)
+    elif operation == "grouped_conv":
+        unique_shapes = int(
+            df.groupby(["N", "C", "K", "G", "Hi", "Wi", "Y", "X"]).ngroups
+        )
+    else:
+        unique_shapes = 0  # Unknown operation
 
     manifest = {
         "warm_start_from": str(prev_model_dir) if prev_model_dir else None,
@@ -539,7 +739,7 @@ def main():
         ),
         "data_rows": len(df),
         "valid_rows": int(df["is_valid"].fillna(False).sum()),
-        "unique_shapes": int(df.groupby(["m", "n", "k"]).ngroups),
+        "unique_shapes": unique_shapes,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
     with open(out_dir / "train_manifest.json", "w") as f:
