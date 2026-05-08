@@ -210,6 +210,21 @@ else()
     set(USER_GPU_TARGETS 0)
 endif()
 
+#Unsupported GPU targets to be filtered from the list:
+set(CK_UNSUPPORTED_GPU_TARGETS "gfx900;gfx906;gfx90c")
+
+#If only one of the unsupported targets is requested, generate dummy target and exit here.
+if("${GPU_TARGETS}" IN_LIST CK_UNSUPPORTED_GPU_TARGETS)
+    add_custom_target(ck_dummy_target)
+    message("CK is not supported for target ${GPU_TARGETS}")
+    return()
+endif()
+
+#If multiple targets are requested, filter out any targets currently on the unsupported list:
+message(STATUS "Filtering out unsupported targets: ${CK_UNSUPPORTED_GPU_TARGETS}")
+list(REMOVE_ITEM GPU_TARGETS ${CK_UNSUPPORTED_GPU_TARGETS})
+list(REMOVE_ITEM GPU_ARCHS ${CK_UNSUPPORTED_GPU_TARGETS})
+
 find_package(hip REQUIRED)
 enable_language(HIP)
 
@@ -232,8 +247,10 @@ if(NOT ENABLE_ASAN_PACKAGING)
         set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1103;gfx1200;gfx1201")
     elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600400000 AND ${hip_VERSION_FLAT} LESS 600443483)
         set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1103;gfx1200;gfx1201;gfx950")
-    elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600443483)
+    elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 600443483 AND ${hip_VERSION_FLAT} LESS 700200000)
         set(CK_GPU_TARGETS "gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx12-generic")
+    elseif(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER_EQUAL 700200000)
+        set(CK_GPU_TARGETS "")
     endif()
 else()
     #build CK only for xnack-supported targets when using ASAN
