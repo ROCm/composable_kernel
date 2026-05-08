@@ -52,7 +52,7 @@ option(CK_EXPERIMENTAL_BUILDER "Enable experimental builder" OFF)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 option(FORCE_DISABLE_XDL "Skip compiling XDL specific instances (even if supported GPUs are included in GPU_TARGETS)" OFF)
 option(FORCE_DISABLE_WMMA "Skip compiling WMMA specific instances (even if supported GPUs are included in GPU_TARGETS)" OFF)
-option(BUILD_CK_TILE_ENGINE "Build the tile_engine subdirectory" ON)
+option(BUILD_CK_TILE_ENGINE "Build the tile_engine subdirectory" OFF)
 option(BUILD_CK_EXAMPLES "Build the example subdirectory" ON)
 option(BUILD_CK_TUTORIALS "Build the tutorial subdirectory" ON)
 
