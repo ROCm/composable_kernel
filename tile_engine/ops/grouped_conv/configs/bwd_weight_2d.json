@@ -1,0 +1,14 @@
+{
+  "variant": "bwd_weight",
+  "trait_config": {
+    "data_type": {"values": ["bf16"]},
+    "pipeline": {"values": ["basic_v1", "mem", "compv3", "compv4", "compv5", "compv6", "comp_async", "basic_async_v1"]},
+    "scheduler": {"values": ["intrawave", "interwave"]},
+    "ndim_spatial": {"values": [2]},
+    "num_groups_to_merge": {"values": [1, 2]},
+    "double_smem_buffer": {"values": [false, true]},
+    "split_image": {"values": [false, true]},
+    "explicit_gemm": {"values": [false]},
+    "two_stage": {"values": [false, true]}
+  }
+}

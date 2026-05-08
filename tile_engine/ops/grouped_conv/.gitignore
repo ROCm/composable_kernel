@@ -1,0 +1,17 @@
+# Benchmark and ML output artifacts — never commit
+*.csv
+*.log
+*.txt
+*.json
+*.parquet
+
+# Ignore all markdown except README
+*.md
+!README.md
+
+# Temporary scratch scripts (prefix with _)
+_*.py
+
+# Python caches
+__pycache__/
+*.pyc

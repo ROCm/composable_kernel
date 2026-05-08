@@ -27,7 +27,15 @@ DTYPE_BYTES = {
 }
 
 LAYOUT_MAP = {"rcr": 0, "rrr": 1, "crr": 2, "ccr": 3}
-PIPELINE_MAP = {"compv3": 0, "compv4": 1, "compv5": 2, "mem": 3, "preshufflev2": 4}
+PIPELINE_MAP = {
+    "compv3": 0,
+    "compv4": 1,
+    "compv5": 2,
+    "mem": 3,
+    "preshufflev2": 4,
+    "basic_v1": 5,
+    "compv6": 6,
+}
 SCHEDULER_MAP = {"intrawave": 0, "interwave": 1}
 EPILOGUE_MAP = {"default": 0, "cshuffle": 1}
 
@@ -498,24 +506,40 @@ class GemmUniversalFeatureEngine(FeatureEngine):
         pad_n_bool = df["pad_n"].fillna(False).astype(bool).values
         pad_k_bool = df["pad_k"].fillna(False).astype(bool).values
 
-        needs_padding_m = (np.mod(M, np.maximum(tile_m, 1)) != 0)
-        needs_padding_n = (np.mod(N, np.maximum(tile_n, 1)) != 0)
-        needs_padding_k = (np.mod(K, np.maximum(tile_k, 1)) != 0)
+        needs_padding_m = np.mod(M, np.maximum(tile_m, 1)) != 0
+        needs_padding_n = np.mod(N, np.maximum(tile_n, 1)) != 0
+        needs_padding_k = np.mod(K, np.maximum(tile_k, 1)) != 0
 
         result[:, 50] = needs_padding_m.astype(float)
         result[:, 51] = needs_padding_n.astype(float)
         result[:, 52] = needs_padding_k.astype(float)
 
         # Interaction features: kernel has padding when problem needs it
-        result[:, 53] = (needs_padding_m & pad_m_bool).astype(float)  # has_padding_when_needed_m
-        result[:, 54] = (needs_padding_n & pad_n_bool).astype(float)  # has_padding_when_needed_n
-        result[:, 55] = (needs_padding_k & pad_k_bool).astype(float)  # has_padding_when_needed_k
+        result[:, 53] = (needs_padding_m & pad_m_bool).astype(
+            float
+        )  # has_padding_when_needed_m
+        result[:, 54] = (needs_padding_n & pad_n_bool).astype(
+            float
+        )  # has_padding_when_needed_n
+        result[:, 55] = (needs_padding_k & pad_k_bool).astype(
+            float
+        )  # has_padding_when_needed_k
 
         # Critical feature: missing required padding
-        result[:, 56] = (needs_padding_m & ~pad_m_bool).astype(float)  # missing_required_padding_m
-        result[:, 57] = (needs_padding_n & ~pad_n_bool).astype(float)  # missing_required_padding_n
-        result[:, 58] = (needs_padding_k & ~pad_k_bool).astype(float)  # missing_required_padding_k
-        result[:, 59] = ((needs_padding_m & ~pad_m_bool) | (needs_padding_n & ~pad_n_bool) | (needs_padding_k & ~pad_k_bool)).astype(float)  # missing_any_required_padding
+        result[:, 56] = (needs_padding_m & ~pad_m_bool).astype(
+            float
+        )  # missing_required_padding_m
+        result[:, 57] = (needs_padding_n & ~pad_n_bool).astype(
+            float
+        )  # missing_required_padding_n
+        result[:, 58] = (needs_padding_k & ~pad_k_bool).astype(
+            float
+        )  # missing_required_padding_k
+        result[:, 59] = (
+            (needs_padding_m & ~pad_m_bool)
+            | (needs_padding_n & ~pad_n_bool)
+            | (needs_padding_k & ~pad_k_bool)
+        ).astype(float)  # missing_any_required_padding
 
         # Hardware profile features
         hw = self._hw
