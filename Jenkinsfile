@@ -1395,8 +1395,8 @@ pipeline {
             description: "Build CK and run tests on gfx101 (default: OFF)")
         booleanParam(
             name: "BUILD_GFX103",
-            defaultValue: true,
-            description: "Build CK and run tests on gfx103 (default: ON)")
+            defaultValue: false,
+            description: "Build CK and run tests on gfx103 (default: OFF)")
         booleanParam(
             name: "BUILD_GFX11",
             defaultValue: true,
@@ -1483,6 +1483,7 @@ pipeline {
         dbsshpassword = "${dbsshpassword}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
+        BUILD_GFX103 = "${env.BRANCH_NAME == 'develop' ? true : false}"
     }
     stages{
         stage("Determine CI Execution") {
@@ -1820,6 +1821,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D BUILD_CK_TILE_ENGINE="ON" \
                                             -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
@@ -1862,6 +1864,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D BUILD_CK_TILE_ENGINE="ON" \
                                             -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
@@ -1896,6 +1899,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D BUILD_CK_TILE_ENGINE="ON" \
                                             -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx950" \
@@ -1925,6 +1929,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D BUILD_CK_TILE_ENGINE="ON" \
                                             -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx1201" \
