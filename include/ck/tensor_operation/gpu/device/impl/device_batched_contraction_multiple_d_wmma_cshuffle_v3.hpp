@@ -19,6 +19,8 @@
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/utility/scheduler_enum.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 
 template <typename DeviceOp,
@@ -974,3 +976,4 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle_V3
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#pragma clang diagnostic pop

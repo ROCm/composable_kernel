@@ -11,6 +11,8 @@
 #include "profiler/profile_grouped_conv_fwd_impl.hpp" // The actual GPU profiler that does convolution work
 #include "../common/csv_test_loader.hpp"              // Shared CSV test case loader
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
 using namespace ck::tensor_layout::convolution; // Import tensor layout names (NHWGC, GKYXC, etc.)
 
 // Load CSV data for 2D tests
@@ -167,3 +169,4 @@ TEST_P(TestGroupedConvndFwd3dBFloat16, ConvTest)
 INSTANTIATE_TEST_SUITE_P(Dataset,
                          TestGroupedConvndFwd3dBFloat16,
                          ::testing::ValuesIn(Get3DTestCases()));
+#pragma clang diagnostic pop

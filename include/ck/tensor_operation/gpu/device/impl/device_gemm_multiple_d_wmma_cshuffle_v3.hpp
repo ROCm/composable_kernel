@@ -18,6 +18,8 @@
 #include "ck/host_utility/flush_cache.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma_cshuffle_v3_common.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -408,3 +410,4 @@ struct DeviceGemmMultipleD_Wmma_CShuffleV3
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#pragma clang diagnostic pop
