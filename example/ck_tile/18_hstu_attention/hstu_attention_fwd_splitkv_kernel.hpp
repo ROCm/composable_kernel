@@ -562,9 +562,9 @@ struct HstuAttentionFwdSplitKVKernel
             const index_t i_nhead = blockIdx.y;
             const index_t i_block = blockIdx.z;
 #else
-            const index_t i_block             = blockIdx.x;
-            const index_t i_nhead             = blockIdx.y;
-            const index_t i_batch             = blockIdx.z;
+            const index_t i_block = blockIdx.x;
+            const index_t i_nhead = blockIdx.y;
+            const index_t i_batch = blockIdx.z;
 #endif
 
 #if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
@@ -586,9 +586,9 @@ struct HstuAttentionFwdSplitKVKernel
             const index_t i_nhead = blockIdx.y;
             const index_t i_block = blockIdx.z;
 #else
-            const index_t i_block             = blockIdx.x;
-            const index_t i_nhead             = blockIdx.y;
-            const index_t i_batch             = blockIdx.z;
+            const index_t i_block = blockIdx.x;
+            const index_t i_nhead = blockIdx.y;
+            const index_t i_batch = blockIdx.z;
 #endif
 
 #if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
@@ -596,8 +596,8 @@ struct HstuAttentionFwdSplitKVKernel
             auto [i_tile_m, i_split] = f(i_tile_m_i_split, kargs.num_splits);
             i_tile_m                 = gridDim.z / kargs.num_splits - 1 - i_tile_m;
 #else
-            index_t i_tile_m_i_split          = i_block;
-            auto [i_tile_m, i_split]          = f(i_tile_m_i_split, kargs.num_splits);
+            index_t i_tile_m_i_split = i_block;
+            auto [i_tile_m, i_split] = f(i_tile_m_i_split, kargs.num_splits);
 #endif
             const index_t i_tile_n = 0;
 
