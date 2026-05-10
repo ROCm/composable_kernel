@@ -120,7 +120,7 @@ CK_TILE_DEVICE static void scale_tile_in_pack(InOutDstrTensor& in_out_dstr_tenso
 
         static_for<0, thread_buffer_size, 2>{}([&](auto idx) {
             fp32x2_t input                          = {in_out_dstr_tensor.thread_buf_[idx],
-                              in_out_dstr_tensor.thread_buf_[idx + 1]};
+                                                       in_out_dstr_tensor.thread_buf_[idx + 1]};
             auto output                             = pk_mul_f32(input, pk_scale);
             in_out_dstr_tensor.thread_buf_[idx]     = output.x;
             in_out_dstr_tensor.thread_buf_[idx + 1] = output.y;
