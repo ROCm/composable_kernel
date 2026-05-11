@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XOR Full Steps (Simple)</title>
+  <style>
+    :root {
+      --bg: #0e1329;
+      --panel: #161d3a;
+      --text: #eef2ff;
+      --muted: #a5b0da;
+      --accent: #6ee7ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(circle at 20% 0%, #1a2452, var(--bg) 35%);
+      color: var(--text);
+    }
+    .wrap { max-width: 1850px; margin: 0 auto; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    h1 { margin: 0 0 8px; font-size: 20px; }
+    p { margin: 0 0 6px; color: var(--muted); }
+    .controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #253164;
+      color: var(--text);
+      border: 1px solid #3f4f90;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    button:hover { background: #2d3a75; }
+    .status { margin-left: 8px; color: var(--accent); font-weight: 600; }
+    .gridWrap {
+      overflow: auto;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: #101633;
+      padding: 10px;
+    }
+    .grid {
+      display: grid;
+      gap: 1px;
+      width: max-content;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .label {
+      width: 44px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: #c7d1f5;
+      background: #1a2248;
+    }
+    .label.top { width: 62px; height: 22px; }
+    .cell {
+      width: 62px;
+      height: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+      transition: background-color 260ms ease;
+    }
+    .split {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-start;
+    }
+    .subTitle {
+      color: #b9c7f5;
+      font-size: 12px;
+      margin: 0 0 6px;
+    }
+    .formula {
+      margin-top: 4px;
+      color: #9ef7c9;
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h1>Full Transform Steps (Simple Numbered Grids)</h1>
+      <p>Same simple style as XOR-only demo. One step at a time with fixed element count.</p>
+      <p>Each number is one real element ID from the full <code>64x32 = 2048</code> tile.</p>
+      <div id="formula" class="formula"></div>
+    </div>
+
+    <div class="panel controls">
+      <button id="prevBtn" type="button">Prev Step</button>
+      <button id="nextBtn" type="button">Next Step</button>
+      <button id="playBtn" type="button">Play</button>
+      <span id="status" class="status"></span>
+    </div>
+
+    <div class="panel">
+      <div id="gridWrap" class="gridWrap"></div>
+    </div>
+  </div>
+
+  <script>
+    const M = 64;
+    const K = 32;
+    const KPack = 8;
+    const L = 2;      // MLdsLayer
+    const K0 = 4;     // K / KPack
+    const A = 8;      // K0 * L
+    const B = 32;     // M / L
+
+    const dom = {
+      prevBtn: document.getElementById("prevBtn"),
+      nextBtn: document.getElementById("nextBtn"),
+      playBtn: document.getElementById("playBtn"),
+      status: document.getElementById("status"),
+      formula: document.getElementById("formula"),
+      gridWrap: document.getElementById("gridWrap")
+    };
+
+    let step = 0;
+    let timer = null;
+
+    function colorFromId(id) {
+      const hue = (id * 29) % 360;
+      return `hsl(${hue} 70% 44%)`;
+    }
+
+    function makeElements() {
+      const items = [];
+      for (let m = 0; m < M; m += 1) {
+        for (let k = 0; k < K; k += 1) {
+          const id = m * K + k;
+          const n = id; // linear
+          const c = n % KPack;
+          const a = Math.floor(n / KPack) % A;
+          const b = Math.floor(n / 64);
+          const l = Math.floor(a / K0);
+          const k0 = a % K0;
+          const bx = b ^ a;
+          const mFinal = bx * L + l;
+          const kFinal = k0 * KPack + c;
+          items.push({ id, m, k, n, c, a, b, l, k0, bx, mFinal, kFinal });
+        }
+      }
+      return items;
+    }
+
+    const elems = makeElements();
+
+    function drawGrid({ rows, cols, rowLabel, colLabel, at, title }) {
+      const block = document.createElement("div");
+      if (title) {
+        const t = document.createElement("div");
+        t.className = "subTitle";
+        t.textContent = title;
+        block.append(t);
+      }
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      grid.style.gridTemplateColumns = `repeat(${cols + 1}, max-content)`;
+
+      grid.append(labelCell(""));
+      for (let c = 0; c < cols; c += 1) grid.append(labelCell(colLabel(c), true));
+
+      for (let r = 0; r < rows; r += 1) {
+        grid.append(labelCell(rowLabel(r)));
+        for (let c = 0; c < cols; c += 1) {
+          const v = at(r, c);
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          if (v) {
+            cell.style.background = colorFromId(v.id);
+            cell.textContent = v.id;
+          } else {
+            cell.style.background = "#31375c";
+            cell.textContent = "";
+          }
+          grid.append(cell);
+        }
+      }
+      block.append(grid);
+      return block;
+    }
+
+    function labelCell(text, top = false) {
+      const d = document.createElement("div");
+      d.className = top ? "label top" : "label";
+      d.textContent = text;
+      return d;
+    }
+
+    function viewStep0Original() {
+      const map = new Map();
+      for (const e of elems) map.set(`${e.m},${e.k}`, e);
+      return drawGrid({
+        rows: M,
+        cols: K,
+        rowLabel: (r) => `m=${r}`,
+        colLabel: (c) => `k=${c}`,
+        at: (r, c) => map.get(`${r},${c}`),
+        title: "Step 0: Original [M=64, K=32]"
+      });
+    }
+
+    function viewStep1KPackSplit() {
+      // Same coordinates, add KPack grouping overlay by border guides in a simple way.
+      const map = new Map();
+      for (const e of elems) {
+        map.set(`${e.m},${e.k}`, e);
+      }
+
+      const block = drawGrid({
+        rows: M,
+        cols: K,
+        rowLabel: (r) => `m=${r}`,
+        colLabel: (c) => `k=${c}`,
+        at: (r, c) => map.get(`${r},${c}`),
+        title: "Step 1: kKPack split overlay (k -> k0,c), no data movement"
+      });
+
+      const grid = block.querySelector(".grid");
+      // mark k0 boundaries at k=7,15,23
+      const totalColsWithLabel = K + 1;
+      for (let r = 1; r <= M; r += 1) {
+        for (const cut of [8, 16, 24]) {
+          const idx = r * totalColsWithLabel + cut;
+          const node = grid.children[idx];
+          if (node && node.classList.contains("cell")) {
+            node.style.borderRight = "2px solid #ffd166";
+          }
+        }
+      }
+      return block;
+    }
+
+    function viewStep2XorStacked() {
+      // Project XOR result into stacked layers layout as one 64x32 grid.
+      // row = l*32 + bx, col = k0*8 + c
+      const map = new Map();
+      for (const e of elems) {
+        const row = e.l * 32 + e.bx;
+        const col = e.k0 * 8 + e.c;
+        map.set(`${row},${col}`, e);
+      }
+      return drawGrid({
+        rows: M,
+        cols: K,
+        rowLabel: (r) => (r < 32 ? `L0,b'=${r}` : `L1,b'=${r - 32}`),
+        colLabel: (c) => `k=${c}`,
+        at: (r, c) => map.get(`${r},${c}`),
+        title: "Step 2: XOR applied (single grid projection)"
+      });
+    }
+
+    function viewStep3UnmergeTiled() {
+      // Unmerge tiled: two 32x32 grids by layer
+      const l0 = new Map();
+      const l1 = new Map();
+      for (const e of elems) {
+        const col = e.k0 * 8 + e.c; // 0..31
+        if (e.l === 0) l0.set(`${e.bx},${col}`, e);
+        else l1.set(`${e.bx},${col}`, e);
+      }
+
+      const wrap = document.createElement("div");
+      wrap.className = "split";
+      wrap.append(
+        drawGrid({
+          rows: B,
+          cols: K,
+          rowLabel: (r) => `b'=${r}`,
+          colLabel: (c) => `k=${c}`,
+          at: (r, c) => l0.get(`${r},${c}`),
+          title: "Step 3: Unmerge tiled view (Layer L0)"
+        }),
+        drawGrid({
+          rows: B,
+          cols: K,
+          rowLabel: (r) => `b'=${r}`,
+          colLabel: (c) => `k=${c}`,
+          at: (r, c) => l1.get(`${r},${c}`),
+          title: "Step 3: Unmerge tiled view (Layer L1)"
+        })
+      );
+      return wrap;
+    }
+
+    function viewStep4FinalMerge() {
+      // final merge back to [64,32]
+      const map = new Map();
+      for (const e of elems) {
+        map.set(`${e.mFinal},${e.kFinal}`, e);
+      }
+      return drawGrid({
+        rows: M,
+        cols: K,
+        rowLabel: (r) => `m=${r}`,
+        colLabel: (c) => `k=${c}`,
+        at: (r, c) => map.get(`${r},${c}`),
+        title: "Step 4: Final merge back to [M=64, K=32]"
+      });
+    }
+
+    const stepMeta = [
+      {
+        name: "0/4 Start",
+        formula: "Original grid [64,32]. Each number is one unique element id (0..2047)."
+      },
+      {
+        name: "1/4 kKPack Split",
+        formula: "First transform: split k -> (k0,c) where k0=floor(k/8), c=k%8. Overlay only, no movement."
+      },
+      {
+        name: "2/4 XOR",
+        formula: "Apply XOR on B using A: (a,b,c) -> (a, b xor a, c)."
+      },
+      {
+        name: "3/4 Unmerge Tiled",
+        formula: "Unmerge A -> (L,K0): a=l*4+k0. Show as two tiled layer grids (L0, L1)."
+      },
+      {
+        name: "4/4 Final Merge",
+        formula: "Merge back: m=b'*2+l and k=k0*8+c -> final [64,32]. Element ids remain identical."
+      }
+    ];
+
+    function render() {
+      const meta = stepMeta[step];
+      dom.status.textContent = meta.name;
+      dom.formula.textContent = meta.formula;
+      dom.gridWrap.innerHTML = "";
+
+      if (step === 0) dom.gridWrap.append(viewStep0Original());
+      else if (step === 1) dom.gridWrap.append(viewStep1KPackSplit());
+      else if (step === 2) dom.gridWrap.append(viewStep2XorStacked());
+      else if (step === 3) dom.gridWrap.append(viewStep3UnmergeTiled());
+      else dom.gridWrap.append(viewStep4FinalMerge());
+    }
+
+    function stopPlay() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+        dom.playBtn.textContent = "Play";
+      }
+    }
+
+    function startPlay() {
+      stopPlay();
+      dom.playBtn.textContent = "Pause";
+      timer = setInterval(() => {
+        step = (step + 1) % stepMeta.length;
+        render();
+      }, 1800);
+    }
+
+    dom.prevBtn.addEventListener("click", () => {
+      stopPlay();
+      step = (step - 1 + stepMeta.length) % stepMeta.length;
+      render();
+    });
+
+    dom.nextBtn.addEventListener("click", () => {
+      stopPlay();
+      step = (step + 1) % stepMeta.length;
+      render();
+    });
+
+    dom.playBtn.addEventListener("click", () => {
+      if (timer) stopPlay();
+      else startPlay();
+    });
+
+    render();
+  </script>
+</body>
+</html>

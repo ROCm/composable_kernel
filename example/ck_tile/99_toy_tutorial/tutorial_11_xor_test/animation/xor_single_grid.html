@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XOR Single Grid Demo</title>
+  <style>
+    :root {
+      --bg: #0e1329;
+      --panel: #161d3a;
+      --text: #eef2ff;
+      --muted: #a5b0da;
+      --accent: #6ee7ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(circle at 20% 0%, #1a2452, var(--bg) 35%);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 1800px;
+      margin: 0 auto;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 20px;
+    }
+
+    p {
+      margin: 0 0 6px;
+      color: var(--muted);
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background: #253164;
+      color: var(--text);
+      border: 1px solid #3f4f90;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+
+    button:hover { background: #2d3a75; }
+
+    label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    select {
+      background: #1f2852;
+      color: var(--text);
+      border: 1px solid #3f4f90;
+      border-radius: 5px;
+      padding: 4px 6px;
+    }
+
+    .status {
+      margin-left: 10px;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .gridWrap {
+      overflow: auto;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: #101633;
+      padding: 10px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 1px;
+      width: max-content;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .label {
+      width: 40px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: #c7d1f5;
+      background: #1a2248;
+    }
+
+    .label.top {
+      width: 58px;
+      height: 22px;
+      font-size: 10px;
+    }
+
+    .cell {
+      width: 58px;
+      height: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      transition: background-color 280ms ease;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+    }
+
+    .legend {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .legendItem {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      border: 1px solid rgba(255, 255, 255, 0.28);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h1>Single Grid XOR Transformation (Bank Layout)</h1>
+      <p>Same mapping logic as your Python snippet. One grid only. Click "Apply XOR" to transform columns by XOR-preshuffle.</p>
+      <p id="formulaText">State: Original (no preshuffle)</p>
+    </div>
+
+    <div class="panel controls">
+      <button id="toggleBtn" type="button">Apply XOR</button>
+      <button id="resetBtn" type="button">Reset</button>
+      <label for="mapping">Mapping:
+        <select id="mapping">
+          <option value="A" selected>A</option>
+          <option value="B">B</option>
+        </select>
+      </label>
+      <span id="status" class="status">Original</span>
+    </div>
+
+    <div class="panel">
+      <div id="gridWrap" class="gridWrap"></div>
+      <div id="legend" class="legend"></div>
+    </div>
+  </div>
+
+  <script>
+    const banks = 32;
+    const bankWidth = 4;
+    const instrBytes = 16;
+    const numLanes = 64;
+    const banksPerInstr = instrBytes / bankWidth; // 4
+
+    const KPack = 8;
+    const rowStride = 64;
+    const numCols = rowStride / KPack; // 8
+    const numRows = numLanes / numCols; // 8
+
+    const readPhaseLanes = {
+      0: [...range(0, 4), ...range(20, 24)],
+      1: [...range(4, 8), ...range(16, 20)],
+      2: [...range(8, 12), ...range(28, 32)],
+      3: [...range(12, 16), ...range(24, 28)],
+      4: [...range(32, 36), ...range(52, 56)],
+      5: [...range(36, 40), ...range(48, 52)],
+      6: [...range(40, 44), ...range(60, 64)],
+      7: [...range(44, 48), ...range(56, 60)]
+    };
+
+    const phaseColors = [
+      "#264653", "#2a9d8f", "#e9c46a", "#f4a261",
+      "#e76f51", "#6a4c93", "#8ab17d", "#577590"
+    ];
+
+    const laneToPhase = {};
+    for (const [p, lanes] of Object.entries(readPhaseLanes)) {
+      for (const lane of lanes) laneToPhase[lane] = Number(p);
+    }
+
+    let xorApplied = false;
+    let mappingChoice = "A";
+
+    const dom = {
+      gridWrap: document.getElementById("gridWrap"),
+      legend: document.getElementById("legend"),
+      toggleBtn: document.getElementById("toggleBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      mapping: document.getElementById("mapping"),
+      status: document.getElementById("status"),
+      formulaText: document.getElementById("formulaText")
+    };
+
+    function range(a, b) {
+      const out = [];
+      for (let i = a; i < b; i += 1) out.push(i);
+      return out;
+    }
+
+    function laneXY(lane, mapping) {
+      if (mapping === "A") {
+        return { x: Math.floor(lane / numRows), y: lane % numRows };
+      }
+      return { x: lane % numCols, y: Math.floor(lane / numCols) };
+    }
+
+    function recomposedLaneFromXY(x, y, mapping) {
+      if (mapping === "A") return x * numRows + y;
+      return y * numCols + x;
+    }
+
+    function startBankFromLaneId(laneId) {
+      const rowId = Math.floor(laneId / 8);
+      return (rowId * banksPerInstr) % banks;
+    }
+
+    function buildGrid(applyXor, mapping) {
+      const grid = Array.from({ length: numRows }, () => Array(banks).fill(-1));
+      const labels = Array.from({ length: numRows }, () => Array.from({ length: banks }, () => []));
+
+      for (let lane = 0; lane < numLanes; lane += 1) {
+        const phase = laneToPhase[lane] ?? -1;
+        const physRowPlot = lane % numRows;
+
+        let startBank = startBankFromLaneId(lane);
+        if (applyXor) {
+          const { x, y } = laneXY(lane, mapping);
+          const xprime = (y % numCols) ^ x;
+          const shuffledLane = recomposedLaneFromXY(xprime, y, mapping);
+          startBank = startBankFromLaneId(shuffledLane);
+        }
+
+        for (let i = 0; i < banksPerInstr; i += 1) {
+          const b = (startBank + i) % banks;
+          grid[physRowPlot][b] = phase;
+          labels[physRowPlot][b].push(lane);
+        }
+      }
+
+      return { grid, labels };
+    }
+
+    function drawGrid(state) {
+      const { grid, labels } = state;
+      const outer = document.createElement("div");
+      outer.className = "grid";
+      outer.style.gridTemplateColumns = `repeat(${banks + 1}, max-content)`;
+
+      outer.append(labelCell(""));
+      for (let b = 0; b < banks; b += 1) {
+        outer.append(labelCell(`b${b}`, true));
+      }
+
+      for (let r = 0; r < numRows; r += 1) {
+        outer.append(labelCell(`row${r}`));
+        for (let b = 0; b < banks; b += 1) {
+          const phase = grid[r][b];
+          const c = document.createElement("div");
+          c.className = "cell";
+          c.style.background = phase >= 0 ? phaseColors[phase] : "#3a3f63";
+          c.textContent = labels[r][b].length ? labels[r][b].join("/") : "";
+          outer.append(c);
+        }
+      }
+
+      dom.gridWrap.innerHTML = "";
+      dom.gridWrap.append(outer);
+    }
+
+    function labelCell(text, top = false) {
+      const d = document.createElement("div");
+      d.className = top ? "label top" : "label";
+      d.textContent = text;
+      return d;
+    }
+
+    function drawLegend() {
+      dom.legend.innerHTML = "";
+      for (let p = 0; p < 8; p += 1) {
+        const item = document.createElement("div");
+        item.className = "legendItem";
+        const sw = document.createElement("span");
+        sw.className = "swatch";
+        sw.style.background = phaseColors[p];
+        item.append(sw, document.createTextNode(`P${p}`));
+        dom.legend.append(item);
+      }
+    }
+
+    function render() {
+      const state = buildGrid(xorApplied, mappingChoice);
+      drawGrid(state);
+      drawLegend();
+      dom.status.textContent = xorApplied ? `XOR Applied (${mappingChoice})` : "Original";
+      dom.formulaText.textContent = xorApplied
+        ? `State: XOR preshuffled (mapping ${mappingChoice}) | x'=(y mod 8) xor x`
+        : "State: Original (no preshuffle)";
+      dom.toggleBtn.textContent = xorApplied ? "Show Original" : "Apply XOR";
+    }
+
+    dom.toggleBtn.addEventListener("click", () => {
+      xorApplied = !xorApplied;
+      render();
+    });
+
+    dom.resetBtn.addEventListener("click", () => {
+      xorApplied = false;
+      render();
+    });
+
+    dom.mapping.addEventListener("change", (e) => {
+      mappingChoice = e.target.value;
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>

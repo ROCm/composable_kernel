@@ -135,10 +135,19 @@ add_compile_options(-Wno-unique-object-duplication)
 add_compile_options(-fbracket-depth=1024)
 
 # add -Og -gdwarf64 for debug builds
-add_compile_options(
-    "$<$<CONFIG:Debug>:-Og>"
-    "$<$<CONFIG:Debug>:-gdwarf64>"
-)
+# Set CK_DEBUG_UNOPTIMIZED=ON (e.g. via the debug preset) to build with -O0
+# instead of -Og, so rocgdb does not report "<optimized out>" for locals.
+option(CK_DEBUG_UNOPTIMIZED "Build Debug with -O0 instead of -Og" OFF)
+if(CK_DEBUG_UNOPTIMIZED)
+    add_compile_options(
+        "$<$<CONFIG:Debug>:-gdwarf64>"
+    )
+else()
+    add_compile_options(
+        "$<$<CONFIG:Debug>:-Og>"
+        "$<$<CONFIG:Debug>:-gdwarf64>"
+    )
+endif()
 
 # Recent change in compiler makes this warning ON by default, which led to compile errors.
 add_compile_options(-Wno-nrvo)

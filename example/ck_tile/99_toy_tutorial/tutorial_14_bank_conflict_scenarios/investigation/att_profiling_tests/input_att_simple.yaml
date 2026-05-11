@@ -1,0 +1,10 @@
+jobs:
+    -
+        output_file: out
+        output_directory: ck_test
+        output_format: [pftrace]
+        sys_trace: true
+        advanced_thread_trace: true
+        att_library_path: /home/aghamari/rocm-tools/lib
+        att_shader_engine_mask: "0xf"
+        att_buffer_size: "0x6000000"

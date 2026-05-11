@@ -1,0 +1,324 @@
+:root {
+  --bg: #0f1224;
+  --panel: #171b34;
+  --panel2: #1c2141;
+  --text: #eef2ff;
+  --muted: #9ca7d3;
+  --accent: #6ee7ff;
+  --accent2: #ffd166;
+  --ok: #90ee90;
+  --cell-border: rgba(255, 255, 255, 0.12);
+  --grid-gap: 1px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 20% 0%, #1a1f45, var(--bg) 35%);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+.app {
+  max-width: 1680px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.top {
+  background: linear-gradient(180deg, var(--panel2), var(--panel));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+}
+
+.top h1 {
+  margin: 0 0 4px;
+  font-size: 19px;
+}
+
+.top p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+button {
+  color: var(--text);
+  background: #23284b;
+  border: 1px solid #364171;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #2a3059;
+}
+
+.speedWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+#sceneCounter {
+  margin-left: auto;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.sceneText {
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.sceneText h2 {
+  margin: 0 0 4px;
+  color: var(--accent);
+  font-size: 18px;
+}
+
+.sceneText p {
+  margin: 0 0 8px;
+  color: var(--muted);
+}
+
+.sceneText pre {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--accent2);
+  font-size: 12px;
+}
+
+.canvasWrap {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #141832, #11152d);
+  min-height: 720px;
+  overflow: auto;
+  padding: 14px;
+}
+
+.sceneRoot {
+  transition: opacity 280ms ease;
+}
+
+.fadeOut {
+  opacity: 0;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.gridBox {
+  background: #151936;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 10px;
+  width: fit-content;
+}
+
+.matrix {
+  display: grid;
+  gap: var(--grid-gap);
+  background: #0d1023;
+  width: max-content;
+}
+
+.cell {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--cell-border);
+  background: #253064;
+  position: relative;
+  transition: background-color 320ms ease, outline-color 220ms ease;
+}
+
+.cell.highlight {
+  outline: 2px solid var(--accent2);
+  z-index: 2;
+}
+
+.cell.blockEdgeK {
+  border-right: 2px solid rgba(255, 209, 102, 0.95);
+}
+
+.cell.blockEdgeM {
+  border-bottom: 2px solid rgba(110, 231, 255, 0.95);
+}
+
+.matrix.dense {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.matrix.block {
+  gap: 2px;
+}
+
+.blockCell {
+  width: 28px;
+  height: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.panelGrid {
+  display: grid;
+  grid-template-columns: repeat(4, max-content);
+  gap: 10px;
+}
+
+.panelTitle {
+  color: var(--accent);
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+
+.layerTitle {
+  color: #b7f0ff;
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+
+.stepLayout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.note {
+  color: var(--ok);
+  font-size: 12px;
+}
+
+.panel {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  padding: 10px;
+  width: fit-content;
+}
+
+.panelTitle {
+  color: var(--accent);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.xorMatrix {
+  gap: 2px;
+}
+
+.axisLabel {
+  width: 36px;
+  height: 16px;
+  color: #a8b2de;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.xorMatrix .axisLabel:not(:first-child) {
+  width: 24px;
+}
+
+.xorCell {
+  width: 24px;
+  height: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.sideBySide {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.sceneSubTitle {
+  color: #d4dcff;
+  font-size: 13px;
+}
+
+.tiledLayers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.matrix.tile {
+  gap: 2px;
+  grid-template-columns: repeat(4, 28px);
+}
+
+.laneGrid {
+  display: grid;
+  gap: 3px;
+  background: #0d1023;
+  padding: 4px;
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.laneCell {
+  width: 44px;
+  height: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.laneHalf {
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.laneHalf:last-child {
+  border-bottom: none;
+}
+
+.highlightHalf {
+  outline: 2px solid var(--accent2);
+  z-index: 2;
+}

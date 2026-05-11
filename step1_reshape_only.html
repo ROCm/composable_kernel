@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Step1 Reshape Only</title>
+  <style>
+    :root {
+      --bg: #0e1329;
+      --panel: #161d3a;
+      --text: #eef2ff;
+      --muted: #a5b0da;
+      --accent: #6ee7ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(circle at 20% 0%, #1a2452, var(--bg) 35%);
+      color: var(--text);
+    }
+    .wrap { max-width: 1900px; margin: 0 auto; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    h1 { margin: 0 0 8px; font-size: 20px; }
+    p { margin: 0 0 6px; color: var(--muted); }
+    .controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    button {
+      background: #253164;
+      color: var(--text);
+      border: 1px solid #3f4f90;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    button:hover { background: #2d3a75; }
+    .status { margin-left: 8px; color: var(--accent); font-weight: 600; }
+    .formula {
+      margin-top: 4px;
+      color: #9ef7c9;
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+    .gridWrap {
+      overflow: auto;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: #101633;
+      padding: 10px;
+      max-height: 78vh;
+    }
+    .grid {
+      display: grid;
+      gap: 0;
+      width: max-content;
+    }
+    .label {
+      width: 46px;
+      min-height: 22px;
+      padding: 2px 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: #c7d1f5;
+      background: #1a2248;
+    }
+    .label.top {
+      width: 136px;
+      font-size: 10px;
+      min-height: 24px;
+    }
+    .cell {
+      width: 136px;
+      min-height: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      padding: 2px 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.25;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+      transition: background-color 220ms ease;
+      white-space: pre-wrap;
+    }
+    .origCell {
+      width: 42px;
+      min-height: 18px;
+      font-size: 8px;
+      padding: 1px 2px;
+    }
+    .origTop {
+      width: 42px;
+      font-size: 9px;
+    }
+    .groupWrap {
+      display: flex;
+      gap: 28px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .note {
+      margin-top: 8px;
+      color: #c8d4ff;
+      font-size: 12px;
+    }
+    .dividerRight {
+      border-right: 2px solid rgba(180, 200, 255, 0.9) !important;
+    }
+    .splitRight {
+      border-right: 2px solid rgba(160, 185, 245, 0.85) !important;
+    }
+    .spacer {
+      width: 18px;
+      min-height: 1px;
+      background: transparent;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h1>Step 1 Only: Reshape to [A,B,C] = [8,32,8]</h1>
+      <p>This page shows only the first descriptor transformation from the code block.</p>
+      <p>Element IDs stay consistent. Every cell contains exactly 8 element IDs (<code>kKPack=8</code>).</p>
+      <div id="formula" class="formula"></div>
+    </div>
+
+    <div class="panel controls">
+      <button id="showBeforeBtn" type="button">Before (Original 64x32)</button>
+      <button id="showAfterBtn" type="button">Apply Step1 (32x8 blocks)</button>
+      <button id="showRecolorBtn" type="button">Recolor (column identity)</button>
+      <button id="showXorBtn" type="button">Apply Step2 XOR (shuffle blocks)</button>
+      <button id="showUnmergeBtn" type="button">Apply Step3 Unmerge (stack layers)</button>
+      <button id="showMergeBtn" type="button">Apply Step4 Merge (back to 2D)</button>
+      <span id="status" class="status"></span>
+    </div>
+
+    <div class="panel">
+      <div id="gridWrap" class="gridWrap"></div>
+      <div class="note">
+        Before view is the plain original contiguous grid (<code>64x32</code>, no extra spacing).
+        Step1 view is reshaped to
+        rows <code>B=kM/MLdsLayer=32</code> and cols <code>A=kK/kKPack*MLdsLayer=8</code>.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const M = 64;
+    const K = 32;
+    const KPack = 8;
+    const MLdsLayer = 2;
+    const L = MLdsLayer;               // 2
+    const K0 = K / KPack;               // 4
+    const A = (K / KPack) * MLdsLayer; // 8
+    const B = M / MLdsLayer;            // 32
+    const C = KPack;                    // 8
+
+    const dom = {
+      showBeforeBtn: document.getElementById("showBeforeBtn"),
+      showAfterBtn: document.getElementById("showAfterBtn"),
+      showRecolorBtn: document.getElementById("showRecolorBtn"),
+      showXorBtn: document.getElementById("showXorBtn"),
+      showUnmergeBtn: document.getElementById("showUnmergeBtn"),
+      showMergeBtn: document.getElementById("showMergeBtn"),
+      status: document.getElementById("status"),
+      formula: document.getElementById("formula"),
+      gridWrap: document.getElementById("gridWrap")
+    };
+
+    let mode = "before";
+
+    function colorFromId(id) {
+      const hue = (id * 31) % 360;
+      return `hsl(${hue} 72% 42%)`;
+    }
+
+    function colorFromA(a) {
+      const palette = [
+        "#264653", "#2a9d8f", "#e9c46a", "#f4a261",
+        "#e76f51", "#6a4c93", "#8ab17d", "#577590"
+      ];
+      return palette[a % 8];
+    }
+
+    function colorFromRowPair(m) {
+      // Pair rows that share the same b = floor(m/2) in this setup.
+      const b = Math.floor(m / 2); // 0..31
+      const hue = (b * 11) % 360;
+      return `hsl(${hue} 62% 40%)`;
+    }
+
+    // Full element set with stable IDs.
+    const elems = [];
+    for (let m = 0; m < M; m += 1) {
+      for (let k = 0; k < K; k += 1) {
+        const id = m * K + k;
+        const n = id;
+        const c = n % C;
+        const a = Math.floor(n / C) % A;
+        const b = Math.floor(n / 64);
+        elems.push({ id, m, k, n, a, b, c });
+      }
+    }
+
+    function labelCell(text, top = false) {
+      const d = document.createElement("div");
+      d.className = top ? "label top" : "label";
+      d.textContent = text;
+      return d;
+    }
+
+    function drawBlockGrid(rows, cols, rowLabel, colLabel, blockMap, title, options = {}) {
+      const outer = document.createElement("div");
+      const heading = document.createElement("div");
+      heading.style.color = "#b8c8ff";
+      heading.style.fontSize = "12px";
+      heading.style.marginBottom = "8px";
+      heading.textContent = title;
+      outer.append(heading);
+
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      const spacerAfter = options.spacerAfter || [];
+      const dividerAfter = options.dividerAfter || [];
+      const template = ["max-content"];
+      for (let c = 0; c < cols; c += 1) {
+        template.push("max-content");
+        if (spacerAfter.includes(c)) template.push("18px");
+      }
+      grid.style.gridTemplateColumns = template.join(" ");
+
+      grid.append(labelCell(""));
+      for (let c = 0; c < cols; c += 1) {
+        const top = labelCell(colLabel(c), true);
+        if (dividerAfter.includes(c)) top.classList.add("dividerRight");
+        grid.append(top);
+        if (spacerAfter.includes(c)) {
+          const s = document.createElement("div");
+          s.className = "spacer";
+          grid.append(s);
+        }
+      }
+
+      for (let r = 0; r < rows; r += 1) {
+        grid.append(labelCell(rowLabel(r)));
+        for (let c = 0; c < cols; c += 1) {
+          const entry = blockMap.get(`${r},${c}`);
+          const list = Array.isArray(entry) ? entry : ((entry && entry.ids) ? entry.ids : []);
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          if (options.compactCells) cell.classList.add("origCell");
+          if (options.colorByA) {
+            const srcA = entry && !Array.isArray(entry) ? entry.srcA : c;
+            cell.style.background = colorFromA(srcA);
+          } else {
+            const firstId = list.length ? list[0] : 0;
+            cell.style.background = colorFromId(firstId);
+          }
+          if (dividerAfter.includes(c)) cell.classList.add("dividerRight");
+          cell.textContent = options.hideNumbers ? "" : list.join(" ");
+          grid.append(cell);
+          if (spacerAfter.includes(c)) {
+            const s = document.createElement("div");
+            s.className = "spacer";
+            grid.append(s);
+          }
+        }
+      }
+      outer.append(grid);
+      return outer;
+    }
+
+    function drawOriginalMatrix() {
+      const map = new Map();
+      for (const e of elems) map.set(`${e.m},${e.k}`, e.id);
+
+      const outer = document.createElement("div");
+      const heading = document.createElement("div");
+      heading.style.color = "#b8c8ff";
+      heading.style.fontSize = "12px";
+      heading.style.marginBottom = "8px";
+      heading.textContent = "Before: Original [64 x 32], one ID per element";
+      outer.append(heading);
+
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      grid.style.gridTemplateColumns = `repeat(${K}, max-content)`;
+
+      for (let r = 0; r < M; r += 1) {
+        for (let c = 0; c < K; c += 1) {
+          const id = map.get(`${r},${c}`);
+          const cell = document.createElement("div");
+          cell.className = "cell origCell";
+          cell.style.background = colorFromRowPair(r);
+          cell.textContent = id;
+          grid.append(cell);
+        }
+      }
+      outer.append(grid);
+      return outer;
+    }
+
+    function buildBeforeMap() {
+      // Before Step1: only KPack grouping from original [M,K], gives [64,4] blocks.
+      // Each block cell holds 8 IDs for k in [k0*8 .. k0*8+7].
+      const map = new Map();
+      for (const e of elems) {
+        const k0 = Math.floor(e.k / KPack); // 0..3
+        const key = `${e.m},${k0}`;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(e.id);
+      }
+      for (const list of map.values()) list.sort((x, y) => x - y);
+      return map;
+    }
+
+    function buildAfterStep1Map() {
+      // Step1 exact descriptor reshape: [A,B,C] where
+      // a = floor(n/C) % A, b = floor(n/64), c = n % C
+      // Display projected as rows=b (32), cols=a (8), each cell stores c=0..7 IDs.
+      const map = new Map();
+      for (const e of elems) {
+        const key = `${e.b},${e.a}`;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(e.id);
+      }
+      for (const list of map.values()) list.sort((x, y) => x - y);
+      return map;
+    }
+
+    function buildAfterStep2XorMap() {
+      // Step2 XOR on merged KPack blocks:
+      // Row (b) is preserved. XOR shuffles across A-columns within each row:
+      // (a,b,c) -> (a xor (b mod A), b, c)
+      // Each cell still preserves its KPack block of 8 IDs.
+      const map = new Map();
+      for (const e of elems) {
+        const ax = e.a ^ (e.b % A);
+        const key = `${e.b},${ax}`;
+        if (!map.has(key)) map.set(key, { ids: [], srcA: e.a });
+        const slot = map.get(key);
+        slot.ids.push(e.id);
+        slot.srcA = e.a;
+      }
+      for (const slot of map.values()) slot.ids.sort((x, y) => x - y);
+      return map;
+    }
+
+    function buildAfterStep3UnmergedMap() {
+      // Step3 unmerge on XOR result:
+      // ax = a xor (b mod A)
+      // ax -> (l, k0) where l=floor(ax/4), k0=ax%4
+      // Visualized as B rows and (L x K0) columns:
+      // row = b, col = l*K0 + k0
+      const map = new Map();
+      for (const e of elems) {
+        const ax = e.a ^ (e.b % A);
+        const l = Math.floor(ax / K0);
+        const k0 = ax % K0;
+        const row = e.b;
+        const col = l * K0 + k0;
+        const key = `${row},${col}`;
+        if (!map.has(key)) map.set(key, { ids: [], srcA: e.a, l });
+        const slot = map.get(key);
+        slot.ids.push(e.id);
+        slot.srcA = e.a;
+        slot.l = l;
+      }
+      for (const slot of map.values()) slot.ids.sort((x, y) => x - y);
+      return map;
+    }
+
+    function buildAfterStep4MergedMapFromStep3() {
+      // Step4 merge back to [M,K], using the actual Step3 output map.
+      // Step3 layout: rows=b (0..31), cols=(l*4 + k0) (0..7), each cell has 8 ids across c.
+      // Step4 merge:
+      //   m = b*L + l
+      //   k = k0*C + c
+      // Keep srcA tag so Step4 can preserve Step3 color identity.
+      const map = new Map();
+      for (let b = 0; b < B; b += 1) {
+        for (let l = 0; l < L; l += 1) {
+          for (let k0 = 0; k0 < K0; k0 += 1) {
+            const step3Col = l * K0 + k0;
+            const entry = afterUnmergeMap.get(`${b},${step3Col}`);
+            const ids = entry && entry.ids ? entry.ids : [];
+            const srcA = entry && typeof entry.srcA === "number" ? entry.srcA : 0;
+            for (let c = 0; c < C; c += 1) {
+              const id = ids[c];
+              const m4 = b * L + l;
+              const k4 = k0 * C + c;
+              map.set(`${m4},${k4}`, { physId: id, srcA });
+            }
+          }
+        }
+      }
+      return map;
+    }
+
+    const beforeMap = buildBeforeMap();
+    const afterMap = buildAfterStep1Map();
+    const afterXorMap = buildAfterStep2XorMap();
+    const afterUnmergeMap = buildAfterStep3UnmergedMap();
+    const afterMergeMap = buildAfterStep4MergedMapFromStep3();
+
+    function showRuntimeError(err) {
+      dom.status.textContent = "Runtime error";
+      const msg = err && err.stack ? err.stack : String(err);
+      dom.formula.textContent = `JS error:\n${msg}`;
+      dom.gridWrap.innerHTML = "";
+      const pre = document.createElement("pre");
+      pre.style.margin = "0";
+      pre.style.color = "#ffb4b4";
+      pre.style.whiteSpace = "pre-wrap";
+      pre.textContent = msg;
+      dom.gridWrap.append(pre);
+    }
+
+    function render() {
+      try {
+        dom.gridWrap.innerHTML = "";
+        if (mode === "before") {
+          dom.status.textContent = "Before Step1: original matrix";
+          dom.formula.textContent =
+`Before Step1 view:
+- Original [M,K] = [64,32]
+- Plain contiguous grid (no extra spacing between columns)
+- Row-pair coloring: rows (0,1), (2,3), ... share color to preview LDS row pairing
+- One cell = one element ID`;
+          dom.gridWrap.append(drawOriginalMatrix());
+        } else if (mode === "after") {
+          dom.status.textContent = "After Step1: reshaped to [B=32, A=8] blocks";
+          dom.formula.textContent =
+`Step1 exact reshape (from code):
+- A = kK/kKPack * MLdsLayer = 8
+- B = kM/MLdsLayer = 32
+- C = kKPack = 8
+- n=id, a=floor(n/C)%A, b=floor(n/64), c=n%C
+- Displayed as rows=b, cols=a, each cell stores 8 IDs (c dimension)
+- Single grid with only a separator line between MLdsLayer groups:
+  [a=0..3] | [a=4..7]`;
+
+          dom.gridWrap.append(
+            drawBlockGrid(
+              B,
+              A,
+              (r) => `b=${r}`,
+              (c) => `a=${c}`,
+              afterMap,
+              "After Step1: [32 x 8 blocks], each cell = 8 IDs",
+              { dividerAfter: [3] }
+            )
+          );
+        } else if (mode === "recolor") {
+          dom.status.textContent = "Recolor stage: same Step1 layout, column-identity colors";
+          dom.formula.textContent =
+`Recolor bridge (between Step1 and Step2):
+- Geometry unchanged from Step1: still [B=32, A=8] blocks
+- No movement yet
+- Only recolor: color is now bound to source a-column identity (a=0..7)
+- Numbers kept visible to track exact IDs
+- This makes Step2 XOR shuffle visually continuous`;
+
+          dom.gridWrap.append(
+            drawBlockGrid(
+              B,
+              A,
+              (r) => `b=${r}`,
+              (c) => `a=${c}`,
+              afterMap,
+            "Recolor only: same blocks, column-identity colors with IDs visible",
+            { dividerAfter: [3], colorByA: true, hideNumbers: false }
+            )
+          );
+        } else if (mode === "merge4") {
+        dom.status.textContent = "After Step4: physical LDS storage view";
+          dom.formula.textContent =
+`Step4 merge back to 2D:
+- From Step3 [L,B,K0,C]
+- m = b*L + l
+- k = k0*C + c
+- Logical view is [64,32], but this panel shows physical LDS storage rows
+- 32 banks x 4B = 128B per row = 64 fp16 values
+- Numbers shown are logical IDs placed into each physical slot (so XOR shift is visible)
+- Same colors as Step3; only split each former block into 8 adjacent cells`;
+
+        const outer = document.createElement("div");
+        const heading = document.createElement("div");
+        heading.style.color = "#b8c8ff";
+        heading.style.fontSize = "12px";
+        heading.style.marginBottom = "8px";
+        heading.textContent = "After Step4: physical LDS layout [32 x 64], contiguous by storage offset";
+        outer.append(heading);
+
+        // Build physical 32x64 view directly from Step3 blocks:
+        // row=b, col=l*32 + k0*8 + c
+        const rowVals = Array.from({ length: 32 }, () => Array(64).fill(null));
+        const rowSrcA = Array.from({ length: 32 }, () => Array(64).fill(0));
+        for (let b = 0; b < B; b += 1) {
+          for (let l = 0; l < L; l += 1) {
+            for (let k0 = 0; k0 < K0; k0 += 1) {
+              const step3Col = l * K0 + k0;
+              const entry = afterUnmergeMap.get(`${b},${step3Col}`);
+              const ids = entry && entry.ids ? entry.ids : [];
+              const srcA = entry && typeof entry.srcA === "number" ? entry.srcA : 0;
+              for (let c = 0; c < C; c += 1) {
+                const physCol = l * 32 + k0 * 8 + c;
+                rowVals[b][physCol] = ids[c];
+                rowSrcA[b][physCol] = srcA;
+              }
+            }
+          }
+        }
+
+        const grid = document.createElement("div");
+        grid.className = "grid";
+        grid.style.gridTemplateColumns = `repeat(64, max-content)`;
+
+        for (let r = 0; r < 32; r += 1) {
+          for (let c = 0; c < 64; c += 1) {
+            const logicalId = rowVals[r][c];
+            const cell = document.createElement("div");
+            cell.className = "cell origCell";
+            if (typeof logicalId === "number") {
+              const srcA = rowSrcA[r][c];
+              cell.style.background = colorFromA(srcA);
+              cell.textContent = logicalId;
+              cell.title = `phys(row=${r},col=${c}) <- logicalId=${logicalId}, srcA=${srcA}`;
+            } else {
+              cell.style.background = "#30385c";
+              cell.textContent = "";
+              cell.title = `phys(row=${r},col=${c})`;
+            }
+            if ((c + 1) % 8 === 0) cell.classList.add("splitRight");
+            grid.append(cell);
+          }
+        }
+        outer.append(grid);
+        dom.gridWrap.append(outer);
+        } else {
+          if (mode === "unmerge") {
+            dom.status.textContent = "After Step3: unmerge layers (columns grouped by L)";
+            dom.formula.textContent =
+`Step3 unmerge (lds_desc_unmerged):
+- Start from XOR result axis ax = a xor (b mod A)
+- Unmerge: ax -> (l, k0), where l=floor(ax/4), k0=ax%4
+- Keep rows as b (kM/MLdsLayer = 32)
+- Columns become grouped by L then K0: col = l*4 + k0
+- Final simple view here: [32 x 8 blocks] = [L0:4 cols] | [L1:4 cols]
+- Numbers kept visible for exact tracking`;
+
+            dom.gridWrap.append(
+              drawBlockGrid(
+                B,
+                A,
+                (r) => `b=${r}`,
+                (c) => (c < 4 ? `L0,k0=${c}` : `L1,k0=${c - 4}`),
+                afterUnmergeMap,
+                "After Step3 Unmerge: [32 x 8 blocks] with L column groups",
+              { hideNumbers: false, colorByA: true, spacerAfter: [3] }
+              )
+            );
+            return;
+          }
+
+          dom.status.textContent = "After Step2 XOR: merged KPack blocks shuffled";
+          dom.formula.textContent =
+`Step2 XOR on merged KPack blocks:
+- Input shape still [A=8, B=32, C=8]
+- XOR acts on merged-block coordinates and keeps row b fixed:
+  (a,b,c) -> (a xor (b mod A), b, c)
+- Color identity is bound to source a-column (a=0..7), then moved by XOR
+- Numbers kept visible while colors show shuffle pattern
+- Single grid with separator line between [a=0..3] and [a=4..7]`;
+
+          dom.gridWrap.append(
+            drawBlockGrid(
+              B,
+              A,
+              (r) => `b=${r}`,
+              (c) => `a=${c}`,
+              afterXorMap,
+            "After Step2 XOR: [32 x 8 blocks], column-color shuffle with IDs visible",
+            { dividerAfter: [3], hideNumbers: false, colorByA: true }
+            )
+          );
+        }
+      } catch (err) {
+        showRuntimeError(err);
+      }
+    }
+
+    dom.showBeforeBtn.addEventListener("click", () => {
+      mode = "before";
+      render();
+    });
+    dom.showAfterBtn.addEventListener("click", () => {
+      mode = "after";
+      render();
+    });
+    dom.showRecolorBtn.addEventListener("click", () => {
+      mode = "recolor";
+      render();
+    });
+    dom.showXorBtn.addEventListener("click", () => {
+      mode = "xor";
+      render();
+    });
+    dom.showUnmergeBtn.addEventListener("click", () => {
+      mode = "unmerge";
+      render();
+    });
+    dom.showMergeBtn.addEventListener("click", () => {
+      mode = "merge4";
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>

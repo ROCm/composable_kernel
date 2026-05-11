@@ -108,6 +108,24 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
         }
     }
 
+    // d128, GQA-6 (num_queries_per_kv == 6).  kBlockM=256 / NumQPerKV=6 ->
+    // kBlockQ=42; the per-block query window is 42*6=252 valid slots out of
+    // kBlockM=256 (4 padding slots, ~1.6% waste).  pad_tensor_view in the
+    // kernel handles the OOB reads/writes for the trailing padding slots.
+    if(args.hdim == 128 && args.num_queries_per_kv == 6)
+    {
+        if(args.data_type == unified_attention_args::data_type_enum::fp16)
+        {
+            if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, false, 128, 256, 6)
+            else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::fp16, true,  128, 256, 6)
+        }
+        else if(args.data_type == unified_attention_args::data_type_enum::bf16)
+        {
+            if(!is_mask) DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, false, 128, 256, 6)
+            else         DISPATCH_UNIFIED_ATTENTION(unified_attention_args::data_type_enum::bf16, true,  128, 256, 6)
+        }
+    }
+
     // d64, GQA-8 (num_queries_per_kv == 8)
     if(args.hdim == 64 && args.num_queries_per_kv == 8)
     {

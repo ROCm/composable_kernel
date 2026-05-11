@@ -307,7 +307,7 @@ struct UnifiedAttentionKernel
         const index_t context_len = amd_wave_read_first_lane(seq_len - cur_batch_query_len);
 
         index_t _max_seq_prefix_len = amd_wave_read_first_lane(
-            (context_len + q_block_local_idx * kBlockQ + (kBlockM - 1) + 1));
+            (context_len + q_block_local_idx * kBlockQ + (kBlockQ - 1) + 1)); // this should be kBlockQ instead of kBlockM
 
         if(seq_len < _max_seq_prefix_len)
         {

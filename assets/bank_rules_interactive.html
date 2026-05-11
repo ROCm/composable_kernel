@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LDS Bank Conflict Rules on CDNA</title>
+  <style>
+    :root {
+      --bg: #0e1329;
+      --panel: #161d3a;
+      --text: #eef2ff;
+      --muted: #a5b0da;
+      --accent: #6ee7ff;
+      --ok: #2ecc71;
+      --broadcast: #3498db;
+      --bad: #e74c3c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 16px;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(circle at 20% 0%, #1a2452, var(--bg) 35%);
+      color: var(--text);
+    }
+    .wrap { max-width: 1900px; margin: 0 auto; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    h1 { margin: 0 0 8px; font-size: 20px; }
+    p  { margin: 0 0 6px; color: var(--muted); }
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    button {
+      background: #253164; color: var(--text);
+      border: 1px solid #3f4f90; border-radius: 6px;
+      padding: 6px 10px; cursor: pointer;
+    }
+    button.active { background: #3f55a8; border-color: #6fe7ff; }
+    button:hover { background: #2d3a75; }
+    .status  { margin-left: 8px; color: var(--accent); font-weight: 600; }
+    .formula { margin-top: 4px; color: #9ef7c9; font-size: 13px; white-space: pre-wrap; }
+    .gridWrap {
+      overflow: auto; border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px; background: #101633; padding: 10px;
+      max-height: 74vh;
+    }
+    .legend { display: flex; gap: 14px; align-items: center; font-size: 12px; color: #c8d4ff; margin-bottom: 6px; }
+    .chip { display: inline-block; width: 14px; height: 14px; border-radius: 3px; margin-right: 4px; border: 1px solid rgba(255,255,255,0.3); vertical-align: middle; }
+    .cell {
+      width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: #fff;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    .hdr { font-size: 10px; color: #9bacde; text-align: center; padding: 2px 0; }
+    .stats { display:flex; gap:24px; font-size:13px; color:#d8e4ff; margin-top:8px; }
+    .stats b { color: var(--accent); font-size: 16px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h1>LDS Bank Conflict Rules (CDNA, 32 banks x 4 B)</h1>
+      <p>Each panel below is one <b>half-wave</b>: 32 lanes (rows) x 32 banks (columns).
+         Colour encodes what happens when the lanes issue one LDS instruction:
+         <span style="color:var(--ok)">distinct bank</span> = OK,
+         <span style="color:var(--broadcast)">same bank + same slot</span> = broadcast OK,
+         <span style="color:var(--bad)">same bank + different slots</span> = N-way conflict.
+      </p>
+      <div id="formula" class="formula"></div>
+    </div>
+
+    <div class="panel controls">
+      <button class="sBtn active" data-s="R1_ok">R1 OK: lane L -> slot L</button>
+      <button class="sBtn" data-s="R1_broadcast">R1 broadcast: all lanes -> same slot</button>
+      <button class="sBtn" data-s="R1_fail">R1 FAIL: lane L -> slot 16 L</button>
+      <button class="sBtn" data-s="R2_ok">R2 OK: fp16 lanes share slot (all same half)</button>
+      <button class="sBtn" data-s="R2_fail">R2 FAIL: one fp16 dissenter</button>
+      <button class="sBtn" data-s="R3_step0">R3 b128 sub-step 0</button>
+      <button class="sBtn" data-s="R3_step1">R3 b128 sub-step 1</button>
+      <button class="sBtn" data-s="R3_step2">R3 b128 sub-step 2</button>
+      <button class="sBtn" data-s="R3_step3">R3 b128 sub-step 3</button>
+      <span id="status" class="status"></span>
+    </div>
+
+    <div class="panel">
+      <div class="legend">
+        <span><span class="chip" style="background:var(--ok)"></span>1 lane on this bank (OK)</span>
+        <span><span class="chip" style="background:var(--broadcast)"></span>N lanes, 1 slot (broadcast OK)</span>
+        <span><span class="chip" style="background:var(--bad)"></span>N lanes, >1 slot (CONFLICT)</span>
+      </div>
+      <div id="gridWrap" class="gridWrap"></div>
+      <div class="stats">
+        <span>half-wave size: <b>32</b> lanes</span>
+        <span>banks: <b>32</b> (gfx942)</span>
+        <span>conflict ways: <b id="statWays"></b></span>
+        <span>verdict: <b id="statVerdict"></b></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const HALF  = 32;
+    const NBANKS = 32;
+
+    // Each scenario produces a function laneToByteAddr(lane) returning a byte address.
+    // The visualiser computes slot, bank, and groups lanes per bank.
+    const scenarios = {
+      R1_ok: {
+        title: "R1 OK: stride 4 B per lane (contiguous b32)",
+        desc:
+`lane L addr = L * 4 bytes
+slot(L)     = L
+bank(L)     = L % 32
+-> 32 distinct banks, each 1 lane. PASS.`,
+        addr: (l) => l * 4,
+      },
+      R1_broadcast: {
+        title: "R1 broadcast: every lane reads the same 4 B slot",
+        desc:
+`lane L addr = 20 bytes (constant)
+slot(L)     = 5
+bank(L)     = 5
+-> all 32 lanes on bank 5 slot 5; hardware broadcasts one value. PASS.`,
+        addr: (_) => 20,
+      },
+      R1_fail: {
+        title: "R1 FAIL: stride 64 B per lane (column of 64 B rows)",
+        desc:
+`lane L addr = L * 64 bytes
+slot(L)     = L * 16
+bank(L)     = (L * 16) % 32 in {0, 16}
+-> 16 lanes on bank 0 at 16 distinct slots
+-> 16 lanes on bank 16 at 16 distinct slots
+-> 16-way bank conflict per half-wave. FAIL.`,
+        addr: (l) => l * 64,
+      },
+      R2_ok: {
+        title: "R2 OK: 8 fp16 lanes share one 4 B slot (all target lo half)",
+        desc:
+`8 lanes ask for the same fp16 element at address 20 bytes.
+All 8 map to bank=5, slot=5, fp16 half = lo.
+Hardware broadcasts. PASS.
+(Remaining 24 lanes are idle / outside this half-wave.)`,
+        addr: (l) => (l < 8 ? 20 : null),
+      },
+      R2_fail: {
+        title: "R2 FAIL: 7 lanes on lo fp16, 1 lane on hi fp16",
+        desc:
+`8 lanes on bank=5 slot=5, but lane 7 wants the hi fp16 half (addr = 22).
+Hardware cannot broadcast two different values in one cycle.
+-> full 2-way conflict (degrades the whole group).
+Lesson: broadcast is all-or-nothing.`,
+        addr: (l) => (l < 7 ? 20 : (l === 7 ? 22 : null)),
+      },
+      R3_step0: {
+        title: "R3 ds_read_b128 sub-step 0 of 4",
+        desc:
+`One ds_read_b128 = 16 B / lane = 4 sub-steps of 4 B each.
+Sub-step s checks bank/slot at lane_addr + s*4.
+Here: contiguous b128, addr(L) = L*16 + 0.
+All sub-steps give 32 distinct banks -> wide reads are SAFE only because the
+underlying stride pattern already passes R1.`,
+        addr: (l) => l * 16 + 0,
+      },
+      R3_step1: {
+        title: "R3 ds_read_b128 sub-step 1 of 4",
+        desc: `addr(L) = L*16 + 4.  Same pattern, shifted by 4 B. PASS.`,
+        addr: (l) => l * 16 + 4,
+      },
+      R3_step2: {
+        title: "R3 ds_read_b128 sub-step 2 of 4",
+        desc: `addr(L) = L*16 + 8.  Same pattern, shifted by 8 B. PASS.`,
+        addr: (l) => l * 16 + 8,
+      },
+      R3_step3: {
+        title: "R3 ds_read_b128 sub-step 3 of 4",
+        desc: `addr(L) = L*16 + 12. Same pattern, shifted by 12 B. PASS.`,
+        addr: (l) => l * 16 + 12,
+      },
+    };
+
+    const dom = {
+      status: document.getElementById("status"),
+      formula: document.getElementById("formula"),
+      wrap: document.getElementById("gridWrap"),
+      statWays: document.getElementById("statWays"),
+      statVerdict: document.getElementById("statVerdict"),
+    };
+
+    function render(key) {
+      const s = scenarios[key];
+      dom.status.textContent = s.title;
+      dom.formula.textContent = s.desc;
+
+      // Compute bank assignments for 32 lanes.
+      // laneAddr[l] = null means lane idle (ignored).
+      const laneAddr = [];
+      for (let l = 0; l < HALF; l += 1) laneAddr.push(s.addr(l));
+
+      // Group lanes by bank.
+      const byBank = new Map();   // bank -> Map(slot -> [lanes])
+      for (let l = 0; l < HALF; l += 1) {
+        const a = laneAddr[l];
+        if (a === null) continue;
+        const slot = Math.floor(a / 4);
+        const bank = slot % NBANKS;
+        if (!byBank.has(bank)) byBank.set(bank, new Map());
+        const slotMap = byBank.get(bank);
+        if (!slotMap.has(slot)) slotMap.set(slot, []);
+        slotMap.get(slot).push(l);
+      }
+
+      // Per-bank verdict
+      let maxWays = 1;
+      let conflict = false;
+      const bankState = new Map();
+      for (const [bank, slotMap] of byBank) {
+        const lanes = [...slotMap.values()].flat();
+        if (lanes.length === 1) {
+          bankState.set(bank, {color: "#2ecc71", label: "L" + lanes[0], tip: `bank ${bank}, slot ${[...slotMap.keys()][0]}`});
+        } else if (slotMap.size === 1) {
+          bankState.set(bank, {color: "#3498db", label: lanes.length + "x broadcast", tip: `${lanes.length} lanes -> bank ${bank}, slot ${[...slotMap.keys()][0]} (OK)`});
+        } else {
+          bankState.set(bank, {color: "#e74c3c", label: slotMap.size + "-way", tip: `${lanes.length} lanes on bank ${bank} across ${slotMap.size} distinct slots`});
+          maxWays = Math.max(maxWays, slotMap.size);
+          conflict = true;
+        }
+      }
+
+      dom.statWays.textContent = conflict ? maxWays : "0 (no conflict)";
+      dom.statVerdict.innerHTML = conflict
+        ? `<span style="color:#e74c3c">FAIL</span>`
+        : `<span style="color:#2ecc71">PASS</span>`;
+
+      // Draw: rows = banks (0..31), one row shows the bank's verdict; additionally
+      // draw a lane-level half-wave strip below showing which bank each lane hit.
+      dom.wrap.innerHTML = "";
+
+      const title = document.createElement("div");
+      title.style.color = "#b8c8ff";
+      title.style.fontSize = "13px";
+      title.style.marginBottom = "6px";
+      title.textContent = "Bank verdict (32 banks x up-to-N lane collisions)";
+      dom.wrap.append(title);
+
+      // Row 1: one cell per bank with its colour+label.
+      const bankRow = document.createElement("div");
+      bankRow.style.display = "grid";
+      bankRow.style.gridTemplateColumns = `80px repeat(${NBANKS}, 34px)`;
+      bankRow.style.gap = "2px";
+
+      const bl = document.createElement("div");
+      bl.className = "hdr";
+      bl.style.textAlign = "right";
+      bl.style.paddingRight = "4px";
+      bl.textContent = "bank ->";
+      bankRow.append(bl);
+      for (let b = 0; b < NBANKS; b += 1) {
+        const h = document.createElement("div");
+        h.className = "hdr";
+        h.textContent = b;
+        bankRow.append(h);
+      }
+      const lbl = document.createElement("div");
+      lbl.className = "hdr";
+      lbl.style.textAlign = "right";
+      lbl.style.paddingRight = "4px";
+      lbl.textContent = "verdict";
+      bankRow.append(lbl);
+      for (let b = 0; b < NBANKS; b += 1) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        const state = bankState.get(b);
+        if (state) {
+          cell.style.background = state.color;
+          cell.title = state.tip;
+          cell.textContent = state.label.length > 7 ? state.label.slice(0,6)+"." : state.label;
+        } else {
+          cell.style.background = "#253164";
+          cell.style.borderStyle = "dashed";
+          cell.title = `bank ${b}: no lane`;
+        }
+        bankRow.append(cell);
+      }
+      dom.wrap.append(bankRow);
+
+      // Row 2: lane-level strip (32 lanes).
+      const laneTitle = document.createElement("div");
+      laneTitle.style.margin = "14px 0 6px";
+      laneTitle.style.color = "#b8c8ff";
+      laneTitle.style.fontSize = "13px";
+      laneTitle.textContent = "Per-lane view: which bank/slot did lane L land on?";
+      dom.wrap.append(laneTitle);
+
+      const laneRow = document.createElement("div");
+      laneRow.style.display = "grid";
+      laneRow.style.gridTemplateColumns = `80px repeat(${HALF}, 34px)`;
+      laneRow.style.gap = "2px";
+      const lh = document.createElement("div");
+      lh.className = "hdr";
+      lh.style.textAlign = "right";
+      lh.style.paddingRight = "4px";
+      lh.textContent = "lane ->";
+      laneRow.append(lh);
+      for (let l = 0; l < HALF; l += 1) {
+        const h = document.createElement("div");
+        h.className = "hdr";
+        h.textContent = l;
+        laneRow.append(h);
+      }
+      const lh2 = document.createElement("div");
+      lh2.className = "hdr";
+      lh2.style.textAlign = "right";
+      lh2.style.paddingRight = "4px";
+      lh2.textContent = "bank@slot";
+      laneRow.append(lh2);
+      for (let l = 0; l < HALF; l += 1) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        const a = laneAddr[l];
+        if (a === null) {
+          cell.style.background = "#253164";
+          cell.style.borderStyle = "dashed";
+          cell.textContent = "-";
+          cell.title = `lane ${l} idle`;
+        } else {
+          const slot = Math.floor(a / 4);
+          const bank = slot % NBANKS;
+          const state = bankState.get(bank);
+          cell.style.background = state ? state.color : "#2ecc71";
+          cell.textContent = `${bank}@${slot}`;
+          cell.style.fontSize = "9px";
+          cell.title = `lane ${l}: addr=${a} B, bank=${bank}, slot=${slot}`;
+        }
+        laneRow.append(cell);
+      }
+      dom.wrap.append(laneRow);
+    }
+
+    function setActive(key) {
+      for (const b of document.querySelectorAll(".sBtn"))
+        b.classList.toggle("active", b.dataset.s === key);
+    }
+    for (const b of document.querySelectorAll(".sBtn")) {
+      b.addEventListener("click", () => { setActive(b.dataset.s); render(b.dataset.s); });
+    }
+    render("R1_ok");
+  </script>
+</body>
+</html>

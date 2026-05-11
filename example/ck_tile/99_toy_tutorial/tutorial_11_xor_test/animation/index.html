@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XOR Tile Window FP16 Animation</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <h1>XOR Tile Window FP16 - Step-by-Step Descriptor Animation</h1>
+      <p>
+        Source: <code>xor_test_with_tile_window.cpp</code> Step 1-4<br>
+        Constants: <code>kM=64</code>, <code>kK=32</code>, <code>kKPack=8</code>, <code>MLdsLayer=2</code>
+      </p>
+    </header>
+
+    <section class="controls">
+      <button id="prevBtn" type="button">Prev</button>
+      <button id="playBtn" type="button">Play</button>
+      <button id="nextBtn" type="button">Next</button>
+      <label class="speedWrap">Speed
+        <input id="speed" type="range" min="0.5" max="2.0" step="0.1" value="1.0">
+        <span id="speedLabel">1.0x</span>
+      </label>
+      <span id="sceneCounter"></span>
+    </section>
+
+    <section class="sceneText">
+      <h2 id="sceneTitle"></h2>
+      <p id="sceneSubtitle"></p>
+      <pre id="sceneFormula"></pre>
+    </section>
+
+    <section class="canvasWrap">
+      <div id="sceneRoot" class="sceneRoot"></div>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

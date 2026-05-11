@@ -1,0 +1,1147 @@
+---
+title: "Tile Distribution in GEMM"
+subtitle: "From Single Warp to Multi-Warp Tiled Execution"
+author: "Amir Hossein Ghamarian"
+date: today
+format:
+  revealjs:
+    theme: [default, custom.scss]
+    slide-number: true
+    chalkboard: true
+    preview-links: auto
+    transition: slide
+    background-transition: fade
+    code-fold: false
+    code-line-numbers: true
+    highlight-style: monokai
+    incremental: false
+    center: true
+    width: 1600
+    height: 900
+---
+
+# GEMM on GPU: The Big Picture {background-color="#2C3E50"}
+
+## Matrix Multiplication Basics
+
+**GEMM**: C = A × B where A is (M×K), B is (K×N), C is (M×N)
+
+```{python}
+#| echo: false
+#| fig-width: 14
+#| fig-height: 6
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+fig, axes = plt.subplots(1, 3, figsize=(14, 5))
+
+# Matrix A (M×K)
+ax = axes[0]
+M, K = 4, 3
+ax.set_xlim(-0.5, K + 0.5)
+ax.set_ylim(-0.5, M + 0.5)
+ax.invert_yaxis()
+ax.set_aspect('equal')
+
+for i in range(M):
+    for j in range(K):
+        rect = mpatches.Rectangle((j, i), 1, 1, linewidth=1, 
+                                   edgecolor='black', facecolor='#3498db', alpha=0.6)
+        ax.add_patch(rect)
+        ax.text(j + 0.5, i + 0.5, f'a{i}{j}', ha='center', va='center', fontsize=10)
+
+ax.set_title('Matrix A\n(M × K)', fontsize=14, fontweight='bold')
+ax.set_xlabel('K', fontsize=12)
+ax.set_ylabel('M', fontsize=12)
+ax.set_xticks(range(K + 1))
+ax.set_yticks(range(M + 1))
+
+# Matrix B (K×N)
+ax = axes[1]
+N = 5
+ax.set_xlim(-0.5, N + 0.5)
+ax.set_ylim(-0.5, K + 0.5)
+ax.invert_yaxis()
+ax.set_aspect('equal')
+
+for i in range(K):
+    for j in range(N):
+        rect = mpatches.Rectangle((j, i), 1, 1, linewidth=1, 
+                                   edgecolor='black', facecolor='#e74c3c', alpha=0.6)
+        ax.add_patch(rect)
+        ax.text(j + 0.5, i + 0.5, f'b{i}{j}', ha='center', va='center', fontsize=10)
+
+ax.set_title('Matrix B\n(K × N)', fontsize=14, fontweight='bold')
+ax.set_xlabel('N', fontsize=12)
+ax.set_ylabel('K', fontsize=12)
+ax.set_xticks(range(N + 1))
+ax.set_yticks(range(K + 1))
+
+# Matrix C (M×N)
+ax = axes[2]
+ax.set_xlim(-0.5, N + 0.5)
+ax.set_ylim(-0.5, M + 0.5)
+ax.invert_yaxis()
+ax.set_aspect('equal')
+
+for i in range(M):
+    for j in range(N):
+        rect = mpatches.Rectangle((j, i), 1, 1, linewidth=1, 
+                                   edgecolor='black', facecolor='#2ecc71', alpha=0.6)
+        ax.add_patch(rect)
+        ax.text(j + 0.5, i + 0.5, f'c{i}{j}', ha='center', va='center', fontsize=10)
+
+ax.set_title('Matrix C = A × B\n(M × N)', fontsize=14, fontweight='bold')
+ax.set_xlabel('N', fontsize=12)
+ax.set_ylabel('M', fontsize=12)
+ax.set_xticks(range(N + 1))
+ax.set_yticks(range(M + 1))
+
+plt.tight_layout()
+plt.show()
+```
+
+**Each output element**: $C[i,j] = \sum_{k=0}^{K-1} A[i,k] \times B[k,j]$
+
+---
+
+## Naive GPU GEMM: One Thread Per Output Element
+
+```{python}
+#| echo: false
+#| fig-width: 16
+#| fig-height: 8
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+fig = plt.figure(figsize=(16, 8))
+ax = fig.add_axes([0.05, 0.1, 0.9, 0.85])
+
+ax.set_xlim(0, 24)
+ax.set_ylim(0, 12)
+ax.axis('off')
+
+# Title
+ax.text(12, 11.5, 'Thread T19 computes C[2,3]', ha='center', fontsize=16, fontweight='bold')
+
+# A row (horizontal strip on left)
+K = 4
+highlight_i, highlight_j = 2, 3
+ax.text(1, 7.5, f'Row {highlight_i}:', ha='left', va='center', fontsize=12, fontweight='bold')
+for k in range(K):
+    rect = mpatches.Rectangle((4 + k*1.5, 7), 1.3, 1, linewidth=1.5, 
+                               edgecolor='black', facecolor='#3498db', alpha=0.8)
+    ax.add_patch(rect)
+    ax.text(4.65 + k*1.5, 7.5, f'A[{highlight_i},{k}]', ha='center', va='center', fontsize=9)
+
+# B column (vertical strip in middle-top)
+ax.text(13, 9.5, f'Col {highlight_j}', ha='center', va='bottom', fontsize=12, fontweight='bold')
+for k in range(K):
+    rect = mpatches.Rectangle((12.35, 8.5 - k*1.2), 1.3, 1, linewidth=1.5, 
+                               edgecolor='black', facecolor='#e74c3c', alpha=0.8)
+    ax.add_patch(rect)
+    ax.text(13, 9 - k*1.2, f'B[{k},{highlight_j}]', ha='center', va='center', fontsize=9)
+
+# Output C element (separate, below)
+rect = mpatches.Rectangle((11.35, 2.5), 2.3, 1.5, linewidth=3, 
+                           edgecolor='red', facecolor='#2ecc71', alpha=0.9)
+ax.add_patch(rect)
+ax.text(12.5, 3.25, f'C[{highlight_i},{highlight_j}]', ha='center', va='center', 
+       fontsize=14, fontweight='bold')
+
+# Arrows
+ax.annotate('', xy=(11.5, 3.5), xytext=(9.5, 7),
+           arrowprops=dict(arrowstyle='->', color='#3498db', lw=2.5))
+ax.annotate('', xy=(12.5, 4.2), xytext=(12.5, 4.8),
+           arrowprops=dict(arrowstyle='->', color='#e74c3c', lw=2.5))
+
+# Formula box
+formula = f'C[{highlight_i},{highlight_j}] = A[{highlight_i},0]×B[0,{highlight_j}] + A[{highlight_i},1]×B[1,{highlight_j}] + A[{highlight_i},2]×B[2,{highlight_j}] + A[{highlight_i},3]×B[3,{highlight_j}]'
+ax.text(12, 1, formula, ha='center', va='center', fontsize=11,
+       bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.9))
+
+# Problem text
+ax.text(12, -0.2, '⚠️ Problem: Each thread loads entire row of A and column of B\n→ Poor memory efficiency, no data reuse!', 
+       ha='center', fontsize=11, style='italic', color='#c0392b')
+
+plt.show()
+```
+
+::: notes
+In naive GEMM, each thread computes one output element. This is simple but inefficient because there's no data reuse - the same A and B elements are loaded by many threads.
+:::
+
+---
+
+# MFMA: Matrix Fused Multiply-Add {background-color="#2C3E50"}
+
+## MFMA 16×16×16 Operation
+
+**One MFMA instruction**: computes a 16×16 output tile from 16×16 A and 16×16 B
+
+```{python}
+#| echo: false
+#| fig-width: 16
+#| fig-height: 9
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+fig = plt.figure(figsize=(16, 9))
+
+# Main layout
+ax = fig.add_axes([0.02, 0.05, 0.96, 0.9])
+ax.set_xlim(0, 32)
+ax.set_ylim(0, 18)
+ax.axis('off')
+
+tile_size = 16
+scale = 0.3
+
+# Title
+ax.text(16, 17, 'MFMA 16×16×16: One Warp (64 threads) Computes 16×16 Output', 
+       ha='center', fontsize=16, fontweight='bold')
+
+# Matrix A (16×16) - Left
+ax.text(4, 15, 'Matrix A Tile (16×16)', ha='center', fontsize=12, fontweight='bold', color='#2980b9')
+a_start_x, a_start_y = 0.5, 3
+
+# Draw A matrix with row highlighting
+for i in range(tile_size):
+    for j in range(tile_size):
+        # Highlight specific row
+        if i == 5:
+            color = '#3498db'
+            alpha = 0.9
+        else:
+            color = '#85c1e9'
+            alpha = 0.4
+        rect = mpatches.Rectangle((a_start_x + j*scale, a_start_y + (15-i)*scale), 
+                                   scale*0.95, scale*0.95, linewidth=0.5, 
+                                   edgecolor='#2980b9', facecolor=color, alpha=alpha)
+        ax.add_patch(rect)
+
+# Label A row
+ax.annotate('Row i=5', xy=(a_start_x + 8*scale, a_start_y + 10*scale), 
+           xytext=(a_start_x - 1, a_start_y + 10*scale),
+           arrowprops=dict(arrowstyle='->', color='#2980b9', lw=2),
+           fontsize=10, fontweight='bold', color='#2980b9')
+
+ax.text(a_start_x + 8*scale, a_start_y - 1, 'K=16', ha='center', fontsize=10)
+ax.text(a_start_x - 0.5, a_start_y + 8*scale, 'M=16', ha='right', va='center', fontsize=10, rotation=90)
+
+# Matrix B (16×16) - Top center
+ax.text(16, 15, 'Matrix B Tile (16×16)', ha='center', fontsize=12, fontweight='bold', color='#c0392b')
+b_start_x, b_start_y = 11, 9
+
+# Draw B matrix with column highlighting
+for i in range(tile_size):
+    for j in range(tile_size):
+        # Highlight specific column
+        if j == 9:
+            color = '#e74c3c'
+            alpha = 0.9
+        else:
+            color = '#f5b7b1'
+            alpha = 0.4
+        rect = mpatches.Rectangle((b_start_x + j*scale, b_start_y + (15-i)*scale), 
+                                   scale*0.95, scale*0.95, linewidth=0.5, 
+                                   edgecolor='#c0392b', facecolor=color, alpha=alpha)
+        ax.add_patch(rect)
+
+# Label B column
+ax.annotate('Col j=9', xy=(b_start_x + 9.5*scale, b_start_y + 16*scale), 
+           xytext=(b_start_x + 9.5*scale, b_start_y + 17.5*scale),
+           arrowprops=dict(arrowstyle='->', color='#c0392b', lw=2),
+           fontsize=10, fontweight='bold', color='#c0392b')
+
+ax.text(b_start_x + 8*scale, b_start_y - 1, 'N=16', ha='center', fontsize=10)
+ax.text(b_start_x - 0.5, b_start_y + 8*scale, 'K=16', ha='right', va='center', fontsize=10, rotation=90)
+
+# Output C (16×16) - Right
+ax.text(27, 15, 'Output C Tile (16×16)', ha='center', fontsize=12, fontweight='bold', color='#27ae60')
+c_start_x, c_start_y = 22.5, 3
+
+# Draw C matrix with element highlighting
+for i in range(tile_size):
+    for j in range(tile_size):
+        # Highlight the computed element
+        if i == 5 and j == 9:
+            color = '#27ae60'
+            alpha = 1.0
+            lw = 2
+        else:
+            color = '#82e0aa'
+            alpha = 0.4
+            lw = 0.5
+        rect = mpatches.Rectangle((c_start_x + j*scale, c_start_y + (15-i)*scale), 
+                                   scale*0.95, scale*0.95, linewidth=lw, 
+                                   edgecolor='#27ae60', facecolor=color, alpha=alpha)
+        ax.add_patch(rect)
+
+# Label output element
+ax.annotate('C[5,9]', xy=(c_start_x + 9.5*scale, c_start_y + 10.5*scale), 
+           xytext=(c_start_x + 14*scale, c_start_y + 10.5*scale),
+           arrowprops=dict(arrowstyle='->', color='#27ae60', lw=2),
+           fontsize=11, fontweight='bold', color='#27ae60')
+
+ax.text(c_start_x + 8*scale, c_start_y - 1, 'N=16', ha='center', fontsize=10)
+ax.text(c_start_x - 0.5, c_start_y + 8*scale, 'M=16', ha='right', va='center', fontsize=10, rotation=90)
+
+# Arrows showing data flow
+# A row to C
+ax.annotate('', xy=(c_start_x, c_start_y + 10*scale), 
+           xytext=(a_start_x + 16*scale + 0.5, a_start_y + 10*scale),
+           arrowprops=dict(arrowstyle='->', color='#3498db', lw=3, 
+                          connectionstyle='arc3,rad=0.2'))
+
+# B col to C  
+ax.annotate('', xy=(c_start_x + 9.5*scale, c_start_y + 16*scale), 
+           xytext=(b_start_x + 9.5*scale, b_start_y),
+           arrowprops=dict(arrowstyle='->', color='#e74c3c', lw=3,
+                          connectionstyle='arc3,rad=-0.2'))
+
+# Formula
+formula_text = 'C[i,j] = Σₖ A[i,k] × B[k,j]  for k = 0..15'
+ax.text(16, 1.5, formula_text, ha='center', fontsize=14, fontweight='bold',
+       bbox=dict(boxstyle='round', facecolor='white', edgecolor='black', alpha=0.9))
+
+# Warp info
+ax.text(16, 0.3, '64 threads collaborate: each thread computes 4 output elements',
+       ha='center', fontsize=11, style='italic')
+
+plt.show()
+```
+
+::: notes
+MFMA (Matrix Fused Multiply-Add) is AMD's tensor core instruction. One MFMA instruction computes an entire 16×16 output tile by multiplying a 16×16 A tile with a 16×16 B tile. 64 threads in one warp collaborate on this computation.
+:::
+
+---
+
+# Example 1: Basic Distributed GEMM {background-color="#2C3E50"}
+
+## Single Warp Per Output Tile
+
+**Concept**: Each 16×16 output tile is computed by one warp using MFMA instruction
+
+::: {.columns}
+::: {.column width="50%"}
+**Key Properties:**
+
+- 64 threads per warp (AMD wave size)
+- Each MFMA computes 16×16 output
+- K dimension iterated in main loop
+:::
+
+::: {.column width="50%"}
+**Distribution:**
+
+- Grid of warps covers output matrix
+- No data sharing between warps
+- Simple 1:1 mapping
+:::
+:::
+
+## Figure: Matrix Grid Division
+
+```{python}
+#| echo: false
+#| fig-width: 14
+#| fig-height: 8
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.colors import ListedColormap
+
+# Matrix dimensions
+M, N = 64, 64
+tile_size = 16
+
+# Calculate number of tiles
+num_tiles_m = M // tile_size
+num_tiles_n = N // tile_size
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+
+# Left: Output Matrix C divided into tiles
+ax1.set_xlim(0, N)
+ax1.set_ylim(0, M)
+ax1.invert_yaxis()
+ax1.set_aspect('equal')
+
+# Create colormap for warps
+colors = plt.cm.Set3(np.linspace(0, 1, num_tiles_m * num_tiles_n))
+
+# Draw tiles
+for i in range(num_tiles_m):
+    for j in range(num_tiles_n):
+        warp_id = i * num_tiles_n + j
+        rect = mpatches.Rectangle(
+            (j * tile_size, i * tile_size), 
+            tile_size, tile_size,
+            linewidth=2, 
+            edgecolor='black', 
+            facecolor=colors[warp_id],
+            alpha=0.7
+        )
+        ax1.add_patch(rect)
+        ax1.text(
+            j * tile_size + tile_size/2, 
+            i * tile_size + tile_size/2,
+            f'W{warp_id}',
+            ha='center', va='center',
+            fontsize=11, fontweight='bold'
+        )
+
+ax1.set_xlabel('N dimension', fontsize=12)
+ax1.set_ylabel('M dimension', fontsize=12)
+ax1.set_title('Output Matrix C (64×64)\nDivided into 16×16 Tiles\nEach tile = 1 Warp + 1 MFMA', 
+              fontsize=14, fontweight='bold')
+ax1.set_xticks(range(0, N+1, tile_size))
+ax1.set_yticks(range(0, M+1, tile_size))
+ax1.grid(True, alpha=0.3)
+
+# Right: Single tile detail showing MFMA operation
+ax2.set_xlim(0, 16)
+ax2.set_ylim(0, 16)
+ax2.invert_yaxis()
+ax2.set_aspect('equal')
+
+# Show 16x16 elements
+for i in range(16):
+    for j in range(16):
+        # Color by thread assignment (simplified view)
+        thread_id = (i % 4) * 16 + j  # Simplified thread mapping
+        color = plt.cm.viridis(thread_id / 64)
+        rect = mpatches.Rectangle(
+            (j, i), 1, 1,
+            linewidth=0.5, 
+            edgecolor='gray', 
+            facecolor=color,
+            alpha=0.6
+        )
+        ax2.add_patch(rect)
+
+ax2.set_xlabel('Tile Column (N)', fontsize=12)
+ax2.set_ylabel('Tile Row (M)', fontsize=12)
+ax2.set_title('Single 16×16 Tile\n64 Threads Collaborate via MFMA', 
+              fontsize=14, fontweight='bold')
+ax2.set_xticks(range(0, 17, 4))
+ax2.set_yticks(range(0, 17, 4))
+
+# Add annotation
+ax2.annotate('MFMA\nInstruction', xy=(8, 8), fontsize=14, 
+             ha='center', va='center', fontweight='bold',
+             bbox=dict(boxstyle='round', facecolor='white', alpha=0.9))
+
+plt.tight_layout()
+plt.show()
+```
+
+## Tile Distribution Encoding Explained
+
+<iframe width="1120" height="630" src="https://www.youtube.com/embed/gl0bgSAN6gc" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+## Code: Basic Tile Distribution Encoding {background-color="#f8f9fa"}
+
+```cpp
+// 16×16 tile distributed across 64 threads (one warp)
+constexpr auto a_distribution = make_static_tile_distribution(
+    tile_distribution_encoding<
+        sequence<>,                    // R: No replication
+        tuple<sequence<16>,            // Hs: H0(M)=16 positions
+              sequence<4, 4>>,         //     H1(K)=4×4=16 elements
+        tuple<sequence<2, 1>>,         // Ps_to_Hs_major
+        tuple<sequence<0, 0>>,         // Ps_to_Hs_minor
+        sequence<2>,                   // Ys_to_Hs_major
+        sequence<1>>{}                 // Ys_to_Hs_minor → Y maps to K
+);
+```
+
+**64 threads × 4 elements/thread = 256 elements = 16×16 tile**
+
+---
+
+# Tile Window: The Data Access Gateway {background-color="#2C3E50"}
+
+## TileWindow: A Portion of TensorView with Distribution
+
+```{python}
+#| echo: false
+#| fig-width: 16
+#| fig-height: 9
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+
+fig, ax = plt.subplots(figsize=(16, 9))
+ax.set_xlim(0, 32)
+ax.set_ylim(0, 18)
+ax.axis('off')
+
+# Title
+ax.text(16, 17.5, 'TileWindow = Portion of TensorView + TileDistribution', 
+       ha='center', fontsize=18, fontweight='bold')
+
+# Tensor View (outer - Global Memory)
+tv_rect = mpatches.Rectangle((2, 3), 20, 13, linewidth=3, 
+                               edgecolor='#ef4444', facecolor='#fee2e2', alpha=0.8)
+ax.add_patch(tv_rect)
+ax.text(12, 16.5, 'TensorView (Global Memory)', ha='center', fontsize=14, fontweight='bold', color='#b91c1c')
+
+# Origin point
+ax.plot(2, 16, 'o', color='#f59e0b', markersize=10)
+ax.text(1, 16.3, '(0,0)', ha='right', fontsize=10, fontweight='bold')
+
+# Tile Window (inner rectangle)
+tw_rect = mpatches.Rectangle((7, 5), 12, 9, linewidth=4, 
+                               edgecolor='#1976d2', facecolor='#e3f2fd', alpha=0.9)
+ax.add_patch(tw_rect)
+ax.text(13, 14.5, 'Tile Window', ha='center', fontsize=13, fontweight='bold', color='#1565c0')
+
+# Offset arrow
+ax.annotate('', xy=(7, 14), xytext=(2, 16),
+           arrowprops=dict(arrowstyle='->', color='#f59e0b', lw=3))
+ax.text(4.5, 15.5, 'offset', ha='center', fontsize=11, fontweight='bold', color='#f59e0b')
+
+# Lengths labels
+ax.annotate('', xy=(19, 4.5), xytext=(7, 4.5),
+           arrowprops=dict(arrowstyle='<->', color='#666', lw=2))
+ax.text(13, 3.8, 'lengths[1]', ha='center', fontsize=10, fontweight='bold')
+
+ax.annotate('', xy=(19.5, 14), xytext=(19.5, 5),
+           arrowprops=dict(arrowstyle='<->', color='#666', lw=2))
+ax.text(21, 9.5, 'lengths[0]', ha='center', fontsize=10, fontweight='bold', rotation=90)
+
+# Origin label
+ax.text(7.5, 14.3, 'origin', ha='left', fontsize=10, fontweight='bold', color='#1976d2')
+
+# Inside Tile Window: Warp 0
+w0_rect = mpatches.Rectangle((8, 10), 10, 3, linewidth=2, 
+                               edgecolor='#f57c00', facecolor='#fff3e0')
+ax.add_patch(w0_rect)
+ax.text(13, 12.5, 'Warp 0', ha='center', fontsize=11, fontweight='bold', color='#e65100')
+
+# Thread 0 (left)
+t0_rect = mpatches.Rectangle((8.5, 10.3), 4.5, 2, linewidth=2, 
+                               edgecolor='#388e3c', facecolor='#e8f5e9')
+ax.add_patch(t0_rect)
+ax.text(10.75, 11.3, 'Thread 0', ha='center', fontsize=10)
+
+# Thread 1 (right)
+t1_rect = mpatches.Rectangle((13.5, 10.3), 4.5, 2, linewidth=2, 
+                               edgecolor='#388e3c', facecolor='#e8f5e9')
+ax.add_patch(t1_rect)
+ax.text(15.75, 11.3, 'Thread 1', ha='center', fontsize=10)
+
+# Inside Tile Window: Warp 1
+w1_rect = mpatches.Rectangle((8, 6), 10, 3, linewidth=2, 
+                               edgecolor='#f57c00', facecolor='#fff3e0')
+ax.add_patch(w1_rect)
+ax.text(13, 8.5, 'Warp 1', ha='center', fontsize=11, fontweight='bold', color='#e65100')
+
+# Thread 2 (left)
+t2_rect = mpatches.Rectangle((8.5, 6.3), 4.5, 2, linewidth=2, 
+                               edgecolor='#388e3c', facecolor='#e8f5e9')
+ax.add_patch(t2_rect)
+ax.text(10.75, 7.3, 'Thread 2', ha='center', fontsize=10)
+
+# Thread 3 (right)
+t3_rect = mpatches.Rectangle((13.5, 6.3), 4.5, 2, linewidth=2, 
+                               edgecolor='#388e3c', facecolor='#e8f5e9')
+ax.add_patch(t3_rect)
+ax.text(15.75, 7.3, 'Thread 3', ha='center', fontsize=10)
+
+# Legend on right side
+ax.text(25, 15, 'Components:', fontsize=12, fontweight='bold')
+
+leg_tv = mpatches.Rectangle((24, 13.5), 1.5, 0.8, facecolor='#fee2e2', edgecolor='#ef4444', lw=2)
+ax.add_patch(leg_tv)
+ax.text(26, 13.9, 'TensorView (data source)', fontsize=10)
+
+leg_tw = mpatches.Rectangle((24, 12), 1.5, 0.8, facecolor='#e3f2fd', edgecolor='#1976d2', lw=2)
+ax.add_patch(leg_tw)
+ax.text(26, 12.4, 'TileWindow (offset + size)', fontsize=10)
+
+leg_w = mpatches.Rectangle((24, 10.5), 1.5, 0.8, facecolor='#fff3e0', edgecolor='#f57c00', lw=2)
+ax.add_patch(leg_w)
+ax.text(26, 10.9, 'Warp (64 threads)', fontsize=10)
+
+leg_t = mpatches.Rectangle((24, 9), 1.5, 0.8, facecolor='#e8f5e9', edgecolor='#388e3c', lw=2)
+ax.add_patch(leg_t)
+ax.text(26, 9.4, 'Thread (work unit)', fontsize=10)
+
+# TileDistribution label
+ax.text(25, 6.5, 'TileDistribution:', fontsize=11, fontweight='bold')
+ax.text(25, 5.5, 'Maps threads to\ndata elements', fontsize=10, style='italic')
+
+plt.tight_layout()
+plt.show()
+```
+
+## What is a Tile Window?
+
+A **TileWindow** combines two key components to access tensor data:
+
+```{python}
+#| echo: false
+#| fig-width: 14
+#| fig-height: 7
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+
+fig, ax = plt.subplots(figsize=(14, 7))
+ax.set_xlim(0, 28)
+ax.set_ylim(0, 14)
+ax.axis('off')
+
+# Title
+ax.text(14, 13.5, 'TileWindow = TensorView + TileDistribution', 
+       ha='center', fontsize=18, fontweight='bold')
+
+# TensorView (Global Memory) - left
+tv_box = FancyBboxPatch((1, 6), 7, 5, boxstyle="round,pad=0.1", 
+                         facecolor='#dbeafe', edgecolor='#3b82f6', linewidth=3)
+ax.add_patch(tv_box)
+ax.text(4.5, 10, 'TensorView', ha='center', fontsize=14, fontweight='bold', color='#1e40af')
+ax.text(4.5, 8.5, '(Global Memory)', ha='center', fontsize=11, color='#1e40af')
+
+# Draw grid representing tensor data
+for i in range(4):
+    for j in range(5):
+        rect = mpatches.Rectangle((1.5 + j*1.1, 6.3 + i*0.5), 0.9, 0.4, 
+                                   linewidth=0.5, edgecolor='gray', 
+                                   facecolor='#93c5fd', alpha=0.6)
+        ax.add_patch(rect)
+
+# TileDistribution - right
+td_box = FancyBboxPatch((20, 6), 7, 5, boxstyle="round,pad=0.1", 
+                         facecolor='#fef3c7', edgecolor='#f59e0b', linewidth=3)
+ax.add_patch(td_box)
+ax.text(23.5, 10, 'TileDistribution', ha='center', fontsize=14, fontweight='bold', color='#92400e')
+ax.text(23.5, 8.5, '(Thread Mapping)', ha='center', fontsize=11, color='#92400e')
+
+# Draw thread blocks
+thread_colors = ['#fcd34d', '#fbbf24', '#f59e0b', '#d97706']
+for i in range(2):
+    for j in range(2):
+        rect = mpatches.Rectangle((20.8 + j*2.5, 6.3 + i*1), 2, 0.8, 
+                                   linewidth=1, edgecolor='black', 
+                                   facecolor=thread_colors[i*2+j], alpha=0.8)
+        ax.add_patch(rect)
+        ax.text(21.8 + j*2.5, 6.7 + i*1, f'T{i*2+j}', ha='center', fontsize=9)
+
+# TileWindow - center bottom
+tw_box = FancyBboxPatch((9, 1), 10, 4, boxstyle="round,pad=0.1", 
+                         facecolor='#e8f5e9', edgecolor='#388e3c', linewidth=4)
+ax.add_patch(tw_box)
+ax.text(14, 4, 'TileWindow', ha='center', fontsize=16, fontweight='bold', color='#1b5e20')
+ax.text(14, 2.8, 'Window Origin: [m_offset, n_offset]', ha='center', fontsize=10, color='#2e7d32')
+ax.text(14, 2, 'Window Size: [tile_M, tile_K]', ha='center', fontsize=10, color='#2e7d32')
+
+# Arrows
+ax.annotate('', xy=(9.5, 4.5), xytext=(7.5, 6),
+           arrowprops=dict(arrowstyle='->', color='#3b82f6', lw=3))
+ax.annotate('', xy=(18.5, 4.5), xytext=(20.5, 6),
+           arrowprops=dict(arrowstyle='->', color='#f59e0b', lw=3))
+
+# Operations
+ax.text(4.5, 5.3, 'Provides: Data', ha='center', fontsize=10, style='italic', color='#3b82f6')
+ax.text(23.5, 5.3, 'Provides: Which thread\ngets which element', 
+       ha='center', fontsize=10, style='italic', color='#f59e0b')
+
+# Result description
+ax.text(14, 0.5, 'Result: load_tile() / store_tile() with automatic coalescing & vectorization',
+       ha='center', fontsize=12, style='italic', 
+       bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+
+plt.tight_layout()
+plt.show()
+```
+
+**TileWindow** = View into tensor + How threads access it
+
+## Creating Tile Windows {background-color="#f8f9fa"}
+
+```cpp
+// make_tile_window(tensor_view, window_size, origin, distribution)
+auto a_block_window = make_tile_window(
+    a_tensor,                                               // TensorView
+    make_tuple(number<MWarp * kWarpM>{}, number<kWarpK>{}), // Size: 32×16
+    {block_m * (MWarp * kWarpM), 0},                        // Origin
+    a_block_distribution);                                  // Distribution
+
+auto b_block_window = make_tile_window(
+    b_tensor,                                               // TensorView  
+    make_tuple(number<kWarpK>{}, number<NWarp * kWarpN>{}), // Size: 16×32
+    {0, block_n * (NWarp * kWarpN)},                        // Origin
+    b_block_distribution);                                  // Distribution
+```
+
+## The K-Loop: Load, Compute, Move {background-color="#f8f9fa"}
+
+```cpp
+// Accumulator in registers
+auto c_block_tile = make_static_distributed_tensor<AccDataType>(c_distribution);
+set_tile(c_block_tile, AccDataType{0});
+
+for(index_t k_iter = 0; k_iter < K / kWarpK; ++k_iter) {
+    const auto a_tile = load_tile(a_block_window);  // Load A tile
+    const auto b_tile = load_tile(b_block_window);  // Load B tile
+    
+    WarpGemm{}(c_block_tile, a_tile, b_tile);       // C += A * B (MFMA)
+
+    move_tile_window(a_block_window, {0, kWarpK});  // A: advance K
+    move_tile_window(b_block_window, {kWarpK, 0});  // B: advance K
+}
+```
+
+**Pattern**: `load_tile()` → `WarpGemm{}()` → `move_tile_window()`
+
+---
+
+# Example 2: Four Warps with Replication {background-color="#2C3E50"}
+
+## Multi-Warp Tile Configuration
+
+**Concept**: 4 warps (2×2) collaborate to compute a 32×32 output tile
+
+::: {.columns}
+::: {.column width="50%"}
+**Replication for A:**
+
+- A data is shared across N-warps
+- Warps in same row need same A
+- `sequence<NWarp>` replicates across N
+:::
+
+::: {.column width="50%"}
+**Replication for B:**
+
+- B data is shared across M-warps
+- Warps in same column need same B
+- `sequence<MWarp>` replicates across M
+:::
+:::
+
+## Data Sharing Pattern: 2×2 Warp Grid
+
+```{python}
+#| echo: false
+#| fig-width: 16
+#| fig-height: 8
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
+
+fig, axes = plt.subplots(1, 3, figsize=(16, 7))
+
+# Column-major warp numbering:
+#        N-warp 0   N-warp 1
+# M-warp 0:  W0       W2
+# M-warp 1:  W1       W3
+
+# Colors for data sharing visualization
+warp_colors_c = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96E6A1']  # W0, W1, W2, W3
+
+# ===== Matrix A: Horizontal Replication =====
+ax_a = axes[0]
+ax_a.set_xlim(-0.3, 2.3)
+ax_a.set_ylim(-1.2, 2.3)
+ax_a.invert_yaxis()
+ax_a.set_aspect('equal')
+ax_a.set_title('Matrix A\n(Same color = Same data)', fontsize=14, fontweight='bold')
+
+# A: W0 and W2 share same rows (pink), W1 and W3 share same rows (cyan)
+# Column-major: W0,W1 in col 0, W2,W3 in col 1
+a_colors = [['#FF9999', '#FF9999'],   # W0, W2 - same pink (M-warp 0)
+            ['#99DDDD', '#99DDDD']]   # W1, W3 - same cyan (M-warp 1)
+a_labels = [['W0', 'W2'], ['W1', 'W3']]
+
+for i in range(2):
+    for j in range(2):
+        rect = mpatches.Rectangle((j, i), 1, 1, linewidth=3, 
+                                   edgecolor='black', facecolor=a_colors[i][j], alpha=0.9)
+        ax_a.add_patch(rect)
+        ax_a.text(j + 0.5, i + 0.5, a_labels[i][j], ha='center', va='center', 
+                 fontsize=16, fontweight='bold')
+
+ax_a.set_xticks([0.5, 1.5])
+ax_a.set_yticks([0.5, 1.5])
+ax_a.set_xticklabels(['N-warp 0', 'N-warp 1'], fontsize=9)
+ax_a.set_yticklabels(['M-warp 0', 'M-warp 1'], fontsize=9)
+ax_a.tick_params(length=0)
+
+# Add annotation with more margin
+ax_a.text(1, -0.6, 'W0=W2, W1=W3\n(same rows)', 
+         ha='center', fontsize=10, style='italic')
+
+# ===== Matrix B: Vertical Replication =====
+ax_b = axes[1]
+ax_b.set_xlim(-0.3, 2.3)
+ax_b.set_ylim(-1.2, 2.3)
+ax_b.invert_yaxis()
+ax_b.set_aspect('equal')
+ax_b.set_title('Matrix B\n(Same color = Same data)', fontsize=14, fontweight='bold')
+
+# B: W0 and W1 share same cols (orange), W2 and W3 share same cols (green)
+b_colors = [['#FFB366', '#99FF99'],   # W0, W2 - orange, green
+            ['#FFB366', '#99FF99']]   # W1, W3 - orange, green (same columns)
+b_labels = [['W0', 'W2'], ['W1', 'W3']]
+
+for i in range(2):
+    for j in range(2):
+        rect = mpatches.Rectangle((j, i), 1, 1, linewidth=3, 
+                                   edgecolor='black', facecolor=b_colors[i][j], alpha=0.9)
+        ax_b.add_patch(rect)
+        ax_b.text(j + 0.5, i + 0.5, b_labels[i][j], ha='center', va='center', 
+                 fontsize=16, fontweight='bold')
+
+ax_b.set_xticks([0.5, 1.5])
+ax_b.set_yticks([0.5, 1.5])
+ax_b.set_xticklabels(['N-warp 0', 'N-warp 1'], fontsize=9)
+ax_b.set_yticklabels(['M-warp 0', 'M-warp 1'], fontsize=9)
+ax_b.tick_params(length=0)
+
+# Add annotation with more margin
+ax_b.text(1, -0.6, 'W0=W1, W2=W3\n(same cols)', 
+         ha='center', fontsize=10, style='italic')
+
+# ===== Output C: All Unique =====
+ax_c = axes[2]
+ax_c.set_xlim(-0.3, 2.3)
+ax_c.set_ylim(-1.2, 2.3)
+ax_c.invert_yaxis()
+ax_c.set_aspect('equal')
+ax_c.set_title('Output C\n(All different = No replication)', fontsize=14, fontweight='bold')
+
+# C: all different colors (each warp has unique output)
+# Column-major: W0,W1 in col 0, W2,W3 in col 1
+c_colors = [[warp_colors_c[0], warp_colors_c[2]],   # W0 (red), W2 (blue)
+            [warp_colors_c[1], warp_colors_c[3]]]   # W1 (teal), W3 (green)
+c_labels = [['W0', 'W2'], ['W1', 'W3']]
+
+for i in range(2):
+    for j in range(2):
+        rect = mpatches.Rectangle((j, i), 1, 1, linewidth=3, 
+                                   edgecolor='black', facecolor=c_colors[i][j], alpha=0.9)
+        ax_c.add_patch(rect)
+        ax_c.text(j + 0.5, i + 0.5, c_labels[i][j], ha='center', va='center', 
+                 fontsize=16, fontweight='bold', color='white')
+
+ax_c.set_xticks([0.5, 1.5])
+ax_c.set_yticks([0.5, 1.5])
+ax_c.set_xticklabels(['N-warp 0', 'N-warp 1'], fontsize=9)
+ax_c.set_yticklabels(['M-warp 0', 'M-warp 1'], fontsize=9)
+ax_c.tick_params(length=0)
+
+# Add annotation with more margin
+ax_c.text(1, -0.6, 'All unique\n(no sharing)', 
+         ha='center', fontsize=10, style='italic')
+
+fig.suptitle('2×2 Warp Configuration: Data Sharing Pattern (Column-Major Numbering)', fontsize=16, fontweight='bold', y=0.98)
+plt.tight_layout()
+plt.show()
+```
+
+**Key insight**: Same color = same data loaded. A replicates **horizontally**, B replicates **vertically**.
+
+## Code: Direct Tile Distribution {background-color="#f8f9fa"}
+
+```cpp
+// A Distribution: 32×16 tile with 2×2 warps
+constexpr auto a_block_dstr_encode = tile_distribution_encoding<
+    sequence<NWarp>,                       // R: Replicate across N-warps
+    tuple<sequence<MWarp, 16>,             // Hs: H0(M)=2×16=32
+          sequence<4, 4>>,                 //     H1(K)=4×4=16
+    tuple<sequence<0, 1>, sequence<2, 1>>, // Ps_to_Hs_major
+    tuple<sequence<0, 0>, sequence<0, 1>>, // Ps_to_Hs_minor
+    sequence<2>,                           // Ys_to_Hs_major
+    sequence<1>>{};                        // Ys_to_Hs_minor → Y maps to K
+
+// B Distribution: 16×32 tile
+constexpr auto b_block_dstr_encode = tile_distribution_encoding<
+    sequence<MWarp>,                       // R: Replicate across M-warps
+    tuple<sequence<4, 4>,                  // Hs: H0(K)=4×4=16
+          sequence<NWarp, 16>>,            //     H1(N)=2×16=32
+    tuple<sequence<2, 0>, sequence<1, 2>>, // Ps_to_Hs_major
+    tuple<sequence<0, 0>, sequence<0, 1>>, // Ps_to_Hs_minor
+    sequence<1>,                           // Ys_to_Hs_major
+    sequence<1>>{};                        // Ys_to_Hs_minor → Y maps to K
+```
+
+## Embed API Explained
+
+<iframe width="1120" height="630" src="https://www.youtube.com/embed/gl0bgSAN6gc" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
+## Code: Using Embed API {background-color="#f8f9fa"}
+
+```cpp
+// Warp-level: 64 threads handle 16×16 tile
+constexpr auto a_warp_dstr = tile_distribution_encoding<
+    sequence<>,                            // R: no replication
+    tuple<sequence<16>, sequence<4, 4>>,   // Hs: M=16, K=4×4
+    tuple<sequence<2, 1>>,                 // Ps_to_Hs_major
+    tuple<sequence<0, 0>>,                 // Ps_to_Hs_minor
+    sequence<2>, sequence<1>>{};           // Ys → K
+
+// Block-level: 2×2 warp organization  
+constexpr auto a_block_outer = tile_distribution_encoding<
+    sequence<NWarp>,                       // R: replicate across N-warps
+    tuple<sequence<MWarp>, sequence<>>,    // Hs: MWarp in M-dim
+    tuple<sequence<0, 1>>,                 // Ps_to_Hs_major
+    tuple<sequence<0, 0>>,                 // Ps_to_Hs_minor
+    sequence<>, sequence<>>{};             // No Y at block level
+
+// Embed combines outer (warp org) + inner (thread layout)
+constexpr auto a_block_dstr = make_embed_tile_distribution_encoding(
+    a_block_outer, a_warp_dstr);
+```
+
+---
+
+# Example 3: Y-Dimension Repetition {background-color="#2C3E50"}
+
+## Tile Sweeping with Repetitions
+
+**Concept**: Each warp iterates over multiple tiles using `static_for` loops
+
+**Result**: 
+
+- Each warp computes 2×2 = 4 output tiles (32×32 per warp)
+- 4 warps × 4 tiles = 16 total 16×16 tiles
+- Block output: 64×64 (MWarp×MIter×16 × NWarp×NIter×16)
+
+## Iteration 0: mIter=0, nIter=0 {.smaller}
+
+```{python}
+#| echo: false
+#| fig-width: 14
+#| fig-height: 8
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+# Configuration
+MWarp, NWarp = 2, 2
+MIterPerWarp, NIterPerWarp = 2, 2
+tile_size = 16
+block_m = MWarp * MIterPerWarp * tile_size  # 64
+block_n = NWarp * NIterPerWarp * tile_size  # 64
+warp_colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96E6A1']
+
+def draw_iteration_frame(ax, m_iter, n_iter):
+    ax.set_xlim(-2, block_n + 18)
+    ax.set_ylim(-2, block_m + 2)
+    ax.invert_yaxis()
+    ax.set_aspect('equal')
+    
+    iteration = m_iter * NIterPerWarp + n_iter
+    
+    # Draw all tiles
+    for warp_m in range(MWarp):
+        for warp_n in range(NWarp):
+            warp_id = warp_m * NWarp + warp_n
+            
+            for iter_m in range(MIterPerWarp):
+                for iter_n in range(NIterPerWarp):
+                    m_pos = iter_m * (MWarp * tile_size) + warp_m * tile_size
+                    n_pos = iter_n * (NWarp * tile_size) + warp_n * tile_size
+                    
+                    is_current = (iter_m == m_iter and iter_n == n_iter)
+                    is_completed = (iter_m * NIterPerWarp + iter_n) < iteration
+                    
+                    if is_current:
+                        alpha = 0.9
+                        linewidth = 4
+                        edgecolor = 'red'
+                    elif is_completed:
+                        alpha = 0.5
+                        linewidth = 1
+                        edgecolor = 'black'
+                    else:
+                        alpha = 0.15
+                        linewidth = 1
+                        edgecolor = 'gray'
+                    
+                    rect = mpatches.Rectangle(
+                        (n_pos, m_pos), tile_size, tile_size,
+                        linewidth=linewidth, 
+                        edgecolor=edgecolor, 
+                        facecolor=warp_colors[warp_id],
+                        alpha=alpha
+                    )
+                    ax.add_patch(rect)
+                    
+                    if is_current:
+                        ax.text(n_pos + tile_size/2, m_pos + tile_size/2,
+                               f'W{warp_id}\n▶', ha='center', va='center',
+                               fontsize=10, fontweight='bold', color='white')
+                    elif alpha > 0.3:
+                        ax.text(n_pos + tile_size/2, m_pos + tile_size/2,
+                               f'W{warp_id}', ha='center', va='center',
+                               fontsize=8, alpha=0.7)
+    
+    # Draw iteration boundaries
+    for i in range(MIterPerWarp + 1):
+        y = i * MWarp * tile_size
+        ax.axhline(y, color='black', linewidth=2, alpha=0.4)
+    for j in range(NIterPerWarp + 1):
+        x = j * NWarp * tile_size
+        ax.axvline(x, color='black', linewidth=2, alpha=0.4)
+    
+    ax.set_xlabel('N dimension (64)', fontsize=11)
+    ax.set_ylabel('M dimension (64)', fontsize=11)
+    ax.set_xticks([0, 32, 64])
+    ax.set_yticks([0, 32, 64])
+    
+    # Info text
+    info = f'mIter = {m_iter}\nnIter = {n_iter}'
+    ax.text(block_n + 3, block_m/2, info, fontsize=12, va='center',
+           bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.9))
+    
+    # Legend
+    for i, (c, l) in enumerate(zip(warp_colors, ['W0', 'W1', 'W2', 'W3'])):
+        rect = mpatches.Rectangle((block_n + 3, 5 + i*8), 6, 6, 
+                                   facecolor=c, alpha=0.7, edgecolor='black')
+        ax.add_patch(rect)
+        ax.text(block_n + 11, 8 + i*8, l, fontsize=10, va='center')
+
+fig, ax = plt.subplots(figsize=(14, 8))
+draw_iteration_frame(ax, 0, 0)
+ax.set_title('Iteration 0: static_for mIter=0, nIter=0\n'
+            'All 4 warps process their top-left tiles simultaneously', 
+            fontsize=14, fontweight='bold')
+plt.tight_layout()
+plt.show()
+```
+
+## Iteration 1: mIter=0, nIter=1 {.smaller}
+
+```{python}
+#| echo: false
+#| fig-width: 14
+#| fig-height: 8
+
+fig, ax = plt.subplots(figsize=(14, 8))
+draw_iteration_frame(ax, 0, 1)
+ax.set_title('Iteration 1: static_for mIter=0, nIter=1\n'
+            'All 4 warps process their top-right tiles simultaneously', 
+            fontsize=14, fontweight='bold')
+plt.tight_layout()
+plt.show()
+```
+
+## Iteration 2: mIter=1, nIter=0 {.smaller}
+
+```{python}
+#| echo: false
+#| fig-width: 14
+#| fig-height: 8
+
+fig, ax = plt.subplots(figsize=(14, 8))
+draw_iteration_frame(ax, 1, 0)
+ax.set_title('Iteration 2: static_for mIter=1, nIter=0\n'
+            'All 4 warps process their bottom-left tiles simultaneously', 
+            fontsize=14, fontweight='bold')
+plt.tight_layout()
+plt.show()
+```
+
+## Iteration 3: mIter=1, nIter=1 {.smaller}
+
+```{python}
+#| echo: false
+#| fig-width: 14
+#| fig-height: 8
+
+fig, ax = plt.subplots(figsize=(14, 8))
+draw_iteration_frame(ax, 1, 1)
+ax.set_title('Iteration 3: static_for mIter=1, nIter=1\n'
+            'All 4 warps process their bottom-right tiles - Complete!', 
+            fontsize=14, fontweight='bold')
+plt.tight_layout()
+plt.show()
+```
+
+## Code: Y-Dimension Repetition {background-color="#f8f9fa"}
+
+```cpp
+// Block distribution with Y-repetition: MIterPerWarp × NIterPerWarp tiles per warp
+constexpr auto a_block_outer = tile_distribution_encoding<
+    sequence<NWarp>,                                  // R: Replicate across N-warps
+    tuple<sequence<MIterPerWarp, MWarp>, sequence<>>, // Hs: 2 iters × 2 warps in M
+    tuple<sequence<0, 1>>,                            // Ps_to_Hs_major
+    tuple<sequence<0, 1>>,                            // Ps_to_Hs_minor
+    sequence<1, 2>,                                   // Ys_to_Hs_major
+    sequence<0, 0>>{};                                // Ys_to_Hs_minor (Y maps to M,K)
+```
+
+## Code: Extract Tiles with Y-Slicing {background-color="#f8f9fa"}
+
+```cpp
+// Nested static_for loops extract tiles using Y-slicing
+static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+        // Extract warp tensor for this iteration using get_y_sliced_thread_data
+        a_warp_tensor.get_thread_buffer() = a_block_tile.get_y_sliced_thread_data(
+            merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+            merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+        
+        b_warp_tensor.get_thread_buffer() = b_block_tile.get_y_sliced_thread_data(
+            merge_sequences(sequence<kIter, nIter>{}, b_warp_y_index_zeros),
+            merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+        
+        WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);  // MFMA
+    });
+});
+```
+
+---
+
+# Summary {background-color="#2C3E50"}
+
+## Tile Distribution Progression
+
+| Example | Warps | Tiles per Warp | Block Output | Key Concept |
+|---------|-------|----------------|--------------|-------------|
+| Basic | 1 | 1 | 16×16 | Single MFMA |
+| Tile Sweeping | 4 (2×2) | 1 | 32×32 | Data Replication |
+| Y-Repetition | 4 (2×2) | 4 (2×2) | 64×64 | Static Iteration |
+
+## Key Takeaways
+
+::: {.incremental}
+1. **Think from output tile perspective** - load inputs, compute outputs
+2. **MFMA** computes 16×16 output per instruction
+3. **Tile distributions** map work to GPU execution hierarchy
+4. **Replication** enables data sharing between warps
+5. **Y-dimension repetition** allows each warp to process multiple tiles
+:::
+
+---
+
+# Questions? {background-color="#2C3E50"}
+
+**Code Examples:**
+
+- `gemm_examples/basic_distributed_gemm.cpp`
+- `gemm_examples/tile_sweeping_gemm.cpp`
+- `gemm_examples/tile_sweeping_with_y_repetition.cpp`
+
+**Resources:**
+
+- CK Documentation
+- Coordinate Transformations Slides

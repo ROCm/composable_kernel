@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>XOR Transform Visualization</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 20px; background: #1a1a2e; color: #eee; }
+    h1 { font-size: 1.2em; margin-bottom: 5px; }
+    .subtitle { color: #888; font-size: 0.9em; margin-bottom: 20px; }
+    .grid-container { display: flex; gap: 30px; flex-wrap: wrap; }
+    .grid-box { background: #16213e; padding: 15px; border-radius: 8px; }
+    .grid-box h2 { font-size: 0.95em; margin: 0 0 10px 0; color: #7fdbff; }
+    .grid { display: inline-grid; gap: 1px; font-size: 11px; }
+    .cell { width: 32px; height: 24px; display: flex; align-items: center; justify-content: center;
+            border-radius: 3px; font-weight: bold; }
+    .row-label { font-size: 10px; color: #666; text-align: right; padding-right: 5px; }
+    .col-label { font-size: 10px; color: #666; text-align: center; }
+    .legend { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+    .legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+    .legend-color { width: 16px; height: 16px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <h1>XOR Transform: logical [row, col] → physical [row, col ^ (row % 8)]</h1>
+  <p class="subtitle">Row unchanged; column permuted by XOR with (row % 8). Same logical column in different rows → different physical columns → different LDS banks.</p>
+
+  <div class="grid-container">
+    <div class="grid-box">
+      <h2>Physical column destination</h2>
+      <p style="font-size: 11px; color: #888; margin-bottom: 8px;">Each cell (r,c) shows physical_col = c ^ (r % 8)</p>
+      <div id="grid1"></div>
+      <div id="legend1" class="legend"></div>
+    </div>
+    <div class="grid-box">
+      <h2>Column shift (physical − logical)</h2>
+      <p style="font-size: 11px; color: #888; margin-bottom: 8px;">How much each column is shifted; varies by row</p>
+      <div id="grid2"></div>
+      <div id="legend2" class="legend"></div>
+    </div>
+  </div>
+
+  <script>
+    const ROWS = 32, COLS = 8;
+    const colors = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6','#bcf60c'];
+
+    function xorPhysicalCol(r, c) { return c ^ (r % COLS); }
+
+    function buildGrid1() {
+      const g = document.getElementById('grid1');
+      const leg = document.getElementById('legend1');
+      let html = '<div class="grid" style="grid-template-columns: auto repeat(' + COLS + ', 32px);">';
+      html += '<div></div>';
+      for (let c = 0; c < COLS; c++) html += '<div class="col-label">' + c + '</div>';
+      for (let r = 0; r < ROWS; r++) {
+        html += '<div class="row-label">' + r + '</div>';
+        for (let c = 0; c < COLS; c++) {
+          const phys = xorPhysicalCol(r, c);
+          const col = colors[phys];
+          html += '<div class="cell" style="background:' + col + ';color:#000">' + phys + '</div>';
+        }
+      }
+      html += '</div>';
+      g.innerHTML = html;
+      for (let i = 0; i < COLS; i++) {
+        leg.innerHTML += '<div class="legend-item"><span class="legend-color" style="background:' + colors[i] + '"></span>phys=' + i + '</div>';
+      }
+    }
+
+    function buildGrid2() {
+      const g = document.getElementById('grid2');
+      const leg = document.getElementById('legend2');
+      const shifts = [-7,-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6,7];
+      const shiftColors = {};
+      shifts.forEach((s, i) => {
+        const t = (i + 1) / (shifts.length + 1);
+        const r = Math.round(255 * (1 - t));
+        const b = Math.round(255 * t);
+        shiftColors[s] = 'rgb(' + r + ',100,' + b + ')';
+      });
+      let html = '<div class="grid" style="grid-template-columns: auto repeat(' + COLS + ', 32px);">';
+      html += '<div></div>';
+      for (let c = 0; c < COLS; c++) html += '<div class="col-label">' + c + '</div>';
+      for (let r = 0; r < ROWS; r++) {
+        html += '<div class="row-label">' + r + '</div>';
+        for (let c = 0; c < COLS; c++) {
+          const phys = xorPhysicalCol(r, c);
+          const shift = phys - c;
+          const col = shiftColors[shift] || '#333';
+          html += '<div class="cell" style="background:' + col + ';color:' + (Math.abs(shift) > 3 ? '#fff' : '#000') + '">' + (shift >= 0 ? '+' : '') + shift + '</div>';
+        }
+      }
+      html += '</div>';
+      g.innerHTML = html;
+      [-4,-2,0,2,4].forEach(s => {
+        leg.innerHTML += '<div class="legend-item"><span class="legend-color" style="background:' + (shiftColors[s]||'#333') + '"></span>' + (s>=0?'+':'') + s + '</div>';
+      });
+    }
+
+    buildGrid1();
+    buildGrid2();
+  </script>
+</body>
+</html>

@@ -86,6 +86,45 @@
                 "use-gfx950",
                 "dev"
             ]
+        },
+        {
+            "name": "debug",
+            "binaryDir": "${sourceDir}/build-debug",
+            "displayName": "CK Debug",
+            "description": "Debug build (no opt, full symbols, large code model)",
+            "generator": "Ninja",
+            "environment": {},
+            "cacheVariables": {
+                "CMAKE_PREFIX_PATH": "/opt/rocm",
+                "CMAKE_CXX_COMPILER": "/opt/rocm/bin/hipcc",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+                "CMAKE_MAKE_PROGRAM": "ninja",
+                "CMAKE_CXX_FLAGS_DEBUG": "-O0 -g -ggdb3 -fno-inline -fno-omit-frame-pointer -mcmodel=large",
+                "CMAKE_HIP_FLAGS_DEBUG": "-O0 -g -ggdb3 -mcmodel=large",
+                "CMAKE_EXE_LINKER_FLAGS": "-mcmodel=large",
+                "CK_DEBUG_UNOPTIMIZED": "ON",
+                "BUILD_DEV": "ON",
+                "USE_BITINT_EXTENSION_INT4": "OFF"
+            }
+        },
+        {
+            "name": "debug-gfx942",
+            "displayName": "CK Debug - gfx942",
+            "description": "Debug build for AMD GPU gfx942",
+            "inherits": [
+                "use-gfx942",
+                "debug"
+            ]
+        },
+        {
+            "name": "debug-gfx950",
+            "displayName": "CK Debug - gfx950",
+            "description": "Debug build for AMD GPU gfx950",
+            "inherits": [
+                "use-gfx950",
+                "debug"
+            ]
         }
     ]
 }

@@ -1661,6 +1661,13 @@ class CodegenRunner:
             except Exception:
                 pass
 
+    @staticmethod
+    def _get_cached_lib_path(kernel_header: Path) -> Path:
+        """Get the cached library path for a given kernel header."""
+        cache_dir = get_build_dir() / "kernel_cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return cache_dir / f"lib_{kernel_header.stem}.so"
+
     def _rebuild_library_for_config(
         self, config: KernelConfig, kernel_header: Path
     ) -> Optional[Path]:
@@ -1668,7 +1675,8 @@ class CodegenRunner:
         Rebuild the library with the specified kernel header using hipcc directly.
 
         This compiles a new library with exactly the kernel specified.
-        Builds to a UNIQUE filename to avoid conflicts with loaded libraries.
+        Each kernel header gets its own cached .so file under build/kernel_cache/,
+        so repeated runs skip recompilation entirely.
 
         Architecture Note - C++ vs Python Paths:
         -----------------------------------------
@@ -1683,28 +1691,37 @@ class CodegenRunner:
           - Each library contains exactly ONE kernel
           - Uses -DCK_TILE_SINGLE_KERNEL_INCLUDE to export types to global namespace
           - gemm_ctypes_lib.cpp expects: SelectedKernel, KERNEL_NAME, ADataType, etc.
-          - Different configs get different library files (by dtype/layout)
+          - Different configs get different library files (by kernel header)
           - This enables Python to use any kernel config without pre-building all
 
         Returns: Path to new library, or None on failure
         """
-        build_dir = get_build_dir()
-        # Use unique filename based on dtype/layout to avoid overwriting loaded library
-        lib_name = f"libdispatcher_gemm_{config.dtype_a}_{config.layout}_lib.so"
-        lib_path = build_dir / "examples" / lib_name
+        lib_path = self._get_cached_lib_path(kernel_header)
+        lib_name = lib_path.name
+
+        root = get_dispatcher_root()
+        ctypes_source = root / "bindings/ctypes/gemm_ctypes_lib.cpp"
+
+        # Check if cached library exists and is newer than both source and header
+        if lib_path.exists():
+            lib_mtime = lib_path.stat().st_mtime
+            header_mtime = kernel_header.stat().st_mtime
+            source_mtime = ctypes_source.stat().st_mtime if ctypes_source.exists() else 0
+            if lib_mtime > header_mtime and lib_mtime > source_mtime:
+                print(f"  Using cached library: {lib_name}")
+                return lib_path
 
         print(f"  Rebuilding library: {lib_name}")
         print(f"  With kernel: {kernel_header.name}")
 
-        root = get_dispatcher_root()
         ck_root = root.parent
 
-        ctypes_source = root / "bindings/ctypes/gemm_ctypes_lib.cpp"
         if not ctypes_source.exists():
             print(f"  Source not found: {ctypes_source}")
             return None
 
         # Link against the static dispatcher library (contains Registry, Dispatcher)
+        build_dir = get_build_dir()
         static_lib = build_dir / "libck_tile_dispatcher.a"
         if not static_lib.exists():
             print(f"  Static library not found: {static_lib}")
@@ -2137,62 +2154,71 @@ def setup_gemm_dispatcher(
         log("  ⚠ No matching kernel header found")
 
     # Step 4: Load library
-    log("  Loading library...")
-    lib = DispatcherLib.auto()
-    if lib is None:
-        result.error = "Could not load dispatcher library"
-        return result
-    result.lib = lib
-
-    # Check if library kernel matches config - rebuild if ANY parameter differs
-    lib_kernel = lib.get_kernel_name()
-    needs_rebuild = False
-    mismatches = []
-
-    if lib_kernel:
-        # Build expected kernel signature components from config
-        expected_parts = {
-            "dtype": config.dtype_a,
-            "layout": config.layout,
-            "pipeline": config.pipeline,
-            "epilogue": config.epilogue,
-            "scheduler": config.scheduler,
-            "tile": f"{config.tile_m}x{config.tile_n}x{config.tile_k}",
-            "wave": f"{config.wave_m}x{config.wave_n}x{config.wave_k}",
-            "warp": f"{config.warp_m}x{config.warp_n}x{config.warp_k}",
-        }
-
-        # Check each component against the library kernel name
-        for name, expected in expected_parts.items():
-            if expected not in lib_kernel:
-                needs_rebuild = True
-                mismatches.append(f"{name}={expected}")
-
-    if needs_rebuild and auto_rebuild:
-        log(f"  Library kernel doesn't match config: {', '.join(mismatches)}")
-        log("  Rebuilding library for exact config match...")
-
-        # First ensure we have a kernel header for this exact config
-        if not kernel_header:
-            # Generate kernel for the exact config
-            log("  Generating kernel for config...")
-            codegen_result = codegen.generate_from_config(config, force=True)
-            kernel_header = find_matching_kernel_header(config)
-            result.kernel_header = kernel_header
-
-        if kernel_header:
-            new_lib_path = codegen._rebuild_library_for_config(config, kernel_header)
-            if new_lib_path:
-                lib = DispatcherLib.load(new_lib_path)
-                if lib is None or not lib.initialize():
-                    result.error = "Failed to load rebuilt library"
-                    return result
+    # Try cached kernel-specific library first (avoids loading default + mismatch check)
+    lib = None
+    if kernel_header and auto_rebuild:
+        cached_lib_path = CodegenRunner._get_cached_lib_path(kernel_header)
+        if cached_lib_path.exists():
+            log("  Loading cached library...")
+            lib = DispatcherLib.load(cached_lib_path)
+            if lib is not None and lib.initialize():
                 result.lib = lib
-                log(f"  ✓ Rebuilt library: {lib.get_kernel_name()}")
+                log(f"  ✓ Loaded cached: {cached_lib_path.name}")
             else:
-                log("  ⚠ Rebuild failed, using existing library")
-        else:
-            log("  ⚠ No kernel header found for config, using existing library")
+                lib = None
+
+    if lib is None:
+        log("  Loading library...")
+        lib = DispatcherLib.auto()
+        if lib is None:
+            result.error = "Could not load dispatcher library"
+            return result
+        result.lib = lib
+
+        # Check if library kernel matches config - rebuild if ANY parameter differs
+        lib_kernel = lib.get_kernel_name()
+        needs_rebuild = False
+        mismatches = []
+
+        if lib_kernel:
+            expected_parts = {
+                "dtype": config.dtype_a,
+                "layout": config.layout,
+                "pipeline": config.pipeline,
+                "epilogue": config.epilogue,
+                "scheduler": config.scheduler,
+                "tile": f"{config.tile_m}x{config.tile_n}x{config.tile_k}",
+                "wave": f"{config.wave_m}x{config.wave_n}x{config.wave_k}",
+                "warp": f"{config.warp_m}x{config.warp_n}x{config.warp_k}",
+            }
+
+            for name, expected in expected_parts.items():
+                if expected not in lib_kernel:
+                    needs_rebuild = True
+                    mismatches.append(f"{name}={expected}")
+
+        if needs_rebuild and auto_rebuild:
+            log(f"  Library kernel doesn't match config: {', '.join(mismatches)}")
+
+            if not kernel_header:
+                log("  Generating kernel for config...")
+                codegen_result = codegen.generate_from_config(config, force=True)
+                kernel_header = find_matching_kernel_header(config)
+                result.kernel_header = kernel_header
+
+            if kernel_header:
+                new_lib_path = codegen._rebuild_library_for_config(config, kernel_header)
+                if new_lib_path:
+                    lib = DispatcherLib.load(new_lib_path)
+                    if lib is None or not lib.initialize():
+                        result.error = "Failed to load rebuilt library"
+                        return result
+                    result.lib = lib
+                    log(f"  ✓ Library ready: {lib.get_kernel_name()}")
+                else:
+                    log("  ⚠ Rebuild failed, using existing library")
+            else:
+                log("  ⚠ No kernel header found for config, using existing library")
 
     # Step 5: Create registry and dispatcher
     log("  Creating registry and dispatcher...")

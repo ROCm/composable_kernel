@@ -1,0 +1,913 @@
+---
+title: "LDS Bank Conflicts on CDNA"
+subtitle: "From 4.7 to 5.7 TB/s with coalesced loads and XOR-swizzled LDS"
+author: "Amir Hossein Ghamarian"
+date: today
+format:
+  revealjs:
+    theme: default
+    slide-number: true
+    chalkboard: true
+    preview-links: auto
+    transition: slide
+    background-transition: fade
+    code-fold: false
+    code-line-numbers: true
+    highlight-style: monokai
+    incremental: false
+    center: true
+    width: 1600
+    height: 900
+    resources:
+      - assets/
+execute:
+  echo: false
+  warning: false
+jupyter: python3
+---
+
+# The Problem {background-color="#2C3E50"}
+
+## Moving a [65536 x 256] FP16 Tile Through LDS
+
+We have a simple task: copy a matrix from global memory, transpose it via LDS, and write it back.
+
+::: {.columns}
+::: {.column width="55%"}
+
+```cpp
+for (k_block = 0; k_block < K; k_block += kK) {
+    auto reg_tile      = load_tile(gmem_window_in);   // HBM -> registers
+    store_tile(lds_window_mk, reg_tile);              // registers -> LDS
+    block_sync_lds();
+
+    auto reg_transposed = load_tile(lds_window_km);   // LDS -> registers (TRANSPOSED)
+    block_sync_lds();
+
+    store_tile(gmem_window_out, reg_transposed);      // registers -> HBM
+}
+```
+
+:::
+::: {.column width="45%"}
+
+**The question**: on MI300 / MI355 (peak HBM3 ~5.2 / ~8 TB/s),
+can we saturate the bus with a kernel this simple?
+
+**The answer**: only if every LDS access is conflict-free **and**
+every HBM access is coalesced. Miss either and you leave
+~15-20% on the floor.
+
+:::
+:::
+
+. . .
+
+**What we will measure for every variant**: global load/store ISA,
+LDS read/write ISA, `SQ_LDS_BANK_CONFLICT`, `SQ_INSTS_LDS`, kernel time, HBM bandwidth.
+
+# Part A - Foundations {background-color="#34495E"}
+
+## What Is Coalescing?
+
+**Coalescing** is the GPU memory unit's job: take 64 lane-level addresses emitted by one wave
+and collapse them into the **minimum number of 64-byte HBM transactions** that cover them all.
+
+::: {.columns}
+::: {.column width="50%"}
+
+**The 5-step mental model** (from `coalescing_model.py`):
+
+1. Every lane of the wave emits **its own byte address** in SIMT.
+2. The memory unit walks each lane's request and slices it into **pieces that fit in one 64 B cache line**.
+3. **THE COALESCING STEP**: issue exactly one 64 B HBM transaction **per unique cache line**.
+4. Scatter the returned bytes back to the lanes that wanted them.
+5. Accounting: `efficiency = useful_bytes / fetched_bytes`.
+
+:::
+::: {.column width="50%"}
+
+**Key numbers on CDNA**:
+
+```text
+CACHE_LINE = 64 B    (HBM transaction granularity)
+WAVE_SIZE  = 64 lanes
+per-lane widths: b32 = 4 B, b64 = 8 B, b128 = 16 B
+peak coalesced wave load: 1024 B = 16 cache lines
+```
+
+**The rule of thumb**:
+
+- 64 lanes x 16 B contiguous -> 16 transactions -> 100% efficiency.
+- 64 lanes x 4 B strided by 256 B -> 64 transactions -> ~6% efficiency.
+
+:::
+:::
+
+## The Coalescer in 40 Lines
+
+```python
+def execute_wave_load(lane_addresses, lane_nbytes, HBM):
+    # Step 2: slice each lane request into per-line contributions
+    line_requests = defaultdict(list)
+    for lane, addr in enumerate(lane_addresses):
+        remaining, cur = lane_nbytes, addr
+        while remaining > 0:
+            line_id = cur // CACHE_LINE
+            offset  = cur %  CACHE_LINE
+            chunk   = min(remaining, CACHE_LINE - offset)
+            line_requests[line_id].append((lane, offset, chunk))
+            cur, remaining = cur + chunk, remaining - chunk
+
+    # Step 3: THE COALESCING STEP - one transaction per unique cache line
+    fetched_lines = {
+        line_id: bytes(HBM[line_id*CACHE_LINE : (line_id+1)*CACHE_LINE])
+        for line_id in line_requests
+    }
+
+    # Step 5: accounting
+    useful_bytes  = WAVE_SIZE * lane_nbytes
+    fetched_bytes = len(fetched_lines) * CACHE_LINE
+    return num_transactions=len(fetched_lines), efficiency=useful_bytes/fetched_bytes
+```
+
+[`assets/coalescing_model.py`](assets/coalescing_model.py) has the full implementation with 7 scenarios you can step through in a debugger.
+
+## Coalescing - Interactive {background-iframe="assets/coalescing_interactive.html"}
+
+[Pick a scenario with the buttons. Rows = 64 lanes, columns = 64 B HBM cache lines.
+Green cell = useful byte (lane wanted it). Number of non-empty columns = HBM transactions.
+Efficiency = useful / fetched bytes.]{style="background: rgba(14,19,41,0.92); padding: 6px 10px; border-radius:6px; color:#eef2ff; font-size: 16px; position: absolute; bottom: 30px; left: 30px; max-width: 900px;"}
+
+---
+
+## Coalescing - Seven Scenarios (Summary)
+
+```{python}
+#| echo: false
+#| fig-width: 16
+#| fig-height: 6.5
+import sys, os
+sys.path.insert(0, os.path.join(os.getcwd(), "assets"))
+import coalescing_model as cm
+import numpy as np
+import matplotlib.pyplot as plt
+
+HBM = cm.make_hbm(1 << 20)
+scenarios = [
+    ("1. b32\ncontig",           cm.scenario_1_coalesced_b32(HBM),         "ideal"),
+    ("2. b32\nstride 256B",      cm.scenario_2_strided_b32(HBM),           "bad"),
+    ("3. b128\ncontig",          cm.scenario_3_coalesced_b128(HBM),        "ideal"),
+    ("4. b128\nstride 1024B",    cm.scenario_4_strided_b128(HBM),          "bad"),
+    ("5. b128\nmisaligned",      cm.scenario_5_misaligned_b128(HBM),       "trap"),
+    ("6. col of\nrow-major fp32",cm.scenario_6_column_of_rowmajor(HBM),    "bad"),
+    ("7. row of\nrow-major fp16",cm.scenario_7_row_of_rowmajor_with_vec(HBM), "ideal"),
+]
+labels = [s[0] for s in scenarios]
+txns   = [s[1].num_transactions for s in scenarios]
+effs   = [s[1].efficiency * 100 for s in scenarios]
+tags   = [s[2] for s in scenarios]
+colors = ["#2ecc71" if t == "ideal" else "#e74c3c" if t in ("bad","trap") else "#95a5a6" for t in tags]
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6.5))
+x = np.arange(len(labels))
+
+ax1.bar(x, txns, color=colors, edgecolor="black")
+ax1.set_xticks(x); ax1.set_xticklabels(labels, fontsize=10)
+ax1.set_ylabel("HBM transactions (lower = better)")
+ax1.set_title("transactions issued", fontweight="bold")
+ax1.axhline(16, ls="--", color="#2ecc71", alpha=0.6, label="b128 ideal = 16")
+ax1.axhline(4,  ls="--", color="#3498db", alpha=0.6, label="b32 ideal = 4")
+ax1.legend(fontsize=9, loc="upper left")
+for xi, v in zip(x, txns): ax1.text(xi, v+1, str(v), ha="center", fontweight="bold")
+
+ax2.bar(x, effs, color=colors, edgecolor="black")
+ax2.set_xticks(x); ax2.set_xticklabels(labels, fontsize=10)
+ax2.set_ylabel("HBM efficiency (%)")
+ax2.set_title("bus efficiency", fontweight="bold"); ax2.set_ylim(0, 110)
+for xi, v in zip(x, effs): ax2.text(xi, v+2, f"{v:.0f}%", ha="center", fontweight="bold")
+
+plt.tight_layout()
+plt.show()
+```
+
+Scenario 7 = the global-load shape used by every tutorial kernel (green). Scenario 6 = what a naive transpose-read of gmem would do (red) -- **why we go through LDS**.
+
+## Coalescing: What Transfers To LDS
+
+For the rest of the deck, only the **coalesced b128** pattern matters on the HBM side.
+All six tutorial kernels use this same global-memory read:
+
+```cpp
+const auto gmem_desc_in = make_naive_tensor_descriptor(
+    make_tuple(number<kM>{}, number<kK>{}),
+    make_tuple(K, number<1>{}),
+    number<16 / sizeof(DataType)>{},   // GuaranteedLastDimensionVectorLength = 8 for fp16
+    number<1>{});                      // GuaranteedLastDimensionVectorStride
+```
+
+. . .
+
+The **LDS** side is where kernels diverge. Next: what a bank conflict actually is.
+
+## LDS Hardware Model
+
+```text
+gfx942 (MI300):  32 banks x 4 B  =  128 B / cycle / wave
+gfx950 (MI355):  64 banks x 4 B  =  256 B / cycle / wave
+
+wave = 64 lanes, processed in 2 half-waves of 32 lanes
+    (each half-wave must land on 32 distinct banks, or same slot)
+
+bank(addr_bytes) = (addr_bytes / 4) % NBanks
+slot(addr_bytes) =  addr_bytes / 4             # index within a bank
+
+LDS instruction widths (ds_read / ds_write):
+    b16   =  2 B       (fp16 scalar)
+    b32   =  4 B  = 1 slot  per lane
+    b64   =  8 B  = 2 slots per lane
+    b128  = 16 B  = 4 slots per lane   -> one instruction = 4 sub-steps
+```
+
+```{python}
+#| echo: false
+#| fig-width: 16
+#| fig-height: 5
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
+
+fig, (ax_ok, ax_bad) = plt.subplots(1, 2, figsize=(16, 4.5))
+
+for ax, title, stride_slots, colors_label in [
+    (ax_ok,  "Contiguous b32 lane i -> slot i   (0 conflicts)",            1, "green"),
+    (ax_bad, "Strided   b32 lane i -> slot 16*i (16-way conflict on 2 banks)", 16, "red"),
+]:
+    ax.set_xlim(-0.5, 32.5)
+    ax.set_ylim(-0.5, 32.5)
+    ax.set_aspect("equal")
+    ax.set_xlabel("bank id (0..31)", fontsize=11)
+    ax.set_ylabel("slot within bank", fontsize=11)
+    ax.set_title(title, fontsize=12, fontweight="bold")
+    for bank in range(32):
+        ax.add_patch(mpatches.Rectangle((bank-0.5, -0.5), 1, 33, facecolor="#eef", edgecolor="none", alpha=0.3))
+    ax.axhline(-0.5, color="black", lw=0.5)
+
+    lanes = list(range(32))
+    for lane in lanes:
+        slot = (lane * stride_slots) % 1024
+        bank = slot % 32
+        slot_in_bank = slot // 32
+        c = "#2ecc71" if colors_label == "green" else "#e74c3c"
+        ax.add_patch(mpatches.Rectangle((bank-0.45, slot_in_bank-0.45), 0.9, 0.9,
+                                        facecolor=c, edgecolor="black", lw=0.5, alpha=0.85))
+        if colors_label == "green":
+            ax.text(bank, slot_in_bank, str(lane), ha="center", va="center", fontsize=7, fontweight="bold")
+
+    ax.set_xticks(range(0, 33, 4))
+    ax.set_yticks(range(0, 33, 4))
+
+plt.tight_layout()
+plt.show()
+```
+
+## Bank-Conflict Rules - Interactive {background-iframe="assets/bank_rules_interactive.html"}
+
+[Buttons walk through all three rules on a real 32-bank half-wave.
+R1: distinct banks or exact broadcast. R2: fp16 same-slot is all-or-nothing.
+R3: `ds_read_b128` = 4 sub-steps, each checked against R1.]{style="background: rgba(14,19,41,0.92); padding: 6px 10px; border-radius:6px; color:#eef2ff; font-size: 16px; position: absolute; bottom: 30px; left: 30px; max-width: 960px;"}
+
+---
+
+## The Three Rules, Condensed
+
+::: {.columns}
+::: {.column width="33%"}
+
+### R1 - one half-wave, one sub-step
+
+For every 32-lane half-wave and every 4 B sub-step:
+
+- **distinct banks** across the 32 lanes, OR
+- every same-bank lane on the **same 4 B slot** (broadcast)
+
+Anything else = N-way conflict.
+
+:::
+::: {.column width="33%"}
+
+### R2 - fp16 inside one slot
+
+Two fp16 values share a 4 B slot. The slot broadcasts **only if every lane
+that lands on that bank targets the same fp16 half**.
+
+**One dissenter = full N-way conflict.** No partial credit.
+
+:::
+::: {.column width="33%"}
+
+### R3 - wide reads = 4 x R1
+
+`ds_read_b128` issues 4 sub-steps at `base, base+4, base+8, base+12`.
+**Each** sub-step is a full bank check.
+
+Widening helps only when R1 already holds. If R1 fails on one sub-step it fails
+on all four.
+
+:::
+:::
+
+## Checklist: Does `(write_dist, lds_desc, read_dist)` Give 0 Conflicts?
+
+Given a per-thread read pattern with stride `S` bytes along the lane axis and instruction width `W` bytes:
+
+```text
+(Q1) slots_per_lane_per_substep = W / 4                        (1 for b32, 4 for b128)
+(Q2) for each sub-step s in [0, W/4):
+         lane_addr(lane) = base + lane * S + s * 4
+         bank(lane)      = (lane_addr / 4) % NBanks
+(Q3) in each half-wave (lanes 0..31 and 32..63):
+         if all 32 banks distinct            -> sub-step is OK
+         elif all lanes on same bank share 1 slot -> OK (broadcast)
+         else                                -> N-way conflict
+(Q4) repeat for the WRITE side with its own (S, W).
+```
+
+. . .
+
+**Worked example - tutorial 01 row-major transpose read**:
+
+```text
+kM=64, kK=32, FP16. Read pattern = 8 x ds_read_u16 at stride 64 B:
+  offsets: 0, 64, 128, 192, 256, 320, 384, 448
+  slots:   0, 16,  32,  48,  64,  80,  96, 112
+  banks:   0, 16,   0,  16,   0,  16,   0,  16    <- 8 lanes share {0, 16}
+  slots differ on bank 0: {0, 32, 64, 96}  -> NOT broadcast
+  -> Rule R1 FAILS -> 8-way conflict per half-wave per instruction.
+```
+
+This is exactly what the assembly shows (next section).
+
+## The Full Pipeline
+
+```{python}
+#| echo: false
+#| fig-width: 16
+#| fig-height: 4.5
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
+fig, ax = plt.subplots(figsize=(16, 4.5))
+ax.set_xlim(0, 100); ax.set_ylim(0, 10); ax.axis("off")
+
+boxes = [
+    ("HBM\ninput",         6,  "#3498db"),
+    ("gmem load\n(coalesce)", 22, "#5dade2"),
+    ("registers",          38, "#95a5a6"),
+    ("LDS write",          54, "#e67e22"),
+    ("LDS read\n(TRANSPOSE)", 70, "#e74c3c"),
+    ("gmem store\n(coalesce)", 86, "#5dade2"),
+]
+for (label, x, c) in boxes:
+    ax.add_patch(mpatches.FancyBboxPatch((x-6, 3.5), 12, 3, boxstyle="round,pad=0.1",
+                                          facecolor=c, edgecolor="black", lw=2, alpha=0.9))
+    ax.text(x, 5, label, ha="center", va="center", fontsize=12, fontweight="bold", color="white")
+
+for xa, xb in [(12, 16), (28, 32), (44, 48), (60, 64), (76, 80)]:
+    ax.annotate("", xy=(xb, 5), xytext=(xa, 5),
+                arrowprops=dict(arrowstyle="->", color="black", lw=2))
+
+ax.text(6,  1, "=  scenario 7\n(coalesced b128)", ha="center", fontsize=9, style="italic", color="#2ecc71")
+ax.text(54, 1, "attacked by\n01/02/03/05",        ha="center", fontsize=9, style="italic", color="#c0392b")
+ax.text(70, 1, "attacked by\n05/08/10",           ha="center", fontsize=9, style="italic", color="#c0392b")
+ax.text(86, 1, "attacked by\n10 (M-vector)",      ha="center", fontsize=9, style="italic", color="#c0392b")
+
+ax.text(50, 8.5, "gmem -> LDS write -> LDS read (transposed) -> gmem",
+        ha="center", fontsize=15, fontweight="bold")
+
+plt.show()
+```
+
+Every tutorial in Part B attacks a specific stage of this pipeline.
+
+# Part B - Six Tutorials {background-color="#34495E"}
+
+## 01 Row-Major Baseline - Code
+
+::: {.columns}
+::: {.column width="58%"}
+
+```cpp
+// LDS descriptor for writing [M, K] - plain row-major
+static constexpr auto MakeLdsDescriptorMK()
+{
+    return make_naive_tensor_descriptor_packed(
+        make_tuple(number<kM>{}, number<kK>{}));
+}
+
+// Transposed LDS descriptor for reading [K, M]
+static constexpr auto MakeLdsDescriptorKM()
+{
+    return make_naive_tensor_descriptor(
+        make_tuple(number<kK>{}, number<kM>{}),
+        make_tuple(number<1>{}, number<kK>{}));   // stride kK=32 on the fast axis
+}
+```
+
+Tile is `kM=64, kK=32`. Writes are row-major (fine).
+**Reads are columns at stride 64 B** - bank 0 and bank 16, over and over.
+
+:::
+::: {.column width="42%"}
+
+**What the compiler generated**:
+
+```asm
+ds_write_b128 v..., v...         # write:   OK
+ds_read_u16  v8,  v6             # read:    bad
+ds_read_u16  v9,  v6 offset:64
+ds_read_u16 v10,  v6 offset:128
+ds_read_u16 v11,  v6 offset:192
+ds_read_u16 v12,  v6 offset:256
+ds_read_u16 v13,  v6 offset:320
+ds_read_u16 v14,  v6 offset:384
+ds_read_u16 v15,  v6 offset:448
+```
+
+All 8 reads share the **same base register** `v6`.
+Offsets step by 64 B = 16 slots = a full trip around 32 banks, landing on `{0, 16, 0, 16, ...}`.
+
+:::
+:::
+
+## 01 Row-Major Baseline - Counters
+
+::: {.columns}
+::: {.column width="50%"}
+
+```text
+global loads   :   8x buffer_load_dwordx4   (coalesced)
+global stores  :   8x buffer_store_short    (narrow transpose)
+LDS writes     :   4x ds_write_b128
+LDS reads      :   8x ds_read_u16           (conflicting)
+
+SQ_LDS_BANK_CONFLICT  :   3,670,016         (very high, 14 per dispatch)
+SQ_INSTS_LDS          :     294,912
+kernel time (M=65536) :      14.08 us
+HBM bandwidth         :       4.77 TB/s    <-- well below peak
+```
+
+:::
+::: {.column width="50%"}
+
+**What the rules say**:
+
+- R1 fails: 8 lanes on {bank 0, bank 16} with 8 distinct slots -> 7-way conflict per half-wave.
+- R2 fails: different rows -> different slots, no FP16 broadcast.
+- R3: b16 reads are a single sub-step, so width doesn't hurt (but also doesn't help).
+
+**Take-away**: a naive row-major LDS layout is unusable for transpose reads.
+Everything that follows attacks this read pattern.
+
+:::
+:::
+
+## 02 Column-Major LDS - Move the Pain
+
+::: {.columns}
+::: {.column width="55%"}
+
+```cpp
+// LDS descriptor for writing [M, K] - column-major strides
+static constexpr auto MakeLdsDescriptorMK()
+{
+    return make_naive_tensor_descriptor(
+        make_tuple(number<kM>{}, number<kK>{}),
+        make_tuple(number<1>{}, number<kM>{}));  // M is fast axis
+}
+
+// Reading [K, M] -- now this is contiguous in M
+static constexpr auto MakeLdsDescriptorKM()
+{
+    return make_naive_tensor_descriptor(
+        make_tuple(number<kK>{}, number<kM>{}),
+        make_tuple(number<kM>{}, number<1>{}));
+}
+```
+
+:::
+::: {.column width="45%"}
+
+We just swapped which axis is contiguous in LDS.
+
+- Reads are now contiguous -> `ds_read_b128` possible.
+- Writes become the strided ones now -> `ds_write_b16` and conflicts on the **write** side.
+- Net bank-conflict count **does not drop**; the pain just moved.
+
+**Rule R1 check**: write now has stride 64 B -> exactly the same `{0, 16, ...}` pattern R1 failed on for 01, except flipped to writes.
+
+**Take-away**: you cannot solve a transpose via LDS layout alone if the layout is rectangular.
+:::
+:::
+
+## 03 Row-Major + Padding - The Classical Fix
+
+::: {.columns}
+::: {.column width="55%"}
+
+```cpp
+static constexpr index_t kPadding  = 2;        // 2 fp16 = 4 B padding
+static constexpr index_t kKPadded  = kK + kPadding;  // 34 elements per row
+
+static constexpr auto MakeLdsDescriptorMK()
+{
+    return make_naive_tensor_descriptor(
+        make_tuple(number<kM>{}, number<kK>{}),       // logical [M, K]
+        make_tuple(number<kKPadded>{}, number<1>{})); // padded stride!
+}
+
+static constexpr auto MakeLdsDescriptorKM()
+{
+    return make_naive_tensor_descriptor(
+        make_tuple(number<kK>{}, number<kM>{}),
+        make_tuple(number<1>{}, number<kKPadded>{}));
+}
+```
+
+:::
+::: {.column width="45%"}
+
+**Why it works**:
+
+```text
+Unpadded row stride = 32 x 2 = 64 B  = 16 slots  (divides 32 -> collisions)
+Padded   row stride = 34 x 2 = 68 B  = 17 slots  (coprime with 32 -> all banks touched)
+```
+
+Since 17 is coprime with 32, 32 lanes walking down a column hit **32 distinct banks**. R1 satisfied.
+
+**Cost**: 2 extra fp16 per row x 64 rows = 256 B wasted LDS.
+**Benefit**: conflicts drop **5x** (3.67M -> 0.79M), bandwidth jumps from **4.77 -> 5.62 TB/s**.
+**Caveat**: padding alone does not hit 0. The remaining lanes still broadcast-miss on two banks per half-wave.
+Pair with XOR (05) or switch to 08 to eliminate them.
+
+:::
+:::
+
+## 05 XOR + Padding - Belt and Braces
+
+::: {.columns}
+::: {.column width="55%"}
+
+```cpp
+static constexpr index_t kKPack   = 8;
+static constexpr index_t kKPadded = 33;  // padding on the pack axis
+
+static constexpr auto MakeLdsDescriptorMK() {
+    constexpr auto MLdsLayer = /* 32*4/kK/sizeof(T) */;
+    auto lds_desc_0 = make_naive_tensor_descriptor(
+        make_tuple(number<kK/kKPack*MLdsLayer>{},
+                   number<kM/MLdsLayer>{},
+                   number<kKPack>{}),
+        make_tuple(number<kKPack>{},
+                   number<kKPadded * MLdsLayer>{},  // <<< PADDED
+                   number<1>{}), ...);
+    auto lds_desc_permuted = transform_tensor_descriptor(
+        lds_desc_0,
+        make_tuple(make_xor_transform(...),         // <<< XOR on (M, A)
+                   make_pass_through_transform(number<kKPack>{})), ...);
+    // unmerge A -> (MLdsLayer, K0); merge back to [M, K]
+    return lds_desc;
+}
+```
+
+:::
+::: {.column width="45%"}
+
+**Why both?** Tutorial 04 (XOR alone, same LDS descriptor as 08 but a mismatched read distribution)
+measured **~3072 residual conflicts** because 3 of its 8 `ds_read_u16` instructions used
+**hardcoded offsets** that bypass the XOR swizzle -- see
+[`investigation/PRESENTATION_READY_SUMMARY.md`](aiter/3rdparty/composable_kernel/example/ck_tile/99_toy_tutorial/tutorial_14_bank_conflict_scenarios/investigation/PRESENTATION_READY_SUMMARY.md):
+
+```asm
+ds_read_u16 v18, v29 offset:128   # bypasses XOR!
+ds_read_u16 v20, v26 offset:128   # bypasses XOR!
+ds_read_u16 v21, v22 offset:256   # bypasses XOR!
+3 / 8 = 37.5%  ==  observed 38% residual conflicts
+```
+
+**05's fix**: pad the stride so even the bypassing offsets land on fresh banks.
+Zero conflicts, at the cost of ~64 bytes of LDS per tile plus the XOR machinery.
+
+:::
+:::
+
+## 08 XOR Done Right - The Descriptor
+
+```cpp
+static constexpr auto MakeLdsDescriptorMK()
+{
+    constexpr index_t NBanks    = get_n_lds_banks();                   // 32 gfx942 / 64 gfx950
+    constexpr index_t MLdsLayer = (NBanks * 4 / kK / sizeof(T));       // 2 for fp16/kK=32
+    constexpr index_t RowMul    = (NBanks == 64) ? 2 : 1;              // <<< gfx950 doubles B
+
+    // Step 1: reshape to [A = kK/kKPack * MLdsLayer, B = kM/MLdsLayer, KPack]
+    auto lds_desc_0 = make_naive_tensor_descriptor(
+        make_tuple(number<kK/kKPack*MLdsLayer>{}, number<kM/MLdsLayer>{}, number<kKPack>{}),
+        make_tuple(number<kKPack>{}, number<kK*MLdsLayer>{}, number<1>{}),
+        number<kKPack>{}, number<1>{});
+
+    // Step 2: XOR-swizzle (B, A) with B multiplied by RowMul
+    auto lds_desc_permuted = transform_tensor_descriptor(lds_desc_0,
+        make_tuple(make_xor_transform(make_tuple(number<kM/MLdsLayer * RowMul>{},
+                                                 number<kK/kKPack * MLdsLayer>{})),
+                   make_pass_through_transform(number<kKPack>{})),
+        make_tuple(sequence<1, 0>{}, sequence<2>{}),
+        make_tuple(sequence<1, 0>{}, sequence<2>{}));
+
+    // Step 3: unmerge A -> (MLdsLayer, K0 = kK/kKPack)
+    // Step 4: merge (B, MLdsLayer) -> M ;  merge (K0, KPack) -> K
+    return lds_desc;   // presents as [M, K] to the user
+}
+```
+
+The whole pipeline is 4 `make_*_transform` calls. **No padding. No wasted LDS.**
+
+## 08 - XOR Descriptor (Interactive, 4 steps) {background-iframe="assets/step1_reshape_only.html"}
+
+[Buttons: **Before** (64x32 logical) -> **Step1 reshape** to [B=32,A=8] KPack blocks -> **Recolor** by column identity -> **Step2 XOR** shuffles blocks along A using key `b mod A` -> **Step3 unmerge** A -> (L=2, K0=4) -> **Step4 merge** back to physical [32 x 64] LDS rows. Matches `xor_t::calculate_lower_index` in ck_tile exactly for `kM=64, kK=32, kKPack=8, MLdsLayer=2`.]{style="background: rgba(14,19,41,0.92); padding: 6px 10px; border-radius:6px; color:#eef2ff; font-size: 16px; position: absolute; bottom: 30px; left: 30px; max-width: 960px;"}
+
+---
+
+## 08 - XOR Descriptor, Step By Step (Static)
+
+```{python}
+#| echo: false
+#| fig-width: 20
+#| fig-height: 9
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
+
+M, K, KPack, L = 64, 32, 8, 2
+K0, A, B = K // KPack, (K // KPack) * L, M // L   # K0=4, A=8, B=32
+
+# These formulas match ck_tile xor_t::calculate_lower_index exactly:
+#   low[0] = up[0]                                      (B axis preserved)
+#   low[1] = up[1] XOR (up[0] % up_lengths[1])          (A axis is XORed with b % A)
+def build():
+    items = []
+    for m in range(M):
+        for k in range(K):
+            n  = m * K + k                   # linear id in [M,K]
+            c  = n % KPack                   # 0..7  KPack
+            a  = (n // KPack) % A            # 0..7  A = (K/KPack)*L
+            b  = n // 64                     # 0..31 B
+            ax = a ^ (b % A)                 # XOR on A using (b % A) as key
+            l  = ax // K0                    # 0..1  MLdsLayer
+            k0 = ax % K0                     # 0..3
+            mF = b * L + l                   # B preserved, unmerge of ax on the row axis
+            kF = k0 * KPack + c              # merge (K0, KPack) -> K
+            items.append(dict(id=n, m=m, k=k, c=c, a=a, b=b,
+                              ax=ax, l=l, k0=k0, mF=mF, kF=kF))
+    return items
+
+def color_of(id_):
+    return plt.get_cmap("hsv")((id_ * 29 % 360) / 360.0)
+
+items = build()
+
+fig, axes = plt.subplots(1, 5, figsize=(20, 8))
+
+def draw(ax, at_rc, title, nrows, ncols, xlabel="", ylabel=""):
+    grid = np.full((nrows, ncols), -1, dtype=int)
+    for (r, c, i) in at_rc:
+        grid[r, c] = i
+    ax.set_xlim(-0.5, ncols - 0.5); ax.set_ylim(nrows - 0.5, -0.5)
+    ax.set_aspect("equal")
+    for r in range(nrows):
+        for c in range(ncols):
+            i = grid[r, c]
+            ax.add_patch(mpatches.Rectangle((c - 0.5, r - 0.5), 1, 1,
+                                            facecolor=color_of(i) if i >= 0 else "#222",
+                                            edgecolor="#111", lw=0.15))
+    ax.set_title(title, fontsize=11, fontweight="bold")
+    ax.set_xlabel(xlabel, fontsize=9); ax.set_ylabel(ylabel, fontsize=9)
+    ax.set_xticks([]); ax.set_yticks([])
+
+# Step 0: original [M, K] -- 64 x 32
+draw(axes[0], [(e["m"], e["k"], e["id"]) for e in items],
+     "0) original  [M=64, K=32]",
+     M, K, xlabel="K", ylabel="M")
+
+# Step 1: reshape (A, B, KPack) -> lay out as (B rows, A*KPack cols).
+# Each (b, a) cell holds KPack=8 elements (ids vary with c).
+draw(axes[1], [(e["b"], e["a"] * KPack + e["c"], e["id"]) for e in items],
+     "1) reshape  (B=32, A=8, KPack=8)",
+     B, A * KPack, xlabel="A*KPack", ylabel="B")
+
+# Step 2: XOR -- A moves to ax = a XOR (b % A). Row b is preserved.
+draw(axes[2], [(e["b"], e["ax"] * KPack + e["c"], e["id"]) for e in items],
+     "2) XOR  ax = a XOR (b mod A)",
+     B, A * KPack, xlabel="ax*KPack", ylabel="B")
+
+# Step 3: unmerge A_ax -> (L=2, K0=4). Now layout is (B, L, K0, KPack).
+# Plot as (B*L rows, K0*KPack cols) so the L layers stack vertically by row b -> (b, l).
+draw(axes[3],
+     [(e["b"] * L + e["l"], e["k0"] * KPack + e["c"], e["id"]) for e in items],
+     "3) unmerge  ax -> (L=2, K0=4)",
+     B * L, K0 * KPack, xlabel="K0*KPack", ylabel="B*L")
+
+# Step 4: final merge. m_F = b*L + l, k_F = k0*KPack + c. This is the physical LDS layout.
+draw(axes[4], [(e["mF"], e["kF"], e["id"]) for e in items],
+     "4) merge back to physical [M=64, K=32]",
+     M, K, xlabel="K_final", ylabel="M_final")
+
+plt.tight_layout()
+plt.show()
+```
+
+Colour = element id in the original `[M, K]` matrix. Follow one colour across the 5 panels.
+**Only step 2 permutes**: two elements that shared a bank at step 1 end up in different physical columns at step 4, which is where R1 starts passing.
+
+## 08 - Why It Actually Has 0 Conflicts
+
+::: {.columns}
+::: {.column width="55%"}
+
+```cpp
+static constexpr auto MakeReadDistributionMK()
+{
+    constexpr index_t K1 = 16 / sizeof(DataType);  // 8
+    constexpr index_t K0 = kK / K1;                // 4 (= num warps)
+    constexpr index_t M0 = 1, M1 = 8, M2 = 8;
+    return make_static_tile_distribution(
+        tile_distribution_encoding<
+            sequence<1>,
+            tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
+            tuple<sequence<2>,        sequence<1, 1>>,
+            tuple<sequence<0>,        sequence<1, 2>>,
+            sequence<1, 2>,           // Ys -> (M0, K1)
+            sequence<0, 1>>{});
+}
+```
+
+**Per-thread Y shape = (M0=1, K1=8)**: each lane reads **8 consecutive K values at a fixed M**.
+
+:::
+::: {.column width="45%"}
+
+```asm
+ds_read_b128 v[4:7], v2         # one instruction, 16 B
+```
+
+Contrast with tutorial 01/04's read distribution which reads 8 M values at a fixed K -> must be 8 x `ds_read_u16`.
+
+**Why 0 conflicts**:
+
+- The 8 K values sit in **one XOR pack** (the `kKPack = 8` axis is not XORed).
+- 16 B = 4 sub-steps of 4 B each (R3) that all land on the same XOR key -> 4 contiguous banks.
+- 64 lanes * 4 banks/lane -> all 256 banks-cycles distinct -> R1 satisfied for every sub-step.
+
+`buffer_store_*` on the output side stays narrow (`8x buffer_store_short`) because the per-thread register shape is K-vectorized, not M-vectorized. **That is what tutorial 10 fixes.**
+
+:::
+:::
+
+## 10 M-Vector Store - Flip the Output Vector
+
+::: {.columns}
+::: {.column width="55%"}
+
+```cpp
+static constexpr index_t kMPack = 8;  // per-thread register vector on READ side
+
+static constexpr auto MakeReadDistributionMK()
+{
+    constexpr index_t M_PerThread = kMPack;           // 8
+    constexpr index_t M_Lane      = kM / M_PerThread; // 8
+    // Y shape: (M_PerThread=8, K=1) per thread  -- OPPOSITE of 08
+    ...
+}
+```
+
+Same LDS descriptor as 08, but each lane now holds **8 consecutive M values at one K**.
+
+:::
+::: {.column width="45%"}
+
+**Trade-off**:
+
+```text
+               07/08                 10
+global load    buffer_load_dwordx4   buffer_load_dwordx4
+LDS write      ds_write_b128         ds_write_b128
+LDS read       1x ds_read_b128       8x ds_read_u16    (<-- more LDS ops)
+global store   8x buffer_store_short buffer_store_dwordx4  (<-- wide!)
+conflicts      0                     0
+```
+
+- Global **store** becomes coalesced b128. Win on the HBM side.
+- LDS **read** count goes up. Because the XOR pack axis is K but we read along M now,
+  8 M values -> 8 different XOR keys -> 8 instructions. Rule R1 still holds so **no new conflicts**.
+- Net: slightly slower on our workload; wins only when the output is heavily reused.
+
+:::
+:::
+
+# Summary {background-color="#2C3E50"}
+
+## All Six, Side by Side
+
+```{python}
+#| echo: false
+import pandas as pd
+from IPython.display import Markdown
+
+df = pd.read_csv("assets/bank_conflict_numbers.csv")
+
+isa = {
+    "01_row_major":                           ("bx4", "store_short x8", "ds_write_b128",   "ds_read_u16 x8",   "R1 X  R2 X"),
+    "02_column_major":                        ("bx4", "store_short x8", "ds_write_u16 x8", "ds_read_b128",     "R1 X on write"),
+    "03_row_major_padded":                    ("bx4", "store_short x8", "ds_write_b128",   "ds_read_u16 x8",   "pad helps write, read partial"),
+    "05_xor_plus_padding":                    ("bx4", "store_short x8", "ds_write_b128",   "ds_read_u16 x8",   "R1 OK via XOR+pad"),
+    "08_xor_cross_warp_window_reinterpret":   ("bx4", "store_short x8", "ds_write_b128",   "ds_read_b128",     "R1 R2 R3 OK"),
+    "10_m_vector_store":                      ("bx4", "store_dwordx4",  "ds_write_b128",   "ds_read_u16 x8",   "R1 OK, wider gstore"),
+}
+
+rows = []
+for _, r in df.iterrows():
+    k = r["kernel"]
+    gl, gs, lw, lr, rule = isa[k]
+    short = {"01_row_major": "01 row-major",
+             "02_column_major": "02 col-major",
+             "03_row_major_padded": "03 padding",
+             "05_xor_plus_padding": "05 XOR+pad",
+             "08_xor_cross_warp_window_reinterpret": "08 XOR clean",
+             "10_m_vector_store": "10 M-vec store"}[k]
+    rows.append((short, gl, gs, lw, lr,
+                 f"{int(r['SQ_LDS_BANK_CONFLICT']):,}",
+                 f"{int(r['SQ_INSTS_LDS']):,}",
+                 f"{r['time_us']:.2f}",
+                 f"{r['bw_TBps']:.2f}",
+                 rule))
+
+cols = ["kernel", "gload", "gstore", "LDS write", "LDS read",
+        "conflicts", "LDS insts", "time (us)", "BW (TB/s)", "rules"]
+Markdown(pd.DataFrame(rows, columns=cols).to_markdown(index=False))
+```
+
+. . .
+
+Numbers are `rocprofv3 --pmc SQ_LDS_BANK_CONFLICT SQ_INSTS_LDS SQ_INSTS_LDS_LOAD SQ_INSTS_LDS_STORE`
+on MI300, FP16, `M=65536, K=256`. Source: [`assets/bank_conflict_numbers.csv`](assets/bank_conflict_numbers.csv).
+Two observations worth calling out:
+
+- **08 has 4.5x fewer LDS instructions** than any other kernel (65k vs 295k) -- one `ds_read_b128` replaces 8 `ds_read_u16`.
+- **03 padding does not fully zero conflicts** at this problem size (reduces from 3.67M to 0.79M); XOR+pad (05) and XOR done right (08) both land on exactly 0.
+
+## Rules Of Thumb
+
+::: {.incremental}
+1. **Start from coalescing.** If the global load/store is already narrow, nothing on the LDS side can rescue you.
+2. **Pick padding** (03) when you need a one-line fix and can spare a few bytes per row.
+   It satisfies R1 by making the stride coprime with `NBanks`.
+3. **Pick XOR** (08) when you want zero wasted LDS, your LDS tile is rectangular,
+   and your per-thread read shape can be made to **align with the `kKPack` axis** (R3 pays off only then).
+4. **Remember `RowMul`** on gfx950: the XOR B-axis doubles. Hard-coding `NBanks=32` gives residual conflicts on MI355.
+5. **If the global store is slow** (M-vectorized output) use a tutorial-10-style rotated read distribution,
+   accepting extra LDS instructions to get `buffer_store_dwordx4`. Measure; the LDS-vs-HBM trade is workload-dependent.
+6. **Watch out for compiler offsets**: tutorial 04 showed `ds_read_u16 offset:N` can bypass XOR (the `+N` is added *after* the swizzle). Either align reads with the pack axis (08) or pad on top of XOR (05).
+:::
+
+## Code Pointers
+
+::: {.columns}
+::: {.column width="50%"}
+
+- [01_row_major.cpp](aiter/3rdparty/composable_kernel/example/ck_tile/99_toy_tutorial/tutorial_14_bank_conflict_scenarios/01_row_major.cpp)
+- [02_column_major.cpp](aiter/3rdparty/composable_kernel/example/ck_tile/99_toy_tutorial/tutorial_14_bank_conflict_scenarios/02_column_major.cpp)
+- [03_row_major_padded.cpp](aiter/3rdparty/composable_kernel/example/ck_tile/99_toy_tutorial/tutorial_14_bank_conflict_scenarios/03_row_major_padded.cpp)
+- [05_xor_plus_padding.cpp](aiter/3rdparty/composable_kernel/example/ck_tile/99_toy_tutorial/tutorial_14_bank_conflict_scenarios/05_xor_plus_padding.cpp)
+- [08_xor_cross_warp_window_reinterpret.cpp](aiter/3rdparty/composable_kernel/example/ck_tile/99_toy_tutorial/tutorial_14_bank_conflict_scenarios/08_xor_cross_warp_window_reinterpret.cpp)
+- [10_m_vector_store.cpp](aiter/3rdparty/composable_kernel/example/ck_tile/99_toy_tutorial/tutorial_14_bank_conflict_scenarios/10_m_vector_store.cpp)
+
+:::
+::: {.column width="50%"}
+
+**Background reading in `investigation/`**:
+
+- `BANK_CONFLICT_CALCULATION_FINAL.md` - the worked Phase-0 conflict count.
+- `CONFLICT_MODEL_FINAL.md` - same-slot all-or-nothing rule (R2).
+- `PRESENTATION_READY_SUMMARY.md` - the 3/8-offsets-bypass-XOR finding (why 04 is not enough).
+- `WHY_XOR_STILL_HAS_CONFLICTS.md` - the 04-vs-08 tile distribution contrast.
+
+**Assets**:
+
+- `assets/coalescing_model.py`
+- `assets/xor_full_steps_simple.html`
+
+:::
+:::
+
+# Questions? {background-color="#2C3E50"}

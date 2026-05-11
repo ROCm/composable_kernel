@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Global Memory Coalescing on CDNA</title>
+  <style>
+    :root {
+      --bg: #0e1329;
+      --panel: #161d3a;
+      --text: #eef2ff;
+      --muted: #a5b0da;
+      --accent: #6ee7ff;
+      --ok: #2ecc71;
+      --bad: #e74c3c;
+      --warn: #f39c12;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 16px;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(circle at 20% 0%, #1a2452, var(--bg) 35%);
+      color: var(--text);
+    }
+    .wrap { max-width: 1900px; margin: 0 auto; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    h1 { margin: 0 0 8px; font-size: 20px; }
+    p  { margin: 0 0 6px; color: var(--muted); }
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    button {
+      background: #253164; color: var(--text);
+      border: 1px solid #3f4f90; border-radius: 6px;
+      padding: 6px 10px; cursor: pointer;
+    }
+    button.active { background: #3f55a8; border-color: #6fe7ff; }
+    button:hover { background: #2d3a75; }
+    .status  { margin-left: 8px; color: var(--accent); font-weight: 600; }
+    .formula { margin-top: 4px; color: #9ef7c9; font-size: 13px; white-space: pre-wrap; }
+    .gridWrap {
+      overflow: auto; border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px; background: #101633; padding: 10px;
+      max-height: 74vh;
+    }
+    .stats {
+      display: flex; gap: 24px; align-items: baseline; margin-top: 8px;
+      color: #d8e4ff; font-size: 13px;
+    }
+    .stats b { color: var(--accent); font-size: 16px; }
+    .legend { display: flex; gap: 14px; align-items: center; font-size: 12px; color: #c8d4ff; }
+    .chip { display: inline-block; width: 14px; height: 14px; border-radius: 3px;
+            border: 1px solid rgba(255,255,255,0.5); margin-right: 4px; vertical-align: middle; }
+    .laneLabel { font-size: 9px; color: #94a3d8; text-align: right; padding-right: 4px; min-width: 36px; }
+    .cacheLabel { font-size: 9px; color: #94a3d8; text-align: center; padding: 2px 0; }
+    .cell { width: 16px; height: 10px; border: 1px solid rgba(255,255,255,0.08); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h1>Global Memory Coalescing on CDNA</h1>
+      <p>64 lanes of one wave emit independent byte addresses; the memory unit collapses them into the
+         minimum number of 64 B HBM cache lines. Each column below is one cache line; each row is one lane.
+         A coloured cell means "lane L's request fell inside cache line C".
+         <b>Number of non-empty columns = number of HBM transactions</b>.</p>
+      <div id="formula" class="formula"></div>
+    </div>
+
+    <div class="panel controls">
+      <button class="sBtn active" data-s="b128_contig">b128 contiguous (ideal)</button>
+      <button class="sBtn" data-s="b32_contig">b32 contiguous</button>
+      <button class="sBtn" data-s="b128_misaligned">b128 misaligned by 8 B (trap)</button>
+      <button class="sBtn" data-s="b32_stride256">b32 stride 256 B (bad)</button>
+      <button class="sBtn" data-s="b128_stride1024">b128 stride 1024 B (bad)</button>
+      <button class="sBtn" data-s="transpose_fp16">row-major fp16 transpose column (bad)</button>
+      <span id="status" class="status"></span>
+    </div>
+
+    <div class="panel">
+      <div class="legend" style="margin-bottom:6px;">
+        <span><span class="chip" style="background:#2ecc71"></span>useful byte (lane wanted this part of the line)</span>
+        <span><span class="chip" style="background:#f39c12"></span>fetched but unused (same line, different lane's remainder)</span>
+        <span><span class="chip" style="background:#253164"></span>empty</span>
+      </div>
+      <div id="gridWrap" class="gridWrap"></div>
+      <div class="stats">
+        <span>lanes: <b>64</b></span>
+        <span>per-lane width: <b id="statWidth"></b> B</span>
+        <span>useful: <b id="statUseful"></b> B</span>
+        <span>unique cache lines: <b id="statTx"></b></span>
+        <span>fetched: <b id="statFetched"></b> B</span>
+        <span>efficiency: <b id="statEff"></b></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const WAVE = 64;
+    const LINE = 64;
+
+    const scenarios = {
+      b128_contig: {
+        title: "b128 contiguous",
+        desc: "lane L addr = L * 16      width = 16 B per lane",
+        addrs: () => Array.from({length: WAVE}, (_, l) => l * 16),
+        width: 16,
+      },
+      b32_contig: {
+        title: "b32 contiguous",
+        desc: "lane L addr = L * 4       width = 4 B per lane",
+        addrs: () => Array.from({length: WAVE}, (_, l) => l * 4),
+        width: 4,
+      },
+      b128_misaligned: {
+        title: "b128 misaligned by 8 B",
+        desc: "lane L addr = 8 + L * 16  width = 16 B per lane  (base is mid-cache-line)",
+        addrs: () => Array.from({length: WAVE}, (_, l) => 8 + l * 16),
+        width: 16,
+      },
+      b32_stride256: {
+        title: "b32 stride 256 B",
+        desc: "lane L addr = L * 256     width = 4 B per lane  (column of a 256-B row-major matrix)",
+        addrs: () => Array.from({length: WAVE}, (_, l) => l * 256),
+        width: 4,
+      },
+      b128_stride1024: {
+        title: "b128 stride 1024 B",
+        desc: "lane L addr = L * 1024    width = 16 B per lane  (wide, but still one lane per line)",
+        addrs: () => Array.from({length: WAVE}, (_, l) => l * 1024),
+        width: 16,
+      },
+      transpose_fp16: {
+        title: "column of row-major fp16[64 x 32]",
+        desc: "tile is 64 rows x 32 fp16; reading a column -> lane L addr = L * 64 B, width = 2 B",
+        addrs: () => Array.from({length: WAVE}, (_, l) => l * 64),
+        width: 2,
+      },
+    };
+
+    const dom = {
+      formula: document.getElementById("formula"),
+      status:  document.getElementById("status"),
+      wrap:    document.getElementById("gridWrap"),
+      statWidth:   document.getElementById("statWidth"),
+      statUseful:  document.getElementById("statUseful"),
+      statTx:      document.getElementById("statTx"),
+      statFetched: document.getElementById("statFetched"),
+      statEff:     document.getElementById("statEff"),
+    };
+
+    function renderScenario(key) {
+      const s = scenarios[key];
+      const addrs = s.addrs();
+      const W = s.width;
+
+      // lane L fills bytes [addrs[L], addrs[L]+W)
+      // for each cache line touched by any lane, mark which lanes overlap it
+      // cell = "lane L has useful bytes in line C" (green)
+      // line is in the set of fetched lines -> lanes that don't overlap it see empty (dark)
+      const laneLines = [];
+      const lineSet   = new Set();
+      for (const a of addrs) {
+        const start = Math.floor(a / LINE);
+        const end   = Math.floor((a + W - 1) / LINE);
+        const ls = [];
+        for (let c = start; c <= end; c += 1) { ls.push(c); lineSet.add(c); }
+        laneLines.push(ls);
+      }
+      const sortedLines = [...lineSet].sort((a,b) => a - b);
+      const colOf = new Map(sortedLines.map((v, i) => [v, i]));
+
+      // stats
+      const useful  = WAVE * W;
+      const tx      = sortedLines.length;
+      const fetched = tx * LINE;
+      const eff     = useful / fetched;
+
+      dom.status.textContent = s.title;
+      dom.formula.textContent =
+`Scenario: ${s.title}
+${s.desc}
+
+  useful = 64 lanes * ${W} B = ${useful} B
+  cache lines touched = ${tx}
+  fetched = ${tx} * 64 B = ${fetched} B
+  efficiency = useful / fetched = ${(eff*100).toFixed(1)} %`;
+      dom.statWidth.textContent   = W;
+      dom.statUseful.textContent  = useful;
+      dom.statTx.textContent      = tx;
+      dom.statFetched.textContent = fetched;
+      dom.statEff.textContent     = (eff*100).toFixed(1) + " %";
+
+      // Build the grid: laneLabel column + one column per cache line.
+      // If tx is huge (>200) show a compact "rank-order" visualization (each
+      // lane's unique line, not the full sparse matrix).
+      dom.wrap.innerHTML = "";
+      const grid = document.createElement("div");
+      grid.style.display = "grid";
+      grid.style.gap = "1px";
+      // cap columns to keep the slide tractable
+      const maxCols = Math.min(tx, 128);
+      const cols = Array.from({length: maxCols}, (_, i) => sortedLines[i]);
+      grid.style.gridTemplateColumns = `48px repeat(${maxCols}, 16px)`;
+
+      // top header row
+      const corner = document.createElement("div");
+      corner.className = "cacheLabel";
+      corner.style.gridColumn = "1 / span 1";
+      corner.textContent = "lane \\ line";
+      grid.append(corner);
+      for (const c of cols) {
+        const h = document.createElement("div");
+        h.className = "cacheLabel";
+        h.textContent = "L" + c;
+        grid.append(h);
+      }
+
+      for (let l = 0; l < WAVE; l += 1) {
+        const ll = document.createElement("div");
+        ll.className = "laneLabel";
+        ll.textContent = "lane " + l;
+        grid.append(ll);
+        const touched = new Set(laneLines[l]);
+        for (const c of cols) {
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          if (touched.has(c)) {
+            cell.style.background = eff > 0.75 ? "#2ecc71" : (eff > 0.25 ? "#f39c12" : "#e74c3c");
+          } else {
+            // any other lane touched this line -> warn (fetched, not used by me)
+            cell.style.background = "#253164";
+          }
+          grid.append(cell);
+        }
+      }
+      dom.wrap.append(grid);
+      if (tx > maxCols) {
+        const msg = document.createElement("p");
+        msg.style.color = "#e74c3c";
+        msg.textContent = `(showing first ${maxCols} of ${tx} cache lines; this already tells the story)`;
+        dom.wrap.append(msg);
+      }
+    }
+
+    function setActive(key) {
+      for (const b of document.querySelectorAll(".sBtn")) {
+        b.classList.toggle("active", b.dataset.s === key);
+      }
+    }
+    for (const b of document.querySelectorAll(".sBtn")) {
+      b.addEventListener("click", () => { setActive(b.dataset.s); renderScenario(b.dataset.s); });
+    }
+    renderScenario("b128_contig");
+  </script>
+</body>
+</html>

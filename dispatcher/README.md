@@ -34,11 +34,11 @@ cd dispatcher
 mkdir -p build && cd build
 
 # Step 2: Configure CMake
-cmake .. \
+cmake -B build -S . \
   -DCMAKE_PREFIX_PATH=/opt/rocm \
   -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc \
   -DCMAKE_BUILD_TYPE=Release \
-  -DGPU_TARGETS="gfx942" \
+  -DGPU_TARGETS="gfx950" \
   -DBUILD_DISPATCHER_EXAMPLES=ON
 
 # Step 3: Generate kernels and build (CMake handles this automatically)

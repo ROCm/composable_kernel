@@ -1,0 +1,9 @@
+04_row_major_xor-hip-amdgcn-amd-amdhsa-gfx942.bc
+-r=04_row_major_xor-hip-amdgcn-amd-amdhsa-gfx942.bc,__cxa_pure_virtual,px
+-r=04_row_major_xor-hip-amdgcn-amd-amdhsa-gfx942.bc,__cxa_deleted_virtual,px
+-r=04_row_major_xor-hip-amdgcn-amd-amdhsa-gfx942.bc,__assert_fail,pl
+-r=04_row_major_xor-hip-amdgcn-amd-amdhsa-gfx942.bc,__assertfail,pl
+-r=04_row_major_xor-hip-amdgcn-amd-amdhsa-gfx942.bc,_ZN7ck_tileL11flush_cacheEv.intern.53b1c7993ec8f2c7,px
+-r=04_row_major_xor-hip-amdgcn-amd-amdhsa-gfx942.bc,_ZN7ck_tile6kentryILi256E25ProductionTransposeKernelIDF16_Lb1EEJPKDF16_PDF16_iiEEEvDpT1_,plx
+-r=04_row_major_xor-hip-amdgcn-amd-amdhsa-gfx942.bc,_ZZNK25ProductionTransposeKernelIDF16_Lb1EEclEPKDF16_PDF16_iiE3lds,pl
+-r=04_row_major_xor-hip-amdgcn-amd-amdhsa-gfx942.bc,__hip_cuid_53b1c7993ec8f2c7,px

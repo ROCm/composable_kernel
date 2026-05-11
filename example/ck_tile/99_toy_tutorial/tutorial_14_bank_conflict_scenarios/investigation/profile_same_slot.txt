@@ -1,0 +1,3 @@
+kernel: same_slot_reads
+metric: SQ_ACCUM_PREV_HIRES
+LDS_BANK_CONFLICT {}: $denom

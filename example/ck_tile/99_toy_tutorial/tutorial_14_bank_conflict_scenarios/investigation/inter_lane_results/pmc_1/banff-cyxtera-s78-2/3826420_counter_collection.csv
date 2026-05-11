@@ -1,0 +1,5 @@
+"Correlation_Id","Dispatch_Id","Agent_Id","Queue_Id","Process_Id","Thread_Id","Grid_Size","Kernel_Id","Kernel_Name","Workgroup_Size","LDS_Block_Size","Scratch_Size","VGPR_Count","Accum_VGPR_Count","SGPR_Count","Counter_Name","Counter_Value","Start_Timestamp","End_Timestamp"
+1,1,"Agent 2",1,3826420,3826420,256,4,"_Z20inter_lane_same_slotPKDF16_Pf",256,4096,0,32,0,32,"SQ_LDS_BANK_CONFLICT",0.00000000e+00,8043810838903362,8043810838906008
+2,2,"Agent 2",1,3826420,3826420,256,3,"_Z26inter_lane_different_slotsPKDF16_Pf",256,4096,0,32,0,32,"SQ_LDS_BANK_CONFLICT",7.000000,8043810839031054,8043810839033379
+3,3,"Agent 2",1,3826420,3826420,256,2,"_Z23exact_transpose_patternPKDF16_Pf",256,4096,0,32,0,32,"SQ_LDS_BANK_CONFLICT",0.00000000e+00,8043810839135053,8043810839137057
+4,4,"Agent 2",1,3826420,3826420,256,1,"_Z21no_conflicts_baselinePKDF16_Pf",256,4096,0,32,0,32,"SQ_LDS_BANK_CONFLICT",0.00000000e+00,8043810839237087,8043810839239012

@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LDS Bank Conflict Calculator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            min-width: 220px;
+            flex-shrink: 0;
+        }
+        .controls h2 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .control-group {
+            margin-bottom: 18px;
+        }
+        .control-group label {
+            display: block;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        .control-group input[type="number"] {
+            width: 80px;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .control-group input[type="range"] {
+            width: 100%;
+            margin-top: 4px;
+        }
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: #333;
+            cursor: pointer;
+            font-weight: normal;
+        }
+        .radio-group input[type="radio"] {
+            margin: 0;
+        }
+        .inline-input {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .inline-input input[type="number"] {
+            width: 60px;
+        }
+        .target-display {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .target-display input[type="number"] {
+            width: 60px;
+        }
+        .visualization {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: auto;
+        }
+        #svg-container {
+            min-width: 1100px;
+        }
+        /* SVG styles */
+        .cell { fill: #f8f9fa; stroke: #dee2e6; stroke-width: 0.5; }
+        .highlight { fill: #fff3bf; stroke: #ffd43b; stroke-width: 1.5; }
+        .bank-header { fill: #e9ecef; stroke: #495057; stroke-width: 1; }
+        .title { font: bold 14px sans-serif; fill: #333; }
+        .subtitle { font: 11px sans-serif; fill: #495057; }
+        .text { font: 9px monospace; fill: #495057; }
+        .text-highlight { font: bold 10px monospace; fill: #212529; }
+        .bank-num { font: 8px monospace; fill: #495057; }
+        .bank-num-highlight { font: bold 9px monospace; fill: #212529; }
+        .label { font: 11px sans-serif; fill: #495057; }
+        .divider { stroke: #adb5bd; stroke-width: 0.5; stroke-dasharray: 2,2; }
+        .conflict-text { fill: #c92a2a; font-weight: bold; }
+        .success-text { fill: #2f9e44; font-weight: bold; }
+        .header-text { font: bold 9px monospace; fill: #333; }
+        /* Color palette for highlighting different columns/rows */
+        .color-0 { fill: #ff6b6b; stroke: #e03131; stroke-width: 1.5; }  /* Red */
+        .color-1 { fill: #51cf66; stroke: #2f9e44; stroke-width: 1.5; }  /* Green */
+        .color-2 { fill: #339af0; stroke: #1971c2; stroke-width: 1.5; }  /* Blue */
+    </style>
+</head>
+<body>
+    <h1>LDS Bank Conflict Calculator</h1>
+
+    <div style="max-width: 1400px; margin: 0 auto 20px auto; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
+        <strong>⚠️ Important:</strong> This calculator shows <strong>intra-lane conflicts for a single operation</strong> (READ or WRITE).
+        Real kernels often do BOTH operations, and FP16 element pairing (2 elements per 4-byte bank slot) causes additional 2-way conflicts on WRITE.
+        Total measured conflicts = WRITE conflicts + READ conflicts. See <code>PROFILING_VS_CALCULATOR.md</code> for details.
+    </div>
+
+    <div class="container">
+        <div class="controls">
+            <h2>Controls</h2>
+
+            <div class="control-group">
+                <label>Matrix Dimensions</label>
+                <div class="inline-input">
+                    Rows: <input type="number" id="rows" value="8" min="1" max="32">
+                </div>
+                <div class="inline-input" style="margin-top: 6px;">
+                    Cols: <input type="number" id="cols" value="32" min="1" max="64">
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Element Type</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="elemType" value="2" checked> FP16 (2 bytes)</label>
+                    <label><input type="radio" name="elemType" value="4"> FP32 (4 bytes)</label>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Storage Layout</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="layout" value="row-major" checked> Row-major</label>
+                    <label><input type="radio" name="layout" value="column-major"> Column-major</label>
+                    <label class="inline-input">
+                        <input type="radio" name="layout" value="padded"> Padded
+                        <input type="number" id="padding" value="32" min="0" max="256" step="2" style="width: 50px;"> bytes
+                    </label>
+                    <label><input type="radio" name="layout" value="xor"> XOR swizzle (simplified)</label>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Access Pattern</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="access" value="column" checked> Column-wise (vertical)</label>
+                    <label><input type="radio" name="access" value="row"> Row-wise (horizontal)</label>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Operation Type</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="operation" value="read" checked> Read</label>
+                    <label><input type="radio" name="operation" value="write"> Write</label>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Target <span id="access-label">Column</span></label>
+                <div class="target-display">
+                    <input type="number" id="target" value="0" min="0">
+                    <input type="range" id="target-slider" value="0" min="0" max="31">
+                </div>
+            </div>
+        </div>
+
+        <div class="visualization">
+            <div id="svg-container"></div>
+        </div>
+    </div>
+
+    <script>
+        // Phase grouping constants (from LDS_CONSTRAINTS.md Constraint 10)
+        const WRITE_PHASES = [
+            [0, 1, 2, 3, 4, 5, 6, 7],
+            [8, 9, 10, 11, 12, 13, 14, 15],
+            [16, 17, 18, 19, 20, 21, 22, 23],
+            [24, 25, 26, 27, 28, 29, 30, 31],
+            [32, 33, 34, 35, 36, 37, 38, 39],
+            [40, 41, 42, 43, 44, 45, 46, 47],
+            [48, 49, 50, 51, 52, 53, 54, 55],
+            [56, 57, 58, 59, 60, 61, 62, 63]
+        ];
+
+        const READ_PHASES = [
+            [0, 1, 2, 3, 20, 21, 22, 23],
+            [4, 5, 6, 7, 16, 17, 18, 19],
+            [8, 9, 10, 11, 28, 29, 30, 31],
+            [12, 13, 14, 15, 24, 25, 26, 27],
+            [32, 33, 34, 35, 52, 53, 54, 55],
+            [36, 37, 38, 39, 48, 49, 50, 51],
+            [40, 41, 42, 43, 60, 61, 62, 63],
+            [44, 45, 46, 47, 56, 57, 58, 59]
+        ];
+
+        // DOM elements
+        const rowsInput = document.getElementById('rows');
+        const colsInput = document.getElementById('cols');
+        const paddingInput = document.getElementById('padding');
+        const targetInput = document.getElementById('target');
+        const targetSlider = document.getElementById('target-slider');
+        const accessLabel = document.getElementById('access-label');
+        const svgContainer = document.getElementById('svg-container');
+
+        // Get current configuration
+        function getConfig() {
+            const rows = parseInt(rowsInput.value) || 8;
+            const cols = parseInt(colsInput.value) || 32;
+            const elemSize = parseInt(document.querySelector('input[name="elemType"]:checked').value);
+            const layout = document.querySelector('input[name="layout"]:checked').value;
+            let padding = parseInt(paddingInput.value) || 0;
+            const accessPattern = document.querySelector('input[name="access"]:checked').value;
+            const operation = document.querySelector('input[name="operation"]:checked').value;
+            const target = parseInt(targetInput.value) || 0;
+
+            // Validate padding alignment: must be divisible by elemSize
+            // to prevent elements from spanning bank boundaries
+            if (padding % elemSize !== 0) {
+                padding = Math.floor(padding / elemSize) * elemSize;
+                paddingInput.value = padding;
+            }
+
+            return { rows, cols, elemSize, layout, padding, accessPattern, operation, target };
+        }
+
+        // Address calculation
+        function getAddress(row, col, config) {
+            const { rows, cols, elemSize, layout, padding } = config;
+            switch(layout) {
+                case 'row-major':
+                    return row * (cols * elemSize) + col * elemSize;
+                case 'column-major':
+                    return col * (rows * elemSize) + row * elemSize;
+                case 'padded':
+                    return row * (cols * elemSize + padding) + col * elemSize;
+                case 'xor':
+                    // Simple XOR swizzle (without full packing model)
+                    const xorCol = col ^ (row % 8);
+                    return row * (cols * elemSize) + xorCol * elemSize;
+                default:
+                    return row * (cols * elemSize) + col * elemSize;
+            }
+        }
+
+        // Bank calculation
+        function getBank(address) {
+            return Math.floor(address / 4) % 32;
+        }
+
+        // Thread distribution mapping
+        // Maps a lane ID to the elements it accesses based on the distribution pattern
+        function getThreadMapping(lane, config) {
+            const { rows, cols, accessPattern } = config;
+
+            if (accessPattern === 'column') {
+                // Transpose read pattern: Reading [K, M] from physical [M, K] storage
+                // [K,M][k,m] maps to physical [M,K][m,k]
+                // Distribution: [K2, M0, M1] where K2=8, M0=8, M1=8
+                // lane_id maps to: K2_idx = lane % 8, M0_idx = lane / 8
+                const K2_idx = lane % 8;  // which k value (0-7) - this is the COLUMN in [M,K]
+                const M0_idx = Math.floor(lane / 8); // which M group (0-7) - these are ROWS in [M,K]
+                const m_start = M0_idx * 8;
+
+                // Reading [K,M][K2_idx, m_start:m_start+8]
+                // = physical [M,K][m_start:m_start+8, K2_idx]
+                // = column K2_idx, rows m_start to m_start+7
+                const elements = [];
+                for (let m1 = 0; m1 < 8; m1++) {
+                    const m_value = m_start + m1;
+                    // Physical [M,K] coordinates: row=m_value, col=K2_idx
+                    if (m_value < rows && K2_idx < cols) {
+                        elements.push({ row: m_value, col: K2_idx });
+                    }
+                }
+                return { k: K2_idx, m_start, elements };
+            } else {
+                // Row-wise pattern: lanes read consecutive columns in a row
+                const row_idx = lane % rows;
+                const col_start = Math.floor(lane / rows) * 8;
+
+                const elements = [];
+                for (let c = 0; c < 8; c++) {
+                    const row = row_idx;
+                    const col = col_start + c;
+                    if (row < rows && col < cols) {
+                        elements.push({ row, col });
+                    }
+                }
+                return { row: row_idx, col_start, elements };
+            }
+        }
+
+        // Generate SVG visualization
+        function generateVisualization(config) {
+            const { rows, cols, elemSize, layout, accessPattern, operation, target } = config;
+
+            const cellSizeMatrix = 18;
+            const cellSizeBank = 38;  // Larger cells for LDS view
+            const margin = 40;
+            const spacing = 60;
+
+            // Highlight range: target +/- 1 (3 columns/rows total)
+            const highlightStart = Math.max(0, target - 1);
+            const highlightEnd = accessPattern === 'column'
+                ? Math.min(cols - 1, target + 1)
+                : Math.min(rows - 1, target + 1);
+
+            const width = Math.max(32 * cellSizeBank + 2 * margin, cols * cellSizeMatrix + 2 * margin);
+            let height = margin;
+
+            // Build SVG content
+            let svg = '';
+            let yPos = margin;
+
+            // Title
+            const layoutNames = {
+                'row-major': 'Row-Major',
+                'column-major': 'Column-Major',
+                'padded': `Padded (+${config.padding} bytes)`,
+                'xor': 'XOR Swizzle'
+            };
+            const elemTypeName = elemSize === 2 ? 'FP16' : 'FP32';
+            const accessName = accessPattern === 'column' ? 'Column' : 'Row';
+            const operationName = operation === 'read' ? 'Reading from' : 'Writing to';
+
+            svg += `<text x="${width/2}" y="${yPos}" class="title" text-anchor="middle">
+                ${layoutNames[layout]} Layout - ${elemTypeName} Elements (${operationName})
+            </text>`;
+            yPos += 18;
+
+            const rangeStr = highlightStart === highlightEnd
+                ? `${accessName} ${target}`
+                : `${accessName}s ${highlightStart}-${highlightEnd}`;
+
+            svg += `<text x="${width/2}" y="${yPos}" class="subtitle" text-anchor="middle">
+                Matrix: ${rows} rows x ${cols} cols | ${operationName} ${rangeStr}
+            </text>`;
+            yPos += 30;
+
+            // ============================================================
+            // 1. MATRIX VIEW
+            // ============================================================
+            svg += `<text x="${width/2}" y="${yPos}" class="label" text-anchor="middle">
+                1. Matrix View (${rangeStr} highlighted)
+            </text>`;
+            yPos += 20;
+
+            // Draw matrix grid
+            const matrixStartX = Math.max(margin, (width - cols * cellSizeMatrix) / 2);
+
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    const x = matrixStartX + col * cellSizeMatrix;
+                    const y = yPos + row * cellSizeMatrix;
+                    const num = row * cols + col;
+
+                    // Determine color index for highlighted cells
+                    let colorIndex = -1;
+                    if (accessPattern === 'column') {
+                        if (col >= highlightStart && col <= highlightEnd) {
+                            colorIndex = col - highlightStart;
+                        }
+                    } else {
+                        if (row >= highlightStart && row <= highlightEnd) {
+                            colorIndex = row - highlightStart;
+                        }
+                    }
+
+                    const isHighlighted = colorIndex >= 0;
+                    const cellClass = isHighlighted ? `color-${colorIndex}` : 'cell';
+                    svg += `<rect x="${x}" y="${y}" width="${cellSizeMatrix}" height="${cellSizeMatrix}" class="${cellClass}"/>`;
+
+                    // Show numbers: first row/column (axis labels) OR any highlighted cell
+                    const showNumber = row === 0 || col === 0 || isHighlighted;
+                    if (showNumber) {
+                        const textClass = isHighlighted ? 'text-highlight' : 'text';
+                        svg += `<text x="${x + cellSizeMatrix/2}" y="${y + cellSizeMatrix/2 + 3}" class="${textClass}" text-anchor="middle">${num}</text>`;
+                    }
+                }
+            }
+
+            yPos += rows * cellSizeMatrix + spacing;
+
+            // ============================================================
+            // 2. LDS BANK VIEW
+            // ============================================================
+            const elemsPerBank = elemSize === 2 ? 2 : 1;
+            svg += `<text x="${width/2}" y="${yPos}" class="label" text-anchor="middle">
+                2. LDS Banks (32 banks, 4 bytes each = ${elemsPerBank} ${elemTypeName} element${elemsPerBank > 1 ? 's' : ''})
+            </text>`;
+            yPos += 25;
+
+            // Bank headers
+            for (let bankId = 0; bankId < 32; bankId++) {
+                const x = margin + bankId * cellSizeBank;
+                const y = yPos;
+                svg += `<rect x="${x}" y="${y}" width="${cellSizeBank}" height="${cellSizeBank - 8}" class="bank-header"/>`;
+                svg += `<text x="${x + cellSizeBank/2}" y="${y + (cellSizeBank-8)/2 + 3}" class="header-text" text-anchor="middle">B${bankId}</text>`;
+            }
+            yPos += cellSizeBank;
+
+            // Create bank mapping based on PHYSICAL LDS layout
+            // Each 4-byte slot holds 1 FP32 or 2 FP16 elements
+            // LDS row = 32 banks × 4 bytes = 128 bytes
+            // slotMapping[slotIndex] = [{elem, row, col}]
+            const slotMapping = {};
+            let maxSlot = 0;
+
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    const addr = getAddress(row, col, config);
+                    const slotIndex = Math.floor(addr / 4); // which 4-byte slot
+                    const elem = row * cols + col;
+
+                    if (!slotMapping[slotIndex]) {
+                        slotMapping[slotIndex] = [];
+                    }
+                    slotMapping[slotIndex].push({ elem, row, col, addr });
+                    maxSlot = Math.max(maxSlot, slotIndex);
+                }
+            }
+
+            // Calculate number of LDS rows needed
+            const ldsRows = Math.floor(maxSlot / 32) + 1;
+
+            // Draw bank cells
+            for (let ldsRow = 0; ldsRow < ldsRows; ldsRow++) {
+                for (let bankId = 0; bankId < 32; bankId++) {
+                    const slotIndex = ldsRow * 32 + bankId;
+                    let elems = slotMapping[slotIndex] || [];
+
+                    // Sort elements by address so they appear in physical order (left=lower addr)
+                    elems = elems.sort((a, b) => a.addr - b.addr);
+
+                    const x = margin + bankId * cellSizeBank;
+                    const y = yPos + ldsRow * cellSizeBank;
+
+                    // Find which highlighted elements are in this cell
+                    const highlightedElems = [];
+                    for (const e of elems) {
+                        let colorIdx = -1;
+                        if (accessPattern === 'column' && e.col >= highlightStart && e.col <= highlightEnd) {
+                            colorIdx = e.col - highlightStart;
+                        } else if (accessPattern === 'row' && e.row >= highlightStart && e.row <= highlightEnd) {
+                            colorIdx = e.row - highlightStart;
+                        }
+                        if (colorIdx >= 0) {
+                            highlightedElems.push({ ...e, colorIdx });
+                        }
+                    }
+
+                    // Only draw cells that have elements
+                    if (elems.length > 0) {
+                        // Draw base cell
+                        svg += `<rect x="${x}" y="${y}" width="${cellSizeBank}" height="${cellSizeBank}" class="cell"/>`;
+
+                        // For FP16 with 2 elements, handle left/right halves
+                        if (elemSize === 2 && elems.length === 2) {
+                            svg += `<line x1="${x + cellSizeBank/2}" y1="${y}" x2="${x + cellSizeBank/2}" y2="${y + cellSizeBank}" class="divider"/>`;
+
+                            // Color each half if highlighted
+                            for (const he of highlightedElems) {
+                                const idx = elems.findIndex(e => e.elem === he.elem);
+                                if (idx === 0) {
+                                    svg += `<rect x="${x+1}" y="${y+1}" width="${cellSizeBank/2-1}" height="${cellSizeBank-2}" class="color-${he.colorIdx}"/>`;
+                                } else if (idx === 1) {
+                                    svg += `<rect x="${x+cellSizeBank/2}" y="${y+1}" width="${cellSizeBank/2-1}" height="${cellSizeBank-2}" class="color-${he.colorIdx}"/>`;
+                                }
+                            }
+
+                            // Show numbers - highlighted ones are bold
+                            if (highlightedElems.length > 0) {
+                                // Show highlighted numbers in bold
+                                for (const he of highlightedElems) {
+                                    const idx = elems.findIndex(e => e.elem === he.elem);
+                                    const tx = idx === 0 ? x + cellSizeBank/4 : x + 3*cellSizeBank/4;
+                                    svg += `<text x="${tx}" y="${y + cellSizeBank/2 + 3}" class="bank-num-highlight" text-anchor="middle">${he.elem}</text>`;
+                                }
+                                // Show non-highlighted numbers in regular style
+                                for (let idx = 0; idx < elems.length; idx++) {
+                                    if (!highlightedElems.find(he => he.elem === elems[idx].elem)) {
+                                        const tx = idx === 0 ? x + cellSizeBank/4 : x + 3*cellSizeBank/4;
+                                        svg += `<text x="${tx}" y="${y + cellSizeBank/2 + 3}" class="bank-num" text-anchor="middle">${elems[idx].elem}</text>`;
+                                    }
+                                }
+                            } else {
+                                // Show all numbers in regular style
+                                svg += `<text x="${x + cellSizeBank/4}" y="${y + cellSizeBank/2 + 3}" class="bank-num" text-anchor="middle">${elems[0].elem}</text>`;
+                                svg += `<text x="${x + 3*cellSizeBank/4}" y="${y + cellSizeBank/2 + 3}" class="bank-num" text-anchor="middle">${elems[1].elem}</text>`;
+                            }
+                        } else if (elems.length === 1) {
+                            // Single element cell
+                            const textClass = highlightedElems.length > 0 ? 'bank-num-highlight' : 'bank-num';
+                            if (highlightedElems.length > 0) {
+                                svg += `<rect x="${x+1}" y="${y+1}" width="${cellSizeBank-2}" height="${cellSizeBank-2}" class="color-${highlightedElems[0].colorIdx}"/>`;
+                            }
+                            // Always show the number
+                            svg += `<text x="${x + cellSizeBank/2}" y="${y + cellSizeBank/2 + 3}" class="${textClass}" text-anchor="middle">${elems[0].elem}</text>`;
+                        }
+                    } else {
+                        // Draw empty cell
+                        svg += `<rect x="${x}" y="${y}" width="${cellSizeBank}" height="${cellSizeBank}" class="cell" style="fill: #fff;"/>`;
+                    }
+                }
+            }
+
+            // Row labels (LDS rows, not matrix rows)
+            for (let ldsRow = 0; ldsRow < ldsRows; ldsRow++) {
+                const y = yPos + ldsRow * cellSizeBank;
+                svg += `<text x="${margin - 10}" y="${y + cellSizeBank/2 + 4}" class="label" text-anchor="end">${ldsRow * 128}</text>`;
+            }
+
+            yPos += ldsRows * cellSizeBank + 40;
+
+            // ============================================================
+            // 3. CONFLICT SUMMARY (INTER-LANE)
+            // ============================================================
+            svg += `<text x="${width/2}" y="${yPos}" class="label" text-anchor="middle">
+                3. Inter-Lane Conflict Analysis for ${rangeStr} (${operation.toUpperCase()} Operation)
+            </text>`;
+            yPos += 20;
+            svg += `<text x="${width/2}" y="${yPos}" class="subtitle" text-anchor="middle" style="font-size: 10px;">
+                (Multiple lanes in the same phase accessing the same bank)
+            </text>`;
+            yPos += 20;
+
+            // Calculate conflicts for each highlighted column/row
+            const colors = ['Red', 'Green', 'Blue'];
+            let conflictSummary = '';
+
+            for (let i = highlightStart; i <= highlightEnd; i++) {
+                const accessedSlots = {}; // slot = full address / 4 (not modulo)
+                const colorIdx = i - highlightStart;
+
+                if (accessPattern === 'column') {
+                    for (let row = 0; row < rows; row++) {
+                        const addr = getAddress(row, i, config);
+                        const slot = Math.floor(addr / 4); // unique 4-byte slot
+                        if (!accessedSlots[slot]) accessedSlots[slot] = [];
+                        accessedSlots[slot].push(row * cols + i);
+                    }
+                } else {
+                    for (let col = 0; col < cols; col++) {
+                        const addr = getAddress(i, col, config);
+                        const slot = Math.floor(addr / 4); // unique 4-byte slot
+                        if (!accessedSlots[slot]) accessedSlots[slot] = [];
+                        accessedSlots[slot].push(i * cols + col);
+                    }
+                }
+
+                // Find conflicts - group slots by bank
+                const bankConflicts = {};
+                for (const [slot, elems] of Object.entries(accessedSlots)) {
+                    const bank = parseInt(slot) % 32;
+                    if (!bankConflicts[bank]) bankConflicts[bank] = [];
+                    bankConflicts[bank].push({ slot: parseInt(slot), count: elems.length });
+                }
+
+                // Count conflicts per bank (multiple different slots in same bank)
+                let maxConflict = 1;
+                const conflictBanks = [];
+                for (const [bank, slots] of Object.entries(bankConflicts)) {
+                    if (slots.length > 1) {
+                        // Multiple different slots in same bank = conflict
+                        conflictBanks.push({ bank: parseInt(bank), count: slots.length });
+                        maxConflict = Math.max(maxConflict, slots.length);
+                    }
+                }
+
+                const label = `${colors[colorIdx]} (${accessName} ${i})`;
+                if (conflictBanks.length > 0) {
+                    const banksStr = conflictBanks.slice(0, 3).map(c => `B${c.bank}:${c.count}x`).join(' ');
+                    svg += `<text x="${width/2}" y="${yPos}" class="label conflict-text" text-anchor="middle">
+                        ${label}: ${maxConflict}-way inter-lane conflict (${banksStr})
+                    </text>`;
+                } else {
+                    svg += `<text x="${width/2}" y="${yPos}" class="label success-text" text-anchor="middle">
+                        ${label}: No inter-lane conflicts
+                    </text>`;
+                }
+                yPos += 18;
+            }
+
+            yPos += 30;
+
+            // ============================================================
+            // 4. PHASE GROUPING VISUALIZATION
+            // ============================================================
+            svg += `<text x="${width/2}" y="${yPos}" class="label" text-anchor="middle">
+                4. Phase Grouping (${operation.toUpperCase()} Operation - 8 lanes per phase)
+            </text>`;
+            yPos += 25;
+
+            // Select the appropriate phase grouping based on operation type
+            const phases = operation === 'read' ? READ_PHASES : WRITE_PHASES;
+
+            // Calculate which lanes are currently being visualized based on target
+            // For column-wise access: each column is accessed by different lanes
+            // For row-wise access: each row is accessed by different lanes
+            // Each lane reads/writes 8 elements using ds_read_b128/ds_write_b128
+
+            // Determine which lanes are active for the highlighted access pattern
+            const activeLanes = new Set();
+
+            if (accessPattern === 'column') {
+                // Column-wise access: each row chunk of 8 elements is handled by consecutive lanes
+                // For simplicity, assume lanes 0-7 handle the first set of rows
+                for (let row = 0; row < Math.min(rows, 8); row++) {
+                    activeLanes.add(row);
+                }
+            } else {
+                // Row-wise access: each column chunk is handled by consecutive lanes
+                // For simplicity, assume lanes 0-7 handle the first set of columns
+                for (let col = 0; col < Math.min(cols, 8); col++) {
+                    activeLanes.add(col);
+                }
+            }
+
+            // Display phase grouping with highlighting
+            const laneBoxWidth = 24;
+            const laneBoxHeight = 20;
+            const phaseSpacing = 8;
+            const startX = margin + 10;
+
+            for (let phaseIdx = 0; phaseIdx < 8; phaseIdx++) {
+                const phaseLanes = phases[phaseIdx];
+
+                // Phase label
+                svg += `<text x="${startX}" y="${yPos + 14}" class="label">
+                    Phase ${phaseIdx}:
+                </text>`;
+
+                const lanesStartX = startX + 80;
+
+                // Draw lane boxes
+                for (let i = 0; i < phaseLanes.length; i++) {
+                    const lane = phaseLanes[i];
+                    const x = lanesStartX + i * (laneBoxWidth + 2);
+                    const y = yPos;
+
+                    // Highlight if this lane is active
+                    const isActive = activeLanes.has(lane);
+                    const boxClass = isActive ? 'highlight' : 'cell';
+                    const textClass = isActive ? 'text-highlight' : 'text';
+
+                    svg += `<rect x="${x}" y="${y}" width="${laneBoxWidth}" height="${laneBoxHeight}" class="${boxClass}"/>`;
+                    svg += `<text x="${x + laneBoxWidth/2}" y="${y + laneBoxHeight/2 + 3}" class="${textClass}" text-anchor="middle">${lane}</text>`;
+                }
+
+                yPos += laneBoxHeight + phaseSpacing;
+            }
+
+            yPos += 30;
+
+            // ============================================================
+            // 5. SIMULTANEOUS EXECUTION CONFLICT ANALYSIS (THE REAL CAUSE!)
+            // ============================================================
+            svg += `<text x="${width/2}" y="${yPos}" class="label" text-anchor="middle" style="font-size: 13px; font-weight: bold;">
+                5. Simultaneous Execution Conflicts (Phase 0 Analysis)
+            </text>`;
+            yPos += 20;
+            svg += `<text x="${width/2}" y="${yPos}" class="subtitle" text-anchor="middle" style="font-size: 10px;">
+                Multiple lanes executing the SAME instruction together and hitting the SAME bank
+            </text>`;
+            yPos += 15;
+
+            // Note about FP16 pairing
+            if (elemSize === 2) {
+                svg += `<text x="${width/2}" y="${yPos}" class="subtitle" text-anchor="middle" style="font-size: 9px; fill: #856404;">
+                    Note: FP16 elements pair in 4-byte slots. "No conflicts" means all SLOTS are unique.
+                </text>`;
+                yPos += 15;
+            }
+
+            // Note about XOR simplification
+            if (layout === 'xor') {
+                svg += `<text x="${width/2}" y="${yPos}" class="subtitle" text-anchor="middle" style="font-size: 9px; fill: #d9480f;">
+                    ⚠️ Note: Simplified XOR model (production uses kKPack=8 with complex descriptor)
+                </text>`;
+                yPos += 13;
+                svg += `<text x="${width/2}" y="${yPos}" class="subtitle" text-anchor="middle" style="font-size: 9px; fill: #d9480f;">
+                    For transpose READ, this simplified model is correct! See KPACK_EXPLAINED.md
+                </text>`;
+                yPos += 15;
+            }
+
+            yPos += 10;
+
+            // Analyze Phase 0 lanes - check which lanes hit the same bank during simultaneous execution
+            const phase0Lanes = operation === 'read' ? READ_PHASES[0] : WRITE_PHASES[0];
+
+            // For each instruction step (dm=0 to dm=7), track which lanes hit which banks
+            const instructionSteps = 8; // Each lane reads/writes 8 elements using vector loads
+
+            // stepBankConflicts[step] = { bank: [lane1, lane2, ...] }
+            const stepBankConflicts = [];
+
+            for (let step = 0; step < instructionSteps; step++) {
+                const bankToLanes = {};
+
+                for (const lane of phase0Lanes) {
+                    const mapping = getThreadMapping(lane, config);
+                    if (step < mapping.elements.length) {
+                        const elem = mapping.elements[step];
+                        const addr = getAddress(elem.row, elem.col, config);
+                        const bank = getBank(addr);
+
+                        if (!bankToLanes[bank]) bankToLanes[bank] = [];
+                        bankToLanes[bank].push(lane);
+                    }
+                }
+
+                stepBankConflicts.push(bankToLanes);
+            }
+
+            // Display each instruction step
+            for (let step = 0; step < instructionSteps; step++) {
+                const bankToLanes = stepBankConflicts[step];
+
+                svg += `<text x="${margin + 20}" y="${yPos}" class="label" style="font-size: 11px; font-weight: bold;">
+                    Instruction ${step}: All 8 lanes execute together (dm=${step})
+                </text>`;
+                yPos += 18;
+
+                // Find conflicts: banks with multiple lanes
+                const conflicts = [];
+                const uniqueBanks = new Set();
+
+                for (const [bank, lanes] of Object.entries(bankToLanes)) {
+                    uniqueBanks.add(parseInt(bank));
+                    if (lanes.length > 1) {
+                        conflicts.push({ bank: parseInt(bank), lanes, count: lanes.length - 1 });
+                    }
+                }
+
+                // Draw banks accessed in this step
+                const bankBoxWidth = 32;
+                const bankBoxHeight = 24;
+                const bankBoxSpacing = 4;
+                const boxesStartX = margin + 50;
+
+                svg += `<text x="${margin + 40}" y="${yPos}" class="label" style="font-size: 10px;">
+                    Banks accessed:
+                </text>`;
+                yPos += 16;
+
+                const sortedBanks = Array.from(uniqueBanks).sort((a, b) => a - b);
+
+                for (let i = 0; i < sortedBanks.length; i++) {
+                    const bank = sortedBanks[i];
+                    const lanes = bankToLanes[bank];
+                    const x = boxesStartX + i * (bankBoxWidth + bankBoxSpacing);
+                    const y = yPos - 12;
+
+                    // Color: green if single lane, red if multiple lanes (conflict!)
+                    const hasConflict = lanes.length > 1;
+                    const boxColor = hasConflict ? '#ffcccc' : '#ccffcc';
+                    const borderColor = hasConflict ? '#cc0000' : '#00cc00';
+                    const textColor = hasConflict ? '#990000' : '#006600';
+
+                    svg += `<rect x="${x}" y="${y}" width="${bankBoxWidth}" height="${bankBoxHeight}"
+                        fill="${boxColor}" stroke="${borderColor}" stroke-width="1.5"/>`;
+                    svg += `<text x="${x + bankBoxWidth/2}" y="${y + bankBoxHeight/2 - 3}"
+                        class="bank-num" style="font-weight: bold; fill: ${textColor};" text-anchor="middle">B${bank}</text>`;
+
+                    // Show how many lanes hit this bank
+                    svg += `<text x="${x + bankBoxWidth/2}" y="${y + bankBoxHeight/2 + 9}"
+                        class="bank-num" style="font-size: 7px; fill: ${textColor};" text-anchor="middle">${lanes.length}L</text>`;
+                }
+
+                yPos += 18;
+
+                // Conflict summary for this instruction
+                if (conflicts.length > 0) {
+                    const totalConflicts = conflicts.reduce((sum, c) => sum + c.count, 0);
+                    const maxWay = Math.max(...conflicts.map(c => c.lanes.length));
+                    const conflictStr = conflicts.slice(0, 2).map(c => `B${c.bank}:${c.lanes.length}L`).join(' ');
+                    svg += `<text x="${margin + 40}" y="${yPos}" class="label conflict-text" style="font-size: 10px;">
+                        ${totalConflicts} conflicts (${maxWay}-way max) - ${conflictStr}${conflicts.length > 2 ? '...' : ''}
+                    </text>`;
+                } else {
+                    svg += `<text x="${margin + 40}" y="${yPos}" class="label success-text" style="font-size: 10px;">
+                        No conflicts (all lanes hit different banks)
+                    </text>`;
+                }
+
+                yPos += 25;
+            }
+
+            // Calculate total conflicts for Phase 0
+            let totalPhase0Conflicts = 0;
+            for (const bankToLanes of stepBankConflicts) {
+                for (const lanes of Object.values(bankToLanes)) {
+                    if (lanes.length > 1) {
+                        totalPhase0Conflicts += (lanes.length - 1);
+                    }
+                }
+            }
+
+            svg += `<text x="${margin + 20}" y="${yPos}" class="label" style="font-size: 11px; font-weight: bold;">
+                Total Phase 0 Conflicts: ${totalPhase0Conflicts}
+            </text>`;
+            yPos += 15;
+            svg += `<text x="${margin + 40}" y="${yPos}" class="subtitle" style="font-size: 9px;">
+                (For full kernel: multiply by 8 phases × 4 k-iterations × 4 blocks)
+            </text>`;
+            yPos += 5;
+
+            yPos += 20;
+
+            // ============================================================
+            // EXPLANATION: Why profiling shows more conflicts
+            // ============================================================
+            svg += `<text x="${width/2}" y="${yPos}" class="label" text-anchor="middle" style="font-size: 12px; font-weight: bold;">
+                ⚠️ Understanding Total Conflicts
+            </text>`;
+            yPos += 20;
+
+            svg += `<text x="${margin + 20}" y="${yPos}" class="subtitle" style="font-size: 10px;">
+                Section 5 shows INTRA-lane conflicts (single lane hitting same bank multiple times).
+            </text>`;
+            yPos += 15;
+
+            svg += `<text x="${margin + 20}" y="${yPos}" class="subtitle" style="font-size: 10px;">
+                Total measured conflicts also include:
+            </text>`;
+            yPos += 15;
+
+            svg += `<text x="${margin + 40}" y="${yPos}" class="subtitle" style="font-size: 9px;">
+                1. INTER-lane conflicts: Multiple lanes in same phase accessing same bank (see Section 3)
+            </text>`;
+            yPos += 13;
+
+            svg += `<text x="${margin + 40}" y="${yPos}" class="subtitle" style="font-size: 9px;">
+                2. WRITE operation conflicts: FP16 pairing causes 2-way conflicts (set Operation=WRITE to see)
+            </text>`;
+            yPos += 13;
+
+            svg += `<text x="${margin + 40}" y="${yPos}" class="subtitle" style="font-size: 9px;">
+                3. Accumulation: Multiple iterations multiply conflicts
+            </text>`;
+            yPos += 18;
+
+            svg += `<text x="${margin + 20}" y="${yPos}" class="subtitle" style="font-size: 10px; font-weight: bold;">
+                Example: XOR shows 0 intra-lane conflicts but profiling shows 3,072 total because:
+            </text>`;
+            yPos += 15;
+
+            svg += `<text x="${margin + 40}" y="${yPos}" class="subtitle" style="font-size: 9px;">
+                • Inter-lane: All 8 lanes access same banks {0,1,2,3,16,17,18,19} = 8-way inter-lane conflict
+            </text>`;
+            yPos += 13;
+
+            svg += `<text x="${margin + 40}" y="${yPos}" class="subtitle" style="font-size: 9px;">
+                • WRITE: FP16 pairing = 2-way conflicts on write
+            </text>`;
+            yPos += 13;
+
+            svg += `<text x="${margin + 40}" y="${yPos}" class="subtitle" style="font-size: 9px;">
+                • Result: ~3,000 conflicts (but still 2.3× better than baseline 7,168!)
+            </text>`;
+            yPos += 20;
+
+            svg += `<text x="${margin + 20}" y="${yPos}" class="subtitle" style="font-size: 9px; font-style: italic;">
+                See PROFILING_VS_CALCULATOR.md for detailed breakdown
+            </text>`;
+            yPos += 20;
+
+            // Final height
+            height = yPos + margin;
+
+            // Wrap in SVG element
+            return `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${svg}</svg>`;
+        }
+
+        // Update visualization
+        function updateVisualization() {
+            const config = getConfig();
+
+            // Update padding input step based on element size
+            paddingInput.step = config.elemSize;
+
+            // Update slider max based on access pattern
+            const maxTarget = config.accessPattern === 'column' ? config.cols - 1 : config.rows - 1;
+            targetSlider.max = maxTarget;
+            targetInput.max = maxTarget;
+
+            // Clamp target value
+            if (config.target > maxTarget) {
+                targetInput.value = maxTarget;
+                targetSlider.value = maxTarget;
+                config.target = maxTarget;
+            }
+
+            // Update label
+            accessLabel.textContent = config.accessPattern === 'column' ? 'Column' : 'Row';
+
+            // Generate and display SVG
+            svgContainer.innerHTML = generateVisualization(config);
+        }
+
+        // Sync slider and input
+        targetSlider.addEventListener('input', () => {
+            targetInput.value = targetSlider.value;
+            updateVisualization();
+        });
+
+        targetInput.addEventListener('input', () => {
+            targetSlider.value = targetInput.value;
+            updateVisualization();
+        });
+
+        // Add event listeners to all inputs
+        const allInputs = document.querySelectorAll('input');
+        allInputs.forEach(input => {
+            input.addEventListener('change', updateVisualization);
+            if (input.type === 'number' || input.type === 'range') {
+                input.addEventListener('input', updateVisualization);
+            }
+        });
+
+        // Initial render
+        updateVisualization();
+    </script>
+</body>
+</html>
