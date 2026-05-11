@@ -307,7 +307,7 @@ struct UnifiedAttentionKernel
         const index_t context_len = amd_wave_read_first_lane(seq_len - cur_batch_query_len);
 
         index_t _max_seq_prefix_len = amd_wave_read_first_lane(
-            (context_len + q_block_local_idx * kBlockQ + (kBlockM - 1) + 1));
+            (context_len + q_block_local_idx * kBlockQ + (kBlockQ - 1) + 1));
 
         if(seq_len < _max_seq_prefix_len)
         {
@@ -454,8 +454,12 @@ struct UnifiedAttentionKernel
                 return FmhaMask{cur_batch_query_len, seq_len};
         }();
 
-        const index_t kv_page_size_in_blocks = kargs.page_size / kPageBlockSize;
-        assert(kv_page_size_in_blocks >= 1); // kPageBlockSize <= page_size
+        // Pass-2: the pipeline now uses a unified per-(thread, Y0-iter) page
+        // offset formula and accepts page_size in tokens directly. The earlier
+        // `kPageBlockSize <= page_size` constraint (which required at least one
+        // kernel tile to fit in a cache page) is gone — tiles may span multiple
+        // pages as long as the inner-N step (Y0_step_N from the K/V tile dist)
+        // divides page_size cleanly.
 
         auto o_acc_tile = [&]() {
             return UnifiedAttentionPipeline{}(q_dram_window,
@@ -465,7 +469,7 @@ struct UnifiedAttentionKernel
                                               num_blocks_start,
                                               kargs.block_tables_ptr,
                                               block_table_offset,
-                                              kv_page_size_in_blocks,
+                                              kargs.page_size,
                                               mask,
                                               kargs.scale_s,
                                               smem_ptr,
