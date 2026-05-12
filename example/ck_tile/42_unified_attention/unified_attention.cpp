@@ -81,18 +81,22 @@ KernelConfig select_config(const unified_attention_args& args)
 {
     KernelConfig cfg;
 
-    // d=128 MHA — two variants today:
-    //   * decode_d128_mha_m128 : kBlockM=128, 4 warps. Used when avg/max Q
-    //     both fit in 128. Cuts Q-tile waste roughly 2x vs prefill for
-    //     short-Q workloads.
-    //   * prefill_d128_mha     : kBlockM=256, 8 warps. Everything else.
+    // d=128 MHA — tile-tier ladder by (avg_q, max_q):
+    //   * decode_d128_mha_m16  : kBlockM=16,  1 warp,  16x16 mfma  (tiny-decode)
+    //   * decode_d128_mha_m32  : kBlockM=32,  1 warp,  32x32 mfma  (tiny-decode)
+    //   * decode_d128_mha_m128 : kBlockM=128, 4 warps, 32x32 mfma  (default)
+    //   * prefill_d128_mha     : kBlockM=256, 8 warps, 32x32 mfma
     if(args.hdim == 128 && args.num_queries_per_kv == 1)
     {
         const index_t avg_q = args.num_seqs > 0 ? args.num_tokens / args.num_seqs
                                                 : args.num_tokens;
         const index_t max_q = args.max_seqlen_q > 0 ? args.max_seqlen_q : avg_q;
 
-        if(avg_q <= 128 && max_q <= 128)
+        if(avg_q <= 16 && max_q <= 16)
+            cfg.variant = KernelVariant::decode_d128_mha_m16;
+        else if(avg_q <= 32 && max_q <= 32)
+            cfg.variant = KernelVariant::decode_d128_mha_m32;
+        else if(avg_q <= 128 && max_q <= 128)
             cfg.variant = KernelVariant::decode_d128_mha_m128;
         else
             cfg.variant = KernelVariant::prefill_d128_mha;
@@ -172,6 +176,10 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
         return dispatch_variant<KernelVariant::prefill_d128_mha>(args, config);
     case KernelVariant::decode_d128_mha_m128:
         return dispatch_variant<KernelVariant::decode_d128_mha_m128>(args, config);
+    case KernelVariant::decode_d128_mha_m32:
+        return dispatch_variant<KernelVariant::decode_d128_mha_m32>(args, config);
+    case KernelVariant::decode_d128_mha_m16:
+        return dispatch_variant<KernelVariant::decode_d128_mha_m16>(args, config);
     case KernelVariant::prefill_d64_gqa8:
         return dispatch_variant<KernelVariant::prefill_d64_gqa8>(args, config);
     case KernelVariant::decode_d64_gqa8_m128:

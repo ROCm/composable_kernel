@@ -39,6 +39,8 @@ enum class KernelVariant
     // d=128 MHA (num_queries_per_kv = 1)
     prefill_d128_mha,     // kBlockM=256, 8 warps, 32x32 mfma
     decode_d128_mha_m128, // kBlockM=128, 4 warps, 32x32 mfma  (kBlockQ=128)
+    decode_d128_mha_m32,  // kBlockM=32,  1 warp,  32x32 mfma  (tiny-decode policy)
+    decode_d128_mha_m16,  // kBlockM=16,  1 warp,  16x16 mfma  (tiny-decode policy)
 
     // d=64 GQA-8 (num_queries_per_kv = 8)
     prefill_d64_gqa8,     // kBlockM=256, 8 warps, 32x32 mfma
@@ -115,6 +117,34 @@ struct variant_config<KernelVariant::decode_d128_mha_m128>
     template <typename Problem>
     using Pipeline                       = UnifiedAttentionPipeline<Problem>;
     static constexpr bool kUseDecodeGrid = false;
+};
+
+template <>
+struct variant_config<KernelVariant::decode_d128_mha_m32>
+{
+    static constexpr index_t HeadSize  = 128;
+    static constexpr index_t BlockM    = 32;
+    static constexpr index_t NumQPerKV = 1;
+    static constexpr index_t BlockSize = 32;
+    using BlockWarps                   = sequence<1, 1, 1>;
+    using WarpGemmShape                = sequence<32, 32, 16>;
+    template <typename Problem>
+    using Pipeline = UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy>;
+    static constexpr bool kUseDecodeGrid = true;
+};
+
+template <>
+struct variant_config<KernelVariant::decode_d128_mha_m16>
+{
+    static constexpr index_t HeadSize  = 128;
+    static constexpr index_t BlockM    = 16;
+    static constexpr index_t NumQPerKV = 1;
+    static constexpr index_t BlockSize = 32;
+    using BlockWarps                   = sequence<1, 1, 1>;
+    using WarpGemmShape                = sequence<16, 16, 32>;
+    template <typename Problem>
+    using Pipeline = UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy>;
+    static constexpr bool kUseDecodeGrid = true;
 };
 
 template <>
