@@ -470,6 +470,12 @@ struct fmha_bwd_traits;
 template <typename Traits_, typename Arch = void>
 size_t fmha_bwd_dq_dk_dv_dq_ws_host_size_(int batch_size);
 template <typename Traits_, typename Arch = void>
+size_t fmha_bwd_dq_dk_dv_dq_ws_device_upper_bound_(ck_tile::index_t max_batch,
+                                                   ck_tile::index_t hdim_q,
+                                                   ck_tile::index_t nhead_q,
+                                                   ck_tile::index_t max_seqlen_q,
+                                                   ck_tile::index_t max_seqlen_k);
+template <typename Traits_, typename Arch = void>
 size_t fmha_bwd_dq_dk_dv_dq_prepare_ws_host_(void* cpu_ws,
                                              ck_tile::index_t batch_size,
                                              ck_tile::index_t hdim_q,
@@ -539,11 +545,6 @@ struct fmha_bwd_traits
     bool has_dropout;
     bool is_store_randval;
     bool is_deterministic;
-    // Raw pointers for group mode: cumulative physical seqlen arrays of length batch+1.
-    // Only need to remain valid during fmha_bwd_launcher construction (i.e. through
-    // PrepareWorkspaceHost); they are not retained afterward.
-    const int* seqstart_qs = nullptr;
-    const int* seqstart_ks = nullptr;
     // TODO: padding check is inside this api
 };
 
@@ -589,53 +590,141 @@ struct fmha_bwd_launcher
             std::cerr << "fmha_bwd: no kernel found for given traits, skipping run\n";
             return -1.0f;
         }};
+    // Layout: [host_ws_size_ bytes (host-prepared metadata)][dq_acc region]
     size_t workspace_size = 0;
-    std::function<void(void*)> prepare_workspace{[](void*) {
-        std::cerr << "fmha_bwd: no kernel found for given traits, skipping prepare_workspace\n";
-    }};
 
     fmha_bwd_launcher(const fmha_bwd_traits&);
     fmha_bwd_launcher(fmha_bwd_launcher&&)            = delete;
     fmha_bwd_launcher& operator=(fmha_bwd_launcher&&) = delete;
 
+    ~fmha_bwd_launcher() noexcept { schedule_pin_staging_release(); }
+
+    // Stream-async: zero dq_acc, D2H seqstart, host-pack metadata, H2D into device_ws.
+    // `pinned_host_alloc` returns a shared_ptr to a pinned host buffer; its deleter
+    // is invoked on the stream tail after the H2D completes.
+    void prepare_workspace_async( //
+        void* device_ws_ptr,
+        const int* seqstart_q_dev,
+        const int* seqstart_k_dev,
+        const ck_tile::stream_config& s,
+        const std::function<std::shared_ptr<void>(size_t)>& pinned_host_alloc)
+    {
+        hipStream_t stream = s.stream_id_;
+        if(needs_zero_dq_acc_ && workspace_size > host_ws_size_)
+            HIP_CHECK_ERROR(hipMemsetAsync(static_cast<char*>(device_ws_ptr) + host_ws_size_,
+                                           0,
+                                           workspace_size - host_ws_size_,
+                                           stream));
+
+        if(host_ws_size_ == 0)
+            return;
+
+        if(!pinned_host_alloc)
+            throw std::runtime_error(
+                "fmha_bwd_launcher::prepare_workspace_async: pinned_host_alloc is required");
+
+        const size_t seqstart_bytes = traits_.is_group_mode ? sizeof(int) * (traits_.batch + 1) : 0;
+        const size_t total_bytes    = 2 * seqstart_bytes + host_ws_size_;
+        auto pin_base               = pinned_host_alloc(total_bytes);
+
+        char* base                   = static_cast<char*>(pin_base.get());
+        int* pin_q                   = reinterpret_cast<int*>(base);
+        int* pin_k                   = reinterpret_cast<int*>(base + seqstart_bytes);
+        void* pin_w                  = base + 2 * seqstart_bytes;
+        const int* seqstart_q_pinned = traits_.is_group_mode ? pin_q : nullptr;
+        const int* seqstart_k_pinned = traits_.is_group_mode ? pin_k : nullptr;
+
+        if(traits_.is_group_mode)
+        {
+            HIP_CHECK_ERROR(hipMemcpyAsync(
+                pin_q, seqstart_q_dev, seqstart_bytes, hipMemcpyDeviceToHost, stream));
+            HIP_CHECK_ERROR(hipMemcpyAsync(
+                pin_k, seqstart_k_dev, seqstart_bytes, hipMemcpyDeviceToHost, stream));
+        }
+
+        auto* pack_closure = new std::function<void()>(
+            [=, fn = pack_workspace_host_]() { fn(pin_w, seqstart_q_pinned, seqstart_k_pinned); });
+        HIP_CHECK_ERROR(hipLaunchHostFunc(
+            stream,
+            [](void* ud) {
+                auto* c = static_cast<std::function<void()>*>(ud);
+                (*c)();
+                delete c;
+            },
+            pack_closure));
+
+        HIP_CHECK_ERROR(
+            hipMemcpyAsync(device_ws_ptr, pin_w, host_ws_size_, hipMemcpyHostToDevice, stream));
+
+        // Release any previous in-flight buffer before taking a new one.
+        schedule_pin_staging_release();
+        pin_staging_    = std::move(pin_base);
+        release_stream_ = stream;
+    }
+
     private:
-    size_t host_ws_size   = 0;
-    size_t device_ws_size = 0;
-    std::unique_ptr<char[]> ws_host;
+    fmha_bwd_traits traits_{};
+    size_t host_ws_size_    = 0;
+    bool needs_zero_dq_acc_ = false;
+    // Pure CPU; safe to invoke from a hipLaunchHostFunc callback.
+    std::function<void(void* host_ws, const int* seqstart_q, const int* seqstart_k)>
+        pack_workspace_host_{[](void*, const int*, const int*) {
+            std::cerr
+                << "fmha_bwd: no kernel found for given traits, skipping pack_workspace_host\n";
+        }};
+    std::shared_ptr<void> pin_staging_;
+    hipStream_t release_stream_ = nullptr;
+
+    // The pin_staging_ deleter MUST NOT call any HIP API: it fires from the
+    // hipLaunchHostFunc callback on the driver helper thread, which holds
+    // runtime locks (would deadlock against main-thread hipFree). PyTorch's
+    // CachingHostAllocator is safe; bare hipHostMalloc users should defer
+    // hipHostFree via ck_tile::pinned_host_releaser.
+    void schedule_pin_staging_release() noexcept
+    {
+        if(!pin_staging_)
+            return;
+        auto* heap_ref       = new std::shared_ptr<void>(pin_staging_);
+        const hipError_t err = hipLaunchHostFunc(
+            release_stream_,
+            [](void* ud) { delete static_cast<std::shared_ptr<void>*>(ud); },
+            heap_ref);
+        if(err != hipSuccess)
+        {
+            std::cerr << "fmha_bwd_launcher: hipLaunchHostFunc failed: " << hipGetErrorString(err)
+                      << "; releasing eagerly\n";
+            delete heap_ref;
+        }
+    }
 
     template <typename T0 /*dot_do_o_trait*/,
               typename T1 /*dq_dk_dv_trait*/,
               typename T2 /*convert_dq_trait*/,
               typename Arch>
-    void init(const fmha_bwd_traits& traits)
+    void init(const fmha_bwd_traits& t)
     {
-        run = [](fmha_bwd_args a, const ck_tile::stream_config& s) {
+        traits_ = t;
+        run     = [](fmha_bwd_args a, const ck_tile::stream_config& s) {
             return fmha_bwd_<T0, T1, T2, Arch>(s, a);
         };
-        host_ws_size = fmha_bwd_dq_dk_dv_dq_ws_host_size_<T1, Arch>(traits.batch);
-        if(host_ws_size > 0)
+        host_ws_size_         = fmha_bwd_dq_dk_dv_dq_ws_host_size_<T1, Arch>(t.batch);
+        size_t device_ws_size = 0;
+        if(host_ws_size_ > 0)
         {
-            ws_host = std::make_unique<char[]>(host_ws_size); // TODO: support host mem allocator
-            device_ws_size = fmha_bwd_dq_dk_dv_dq_prepare_ws_host_<T1, Arch>( //
-                ws_host.get(),
-                traits.batch,
-                traits.hdim_q,
-                traits.nhead_q,
-                traits.seqlen_q,
-                traits.seqlen_k,
-                traits.seqstart_qs,
-                traits.seqstart_ks);
+            device_ws_size = fmha_bwd_dq_dk_dv_dq_ws_device_upper_bound_<T1, Arch>(
+                t.batch, t.hdim_q, t.nhead_q, t.max_seqlen_q, t.max_seqlen_k);
+            pack_workspace_host_ = [batch    = t.batch,
+                                    hdim_q   = t.hdim_q,
+                                    nhead_q  = t.nhead_q,
+                                    seqlen_q = t.seqlen_q,
+                                    seqlen_k = t.seqlen_k //
+            ](void* host_ws, const int* seqstart_q, const int* seqstart_k) {
+                fmha_bwd_dq_dk_dv_dq_prepare_ws_host_<T1, Arch>(
+                    host_ws, batch, hdim_q, nhead_q, seqlen_q, seqlen_k, seqstart_q, seqstart_k);
+            };
         }
-        workspace_size               = host_ws_size + device_ws_size;
-        const bool needs_zero_dq_acc = fmha_bwd_dq_dk_dv_needs_zero_dq_acc_<T1, Arch>();
-        prepare_workspace            = [this, needs_zero_dq_acc](void* device_ws) {
-            if(host_ws_size > 0)
-                HIP_CHECK_ERROR(
-                    hipMemcpy(device_ws, ws_host.get(), host_ws_size, hipMemcpyHostToDevice));
-            if(needs_zero_dq_acc)
-                HIP_CHECK_ERROR(
-                    hipMemset(static_cast<char*>(device_ws) + host_ws_size, 0, device_ws_size));
-        };
+        workspace_size     = host_ws_size_ + device_ws_size;
+        needs_zero_dq_acc_ = fmha_bwd_dq_dk_dv_needs_zero_dq_acc_<T1, Arch>();
     }
 
     public:
