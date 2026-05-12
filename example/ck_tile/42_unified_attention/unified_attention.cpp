@@ -26,10 +26,10 @@ std::ostream& operator<<(std::ostream& stream,
 //   1. KernelVariant + select_config(args)
 //        - KernelVariant is a flat enum of every compiled kernel instance the
 //          module knows about. Each entry fixes the static knobs (kBlockM,
-//          warp count, MFMA shape, pipeline policy, optional kBlockN override).
+//          warp count, MFMA shape, pipeline policy).
 //        - select_config() is the ONLY place where shape-based runtime
-//          decisions live. It reads the problem (hdim, num_queries_per_kv,
-//          page_blk_size, avg_q, max_seqlen_q) and emits a KernelConfig.
+//          decisions live. It reads (hdim, num_queries_per_kv, avg_q,
+//          max_seqlen_q) and emits a KernelConfig.
 //
 //   2. dispatch_<variant>() helpers + the final switch
 //        - Each KernelVariant has a tiny helper that fans out over the
@@ -38,12 +38,10 @@ std::ostream& operator<<(std::ostream& stream,
 //          per-variant traits classes are unchanged from before; only the
 //          selection logic moved.
 //
-// Phase-1 note: page-size is currently still a static axis in the enum
-// (the _p32 suffix marks the variant with kBlockN=32 that was originally
-// required when page_size < 64). The multi-page-tile fix in the pipeline
-// removed the underlying constraint, so a follow-up commit deletes the
-// _p32 (a.k.a. "bs32") family entirely. Doing it in two steps keeps each
-// diff easy to bisect against the test suite.
+// page_size is intentionally NOT part of this enum. The multi-page-tile
+// fix in the pipeline made the compile-time tile-N (kBlockN) independent
+// of the runtime page_blk_size, so every variant is correct for any page
+// size. Selection is driven purely by Q-tile shape.
 // =============================================================================
 
 enum class KernelVariant {
@@ -54,10 +52,7 @@ enum class KernelVariant {
     // d=64 GQA-8 (num_queries_per_kv = 8)
     prefill_d64_gqa8,            // kBlockM=256, 8 warps, 32x32 mfma
     decode_d64_gqa8_m128,        // kBlockM=128, 4 warps, 32x32 mfma
-    decode_d64_gqa8_m128_p32,    // kBlockM=128, 4 warps, 32x32 mfma, kBlockN=32
     decode_d64_gqa8_m64,         // kBlockM=64,  2 warps, 32x32 mfma
-    decode_d64_gqa8_m64_p32,     // kBlockM=64,  2 warps, 32x32 mfma, kBlockN=32
-    decode_d64_gqa8_m32_p32,     // kBlockM=32,  2 warps, 16x16 mfma, kBlockN=32
     decode_d64_gqa8_m16,         // kBlockM=16,  1 warp,  16x16 mfma
 };
 
@@ -114,28 +109,14 @@ KernelConfig select_config(const unified_attention_args& args)
         return cfg;
     }
 
-    // d=64 GQA-8 — full tile-tier ladder, with _p32 variants for the legacy
-    // kBlockN=32 path used when page_blk_size < 64.
+    // d=64 GQA-8 — pure tile-tier ladder. page_size has no influence here.
     if (args.hdim == 64 && args.num_queries_per_kv == 8)
     {
-        const bool p32 = (args.page_blk_size < 64);
-
         switch (select_tile_tier(args))
         {
-        case tile_tier::tiny:
-            // p32: 2-warp 16x16 (kBlockM=32) -- avoids the 1-warp+p32 race.
-            // p64: 1-warp 16x16 (kBlockM=16) -- matches Triton BLOCK_M=16.
-            cfg.variant = p32 ? KernelVariant::decode_d64_gqa8_m32_p32
-                              : KernelVariant::decode_d64_gqa8_m16;
-            break;
-        case tile_tier::small:
-            cfg.variant = p32 ? KernelVariant::decode_d64_gqa8_m64_p32
-                              : KernelVariant::decode_d64_gqa8_m64;
-            break;
-        case tile_tier::medium:
-            cfg.variant = p32 ? KernelVariant::decode_d64_gqa8_m128_p32
-                              : KernelVariant::decode_d64_gqa8_m128;
-            break;
+        case tile_tier::tiny:   cfg.variant = KernelVariant::decode_d64_gqa8_m16;  break;
+        case tile_tier::small:  cfg.variant = KernelVariant::decode_d64_gqa8_m64;  break;
+        case tile_tier::medium: cfg.variant = KernelVariant::decode_d64_gqa8_m128; break;
         }
         return cfg;
     }
@@ -150,7 +131,7 @@ KernelConfig select_config(const unified_attention_args& args)
 // Each DISPATCH_* macro instantiates one (traits, dtype, mask, ...) combo and
 // returns. The per-variant helpers below pick the right macro family and fan
 // out over (dtype, mask). They look repetitive on purpose: a follow-up commit
-// will collapse the 5 traits classes into one templated `kernel_traits<V>`,
+// will collapse the 4 traits classes into one templated `kernel_traits<V>`,
 // at which point these helpers become one-liners.
 // -----------------------------------------------------------------------------
 
@@ -177,25 +158,6 @@ KernelConfig select_config(const unified_attention_args& args)
 #define DISPATCH_UNIFIED_ATTENTION_DECODE_TINY(DType, IsMask, HSize, BM, NQPKV) \
     { \
         using kernel_traits = unified_attention_decode_tiny_kernel_traits<DType, IsMask, HSize, BM, NQPKV>; \
-        return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
-    }
-
-// block_size=32 dispatch macros (6th template arg = 32).
-#define DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(DType, IsMask, HSize, BM, NQPKV) \
-    { \
-        using kernel_traits = unified_attention_decode_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32>; \
-        return unified_attention_kernel_dispatch<kernel_traits>(args, config); \
-    }
-
-#define DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(DType, IsMask, HSize, BM, NQPKV) \
-    { \
-        using kernel_traits = unified_attention_decode_small_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32>; \
-        return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
-    }
-
-#define DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW(DType, IsMask, HSize, BM, NQPKV) \
-    { \
-        using kernel_traits = unified_attention_decode_bs32_kernel_traits<DType, IsMask, HSize, BM, NQPKV, 32>; \
         return unified_attention_kernel_dispatch_decode<kernel_traits>(args, config); \
     }
 
@@ -259,20 +221,6 @@ std::pair<bool, float> dispatch_decode_d64_gqa8_m128(
     return {false, -1.f};
 }
 
-std::pair<bool, float> dispatch_decode_d64_gqa8_m128_p32(
-    const unified_attention_args& args, const stream_config& config)
-{
-    const bool is_mask = (args.mask_type != static_cast<int>(mask_enum::no_mask));
-    if (args.data_type == DType::fp16) {
-        if (!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(DType::fp16, false, 64, 128, 8)
-        else          DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(DType::fp16, true,  64, 128, 8)
-    } else if (args.data_type == DType::bf16) {
-        if (!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(DType::bf16, false, 64, 128, 8)
-        else          DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32(DType::bf16, true,  64, 128, 8)
-    }
-    return {false, -1.f};
-}
-
 std::pair<bool, float> dispatch_decode_d64_gqa8_m64(
     const unified_attention_args& args, const stream_config& config)
 {
@@ -283,34 +231,6 @@ std::pair<bool, float> dispatch_decode_d64_gqa8_m64(
     } else if (args.data_type == DType::bf16) {
         if (!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(DType::bf16, false, 64, 64, 8)
         else          DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL(DType::bf16, true,  64, 64, 8)
-    }
-    return {false, -1.f};
-}
-
-std::pair<bool, float> dispatch_decode_d64_gqa8_m64_p32(
-    const unified_attention_args& args, const stream_config& config)
-{
-    const bool is_mask = (args.mask_type != static_cast<int>(mask_enum::no_mask));
-    if (args.data_type == DType::fp16) {
-        if (!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(DType::fp16, false, 64, 64, 8)
-        else          DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(DType::fp16, true,  64, 64, 8)
-    } else if (args.data_type == DType::bf16) {
-        if (!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(DType::bf16, false, 64, 64, 8)
-        else          DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32(DType::bf16, true,  64, 64, 8)
-    }
-    return {false, -1.f};
-}
-
-std::pair<bool, float> dispatch_decode_d64_gqa8_m32_p32(
-    const unified_attention_args& args, const stream_config& config)
-{
-    const bool is_mask = (args.mask_type != static_cast<int>(mask_enum::no_mask));
-    if (args.data_type == DType::fp16) {
-        if (!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW(DType::fp16, false, 64, 32, 8)
-        else          DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW(DType::fp16, true,  64, 32, 8)
-    } else if (args.data_type == DType::bf16) {
-        if (!is_mask) DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW(DType::bf16, false, 64, 32, 8)
-        else          DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW(DType::bf16, true,  64, 32, 8)
     }
     return {false, -1.f};
 }
@@ -347,22 +267,16 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
 
     switch (cfg.variant)
     {
-    case KernelVariant::prefill_d128_mha:         return dispatch_prefill_d128_mha(args, config);
-    case KernelVariant::decode_d128_mha_m128:     return dispatch_decode_d128_mha_m128(args, config);
-    case KernelVariant::prefill_d64_gqa8:         return dispatch_prefill_d64_gqa8(args, config);
-    case KernelVariant::decode_d64_gqa8_m128:     return dispatch_decode_d64_gqa8_m128(args, config);
-    case KernelVariant::decode_d64_gqa8_m128_p32: return dispatch_decode_d64_gqa8_m128_p32(args, config);
-    case KernelVariant::decode_d64_gqa8_m64:      return dispatch_decode_d64_gqa8_m64(args, config);
-    case KernelVariant::decode_d64_gqa8_m64_p32:  return dispatch_decode_d64_gqa8_m64_p32(args, config);
-    case KernelVariant::decode_d64_gqa8_m32_p32:  return dispatch_decode_d64_gqa8_m32_p32(args, config);
-    case KernelVariant::decode_d64_gqa8_m16:      return dispatch_decode_d64_gqa8_m16(args, config);
+    case KernelVariant::prefill_d128_mha:     return dispatch_prefill_d128_mha(args, config);
+    case KernelVariant::decode_d128_mha_m128: return dispatch_decode_d128_mha_m128(args, config);
+    case KernelVariant::prefill_d64_gqa8:     return dispatch_prefill_d64_gqa8(args, config);
+    case KernelVariant::decode_d64_gqa8_m128: return dispatch_decode_d64_gqa8_m128(args, config);
+    case KernelVariant::decode_d64_gqa8_m64:  return dispatch_decode_d64_gqa8_m64(args, config);
+    case KernelVariant::decode_d64_gqa8_m16:  return dispatch_decode_d64_gqa8_m16(args, config);
     }
     return std::make_pair(false, -1.f);
 }
 
-#undef DISPATCH_UNIFIED_ATTENTION_DECODE_BS32_NARROW
-#undef DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL_BS32
-#undef DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM_BS32
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_TINY
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_SMALL
 #undef DISPATCH_UNIFIED_ATTENTION_DECODE_MEDIUM
