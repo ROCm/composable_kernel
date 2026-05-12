@@ -215,21 +215,32 @@ struct GenericAttentionMask
     CK_TILE_HOST_DEVICE constexpr auto
     IsEdgeTile(index_t i_tile_top, index_t i_tile_left, number<TileHeight>, number<TileWidth>) const
     {
+        return IsEdgeTile(i_tile_top, i_tile_left, index_t{TileHeight}, index_t{TileWidth});
+    }
+
+    // Runtime overload. The compile-time variant above wraps this one so call
+    // sites that pass `number<>{}` keep working unchanged; callers that need a
+    // runtime tile size (e.g. when kBlockQ is derived from a runtime
+    // num_queries_per_kv) can call this directly. IsEdgeTile's body only does
+    // runtime arithmetic, so this is a no-op for current call sites.
+    CK_TILE_HOST_DEVICE constexpr auto
+    IsEdgeTile(index_t i_tile_top, index_t i_tile_left, index_t tile_h, index_t tile_w) const
+    {
         // Transform the y index according to repeat_idx
         index_t y_eff = i_tile_top / repeat_idx;
 
         if constexpr(!IsMasking)
         {
             // TODO: no need to check begin
-            return (i_tile_left + TileWidth) > x_total;
+            return (i_tile_left + tile_w) > x_total;
         }
         else
         {
             if constexpr(IsLocal)
             {
                 // check top-right corner > x or left-bottom corner < x
-                index_t i_tile_right  = i_tile_left + TileWidth;
-                index_t i_tile_bottom = y_eff + TileHeight;
+                index_t i_tile_right  = i_tile_left + tile_w;
+                index_t i_tile_bottom = y_eff + tile_h;
                 index_t x_end         = min(y_eff + x, x_total);
 
                 bool top_right_edge   = i_tile_right > (y_eff + x);
@@ -242,7 +253,7 @@ struct GenericAttentionMask
             else
             {
                 // only need to check top-right corner > x
-                index_t i_tile_right = i_tile_left + TileWidth;
+                index_t i_tile_right = i_tile_left + tile_w;
                 index_t x_end        = min(y_eff + x, x_total);
 
                 bool top_right_edge = i_tile_right > x_end;

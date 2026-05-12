@@ -263,7 +263,13 @@ struct UnifiedAttentionKernel
 
         const index_t num_queries_per_kv = kargs.num_queries_per_kv;
 
-        assert(kBlockM / num_queries_per_kv == kBlockQ);
+        // kBlockQ derived at runtime from num_queries_per_kv. For the variants
+        // we ship today this matches the compile-time `kBlockQ` from the
+        // pipeline trait (the assert below catches any disagreement); the
+        // explicit runtime form is what eventually lets a single kernel
+        // instantiation cover multiple num_queries_per_kv values.
+        const index_t kBlockQ_dyn = kBlockM / num_queries_per_kv;
+        assert(kBlockQ_dyn == kBlockQ);
 
         // Split-KV: each CTA handles one (kv_head, q_block, split) tuple. The
         // split index lives in z — when num_splits == 1 (the only z value)
@@ -304,11 +310,11 @@ struct UnifiedAttentionKernel
             seq_idx = find_seq_idx(kargs.query_start_len_ptr,
                                    q_block_global_idx,
                                    kargs.num_seqs,
-                                   kBlockQ,
+                                   kBlockQ_dyn,
                                    true);
 
             const index_t q_block_start_idx =
-                kargs.query_start_len_ptr[seq_idx] / kBlockQ + seq_idx;
+                kargs.query_start_len_ptr[seq_idx] / kBlockQ_dyn + seq_idx;
 
             q_block_local_idx =
                 amd_wave_read_first_lane(q_block_global_idx - q_block_start_idx);
@@ -319,7 +325,7 @@ struct UnifiedAttentionKernel
             cur_batch_query_len =
                 amd_wave_read_first_lane(cur_batch_in_all_stop_index - cur_batch_in_all_start_index);
 
-            if(q_block_local_idx * kBlockQ >= cur_batch_query_len)
+            if(q_block_local_idx * kBlockQ_dyn >= cur_batch_query_len)
             {
                 return;
             }
@@ -328,13 +334,13 @@ struct UnifiedAttentionKernel
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        const index_t query_pos = amd_wave_read_first_lane(q_block_local_idx * kBlockQ);
+        const index_t query_pos = amd_wave_read_first_lane(q_block_local_idx * kBlockQ_dyn);
         const index_t seq_len   = kargs.seq_lens_ptr[seq_idx];
 
         const index_t context_len = amd_wave_read_first_lane(seq_len - cur_batch_query_len);
 
         index_t _max_seq_prefix_len = amd_wave_read_first_lane(
-            (context_len + q_block_local_idx * kBlockQ + (kBlockQ - 1) + 1));
+            (context_len + q_block_local_idx * kBlockQ_dyn + (kBlockQ_dyn - 1) + 1));
 
         if(seq_len < _max_seq_prefix_len)
         {
@@ -384,9 +390,9 @@ struct UnifiedAttentionKernel
         const VDataType* v_ptr = reinterpret_cast<const VDataType*>(kargs.v_ptr) + kv_head_offset;
         ODataType* o_ptr       = reinterpret_cast<ODataType*>(kargs.o_ptr) + o_ptr_offset;
 
-        index_t query_len_padded =
-            amd_wave_read_first_lane(integer_divide_ceil(cur_batch_query_len, kBlockQ) * kBlockQ);
-        // const bool is_query_len_padded = (cur_batch_query_len % kBlockQ == 0);
+        index_t query_len_padded = amd_wave_read_first_lane(
+            integer_divide_ceil(cur_batch_query_len, kBlockQ_dyn) * kBlockQ_dyn);
+        // const bool is_query_len_padded = (cur_batch_query_len % kBlockQ_dyn == 0);
 
         // Q/K/V DRAM and DRAM window
         const auto q_dram = [&]() {
@@ -400,8 +406,9 @@ struct UnifiedAttentionKernel
             const auto q_dram_pad =
                 pad_tensor_view( // aling seqlen with kBlockQ and head dim with kHeadDimPadded
                     q_dram_base,
-                    // block sizes
-                    make_tuple(number<kBlockQ>{}, 1, kHeadDimPadded),
+                    // block sizes (kBlockQ is runtime here; pad_tensor_view
+                    // accepts a mixed compile-time / runtime tuple)
+                    make_tuple(kBlockQ_dyn, 1, kHeadDimPadded),
                     sequence<true, false, kPadHeadDimQ>{}); // pads to (seq_len_padded, num_head_q,
                                                             // kHeadDimPadded)
 
@@ -509,7 +516,8 @@ struct UnifiedAttentionKernel
                                                           kargs.scale_s,
                                                           smem_ptr,
                                                           static_cast<long_index_t>(kargs.stride_k_cache_1),
-                                                          static_cast<long_index_t>(kargs.stride_v_cache_1));
+                                                          static_cast<long_index_t>(kargs.stride_v_cache_1),
+                                                          num_queries_per_kv);
         auto& o_acc_tile = pipeline_result[number<0>{}];
         auto& lse_tile   = pipeline_result[number<1>{}];
 
@@ -541,7 +549,7 @@ struct UnifiedAttentionKernel
 
                 const auto o_acc_pad = pad_tensor_view(
                     o_acc_base_view,
-                    make_tuple(kBlockQ, 1, kHeadDimPadded),
+                    make_tuple(kBlockQ_dyn, 1, kHeadDimPadded),
                     sequence<true, false, kPadHeadDimQ>{});
 
                 return transform_tensor_view(
@@ -581,7 +589,7 @@ struct UnifiedAttentionKernel
                     number<1>{});
 
                 const auto lse_acc_pad = pad_tensor_view(
-                    lse_acc_base_view, make_tuple(kBlockQ, 1), sequence<true, false>{});
+                    lse_acc_base_view, make_tuple(kBlockQ_dyn, 1), sequence<true, false>{});
 
                 return transform_tensor_view(
                     lse_acc_pad,
@@ -608,7 +616,7 @@ struct UnifiedAttentionKernel
 
                 const auto o_dram_pad =
                     pad_tensor_view(o_dram_base,
-                                    make_tuple(kBlockQ, 1, kHeadDimPadded),
+                                    make_tuple(kBlockQ_dyn, 1, kHeadDimPadded),
                                     sequence<true, false, kPadHeadDimQ>{});
 
                 return transform_tensor_view(

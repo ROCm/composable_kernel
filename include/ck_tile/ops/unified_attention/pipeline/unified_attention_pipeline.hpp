@@ -188,8 +188,13 @@ struct UnifiedAttentionPipeline
         FmhaMask mask,
         float scale_s,
         void* smem_ptr,
-        long_index_t k_row_stride = 0,
-        long_index_t v_row_stride = 0) const
+        long_index_t k_row_stride         = 0,
+        long_index_t v_row_stride         = 0,
+        // Runtime kBlockQ = kBlockM / num_queries_per_kv. Default of 0 means
+        // "fall back to the compile-time `kBlockQ` from `UnifiedAttentionShape`"
+        // so existing callers don't have to change. The kernel template passes
+        // the runtime value (from kargs) to remove the static dependency.
+        const index_t num_queries_per_kv = 0) const
     {
         using namespace ck_tile;
         static_assert(
@@ -802,13 +807,20 @@ struct UnifiedAttentionPipeline
             });
         };
 
+        // Resolve kBlockQ at runtime when the caller plumbs in
+        // num_queries_per_kv (=> kBlockQ = kBlockM / num_qpkv). Fall back to
+        // the static `kBlockQ` from `UnifiedAttentionShape` when the caller
+        // passes 0 (back-compat). Stored once, reused per K-tile mask check.
+        const index_t kBlockQ_dyn =
+            (num_queries_per_kv > 0) ? (kBlockM / num_queries_per_kv) : kBlockQ;
+
         auto fmha_mask = [&](auto sp_reg_idx) {
             if constexpr(FmhaMask::IsMasking)
             {
                 bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
                                                            i_total_loops * kPageBlockSize,
-                                                           number<kBlockQ>{},
-                                                           number<kPageBlockSize>{});
+                                                           kBlockQ_dyn,
+                                                           static_cast<index_t>(kPageBlockSize));
                 if(need_perpixel_check)
                 {
                     set_tile_if(sp(sp_reg_idx).sp_compute,
@@ -1253,8 +1265,11 @@ struct UnifiedAttentionPipeline
         FmhaMask mask,
         float scale_s,
         void* smem_ptr,
-        long_index_t k_row_stride = 0,
-        long_index_t v_row_stride = 0) const
+        long_index_t k_row_stride        = 0,
+        long_index_t v_row_stride        = 0,
+        // Forwards to the full-args operator() so callers can plumb in a
+        // runtime kBlockQ. See the documentation on that overload.
+        const index_t num_queries_per_kv = 0) const
     {
         using namespace ck_tile;
 
@@ -1276,7 +1291,8 @@ struct UnifiedAttentionPipeline
                           scale_s,
                           smem_ptr,
                           k_row_stride,
-                          v_row_stride);
+                          v_row_stride,
+                          num_queries_per_kv);
     }
 };
 
