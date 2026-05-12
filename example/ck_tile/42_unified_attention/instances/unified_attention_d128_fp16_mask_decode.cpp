@@ -6,9 +6,6 @@
 
 namespace ck_tile {
 
-using kernel_traits =
-    unified_attention_decode_kernel_traits<unified_attention_args::data_type_enum::fp16, true, 128, 128, 1>;
-
-INST_UNIFIED_ATTENTION_DISPATCH(kernel_traits)
+INST_UNIFIED_ATTENTION_DISPATCH(decode_d128_mha_m128, fp16, true)
 
 } // namespace ck_tile

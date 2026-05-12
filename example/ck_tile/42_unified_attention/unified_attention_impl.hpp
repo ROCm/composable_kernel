@@ -20,26 +20,36 @@
 #include "unified_attention.hpp"
 #include "mask.hpp"
 
-#define INST_UNIFIED_ATTENTION_DISPATCH(kernel_traits)                                   \
-    template <>                                                                          \
-    std::pair<bool, float> unified_attention_kernel_dispatch<kernel_traits>(             \
-        const unified_attention_args& args, const stream_config& config)                 \
-    {                                                                                    \
-        return std::make_pair(                                                           \
-            true, unified_attention_kernel_launch<kernel_traits::kernel>(args, config)); \
-    }
-
-#define INST_UNIFIED_ATTENTION_DISPATCH_DECODE(kernel_traits)                                        \
-    template <>                                                                                      \
-    std::pair<bool, float> unified_attention_kernel_dispatch_decode<kernel_traits>(                  \
-        const unified_attention_args& args, const stream_config& config)                             \
-    {                                                                                                \
-        return std::make_pair(                                                                       \
-            true, unified_attention_kernel_launch<kernel_traits::kernel, true>(args, config));       \
-    }
-
 namespace ck_tile {
 
+// =============================================================================
+// KernelVariant
+//
+// Flat enum of every compiled kernel instance. Each variant fixes
+// (kBlockM, warp count, MFMA shape, pipeline policy) via a variant_config<V>
+// specialization below. This is the single source of truth for "what knobs
+// differ between kernel instances".
+//
+// page_size is intentionally NOT part of this enum. The multi-page-tile fix
+// in the pipeline decoupled kBlockN from page_blk_size, so every variant is
+// correct for any page size.
+// =============================================================================
+enum class KernelVariant
+{
+    // d=128 MHA (num_queries_per_kv = 1)
+    prefill_d128_mha,     // kBlockM=256, 8 warps, 32x32 mfma
+    decode_d128_mha_m128, // kBlockM=128, 4 warps, 32x32 mfma  (kBlockQ=128)
+
+    // d=64 GQA-8 (num_queries_per_kv = 8)
+    prefill_d64_gqa8,     // kBlockM=256, 8 warps, 32x32 mfma
+    decode_d64_gqa8_m128, // kBlockM=128, 4 warps, 32x32 mfma
+    decode_d64_gqa8_m64,  // kBlockM=64,  2 warps, 32x32 mfma  (decode policy)
+    decode_d64_gqa8_m16,  // kBlockM=16,  1 warp,  16x16 mfma  (tiny-decode policy)
+};
+
+// -----------------------------------------------------------------------------
+// Per-DataType problem element types.
+// -----------------------------------------------------------------------------
 template <unified_attention_args::data_type_enum DataType>
 struct unified_attention_problem_traits;
 
@@ -61,261 +71,182 @@ struct unified_attention_problem_traits<unified_attention_args::data_type_enum::
     using lse_dtype  = float;
 };
 
-// Parameterized kernel traits: DataType, IsMasking, HeadSize, BlockM, NumQueriesPerKV, BlockSize
-template <unified_attention_args::data_type_enum DataType,
-          bool IsMasking,
-          index_t HeadSize_     = 128,
-          index_t BlockM_       = 256,
-          index_t NumQPerKV_    = 1,
-          index_t BlockSize_    = (HeadSize_ <= 64) ? 64 : 32>
+// =============================================================================
+// variant_config<V>
+//
+// One specialization per KernelVariant. Each exposes the static knobs that
+// distinguish that variant from the others:
+//
+//   HeadSize        : head dimension (compile-time)
+//   BlockM          : Q-tile size along the M (token) axis
+//   NumQPerKV       : 1 for MHA, 8 for GQA-8
+//   BlockSize       : kBlockN — KV-tile size along the N axis
+//   BlockWarps      : warp layout, sequence<M, N, K>
+//   WarpGemmShape   : MFMA tile shape, sequence<M, N, K>
+//   Pipeline<P>     : pipeline template (default vs decode vs tiny-decode policy)
+//   kUseDecodeGrid  : selects 2D-by-seq grid (true) vs Q-block grid (false)
+// =============================================================================
+template <KernelVariant V>
+struct variant_config;
+
+template <>
+struct variant_config<KernelVariant::prefill_d128_mha>
+{
+    static constexpr index_t HeadSize  = 128;
+    static constexpr index_t BlockM    = 256;
+    static constexpr index_t NumQPerKV = 1;
+    static constexpr index_t BlockSize = 32;
+    using BlockWarps                   = sequence<8, 1, 1>;
+    using WarpGemmShape                = sequence<32, 32, 16>;
+    template <typename Problem>
+    using Pipeline                       = UnifiedAttentionPipeline<Problem>;
+    static constexpr bool kUseDecodeGrid = false;
+};
+
+template <>
+struct variant_config<KernelVariant::decode_d128_mha_m128>
+{
+    static constexpr index_t HeadSize  = 128;
+    static constexpr index_t BlockM    = 128;
+    static constexpr index_t NumQPerKV = 1;
+    static constexpr index_t BlockSize = 32;
+    using BlockWarps                   = sequence<4, 1, 1>;
+    using WarpGemmShape                = sequence<32, 32, 16>;
+    template <typename Problem>
+    using Pipeline                       = UnifiedAttentionPipeline<Problem>;
+    static constexpr bool kUseDecodeGrid = false;
+};
+
+template <>
+struct variant_config<KernelVariant::prefill_d64_gqa8>
+{
+    static constexpr index_t HeadSize  = 64;
+    static constexpr index_t BlockM    = 256;
+    static constexpr index_t NumQPerKV = 8;
+    static constexpr index_t BlockSize = 64;
+    using BlockWarps                   = sequence<8, 1, 1>;
+    using WarpGemmShape                = sequence<32, 32, 16>;
+    template <typename Problem>
+    using Pipeline                       = UnifiedAttentionPipeline<Problem>;
+    static constexpr bool kUseDecodeGrid = false;
+};
+
+template <>
+struct variant_config<KernelVariant::decode_d64_gqa8_m128>
+{
+    static constexpr index_t HeadSize  = 64;
+    static constexpr index_t BlockM    = 128;
+    static constexpr index_t NumQPerKV = 8;
+    static constexpr index_t BlockSize = 64;
+    using BlockWarps                   = sequence<4, 1, 1>;
+    using WarpGemmShape                = sequence<32, 32, 16>;
+    template <typename Problem>
+    using Pipeline                       = UnifiedAttentionPipeline<Problem>;
+    static constexpr bool kUseDecodeGrid = false;
+};
+
+template <>
+struct variant_config<KernelVariant::decode_d64_gqa8_m64>
+{
+    static constexpr index_t HeadSize  = 64;
+    static constexpr index_t BlockM    = 64;
+    static constexpr index_t NumQPerKV = 8;
+    static constexpr index_t BlockSize = 64;
+    using BlockWarps                   = sequence<2, 1, 1>;
+    using WarpGemmShape                = sequence<32, 32, 16>;
+    template <typename Problem>
+    using Pipeline = UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDecodePolicy>;
+    static constexpr bool kUseDecodeGrid = true;
+};
+
+template <>
+struct variant_config<KernelVariant::decode_d64_gqa8_m16>
+{
+    static constexpr index_t HeadSize  = 64;
+    static constexpr index_t BlockM    = 16;
+    static constexpr index_t NumQPerKV = 8;
+    static constexpr index_t BlockSize = 64;
+    using BlockWarps                   = sequence<1, 1, 1>;
+    using WarpGemmShape                = sequence<16, 16, 32>;
+    template <typename Problem>
+    using Pipeline = UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy>;
+    static constexpr bool kUseDecodeGrid = true;
+};
+
+// =============================================================================
+// unified_attention_kernel_traits<V, DataType, IsMasking>
+//
+// Single templated trait. Pulls per-variant knobs from variant_config<V> and
+// per-dtype element types from unified_attention_problem_traits<DataType>.
+// =============================================================================
+template <KernelVariant V,
+          unified_attention_args::data_type_enum DataType,
+          bool IsMasking>
 struct unified_attention_kernel_traits
 {
-    static constexpr auto date_type  = DataType;
-    static constexpr bool is_masking = IsMasking;
+    using cfg = variant_config<V>;
+    using dt  = unified_attention_problem_traits<DataType>;
 
-    static constexpr index_t kBlockM    = BlockM_;
-    static constexpr index_t HEAD_SIZE  = HeadSize_;
-    static constexpr index_t BLOCK_SIZE = BlockSize_;
+    static constexpr auto          date_type  = DataType;
+    static constexpr bool          is_masking = IsMasking;
+    static constexpr KernelVariant variant    = V;
 
-    static constexpr index_t num_queries_per_kv = NumQPerKV_;
+    static constexpr index_t HEAD_SIZE          = cfg::HeadSize;
+    static constexpr index_t kBlockM            = cfg::BlockM;
+    static constexpr index_t BLOCK_SIZE         = cfg::BlockSize;
+    static constexpr index_t num_queries_per_kv = cfg::NumQPerKV;
     static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
+    static constexpr bool    kUseDecodeGrid     = cfg::kUseDecodeGrid;
 
-    //                                    kBlockM kBlockQ   BLOCK_SIZE  HEAD_SIZE
     using unified_attention_block_tile      = sequence<kBlockM, kBlockQ, BLOCK_SIZE, HEAD_SIZE>;
-
-    using unified_attention_warp_gemm_shape = sequence<32, 32, 16>;
-    // 8 warps for warp specialization; kBlockM must be 8 * 32 = 256
-    using unified_attention_block_warps = sequence<8, 1, 1>;
+    using unified_attention_warp_gemm_shape = typename cfg::WarpGemmShape;
+    using unified_attention_block_warps     = typename cfg::BlockWarps;
 
     using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
                                                               unified_attention_block_warps,
                                                               unified_attention_warp_gemm_shape,
                                                               unified_attention_block_warps,
                                                               unified_attention_warp_gemm_shape,
-                                                              true // IsVLayoutRowMajor
-                                                              >;
+                                                              true>; // IsVLayoutRowMajor
 
     using unified_attention_traits = TileUnifiedAttentionTraits<true,  // kPadSeqLenQ_
                                                                 false, // kPadHeadDimQ
-                                                                -1     // kBlockPerCu
-                                                                >;
+                                                                -1>;   // kBlockPerCu
+    using unified_attention_mask   = GenericAttentionMask<IsMasking, /*IsLocal=*/false>;
 
-    using unified_attention_mask = GenericAttentionMask<IsMasking, /*IsLocal=*/false>;
-
-    using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::lse_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::o_dtype,
-        unified_attention_shape,
-        unified_attention_mask,
-        unified_attention_traits>;
-
-    using unified_attention_pipeline = UnifiedAttentionPipeline<unified_attention_pipeline_problem>;
-
-    using epilogue = Default2DEpilogue<
-        Default2DEpilogueProblem<typename unified_attention_problem_traits<date_type>::acc_dtype,
-                                 typename unified_attention_problem_traits<date_type>::o_dtype,
-                                 true, // kPadM
-                                 true, // kPadM
-                                 true  // UseRawStore
-                                 >>;
-
-    using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
-};
-
-// Decode-tuned traits: 4 warps (1 warp group), kBlockM=128, serial pipeline.
-// Uses the single-warp-group path in UnifiedAttentionPipeline.
-template <unified_attention_args::data_type_enum DataType,
-          bool IsMasking,
-          index_t HeadSize_  = 128,
-          index_t BlockM_    = 128,
-          index_t NumQPerKV_ = 1,
-          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32>
-struct unified_attention_decode_kernel_traits
-{
-    static constexpr auto date_type  = DataType;
-    static constexpr bool is_masking = IsMasking;
-
-    static constexpr index_t kBlockM    = BlockM_;
-    static constexpr index_t HEAD_SIZE  = HeadSize_;
-    static constexpr index_t BLOCK_SIZE = BlockSize_;
-
-    static constexpr index_t num_queries_per_kv = NumQPerKV_;
-    static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
-
-    //                                    kBlockM kBlockQ   BLOCK_SIZE  HEAD_SIZE
-    using unified_attention_block_tile      = sequence<kBlockM, kBlockQ, BLOCK_SIZE, HEAD_SIZE>;
-    using unified_attention_warp_gemm_shape = sequence<32, 32, 16>;
-    // 4 warps -> kBlockSize = 256 threads -> NumWarpGroups = 1
-    using unified_attention_block_warps     = sequence<4, 1, 1>;
-
-    using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
-                                                              unified_attention_block_warps,
-                                                              unified_attention_warp_gemm_shape,
-                                                              unified_attention_block_warps,
-                                                              unified_attention_warp_gemm_shape,
-                                                              true>;
-
-    using unified_attention_traits = TileUnifiedAttentionTraits<true, false, -1>;
-    using unified_attention_mask   = GenericAttentionMask<IsMasking, false>;
-
-    using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::lse_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::o_dtype,
-        unified_attention_shape,
-        unified_attention_mask,
-        unified_attention_traits>;
-
-    using unified_attention_pipeline = UnifiedAttentionPipeline<unified_attention_pipeline_problem>;
-
-    using epilogue = Default2DEpilogue<
-        Default2DEpilogueProblem<typename unified_attention_problem_traits<date_type>::acc_dtype,
-                                 typename unified_attention_problem_traits<date_type>::o_dtype,
-                                 true, true, true>>;
-
-    using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
-};
-
-// Small decode traits: 2 warps, kBlockM=64, decode policy (NumWarpPerGroup=2).
-// Uses 1D warp layout (sequence<2,1,1>) so no softmax reduction changes needed.
-template <unified_attention_args::data_type_enum DataType,
-          bool IsMasking,
-          index_t HeadSize_  = 64,
-          index_t BlockM_    = 64,
-          index_t NumQPerKV_ = 8,
-          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32>
-struct unified_attention_decode_small_kernel_traits
-{
-    static constexpr auto date_type  = DataType;
-    static constexpr bool is_masking = IsMasking;
-
-    static constexpr index_t kBlockM    = BlockM_;
-    static constexpr index_t HEAD_SIZE  = HeadSize_;
-    static constexpr index_t BLOCK_SIZE = BlockSize_;
-
-    static constexpr index_t num_queries_per_kv = NumQPerKV_;
-    static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
-
-    using unified_attention_block_tile      = sequence<kBlockM, kBlockQ, BLOCK_SIZE, HEAD_SIZE>;
-    using unified_attention_warp_gemm_shape = sequence<32, 32, 16>;
-    // 2 warps along M: kBlockM=2*32=64, kBlockSize=128, NumWarpGroups=1
-    using unified_attention_block_warps     = sequence<2, 1, 1>;
-
-    using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
-                                                              unified_attention_block_warps,
-                                                              unified_attention_warp_gemm_shape,
-                                                              unified_attention_block_warps,
-                                                              unified_attention_warp_gemm_shape,
-                                                              true>;
-
-    using unified_attention_traits = TileUnifiedAttentionTraits<true, false, -1>;
-    using unified_attention_mask   = GenericAttentionMask<IsMasking, false>;
-
-    using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::lse_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::o_dtype,
-        unified_attention_shape,
-        unified_attention_mask,
-        unified_attention_traits>;
+    using unified_attention_pipeline_problem =
+        UnifiedAttentionPipelineProblem<typename dt::qkvp_dtype,
+                                        typename dt::qkvp_dtype,
+                                        typename dt::qkvp_dtype,
+                                        typename dt::acc_dtype,
+                                        typename dt::acc_dtype,
+                                        typename dt::acc_dtype,
+                                        typename dt::lse_dtype,
+                                        typename dt::qkvp_dtype,
+                                        typename dt::acc_dtype,
+                                        typename dt::o_dtype,
+                                        unified_attention_shape,
+                                        unified_attention_mask,
+                                        unified_attention_traits>;
 
     using unified_attention_pipeline =
-        UnifiedAttentionPipeline<unified_attention_pipeline_problem,
-                                 UnifiedAttentionPipelineDecodePolicy>;
+        typename cfg::template Pipeline<unified_attention_pipeline_problem>;
 
-    using epilogue = Default2DEpilogue<
-        Default2DEpilogueProblem<typename unified_attention_problem_traits<date_type>::acc_dtype,
-                                 typename unified_attention_problem_traits<date_type>::o_dtype,
-                                 true, true, true>>;
-
-    using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
-};
-
-// Tiny decode traits: 1 warp, 16x16 MFMA, kBlockM=16, kBlockQ=2 for GQA-8.
-// Matches Triton's BLOCK_M=16 / BLOCK_Q=2 decode configuration.
-// Uses block_tile_reduce_sync instead of permlane32_swap for 16x16 MFMA.
-template <unified_attention_args::data_type_enum DataType,
-          bool IsMasking,
-          index_t HeadSize_  = 64,
-          index_t BlockM_    = 16,
-          index_t NumQPerKV_ = 8,
-          index_t BlockSize_ = (HeadSize_ <= 64) ? 64 : 32>
-struct unified_attention_decode_tiny_kernel_traits
-{
-    static constexpr auto date_type  = DataType;
-    static constexpr bool is_masking = IsMasking;
-
-    static constexpr index_t kBlockM    = BlockM_;
-    static constexpr index_t HEAD_SIZE  = HeadSize_;
-    static constexpr index_t BLOCK_SIZE = BlockSize_;
-
-    static constexpr index_t num_queries_per_kv = NumQPerKV_;
-    static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
-
-    using unified_attention_block_tile      = sequence<kBlockM, kBlockQ, BLOCK_SIZE, HEAD_SIZE>;
-    using unified_attention_warp_gemm_shape = sequence<16, 16, 32>;
-    // 1 warp: kBlockM=1*16=16, kBlockSize=64, NumWarpGroups=1
-    using unified_attention_block_warps     = sequence<1, 1, 1>;
-
-    using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
-                                                              unified_attention_block_warps,
-                                                              unified_attention_warp_gemm_shape,
-                                                              unified_attention_block_warps,
-                                                              unified_attention_warp_gemm_shape,
-                                                              true>;
-
-    using unified_attention_traits = TileUnifiedAttentionTraits<true, false, -1>;
-    using unified_attention_mask   = GenericAttentionMask<IsMasking, false>;
-
-    using unified_attention_pipeline_problem = UnifiedAttentionPipelineProblem<
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::lse_dtype,
-        typename unified_attention_problem_traits<date_type>::qkvp_dtype,
-        typename unified_attention_problem_traits<date_type>::acc_dtype,
-        typename unified_attention_problem_traits<date_type>::o_dtype,
-        unified_attention_shape,
-        unified_attention_mask,
-        unified_attention_traits>;
-
-    using unified_attention_pipeline =
-        UnifiedAttentionPipeline<unified_attention_pipeline_problem,
-                                 UnifiedAttentionPipelineTinyDecodePolicy>;
-
-    using epilogue = Default2DEpilogue<
-        Default2DEpilogueProblem<typename unified_attention_problem_traits<date_type>::acc_dtype,
-                                 typename unified_attention_problem_traits<date_type>::o_dtype,
-                                 true, true, true>>;
+    using epilogue =
+        Default2DEpilogue<Default2DEpilogueProblem<typename dt::acc_dtype,
+                                                   typename dt::o_dtype,
+                                                   true, // kPadM
+                                                   true, // kPadN
+                                                   true  // UseRawStore
+                                                   >>;
 
     using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
 };
 
+// =============================================================================
+// Kernel launch — common helper. Picks the grid layout from
+// Traits::kUseDecodeGrid; all other launch args are identical across variants.
+// =============================================================================
 template <typename Kernel, bool UseDecodeGrid = false>
 float unified_attention_kernel_launch(const unified_attention_args& args,
                                       const stream_config& config)
@@ -380,15 +311,33 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
     return launch_kernel(config, make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 }
 
-// return value:
-//   first  = whether the kernel was launched (true = launched, false = skipped)
-//   second = elapsed time (ms) of the kernel launch, valid only if first == true
-template <typename KernelTraits>
+// =============================================================================
+// Per-instance dispatch. Each instance .cpp specializes this for its
+// (V, DataType, IsMasking) tuple via INST_UNIFIED_ATTENTION_DISPATCH.
+//
+// Return: (launched?, elapsed_ms). elapsed_ms is valid only when launched.
+// =============================================================================
+template <typename Traits>
 std::pair<bool, float> unified_attention_kernel_dispatch(const unified_attention_args& args,
                                                          const stream_config& config);
 
-template <typename KernelTraits>
-std::pair<bool, float> unified_attention_kernel_dispatch_decode(const unified_attention_args& args,
-                                                                const stream_config& config);
-
 } // namespace ck_tile
+
+// One-line instantiation per (V, DataType, IsMasking) combination. Each
+// instance .cpp consists of exactly one of these calls.
+#define INST_UNIFIED_ATTENTION_DISPATCH(VARIANT_, DTYPE_, IS_MASK_)                          \
+    template <>                                                                              \
+    std::pair<bool, float> unified_attention_kernel_dispatch<                                \
+        unified_attention_kernel_traits<KernelVariant::VARIANT_,                             \
+                                        unified_attention_args::data_type_enum::DTYPE_,      \
+                                        IS_MASK_>>(const unified_attention_args& args,       \
+                                                   const stream_config& config)              \
+    {                                                                                        \
+        using Traits = unified_attention_kernel_traits<                                      \
+            KernelVariant::VARIANT_,                                                         \
+            unified_attention_args::data_type_enum::DTYPE_,                                  \
+            IS_MASK_>;                                                                       \
+        return std::make_pair(true,                                                          \
+            unified_attention_kernel_launch<typename Traits::kernel,                         \
+                                            Traits::kUseDecodeGrid>(args, config));          \
+    }
