@@ -67,6 +67,25 @@ struct unified_attention_args
 
     index_t num_seqs; // number of batches for q
     index_t max_seqlen_q = 0; // max query length across all batches (0 = unknown)
+
+    // KV-segment parallelism (split-KV). When num_splits == 1, the kernel
+    // writes to o_ptr as usual. When num_splits > 1, the kernel is launched
+    // with a 3D grid whose z-dim is num_splits — each CTA computes its own
+    // partial (o_acc, lse) and writes them into the FP32 workspaces; a
+    // separate combine kernel (or a Python-side reduce) merges across
+    // splits into the final output.
+    //
+    // Workspace layout (host-allocated):
+    //   o_acc_ptr   : [num_q_heads, num_splits, total_q, hdim_v]  (FP32)
+    //   lse_acc_ptr : [num_q_heads, num_splits, total_q]          (FP32)
+    // The corresponding host-set strides are below.
+    index_t num_splits = 1;
+    void* o_acc_ptr    = nullptr;
+    void* lse_acc_ptr  = nullptr;
+    index_t split_stride_o_acc    = 0;
+    index_t split_stride_lse_acc  = 0;
+    index_t nhead_stride_o_acc    = 0;
+    index_t nhead_stride_lse_acc  = 0;
 };
 
 std::ostream& operator<<(std::ostream& stream,

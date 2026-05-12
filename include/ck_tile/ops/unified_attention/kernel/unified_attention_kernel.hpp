@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include "ck_tile/ops/epilogue/default_2d_epilogue.hpp"
 #include "ck_tile/ops/unified_attention/block/block_masking.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 
@@ -97,9 +98,11 @@ struct UnifiedAttentionKernel
 
         ck_tile::index_t num_seqs; // number of batches for q
 
-        // KV-segment parallelism (split-KV within unified attention)
+        // KV-segment parallelism (split-KV within unified attention).
+        // Each CTA derives its own `i_split` from `blockIdx.z` — the host
+        // launches a single 3D grid with z = num_splits and the kernel
+        // dispatches all splits in parallel.
         ck_tile::index_t num_splits = 1;
-        ck_tile::index_t i_split = 0;
         void* lse_acc_ptr = nullptr;     // [nhead, num_splits, total_q] float
         void* o_acc_ptr = nullptr;       // [nhead, num_splits, total_q, hdim_v] float
         ck_tile::index_t split_stride_lse_acc = 0;
@@ -140,7 +143,14 @@ struct UnifiedAttentionKernel
                                                   ck_tile::index_t block_table_stride,
                                                   const int32_t* seq_lens_ptr,
                                                   const int32_t* query_start_len_ptr,
-                                                  ck_tile::index_t num_seqs)
+                                                  ck_tile::index_t num_seqs,
+                                                  ck_tile::index_t num_splits = 1,
+                                                  void* lse_acc_ptr           = nullptr,
+                                                  void* o_acc_ptr             = nullptr,
+                                                  ck_tile::index_t split_stride_lse_acc   = 0,
+                                                  ck_tile::index_t split_stride_o_acc     = 0,
+                                                  ck_tile::index_t nhead_stride_lse_acc   = 0,
+                                                  ck_tile::index_t nhead_stride_o_acc     = 0)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -172,15 +182,25 @@ struct UnifiedAttentionKernel
                     block_table_stride,
                     seq_lens_ptr,
                     query_start_len_ptr,
-                    num_seqs};
+                    num_seqs,
+                    num_splits,
+                    lse_acc_ptr,
+                    o_acc_ptr,
+                    split_stride_lse_acc,
+                    split_stride_o_acc,
+                    nhead_stride_lse_acc,
+                    nhead_stride_o_acc};
 
         return kargs;
     }
 
     CK_TILE_HOST static constexpr auto GridSize2D(ck_tile::index_t num_kv_heads,
-                                                  ck_tile::index_t total_num_q_blocks)
+                                                  ck_tile::index_t total_num_q_blocks,
+                                                  ck_tile::index_t num_splits = 1)
     {
-        return dim3(num_kv_heads * total_num_q_blocks);
+        // z-dim carries the split index; num_splits == 1 is the existing
+        // (non-split) launch with dim3(N, 1, 1).
+        return dim3(num_kv_heads * total_num_q_blocks, 1, num_splits);
     }
 
     // Binary search to find the sequence index for a given target index
@@ -231,9 +251,10 @@ struct UnifiedAttentionKernel
     }
 
     CK_TILE_HOST static constexpr auto GridSizeDecode(ck_tile::index_t num_kv_heads,
-                                                      ck_tile::index_t num_seqs)
+                                                      ck_tile::index_t num_seqs,
+                                                      ck_tile::index_t num_splits = 1)
     {
-        return dim3(num_kv_heads, num_seqs);
+        return dim3(num_kv_heads, num_seqs, num_splits);
     }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
@@ -244,6 +265,11 @@ struct UnifiedAttentionKernel
 
         assert(kBlockM / num_queries_per_kv == kBlockQ);
 
+        // Split-KV: each CTA handles one (kv_head, q_block, split) tuple. The
+        // split index lives in z — when num_splits == 1 (the only z value)
+        // this is just `0` and costs nothing.
+        const index_t i_split = blockIdx.z;
+
         index_t kv_head_idx;
         index_t seq_idx;
         index_t q_block_local_idx;
@@ -252,7 +278,7 @@ struct UnifiedAttentionKernel
 
         if(gridDim.y > 1)
         {
-            // Decode grid: dim3(num_kv_heads, num_seqs)
+            // Decode grid: dim3(num_kv_heads, num_seqs, num_splits)
             // Direct mapping, no binary search, no padding CTAs.
             kv_head_idx              = blockIdx.x;
             seq_idx                  = blockIdx.y;
@@ -263,7 +289,8 @@ struct UnifiedAttentionKernel
         }
         else
         {
-            // Standard 1D grid with binary search
+            // Standard 1D grid (x-folded) with binary search; z-dim carries
+            // the split index just like in the decode branch.
             ck_tile::index_t pid = blockIdx.x;
 
             const auto [kv_head_idx_, q_block_global_idx] = GetTileIndex(pid, kargs);
@@ -318,15 +345,17 @@ struct UnifiedAttentionKernel
         index_t total_num_kv_blocks =
             amd_wave_read_first_lane((max_seq_prefix_len + kPageBlockSize - 1) / kPageBlockSize);
 
-        // KV-segment parallelism: split KV range across workgroups
+        // KV-segment parallelism: split KV range across workgroups.
+        // `i_split` came from blockIdx.z above; with num_splits == 1 it's 0
+        // and these min/max bounds reduce to [0, total_num_kv_blocks).
         index_t num_blocks_start = 0;
         index_t num_blocks = total_num_kv_blocks;
         if(kargs.num_splits > 1)
         {
             const index_t blocks_per_split =
                 ck_tile::max(index_t(1), (total_num_kv_blocks + kargs.num_splits - 1) / kargs.num_splits);
-            num_blocks_start = ck_tile::min(blocks_per_split * kargs.i_split, total_num_kv_blocks);
-            num_blocks       = ck_tile::min(blocks_per_split * (kargs.i_split + 1), total_num_kv_blocks);
+            num_blocks_start = ck_tile::min(blocks_per_split * i_split, total_num_kv_blocks);
+            num_blocks       = ck_tile::min(blocks_per_split * (i_split + 1), total_num_kv_blocks);
             if(num_blocks_start >= num_blocks)
             {
                 return; // this split has no work
@@ -460,56 +489,143 @@ struct UnifiedAttentionKernel
         // kernel tile to fit in a cache page) is gone — tiles may span multiple
         // pages as long as the inner-N step (Y0_step_N from the K/V tile dist)
         // divides page_size cleanly.
+        //
+        // Pipeline returns make_tuple(o_acc, lse) where o_acc is the normalized
+        // attention output (post divide-by-l) and lse is the per-row log-sum-exp
+        // in natural-log domain. For num_splits == 1 we ignore lse and forward
+        // o_acc through the user's epilogue (bf16/fp16 cast + store to o_ptr).
+        // For num_splits > 1 we instead write o_acc and lse to FP32 workspaces
+        // — a separate combine kernel will merge across splits.
 
-        auto o_acc_tile = [&]() {
-            return UnifiedAttentionPipeline{}(q_dram_window,
-                                              k_dram_window,
-                                              v_dram_window,
-                                              num_blocks,
-                                              num_blocks_start,
-                                              kargs.block_tables_ptr,
-                                              block_table_offset,
-                                              kargs.page_size,
-                                              mask,
-                                              kargs.scale_s,
-                                              smem_ptr,
-                                              static_cast<long_index_t>(kargs.stride_k_cache_1),
-                                              static_cast<long_index_t>(kargs.stride_v_cache_1));
-        }();
+        auto pipeline_result = UnifiedAttentionPipeline{}(q_dram_window,
+                                                          k_dram_window,
+                                                          v_dram_window,
+                                                          num_blocks,
+                                                          num_blocks_start,
+                                                          kargs.block_tables_ptr,
+                                                          block_table_offset,
+                                                          kargs.page_size,
+                                                          mask,
+                                                          kargs.scale_s,
+                                                          smem_ptr,
+                                                          static_cast<long_index_t>(kargs.stride_k_cache_1),
+                                                          static_cast<long_index_t>(kargs.stride_v_cache_1));
+        auto& o_acc_tile = pipeline_result[number<0>{}];
+        auto& lse_tile   = pipeline_result[number<1>{}];
 
-        // O DRAM and O DRAM window
-        auto o_dram = [&]() {
-            const auto o_dram_base = make_naive_tensor_view<address_space_enum::global>(
-                o_ptr,
-                make_tuple(cur_batch_query_len, num_queries_per_kv, kHeadDim),
-                make_tuple(kargs.output_stride_0, kargs.output_stride_1, 1),
-                number<UnifiedAttentionPipeline::kAlignmentO>{},
-                number<1>{});
+        if(kargs.num_splits > 1)
+        {
+            // ----- Split-KV write path -----
+            // Workspaces (FP32) are assumed in layout:
+            //   o_acc_ptr   : [num_q_heads, num_splits, total_q, hdim_v]
+            //   lse_acc_ptr : [num_q_heads, num_splits, total_q]
+            // The host passes nhead/split strides; the q_token axis is contiguous
+            // (= hdim_v for o_acc, = 1 for lse_acc) so we hardcode that here.
 
-            const auto o_dram_pad =
-                pad_tensor_view( // aling cu_seqlen with kBlockQ and head dim with kHeadDimPadded
-                    o_dram_base,
-                    // block sizes
+            const index_t head_q_base = kv_head_idx * num_queries_per_kv;
+
+            float* o_acc_base = reinterpret_cast<float*>(kargs.o_acc_ptr) +
+                                static_cast<long_index_t>(head_q_base) * kargs.nhead_stride_o_acc +
+                                static_cast<long_index_t>(i_split) * kargs.split_stride_o_acc +
+                                static_cast<long_index_t>(cur_batch_in_all_start_index) * kHeadDim;
+
+            auto o_acc_dram = [&]() {
+                const auto o_acc_base_view = make_naive_tensor_view<address_space_enum::global>(
+                    o_acc_base,
+                    make_tuple(cur_batch_query_len, num_queries_per_kv, kHeadDim),
+                    make_tuple(static_cast<long_index_t>(kHeadDim),
+                               static_cast<long_index_t>(kargs.nhead_stride_o_acc),
+                               static_cast<long_index_t>(1)),
+                    number<1>{},
+                    number<1>{});
+
+                const auto o_acc_pad = pad_tensor_view(
+                    o_acc_base_view,
                     make_tuple(kBlockQ, 1, kHeadDimPadded),
-                    sequence<true, false, kPadHeadDimQ>{}); // pads to (seq_len_padded, num_head_q,
-                                                            // kHeadDimPadded)
+                    sequence<true, false, kPadHeadDimQ>{});
 
-            const auto o_dram_merged = transform_tensor_view(
-                o_dram_pad,
-                make_tuple(make_merge_transform(make_tuple(query_len_padded, num_queries_per_kv)),
-                           make_pass_through_transform(kHeadDimPadded)),
-                make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                make_tuple(sequence<0>{}, sequence<1>{}));
+                return transform_tensor_view(
+                    o_acc_pad,
+                    make_tuple(make_merge_transform(make_tuple(query_len_padded, num_queries_per_kv)),
+                               make_pass_through_transform(kHeadDimPadded)),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }();
 
-            return o_dram_merged;
-        }();
+            auto o_acc_window =
+                make_tile_window(o_acc_dram,
+                                 make_tuple(number<kBlockM>{}, number<kHeadDimPadded>{}),
+                                 {query_pos * num_queries_per_kv, 0});
 
-        auto o_dram_window =
-            make_tile_window(o_dram,
-                             make_tuple(number<kBlockM>{}, number<kHeadDimPadded>{}),
-                             {query_pos * num_queries_per_kv, 0});
+            // FP32-out epilogue: cast_tile<float>(o_acc) is a no-op, but the
+            // pad-aware store path (UseRawStore=true) is the same machinery the
+            // user's epilogue uses, so storage semantics are unchanged.
+            using SplitOEpilogue =
+                Default2DEpilogue<Default2DEpilogueProblem<float, float, true, true, true>>;
+            SplitOEpilogue{}(o_acc_window, o_acc_tile, nullptr);
 
-        EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
+            // ----- LSE write -----
+            float* lse_acc_base =
+                reinterpret_cast<float*>(kargs.lse_acc_ptr) +
+                static_cast<long_index_t>(head_q_base) * kargs.nhead_stride_lse_acc +
+                static_cast<long_index_t>(i_split) * kargs.split_stride_lse_acc +
+                static_cast<long_index_t>(cur_batch_in_all_start_index);
+
+            auto lse_acc_dram = [&]() {
+                const auto lse_acc_base_view = make_naive_tensor_view<address_space_enum::global>(
+                    lse_acc_base,
+                    make_tuple(cur_batch_query_len, num_queries_per_kv),
+                    make_tuple(static_cast<long_index_t>(1),
+                               static_cast<long_index_t>(kargs.nhead_stride_lse_acc)),
+                    number<1>{},
+                    number<1>{});
+
+                const auto lse_acc_pad = pad_tensor_view(
+                    lse_acc_base_view, make_tuple(kBlockQ, 1), sequence<true, false>{});
+
+                return transform_tensor_view(
+                    lse_acc_pad,
+                    make_tuple(make_merge_transform(make_tuple(query_len_padded, num_queries_per_kv))),
+                    make_tuple(sequence<0, 1>{}),
+                    make_tuple(sequence<0>{}));
+            }();
+
+            auto lse_acc_window =
+                make_tile_window(lse_acc_dram, make_tuple(number<kBlockM>{}), {query_pos * num_queries_per_kv});
+
+            store_tile(lse_acc_window, lse_tile);
+        }
+        else
+        {
+            // ----- Non-split (current) path -----
+            auto o_dram = [&]() {
+                const auto o_dram_base = make_naive_tensor_view<address_space_enum::global>(
+                    o_ptr,
+                    make_tuple(cur_batch_query_len, num_queries_per_kv, kHeadDim),
+                    make_tuple(kargs.output_stride_0, kargs.output_stride_1, 1),
+                    number<UnifiedAttentionPipeline::kAlignmentO>{},
+                    number<1>{});
+
+                const auto o_dram_pad =
+                    pad_tensor_view(o_dram_base,
+                                    make_tuple(kBlockQ, 1, kHeadDimPadded),
+                                    sequence<true, false, kPadHeadDimQ>{});
+
+                return transform_tensor_view(
+                    o_dram_pad,
+                    make_tuple(make_merge_transform(make_tuple(query_len_padded, num_queries_per_kv)),
+                               make_pass_through_transform(kHeadDimPadded)),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            }();
+
+            auto o_dram_window =
+                make_tile_window(o_dram,
+                                 make_tuple(number<kBlockM>{}, number<kHeadDimPadded>{}),
+                                 {query_pos * num_queries_per_kv, 0});
+
+            EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
+        }
     }
 };
 } // namespace ck_tile

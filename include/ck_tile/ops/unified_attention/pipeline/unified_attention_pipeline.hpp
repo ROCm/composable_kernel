@@ -348,18 +348,28 @@ struct UnifiedAttentionPipeline
         {
             if(num_total_loop - num_blocks_start <= 0)
             {
-
-                // Note: here occ are all cleard, return it
-                // Note: q loaded but no fence, ignore it.
-                return o_acc;
+                // Note: o_acc is already cleared above. q loaded but no fence
+                // (ignored). lse must be -infinity so the split-KV combine
+                // weighs this empty partial as zero (exp(-inf) == 0); for
+                // single-split callers the value is harmless (ignored).
+                auto lse_early =
+                    make_static_distributed_tensor<SMPLComputeDataType>(m.get_tile_distribution());
+                set_tile(lse_early, -ck_tile::numeric<SMPLComputeDataType>::infinity());
+                return ck_tile::make_tuple(o_acc, lse_early);
             }
         }
 
         index_t i_total_loops = num_blocks_start;
         const ck_tile::index_t* block_tables_ptr_ =
             reinterpret_cast<const ck_tile::index_t*>(block_tables_ptr);
-        assert(k_block_idx == v_block_idx); // because of the following line
-        block_table_offset += num_blocks_start;
+        assert(k_block_idx == v_block_idx);
+        // Split-KV start offset in *tokens* (not in tiles or pages). We add
+        // this to logical_token below so the page-table lookup uses the right
+        // page; we do NOT shift block_table_offset because num_blocks_start is
+        // counted in kPageBlockSize-sized tiles, while block_tables is indexed
+        // in page_size-sized pages — the two differ whenever kPageBlockSize !=
+        // page_size and shifting tiles-as-pages reads the wrong entries.
+        const index_t split_token_offset = num_blocks_start * kPageBlockSize;
 
         // Pass-2: unified page-offset formula. The kPageBlockSize <= page_size
         // constraint is gone. For every (thread, Y0-iter) pair we compute:
@@ -415,7 +425,8 @@ struct UnifiedAttentionPipeline
 
         auto refresh_k_offsets = [&](index_t k_tile_idx) {
             static_for<0, KNRepeat, 1>{}([&](auto i) {
-                const index_t logical_token = k_tile_idx * kPageBlockSize + k_thread_n_pos +
+                const index_t logical_token = split_token_offset +
+                                              k_tile_idx * kPageBlockSize + k_thread_n_pos +
                                               static_cast<index_t>(i.value) * KY0_step_N;
                 const index_t logical_page  = logical_token / page_size;
                 const index_t within_page   = logical_token - logical_page * page_size;
@@ -427,7 +438,8 @@ struct UnifiedAttentionPipeline
         };
         auto refresh_v_offsets = [&](index_t v_tile_idx) {
             static_for<0, VNRepeat, 1>{}([&](auto i) {
-                const index_t logical_token = v_tile_idx * kPageBlockSize + v_thread_n_pos +
+                const index_t logical_token = split_token_offset +
+                                              v_tile_idx * kPageBlockSize + v_thread_n_pos +
                                               static_cast<index_t>(i.value) * VY0_step_N;
                 const index_t logical_page  = logical_token / page_size;
                 const index_t within_page   = logical_token - logical_page * page_size;
@@ -1155,16 +1167,24 @@ struct UnifiedAttentionPipeline
             }
         }
     label_main_loops_exit:
-        if(num_total_loop % 2)
+        // The post-process call finalizes whichever SP register was left in
+        // an "alu0-done, alu1-pending" state at the end of the main loop.
+        // Which one that is depends on the parity of the *number of
+        // iterations performed* (= num_total_loop - num_blocks_start), not
+        // num_total_loop itself. For the non-split path num_blocks_start
+        // is always 0 so the two parities coincide; the split-KV path with
+        // num_blocks_start > 0 needs the corrected expression below.
+        const index_t num_iters = num_total_loop - num_blocks_start;
+        if(num_iters % 2)
         {
             fmha_post_process(number<1>{});
         }
-        if(!(num_total_loop % 2))
+        if(!(num_iters % 2))
         {
             fmha_post_process(number<0>{});
         }
 
-        // finally, O
+        // finally, O — normalize by l
         constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
 
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
@@ -1185,7 +1205,37 @@ struct UnifiedAttentionPipeline
 
         o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
 
-        return o_acc;
+        // Build the log-sum-exp side-output (natural-log domain) for the
+        // split-KV combine kernel. For non-split callers this is ignored.
+        //
+        // Note `m` here is the *unscaled* rowmax of the raw qk dot products
+        // (the pipeline computes `m = block_tile_reduce(sp_compute, max)`
+        // before applying `scale_s`). Likewise `l = sum exp2(scale_s*(s-m))`
+        // is the natural-domain softmax denominator (since `scale_s` carries
+        // a baked-in log2(e), `exp2(scale_s*x) == exp(scale*x)`). Combined,
+        //   LSE = log(sum exp(scale * s_k))
+        //       = scale * m + log(l)
+        //       = scale_s/log2(e) * m + log(l).
+        // The combine kernel re-weights partials with exp(lse - lse_max).
+        const auto scale_natlog =
+            scale_s / static_cast<SMPLComputeDataType>(C_LOG2E);
+        auto lse = make_static_distributed_tensor<SMPLComputeDataType>(m.get_tile_distribution());
+        sweep_tile_span(o_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
+            constexpr auto i_idx = make_tuple(idx0);
+            if constexpr(FmhaMask::IsMasking)
+            {
+                lse(i_idx) =
+                    (l_[i_idx] == 0.f)
+                        ? -ck_tile::numeric<SMPLComputeDataType>::infinity()
+                        : scale_natlog * m_[i_idx] + ck_tile::log(l_[i_idx]);
+            }
+            else
+            {
+                lse(i_idx) = scale_natlog * m_[i_idx] + ck_tile::log(l_[i_idx]);
+            }
+        });
+
+        return ck_tile::make_tuple(o_acc, lse);
     }
 
     template <typename QDramBlockWindowTmp,

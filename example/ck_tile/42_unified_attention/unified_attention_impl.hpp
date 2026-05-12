@@ -414,16 +414,27 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
                                    args.block_table_stride,
                                    args.seq_lens_ptr,
                                    args.query_start_len_ptr,
-                                   args.num_seqs);
+                                   args.num_seqs,
+                                   args.num_splits,
+                                   args.lse_acc_ptr,
+                                   args.o_acc_ptr,
+                                   args.split_stride_lse_acc,
+                                   args.split_stride_o_acc,
+                                   args.nhead_stride_lse_acc,
+                                   args.nhead_stride_o_acc);
 
     dim3 grids;
     if constexpr(UseDecodeGrid)
     {
-        grids = Kernel::GridSizeDecode(args.num_head_q / args.num_queries_per_kv, args.num_seqs);
+        grids = Kernel::GridSizeDecode(args.num_head_q / args.num_queries_per_kv,
+                                       args.num_seqs,
+                                       args.num_splits);
     }
     else
     {
-        grids = Kernel::GridSize2D(args.num_head_q / args.num_queries_per_kv, total_num_q_blocks);
+        grids = Kernel::GridSize2D(args.num_head_q / args.num_queries_per_kv,
+                                   total_num_q_blocks,
+                                   args.num_splits);
     }
     constexpr dim3 blocks         = Kernel::BlockSize();
     constexpr index_t kBlockPerCu = Kernel::kBlockPerCu;
