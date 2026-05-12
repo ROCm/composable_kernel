@@ -36,17 +36,20 @@ namespace ck_tile {
 // =============================================================================
 enum class KernelVariant
 {
-    // d=128 MHA (num_queries_per_kv = 1)
-    prefill_d128_mha,     // kBlockM=256, 8 warps, 32x32 mfma
-    decode_d128_mha_m128, // kBlockM=128, 4 warps, 32x32 mfma  (kBlockQ=128)
-    decode_d128_mha_m32,  // kBlockM=32,  1 warp,  32x32 mfma  (tiny-decode policy)
-    decode_d128_mha_m16,  // kBlockM=16,  1 warp,  16x16 mfma  (tiny-decode policy)
+    // d=128 (num_queries_per_kv chosen at *runtime* — same binary serves both
+    // MHA and GQA-N as long as num_qpkv divides kBlockM). kBlockM is the only
+    // structural compile-time knob; pick the tier by max_q after multiplying
+    // by num_qpkv in select_config.
+    prefill_d128,     // kBlockM=256, 8 warps, 32x32 mfma
+    decode_d128_m128, // kBlockM=128, 4 warps, 32x32 mfma
+    decode_d128_m32,  // kBlockM=32,  1 warp,  32x32 mfma  (tiny-decode policy)
+    decode_d128_m16,  // kBlockM=16,  1 warp,  16x16 mfma  (tiny-decode policy)
 
-    // d=64 GQA-8 (num_queries_per_kv = 8)
-    prefill_d64_gqa8,     // kBlockM=256, 8 warps, 32x32 mfma
-    decode_d64_gqa8_m128, // kBlockM=128, 4 warps, 32x32 mfma
-    decode_d64_gqa8_m64,  // kBlockM=64,  2 warps, 32x32 mfma  (decode policy)
-    decode_d64_gqa8_m16,  // kBlockM=16,  1 warp,  16x16 mfma  (tiny-decode policy)
+    // d=64.
+    prefill_d64,      // kBlockM=256, 8 warps, 32x32 mfma
+    decode_d64_m128,  // kBlockM=128, 4 warps, 32x32 mfma
+    decode_d64_m64,   // kBlockM=64,  2 warps, 32x32 mfma  (decode policy)
+    decode_d64_m16,   // kBlockM=16,  1 warp,  16x16 mfma  (tiny-decode policy)
 };
 
 // -----------------------------------------------------------------------------
@@ -81,22 +84,25 @@ struct unified_attention_problem_traits<unified_attention_args::data_type_enum::
 //
 //   HeadSize        : head dimension (compile-time)
 //   BlockM          : Q-tile size along the M (token) axis
-//   NumQPerKV       : 1 for MHA, 8 for GQA-8
 //   BlockSize       : kBlockN — KV-tile size along the N axis
 //   BlockWarps      : warp layout, sequence<M, N, K>
 //   WarpGemmShape   : MFMA tile shape, sequence<M, N, K>
 //   Pipeline<P>     : pipeline template (default vs decode vs tiny-decode policy)
 //   kUseDecodeGrid  : selects 2D-by-seq grid (true) vs Q-block grid (false)
+//
+// num_queries_per_kv is *not* a compile-time knob: kBlockQ = kBlockM /
+// num_qpkv is computed at runtime inside the kernel and pipeline. The only
+// constraint is `kBlockM % num_qpkv == 0` (host-side select_config makes sure
+// of this).
 // =============================================================================
 template <KernelVariant V>
 struct variant_config;
 
 template <>
-struct variant_config<KernelVariant::prefill_d128_mha>
+struct variant_config<KernelVariant::prefill_d128>
 {
     static constexpr index_t HeadSize  = 128;
     static constexpr index_t BlockM    = 256;
-    static constexpr index_t NumQPerKV = 1;
     static constexpr index_t BlockSize = 32;
     using BlockWarps                   = sequence<8, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
@@ -106,11 +112,10 @@ struct variant_config<KernelVariant::prefill_d128_mha>
 };
 
 template <>
-struct variant_config<KernelVariant::decode_d128_mha_m128>
+struct variant_config<KernelVariant::decode_d128_m128>
 {
     static constexpr index_t HeadSize  = 128;
     static constexpr index_t BlockM    = 128;
-    static constexpr index_t NumQPerKV = 1;
     static constexpr index_t BlockSize = 32;
     using BlockWarps                   = sequence<4, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
@@ -120,11 +125,10 @@ struct variant_config<KernelVariant::decode_d128_mha_m128>
 };
 
 template <>
-struct variant_config<KernelVariant::decode_d128_mha_m32>
+struct variant_config<KernelVariant::decode_d128_m32>
 {
     static constexpr index_t HeadSize  = 128;
     static constexpr index_t BlockM    = 32;
-    static constexpr index_t NumQPerKV = 1;
     static constexpr index_t BlockSize = 32;
     using BlockWarps                   = sequence<1, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
@@ -134,11 +138,10 @@ struct variant_config<KernelVariant::decode_d128_mha_m32>
 };
 
 template <>
-struct variant_config<KernelVariant::decode_d128_mha_m16>
+struct variant_config<KernelVariant::decode_d128_m16>
 {
     static constexpr index_t HeadSize  = 128;
     static constexpr index_t BlockM    = 16;
-    static constexpr index_t NumQPerKV = 1;
     static constexpr index_t BlockSize = 32;
     using BlockWarps                   = sequence<1, 1, 1>;
     using WarpGemmShape                = sequence<16, 16, 32>;
@@ -148,11 +151,10 @@ struct variant_config<KernelVariant::decode_d128_mha_m16>
 };
 
 template <>
-struct variant_config<KernelVariant::prefill_d64_gqa8>
+struct variant_config<KernelVariant::prefill_d64>
 {
     static constexpr index_t HeadSize  = 64;
     static constexpr index_t BlockM    = 256;
-    static constexpr index_t NumQPerKV = 8;
     static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<8, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
@@ -162,11 +164,10 @@ struct variant_config<KernelVariant::prefill_d64_gqa8>
 };
 
 template <>
-struct variant_config<KernelVariant::decode_d64_gqa8_m128>
+struct variant_config<KernelVariant::decode_d64_m128>
 {
     static constexpr index_t HeadSize  = 64;
     static constexpr index_t BlockM    = 128;
-    static constexpr index_t NumQPerKV = 8;
     static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<4, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
@@ -176,11 +177,10 @@ struct variant_config<KernelVariant::decode_d64_gqa8_m128>
 };
 
 template <>
-struct variant_config<KernelVariant::decode_d64_gqa8_m64>
+struct variant_config<KernelVariant::decode_d64_m64>
 {
     static constexpr index_t HeadSize  = 64;
     static constexpr index_t BlockM    = 64;
-    static constexpr index_t NumQPerKV = 8;
     static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<2, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
@@ -190,11 +190,10 @@ struct variant_config<KernelVariant::decode_d64_gqa8_m64>
 };
 
 template <>
-struct variant_config<KernelVariant::decode_d64_gqa8_m16>
+struct variant_config<KernelVariant::decode_d64_m16>
 {
     static constexpr index_t HeadSize  = 64;
     static constexpr index_t BlockM    = 16;
-    static constexpr index_t NumQPerKV = 8;
     static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<1, 1, 1>;
     using WarpGemmShape                = sequence<16, 16, 32>;
@@ -221,14 +220,19 @@ struct unified_attention_kernel_traits
     static constexpr bool          is_masking = IsMasking;
     static constexpr KernelVariant variant    = V;
 
-    static constexpr index_t HEAD_SIZE          = cfg::HeadSize;
-    static constexpr index_t kBlockM            = cfg::BlockM;
-    static constexpr index_t BLOCK_SIZE         = cfg::BlockSize;
-    static constexpr index_t num_queries_per_kv = cfg::NumQPerKV;
-    static constexpr index_t kBlockQ            = kBlockM / num_queries_per_kv;
-    static constexpr bool    kUseDecodeGrid     = cfg::kUseDecodeGrid;
+    static constexpr index_t HEAD_SIZE      = cfg::HeadSize;
+    static constexpr index_t kBlockM        = cfg::BlockM;
+    static constexpr index_t BLOCK_SIZE     = cfg::BlockSize;
+    static constexpr bool    kUseDecodeGrid = cfg::kUseDecodeGrid;
 
-    using unified_attention_block_tile      = sequence<kBlockM, kBlockQ, BLOCK_SIZE, HEAD_SIZE>;
+    // The 2nd entry of the BlockTile is the static `kBlockQ` exposed via
+    // `UnifiedAttentionShape::kBlockQ`. Now that the kernel always reads
+    // kBlockQ from `args.num_queries_per_kv` at runtime, this static value
+    // is only the fallback when no num_qpkv was plumbed through (which never
+    // happens in practice). Anchor it at kBlockM so the static "looks like
+    // num_qpkv == 1" and any (kBlockM, num_qpkv) such that kBlockM % num_qpkv
+    // == 0 works without touching this trait.
+    using unified_attention_block_tile      = sequence<kBlockM, kBlockM, BLOCK_SIZE, HEAD_SIZE>;
     using unified_attention_warp_gemm_shape = typename cfg::WarpGemmShape;
     using unified_attention_block_warps     = typename cfg::BlockWarps;
 
@@ -281,8 +285,12 @@ template <typename Kernel, bool UseDecodeGrid = false>
 float unified_attention_kernel_launch(const unified_attention_args& args,
                                       const stream_config& config)
 {
-    constexpr index_t kBlockQ = Kernel::kBlockQ;
-    index_t total_num_q_blocks = args.num_tokens / kBlockQ + args.num_seqs;
+    // kBlockQ is derived from the runtime num_queries_per_kv now -- the
+    // static `Kernel::kBlockQ` is anchored at kBlockM and would over-count
+    // tiles for GQA workloads. We assert kBlockM % num_qpkv == 0 in
+    // select_config so this integer divide is always exact.
+    const index_t kBlockQ            = Kernel::kBlockM / args.num_queries_per_kv;
+    const index_t total_num_q_blocks = args.num_tokens / kBlockQ + args.num_seqs;
     auto kargs                 = Kernel::MakeKargs(args.q_ptr,
                                    args.k_ptr,
                                    args.v_ptr,

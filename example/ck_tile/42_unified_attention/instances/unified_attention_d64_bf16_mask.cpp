@@ -6,6 +6,6 @@
 
 namespace ck_tile {
 
-INST_UNIFIED_ATTENTION_DISPATCH(prefill_d64_gqa8, fp16, false)
+INST_UNIFIED_ATTENTION_DISPATCH(prefill_d64, bf16, true)
 
 } // namespace ck_tile

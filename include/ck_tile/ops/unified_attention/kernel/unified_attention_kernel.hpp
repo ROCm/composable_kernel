@@ -263,13 +263,14 @@ struct UnifiedAttentionKernel
 
         const index_t num_queries_per_kv = kargs.num_queries_per_kv;
 
-        // kBlockQ derived at runtime from num_queries_per_kv. For the variants
-        // we ship today this matches the compile-time `kBlockQ` from the
-        // pipeline trait (the assert below catches any disagreement); the
-        // explicit runtime form is what eventually lets a single kernel
-        // instantiation cover multiple num_queries_per_kv values.
+        // kBlockQ derived at runtime from num_queries_per_kv. The static
+        // `kBlockQ` from the pipeline trait is anchored at kBlockM (i.e. it
+        // describes num_qpkv == 1) so the same compiled binary serves every
+        // num_qpkv that divides kBlockM evenly -- e.g. the d=128 variants
+        // can run both MHA and GQA-N at runtime with no recompile. The host
+        // side (select_config) is responsible for enforcing kBlockM %
+        // num_queries_per_kv == 0.
         const index_t kBlockQ_dyn = kBlockM / num_queries_per_kv;
-        assert(kBlockQ_dyn == kBlockQ);
 
         // Split-KV: each CTA handles one (kv_head, q_block, split) tuple. The
         // split index lives in z — when num_splits == 1 (the only z value)

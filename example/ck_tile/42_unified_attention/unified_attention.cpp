@@ -46,72 +46,52 @@ struct KernelConfig
     bool          unsupported = false;
 };
 
-namespace {
-
-// Internal tile-tier classification — used only by select_config. The tier
-// name is shorthand for a kBlockM choice; with num_queries_per_kv=8 the
-// tiers correspond to kBlockQ thresholds {2, 8, 16}.
-enum class tile_tier
-{
-    medium,
-    small,
-    tiny
-};
-
-tile_tier select_tile_tier(const unified_attention_args& args)
-{
-    const index_t avg_q = args.num_seqs > 0 ? args.num_tokens / args.num_seqs
-                                            : args.num_tokens;
-    const index_t kBlockQ_tiny  = 16 / args.num_queries_per_kv;
-    const index_t kBlockQ_small = 64 / args.num_queries_per_kv;
-
-    // Decode tiers use a 2D grid (num_kv_heads, num_seqs) that assumes each
-    // seq has at most kBlockQ tokens. For mixed batches where some seqs have
-    // many more tokens, fall back to the medium tier (1D grid with Q iteration).
-    const index_t max_q = args.max_seqlen_q > 0 ? args.max_seqlen_q : avg_q;
-
-    if(avg_q <= kBlockQ_tiny && max_q <= kBlockQ_tiny) return tile_tier::tiny;
-    if(avg_q <= kBlockQ_small && max_q <= kBlockQ_small) return tile_tier::small;
-    return tile_tier::medium;
-}
-
-} // anonymous namespace
-
 KernelConfig select_config(const unified_attention_args& args)
 {
     KernelConfig cfg;
 
-    // d=128 MHA — tile-tier ladder by (avg_q, max_q):
-    //   * decode_d128_mha_m16  : kBlockM=16,  1 warp,  16x16 mfma  (tiny-decode)
-    //   * decode_d128_mha_m32  : kBlockM=32,  1 warp,  32x32 mfma  (tiny-decode)
-    //   * decode_d128_mha_m128 : kBlockM=128, 4 warps, 32x32 mfma  (default)
-    //   * prefill_d128_mha     : kBlockM=256, 8 warps, 32x32 mfma
-    if(args.hdim == 128 && args.num_queries_per_kv == 1)
-    {
-        const index_t avg_q = args.num_seqs > 0 ? args.num_tokens / args.num_seqs
+    // The variants are now num_queries_per_kv-agnostic (kBlockQ is runtime
+    // inside the kernel) -- we just have to pick a kBlockM that holds enough
+    // rows for `num_qpkv * max_q` and that num_qpkv divides cleanly.
+    //
+    // `avg_q * num_qpkv` is the *effective* per-CTA tile occupancy; e.g.
+    // GQA-8 with sq=1 produces 8 rows per Q tile, the same as MHA with sq=8.
+    // Tiering on that quantity lets one variant ladder serve both regimes.
+    const index_t num_qpkv  = args.num_queries_per_kv;
+    const index_t avg_q     = args.num_seqs > 0 ? args.num_tokens / args.num_seqs
                                                 : args.num_tokens;
-        const index_t max_q = args.max_seqlen_q > 0 ? args.max_seqlen_q : avg_q;
+    const index_t max_q     = args.max_seqlen_q > 0 ? args.max_seqlen_q : avg_q;
+    const index_t avg_rows  = avg_q * num_qpkv; // effective rows per Q tile
+    const index_t max_rows  = max_q * num_qpkv;
 
-        if(avg_q <= 16 && max_q <= 16)
-            cfg.variant = KernelVariant::decode_d128_mha_m16;
-        else if(avg_q <= 32 && max_q <= 32)
-            cfg.variant = KernelVariant::decode_d128_mha_m32;
-        else if(avg_q <= 128 && max_q <= 128)
-            cfg.variant = KernelVariant::decode_d128_mha_m128;
+    if(args.hdim == 128)
+    {
+        // d=128 ladder: m16 / m32 / m128 / prefill (m256). Requires
+        // num_qpkv to divide the chosen kBlockM, which is automatic for
+        // num_qpkv in {1, 2, 4, 8, 16} and any of the kBlockM's below.
+        if(avg_rows <= 16 && max_rows <= 16)
+            cfg.variant = KernelVariant::decode_d128_m16;
+        else if(avg_rows <= 32 && max_rows <= 32)
+            cfg.variant = KernelVariant::decode_d128_m32;
+        else if(avg_rows <= 128 && max_rows <= 128)
+            cfg.variant = KernelVariant::decode_d128_m128;
         else
-            cfg.variant = KernelVariant::prefill_d128_mha;
+            cfg.variant = KernelVariant::prefill_d128;
         return cfg;
     }
 
-    // d=64 GQA-8 — pure tile-tier ladder. page_size has no influence here.
-    if(args.hdim == 64 && args.num_queries_per_kv == 8)
+    if(args.hdim == 64)
     {
-        switch(select_tile_tier(args))
-        {
-        case tile_tier::tiny:   cfg.variant = KernelVariant::decode_d64_gqa8_m16;  break;
-        case tile_tier::small:  cfg.variant = KernelVariant::decode_d64_gqa8_m64;  break;
-        case tile_tier::medium: cfg.variant = KernelVariant::decode_d64_gqa8_m128; break;
-        }
+        // d=64 ladder: m16 / m64 / m128 / prefill (m256). Same shape
+        // selection logic as d=128; the variant's kBlockN is just bigger.
+        if(avg_rows <= 16 && max_rows <= 16)
+            cfg.variant = KernelVariant::decode_d64_m16;
+        else if(avg_rows <= 64 && max_rows <= 64)
+            cfg.variant = KernelVariant::decode_d64_m64;
+        else if(avg_rows <= 128 && max_rows <= 128)
+            cfg.variant = KernelVariant::decode_d64_m128;
+        else
+            cfg.variant = KernelVariant::prefill_d64;
         return cfg;
     }
 
@@ -172,22 +152,22 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args,
 
     switch(cfg.variant)
     {
-    case KernelVariant::prefill_d128_mha:
-        return dispatch_variant<KernelVariant::prefill_d128_mha>(args, config);
-    case KernelVariant::decode_d128_mha_m128:
-        return dispatch_variant<KernelVariant::decode_d128_mha_m128>(args, config);
-    case KernelVariant::decode_d128_mha_m32:
-        return dispatch_variant<KernelVariant::decode_d128_mha_m32>(args, config);
-    case KernelVariant::decode_d128_mha_m16:
-        return dispatch_variant<KernelVariant::decode_d128_mha_m16>(args, config);
-    case KernelVariant::prefill_d64_gqa8:
-        return dispatch_variant<KernelVariant::prefill_d64_gqa8>(args, config);
-    case KernelVariant::decode_d64_gqa8_m128:
-        return dispatch_variant<KernelVariant::decode_d64_gqa8_m128>(args, config);
-    case KernelVariant::decode_d64_gqa8_m64:
-        return dispatch_variant<KernelVariant::decode_d64_gqa8_m64>(args, config);
-    case KernelVariant::decode_d64_gqa8_m16:
-        return dispatch_variant<KernelVariant::decode_d64_gqa8_m16>(args, config);
+    case KernelVariant::prefill_d128:
+        return dispatch_variant<KernelVariant::prefill_d128>(args, config);
+    case KernelVariant::decode_d128_m128:
+        return dispatch_variant<KernelVariant::decode_d128_m128>(args, config);
+    case KernelVariant::decode_d128_m32:
+        return dispatch_variant<KernelVariant::decode_d128_m32>(args, config);
+    case KernelVariant::decode_d128_m16:
+        return dispatch_variant<KernelVariant::decode_d128_m16>(args, config);
+    case KernelVariant::prefill_d64:
+        return dispatch_variant<KernelVariant::prefill_d64>(args, config);
+    case KernelVariant::decode_d64_m128:
+        return dispatch_variant<KernelVariant::decode_d64_m128>(args, config);
+    case KernelVariant::decode_d64_m64:
+        return dispatch_variant<KernelVariant::decode_d64_m64>(args, config);
+    case KernelVariant::decode_d64_m16:
+        return dispatch_variant<KernelVariant::decode_d64_m16>(args, config);
     }
     return std::make_pair(false, -1.f);
 }
