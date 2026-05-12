@@ -636,22 +636,41 @@ struct fmha_bwd_launcher
 
         if(traits_.is_group_mode)
         {
+            if(!seqstart_q_dev || !seqstart_k_dev)
+                throw std::runtime_error("fmha_bwd_launcher::prepare_workspace_async: "
+                                         "seqstart_q_dev and seqstart_k_dev are required in "
+                                         "group mode");
             HIP_CHECK_ERROR(hipMemcpyAsync(
                 pin_q, seqstart_q_dev, seqstart_bytes, hipMemcpyDeviceToHost, stream));
             HIP_CHECK_ERROR(hipMemcpyAsync(
                 pin_k, seqstart_k_dev, seqstart_bytes, hipMemcpyDeviceToHost, stream));
         }
 
-        auto* pack_closure = new std::function<void()>(
+        auto pack_closure = std::make_unique<std::function<void()>>(
             [=, fn = pack_workspace_host_]() { fn(pin_w, seqstart_q_pinned, seqstart_k_pinned); });
+        // Callback runs on the HIP driver helper thread across a C ABI boundary;
+        // any exception escaping it would call std::terminate.
         HIP_CHECK_ERROR(hipLaunchHostFunc(
             stream,
             [](void* ud) {
-                auto* c = static_cast<std::function<void()>*>(ud);
-                (*c)();
-                delete c;
+                std::unique_ptr<std::function<void()>> c{static_cast<std::function<void()>*>(ud)};
+                try
+                {
+                    (*c)();
+                }
+                catch(const std::exception& e)
+                {
+                    std::cerr << "fmha_bwd_launcher: pack_workspace_host threw: " << e.what()
+                              << '\n';
+                }
+                catch(...)
+                {
+                    std::cerr << "fmha_bwd_launcher: pack_workspace_host threw unknown\n";
+                }
             },
-            pack_closure));
+            pack_closure.get()));
+        // Ownership transferred to the callback only after a successful launch.
+        pack_closure.release();
 
         HIP_CHECK_ERROR(
             hipMemcpyAsync(device_ws_ptr, pin_w, host_ws_size_, hipMemcpyHostToDevice, stream));

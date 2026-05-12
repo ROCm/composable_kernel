@@ -323,7 +323,7 @@ struct FmhaBwdDQDKDVKernel
             std::forward<Args>(args)...);
     }
     template <typename... Args>
-    CK_TILE_HOST static constexpr auto GetWorkspaceDeviceSizeUpperBound(Args&&... args)
+    CK_TILE_HOST static size_t GetWorkspaceDeviceSizeUpperBound(Args&&... args)
     {
         return WorkspaceManager::template GetWorkspaceDeviceSizeUpperBound<
             kUseQrQtrDorPipeline,

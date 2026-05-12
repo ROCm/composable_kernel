@@ -418,7 +418,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
     };
 
     ck_tile::gpu_timer prepare_ws_timer;
-    prepare_ws_timer.start(nullptr);
+    prepare_ws_timer.start(stream_config.stream_id_);
     launcher.prepare_workspace_async(
         ws_buf.GetDeviceBuffer(),
         (mode == mode_enum::group) ? static_cast<const int*>(seqstart_q.GetDeviceBuffer())
@@ -427,7 +427,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                                    : nullptr,
         stream_config,
         pinned_host_alloc);
-    prepare_ws_timer.stop(nullptr);
+    prepare_ws_timer.stop(stream_config.stream_id_);
 
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
