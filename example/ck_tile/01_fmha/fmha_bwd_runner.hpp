@@ -264,7 +264,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
     ck_tile::HostTensor<LSEDataType> lse_host(
         std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q});
     ck_tile::HostTensor<LSEDataType> sink_host(
-        sink_grad ? std::array<ck_tile::index_t, 2>{shape_batch, nhead}
+        sink_grad ? std::array<ck_tile::index_t, 2>{batch, nhead}
                   : std::array<ck_tile::index_t, 2>{1, 1} /* dummy when sink is disabled */);
     if(sink_grad)
     {
