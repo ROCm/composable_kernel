@@ -167,45 +167,47 @@ struct FmhaBwdWorkspaceManager
         return kHasMask;
     }
 
-    // Mirrors PrepareWorkspaceHost's return value but uses worst-case totals so
-    // device workspace can be pre-allocated before host has the seqstart values.
+    // Upper bound on PrepareWorkspaceHost's size, computable without seqstart so
+    // the device workspace can be allocated before any D2H.
+    //
+    // total_seqlen_q_padded: total q tokens incl. per-batch padding.
+    //   Batch: max_batch * seqlen_q. Group: seqstart_q[batch].
+    // max_seqlen_k: deterministic-only; pass per-batch padded max if the caller
+    //   does internal k padding, otherwise the logical max is fine.
     template <bool kUseQrQtrDorPipeline, index_t kN0>
     CK_TILE_HOST static size_t GetWorkspaceDeviceSizeUpperBound(index_t max_batch,
                                                                 index_t hdim_q,
                                                                 index_t nhead_q,
-                                                                index_t max_seqlen_q,
+                                                                index_t total_seqlen_q_padded,
                                                                 index_t max_seqlen_k)
     {
         if constexpr(kUseQrQtrDorPipeline)
             return 0;
 
-        if constexpr(!kIsDeterministic)
+        index_t nsplits_factor = 1;
+        if constexpr(kIsDeterministic)
         {
-            return sizeof(AccDataType) * static_cast<long_index_t>(max_batch) * nhead_q *
-                   max_seqlen_q * hdim_q;
+            if constexpr(kIsGroupMode)
+            {
+                nsplits_factor = integer_divide_ceil(max_seqlen_k, kN0);
+            }
+            else // persistent
+            {
+                const index_t dqdqkdv_workers = get_num_cus();
+                const index_t jobs_per_head   = integer_divide_ceil(max_seqlen_k, kN0);
+                const index_t total_jobs      = max_batch * nhead_q * jobs_per_head;
+                const index_t jobs_per_worker = integer_divide_ceil(total_jobs, dqdqkdv_workers);
+                if(jobs_per_head % jobs_per_worker == 0)
+                    nsplits_factor = jobs_per_head / jobs_per_worker;
+                else if(jobs_per_worker % jobs_per_head == 0)
+                    nsplits_factor = 1;
+                else
+                    nsplits_factor = 1 + integer_divide_ceil(jobs_per_head - 1, jobs_per_worker);
+            }
         }
-        else if constexpr(kIsGroupMode)
-        {
-            const index_t nsplits_max = integer_divide_ceil(max_seqlen_k, kN0);
-            return sizeof(AccDataType) * static_cast<long_index_t>(max_batch) * nhead_q *
-                   nsplits_max * max_seqlen_q * hdim_q;
-        }
-        else // deterministic non-group mode (kUsePersistent)
-        {
-            const index_t dqdqkdv_workers = get_num_cus();
-            const index_t jobs_per_head   = integer_divide_ceil(max_seqlen_k, kN0);
-            const index_t total_jobs      = max_batch * nhead_q * jobs_per_head;
-            const index_t jobs_per_worker = integer_divide_ceil(total_jobs, dqdqkdv_workers);
-            index_t nsplits;
-            if(jobs_per_head % jobs_per_worker == 0)
-                nsplits = jobs_per_head / jobs_per_worker;
-            else if(jobs_per_worker % jobs_per_head == 0)
-                nsplits = 1;
-            else
-                nsplits = 1 + integer_divide_ceil(jobs_per_head - 1, jobs_per_worker);
-            return sizeof(AccDataType) * static_cast<long_index_t>(max_batch) * nhead_q * nsplits *
-                   max_seqlen_q * hdim_q;
-        }
+
+        return sizeof(AccDataType) * static_cast<long_index_t>(nhead_q) * nsplits_factor *
+               total_seqlen_q_padded * hdim_q;
     }
 };
 

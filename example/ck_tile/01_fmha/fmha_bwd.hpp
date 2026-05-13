@@ -469,11 +469,14 @@ int fmha_bwd_dq_dk_dv_maxq_();
 struct fmha_bwd_traits;
 template <typename Traits_, typename Arch = void>
 size_t fmha_bwd_dq_dk_dv_dq_ws_host_size_(int batch_size);
+// `total_seqlen_q_padded` is total q tokens across all batches (incl. per-batch padding):
+//   - batch mode: max_batch * seqlen_q
+//   - group mode: seqstart_q[batch] (== varlen q tensor's first dim)
 template <typename Traits_, typename Arch = void>
 size_t fmha_bwd_dq_dk_dv_dq_ws_device_upper_bound_(ck_tile::index_t max_batch,
                                                    ck_tile::index_t hdim_q,
                                                    ck_tile::index_t nhead_q,
-                                                   ck_tile::index_t max_seqlen_q,
+                                                   ck_tile::index_t total_seqlen_q_padded,
                                                    ck_tile::index_t max_seqlen_k);
 template <typename Traits_, typename Arch = void>
 size_t fmha_bwd_dq_dk_dv_dq_prepare_ws_host_(void* cpu_ws,
@@ -730,8 +733,12 @@ struct fmha_bwd_launcher
         size_t device_ws_size = 0;
         if(host_ws_size_ > 0)
         {
+            // In group mode t.seqlen_q is already the padded total (== seqstart_q[batch]);
+            // in batch mode it's per-batch and the total is batch * seqlen_q.
+            const ck_tile::index_t total_seqlen_q_padded =
+                t.is_group_mode ? t.seqlen_q : t.batch * t.seqlen_q;
             device_ws_size = fmha_bwd_dq_dk_dv_dq_ws_device_upper_bound_<T1, Arch>(
-                t.batch, t.hdim_q, t.nhead_q, t.max_seqlen_q, t.max_seqlen_k);
+                t.batch, t.hdim_q, t.nhead_q, total_seqlen_q_padded, t.max_seqlen_k);
             pack_workspace_host_ = [batch    = t.batch,
                                     hdim_q   = t.hdim_q,
                                     nhead_q  = t.nhead_q,
