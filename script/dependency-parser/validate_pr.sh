@@ -1,6 +1,9 @@
 #!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+#
 # Validate Smart Build vs Legacy Method for a PR
-# 
+#
 # This script compares smart build and legacy dependency analysis
 # to ensure both methods produce the same test selection results.
 
@@ -189,7 +192,7 @@ git log --oneline -5
 
 log_section "Step 3: Analyze Changed Files"
 log_info "Files changed vs $BASE_BRANCH:"
-CHANGED_FILES=$(git diff --name-only ${BASE_BRANCH}..HEAD -- projects/composablekernel)
+CHANGED_FILES=$(git diff --name-only ${BASE_BRANCH}...HEAD -- projects/composablekernel)
 NUM_FILES=$(echo "$CHANGED_FILES" | wc -l)
 echo "$CHANGED_FILES" | head -20
 if [ "$NUM_FILES" -gt 20 ]; then
