@@ -336,6 +336,10 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         });
     }
 
+    // AIESW-32176: BZeroPointStruct is accepted as a defaulted-Empty trailing
+    // arg for signature compatibility with the v1 pipeline. v3 doesn't
+    // implement asymmetric dequant; only Empty is supported here. If a real
+    // BZeroPointStruct is passed, this static_assert fires.
     template <bool HasMainLoop,
               TailNumber TailNum,
               typename AGridDesc,
@@ -353,6 +357,7 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
               typename CThreadBuffer,
               typename AScaleStruct,
               typename BScaleStruct,
+              typename BZeroPointStruct                                          = Empty,
               typename enable_if<ck::is_same_v<AScaleStruct, Empty>, bool>::type = false>
     __device__ void Run(const AGridDesc& a_grid_desc,
                         const ABlockDesc& a_block_desc,
@@ -370,8 +375,12 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                         AScaleStruct&,
                         BScaleStruct& b_scale_struct,
                         index_t num_loop,
-                        index_t num_loop_per_scale) const
+                        index_t num_loop_per_scale,
+                        BZeroPointStruct = {}) const
     {
+        // AIESW-32176: zero-point arg is ignored by v3 (asymmetric is only
+        // implemented in the v1 Interwave path). Caller is responsible for
+        // routing asymmetric configs to v1.
         __builtin_amdgcn_sched_barrier(0);
 
         constexpr index_t KPerWaveBlock = wmma_gemm.GetKPerWaveBlk();

@@ -333,7 +333,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
                           AElementwiseOperation a_element_op_,
                           BElementwiseOperation b_element_op_,
                           CDEElementwiseOperation cde_element_op_,
-                          bool is_reduce_ = false)
+                          bool is_reduce_                        = false,
+                          const BScaleType* p_b_zero_point_grid_ = nullptr)
             : Problem{M_,
                       N_,
                       K_,
@@ -350,6 +351,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
               p_e_grid{p_e_grid_},
               p_a_scale_grid{p_a_scale_grid_},
               p_b_scale_grid{p_b_scale_grid_},
+              p_b_zero_point_grid{p_b_zero_point_grid_},
               a_element_op{a_element_op_},
               b_element_op{b_element_op_},
               cde_element_op{cde_element_op_},
@@ -395,6 +397,9 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
 
         const AScaleType* p_a_scale_grid;
         const BScaleType* p_b_scale_grid;
+        // AIESW-32176: optional per-group precomputed (zp - 8) * scale for
+        // asymmetric int4. nullptr for symmetric — kernel skips zp subtract.
+        const BScaleType* p_b_zero_point_grid;
         const AElementwiseOperation a_element_op;
         const BElementwiseOperation b_element_op;
         const CDEElementwiseOperation cde_element_op;
@@ -707,6 +712,9 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
         }
     }
 
+    // AIESW-32176: p_b_zero_point_grid (nullptr for symmetric callers) selects
+    // the asymmetric dequant path. When non-null the caller has precomputed
+    // (zp - 8) * scale per group at weight load.
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum EGlobalMemoryDataOperation,
               TailNumber TailNum,
@@ -723,8 +731,9 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
                                BElementwiseOperation b_element_op,
                                CDEElementwiseOperation cde_element_op,
                                EpilogueArgument& epilogue_args,
-                               const index_t A_k_id = 0,
-                               const index_t B_k_id = 0)
+                               const index_t A_k_id                  = 0,
+                               const index_t B_k_id                  = 0,
+                               const BScaleType* p_b_zero_point_grid = nullptr)
     {
         const auto as_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
@@ -765,37 +774,82 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
         // BScale struct
         auto b_scale_struct = MakeBScale<1>(problem, p_b_scale_grid, block_n_id);
 
+        // AIESW-32176: BZeroPoint struct (mirror of BScale; same shape, same
+        // type, same load cadence). When p_b_zero_point_grid is nullptr we keep
+        // BZeroPoint as Empty so the Base::Run path stays bit-identical to
+        // symmetric.
         const index_t num_k_block_per_scale = GetKBlockPerScale();
 
-        Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
-                           decltype(bs_grid_desc_bk0_n_bk1),
-                           decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
-                           decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                           decltype(a_scale_struct),
-                           decltype(b_scale_struct),
-                           decltype(epilogue_args),
-                           HasMainKBlockLoop,
-                           EGlobalMemoryDataOperation,
-                           TailNum>(p_as_grid,
-                                    p_bs_grid,
-                                    p_ds_grid,
-                                    p_e_grid,
-                                    p_shared,
-                                    as_grid_desc_ak0_m_ak1,
-                                    bs_grid_desc_bk0_n_bk1,
-                                    ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    a_element_op,
-                                    b_element_op,
-                                    cde_element_op,
-                                    block_m_id,
-                                    block_n_id,
-                                    num_k_block_per_scale,
-                                    a_scale_struct,
-                                    b_scale_struct,
-                                    epilogue_args,
-                                    A_k_id,
-                                    B_k_id);
+        if(p_b_zero_point_grid == nullptr)
+        {
+            Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
+                               decltype(bs_grid_desc_bk0_n_bk1),
+                               decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
+                               decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                               decltype(a_scale_struct),
+                               decltype(b_scale_struct),
+                               decltype(epilogue_args),
+                               HasMainKBlockLoop,
+                               EGlobalMemoryDataOperation,
+                               TailNum>(p_as_grid,
+                                        p_bs_grid,
+                                        p_ds_grid,
+                                        p_e_grid,
+                                        p_shared,
+                                        as_grid_desc_ak0_m_ak1,
+                                        bs_grid_desc_bk0_n_bk1,
+                                        ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                        e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                        a_element_op,
+                                        b_element_op,
+                                        cde_element_op,
+                                        block_m_id,
+                                        block_n_id,
+                                        num_k_block_per_scale,
+                                        a_scale_struct,
+                                        b_scale_struct,
+                                        epilogue_args,
+                                        A_k_id,
+                                        B_k_id);
+        }
+        else
+        {
+            auto b_zero_point_struct = MakeBScale<1>(problem, p_b_zero_point_grid, block_n_id);
+
+            Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
+                               decltype(bs_grid_desc_bk0_n_bk1),
+                               decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
+                               decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                               decltype(a_scale_struct),
+                               decltype(b_scale_struct),
+                               decltype(epilogue_args),
+                               HasMainKBlockLoop,
+                               EGlobalMemoryDataOperation,
+                               TailNum,
+                               decltype(b_zero_point_struct)>(
+                p_as_grid,
+                p_bs_grid,
+                p_ds_grid,
+                p_e_grid,
+                p_shared,
+                as_grid_desc_ak0_m_ak1,
+                bs_grid_desc_bk0_n_bk1,
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                e_grid_desc_mblock_mperblock_nblock_nperblock,
+                a_element_op,
+                b_element_op,
+                cde_element_op,
+                block_m_id,
+                block_n_id,
+                num_k_block_per_scale,
+                a_scale_struct,
+                b_scale_struct,
+                epilogue_args,
+                A_k_id,
+                B_k_id,
+                /*k_batch=*/1,
+                b_zero_point_struct);
+        }
     }
 
     // NOTE: Wrapper function to have __global__ function in common
@@ -861,7 +915,11 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
             karg.cde_element_op,
             epilogue_args,
             A_k_id,
-            B_k_id);
+            B_k_id,
+            // AIESW-32176: optional zp pointer; nullptr keeps the symmetric path.
+            // No splitk offset applied because zp shares the scale layout — the
+            // splitk K offset is absorbed into the same scale stride.
+            karg.p_b_zero_point_grid);
     }
 };
 

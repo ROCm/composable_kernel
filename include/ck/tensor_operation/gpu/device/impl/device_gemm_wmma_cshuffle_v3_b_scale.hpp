@@ -182,6 +182,9 @@ struct DeviceGemm_BScale_Wmma_CShuffleV3 : public DeviceGemmV2BScale<ALayout,
 
     bool GetPermuteB() override { return PermuteB; }
 
+    // AIESW-32176: optional p_b_zero_point trailing arg (defaults to nullptr).
+    // When non-null the gridwise/blockwise pipelines pick up the asymmetric
+    // dequant path. Existing symmetric callers see no signature change.
     static auto MakeArgument(const ADataType* p_a,
                              const BDataType* p_b,
                              CDataType* p_c,
@@ -196,7 +199,8 @@ struct DeviceGemm_BScale_Wmma_CShuffleV3 : public DeviceGemmV2BScale<ALayout,
                              index_t KBatch,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation cde_element_op)
+                             CElementwiseOperation cde_element_op,
+                             const BScaleDataType* p_b_zero_point = nullptr)
     {
         return Argument{std::array<const void*, 1>{p_a},
                         std::array<const void*, 1>{p_b},
@@ -216,7 +220,9 @@ struct DeviceGemm_BScale_Wmma_CShuffleV3 : public DeviceGemmV2BScale<ALayout,
                         KBatch,
                         a_element_op,
                         b_element_op,
-                        cde_element_op};
+                        cde_element_op,
+                        /*is_reduce=*/false,
+                        p_b_zero_point};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

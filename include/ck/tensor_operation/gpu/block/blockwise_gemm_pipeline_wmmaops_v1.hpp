@@ -719,6 +719,11 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
         static constexpr index_t KRepeatPerNumScaleKBlock = 1;
     };
 
+    // AIESW-32176: BZeroPointStruct (defaulted to Empty) carries per-group
+    // scaled_zp = (zp - 8) * scale precomputed at weight load. When non-Empty
+    // the dispatch picks the new threadwise Run overload that subtracts
+    // scaled_zp inside the dequant; symmetric callers (BZeroPointStruct=Empty
+    // by default) compile bit-identically to the original.
     template <bool HasMainLoop,
               TailNumber TailNum,
               typename AGridDesc,
@@ -736,6 +741,7 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
               typename CThreadBuffer,
               typename AScaleStruct,
               typename BScaleStruct,
+              typename BZeroPointStruct                                          = Empty,
               typename enable_if<ck::is_same_v<AScaleStruct, Empty>, bool>::type = false>
     __device__ void Run(const AGridDesc& a_grid_desc,
                         const ABlockDesc& a_block_desc,
@@ -753,8 +759,11 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                         AScaleStruct&,
                         BScaleStruct& b_scale_struct,
                         index_t num_loop,
-                        index_t num_loop_per_scale) const
+                        index_t num_loop_per_scale,
+                        BZeroPointStruct b_zero_point_struct = {}) const
     {
+        constexpr bool HasBZp = !ck::is_same_v<BZeroPointStruct, Empty>;
+
         constexpr index_t KPerWaveBlock = wmma_gemm.GetKPerWaveBlk();
 
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
@@ -771,6 +780,10 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
 
         // Scales global load
         b_scale_struct.template GlobalLoad<0>(num_loop_per_scale == 1);
+        if constexpr(HasBZp)
+        {
+            b_zero_point_struct.template GlobalLoad<0>(num_loop_per_scale == 1);
+        }
 
         // Local prefill 1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
@@ -802,7 +815,7 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                 b_thread_buf);
                         });
                     }
-                    else
+                    else if constexpr(!HasBZp)
                     {
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
                             b_thread_copy_.Run(
@@ -812,6 +825,30 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                 b_scale_struct.scale_thread_bufs(I0)[Number<
                                     n0 * BScaleStruct::num_scale_k_block +
                                     (k0_offset + k0_inner) / BScaleStruct::num_scale_krepeat>{}],
+                                b_thread_desc_,
+                                make_tuple(I0, n0, k0_inner, I0, I0, I0, I0),
+                                b_thread_buf);
+                        });
+                    }
+                    else
+                    {
+                        // AIESW-32176: scale + scaled_zp dispatch. The
+                        // BZeroPointStruct mirrors BScaleStruct exactly (same
+                        // [num_scale_k_block, num_scale_krepeat] shape and same
+                        // GlobalLoad cadence) — they're built from the same
+                        // BScale template type in the gridwise.
+                        static_for<0, NRepeat, 1>{}([&](auto n0) {
+                            b_thread_copy_.Run(
+                                b_block_desc_k0_n0_n1_n2_k1,
+                                make_tuple(I0, n0, k0_offset + k0_inner, I0, I0, I0, I0),
+                                b_block_buf,
+                                b_scale_struct.scale_thread_bufs(I0)[Number<
+                                    n0 * BScaleStruct::num_scale_k_block +
+                                    (k0_offset + k0_inner) / BScaleStruct::num_scale_krepeat>{}],
+                                b_zero_point_struct.scale_thread_bufs(
+                                    I0)[Number<n0 * BZeroPointStruct::num_scale_k_block +
+                                               (k0_offset + k0_inner) /
+                                                   BZeroPointStruct::num_scale_krepeat>{}],
                                 b_thread_desc_,
                                 make_tuple(I0, n0, k0_inner, I0, I0, I0, I0),
                                 b_thread_buf);
@@ -919,6 +956,10 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                 blockwise_gemm_func();
 
                 b_scale_struct.template GlobalLoad<0>((i + 2) % num_loop_per_scale == 0);
+                if constexpr(HasBZp)
+                {
+                    b_zero_point_struct.template GlobalLoad<0>((i + 2) % num_loop_per_scale == 0);
+                }
                 if constexpr(ck::is_same<BScaleStruct, Empty>::value == false)
                 {
                     block_sync_lds();

@@ -75,6 +75,43 @@ __device__ inline half4_t i4_to_half4_scale(int q, const ck::half2_t& scale)
     return res.template AsType<half4_t>()[Number<0>{}];
 }
 
+// AIESW-32176: asymmetric int4 dequant.
+//   With symmetric (uint4b8) the existing path computes (nibble - 8) * scale.
+//   With asymmetric (zero point zp per group), the desired result is
+//   (nibble - zp) * scale. Equivalently:
+//       (nibble - 8) * scale - (zp - 8) * scale  ==  result_sym - scaled_zp
+//   so we precompute scaled_zp = (zp - 8) * scale once at load time and
+//   subtract it after the existing scale multiply. One extra fp16 vector
+//   subtract per dequant pack; everything else is identical to
+//   i4_to_half4_scale, including the magic SUB/MUL/ADD constants.
+__device__ inline half4_t
+i4_to_half4_zp_scale(int q, const ck::half2_t& scale, const ck::half2_t& scaled_zp)
+{
+    const int LO = 0x000f000f;
+    const int HI = 0x00f000f0;
+    const int EX = 0x64006400;
+
+    int lo = (q & LO) | EX;
+    int hi = (q & HI) | EX;
+
+    const int SUB = 0xE408E408; // half2 {-1032, -1032}
+    const int MUL = 0x2c002c00; // half2 {1 / 16, 1 / 16}
+    const int ADD = 0xd480d480; // half2 {-72, -72}
+
+    vector_type<half_t, 4> res;
+
+    res.template AsType<half2_t>()(Number<0>{}) = bit_cast<half2_t>(lo) + bit_cast<half2_t>(SUB);
+    res.template AsType<half2_t>()(Number<1>{}) =
+        bit_cast<half2_t>(hi) * bit_cast<half2_t>(MUL) + bit_cast<half2_t>(ADD);
+
+    res.template AsType<half2_t>()(Number<0>{}) =
+        res.template AsType<half2_t>()(Number<0>{}) * scale - scaled_zp;
+    res.template AsType<half2_t>()(Number<1>{}) =
+        res.template AsType<half2_t>()(Number<1>{}) * scale - scaled_zp;
+
+    return res.template AsType<half4_t>()[Number<0>{}];
+}
+
 __device__ inline f8x4_t i4_to_f8x4(int q)
 {
     const int LO = 0x000f000f;
@@ -291,6 +328,51 @@ struct DequantPack8
             type_convert<half2_t>(src.template AsType<pk_i4_t>()[Number<2>{}]);
         dst.template AsType<half2_t>()(Number<3>{}) =
             type_convert<half2_t>(src.template AsType<pk_i4_t>()[Number<3>{}]);
+
+        y = dst.template AsType<half8_t>()[Number<0>{}];
+#endif
+    }
+
+    constexpr const static bool is_pack8_invocable = true;
+};
+
+// AIESW-32176: asymmetric variant of DequantPack8.
+//   Same as DequantPack8 but takes an additional `scaled_zp` per-group
+//   parameter (= (zp - 8) * scale precomputed at weight load) and
+//   subtracts it from the result so the dequant matches AWQ's
+//   (nibble - zp) * scale formula. See i4_to_half4_zp_scale.
+struct DequantPack8WithZp
+{
+    static constexpr const char* name = "DequantPack8WithZp";
+
+    template <typename Y, typename X, typename S, typename ZP>
+    __host__ __device__ void operator()(Y& y, const X& x, const S& s, const ZP& zp) const;
+
+    __host__ __device__ constexpr void operator()(ck::half8_t& y,
+                                                  const ck::pk_i4x4_t& x,
+                                                  const ck::half2_t& s,
+                                                  const ck::half2_t& scaled_zp) const
+    {
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+        vector_type<half_t, 8> result;
+
+        result.template AsType<half4_t>()(Number<0>{}) =
+            i4_to_half4_zp_scale(bit_cast<int>(x), s, scaled_zp);
+        result.template AsType<half4_t>()(Number<1>{}) =
+            i4_to_half4_zp_scale(bit_cast<int>(x) >> 8, s, scaled_zp);
+
+        y = result.template AsType<half8_t>()[Number<0>{}];
+#else
+        // Reference (slow) path for the !CK_USE_PK4_LAYOUT_SHUFFLE config:
+        // do the unscaled dequant via existing type_convert and then apply
+        // (* scale) - scaled_zp manually.
+        vector_type<half_t, 8> dst;
+        vector_type<pk_i4_t, 4> src{x};
+
+        static_for<0, 4, 1>{}([&](auto i) {
+            auto v = type_convert<half2_t>(src.template AsType<pk_i4_t>()[i]);
+            dst.template AsType<half2_t>()(i) = v * s - scaled_zp;
+        });
 
         y = dst.template AsType<half8_t>()[Number<0>{}];
 #endif

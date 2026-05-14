@@ -1364,6 +1364,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     // Note: arguments k_batch and k_id should be set if splitk is used
     // with implicit gemm (no pointer shift but shift using tensor descriptors)
+    // AIESW-32176: BZeroPointStruct (defaulted to Empty) is forwarded to the
+    // blockwise pipeline's Run() to pick up the asymmetric dequant path.
     template <typename AGridDesc_AK0_M_K1,
               typename BGridDesc_BK0_N_K1,
               typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -1373,7 +1375,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
               typename EpilogueArgument,
               bool HasMainKBlockLoop,
               InMemoryDataOperationEnum EGlobalMemoryDataOperation,
-              TailNumber TailNum = TailNumber::Odd>
+              TailNumber TailNum        = TailNumber::Odd,
+              typename BZeroPointStruct = typename BlockwiseGemmPipe::Empty>
     __device__ static void Run(AsGridPointer p_as_grid,
                                BsGridPointer p_bs_grid,
                                DsGridPointer p_ds_grid,
@@ -1394,9 +1397,10 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                AScaleStruct& a_scale_struct,
                                BScaleStruct& b_scale_struct,
                                EpilogueArgument& epilogue_args,
-                               const index_t A_k_id  = 0,
-                               const index_t B_k_id  = 0,
-                               const index_t k_batch = 1)
+                               const index_t A_k_id                 = 0,
+                               const index_t B_k_id                 = 0,
+                               const index_t k_batch                = 1,
+                               BZeroPointStruct b_zero_point_struct = {})
     {
         const auto as_grid_buf = generate_tuple(
             [&](auto i) {
@@ -1481,7 +1485,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             a_scale_struct,
             b_scale_struct,
             num_k_block_main_loop,
-            num_k_block_per_scale);
+            num_k_block_per_scale,
+            b_zero_point_struct); // AIESW-32176: defaults to Empty; v1+v3 both accept
 
         // Epilogue:
         //  - CShuffle / direct store
