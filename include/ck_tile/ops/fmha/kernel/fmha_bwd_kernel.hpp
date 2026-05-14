@@ -166,6 +166,49 @@ struct FmhaBwdWorkspaceManager
         // In these cases we need to zero out it first
         return kHasMask;
     }
+
+    // Upper bound on PrepareWorkspaceHost's size, computable without seqstart so
+    // the device workspace can be allocated before any D2H.
+    //
+    // total_seqlen_q_padded: total q tokens incl. per-batch padding.
+    //   Batch: max_batch * seqlen_q. Group: seqstart_q[batch].
+    // max_seqlen_k: deterministic-only; pass per-batch padded max if the caller
+    //   does internal k padding, otherwise the logical max is fine.
+    template <bool kUseQrQtrDorPipeline, index_t kN0>
+    CK_TILE_HOST static size_t GetWorkspaceDeviceSizeUpperBound(index_t max_batch,
+                                                                index_t hdim_q,
+                                                                index_t nhead_q,
+                                                                index_t total_seqlen_q_padded,
+                                                                index_t max_seqlen_k)
+    {
+        if constexpr(kUseQrQtrDorPipeline)
+            return 0;
+
+        index_t nsplits_factor = 1;
+        if constexpr(kIsDeterministic)
+        {
+            if constexpr(kIsGroupMode)
+            {
+                nsplits_factor = integer_divide_ceil(max_seqlen_k, kN0);
+            }
+            else // persistent
+            {
+                const index_t dqdqkdv_workers = get_num_cus();
+                const index_t jobs_per_head   = integer_divide_ceil(max_seqlen_k, kN0);
+                const index_t total_jobs      = max_batch * nhead_q * jobs_per_head;
+                const index_t jobs_per_worker = integer_divide_ceil(total_jobs, dqdqkdv_workers);
+                if(jobs_per_head % jobs_per_worker == 0)
+                    nsplits_factor = jobs_per_head / jobs_per_worker;
+                else if(jobs_per_worker % jobs_per_head == 0)
+                    nsplits_factor = 1;
+                else
+                    nsplits_factor = 1 + integer_divide_ceil(jobs_per_head - 1, jobs_per_worker);
+            }
+        }
+
+        return sizeof(AccDataType) * static_cast<long_index_t>(nhead_q) * nsplits_factor *
+               total_seqlen_q_padded * hdim_q;
+    }
 };
 
 template <typename FmhaPipeline_,
@@ -280,6 +323,13 @@ struct FmhaBwdDQDKDVKernel
         return WorkspaceManager::template PrepareWorkspaceHost<kUseQrQtrDorPipeline,
                                                                FmhaPipeline::BlockFmhaShape::kN0>(
             std::forward<Args>(args)...);
+    }
+    template <typename... Args>
+    CK_TILE_HOST static size_t GetWorkspaceDeviceSizeUpperBound(Args&&... args)
+    {
+        return WorkspaceManager::template GetWorkspaceDeviceSizeUpperBound<
+            kUseQrQtrDorPipeline,
+            FmhaPipeline::BlockFmhaShape::kN0>(std::forward<Args>(args)...);
     }
     CK_TILE_HOST static constexpr bool NeedsZeroDqAcc()
     {
