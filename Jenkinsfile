@@ -721,6 +721,9 @@ def cmake_build(Map conf=[:]){
         if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
             setup_args = " -D CK_EXPERIMENTAL_BUILDER=ON "  + setup_args
         }
+        if (params.RUN_ROCM_CK_TESTS) {
+            setup_args = " -D CK_ENABLE_ROCM_CK=ON " + setup_args
+        }
         setup_cmd = conf.get(
             "setup_cmd",
             """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_CXX_FLAGS=" -O3 " .. """
@@ -837,6 +840,9 @@ def cmake_build(Map conf=[:]){
                     if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
                         sh 'ninja check-builder'
                     }
+                    if (params.RUN_ROCM_CK_TESTS) {
+                        sh 'ninja check-rocm-ck'
+                    }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
@@ -875,6 +881,9 @@ def cmake_build(Map conf=[:]){
                     }
                     if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
                         sh 'ninja check-builder'
+                    }
+                    if (params.RUN_ROCM_CK_TESTS) {
+                        sh 'ninja check-rocm-ck'
                     }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
@@ -1425,6 +1434,10 @@ pipeline {
             name: "RUN_BUILDER_TESTS",
             defaultValue: false,
             description: "Run CK_BUILDER tests (default: OFF)")
+        booleanParam(
+            name: "RUN_ROCM_CK_TESTS",
+            defaultValue: true,
+            description: "Run rocm_ck tests (default: ON)")
         booleanParam(
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
