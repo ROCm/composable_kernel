@@ -176,6 +176,16 @@ size_t fmha_bwd_dq_dk_dv_dq_ws_host_size_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>(
 }}
 
 template <>
+size_t fmha_bwd_dq_dk_dv_dq_ws_device_upper_bound_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>(
+    ck_tile::index_t max_batch, ck_tile::index_t hdim_q, ck_tile::index_t nhead_q,
+    ck_tile::index_t total_seqlen_q_padded, ck_tile::index_t max_seqlen_k)
+{{
+    using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
+    return k_::GetWorkspaceDeviceSizeUpperBound(
+        max_batch, hdim_q, nhead_q, total_seqlen_q_padded, max_seqlen_k);
+}}
+
+template <>
 size_t fmha_bwd_dq_dk_dv_dq_prepare_ws_host_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>(
     void* cpu_ws, ck_tile::index_t batch_size, ck_tile::index_t hdim_q,
     ck_tile::index_t nhead_q, ck_tile::index_t seqlen_q, ck_tile::index_t seqlen_k,

@@ -8,10 +8,13 @@
 #include "utils.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 
+#include "ck_tile/host/pinned_host_releaser.hpp"
+
 #include <array>
 #include <chrono>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <numeric>
 #include <ostream>
 #include <string>
@@ -391,26 +394,47 @@ bwd_result fmha_bwd_run(mode_enum mode,
         p_drop > 0.0f,
         s_randval,
         deterministic,
-        (mode == mode_enum::group) ? seqstart_q_host.data() : nullptr,
-        (mode == mode_enum::group) ? seqstart_k_host.data() : nullptr,
     });
     const auto t1_launcher = std::chrono::high_resolution_clock::now();
     const double launcher_ctor_ms =
         std::chrono::duration<double, std::milli>(t1_launcher - t0_launcher).count();
     const size_t ws_size = launcher.workspace_size;
     ck_tile::DeviceMem ws_buf(ws_size);
+
+    // Stage seqstart to device before prepare_workspace_async (which D2Hs it back).
+    seqstart_q.ToDevice(seqstart_q_host.data());
+    seqstart_k.ToDevice(seqstart_k_host.data());
+
+    // Pinned host allocator for the launcher's async prepare pipeline. The
+    // shared_ptr deleter MUST NOT call any HIP API: it runs from the launcher's
+    // tail hipLaunchHostFunc on the driver helper thread, which holds HIP
+    // runtime locks. Deleter enqueues to a worker thread that hipHostFrees off
+    // the callback path.
+    auto pinned_host_alloc = [](size_t bytes) -> std::shared_ptr<void> {
+        void* p = nullptr;
+        HIP_CHECK_ERROR(hipHostMalloc(&p, bytes, hipHostMallocDefault));
+        return std::shared_ptr<void>(
+            p, [](void* q) { ck_tile::pinned_host_releaser::instance().enqueue(q); });
+    };
+
     ck_tile::gpu_timer prepare_ws_timer;
-    prepare_ws_timer.start(nullptr);
-    launcher.prepare_workspace(ws_buf.GetDeviceBuffer());
-    prepare_ws_timer.stop(nullptr);
+    prepare_ws_timer.start(stream_config.stream_id_);
+    launcher.prepare_workspace_async(
+        ws_buf.GetDeviceBuffer(),
+        (mode == mode_enum::group) ? static_cast<const int*>(seqstart_q.GetDeviceBuffer())
+                                   : nullptr,
+        (mode == mode_enum::group) ? static_cast<const int*>(seqstart_k.GetDeviceBuffer())
+                                   : nullptr,
+        stream_config,
+        pinned_host_alloc);
+    prepare_ws_timer.stop(stream_config.stream_id_);
 
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
     v_buf.ToDevice(v_host.data());
     bias_buf.ToDevice(bias_host.data());
     do_buf.ToDevice(do_host.data());
-    seqstart_q.ToDevice(seqstart_q_host.data());
-    seqstart_k.ToDevice(seqstart_k_host.data());
+    // seqstart_q/k were already ToDevice'd above before prepare_workspace_async.
     if(mode == mode_enum::group)
     {
         std::vector<int32_t> seqlen_q_host(seqlen_qs.begin(), seqlen_qs.end());
@@ -902,8 +926,6 @@ bwd_result fmha_bwd_run(mode_enum mode,
         dq_buf.ToDevice(dq_host.data());
         dk_buf.ToDevice(dk_host.data());
         dv_buf.ToDevice(dv_host.data());
-        // re-initialize workspace for validation run
-        launcher.prepare_workspace(ws_buf.GetDeviceBuffer());
 
         o_buf.ToDevice(o_host.data());
         lse_buf.ToDevice(lse_host.data());
@@ -912,6 +934,15 @@ bwd_result fmha_bwd_run(mode_enum mode,
             d_sink_buf.SetZero();
 
         ck_tile::stream_config stream_config_v{nullptr, true, 0, 0, 1};
+        // re-initialize workspace for validation run
+        launcher.prepare_workspace_async(
+            ws_buf.GetDeviceBuffer(),
+            (mode == mode_enum::group) ? static_cast<const int*>(seqstart_q.GetDeviceBuffer())
+                                       : nullptr,
+            (mode == mode_enum::group) ? static_cast<const int*>(seqstart_k.GetDeviceBuffer())
+                                       : nullptr,
+            stream_config_v,
+            pinned_host_alloc);
         launcher(fmha_args, stream_config_v);
 
         dq_buf.FromDevice(dq_host.data());
