@@ -1453,6 +1453,20 @@ def get_product(receipt: int) -> Product:
             return cond
 
         return Product(name="aiter::mha_fwd C++ api integration", rule=fit)
+    # TransformerEngine integration
+    elif receipt == 700:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            cond = problem_ctx.dtype in ["fp16", "bf16"]
+            cond &= kernel_ctx.pipeline.F_vlayout == "row"
+            cond &= kernel_ctx.pipeline.F_qscale == "no"
+            cond &= kernel_ctx.pipeline.F_lse == "t"
+            cond &= kernel_ctx.pipeline.F_skip == "f"
+            cond &= kernel_ctx.pipeline.F_sink == "f"
+            cond &= kernel_ctx.pipeline.F_logits == "f"
+            return cond
+
+        return Product(name="TransformerEngine integration", rule=fit)
     elif receipt == 888:
 
         def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:

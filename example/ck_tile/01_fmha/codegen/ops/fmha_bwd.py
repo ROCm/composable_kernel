@@ -1155,6 +1155,12 @@ def get_bwd_blobs(
                 cond = dtype in ["fp16", "bf16"]
                 if not cond:
                     continue
+            # TransformerEngine integration
+            elif receipt == 700:
+                cond = dtype in ["fp16", "bf16"]
+                cond &= dropout in ["no", "dropout_wg32", "dropout_wg16"]
+                if not cond:
+                    continue
 
             # fp32 only, all variations
             if receipt == 800:
