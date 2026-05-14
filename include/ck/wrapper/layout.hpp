@@ -6,6 +6,7 @@
 #include "ck/wrapper/utils/layout_utils.hpp"
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 
 // Disable from doxygen docs generation

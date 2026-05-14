@@ -52,6 +52,7 @@ cast_tile_mx(DstTensor& dst_tensor, DstScaleTensor& dst_scale_tensor, const SrcT
                 // vxxx [old] before cvt, which result in unwanted ISA so we prepare an
                 // uninitialized variable x purposely, and turn off the warning
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wuninitialized"
                 vec_t x;
                 x = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(
@@ -120,6 +121,7 @@ cast_tile_mx(DstTensor& dst_tensor, DstScaleTensor& dst_scale_tensor, const SrcT
                 // vxxx [old] before cvt, which result in unwanted ISA so we prepare an
                 // uninitialized variable x purposely, and turn off the warning
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wuninitialized"
                 vec_t x;
                 if constexpr(std::is_same_v<DstDataType, fp8_t>)

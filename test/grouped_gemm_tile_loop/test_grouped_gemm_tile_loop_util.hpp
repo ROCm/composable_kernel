@@ -20,6 +20,7 @@
 #include "profiler/profile_grouped_gemm_tile_loop_generic_impl.hpp"
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
 extern ck::index_t param_mask;
 extern ck::index_t instance_index;

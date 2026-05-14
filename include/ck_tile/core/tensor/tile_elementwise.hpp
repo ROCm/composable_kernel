@@ -194,6 +194,7 @@ CK_TILE_DEVICE auto cast_tile_pk_fp8_fp32(const InTensor& in_dstr_tensors)
 
     auto out_dstr_tensor = make_static_distributed_tensor<OutDataType>(in_tile_dstr);
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wuninitialized"
     // __builtin_amdgcn_cvt_pk_fp8_f32() this builtin requires the old value, and
     // will generate a v_mov_b32 vxxx [old] before cvt, which result in unwanted ISA

@@ -10,6 +10,7 @@
 #include "ck_tile/core/numeric/mxfp_convert.hpp"
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 
 #if defined(__gfx950__)

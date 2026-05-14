@@ -91,6 +91,7 @@ struct CK_PRINTF<ConvertTo,
         constexpr auto fmt_wrap_v = get_prefix() + fmt_v + get_suffix();
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
         printf(fmt_wrap_v.data,
                get_thread_id(),

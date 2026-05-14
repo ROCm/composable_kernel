@@ -24,6 +24,7 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm_multiple_d.hpp"
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 
 using ::ck::DeviceMem;

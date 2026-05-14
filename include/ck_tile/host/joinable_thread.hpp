@@ -60,6 +60,7 @@ class cpu_core_guard
         for(unsigned int i = 0; i < num_cores; ++i)
         {
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wold-style-cast"
             CPU_SET(i, &new_cpu_set); // NOLINT(old-style-cast)
 #pragma clang diagnostic pop

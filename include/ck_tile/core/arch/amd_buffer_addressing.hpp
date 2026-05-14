@@ -152,6 +152,7 @@ template <index_t bytes>
 struct buffer_store_if;
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wundefined-reinterpret-cast"
 // TODO: strict aliasing rule seems fail when reinterpret_cast between vector type
 // (exp_vector_type(xxx))
@@ -1962,6 +1963,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
         v_offset = flag ? v_offset : src_wave_buffer_resource[2];
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wold-style-cast"
     // Use C-style cast to change address space without dropping llvm noalias attribute
     llvm_amdgcn_raw_buffer_load_lds(src_wave_buffer_resource,
@@ -3062,6 +3064,7 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
                   "We need to have the compatible compiler version to build this instruction");
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wold-style-cast"
     // Use C-style cast to change address space without dropping llvm noalias attribute
     const auto in_ptr_ = (__LDS_ADDR T*)(const_cast<T*>(in_ptr));

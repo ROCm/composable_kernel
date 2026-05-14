@@ -16,6 +16,7 @@
 #include "../common/csv_test_loader.hpp"                     // Shared CSV test case loader
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
 using namespace ck::tensor_layout::convolution;
 

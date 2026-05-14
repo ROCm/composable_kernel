@@ -14,6 +14,7 @@
 using namespace ck::tensor_layout::convolution; // Import tensor layout names (GNHWK, GKYXC, etc.)
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
 // Load CSV data for 2D tests
 static std::vector<ck::utils::conv::ConvParam> Get2DTestCases()

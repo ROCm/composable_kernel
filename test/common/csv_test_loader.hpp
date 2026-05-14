@@ -13,6 +13,7 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
 namespace ck {
 namespace test {

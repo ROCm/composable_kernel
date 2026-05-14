@@ -9,6 +9,7 @@
 #include "ck_tile/ops/gemm/kernel/universal_gemm_kernel.hpp"
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 
 /**

@@ -15,6 +15,7 @@
 #include "ck_tile/core/utility/print.hpp"
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 
 namespace ck_tile {
@@ -348,6 +349,7 @@ struct CK_PRINT_X_<str_literal<PREFIXChars...>, str_literal<SUFFIXChars...>>
     {
         constexpr auto fmt_wrap_v = get_prefix() + str_literal<FMTChars...>{} + get_suffix();
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
         printf(fmt_wrap_v.data, get_thread_id(), args..., targs.at(number<Is>())...);
 #pragma clang diagnostic pop

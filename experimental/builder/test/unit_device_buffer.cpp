@@ -51,6 +51,7 @@ TEST(DeviceBuffer, AutoFree)
     // In this test we are explicitly testing a pointer that is out of scope, so
     // we have to disable the clang compiler's lifestime safety checks.
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-permissive"
     {
         auto buffer = ckt::alloc_buffer(size);

@@ -144,6 +144,7 @@ template<> struct buffer_load_trait<4 , thread_buffer<bf16_t, 2>> { using payloa
 template <index_t bytes, bool pre_nop = false>
 struct buffer_load;
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wundefined-reinterpret-cast"
 // TODO: strict aliasing rule seems fail when reinterpret_cast between vector type
 // (exp_vector_type(xxx))
@@ -1859,6 +1860,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
         v_offset = flag ? v_offset : 0x7fffffff; // large offset to cause OOB access
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wold-style-cast"
     // Use C-style cast to change address space without dropping llvm noalias attribute
     __builtin_amdgcn_raw_ptr_buffer_load_lds(rsrc,
@@ -3018,6 +3020,7 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
                   "We need to have the compatible compiler version to build this instruction");
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wold-style-cast"
     // Use C-style cast to change address space without dropping llvm noalias attribute
     const auto in_ptr_ = (__LDS_ADDR T*)(const_cast<T*>(in_ptr));

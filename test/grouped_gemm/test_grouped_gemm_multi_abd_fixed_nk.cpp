@@ -16,6 +16,7 @@
 #include "gtest/gtest.h"
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
 using FP32 = float;
 using FP16 = ck::half_t;

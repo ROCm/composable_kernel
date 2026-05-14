@@ -512,6 +512,7 @@ struct GridwiseBatchedGemmGemm_wmma_cshuffle_v3
             {
 #if defined(__clang__)
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
 #endif
                 va_list args;

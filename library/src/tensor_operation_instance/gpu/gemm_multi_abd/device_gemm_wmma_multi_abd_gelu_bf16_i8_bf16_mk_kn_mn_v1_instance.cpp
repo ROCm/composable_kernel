@@ -13,6 +13,7 @@
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 
 namespace ck {

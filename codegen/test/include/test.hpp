@@ -845,6 +845,7 @@ inline void run(int argc, const char* argv[])
 
 #ifdef __clang__
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
 

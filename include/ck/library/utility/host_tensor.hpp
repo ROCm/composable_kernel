@@ -24,6 +24,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 
 #pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 #pragma clang diagnostic ignored "-Wlifetime-safety-cross-tu-suggestions"
 
