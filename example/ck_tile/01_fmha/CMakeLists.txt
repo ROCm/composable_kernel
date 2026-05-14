@@ -10,7 +10,7 @@ if(NOT INST_TARGETS)
 endif()
 
 # validate user-specified fmha_fwd API list
-set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv;pagedkv_prefill;batch_prefill")
+set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv;pagedkv_prefill")
 set(FMHA_FWD_ENABLE_APIS "fwd" CACHE STRING
   "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
 if(BUILD_TESTING)
