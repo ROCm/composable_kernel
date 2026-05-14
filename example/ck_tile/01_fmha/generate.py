@@ -139,7 +139,9 @@ if __name__ == "__main__":
         + "  200-299: Only generate instance for Aiter(mha_varlen_fwd) integration\n"
         + "  300-399: Only generate instance for Aiter(mha_bwd) integration\n"
         + "  400-499: Only generate instance for Aiter(mha_varlen_bwd) integration\n"
-        + "  600-699: Only generate instance for aiter::mha_fwd && aiter::mha_fwd_splitkv && aiter::mha_bwd C++ api integration",
+        + "  600-699: Only generate instance for aiter::mha_fwd && aiter::mha_fwd_splitkv && aiter::mha_bwd C++ api integration\n"
+        + "  700: Only generate instance for TransformerEngine integration (fwd + bwd, fp16/bf16 only,\n"
+        + "        invariants: row vlayout, has_lse, no skip/sink/logits/qscale)",
     )
 
     parser.add_argument(

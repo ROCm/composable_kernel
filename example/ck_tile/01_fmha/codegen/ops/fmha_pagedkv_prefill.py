@@ -745,6 +745,8 @@ def get_fwd_blobs(
                     cond &= pipeline.F_squant == "f"
                     if not cond:
                         continue
+                elif receipt == 700:
+                    continue  # TE does not use this API
 
                 # fp32 only
                 if receipt == 800 or receipt == 801:
