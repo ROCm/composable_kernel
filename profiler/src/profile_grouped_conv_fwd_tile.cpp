@@ -202,6 +202,30 @@ int profile_grouped_conv_fwd_tile(int argc, char* argv[])
             }
         }
     }
+    else if(layout == ConvLayout::NGCHW_GKYXC_NGKHW || layout == ConvLayout::NGCHW_GKCYX_NGKHW)
+    {
+        if(num_dim_spatial == 2)
+        {
+            if(data_type == ConvDataType::F32_F32_F32)
+            {
+                constexpr auto SIGNATURE = ckp::SIGNATURE_NGCHW_FP32_FWD;
+                return call_profiler<SIGNATURE>(ckp::parse_conv_args<SIGNATURE>(10, argv),
+                                                time_kernel);
+            }
+            else if(data_type == ConvDataType::F16_F16_F16)
+            {
+                constexpr auto SIGNATURE = ckp::SIGNATURE_NGCHW_FP16_FWD;
+                return call_profiler<SIGNATURE>(ckp::parse_conv_args<SIGNATURE>(10, argv),
+                                                time_kernel);
+            }
+            else if(data_type == ConvDataType::BF16_BF16_BF16)
+            {
+                constexpr auto SIGNATURE = ckp::SIGNATURE_NGCHW_BF16_FWD;
+                return call_profiler<SIGNATURE>(ckp::parse_conv_args<SIGNATURE>(10, argv),
+                                                time_kernel);
+            }
+        }
+    }
 
     std::cout << "this data_type & layout is not implemented" << std::endl;
 

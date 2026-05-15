@@ -5,12 +5,19 @@ using ConvInstance = Builder::Instance;
 auto conv = ConvInstance{};
 
 auto result = [&]<auto Sig, auto Alg>() {
-    if constexpr(ConvDirectionIsBackwardWeight<Sig> && Alg.optimizations.two_stage)
+    if constexpr(ConvDirectionIsBackwardWeight<Sig>)
     {
-        using ElementwiseOpBuilder  = ckf::ElementwiseOpTileFactory<Sig, Alg>;
-        using ElementwiseOpInstance = ElementwiseOpBuilder::Instance;
-        auto elementwise_op         = ElementwiseOpInstance{};
-        return ckt::run(conv, elementwise_op, args, inputs, outputs, s_conf);
+        if constexpr(ckb::SpecifiesTileOptimizations<decltype(Alg)> && Alg.optimizations.two_stage)
+        {
+            using ElementwiseOpBuilder  = ckf::ElementwiseOpTileFactory<Sig, Alg>;
+            using ElementwiseOpInstance = ElementwiseOpBuilder::Instance;
+            auto elementwise_op         = ElementwiseOpInstance{};
+            return ckt::run(conv, elementwise_op, args, inputs, outputs, s_conf);
+        }
+        else
+        {
+            return ckt::run(conv, args, inputs, outputs, s_conf);
+        }
     }
     else
     {

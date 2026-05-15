@@ -669,7 +669,7 @@ def process_direction(configs, direction, generate_func, configs_prefix, filter_
         config_path = f"{generate_dir}/configs/{direction}/{configs_prefix}/{config}.conf"
         with open(config_path, "r") as file:
             instances = file.readlines()
-        
+
         # Determine problem name based on direction
         if direction == "forward":
             problem_name = f"grouped_convolution_forward_tile_{config}"
@@ -679,8 +679,144 @@ def process_direction(configs, direction, generate_func, configs_prefix, filter_
             problem_name = f"grouped_convolution_backward_data_tile_{config}"
         else:
             raise RuntimeError(f"Unknown direction: {direction}")
-        
+
         generate_func(instances, problem_name, config, filter_pattern, instances_path)
+
+
+# ---------------------------------------------------------------------------
+# Depthwise forward generation
+# ---------------------------------------------------------------------------
+
+DEPTHWISE_CONFIGS = [
+    {
+        "name":      "ngchw_depthwise_fp32",
+        "conf":      "ngchw_depthwise.conf",
+        "signature": "SIGNATURE_NGCHW_FP32_FWD",
+    },
+    {
+        "name":      "ngchw_depthwise_fp16",
+        "conf":      "ngchw_depthwise.conf",
+        "signature": "SIGNATURE_NGCHW_FP16_FWD",
+    },
+    {
+        "name":      "ngchw_depthwise_bf16",
+        "conf":      "ngchw_depthwise.conf",
+        "signature": "SIGNATURE_NGCHW_BF16_FWD",
+    },
+]
+
+
+def parse_depthwise_config(conf_path: Path) -> list:
+    """Parse a depthwise config file.
+
+    Accepts the ``GroupedConvolutionForwardDepthwise<...>`` format.
+
+    Returns a list of 12-element integer lists:
+        [TileH, TileW, Filter, StrH, StrW, PadH, PadW,
+         NBatch, SubTileH, SubTileW, InVecSize, OutVecSize]
+    """
+    instances = []
+    for raw in conf_path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "<" in line and ">" in line:
+            start = line.index("<") + 1
+            end = line.rindex(">")
+            line = line[start:end]
+        params = [int(x.strip()) for x in line.split(",")]
+        if len(params) != 12:
+            raise ValueError(
+                f"Expected 12 parameters per depthwise instance, got {len(params)}: {raw!r}"
+            )
+        instances.append(params)
+    return instances
+
+
+def generate_depthwise_cpp(params: list, instance_name: str, signature: str, cpp_out: Path) -> None:
+    tile_h, tile_w, filt, str_h, str_w, pad_h, pad_w, nbatch, sub_h, sub_w, in_vec, out_vec = params
+
+    parent_dir = Path(__file__).resolve().parent
+    template_file = parent_dir / "include/grouped_convolution_depthwise_tile.cpp.in"
+    content = template_file.read_text()
+
+    content = content.replace("gen_signature",     signature)
+    content = content.replace("gen_instance_name", instance_name)
+    content = content.replace("gen_block_size",    "64")
+    content = content.replace("gen_tile_h",        str(tile_h))
+    content = content.replace("gen_tile_w",        str(tile_w))
+    content = content.replace("gen_filter_h",      str(filt))
+    content = content.replace("gen_filter_w",      str(filt))
+    content = content.replace("gen_stride_h",      str(str_h))
+    content = content.replace("gen_stride_w",      str(str_w))
+    content = content.replace("gen_dilation_h",    "1")
+    content = content.replace("gen_dilation_w",    "1")
+    content = content.replace("gen_pad_h",         str(pad_h))
+    content = content.replace("gen_pad_w",         str(pad_w))
+    content = content.replace("gen_nbatch",        str(nbatch))
+    content = content.replace("gen_subtile_h",     str(sub_h))
+    content = content.replace("gen_subtile_w",     str(sub_w))
+    content = content.replace("gen_in_vec",        str(in_vec))
+    content = content.replace("gen_out_vec",       str(out_vec))
+
+    cpp_out.write_text(content)
+
+
+def generate_depthwise_defs_inc(instances: list, config_name: str, signature: str, inc_path: Path) -> None:
+    lines = []
+    for i in range(len(instances)):
+        name = f"grouped_convolution_forward_tile_{config_name}_{i}"
+        lines.append(
+            f"std::tuple<bool, float, std::string> run_{name}(\n"
+            f"    const ckt::Args<{signature}>& args,\n"
+            f"    const ckt::Inputs<{signature}>& inputs,\n"
+            f"    const ckt::Outputs<{signature}>& outputs,\n"
+            f"    const ck_tile::stream_config& s_conf);"
+        )
+    inc_path.write_text("\n".join(lines) + "\n")
+
+
+def generate_depthwise_calls_inc(instances: list, config_name: str, calls_path: Path) -> None:
+    lines = []
+    for i in range(len(instances)):
+        name = f"grouped_convolution_forward_tile_{config_name}_{i}"
+        lines.append(f"run_alg(run_{name});")
+    calls_path.write_text("\n".join(lines) + "\n")
+
+
+def process_depthwise_forward(configs_prefix: str, instances_path: str) -> None:
+    """Generate all depthwise forward instances."""
+    generate_dir = Path(__file__).resolve().parent
+    conf_dir = generate_dir / "configs/forward" / configs_prefix
+    inc_dir  = generate_dir / "instances" / "forward"
+    cpp_base = Path(instances_path) / "forward"
+
+    for cfg in DEPTHWISE_CONFIGS:
+        name      = cfg["name"]
+        conf_path = conf_dir / cfg["conf"]
+        signature = cfg["signature"]
+
+        if not conf_path.exists():
+            print(f"  Skipping {name}: config not found at {conf_path}")
+            continue
+
+        instances = parse_depthwise_config(conf_path)
+        print(f"Processing {name}: {len(instances)} instances ...")
+
+        cpp_dir = cpp_base / name
+        cpp_dir.mkdir(parents=True, exist_ok=True)
+
+        for i, params in enumerate(instances):
+            instance_name = f"grouped_convolution_forward_tile_{name}_{i}"
+            generate_depthwise_cpp(params, instance_name, signature,
+                                   cpp_dir / f"{instance_name}.cpp")
+
+        generate_depthwise_defs_inc(instances, name, signature,
+                                    inc_dir / f"grouped_convolution_forward_tile_{name}.inc")
+        generate_depthwise_calls_inc(instances, name,
+                                     inc_dir / f"grouped_convolution_forward_tile_{name}_calls.inc")
+
+        print(f"  -> {cpp_dir}  ({len(instances)} .cpp files)")
 
 if __name__ == "__main__":
     fwd_configs = [
@@ -757,12 +893,14 @@ if __name__ == "__main__":
     match args.direction:
         case "forward":
             process_direction(fwd_configs, args.direction, generate_instances_fwd, configs_prefix, args.filter_pattern, args.instances_dir)
+            process_depthwise_forward(configs_prefix, args.instances_dir)
         case "backward_weight":
             process_direction(bwd_weight_configs, args.direction, generate_instances_bwd_weight, configs_prefix, args.filter_pattern, args.instances_dir)
         case "backward_data":
             process_direction(bwd_data_configs, args.direction, generate_instances_bwd_data, configs_prefix, args.filter_pattern, args.instances_dir)
         case "all":
             process_direction(fwd_configs, "forward", generate_instances_fwd, configs_prefix, args.filter_pattern, args.instances_dir)
+            process_depthwise_forward(configs_prefix, args.instances_dir)
             process_direction(bwd_weight_configs, "backward_weight", generate_instances_bwd_weight, configs_prefix, args.filter_pattern, args.instances_dir)
             process_direction(bwd_data_configs, "backward_data", generate_instances_bwd_data, configs_prefix, args.filter_pattern, args.instances_dir)
 

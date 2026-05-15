@@ -29,6 +29,9 @@ namespace ckt = ck_tile::builder::test;
 #include "../../experimental/grouped_convolution_tile_instances/instances/forward/grouped_convolution_forward_tile_ndhwgc_fp32.inc"
 #include "../../experimental/grouped_convolution_tile_instances/instances/forward/grouped_convolution_forward_tile_ndhwgc_bf16.inc"
 #include "../../experimental/grouped_convolution_tile_instances/instances/forward/grouped_convolution_forward_tile_ndhwgc_fp16.inc"
+#include "../../experimental/grouped_convolution_tile_instances/instances/forward/grouped_convolution_forward_tile_ngchw_depthwise_fp32.inc"
+#include "../../experimental/grouped_convolution_tile_instances/instances/forward/grouped_convolution_forward_tile_ngchw_depthwise_fp16.inc"
+#include "../../experimental/grouped_convolution_tile_instances/instances/forward/grouped_convolution_forward_tile_ngchw_depthwise_bf16.inc"
 
 template <auto SIGNATURE>
 void run_cpu_validation(const ckt::Args<SIGNATURE>& args,
@@ -152,6 +155,18 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
     else if constexpr(SIGNATURE == SIGNATURE_NDHWGC_FP32_FWD)
     {
 #include "../../experimental/grouped_convolution_tile_instances/instances/forward/grouped_convolution_forward_tile_ndhwgc_fp32_calls.inc"
+    }
+    else if constexpr(SIGNATURE == SIGNATURE_NGCHW_FP16_FWD)
+    {
+#include "../../experimental/grouped_convolution_tile_instances/instances/forward/grouped_convolution_forward_tile_ngchw_depthwise_fp16_calls.inc"
+    }
+    else if constexpr(SIGNATURE == SIGNATURE_NGCHW_BF16_FWD)
+    {
+#include "../../experimental/grouped_convolution_tile_instances/instances/forward/grouped_convolution_forward_tile_ngchw_depthwise_bf16_calls.inc"
+    }
+    else if constexpr(SIGNATURE == SIGNATURE_NGCHW_FP32_FWD)
+    {
+#include "../../experimental/grouped_convolution_tile_instances/instances/forward/grouped_convolution_forward_tile_ngchw_depthwise_fp32_calls.inc"
     }
     else
     {
