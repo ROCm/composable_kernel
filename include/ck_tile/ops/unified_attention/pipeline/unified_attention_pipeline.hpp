@@ -273,6 +273,37 @@ struct UnifiedAttentionPipeline
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetPVBlockGemm<Problem>();
 
+        // -----------------------------------------------------------------
+        // FP8 P-tile re-layout windows (LDS roundtrip).
+        //
+        // The QK-gemm C output and PV-gemm A input share the
+        // `sp_compute` / `p` register union. For BF16 / FP16 the two
+        // warp-gemms agree byte-for-byte on the per-thread element
+        // ordering, so the union "just works". For FP8 the PV gemm is
+        // forced into `WGAttrNumAccess::Single` (load_tile_transpose's
+        // SubMinDim=8 constraint, see GetPVBlockGemm in the policy) and
+        // the QK-C / PV-A per-thread layouts diverge — naively reusing
+        // the union feeds garbled data to the PV gemm.
+        //
+        // The fix is layout-agnostic: after FP8 packing in fmha_alu1
+        // we (1) view the union's bytes as a distributed tensor in the
+        // QK-C distribution, (2) `store_tile` it through the existing
+        // `p_lds` region in canonical (M, N) order, (3) block-sync, and
+        // (4) `load_tile` back with the PV-A distribution into the
+        // `sp(idx).p` register file. Both the 32x32x16 (prefill +
+        // decode_m{32,64,128}) and the 16x16x32 (decode_m16) MFMAs
+        // are handled uniformly.
+        //
+        // Two distribution-bound windows over the same `p_lds` view —
+        // hoisted out of fmha_alu1 so we only pay the make_tile_window
+        // cost once per kernel invocation:
+        [[maybe_unused]] auto p_lds_store_window_qkc = make_tile_window(
+            p_lds_window,
+            decltype(gemm_0.MakeCBlockTile())::get_tile_distribution());
+        [[maybe_unused]] auto p_lds_load_window_pva = make_tile_window(
+            p_lds_window,
+            Policy::template MakePRegTileDistribution<Problem>());
+
         auto q_dram_window = make_tile_window_linear(
             q_dram_block_window_tmp, Policy::template MakeQRegTileDistribution<Problem>());
 
@@ -827,83 +858,64 @@ struct UnifiedAttentionPipeline
 #pragma clang diagnostic pop
 
                 // ---------------------------------------------------------
-                // FP8 P-tile cross-lane permute (kCMLane <-> kABKLane fixup)
+                // FP8 P-tile QK-C -> PV-A re-layout.
                 //
                 // The CK UA pipeline relies on the QK-gemm's C output
                 // aliasing byte-for-byte with the PV-gemm's A operand
                 // through the `sp_compute` / `p` union. That alias is
-                // only valid when the two warp gemms' per-thread element
-                // layouts match.
+                // only valid when the two warp gemms agree on per-
+                // thread element ordering.
                 //
-                // For BF16/FP16 the PV gemm uses `WGAttrNumAccess::Double`
-                // which splits `kABKPerLane=8` as (AttrNumAccess=2,
-                // kABKLane=2, kABKPerLane/Access=4). That last `4`
-                // matches the QK-C `kCM1PerLane=4` so each lane's
-                // sp_compute slots line up 1:1 with its p slots.
+                // For BF16/FP16 the PV gemm uses
+                // `WGAttrNumAccess::Double` and the resulting layout
+                // matches the QK-C `kCM0/kCMLane/kCM1` layout
+                // byte-for-byte, so the alias just works.
                 //
-                // FP8 cannot use `Double`: `load_tile_transpose` for the
-                // V tile requires the last H[1] dim to equal
-                // `64-bit/sizeof(fp8)=8`, so we are forced into `Single`
-                // where H[1]=(kABKLane=2, kABKPerLane=8). Now the
-                // sp_compute "kCM0=4, kCMLane=2, kCM1=4" layout no
-                // longer matches the p "kABKLane=2, kABKPerLane=8"
-                // layout. For each 8-fp8 PV K-chunk (one warp-gemm K
-                // iteration, since FP8 Single packs 8 elements/K-iter
-                // per thread), the slot decomposition is:
+                // For FP8 the PV gemm is forced into `Single`
+                // (load_tile_transpose's SubMinDim=8 constraint, see
+                // GetPVBlockGemm in the policy) and the QK-C / PV-A
+                // per-thread layouts diverge — naively reusing the
+                // union feeds garbled data to the PV gemm.
                 //
-                //   sub=0 | slot in chunk | sp_compute (N)   | PV (K)  |
-                //   -----+---------------+------------------+---------+
-                //        |  [0..3]       | N=0..3           | K=0..3 OK
-                //        |  [4..7]       | N=8..11          | K=4..7 BAD
+                // We have two re-layout strategies:
                 //
-                //   sub=1 | slot in chunk | sp_compute (N)   | PV (K)  |
-                //   -----+---------------+------------------+---------+
-                //        |  [0..3]       | N=4..7           | K=8..11 BAD
-                //        |  [4..7]       | N=12..15         | K=12..15 OK
+                //   (A) Cross-lane in-register swap via
+                //       `__builtin_amdgcn_ds_bpermute` between paired
+                //       lanes (lane ^ 32). Cheap (one ds_bpermute_b32
+                //       per PV K-iter, no LDS traffic, no barrier),
+                //       but ONLY works for the 32x32x16 MFMA shape:
+                //       it assumes kABMLane=32 / kABKLane=2 with the
+                //       paired-lane bit at position 5.
                 //
-                // (The above is for QK NIter=1 / PV KIter=1; the same
-                // 8-slot mismatch pattern repeats for every PV K-chunk
-                // -- d=128 has KIter=2 ==> 16 fp8/thread, d=64 has
-                // KIter=4 ==> 32 fp8/thread.)
+                //   (B) Layout-agnostic LDS roundtrip via
+                //       store_tile(QK-C dist) + s_barrier +
+                //       load_tile(PV-A dist). Works for any MFMA
+                //       shape, but adds ~1 LDS round-trip latency
+                //       and a block-wide barrier per fmha_alu1 call.
+                //       On 4-warp decode_m128 this measured ~2-3x
+                //       worse end-to-end than (A).
                 //
-                // Each sub's *bad* 4-fp8 chunk carries exactly the data
-                // the *paired* sub needs for its *bad* slot (N is
-                // contracted into K in the PV gemm, so the index space
-                // is shared). The fix is a cross-lane exchange (lane L
-                // with lane L^32) of those bad chunks, repeated per PV
-                // K iteration.
-                //
-                // Implemented with `__builtin_amdgcn_ds_bpermute_b32`:
-                // each lane packs its own bad 4-fp8 chunk into a dword,
-                // bpermutes from the paired lane's same value (which is
-                // that lane's bad chunk = our needed data), and unpacks
-                // it into its own bad slot. The good slots are untouched.
-                //
-                // Only required when the QK-C and PV-A warp encodings
-                // disagree on per-thread element ordering, i.e. when the
-                // PV gemm runs with `Single` AttrNumAccess. The current
-                // FP8 PV policy is `Single`; BF16/FP16 use `Double` and
-                // alias for free.
-                //
-                // Cost: one `ds_bpermute_b32` per PV K-iteration per
-                // `fmha_alu1` call, each on a single dword. Same order
-                // of magnitude as the existing `permlane32_swap`
-                // reductions in this file. FP8-only.
-                //
-                // Gating: this swap pattern assumes the PV gemm uses the
-                // 32x32x16 MFMA (lanes split as kABMLane=32 / kABKLane=2,
-                // i.e. paired lane = `lane ^ 32`). The 16x16x32 MFMA
-                // used by the d128_m16 tiny-decode tier has a different
-                // lane partitioning (kABKLane=4) and is not FP8-enabled
-                // at the dispatcher, so we gate this swap on the
-                // 32x32x16 PV warp shape and leave the 16x16x32 case
-                // alone -- it would need a different swap pattern (and
-                // would have a different alias mismatch to fix).
+                // We pick (A) for the 32x32x16 tiers (all of prefill,
+                // decode_m{32,64,128}) and (B) for the 16x16x32 m16
+                // tiny-decode tier where (A) doesn't apply. This
+                // keeps the previously-tuned 32x32x16 perf intact
+                // while enabling FP8 on the m16 tier.
                 using PVWarpTile = typename UnifiedAttentionShape::Gemm1WarpTile;
                 if constexpr(PVWarpTile::at(number<0>{}) == 32 &&
                              PVWarpTile::at(number<1>{}) == 32 &&
                              PVWarpTile::at(number<2>{}) == 16)
                 {
+                    // ---- (A) Cross-lane in-register swap (32x32x16). ----
+                    //
+                    // For each 8-fp8 PV K-chunk (one warp-gemm K iter),
+                    // the slot decomposition is:
+                    //   sub=0 | slot[0..3] | N=0..3   | K=0..3 OK
+                    //   sub=0 | slot[4..7] | N=8..11  | K=4..7 BAD
+                    //   sub=1 | slot[0..3] | N=4..7   | K=8..11 BAD
+                    //   sub=1 | slot[4..7] | N=12..15 | K=12..15 OK
+                    // Each sub's *bad* 4-fp8 chunk holds exactly the data
+                    // the *paired* sub (lane ^ 32) needs for its bad
+                    // slot. One ds_bpermute_b32 per K-chunk fixes it.
                     static_assert(sp(sp_reg_idx).p.thread_buf_.size() % 8 == 0,
                                   "FP8 32x32x16 + Single cross-lane permute "
                                   "expects PV per-thread buffer in chunks of 8 "
@@ -926,9 +938,6 @@ struct UnifiedAttentionPipeline
                         d = bit_cast<fp8_t>(static_cast<fp8_raw_t>((v >> 24) & 0xFFu));
                     };
 
-                    // One swap per PV K-iteration: within each 8-fp8 chunk,
-                    // sub=0's slot [k_base+4..k_base+7] <-> sub=1's slot
-                    // [k_base..k_base+3].
                     static_for<0, sp(sp_reg_idx).p.thread_buf_.size(), 8>{}([&](auto k_base) {
                         auto& p = sp(sp_reg_idx).p;
                         const uint32_t own_bad =
@@ -948,6 +957,51 @@ struct UnifiedAttentionPipeline
                                     p.thread_buf_[k_base + 0], p.thread_buf_[k_base + 1],
                                     p.thread_buf_[k_base + 2], p.thread_buf_[k_base + 3]);
                     });
+                }
+                else
+                {
+                    // ---- (B) LDS roundtrip (16x16x32 and any other
+                    // future MFMA shape that doesn't fit the
+                    // paired-lane swap pattern). ----
+                    //
+                    //   1. `p_qkc` is a static_distributed_tensor<fp8>
+                    //      whose distribution metadata says "QK-C
+                    //      layout". Its register bytes are populated
+                    //      from `sp(idx).p.thread_buf_`, which is
+                    //      exactly where the cvt_pk_fp8_f32 chain just
+                    //      wrote the FP8 bytes (the union has them at
+                    //      QK-C-layout register offsets).
+                    //   2. `store_tile` writes `p_qkc` to LDS at
+                    //      canonical (M, N) order.
+                    //   3. Block-level barrier.
+                    //   4. `load_tile` reads from the same LDS region
+                    //      with the PV-A distribution.
+                    //   5. Copy `p_pva.thread_buf_` back into
+                    //      `sp(idx).p` so the gemm_1 call site reads
+                    //      correctly-laid-out data with no further
+                    //      changes.
+                    auto p_qkc = make_static_distributed_tensor<PDataType>(
+                        sp(sp_reg_idx).sp_compute.get_tile_distribution());
+                    static_assert(
+                        decltype(p_qkc.thread_buf_)::size() ==
+                            decltype(sp(sp_reg_idx).p.thread_buf_)::size(),
+                        "QK-C and PV-A per-thread fp8 buffers must have the same "
+                        "element count for the LDS roundtrip aliasing to be valid; "
+                        "this should hold by construction since the union shares "
+                        "register storage between sp_compute and p.");
+                    static_for<0, decltype(p_qkc.thread_buf_)::size(), 1>{}(
+                        [&](auto i) {
+                            p_qkc.thread_buf_[i] = sp(sp_reg_idx).p.thread_buf_[i];
+                        });
+
+                    __builtin_amdgcn_s_barrier();
+                    store_tile(p_lds_store_window_qkc, p_qkc);
+                    __builtin_amdgcn_s_barrier();
+                    auto p_pva = load_tile(p_lds_load_window_pva);
+                    static_for<0, decltype(p_pva.thread_buf_)::size(), 1>{}(
+                        [&](auto i) {
+                            sp(sp_reg_idx).p.thread_buf_[i] = p_pva.thread_buf_[i];
+                        });
                 }
             }
             else

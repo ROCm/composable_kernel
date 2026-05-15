@@ -134,27 +134,23 @@ std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
     }
     if(args.data_type == DT::fp8)
     {
-        // FP8 is enabled on every variant that uses the 32x32x16 MFMA,
-        // i.e. all of prefill_d{64,128}, decode_d{64,128}_m128,
-        // decode_d128_m32, and decode_d64_m64. The `fmha_alu1`
-        // cross-lane P-tile fixup in unified_attention_pipeline.hpp
-        // (gated on `WarpGemmShape == 32x32x16`) realigns the FP8 P
-        // operand for these variants regardless of the single-/two-/
-        // multi-warp `BlockWarps` policy.
-        //
-        // The 16x16x32 MFMA `_m16` tiers (decode_d128_m16,
-        // decode_d64_m16) are NOT yet enabled: the QK-C and PV-A
-        // per-thread layouts differ by an M<->N axis swap there
-        // (16x16 C: M=4 contiguous per lane, N=1 per lane; vs PV-A
-        // Single: M=1 per lane, K=8 contiguous per lane), which the
-        // current slot-swap fixup cannot express -- those will need a
-        // full per-thread transpose (likely via LDS).
+        // FP8 is enabled on EVERY UA variant: prefill_d{64,128} and all
+        // decode_d{64,128}_m{16,32,64,128} tiers. The `fmha_alu1`
+        // P-tile re-layout in unified_attention_pipeline.hpp now goes
+        // through LDS (store with QK-C distribution -> block sync ->
+        // load with PV-A distribution) which is layout-agnostic and
+        // covers both the 32x32x16 MFMA shapes (prefill +
+        // decode_m{32,64,128}) and the 16x16x32 MFMA shape used by
+        // the m16 tiny-decode tier — no per-shape per-thread
+        // analysis required.
         if constexpr(V == KernelVariant::prefill_d128 ||
                      V == KernelVariant::decode_d128_m128 ||
                      V == KernelVariant::decode_d128_m32 ||
+                     V == KernelVariant::decode_d128_m16 ||
                      V == KernelVariant::prefill_d64 ||
                      V == KernelVariant::decode_d64_m128 ||
-                     V == KernelVariant::decode_d64_m64)
+                     V == KernelVariant::decode_d64_m64 ||
+                     V == KernelVariant::decode_d64_m16)
         {
             if(is_mask)
                 return unified_attention_kernel_dispatch<
