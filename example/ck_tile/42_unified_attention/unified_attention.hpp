@@ -68,6 +68,14 @@ struct unified_attention_args
     index_t num_seqs; // number of batches for q
     index_t max_seqlen_q = 0; // max query length across all batches (0 = unknown)
 
+    // Set to true when the K/V cache is large enough that an int32 byte
+    // offset into it can overflow (i.e. when
+    //   num_blocks * page_size * num_kv_heads * head_dim * sizeof(T) > INT32_MAX
+    // ). When true, the pipeline routes K/V async loads through
+    // `global_load_lds` (per-lane 64-bit base ptr); when false, it uses the
+    // faster `buffer_load_dword_lds` path with a shared 4 GB-capped SRD.
+    bool cache_ptr_int32_overflow_possible = false;
+
     // KV-segment parallelism (split-KV). When num_splits == 1, the kernel
     // writes to o_ptr as usual. When num_splits > 1, the kernel is launched
     // with a 3D grid whose z-dim is num_splits — each CTA computes its own

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core/arch/utility.hpp"
+#include "ck_tile/core/arch/amd_buffer_addressing.hpp"
 #include "ck_tile/core/algorithm/space_filling_curve.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/container/array.hpp"
@@ -1042,6 +1043,156 @@ struct tile_scatter_gather
                                        step_new);
             });
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // async_load_raw_long: variant of async_load_raw that issues the per-tile
+    // gather load via `amd_async_global_load_lds_raw` (i.e. AMDGCN
+    // `global_load_lds_dwordx*`) rather than `buffer_load_dword_lds`.
+    //
+    // Identical iteration structure, m0/LDS-slot bookkeeping, and SFC walk
+    // as async_load_raw — only the HW load instruction is swapped. The page
+    // indirection is folded into a per-lane 64-bit base pointer, lifting
+    // both 4 GB limits in the buffer_load path (SRD `size` field is uint32_t,
+    // per-lane voffset is int32). PageIdxArray's element type can therefore
+    // be `long_index_t` (caller's responsibility).
+    //
+    // Why not per-issue SRD rebase? In the K/V tile distributions emitted
+    // by CK-UA today, a single wave-wide buffer_load_dword* spans
+    // (LaneGroups) different N-positions, which for the prefill configs
+    // (NumWarps≥2) can map to several different pages within one issue.
+    // For paged-KV caches > 4 GB, those pages can be ≫ 4 GB apart in the
+    // global K buffer, exceeding the 32-bit voffset / 32-bit SRD-size
+    // range. Only a per-lane 64-bit base pointer (i.e. global_load_lds)
+    // can address all those lanes from a single instruction.
+    //
+    // OOB note: this path drops the SRD's hardware OOB clamp. Caller must
+    // ensure `page_idx_` only references live pages (true in the paged-KV
+    // use-case where block_tables are populated from a valid allocator).
+    // ---------------------------------------------------------------------
+    template <typename LdsTileWindow_,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true,
+              bool pre_nop                = false>
+    CK_TILE_DEVICE auto async_load_raw_long(LdsTileWindow_&& lds_tile,
+                                            number<i_access_unsupport_>          = {},
+                                            bool_constant<oob_conditional_check> = {},
+                                            bool_constant<pre_nop> = {}) const
+    {
+        using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
+        using LdsDataType   = typename LdsTileWindow::DataType;
+
+        static_assert(LdsTileWindow::get_num_of_dimension() == 3); // TODO: hard coded
+
+        // The per-tile LDS layout in elements (not bytes). The new
+        // `global_load_lds_*` path differs from the `buffer_load_dword_lds`
+        // path here: the LLVM intrinsic implicitly sets `m0` from its
+        // `lptr` argument every call, so the manual `m0_set / m0_inc`
+        // bookkeeping used by `async_load_raw` would be silently
+        // overwritten. Instead, we compute the per-issue LDS element offset
+        // and add it to the LDS base pointer on each call — the compiler
+        // emits a fresh `s_mov_b32 m0, ...` per load with the right value.
+        const index_t elems_per_buf =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<0>{}, number<0>{}, number<0>{}));
+
+        const index_t elems_per_wave =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<0>{}, number<1>{}, number<0>{})) -
+            elems_per_buf;
+
+        const index_t elems_per_issue =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<1>{}, number<0>{}, number<0>{})) -
+            elems_per_buf;
+
+        using Traits   = load_store_traits;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
+
+        // bf16/fp16/etc. element-typed global ptr base for this tile-window.
+        const DataType* base_data_ptr = bottom_tensor_view_.get_buffer_view().p_data_;
+        // Element count in the underlying buffer — used to clamp per-lane
+        // pointers that go past the live range, mimicking the SRD's OOB
+        // semantics on the original `buffer_load_dword_lds` path.
+        const long_index_t buf_elems = static_cast<long_index_t>(
+            bottom_tensor_view_.get_buffer_view().buffer_size_);
+        LdsDataType*    lds_base = lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_;
+
+        // Wave / warp-group offset into LDS, computed once.
+        const index_t lds_wave_elems = elems_per_buf + elems_per_wave * get_warp_id();
+
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+
+            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                constexpr auto iAccess  = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+                constexpr auto pre_nop_ = [&]() {
+                    if constexpr(pre_nop && iCoord == 0 && iCoordAccess == 0)
+                        return bool_constant<true>{};
+                    else
+                        return bool_constant<false>{};
+                }();
+
+                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
+                // page_idx_ element type can be long_index_t — the pointer
+                // arithmetic below stays 64-bit by promotion.
+                const auto page_offset = page_idx_[idx_gather];
+
+                // Per-lane 64-bit GLOBAL base pointer. coord.get_offset() is
+                // the within-bottom-tensor element offset (intra-tile,
+                // int32-safe by construction); page_offset is the
+                // page-indirected element offset (potentially > INT32_MAX).
+                // Pointer arithmetic on DataType* advances by sizeof(DataType)
+                // and uses 64-bit ptrdiff_t internally.
+                const long_index_t lane_elem_off =
+                    static_cast<long_index_t>(bottom_tensor_thread_coord.get_offset()) +
+                    static_cast<long_index_t>(page_offset);
+                // Clamp to in-buffer range to keep `global_load_lds` from
+                // faulting on tail-padded pages (the original buffer_load
+                // SRD silently returned 0 for the same OOB voffsets). The
+                // attention mask zeroes the contribution from these lanes
+                // at softmax, so the value read here is irrelevant.
+                constexpr index_t bytes_per_load_ = sizeof(vector_t);
+                constexpr index_t elems_per_load_ = bytes_per_load_ / sizeof(DataType);
+                const bool in_range =
+                    (lane_elem_off >= 0) &&
+                    (lane_elem_off + elems_per_load_ <= buf_elems);
+                const long_index_t safe_off = in_range ? lane_elem_off : 0;
+                const DataType* per_lane_ptr = base_data_ptr + safe_off;
+
+                // Per-issue LDS write target. Wave-uniform; intrinsic emits
+                // `s_mov_b32 m0, <this>` and the dwordx4 lds-direct write
+                // lands at m0 + (lane_id * bytes_per_lane). For NumCoord==1
+                // (the only case exercised by the UA pipeline today) the
+                // two formulas coincide; we use the monotonically-increasing
+                // one so each issue lands in its own LDS slot.
+                constexpr index_t kIssue = iCoord * NumAccessPerCoord + iCoordAccess;
+                LdsDataType* lds_ptr = lds_base + lds_wave_elems + elems_per_issue * kIssue;
+
+                amd_async_global_load_lds_raw<DataType, elems_per_load_, /*byte_offset_imm=*/0>(
+                    lds_ptr, per_lane_ptr, pre_nop_);
+
+                // move thread coordinate (no m0_inc — see header comment above)
+                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+                {
+                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+                    constexpr auto forward_step_scatter = generate_tuple(
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
+                        number<NDimY>{});
+
+                    constexpr auto idx_diff_ps_ys = container_concat(
+                        generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+                        forward_step_scatter);
+
+                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+                }
+            });
+        });
     }
 
     CK_TILE_DEVICE void update_page_idx(const PageIdxArray& new_idx) { page_idx_ = new_idx; }

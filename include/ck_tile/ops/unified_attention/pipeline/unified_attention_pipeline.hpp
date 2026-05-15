@@ -194,7 +194,12 @@ struct UnifiedAttentionPipeline
         // "fall back to the compile-time `kBlockQ` from `UnifiedAttentionShape`"
         // so existing callers don't have to change. The kernel template passes
         // the runtime value (from kargs) to remove the static dependency.
-        const index_t num_queries_per_kv = 0) const
+        const index_t num_queries_per_kv = 0,
+        // Caller-supplied flag: set to true when the K/V cache total byte
+        // size can exceed INT32_MAX. Routes K/V async loads through the
+        // 64-bit-base `global_load_lds` path (correct but lower throughput).
+        // False uses the original shared-SRD `buffer_load_dword_lds` path.
+        const bool cache_ptr_int32_overflow_possible = false) const
     {
         using namespace ck_tile;
         static_assert(
@@ -425,8 +430,17 @@ struct UnifiedAttentionPipeline
         const index_t k_thread_n_pos = k_thread_coord[number<0>{}];
         const index_t v_thread_n_pos = v_thread_coord[number<0>{}];
 
-        statically_indexed_array<index_t, KNRepeat> k_page_offsets;
-        statically_indexed_array<index_t, VNRepeat> v_page_offsets;
+        // Page offsets are widened to long_index_t so the `_long` load path
+        // (global_load_lds, per-lane 64-bit base) can address pools whose
+        // `num_blocks * page_size * row_stride * sizeof(T)` exceeds INT32_MAX.
+        // Small-domain values (logical_token, logical_page, within_page,
+        // phys_page) stay int32 — they're bounded by the per-CTA sequence
+        // and never overflow. The original `async_load_tile_raw` path
+        // implicitly narrows this back to int32 when it forwards the value
+        // through `async_get_vectorized_elements_raw` — that's intentional,
+        // and safe whenever `cache_ptr_int32_overflow_possible == false`.
+        statically_indexed_array<long_index_t, KNRepeat> k_page_offsets;
+        statically_indexed_array<long_index_t, VNRepeat> v_page_offsets;
 
         auto refresh_k_offsets = [&](index_t k_tile_idx) {
             static_for<0, KNRepeat, 1>{}([&](auto i) {
@@ -438,7 +452,8 @@ struct UnifiedAttentionPipeline
                 const index_t phys_page =
                     block_tables_ptr_[block_table_offset + logical_page];
                 k_page_offsets(i) =
-                    (phys_page * page_size + within_page) * k_row_stride;
+                    (static_cast<long_index_t>(phys_page) * page_size + within_page) *
+                    k_row_stride;
             });
         };
         auto refresh_v_offsets = [&](index_t v_tile_idx) {
@@ -451,7 +466,8 @@ struct UnifiedAttentionPipeline
                 const index_t phys_page =
                     block_tables_ptr_[block_table_offset + logical_page];
                 v_page_offsets(i) =
-                    (phys_page * page_size + within_page) * v_row_stride;
+                    (static_cast<long_index_t>(phys_page) * page_size + within_page) *
+                    v_row_stride;
             });
         };
 
@@ -575,15 +591,46 @@ struct UnifiedAttentionPipeline
         // Pass-2: page indirection lives in page_offsets, not in the SRD. We
         // refresh the per-iter offsets table and push it to the window via
         // update_page_idx(); the SRD itself stays put (no init_raw per iter).
+        //
+        // Two load paths, dispatched on the runtime overflow flag:
+        //   - false: `async_load_tile_raw` → `buffer_load_dword_lds` with a
+        //     wave-uniform 4 GB-capped SRD. Faster, but per-lane voffsets
+        //     are int32 so the path is only correct while
+        //     `num_blocks * page_size * row_stride * sizeof(T) ≤ INT32_MAX`.
+        //   - true: `async_load_tile_raw_long` → `global_load_lds_dwordx*`
+        //     with per-lane 64-bit base pointers, lifting the 4 GB limit
+        //     at the cost of lower throughput.
+        // The branch is on a wave-uniform value, so no execution divergence.
+        //
+        // For diagnostic purposes: the wave's N-position span within a
+        // single buffer_load instruction is `(LaneGroups-1)*NumWarps + 1`.
+        // When that's > the minimum page_size (≈16) the K-tile distribution
+        // touches multiple pages per issue, so the small-cache buffer_load
+        // path still works (per-lane voffsets fit while the cache ≤ 4 GB)
+        // but the per-issue SRD-rebase optimization (not implemented today)
+        // wouldn't be applicable — only `global_load_lds` works once the
+        // cache exceeds 4 GB.
+        constexpr index_t KWaveSpanInN =
+            (KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<1>{}] - 1) *
+                KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<2>{}] +
+            1;
+        (void)KWaveSpanInN; // currently informational only
+
         auto K_mem_load = [&](auto k_lds_write_idx) {
-            async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
+            if(cache_ptr_int32_overflow_possible)
+                async_load_tile_raw_long(k_lds_window_store(k_lds_write_idx), k_dram_window);
+            else
+                async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
             k_block_idx++;
             refresh_k_offsets(k_block_idx);
             k_dram_window.update_page_idx(k_page_offsets);
         };
 
         auto V_mem_load = [&](auto v_lds_write_idx) {
-            async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
+            if(cache_ptr_int32_overflow_possible)
+                async_load_tile_raw_long(v_lds_window_store(v_lds_write_idx), v_dram_window);
+            else
+                async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
             v_block_idx++;
             refresh_v_offsets(v_block_idx);
             v_dram_window.update_page_idx(v_page_offsets);
@@ -1269,7 +1316,9 @@ struct UnifiedAttentionPipeline
         long_index_t v_row_stride        = 0,
         // Forwards to the full-args operator() so callers can plumb in a
         // runtime kBlockQ. See the documentation on that overload.
-        const index_t num_queries_per_kv = 0) const
+        const index_t num_queries_per_kv = 0,
+        // See the doc on the full-args operator().
+        const bool cache_ptr_int32_overflow_possible = false) const
     {
         using namespace ck_tile;
 
@@ -1292,7 +1341,8 @@ struct UnifiedAttentionPipeline
                           smem_ptr,
                           k_row_stride,
                           v_row_stride,
-                          num_queries_per_kv);
+                          num_queries_per_kv,
+                          cache_ptr_int32_overflow_possible);
     }
 };
 

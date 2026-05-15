@@ -109,6 +109,10 @@ struct UnifiedAttentionKernel
         ck_tile::index_t split_stride_o_acc = 0;
         ck_tile::index_t nhead_stride_lse_acc = 0;
         ck_tile::index_t nhead_stride_o_acc = 0;
+
+        // Runtime selector for the K/V async-load path in the pipeline. See
+        // `unified_attention_args::cache_ptr_int32_overflow_possible`.
+        bool cache_ptr_int32_overflow_possible = false;
     };
 
     using Kargs = UnifiedAttentionVarlenKargs;
@@ -150,7 +154,8 @@ struct UnifiedAttentionKernel
                                                   ck_tile::index_t split_stride_lse_acc   = 0,
                                                   ck_tile::index_t split_stride_o_acc     = 0,
                                                   ck_tile::index_t nhead_stride_lse_acc   = 0,
-                                                  ck_tile::index_t nhead_stride_o_acc     = 0)
+                                                  ck_tile::index_t nhead_stride_o_acc     = 0,
+                                                  bool cache_ptr_int32_overflow_possible  = false)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -189,7 +194,8 @@ struct UnifiedAttentionKernel
                     split_stride_lse_acc,
                     split_stride_o_acc,
                     nhead_stride_lse_acc,
-                    nhead_stride_o_acc};
+                    nhead_stride_o_acc,
+                    cache_ptr_int32_overflow_possible};
 
         return kargs;
     }
@@ -518,7 +524,8 @@ struct UnifiedAttentionKernel
                                                           smem_ptr,
                                                           static_cast<long_index_t>(kargs.stride_k_cache_1),
                                                           static_cast<long_index_t>(kargs.stride_v_cache_1),
-                                                          num_queries_per_kv);
+                                                          num_queries_per_kv,
+                                                          kargs.cache_ptr_int32_overflow_possible);
         auto& o_acc_tile = pipeline_result[number<0>{}];
         auto& lse_tile   = pipeline_result[number<1>{}];
 

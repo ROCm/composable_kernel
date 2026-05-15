@@ -193,6 +193,27 @@ CK_TILE_DEVICE void async_load_tile_raw(LdsTileWindow_&& lds_tile,
                                bool_constant<pre_nop>{});
 }
 
+// Variant of async_load_tile_raw that dispatches to async_load_raw_long
+// (global_load_lds path with per-lane 64-bit base pointers). Only valid for
+// tile_scatter_gather windows whose PageIdxArray element type supports
+// 64-bit values (e.g. long_index_t).
+template <typename LdsTileWindow_,
+          typename TileWindow_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          bool pre_nop               = false>
+CK_TILE_DEVICE void async_load_tile_raw_long(LdsTileWindow_&& lds_tile,
+                                             const TileWindow_& tile_window,
+                                             number<i_access>                     = {},
+                                             bool_constant<oob_conditional_check> = {},
+                                             bool_constant<pre_nop>               = {})
+{
+    tile_window.async_load_raw_long(lds_tile,
+                                    number<i_access>{},
+                                    bool_constant<oob_conditional_check>{},
+                                    bool_constant<pre_nop>{});
+}
+
 CK_TILE_DEVICE void async_load_fence(index_t cnt = 0)
 {
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
