@@ -602,14 +602,19 @@ struct UnifiedAttentionPipeline
         //     at the cost of lower throughput.
         // The branch is on a wave-uniform value, so no execution divergence.
         //
-        // For diagnostic purposes: the wave's N-position span within a
-        // single buffer_load instruction is `(LaneGroups-1)*NumWarps + 1`.
-        // When that's > the minimum page_size (≈16) the K-tile distribution
-        // touches multiple pages per issue, so the small-cache buffer_load
-        // path still works (per-lane voffsets fit while the cache ≤ 4 GB)
-        // but the per-issue SRD-rebase optimization (not implemented today)
-        // wouldn't be applicable — only `global_load_lds` works once the
-        // cache exceeds 4 GB.
+        // We tried a third "per-issue SRD rebase" path
+        // (`async_load_tile_raw_rebased`: buffer_load_dword_lds with a
+        // per-issue SRD whose 48-bit base absorbs the wave-uniform page
+        // offset, valid when WaveSpanInN ≤ runtime page_size). It was
+        // correct on every big-cache decode shape tested but came out at
+        // best tied with the long path and at worst ~6% slower (e.g.
+        // b=1 sk=1M d=64: 2.46 ms vs 2.32 ms; b=8 sk=200k d=128: 2.12 ms
+        // vs 2.02 ms — see git log for the full table). These workloads
+        // are compute / softmax bound, not K/V-load bandwidth bound, so
+        // the buffer_load vs global_load_lds throughput edge never
+        // materialises, while per-issue SRD construction adds real SGPR
+        // pressure. The rebased helper has been removed to keep the
+        // dispatch (and emitted kernel size) minimal.
         constexpr index_t KWaveSpanInN =
             (KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<1>{}] - 1) *
                 KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<2>{}] +
