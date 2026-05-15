@@ -97,8 +97,23 @@ struct UnifiedAttentionPipeline
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        // create another LDS buffer for p
-        return ck_tile::max(kBlockM * kHeadDimPadded * sizeof(PDataType),
+        // Two layouts share the same smem base region during the pipeline:
+        //   - the o_lds tile (kBlockM * kHeadDimPadded * sizeof(PDataType)),
+        //     overlapped with the s_lds tile (kBlockM * kPageBlockSize *
+        //     sizeof(SaccDataType)) — the QK gemm writes its float32 sacc
+        //     into s_lds while the PV output is staged through o_lds;
+        //   - K/V double-buffered storage (Policy::GetSmemSize) plus the
+        //     p_lds tile that lives immediately after it (kBlockM *
+        //     kPageBlockSize * sizeof(PDataType)).
+        // For BF16/FP16 the o_lds term dominates so historically the
+        // s_lds bound was implicit; for FP8 the PDataType drops to 1 B
+        // while SaccDataType stays at 4 B, so the s_lds term becomes the
+        // tightest bound and we must include it explicitly. The
+        // static_assert further down (sizeof(SaccDataType) * kPageBlockSize
+        // * kBlockM <= GetSmemSize()) now passes for every FP8 variant we
+        // compile.
+        return ck_tile::max(ck_tile::max(kBlockM * kHeadDimPadded * sizeof(PDataType),
+                                         kBlockM * kPageBlockSize * sizeof(SaccDataType)),
                             Policy::template GetSmemSize<Problem>() +
                                 kBlockM * kPageBlockSize * sizeof(PDataType));
     }
@@ -199,7 +214,16 @@ struct UnifiedAttentionPipeline
         // size can exceed INT32_MAX. Routes K/V async loads through the
         // 64-bit-base `global_load_lds` path (correct but lower throughput).
         // False uses the original shared-SRD `buffer_load_dword_lds` path.
-        const bool cache_ptr_int32_overflow_possible = false) const
+        const bool cache_ptr_int32_overflow_possible = false,
+        // Per-tensor FP8 V descale, applied to o_acc once after the 1/l
+        // normalisation. For non-FP8 dtypes the host passes 1.0f and this
+        // becomes a no-op multiply. The mathematical identity is:
+        //   sum_j P[i,j] * V_real[j,:] = v_descale * sum_j P[i,j] * V_fp8[j,:]
+        // so deferring the v_descale outside the K/V loop is exact (not an
+        // approximation). For split-KV (num_splits > 1) each partial gets
+        // v_descale baked in; the combine step's affine weighting passes it
+        // through unchanged so the final O is correct.
+        const float v_descale = 1.0f) const
     {
         using namespace ck_tile;
         static_assert(
@@ -752,22 +776,199 @@ struct UnifiedAttentionPipeline
             /// the cast_tile() call as inline assembly, forcing the conversions to be
             /// emitted at this point.
             static_assert(sp(sp_reg_idx).p.thread_buf_.size() % 2 == 0);
-            static_for<0, sp(sp_reg_idx).p.thread_buf_.size(), 2>{}([&](auto idx) {
-                float x = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx]);
-                float y = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 1]);
-                if constexpr(std::is_same_v<PDataType, fp16_t>)
+            if constexpr(std::is_same_v<PDataType, fp8_t>)
+            {
+                // FP8 P packing for the PV gemm.
+                //
+                // The CK reference path for fp32 -> fp8 is `cast_tile_pk_fp8_fp32`
+                // in tile_elementwise.hpp, which CHAINS two `__builtin_amdgcn_cvt_pk_fp8_f32`
+                // calls per 4-lane group: the second call uses the first call's
+                // result as its `old` operand so the final uint32_t holds four
+                // valid fp8 bytes packed into one register. Doing the conversion
+                // pair-by-pair (one cvt_pk per 2 lanes, ignoring the upper 16
+                // bits of the result) is *not* equivalent in practice -- the
+                // builtin's `old` argument feeds the upper-bits passthrough and
+                // when fed an uninitialised int the compiler is free to schedule
+                // the cvt against junk that overlaps another live register,
+                // which we observed as occasional whole-row output corruption
+                // for FP8 prefill workloads.
+                //
+                // Use the chained 4-lanes-per-iteration pattern to match
+                // `cast_tile_pk_fp8_fp32` byte-for-byte, then store as 4 fp8_t
+                // bytes back into `p.thread_buf_`. We still anchor the work
+                // inline (no `cast_tile(...)` indirection) so the conversions
+                // stay at the end of `fmha_alu1` like the FP16/BF16 paths.
+                static_assert(sp(sp_reg_idx).p.thread_buf_.size() % 4 == 0,
+                              "fp8 P conversion expects packs of 4 fp32 lanes per "
+                              "thread; widen the warp gemm M distribution if this "
+                              "trips.");
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wuninitialized"
+                int dummy_old;
+                static_for<0, sp(sp_reg_idx).p.thread_buf_.size(), 4>{}([&](auto idx) {
+                    const float a = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 0]);
+                    const float b = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 1]);
+                    const float c = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 2]);
+                    const float d = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 3]);
+
+                    uint32_t lo =
+                        __builtin_amdgcn_cvt_pk_fp8_f32(a, b, dummy_old, /*hi=*/false);
+                    uint32_t packed =
+                        __builtin_amdgcn_cvt_pk_fp8_f32(c, d, lo, /*hi=*/true);
+                    sp(sp_reg_idx).p.thread_buf_[idx + 0] =
+                        bit_cast<fp8_t>(static_cast<fp8_raw_t>((packed >>  0) & 0xFFu));
+                    sp(sp_reg_idx).p.thread_buf_[idx + 1] =
+                        bit_cast<fp8_t>(static_cast<fp8_raw_t>((packed >>  8) & 0xFFu));
+                    sp(sp_reg_idx).p.thread_buf_[idx + 2] =
+                        bit_cast<fp8_t>(static_cast<fp8_raw_t>((packed >> 16) & 0xFFu));
+                    sp(sp_reg_idx).p.thread_buf_[idx + 3] =
+                        bit_cast<fp8_t>(static_cast<fp8_raw_t>((packed >> 24) & 0xFFu));
+                });
+#pragma clang diagnostic pop
+
+                // ---------------------------------------------------------
+                // FP8 P-tile cross-lane permute (kCMLane <-> kABKLane fixup)
+                //
+                // The CK UA pipeline relies on the QK-gemm's C output
+                // aliasing byte-for-byte with the PV-gemm's A operand
+                // through the `sp_compute` / `p` union. That alias is
+                // only valid when the two warp gemms' per-thread element
+                // layouts match.
+                //
+                // For BF16/FP16 the PV gemm uses `WGAttrNumAccess::Double`
+                // which splits `kABKPerLane=8` as (AttrNumAccess=2,
+                // kABKLane=2, kABKPerLane/Access=4). That last `4`
+                // matches the QK-C `kCM1PerLane=4` so each lane's
+                // sp_compute slots line up 1:1 with its p slots.
+                //
+                // FP8 cannot use `Double`: `load_tile_transpose` for the
+                // V tile requires the last H[1] dim to equal
+                // `64-bit/sizeof(fp8)=8`, so we are forced into `Single`
+                // where H[1]=(kABKLane=2, kABKPerLane=8). Now the
+                // sp_compute "kCM0=4, kCMLane=2, kCM1=4" layout no
+                // longer matches the p "kABKLane=2, kABKPerLane=8"
+                // layout. For each 8-fp8 PV K-chunk (one warp-gemm K
+                // iteration, since FP8 Single packs 8 elements/K-iter
+                // per thread), the slot decomposition is:
+                //
+                //   sub=0 | slot in chunk | sp_compute (N)   | PV (K)  |
+                //   -----+---------------+------------------+---------+
+                //        |  [0..3]       | N=0..3           | K=0..3 OK
+                //        |  [4..7]       | N=8..11          | K=4..7 BAD
+                //
+                //   sub=1 | slot in chunk | sp_compute (N)   | PV (K)  |
+                //   -----+---------------+------------------+---------+
+                //        |  [0..3]       | N=4..7           | K=8..11 BAD
+                //        |  [4..7]       | N=12..15         | K=12..15 OK
+                //
+                // (The above is for QK NIter=1 / PV KIter=1; the same
+                // 8-slot mismatch pattern repeats for every PV K-chunk
+                // -- d=128 has KIter=2 ==> 16 fp8/thread, d=64 has
+                // KIter=4 ==> 32 fp8/thread.)
+                //
+                // Each sub's *bad* 4-fp8 chunk carries exactly the data
+                // the *paired* sub needs for its *bad* slot (N is
+                // contracted into K in the PV gemm, so the index space
+                // is shared). The fix is a cross-lane exchange (lane L
+                // with lane L^32) of those bad chunks, repeated per PV
+                // K iteration.
+                //
+                // Implemented with `__builtin_amdgcn_ds_bpermute_b32`:
+                // each lane packs its own bad 4-fp8 chunk into a dword,
+                // bpermutes from the paired lane's same value (which is
+                // that lane's bad chunk = our needed data), and unpacks
+                // it into its own bad slot. The good slots are untouched.
+                //
+                // Only required when the QK-C and PV-A warp encodings
+                // disagree on per-thread element ordering, i.e. when the
+                // PV gemm runs with `Single` AttrNumAccess. The current
+                // FP8 PV policy is `Single`; BF16/FP16 use `Double` and
+                // alias for free.
+                //
+                // Cost: one `ds_bpermute_b32` per PV K-iteration per
+                // `fmha_alu1` call, each on a single dword. Same order
+                // of magnitude as the existing `permlane32_swap`
+                // reductions in this file. FP8-only.
+                //
+                // Gating: this swap pattern assumes the PV gemm uses the
+                // 32x32x16 MFMA (lanes split as kABMLane=32 / kABKLane=2,
+                // i.e. paired lane = `lane ^ 32`). The 16x16x32 MFMA
+                // used by the d128_m16 tiny-decode tier has a different
+                // lane partitioning (kABKLane=4) and is not FP8-enabled
+                // at the dispatcher, so we gate this swap on the
+                // 32x32x16 PV warp shape and leave the 16x16x32 case
+                // alone -- it would need a different swap pattern (and
+                // would have a different alias mismatch to fix).
+                using PVWarpTile = typename UnifiedAttentionShape::Gemm1WarpTile;
+                if constexpr(PVWarpTile::at(number<0>{}) == 32 &&
+                             PVWarpTile::at(number<1>{}) == 32 &&
+                             PVWarpTile::at(number<2>{}) == 16)
                 {
-                    auto casted                           = detail::cvt_pk_fp16_f32(x, y);
-                    sp(sp_reg_idx).p.thread_buf_[idx]     = casted.x;
-                    sp(sp_reg_idx).p.thread_buf_[idx + 1] = casted.y;
+                    static_assert(sp(sp_reg_idx).p.thread_buf_.size() % 8 == 0,
+                                  "FP8 32x32x16 + Single cross-lane permute "
+                                  "expects PV per-thread buffer in chunks of 8 "
+                                  "fp8 (one warp-gemm K iteration).");
+
+                    const int lane_id     = ck_tile::get_lane_id();
+                    const int paired_addr = (lane_id ^ 32) << 2; // bytes
+                    const bool is_sub_0   = (lane_id & 32) == 0;
+
+                    auto pack4 = [](fp8_t a, fp8_t b, fp8_t c, fp8_t d) -> uint32_t {
+                        return (static_cast<uint32_t>(bit_cast<fp8_raw_t>(a)) << 0) |
+                               (static_cast<uint32_t>(bit_cast<fp8_raw_t>(b)) << 8) |
+                               (static_cast<uint32_t>(bit_cast<fp8_raw_t>(c)) << 16) |
+                               (static_cast<uint32_t>(bit_cast<fp8_raw_t>(d)) << 24);
+                    };
+                    auto unpack4 = [](uint32_t v, fp8_t& a, fp8_t& b, fp8_t& c, fp8_t& d) {
+                        a = bit_cast<fp8_t>(static_cast<fp8_raw_t>((v >>  0) & 0xFFu));
+                        b = bit_cast<fp8_t>(static_cast<fp8_raw_t>((v >>  8) & 0xFFu));
+                        c = bit_cast<fp8_t>(static_cast<fp8_raw_t>((v >> 16) & 0xFFu));
+                        d = bit_cast<fp8_t>(static_cast<fp8_raw_t>((v >> 24) & 0xFFu));
+                    };
+
+                    // One swap per PV K-iteration: within each 8-fp8 chunk,
+                    // sub=0's slot [k_base+4..k_base+7] <-> sub=1's slot
+                    // [k_base..k_base+3].
+                    static_for<0, sp(sp_reg_idx).p.thread_buf_.size(), 8>{}([&](auto k_base) {
+                        auto& p = sp(sp_reg_idx).p;
+                        const uint32_t own_bad =
+                            is_sub_0
+                                ? pack4(p.thread_buf_[k_base + 4], p.thread_buf_[k_base + 5],
+                                        p.thread_buf_[k_base + 6], p.thread_buf_[k_base + 7])
+                                : pack4(p.thread_buf_[k_base + 0], p.thread_buf_[k_base + 1],
+                                        p.thread_buf_[k_base + 2], p.thread_buf_[k_base + 3]);
+                        const uint32_t recv =
+                            __builtin_amdgcn_ds_bpermute(paired_addr, static_cast<int>(own_bad));
+                        if(is_sub_0)
+                            unpack4(recv,
+                                    p.thread_buf_[k_base + 4], p.thread_buf_[k_base + 5],
+                                    p.thread_buf_[k_base + 6], p.thread_buf_[k_base + 7]);
+                        else
+                            unpack4(recv,
+                                    p.thread_buf_[k_base + 0], p.thread_buf_[k_base + 1],
+                                    p.thread_buf_[k_base + 2], p.thread_buf_[k_base + 3]);
+                    });
                 }
-                else
-                {
-                    auto casted                           = cvt_pk_bf16_f32(x, y);
-                    sp(sp_reg_idx).p.thread_buf_[idx]     = casted.x;
-                    sp(sp_reg_idx).p.thread_buf_[idx + 1] = casted.y;
-                }
-            });
+            }
+            else
+            {
+                static_for<0, sp(sp_reg_idx).p.thread_buf_.size(), 2>{}([&](auto idx) {
+                    float x = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx]);
+                    float y = p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 1]);
+                    if constexpr(std::is_same_v<PDataType, fp16_t>)
+                    {
+                        auto casted                           = detail::cvt_pk_fp16_f32(x, y);
+                        sp(sp_reg_idx).p.thread_buf_[idx]     = casted.x;
+                        sp(sp_reg_idx).p.thread_buf_[idx + 1] = casted.y;
+                    }
+                    else
+                    {
+                        auto casted                           = cvt_pk_bf16_f32(x, y);
+                        sp(sp_reg_idx).p.thread_buf_[idx]     = casted.x;
+                        sp(sp_reg_idx).p.thread_buf_[idx + 1] = casted.y;
+                    }
+                });
+            }
 
             /// Note: Place fmha_alu1() at the end of the phase. The surrounding inline assembly
             /// can interfere with the behavior of sched_group_barrier(), so ending the phase here
@@ -1253,13 +1454,18 @@ struct UnifiedAttentionPipeline
 
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
             constexpr auto i_idx = make_tuple(idx0);
+            // Fuse the V FP8 descale into the per-row normalisation so the
+            // post-loop pass touches o_acc only once. v_descale is host-set
+            // to 1.0f for non-FP8 dtypes so this stays a free no-op there.
+            // Masked rows that saw no valid keys keep their zeros (the
+            // l == 0 short-circuit below).
             const auto tmp       = [&]() {
                 if constexpr(FmhaMask::IsMasking)
                 {
-                    return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
+                    return l[i_idx] == 0.f ? 0.f : v_descale / l[i_idx];
                 }
                 else
-                    return 1 / l[i_idx];
+                    return v_descale / l[i_idx];
             }();
             sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
@@ -1323,7 +1529,10 @@ struct UnifiedAttentionPipeline
         // runtime kBlockQ. See the documentation on that overload.
         const index_t num_queries_per_kv = 0,
         // See the doc on the full-args operator().
-        const bool cache_ptr_int32_overflow_possible = false) const
+        const bool cache_ptr_int32_overflow_possible = false,
+        // See the doc on the full-args operator(). Defaults to 1.0f so
+        // non-FP8 callers see no behavior change.
+        const float v_descale = 1.0f) const
     {
         using namespace ck_tile;
 
@@ -1347,7 +1556,8 @@ struct UnifiedAttentionPipeline
                           k_row_stride,
                           v_row_stride,
                           num_queries_per_kv,
-                          cache_ptr_int32_overflow_possible);
+                          cache_ptr_int32_overflow_possible,
+                          v_descale);
     }
 };
 

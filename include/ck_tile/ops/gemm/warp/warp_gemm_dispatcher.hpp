@@ -124,6 +124,7 @@ template<> struct Dispatcher<bf16_t, bf16_t, float, 32, 32, 16,  true, true> { u
 template<> struct Dispatcher<fp8_t, fp8_t, float, 32, 32,  16, false> { using Type = WarpGemmMfma_f32_32x32x16_fp8_fp8; };
 template<> struct Dispatcher<fp8_t, fp8_t, float, 16, 16,  32, false> { using Type = WarpGemmMfma_f32_16x16x32_fp8_fp8; };
 template<> struct Dispatcher<fp8_t, fp8_t, float, 32, 32,  16,  true> { using Type = WarpGemmMfma_f32_32x32x16_fp8_fp8_CTransposed; };
+template<> struct Dispatcher<fp8_t, fp8_t, float, 32, 32,  16,  true, false, false, EDouble> { using Type = WarpGemmMfma_f32_32x32x16_fp8_fp8_CTransposed_T<EDouble>; };
 template<> struct Dispatcher<fp8_t, fp8_t, float, 16, 16,  32,  true> { using Type = WarpGemmMfma_f32_16x16x32_fp8_fp8_CTransposed; };
 template<> struct Dispatcher<fp8_t, bf8_t, float, 32, 32,  16, false> { using Type = WarpGemmMfma_f32_32x32x16_fp8_bf8; };
 template<> struct Dispatcher<fp8_t, bf8_t, float, 32, 32,  16,  true> { using Type = WarpGemmMfma_f32_32x32x16_fp8_bf8_CTransposed; };

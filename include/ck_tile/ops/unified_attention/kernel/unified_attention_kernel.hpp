@@ -66,11 +66,35 @@ struct UnifiedAttentionKernel
         // if this param is larger than 1, indicate MQA/GQA case
         const ck_tile::index_t num_queries_per_kv;
         // scales
+        //
+        // `scale_s` is the softmax scale (1/sqrt(d) by convention) AFTER:
+        //   1. multiplication by log2(e) so the pipeline's exp2 reproduces
+        //      the natural-exponent softmax (preserved from the pre-FP8
+        //      design — see MakeKargs below);
+        //   2. fusion of the FP8 per-tensor Q/K descales (q_descale,
+        //      k_descale) for FP8 problems. This matches Triton's
+        //      unified_attention reference, which computes
+        //      `qk_scale = sm_scale * q_scale * k_scale` and bakes the
+        //      log2(e) factor into the exp2 inside the kernel. For
+        //      non-FP8 dtypes the host passes q_descale = k_descale = 1.0
+        //      so the value reduces to `sm_scale * log2(e)`.
+        //
+        // `v_descale` is the FP8 per-tensor V descale, deferred to the
+        // post-loop `o_acc *= v_descale / l` step inside the pipeline
+        // (mathematically exact — V is a linear factor on the
+        // unnormalised attention output). For non-FP8 dtypes the host
+        // passes 1.0f so this is a free no-op.
+        //
+        // The legacy `scale` / `scale_k` / `scale_v` / `scale_out` fields
+        // are kept in the kargs struct for ABI continuity with downstream
+        // code that constructed kargs directly; they are not read by the
+        // pipeline any more.
         float scale_s;
         float scale;
         float scale_k;
         float scale_v;
         float scale_out;
+        float v_descale;
 
         ck_tile::index_t page_size;
 
@@ -129,6 +153,9 @@ struct UnifiedAttentionKernel
                                                   float scale_k,
                                                   float scale_v,
                                                   float scale_out,
+                                                  float q_descale,
+                                                  float k_descale,
+                                                  float v_descale,
                                                   ck_tile::index_t page_size,
                                                   ck_tile::index_t total_num_q_blocks,
                                                   ck_tile::index_t query_stride_0,
@@ -157,6 +184,16 @@ struct UnifiedAttentionKernel
                                                   ck_tile::index_t nhead_stride_o_acc     = 0,
                                                   bool cache_ptr_int32_overflow_possible  = false)
     {
+        // Fuse the Q/K FP8 descales into `scale_s` so the softmax sees a
+        // single combined scalar — matches the Triton FP8 reference
+        // (qk_scale = sm_scale * q_scale * k_scale) and avoids extra
+        // arithmetic per element inside the kernel. The log2(e) factor
+        // is included here so the device-side exp2 produces the
+        // natural-exponent softmax. For non-FP8 dtypes the host passes
+        // q_descale = k_descale = 1.0, which reduces this to the original
+        // `scale_s * log2(e)`.
+        const float scale_s_fused =
+            static_cast<float>(scale_s * q_descale * k_descale * ck_tile::log2e_v<>);
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
@@ -164,11 +201,12 @@ struct UnifiedAttentionKernel
                      num_blks,
                      num_head_q,
                      num_queries_per_kv,
-                     static_cast<float>(scale_s * ck_tile::log2e_v<>),
+                     scale_s_fused,
                      scale,
                      scale_k,
                      scale_v,
                      scale_out,
+                     v_descale,
                      page_size,
                      total_num_q_blocks,
                      query_stride_0,
@@ -525,7 +563,8 @@ struct UnifiedAttentionKernel
                                                           static_cast<long_index_t>(kargs.stride_k_cache_1),
                                                           static_cast<long_index_t>(kargs.stride_v_cache_1),
                                                           num_queries_per_kv,
-                                                          kargs.cache_ptr_int32_overflow_possible);
+                                                          kargs.cache_ptr_int32_overflow_possible,
+                                                          kargs.v_descale);
         auto& o_acc_tile = pipeline_result[number<0>{}];
         auto& lse_tile   = pipeline_result[number<1>{}];
 

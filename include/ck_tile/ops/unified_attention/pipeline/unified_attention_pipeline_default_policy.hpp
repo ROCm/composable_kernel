@@ -39,7 +39,28 @@ struct UnifiedAttentionPipelineDefaultPolicy
         using namespace ck_tile;
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
 #if defined(__gfx950__)
-        constexpr index_t MaxReadSizeInBytes = 16;
+        // FP8 caveat on gfx950:
+        //   - The natural 16 B/lane async load (KVector = 16 elements/lane)
+        //     leaves NumIssues = 0 for the prefill / decode kPageBlockSize x
+        //     NumWarps tuples we compile FP8 instances for (kBlockSize *
+        //     KVector exceeds kNPerBlock * kKPerBlock).
+        //   - Dropping to 8 B/lane brings NumIssues back to >=1, but on
+        //     gfx950 the LDS-targeted `global_load_lds` instruction only
+        //     supports dword / dwordx3 / dwordx4 (4 / 12 / 16 B per lane);
+        //     8 B fails the static_assert in amd_buffer_addressing_builtins.
+        //   - 4 B / lane (one dword) works on every targeted tile and is
+        //     the same as the gfx942 fallback below. Lower per-instruction
+        //     bytes than BF16/FP16's 16 B path, but the FP8 K/V is half the
+        //     size in bytes so the *element* count moved per cycle stays
+        //     reasonable. Verified compile-time on prefill_d{64,128},
+        //     decode_d{64,128}_m128.
+        // BF16 / FP16 keep the full 16 B/lane read so existing perf is
+        // unchanged.
+        constexpr index_t MaxReadSizeInBytes =
+            (std::is_same_v<KDataType, ck_tile::fp8_t> ||
+             std::is_same_v<KDataType, ck_tile::bf8_t>)
+                ? 4
+                : 16;
 #else
         constexpr index_t MaxReadSizeInBytes = 4;
 #endif
@@ -52,7 +73,13 @@ struct UnifiedAttentionPipelineDefaultPolicy
         using namespace ck_tile;
         using VDataType = remove_cvref_t<typename Problem::VDataType>;
 #if defined(__gfx950__)
-        constexpr index_t MaxReadSizeInBytes = 16;
+        // See the FP8 caveat on GetAlignmentK above — symmetric reasoning
+        // for V.
+        constexpr index_t MaxReadSizeInBytes =
+            (std::is_same_v<VDataType, ck_tile::fp8_t> ||
+             std::is_same_v<VDataType, ck_tile::bf8_t>)
+                ? 4
+                : 16;
 #else
         constexpr index_t MaxReadSizeInBytes = 4;
 #endif
@@ -279,8 +306,20 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                                     Problem::UnifiedAttentionShape::kPageBlockSize>,
                                            typename Problem::UnifiedAttentionShape::Gemm1BlockWarps,
                                            typename Problem::UnifiedAttentionShape::Gemm1WarpTile>>;
-        /// NOTICE: in order to use load_tile_transpose() later for V tiles, we have to pass
-        /// WGAttrNumAccessEnum::Double instead of WGAttrNumAccessEnum::Single
+        // `load_tile_transpose` is only valid when the tile distribution's inner
+        // packing matches the transpose engine's SubtileMinorDimension =
+        // 64 bits / sizeof(VDataType_in_bits). For BF16 / FP16 SubMinDim=4 and the
+        // PV warp gemm produces kABKPerLane / AttrNumAccess = 8 / 2 = 4 elements
+        // per lane on the K direction — Double access is needed there. For FP8
+        // SubMinDim=8 and kABKPerLane=8, so we must pass `Single` (otherwise
+        // 8/2=4 mismatches the FP8 SubMinDim=8 and the load_tile_transpose
+        // validation static_asserts fire — see DefaultTranspose::Quad in
+        // load_tile_transpose.hpp). The select is purely a compile-time alias.
+        static constexpr WGAttrNumAccessEnum PVAttrNumAccess =
+            std::is_same_v<remove_cvref_t<typename Problem::VDataType>, ck_tile::fp8_t> ||
+                    std::is_same_v<remove_cvref_t<typename Problem::VDataType>, ck_tile::bf8_t>
+                ? WGAttrNumAccessEnum::Single
+                : WGAttrNumAccessEnum::Double;
         using WarpGemm =
             WarpGemmDispatcher<typename Problem::PDataType,
                                typename Problem::VDataType,
@@ -291,7 +330,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                true,
                                false,
                                false,
-                               WGAttrNumAccessEnum::Double>;
+                               PVAttrNumAccess>;
 
         using BlockGemmPolicy = BlockGemmARegBRegCRegV2CustomPolicy<
             typename Problem::PDataType,
@@ -451,7 +490,34 @@ struct UnifiedAttentionPipelineDefaultPolicy
             return (kKPerBlock / kKPack) * (kNPerBlock / NPerRow) * (PixelsPerRow + kKPack);
         }();
 
-        return max(SingleKSize, SingleVSize);
+        // Lower-bound on the actual MakeVLdsLoadBlockDescriptor element
+        // span: it allocates a (NumIssues, LaneGroups, NumWarps, LanesPerK,
+        // KVector) buffer with the outermost stride NumWarps * (WarpSize *
+        // KVector + kPad). For BF16/FP16 the existing banked-layout
+        // SingleVSize above is always larger; for FP8 the small per-lane
+        // KVector (4 B = 4 fp8 elements) combined with the byte-fixed
+        // kVLdsPadInBytes = 64 makes the V descriptor's element span
+        // dominate, so we must include it here or the static_asserts in
+        // GetSmemSizeKV fire.
+        constexpr index_t VLoadDescSize = [&]() {
+            constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kPageBlockSize;
+            constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kHeadDim;
+            constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
+            constexpr index_t WarpSize   = ck_tile::get_warp_size();
+            constexpr index_t KVector    = GetAlignmentV<Problem>();
+            constexpr index_t kPad =
+                kVLdsPadInBytes / sizeof(typename Problem::VDataType);
+
+            static_assert(WarpSize * KVector >= kKPerBlock &&
+                          WarpSize * KVector % kKPerBlock == 0);
+            constexpr index_t LanesPerK  = kKPerBlock / KVector;
+            constexpr index_t LaneGroups = WarpSize / LanesPerK;
+            constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
+
+            return NumIssues * NumWarps * (WarpSize * KVector + kPad);
+        }();
+
+        return max(max(SingleKSize, SingleVSize), VLoadDescSize);
     }
 
     template <typename Problem, ck_tile::index_t IBuf = 0>

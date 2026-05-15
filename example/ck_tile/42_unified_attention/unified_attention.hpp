@@ -17,7 +17,8 @@ struct unified_attention_args
     enum class data_type_enum
     {
         fp16,
-        bf16
+        bf16,
+        fp8 // e4m3fn on gfx950 (OCP) / e4m3fnuz on gfx942 (FNUZ); selected by CK_TILE_USE_OCP_FP8
     };
 
     data_type_enum data_type;
@@ -34,11 +35,23 @@ struct unified_attention_args
 
     index_t hdim;
     // TODO window
-    float scale_s;
-    float scale;
-    float scale_k;
-    float scale_v;
-    float scale_out;
+    float scale_s; // softmax scale (1/sqrt(d) by convention); pre-multiplied with log2(e)
+                   // inside MakeKargs so the device-side softmax can use exp2.
+    // Per-tensor FP8 descales (a.k.a. "scales" in the Triton kernel naming). All three
+    // default to 1.0f so non-FP8 dtypes round-trip cleanly. q_descale and k_descale are
+    // folded into scale_s inside the pipeline (so the softmax sees the combined scalar);
+    // v_descale is applied once to o_acc after the 1/l normalization, outside the K/V
+    // loop. Matches Triton unified_attention's q_scale/k_scale/v_scale semantics
+    // (see aiter/ops/triton/_triton_kernels/attention/unified_attention.py:110-114, 351-358).
+    float q_descale = 1.0f;
+    float k_descale = 1.0f;
+    float v_descale = 1.0f;
+    // Legacy fields kept for ABI stability with downstream callers (csrc glue, examples).
+    // The pipeline currently uses q_descale/k_descale/v_descale instead.
+    float scale     = 1.0f;
+    float scale_k   = 1.0f;
+    float scale_v   = 1.0f;
+    float scale_out = 1.0f;
 
     const void* q_ptr;
     index_t query_stride_0;

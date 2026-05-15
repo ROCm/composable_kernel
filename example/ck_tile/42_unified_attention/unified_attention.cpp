@@ -14,6 +14,7 @@ std::ostream& operator<<(std::ostream& stream,
     {
     case unified_attention_args::data_type_enum::fp16: return stream << "fp16";
     case unified_attention_args::data_type_enum::bf16: return stream << "bf16";
+    case unified_attention_args::data_type_enum::fp8: return stream << "fp8";
     default: return stream << "unknown";
     }
 }
@@ -130,6 +131,38 @@ std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
                 unified_attention_kernel_traits<V, DT::bf16, true>>(args, config);
         return unified_attention_kernel_dispatch<
             unified_attention_kernel_traits<V, DT::bf16, false>>(args, config);
+    }
+    if(args.data_type == DT::fp8)
+    {
+        // FP8 is enabled on every variant that uses the 32x32x16 MFMA,
+        // i.e. all of prefill_d{64,128}, decode_d{64,128}_m128,
+        // decode_d128_m32, and decode_d64_m64. The `fmha_alu1`
+        // cross-lane P-tile fixup in unified_attention_pipeline.hpp
+        // (gated on `WarpGemmShape == 32x32x16`) realigns the FP8 P
+        // operand for these variants regardless of the single-/two-/
+        // multi-warp `BlockWarps` policy.
+        //
+        // The 16x16x32 MFMA `_m16` tiers (decode_d128_m16,
+        // decode_d64_m16) are NOT yet enabled: the QK-C and PV-A
+        // per-thread layouts differ by an M<->N axis swap there
+        // (16x16 C: M=4 contiguous per lane, N=1 per lane; vs PV-A
+        // Single: M=1 per lane, K=8 contiguous per lane), which the
+        // current slot-swap fixup cannot express -- those will need a
+        // full per-thread transpose (likely via LDS).
+        if constexpr(V == KernelVariant::prefill_d128 ||
+                     V == KernelVariant::decode_d128_m128 ||
+                     V == KernelVariant::decode_d128_m32 ||
+                     V == KernelVariant::prefill_d64 ||
+                     V == KernelVariant::decode_d64_m128 ||
+                     V == KernelVariant::decode_d64_m64)
+        {
+            if(is_mask)
+                return unified_attention_kernel_dispatch<
+                    unified_attention_kernel_traits<V, DT::fp8, true>>(args, config);
+            return unified_attention_kernel_dispatch<
+                unified_attention_kernel_traits<V, DT::fp8, false>>(args, config);
+        }
+        return {false, -1.f};
     }
     return {false, -1.f};
 }

@@ -489,6 +489,18 @@ using WarpGemmMfma_f32_32x32x16_fp8_fp8_CTransposed =
     WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
         WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_fp8<WGAttrCtlEnum::Default_>>>;
 
+// Templated form used by the FP8 unified-attention PV gemm. The PV block
+// gemm in CK UA passes WGAttrNumAccessEnum::Double so the V tiles can be
+// consumed via `load_tile_transpose()`; the BF16 32x32x16 CTransposed
+// warp gemm already exposes this template parameter (see
+// WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution), and we mirror
+// that pattern here.
+template <WGAttrNumAccessEnum AttrNumAccess>
+using WarpGemmMfma_f32_32x32x16_fp8_fp8_CTransposed_T =
+    WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
+        WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_fp8<WGAttrCtlEnum::Default_>,
+        AttrNumAccess>>;
+
 using WarpGemmMfma_f32_32x32x16_fp8_bf8_CTransposed =
     WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
         WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_bf8<WGAttrCtlEnum::Default_>>>;

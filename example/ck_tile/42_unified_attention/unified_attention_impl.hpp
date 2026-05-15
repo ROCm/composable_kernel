@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/container/sequence.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
@@ -71,6 +72,21 @@ template <>
 struct unified_attention_problem_traits<unified_attention_args::data_type_enum::bf16>
 {
     using qkvp_dtype = ck_tile::bf16_t;
+    using acc_dtype  = float;
+    using o_dtype    = ck_tile::bf16_t;
+    using lse_dtype  = float;
+};
+
+// FP8 path: Q, K, V are stored / consumed by MFMA as FP8 (e4m3*), but the
+// softmax probability P that feeds the second GEMM is *also* FP8 so we can
+// reuse the FP8-FP8-F32 MFMA family for PV. The o_dtype stays bf16 (Triton
+// reference's output dtype is bf16). Accumulators and LSE remain fp32. The
+// type alias resolves to e4m3fnuz on gfx942 and e4m3fn on gfx950 — see
+// ck_tile/core/numeric/float8.hpp for the CK_TILE_USE_OCP_FP8 selector.
+template <>
+struct unified_attention_problem_traits<unified_attention_args::data_type_enum::fp8>
+{
+    using qkvp_dtype = ck_tile::fp8_t;
     using acc_dtype  = float;
     using o_dtype    = ck_tile::bf16_t;
     using lse_dtype  = float;
@@ -303,6 +319,9 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
                                    args.scale_k,
                                    args.scale_v,
                                    args.scale_out,
+                                   args.q_descale,
+                                   args.k_descale,
+                                   args.v_descale,
                                    args.page_blk_size,
                                    total_num_q_blocks,
                                    args.query_stride_0,
