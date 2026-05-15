@@ -40,6 +40,8 @@ function(add_gtest_fwd test_group)
         add_gtest_executable(${name} test_fmha_fwd.cpp)
         get_test_property(${name} LABELS COMMON_LABELS)
         set_tests_properties(${name} PROPERTIES LABELS "${COMMON_LABELS};${TEST_NAME};${test_group};CK_TILE_FMHA_TESTS")
+        # increase timeout limit for fmha_fwd tests to prevent timeout on a slower gfx11 machine
+        set_tests_properties(${name} PROPERTIES TIMEOUT 3600)
         target_compile_definitions(${name} PRIVATE DataTypeConfig=${CPP_TYPE_${type}})
         target_link_libraries(${name} PRIVATE ${FMHA_FWD_INSTANCES})
         list(APPEND all_tests ${name})
