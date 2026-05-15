@@ -4,7 +4,7 @@
 # rocm_ck tests
 #
 # Test tiers:
-#   ROCM_CK_SMOKE  — Fast host-only tests (< 1s total). No GPU, no HIP.
+#   ROCM_CK_SMOKE  — Fast host-only tests (< 1s total). No GPU required.
 #   ROCM_CK_KERNEL — GPU kernel tests. Require HIP and a GPU.
 #
 # Usage:
@@ -22,37 +22,33 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/gtest.cmake)
 # ---------------------------------------------------------------------------
 function(add_rocm_ck_test test_name)
     add_executable(${test_name} ${ARGN})
-    target_link_libraries(${test_name} PRIVATE rocm_ck GTest::gtest_main)
+    target_link_libraries(${test_name} PRIVATE rocm_ck GTest::gtest_main GTest::gmock)
     target_compile_options(${test_name} PRIVATE
-        -Wno-global-constructors  # GTest registration macros
-        -Wno-undef                # GTest internal headers
+        -Wno-global-constructors           # GTest registration macros
+        -Wno-undef                         # GTest internal headers
+        -Wno-zero-as-null-pointer-constant # C++20 <=> comparisons to 0
     )
 endfunction()
 
 # ---------------------------------------------------------------------------
 # Smoke tests (fast, host-only, no GPU)
 # ---------------------------------------------------------------------------
-set(ROCM_CK_SMOKE_TESTS
+add_rocm_ck_test(rocm_ck_unit
+    unit/unit_args.cpp
+    unit/unit_datatype.cpp
+    unit/unit_fixed_string.cpp
     unit/unit_index_t.cpp
+    unit/unit_layout.cpp
+    unit/unit_physical_tensor.cpp
 )
-
-set(ROCM_CK_SMOKE_TARGETS)
-foreach(test_source ${ROCM_CK_SMOKE_TESTS})
-    get_filename_component(test_name ${test_source} NAME_WLE)
-    set(target_name "rocm_ck_${test_name}")
-    add_rocm_ck_test(${target_name} ${test_source})
-    add_test(NAME ${target_name} COMMAND ${target_name})
-    set_tests_properties(${target_name} PROPERTIES LABELS "ROCM_CK_SMOKE")
-    list(APPEND ROCM_CK_SMOKE_TARGETS ${target_name})
-endforeach()
-
-# rocm_ck_unit_index_t verifies rocm_ck index types match ck_tile
-target_include_directories(rocm_ck_unit_index_t PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+target_include_directories(rocm_ck_unit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../include)
+add_test(NAME rocm_ck_unit COMMAND rocm_ck_unit)
+set_tests_properties(rocm_ck_unit PROPERTIES LABELS "ROCM_CK_SMOKE")
 
 # ---------------------------------------------------------------------------
 # Convenience targets
 # ---------------------------------------------------------------------------
-add_custom_target(build-smoke-rocm-ck DEPENDS ${ROCM_CK_SMOKE_TARGETS})
+add_custom_target(build-smoke-rocm-ck DEPENDS rocm_ck_unit)
 
 add_custom_target(smoke-rocm-ck
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -L "ROCM_CK_SMOKE"
