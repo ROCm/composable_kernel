@@ -71,7 +71,10 @@ struct BatchedTransposeKernel
         return k;
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return Problem::kBlockSize; }
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? Problem::kBlockSize / 2 : Problem::kBlockSize;
+    }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {

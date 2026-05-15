@@ -59,6 +59,7 @@ struct TileCopyProblem
     static constexpr bool AsyncCopy = AsyncCopy_;
     // 0: copy 1, 2, 4 bytes data type
     // 1: copy dwordx3 bytes data type
+    // 2: use three b128 loads to cover four pk_fp6x16 data type
     static constexpr int CpyCfg = CpyCfg_;
 };
 
@@ -103,7 +104,6 @@ struct TileCopy
     }
 
     template <typename Problem>
-    // CK_TILE_DEVICE static constexpr auto MakeDwordx3DRAMDistribution()
     CK_TILE_DEVICE static constexpr auto MakeDwordx3DRAMDistribution()
     {
         using S = typename Problem::BlockShape;
@@ -126,6 +126,37 @@ struct TileCopy
         constexpr auto outer_encoding = tile_distribution_encoding<
             sequence<S::WaveGroups>,
             tuple<sequence<Y0, Y1, Y2>, sequence<X1 / (X0 * X2), X0, X2>>, // Y2==16,X0==4
+            tuple<sequence<0, 1>, sequence<1, 2>>,
+            tuple<sequence<0, 0>, sequence<2, 1>>,
+            sequence<1, 2, 2>,
+            sequence<1, 0, 2>>{};
+
+        return make_static_tile_distribution(outer_encoding);
+    }
+
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr auto MakeB128x3DRAMDistribution()
+    {
+        using S = typename Problem::BlockShape;
+
+        constexpr index_t warp_size = get_warp_size();
+        constexpr index_t X0 = S::ThreadPerWarp_N; // threads needed along N dimension, fastest
+        // changing with given vector size.
+        constexpr index_t X1 = S::Block_N; // no. of elements along N dimensions per block.
+        constexpr index_t X2 = 16;         // b128, 4 dwords
+        static_assert(warp_size % X0 == 0 && X1 % (X0 * X2) == 0,
+                      "Invalid B128x3 DRAM Tile Distribution.");
+
+        constexpr index_t Y0 =
+            S::WaveNum / S::WaveGroups; // number of active warps working in this thread block.
+        constexpr index_t Y2 =
+            warp_size / X0; // number of threads in a warp needed along M dimension.
+        constexpr index_t Y1 =
+            S::Warp_M /
+            Y2; // number of iterations each warp needs to perform to cover the entire tile window.
+        constexpr auto outer_encoding = tile_distribution_encoding<
+            sequence<S::WaveGroups>,
+            tuple<sequence<Y0, Y1, Y2>, sequence<X1 / (X0 * X2), X0, X2>>, // Y2==16,X0==2
             tuple<sequence<0, 1>, sequence<1, 2>>,
             tuple<sequence<0, 0>, sequence<2, 1>>,
             sequence<1, 2, 2>,
@@ -181,7 +212,7 @@ struct TileCopy
                     // We don't have prefetch here, wait the data back immediately.
                     // Wait all asyncload insts complete.
                     // Wait all waves synced
-                    s_waitcnt_barrier<async_copy_fence_cnt>();
+                    block_sync_lds_direct_load<async_copy_fence_cnt>();
                     auto lds_tile = load_tile(x_block_lds_read_window);
                     // store from registers to DRAM
                     store_tile(y_block_window, lds_tile);
@@ -310,6 +341,86 @@ struct TileCopy
     }
 
     CK_TILE_DEVICE void
+    run_b128x3_cpy(XDataType* p_x, XDataType* p_y, index_t M, index_t N, index_t warp_id) const
+    {
+        using S = typename Problem::BlockShape;
+        // LDS buffer
+        // Alignment is checked in MakeB128x3DRAMDistribution()
+        __shared__ int8_t x_lds[S::Block_M * S::Block_N];
+
+        constexpr auto block_dims    = make_tuple(number<S::Block_M>{}, number<S::Block_N>{});
+        constexpr auto block_strides = make_tuple(number<S::Block_N>{}, number<1>{});
+
+        const auto x_lds_desc =
+            make_naive_tensor_descriptor(block_dims, block_strides, number<16>{}, number<1>{});
+
+        auto x_lds_view = make_tensor_view<address_space_enum::lds>(x_lds, x_lds_desc);
+
+        auto x_block_lds_write_window = make_tile_window(x_lds_view, block_dims, {0, 0});
+
+        auto x_block_lds_read_window =
+            make_tile_window(x_lds_view, block_dims, {0, 0}, MakeB128x3DRAMDistribution<Problem>());
+
+        const index_t iM = __builtin_amdgcn_readfirstlane(get_block_id() * S::Block_M);
+        // Input tensor
+        const auto x_m_n =
+            make_naive_tensor_view<address_space_enum::global>(reinterpret_cast<int8_t*>(p_x),
+                                                               make_tuple(M, N),
+                                                               make_tuple(N, 1),
+                                                               number<16>{},
+                                                               number<1>{});
+        auto x_block_window =
+            make_tile_window(x_m_n, block_dims, {iM, 0}, MakeB128x3DRAMDistribution<Problem>());
+
+        // Output tensor
+        const auto y_m =
+            make_naive_tensor_view<address_space_enum::global>(reinterpret_cast<int8_t*>(p_y),
+                                                               make_tuple(M, N),
+                                                               make_tuple(N, 1),
+                                                               number<16>{},
+                                                               number<1>{});
+        auto y_block_window = make_tile_window(y_m, block_dims, {iM, 0});
+
+        const index_t num_n_tile_iteration =
+            __builtin_amdgcn_readfirstlane(integer_divide_ceil(N, S::Block_N));
+        const index_t my_id                    = __builtin_amdgcn_readfirstlane(get_warp_id());
+        constexpr index_t async_copy_fence_cnt = 0;
+        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        {
+            if(my_id == warp_id)
+            {
+                if constexpr(AsyncCopy)
+                {
+                    async_load_tile(x_block_lds_write_window, x_block_window);
+                    // We don't have prefetch here, wait the data back immediately.
+                    // Wait all asyncload insts complete and synchronize waves/lds.
+                    s_wait_asynccnt<async_copy_fence_cnt>();
+                    auto lds_tile = load_tile(x_block_lds_read_window);
+                    // store from registers to DRAM
+                    store_tile(y_block_window, lds_tile);
+                }
+                else
+                {
+                    // load from DRAM to registers
+                    auto dram_tile = load_tile(x_block_window);
+                    // store in lds
+                    store_tile(x_block_lds_write_window, dram_tile);
+                    // Wait all lds write insts complete
+                    // Wait all waves synced
+                    block_sync_lds();
+                    // read from lds to registers
+                    auto lds_tile = load_tile(x_block_lds_read_window);
+                    // store from registers to DRAM
+                    store_tile(y_block_window, lds_tile);
+                }
+            }
+
+            move_tile_window(x_block_window, {0, S::Block_N});
+            move_tile_window(y_block_window, {0, S::Block_N});
+        }
+    }
+
+    CK_TILE_DEVICE void
     operator()(XDataType* p_x, XDataType* p_y, index_t M, index_t N, index_t warp_id) const
     {
         if constexpr(CpyCfg == 1)
@@ -319,6 +430,10 @@ struct TileCopy
         else if constexpr(CpyCfg == 0)
         {
             run_normal_cpy(p_x, p_y, M, N, warp_id);
+        }
+        else if constexpr(CpyCfg == 2)
+        {
+            run_b128x3_cpy(p_x, p_y, M, N, warp_id);
         }
         else
         {

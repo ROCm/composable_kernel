@@ -31,7 +31,20 @@ TYPED_TEST(TEST_SUITE_NAME, SmallM)
             if constexpr(std::is_same_v<typename TestFixture::ALayout,
                                         ck_tile::tensor_layout::gemm::ColumnMajor>)
             {
-                EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+#define XSTRINGIFY(s) STRINGIFY(s)
+#define STRINGIFY(s) #s
+                constexpr std::string_view suite_name = XSTRINGIFY(TEST_SUITE_NAME);
+#undef STRINGIFY
+#undef XSTRINGIFY
+                if constexpr(suite_name == "TestCkTileGemmPipelineCompTDMWmma")
+                {
+                    // TestCkTileGemmPipelineCompTDMWmma can handle non-dword-aligned cases
+                    this->Run(M, N, K);
+                }
+                else
+                {
+                    EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                }
             }
             else
             {
@@ -84,7 +97,20 @@ TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
                 }
                 else
                 {
-                    EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+#define XSTRINGIFY(s) STRINGIFY(s)
+#define STRINGIFY(s) #s
+                    constexpr std::string_view suite_name = XSTRINGIFY(TEST_SUITE_NAME);
+#undef STRINGIFY
+#undef XSTRINGIFY
+                    if constexpr(suite_name == "TestCkTileGemmPipelineCompTDMWmma")
+                    {
+                        // TestCkTileGemmPipelineCompTDMWmma can handle non-dword-aligned cases
+                        this->Run(M, N, K);
+                    }
+                    else
+                    {
+                        EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                    }
                 }
             }
             else
@@ -150,5 +176,32 @@ TYPED_TEST(TEST_SUITE_NAME, NotSupportedArgument)
     constexpr bool PadN = false;
     constexpr bool PadK = false;
 
-    EXPECT_THROW((this->template Run<PadM, PadN, PadK>(M, N, K)), std::runtime_error);
+#define XSTRINGIFY(s) STRINGIFY(s)
+#define STRINGIFY(s) #s
+
+    constexpr std::string_view suite_name = XSTRINGIFY(TEST_SUITE_NAME);
+    if constexpr(suite_name == "TestCkTileGemmPipelineCompTDMWmma")
+    {
+        using ADataType = TestFixture::ADataType;
+        using BDataType = TestFixture::BDataType;
+
+        constexpr int APackedSize = ck_tile::numeric_traits<ADataType>::PackedSize;
+        constexpr int BPackedSize = ck_tile::numeric_traits<BDataType>::PackedSize;
+        if constexpr((APackedSize == 1) && (BPackedSize == 1))
+        {
+            this->template Run<PadM, PadN, PadK>(M, N, K);
+        }
+        else
+        {
+            GTEST_SKIP()
+                << "TestCkTileGemmPipelineCompTDMWmma only supports A and B packed size of 1";
+        }
+    }
+    else
+    {
+        EXPECT_THROW((this->template Run<PadM, PadN, PadK>(M, N, K)), std::runtime_error);
+    }
+
+#undef STRINGIFY
+#undef XSTRINGIFY
 }

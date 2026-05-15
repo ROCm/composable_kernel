@@ -6,7 +6,9 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
+#include "ck_tile/core/arch/amd_cluster_load.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
+#include "ck_tile/core/arch/amd_tdm_descriptor.hpp"
 #include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
 #include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
@@ -39,6 +41,9 @@ template <address_space_enum BufferAddressSpace,
           amd_buffer_coherence_enum Coherence = amd_buffer_coherence_enum::coherence_default>
 struct buffer_view;
 
+struct null_buffer_view
+{
+};
 // Address Space: generic
 // T may be scalar or vector
 // X may be scalar or vector
@@ -93,6 +98,7 @@ struct buffer_view<address_space_enum::generic,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              index_t static_offset      = 0,
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
@@ -286,6 +292,7 @@ struct buffer_view<address_space_enum::global,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              index_t static_offset      = 0,
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
@@ -427,13 +434,25 @@ struct buffer_view<address_space_enum::global,
                                             bool_constant<oob_conditional_check> = {}) const
     {
         // X is vector of T
-        constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
-        constexpr index_t scalar_per_x_vector = vector_traits<remove_cvref_t<X>>::vector_size;
 
+        // If T is already a vector, how many elements are in T?
+        constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
+        // If X is a vector, how many elements are in X?
+        constexpr index_t scalar_per_x_vector = vector_traits<remove_cvref_t<X>>::vector_size;
+        // X should be a multiple of T for X to exactly contain every T.
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
 
+        // how many chunks of T are in one X?
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+
+#if defined(__gfx125__) // for gfx125; there uses another instruction to do async load
+        auto p_uniform_ptr              = amd_wave_read_first_lane(p_data_);
+        constexpr index_t static_offset = linear_offset_t{}.value;
+        amd_async_global_load_to_lds<remove_cvref_t<T>, t_per_x, static_offset, true, Coherence>(
+            smem, p_uniform_ptr, i + wave_i, is_valid_element);
+        ignore = linear_offset;
+#else
         const auto rsrc = make_builtin_buffer_resource(p_data_, buffer_size_ * sizeof(type));
 
         amd_async_buffer_load_with_oob<remove_cvref_t<T>, t_per_x, Coherence>(
@@ -444,6 +463,45 @@ struct buffer_view<address_space_enum::global,
             std::forward<linear_offset_t>(linear_offset),
             is_valid_element,
             bool_constant<oob_conditional_check>{});
+#endif
+    }
+
+    // i is offset of T, not X. i should be aligned to X.
+    // mask — M0[15:0] WGP participation mask; M0[16] sets early-timeout.
+    template <typename X,
+              index_t inst_offset = 0,
+              typename std::enable_if<
+                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
+                  bool>::type = false>
+    CK_TILE_DEVICE constexpr void
+    cluster_async_get(remove_cvref_t<T>* smem, index_t i, index_t linear_offset, int mask) const
+    {
+        constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
+        constexpr index_t scalar_per_x_vector = vector_traits<remove_cvref_t<X>>::vector_size;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+#ifdef __gfx1250__
+        auto p_uniform_ptr = amd_wave_read_first_lane(p_data_);
+
+        const remove_cvref_t<X>* g_src =
+            reinterpret_cast<const remove_cvref_t<X>*>(p_uniform_ptr + i + linear_offset);
+
+        // reinterpret_cast changes only the element type (generic→generic, no address-space
+        // change). to_lds then converts generic→address_space(3) using a pragma-guarded
+        // C-style cast, matching the pattern used by the rest of the codebase.
+        auto* lds_ptr = to_lds(reinterpret_cast<remove_cvref_t<X>*>(smem));
+
+        cluster_multicast_load_async_to_lds<remove_cvref_t<X>, inst_offset>(g_src, lds_ptr, mask);
+#else
+        (void)smem;
+        (void)i;
+        (void)linear_offset;
+        (void)mask;
+        static_assert(sizeof(X) == 0, "cluster_async_get is only supported on gfx1250");
+#endif
     }
 
     // i is offset of T, not X. i should be aligned to X
@@ -470,6 +528,96 @@ struct buffer_view<address_space_enum::global,
 
         amd_async_buffer_load_with_oob_raw<remove_cvref_t<T>, t_per_x, Coherence>(
             smem, cached_buf_res_, i, linear_offset, bool_constant<pre_nop>{});
+    }
+
+    template <amd_buffer_coherence_enum Coherence_ = Coherence>
+    struct GlobalPrefetchDataOp
+    {
+        // addr needs to point to global memory!
+        CK_TILE_DEVICE void operator()([[maybe_unused]] const void* addr) const
+        {
+#if defined(__gfx125__)
+            // Compiler fence to not move ds_loads freely before/after this prefetch builtin
+            asm volatile("" ::: "memory");
+            __builtin_amdgcn_global_prefetch(addr, static_cast<index_t>(Coherence_));
+            asm volatile("" ::: "memory");
+#endif
+        }
+
+#if defined(__gfx12__)
+        static constexpr bool is_cu_scope = []() {
+            constexpr int coherence    = static_cast<int>(Coherence_);
+            constexpr int se_scope     = static_cast<int>(amd_buffer_coherence_enum::SE);
+            constexpr int device_scope = static_cast<int>(amd_buffer_coherence_enum::DEVICE);
+            constexpr int system_scope = static_cast<int>(amd_buffer_coherence_enum::SYSTEM);
+            // CU scope: check if scope bits are zero
+            return !(coherence & se_scope || coherence & device_scope || coherence & system_scope);
+        }();
+#endif
+
+        CK_TILE_DEVICE constexpr bool need_oob_check() const
+        {
+#if defined(__gfx125__)
+            // we need oob check for non-speculative prefetch to not get Page Fault
+            constexpr int coherence = static_cast<int>(Coherence_);
+            constexpr int rt_non_spec =
+                static_cast<int>(amd_buffer_coherence_enum::RT_NON_SPECULATIVE);
+            constexpr int ht_non_spec =
+                static_cast<int>(amd_buffer_coherence_enum::HT_NON_SPECULATIVE);
+
+            if constexpr(is_cu_scope) // for all CU scope we have non-speculative prefetch
+            {
+                return true;
+            }
+            else if constexpr(((coherence & rt_non_spec) == rt_non_spec) ||
+                              ((coherence & ht_non_spec) ==
+                               ht_non_spec)) // for all other scopes we have speculative prefetch
+                                             // unless set otherwise by Temporal Hint
+            {
+                return true;
+            }
+#endif
+            return false;
+        }
+    };
+
+    // i is offset of T, not X. i should be aligned to X
+    // static_offset is compile-time offset for LDS access optimization
+    template <typename X,
+              amd_buffer_coherence_enum Coherence_ = Coherence,
+              index_t static_offset                = 0,
+              bool oob_conditional_check           = true,
+              typename std::enable_if<
+                  std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                               typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
+                  bool>::type = false>
+    CK_TILE_DEVICE constexpr void prefetch(index_t i,
+                                           index_t linear_offset,
+                                           bool is_valid_element,
+                                           bool_constant<oob_conditional_check> = {}) const
+    {
+        // X contains multiple T
+        constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
+
+        constexpr index_t scalar_per_x_vector = vector_traits<remove_cvref_t<X>>::vector_size;
+
+        static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
+                      "wrong! X should contain multiple T");
+
+        if constexpr(!GlobalPrefetchDataOp<Coherence_>{}.need_oob_check())
+        {
+            is_valid_element = true;
+        }
+
+        if(is_valid_element)
+        {
+            // call prefetch here
+            GlobalPrefetchDataOp<Coherence_>{}(
+                c_style_pointer_cast<const void*>(&(p_data_[i + linear_offset + static_offset])));
+        }
+
+        // Note: prefetch is a hint instruction that doesn't return a value
+        // No action needed for invalid elements
     }
 
     // i is offset of T, not X. i should be aligned to X
@@ -744,6 +892,107 @@ struct buffer_view<address_space_enum::global,
         }
     }
 
+    template <typename TDMConfig_,
+              typename DimTuple_,
+              typename BoxDim_,
+              index_t num_tensor_dims,
+              typename GatherIndexView_ = null_buffer_view,
+              index_t gather_index_offset>
+    CK_TILE_DEVICE void tdm_get(const TDMConfig_& tdm_config,
+                                CK_TILE_LDS_ADDR remove_cvref_t<T>* smem,
+                                index_t linear_offset,
+                                const DimTuple_& tensor_dims,
+                                const DimTuple_& global_strides,
+                                number<num_tensor_dims>                   = {},
+                                const GatherIndexView_& gather_index_view = null_buffer_view{},
+                                number<gather_index_offset>               = {})
+    {
+        // Convert tensor dimensions to uint32_t array
+        array<uint32_t, num_tensor_dims> tensor_dims_uint32;
+        static_for<0, num_tensor_dims, 1>{}(
+            [&](auto i) { tensor_dims_uint32(i) = static_cast<uint32_t>(tensor_dims[i]); });
+
+        // Convert global strides to uint64_t array
+        // Note: gfx1250 SPG mentiones tensor_dim1_stride is in units of tensor_dim0_stride
+        array<uint64_t, num_tensor_dims> global_strides_uint64;
+        static_for<0, num_tensor_dims, 1>{}(
+            [&](auto i) { global_strides_uint64(i) = static_cast<uint64_t>(global_strides[i]); });
+
+        // Convert box dimensions to uint16_t array
+        constexpr auto box_dim = BoxDim_{};
+        constexpr auto box_dim_uint16 =
+            generate_array([&](auto i) { return static_cast<uint16_t>(box_dim.at(i)); },
+                           number<num_tensor_dims>{});
+
+        auto TDMDescriptor = [&]() {
+            if constexpr(std::is_same_v<GatherIndexView_, null_buffer_view>)
+            {
+                return createTDMDescriptor<remove_cvref_t<T>, num_tensor_dims>(
+                    p_data_ + linear_offset,
+                    smem,
+                    tensor_dims_uint32.data,
+                    global_strides_uint64.data,
+                    box_dim_uint16.data,
+                    tdm_config);
+            }
+            else
+            {
+                using GatherIndexType = typename GatherIndexView_::type;
+
+                constexpr TDMGatherIndexSize tdm_index_size =
+                    std::is_same_v<GatherIndexType, int32_t> ? TDMGatherIndexSize::Row32bit_Index
+                                                             : TDMGatherIndexSize::Row16bit_Index;
+
+                return createTDMDescriptor<remove_cvref_t<T>, num_tensor_dims, true>(
+                    p_data_ + linear_offset,
+                    smem,
+                    tensor_dims_uint32.data,
+                    global_strides_uint64.data,
+                    box_dim_uint16.data,
+                    tdm_config,
+                    gather_index_view.p_data_ + gather_index_offset,
+                    tdm_index_size);
+            }
+        }();
+
+        amd_tdm_load<Coherence>(TDMDescriptor);
+    }
+
+    template <typename TDMConfig_, typename DimTuple_, typename BoxDim_, index_t num_tensor_dims>
+    CK_TILE_DEVICE void tdm_store(const TDMConfig_& tdm_config,
+                                  CK_TILE_LDS_ADDR remove_cvref_t<T>* smem,
+                                  index_t linear_offset,
+                                  const DimTuple_& tensor_dims,
+                                  const DimTuple_& global_strides,
+                                  number<num_tensor_dims> = {})
+    {
+        // Convert tensor dimensions to uint32_t array
+        array<uint32_t, num_tensor_dims> tensor_dims_uint32;
+        static_for<0, num_tensor_dims, 1>{}(
+            [&](auto i) { tensor_dims_uint32(i) = static_cast<uint32_t>(tensor_dims[i]); });
+
+        // Convert global strides to uint64_t array
+        array<uint64_t, num_tensor_dims> global_strides_uint64;
+        static_for<0, num_tensor_dims, 1>{}(
+            [&](auto i) { global_strides_uint64(i) = static_cast<uint64_t>(global_strides[i]); });
+
+        // Convert box dimensions to uint16_t array
+        constexpr auto box_dim = BoxDim_{};
+        constexpr auto box_dim_uint16 =
+            generate_array([&](auto i) { return static_cast<uint16_t>(box_dim.at(i)); },
+                           number<num_tensor_dims>{});
+
+        auto TDMDescriptor =
+            createTDMDescriptor<remove_cvref_t<T>, num_tensor_dims>(p_data_ + linear_offset,
+                                                                    smem,
+                                                                    tensor_dims_uint32.data,
+                                                                    global_strides_uint64.data,
+                                                                    box_dim_uint16.data,
+                                                                    tdm_config);
+
+        amd_tdm_store<Coherence>(TDMDescriptor);
+    }
+
     // FIXME: remove
     CK_TILE_DEVICE static constexpr bool is_static_buffer() { return false; }
 
@@ -805,7 +1054,9 @@ struct buffer_view<address_space_enum::lds,
     CK_TILE_DEVICE constexpr T& operator()(index_t i) { return p_data_[i]; }
 
     // i is offset of T, not X. i should be aligned to X
+    // static_offset is compile-time offset for LDS access optimization
     template <typename X,
+              index_t static_offset      = 0,
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
@@ -829,14 +1080,15 @@ struct buffer_view<address_space_enum::lds,
 #if CK_TILE_EXPERIMENTAL_USE_MEMCPY_FOR_VECTOR_ACCESS
             X tmp;
 
-            __builtin_memcpy(&tmp, &(p_data_[i + linear_offset]), sizeof(X));
+            __builtin_memcpy(&tmp, &(p_data_[i + linear_offset + static_offset]), sizeof(X));
 
             return tmp;
 #else
             constexpr index_t load_elts = scalar_per_t_vector * scalar_per_x_vector;
             if constexpr(load_elts == 12 && sizeof(typename X::value_type) == 1)
             {
-                auto rtn = reinterpret_cast<const int32_t*>(p_data_) + (i + linear_offset) / 4;
+                auto rtn = reinterpret_cast<const int32_t*>(p_data_) +
+                           (i + linear_offset + static_offset) / 4;
                 struct
                 {
                     int32_t x, y, z;
@@ -847,7 +1099,8 @@ struct buffer_view<address_space_enum::lds,
             {
                 using buf_t = ext_vector_t<typename vector_traits<remove_cvref_t<T>>::scalar_type,
                                            scalar_per_t_vector * scalar_per_x_vector>;
-                auto rtn    = *c_style_pointer_cast<const buf_t*>(&p_data_[i + linear_offset]);
+                auto rtn    = *c_style_pointer_cast<const buf_t*>(
+                    &p_data_[i + linear_offset + static_offset]);
                 return bit_cast<X>(rtn);
             }
 #endif
@@ -901,7 +1154,7 @@ struct buffer_view<address_space_enum::lds,
 
         if(is_valid_element)
         {
-#if defined(__gfx950__)
+#if defined(__gfx950__) || defined(__gfx125__)
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
             return amd_transpose_load_to_vgpr<remove_cvref_t<T>, t_per_x>(p_data_ + i +
                                                                           linear_offset);
@@ -1188,6 +1441,7 @@ struct buffer_view<address_space_enum::vgpr,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              index_t static_offset      = 0,
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,

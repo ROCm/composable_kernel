@@ -81,7 +81,8 @@ bool profile_gemm_blockscale_weightpreshuffle_impl(int do_verification,
                                                    int StrideE,
                                                    int n_warmup,
                                                    int n_iter,
-                                                   uint64_t rotating = 0)
+                                                   uint64_t rotating  = 0,
+                                                   int instance_index = -1)
 {
     bool pass = true;
 
@@ -284,9 +285,15 @@ bool profile_gemm_blockscale_weightpreshuffle_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device GEMM instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
-        int NPerXdl = op_ptr->GetPreShuffleParameters();
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[i];
+        int NPerXdl  = op_ptr->GetPreShuffleParameters();
 
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             static_cast<A0DataType*>(a0_device_buf.GetDeviceBuffer()),

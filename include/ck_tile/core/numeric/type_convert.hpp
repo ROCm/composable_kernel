@@ -106,6 +106,11 @@ CK_TILE_TYPE_CONVERT(bf8_t, bf8, float, float)
 CK_TILE_TYPE_CONVERT(float, float, int8_t, int8)
 CK_TILE_TYPE_CONVERT(int8_t, int8, float, float)
 
+CK_TILE_TYPE_CONVERT(fp8_t, fp8, fp16_t, fp16)
+CK_TILE_TYPE_CONVERT(bf8_t, bf8, fp16_t, fp16)
+CK_TILE_TYPE_CONVERT(fp16_t, fp16, fp8_t, fp8)
+CK_TILE_TYPE_CONVERT(fp16_t, fp16, bf8_t, bf8)
+
 CK_TILE_TYPE_CONVERT(fp16x2_t, fp16x2, fp32x2_t, fp32x2)
 CK_TILE_TYPE_CONVERT(bf16x2_t, bf16x2, fp32x2_t, fp32x2)
 #undef CK_TILE_TYPE_CONVERT
@@ -114,6 +119,7 @@ CK_TILE_TYPE_CONVERT(bf16x2_t, bf16x2, fp32x2_t, fp32x2)
 
 #include "ck_tile/core/numeric/pk_fp4.hpp"
 #include "ck_tile/core/numeric/pk_fp6.hpp"
+#include "ck_tile/core/numeric/float8_ext.hpp"
 
 namespace ck_tile {
 
@@ -145,7 +151,169 @@ CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16_t, bf16)
 CK_TILE_SCALED_TYPE_CONVERT(bf16_t, bf16, pk_fp4_t, pk_fp4)
 CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16_t, fp16)
 CK_TILE_SCALED_TYPE_CONVERT(fp16_t, fp16, pk_fp4_t, pk_fp4)
+
+// 8-element vector conversions for pk_fp4x4_t
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4x4_t, pk_fp4, fp32x8_t, fp32x8)
+CK_TILE_SCALED_TYPE_CONVERT(fp32x8_t, fp32x8, pk_fp4x4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4x4_t, pk_fp4, fp16x8_t, fp16x8)
+CK_TILE_SCALED_TYPE_CONVERT(fp16x8_t, fp16x8, pk_fp4x4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4x4_t, pk_fp4, bf16x8_t, bf16x8)
+CK_TILE_SCALED_TYPE_CONVERT(bf16x8_t, bf16x8, pk_fp4x4_t, pk_fp4)
+
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp6_t, pk_fp6, float, float)
+CK_TILE_SCALED_TYPE_CONVERT(float, float, pk_fp6_t, pk_fp6)
+CK_TILE_SCALED_TYPE_CONVERT(pk_bf6_t, pk_bf6, float, float)
+CK_TILE_SCALED_TYPE_CONVERT(float, float, pk_bf6_t, pk_bf6)
+
+// 16-element vector conversions for pk_fp6_t and pk_bf6_t
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp6_t, pk_fp6, fp16x16_t, fp16x16)
+CK_TILE_SCALED_TYPE_CONVERT(fp16x16_t, fp16x16, pk_fp6_t, pk_fp6)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp6_t, pk_fp6, bf16x16_t, bf16x16)
+CK_TILE_SCALED_TYPE_CONVERT(bf16x16_t, bf16x16, pk_fp6_t, pk_fp6)
+CK_TILE_SCALED_TYPE_CONVERT(pk_bf6_t, pk_bf6, fp16x16_t, fp16x16)
+CK_TILE_SCALED_TYPE_CONVERT(fp16x16_t, fp16x16, pk_bf6_t, pk_bf6)
+CK_TILE_SCALED_TYPE_CONVERT(pk_bf6_t, pk_bf6, bf16x16_t, bf16x16)
+CK_TILE_SCALED_TYPE_CONVERT(bf16x16_t, bf16x16, pk_bf6_t, pk_bf6)
+#if !CK_TILE_AVX512F_WA
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp6_t, pk_fp6, fp32x16_t, fp32x16)
+CK_TILE_SCALED_TYPE_CONVERT(fp32x16_t, fp32x16, pk_fp6_t, pk_fp6)
+CK_TILE_SCALED_TYPE_CONVERT(pk_bf6_t, pk_bf6, fp32x16_t, fp32x16)
+CK_TILE_SCALED_TYPE_CONVERT(fp32x16_t, fp32x16, pk_bf6_t, pk_bf6)
+#endif
+
+// 8-element vector conversions for fp8x8_t, bf8x8_t
+CK_TILE_SCALED_TYPE_CONVERT(fp8x8_t, fp8x8, fp32x8_t, fp32x8)
+CK_TILE_SCALED_TYPE_CONVERT(bf8x8_t, bf8x8, fp32x8_t, fp32x8)
+CK_TILE_SCALED_TYPE_CONVERT(fp8x8_t, fp8x8, fp16x8_t, fp16x8)
+CK_TILE_SCALED_TYPE_CONVERT(bf8x8_t, bf8x8, fp16x8_t, fp16x8)
+CK_TILE_SCALED_TYPE_CONVERT(fp8x8_t, fp8x8, bf16x8_t, bf16x8)
+CK_TILE_SCALED_TYPE_CONVERT(bf8x8_t, bf8x8, bf16x8_t, bf16x8)
+
+CK_TILE_SCALED_TYPE_CONVERT(fp32x8_t, fp32x8, fp8x8_t, fp8x8)
+CK_TILE_SCALED_TYPE_CONVERT(fp32x8_t, fp32x8, bf8x8_t, bf8x8)
+CK_TILE_SCALED_TYPE_CONVERT(fp16x8_t, fp16x8, fp8x8_t, fp8x8)
+CK_TILE_SCALED_TYPE_CONVERT(fp16x8_t, fp16x8, bf8x8_t, bf8x8)
+CK_TILE_SCALED_TYPE_CONVERT(bf16x8_t, bf16x8, fp8x8_t, fp8x8)
+CK_TILE_SCALED_TYPE_CONVERT(bf16x8_t, bf16x8, bf8x8_t, bf8x8)
 #undef CK_TILE_SCALED_TYPE_CONVERT
+
+#if defined(__gfx125__)
+// Declare a template function for wave-wise scaled conversion
+/* scale is packed 4 form, see details for FP8/BF8, FP4, FP6 */
+template <typename Y, typename X, int Scale_sel>
+struct pk4scaled_type_convert_impl
+{
+    CK_TILE_DEVICE static constexpr Y run(X x, Packed4Scale_E8M0 scale);
+};
+
+template <typename Y, typename X, int Scale_sel = 0>
+CK_TILE_DEVICE constexpr Y pk4scaled_type_convert(X x, Packed4Scale_E8M0 scale)
+{
+    return pk4scaled_type_convert_impl<Y, X, Scale_sel>::run(x, scale);
+}
+
+/* scale is packed 4 form [FP4]
+ * Scale_sel: select different scale set and apply to the tensor[16x16] represented by a wave,
+ *            th[0-15]: 16x8 and th[16-31]: 16x8
+ *      Block 32 :
+ *      0(000): src[th[0-15]]  * scale[th[0-15]][7:0]
+                src[th[16-31]] * scale[th[0-15]][15:8]
+ *      1(001): src[th[0-15]]  * scale[th[16-31]][7:0]
+                src[th[16-31]] * scale[th[16-31]][15:8]
+ *      2(010): src[th[0-15]]  * scale[th[0-15]][23:16]
+                src[th[16-31]] * scale[th[0-15]][31:24]
+ *      3(011): src[th[0-15]]  * scale[th[16-31]][23:16]
+                src[th[16-31]] * scale[th[16-31]][31:24]
+ *      Block 16 : Available for certain revision
+ *      4(100): src[th[0-15]]  * scale[th[0-15]][7:0]
+                src[th[16-31]] * scale[th[0-15]][23:16]
+ *      5(101): src[th[0-15]]  * scale[th[16-31]][7:0]
+                src[th[16-31]] * scale[th[16-31]][23:16]
+ *      6(110): src[th[0-15]]  * scale[th[0-15]][15:8]
+                src[th[16-31]] * scale[th[0-15]][31:24]
+ *      7(111): src[th[0-15]]  * scale[th[16-31]][15:8]
+                src[th[16-31]] * scale[th[16-31]][31:24]
+ */
+template <typename Y, int Scale_sel>
+struct pk4scaled_type_convert_impl<Y, pk_fp4x4_t, Scale_sel>
+{
+    CK_TILE_DEVICE static Y run(pk_fp4x4_t x, Packed4Scale_E8M0 scale)
+    {
+        return impl::_from_f4x8_pkscale<Y, Scale_sel>(bit_cast<uint32_t>(x), scale.data());
+    }
+};
+
+// pk6scaled_type_convert for FP6 E2M3 and BF6 E3M2
+template <typename Y, typename X, int Scale_sel>
+struct pk6scaled_type_convert_impl
+{
+    CK_TILE_DEVICE static constexpr Y run(X x, Packed4Scale_E8M0 scale);
+};
+
+template <typename Y, typename X, int Scale_sel = 0>
+CK_TILE_DEVICE constexpr Y pk6scaled_type_convert(X x, Packed4Scale_E8M0 scale)
+{
+    return pk6scaled_type_convert_impl<Y, X, Scale_sel>::run(x, scale);
+}
+
+template <typename Y, int Scale_sel>
+struct pk6scaled_type_convert_impl<Y, pk_fp6_t, Scale_sel>
+{
+    CK_TILE_DEVICE static Y run(pk_fp6_t x, Packed4Scale_E8M0 scale)
+    {
+        return impl::_from_fp6x16_pkscale<Y, Scale_sel>(x.get(), scale.data());
+    }
+};
+
+template <typename Y, int Scale_sel>
+struct pk6scaled_type_convert_impl<Y, pk_bf6_t, Scale_sel>
+{
+    CK_TILE_DEVICE static Y run(pk_bf6_t x, Packed4Scale_E8M0 scale)
+    {
+        return impl::_from_bf6x16_pkscale<Y, Scale_sel>(x.get(), scale.data());
+    }
+};
+
+/* scale is packed 4 form [FP8/BF8]
+ * Scale_sel: select different scale set and apply to the tensor[16x16] represented by a wave,
+ *            th[0-15]: 16x8 and th[16-31]: 16x8
+ *      Block 32 :
+ *      0(0000): src[th[0:31]]  * scale[th[0:15]][7:0]
+ *      1(0001): src[th[0:31]]  * scale[th[16:31]][7:0]
+ *      2(0010): src[th[0:31]]  * scale[th[0:15]][23:16]
+ *      3(0011): src[th[0:31]]  * scale[th[16:31]][23:16]
+ *      4(0100): src[th[0:31]]  * scale[th[0:15]][15:8]
+ *      5(0101): src[th[0:31]]  * scale[th[16:31]][15:8]
+ *      6(0110): src[th[0:31]]  * scale[th[0:15]][31:24]
+ *      7(0111): src[th[0:31]]  * scale[th[16:31]][31:24]
+ *      Block 16 : Available for certain revision
+ *      8(1000) : src[th[0:15]]  * scale[th[0:15]][7:0]
+ *                src[th[16:31]] * scale[th[0:15]][15:8]
+ *      9(1001) : src[th[0:15]]  * scale[th[16:31]][7:0]
+ *                src[th[16:31]] * scale[th[16:31]][15:8]
+ *      10(1010): src[th[0:15]]  * scale[th[0:15]][23:16]
+ *                src[th[16:31]] * scale[th[0:15]][31:24]
+ *      11(1011): src[th[0:15]]  * scale[th[16:31]][23:16]
+ *                src[th[16:31]] * scale[th[16:31]][31:24] */
+template <typename Y, int Scale_sel>
+struct pk4scaled_type_convert_impl<Y, fp8x8_t, Scale_sel>
+{
+    CK_TILE_DEVICE static Y run(fp8x8_t x, Packed4Scale_E8M0 scale)
+    {
+        return impl::cast_from_f8x8_scaled<Y, numeric_traits<fp8_t>::f8_interpret, Scale_sel>(
+            bit_cast<impl::fp8x8_storage_t>(x), scale.data());
+    }
+};
+template <typename Y, int Scale_sel>
+struct pk4scaled_type_convert_impl<Y, bf8x8_t, Scale_sel>
+{
+    CK_TILE_DEVICE static Y run(bf8x8_t x, Packed4Scale_E8M0 scale)
+    {
+        return impl::cast_from_f8x8_scaled<Y, numeric_traits<bf8_t>::f8_interpret, Scale_sel>(
+            bit_cast<impl::fp8x8_storage_t>(x), scale.data());
+    }
+};
+#endif
 
 #endif
 

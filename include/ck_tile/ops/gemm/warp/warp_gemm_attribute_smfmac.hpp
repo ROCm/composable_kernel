@@ -39,6 +39,7 @@ struct WarpGemmAttributeSmfmac
     static constexpr index_t kN                = Impl::kN;
     static constexpr index_t kK                = Impl::kK;
     static constexpr index_t kKPerThread       = Impl::kABKPerLane;
+    static constexpr index_t kKPack            = Impl::kABKPerLane;
     static constexpr index_t kCompressionRatio = Impl::CompressionRatio;
 
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return 1; }
@@ -72,14 +73,13 @@ struct WarpGemmAttributeSmfmac
         sequence<0, 2>>;
 
     // c_vec += a_vec * b_vec[idx]
-    template <bool post_nop_ = false>
+    template <typename... Params>
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
                                    const AVecType& a_vec,
                                    const BVecType& b_vec,
-                                   const int32_t& idx,
-                                   bool_constant<post_nop_> = {}) const
+                                   const int32_t& idx) const
     {
-        Impl{}(c_vec, a_vec, b_vec, idx, bool_constant<post_nop_>{});
+        Impl{}.template operator()<Params...>(c_vec, a_vec, b_vec, idx);
     }
 };
 } // namespace ck_tile

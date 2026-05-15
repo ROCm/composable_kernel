@@ -14,7 +14,7 @@ template <typename FlatmmConfig,
           ck_tile::MoeFlatmmKind kind,
           typename CDEElementWise = ck_tile::element_wise::PassThrough,
           typename MoeHostArgs>
-float invoke_moe_gemm(int n_warmup, int n_repeat, const MoeHostArgs& args)
+float invoke_moe_gemm(int n_warmup, int n_repeat, int n_rotate, const MoeHostArgs& args)
 {
     float ave_time = moe_gemm<FlatmmConfig,
                               ADataType,
@@ -28,7 +28,7 @@ float invoke_moe_gemm(int n_warmup, int n_repeat, const MoeHostArgs& args)
                               ELayout,
                               kind,
                               CDEElementWise>(
-        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
+        args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, n_rotate});
 
     std::string op_name{"Moe Gemm"};
 
@@ -72,16 +72,17 @@ int run_moe_gemm_example_with_layouts(int argc,
     constexpr int ScaleGranularityM = 1;
     constexpr int ScaleGranularityN = 1;
 
-    const ck_tile::index_t N          = arg_parser.get_int("N");
-    const ck_tile::index_t K          = arg_parser.get_int("K");
-    ck_tile::index_t stride_A         = arg_parser.get_int("stride_A");
-    ck_tile::index_t stride_B         = arg_parser.get_int("stride_B");
-    ck_tile::index_t stride_C         = arg_parser.get_int("stride_C");
-    const ck_tile::index_t num_tokens = arg_parser.get_int("NumTokens");
-    const ck_tile::index_t topk       = arg_parser.get_int("TopK");
-    const ck_tile::index_t warmup     = arg_parser.get_int("warmup");
-    const ck_tile::index_t repeat     = arg_parser.get_int("repeat");
-    const ck_tile::index_t experts    = arg_parser.get_int("experts");
+    const ck_tile::index_t N              = arg_parser.get_int("N");
+    const ck_tile::index_t K              = arg_parser.get_int("K");
+    ck_tile::index_t stride_A             = arg_parser.get_int("stride_A");
+    ck_tile::index_t stride_B             = arg_parser.get_int("stride_B");
+    ck_tile::index_t stride_C             = arg_parser.get_int("stride_C");
+    const ck_tile::index_t num_tokens     = arg_parser.get_int("NumTokens");
+    const ck_tile::index_t topk           = arg_parser.get_int("TopK");
+    const ck_tile::index_t warmup         = arg_parser.get_int("warmup");
+    const ck_tile::index_t repeat         = arg_parser.get_int("repeat");
+    const ck_tile::index_t rotating_count = arg_parser.get_int("rotating_count");
+    const ck_tile::index_t experts        = arg_parser.get_int("experts");
 
     // TODO: replace the magic declaration
     const ck_tile::index_t MPerBlock = FlatmmConfig::M_Tile;
@@ -251,7 +252,7 @@ int run_moe_gemm_example_with_layouts(int argc,
                     BLayout,
                     ck_tile::tuple<>,
                     CLayout,
-                    kind>(warmup, repeat, gemm_desc);
+                    kind>(warmup, repeat, rotating_count, gemm_desc);
 
     c_m_n_dev_buf.FromDevice(c_m_n_tensor.data());
 

@@ -51,10 +51,10 @@ using DeviceGroupedConvNDFwdInstance =
         16,          // KPerBlock
         4,           // AK1
         4,           // BK1
-        32,          // MPerXdl
-        32,          // NPerXdl
-        2,           // MXdlPerWave
-        4,           // NXdlPerWave
+        16,          // MPerXdl
+        16,          // NPerXdl
+        4,           // MXdlPerWave
+        8,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -72,13 +72,13 @@ using DeviceGroupedConvNDFwdInstance =
         1,
         1,
         S<1, 16, 1, 16>,
-        4>;
+        2>;
 
 #include "run_convnd_fwd_example.inc"
 
 int main(int argc, char* argv[])
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
     {
         return 0;
     }

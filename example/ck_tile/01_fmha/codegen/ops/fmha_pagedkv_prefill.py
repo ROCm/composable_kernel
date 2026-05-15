@@ -639,15 +639,39 @@ class KernelComponentFactoryGfx12(KernelComponentFactoryBase):
         else:
             return None
 
+class KernelComponentFactoryGfx125(KernelComponentFactoryBase):
+    arch = ArchTrait("gfx125")
+
+    @staticmethod
+    def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
+        if dtype in ["fp16", "bf16"]:
+            return {
+                #                      bm0, bn0, bk0, bn1, bk1,
+              # "32":  FmhaFwdTileSize( 64,  64,  16,  32,  32,   32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 32,  -1),
+              # "64":  FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 32,  -1),
+                "128": FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+              # "192": FmhaFwdTileSize( 64,  64,  32, 128,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 32,  -1),
+              # "256": FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 32,  -1),
+            }  # fmt: skip
+        elif dtype in ["fp8", "bf8"]:
+            return {
+                #                      bm0, bn0, bk0, bn1, bk1,
+                "64":  FmhaFwdTileSize(128,  64,  64,  64,  64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 64,  -1),
+                "128": FmhaFwdTileSize( 64,  64,  64, 128,  64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 64,  -1),
+                "256": FmhaFwdTileSize( 64,  64,  64, 256,  64,  256,  4, 1, 1,  4, 1, 1,  16, 16, 64,  16, 16, 64,  -1),
+            }  # fmt: skip
+        else:
+            return None
 
 def get_factory(target: str):
     # Place more specific architectures first
 
     if target.startswith("gfx9"):
         return KernelComponentFactoryGfx9
-
     if target.startswith("gfx11"):
         return KernelComponentFactoryGfx11
+    if target.startswith("gfx125"):
+        return KernelComponentFactoryGfx125
     if target.startswith("gfx12"):
         return KernelComponentFactoryGfx12
 

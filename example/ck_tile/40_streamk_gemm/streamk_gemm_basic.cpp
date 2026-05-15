@@ -232,5 +232,9 @@ int runGemmExample(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+#if CK_TILE_USE_WMMA
+    return !runGemmExample<GemmConfigurationMemoryInterwaveWmma>(argc, argv);
+#else
     return !runGemmExample<GemmConfigurationMemoryInterwave>(argc, argv);
+#endif
 }

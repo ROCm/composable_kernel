@@ -168,7 +168,7 @@ int main(int argc, char* argv[])
         return std::visit(
             [&](auto&& dt) -> int {
                 using DataType = std::decay_t<decltype(dt)>;
-                return run<DataType>(arg_parser);
+                return !run<DataType>(arg_parser);
             },
             prec_variant);
     }

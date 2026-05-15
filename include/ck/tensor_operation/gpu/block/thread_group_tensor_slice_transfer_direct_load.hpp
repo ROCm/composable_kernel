@@ -62,9 +62,8 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
     using SrcCoordStep = decltype(make_tensor_coordinate_step(SrcDesc{}, Index{}));
     using DstCoordStep = decltype(make_tensor_coordinate_step(DstDesc{}, Index{}));
 
-    static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
-
+    static constexpr auto I0                     = Number<0>{};
+    static constexpr auto I1                     = Number<1>{};
     static constexpr auto block_slice_lengths    = BlockSliceLengths{};
     static constexpr auto thread_cluster_lengths = ThreadClusterLengths{};
 
@@ -157,10 +156,13 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         //     AreThreadClusterLengthsValid(),
         //     "Thread cluster lengths are incorrect. They must be set in a way that allows a single
         //     " "wavefront to write contiguous DWORDs into LDS memory. ");
-
         const auto thread_cluster_idx =
             thread_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()));
-
+        const auto thread_data_idx_begin = thread_cluster_idx * thread_single_load_size;
+        SetSrcSliceOrigin(src_desc, src_block_slice_origin + thread_data_idx_begin);
+#if defined(__gfx125__)
+        SetDstSliceOrigin(dst_desc, dst_block_slice_origin + thread_data_idx_begin);
+#else
         constexpr auto wave_cluster_lengths = generate_sequence_v2(
             [&](auto i) {
                 // FIXME: wave parallelism is not always in that dimension.
@@ -181,17 +183,13 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
             wave_thread_cluster_lengths * thread_single_load_size;
         constexpr auto wave_cluster_desc_ =
             make_cluster_descriptor(wave_cluster_lengths, ThreadClusterArrangeOrder{});
-
         const auto wave_cluster_idx = wave_cluster_desc_.CalculateBottomIndex(
             make_multi_index(ThreadGroup::GetThreadId() / 64));
-
-        const auto thread_data_idx_begin = thread_cluster_idx * thread_single_load_size;
-        const auto wave_data_idx_begin   = wave_cluster_idx * wave_single_load_size;
-
-        SetSrcSliceOrigin(src_desc, src_block_slice_origin + thread_data_idx_begin);
+        const auto wave_data_idx_begin = wave_cluster_idx * wave_single_load_size;
         // We don't need threadwise offset for lds since it was calculate by HW
         // We still need input the wavewise offset.
         SetDstSliceOrigin(dst_desc, dst_block_slice_origin + wave_data_idx_begin);
+#endif
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -228,7 +226,43 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         static_assert(
             ck::is_same_v<remove_cvref_t<typename DstBuffer::type>, remove_cvref_t<DstData>>,
             "DstBuffer and DstData data types must be consistent.");
+#if defined(__gfx125__)
+        ignore = dst_desc;
+        constexpr auto scalar_per_access =
+            generate_sequence(detail::lambda_scalar_per_access<DstVectorDim, 1>{}, Number<nDim>{});
 
+        using SpaceFillingCurve   = SpaceFillingCurve<decltype(thread_slice_lengths),
+                                                      SrcDimAccessOrder,
+                                                      remove_cv_t<decltype(scalar_per_access)>>;
+        constexpr auto num_access = SpaceFillingCurve::GetNumOfAccess();
+
+        // loop over space-filling curve
+        static_assert(num_access > 0);
+        static_for<0, num_access, 1>{}([&](auto idx_1d) {
+            const auto src_offset = src_coord_.GetOffset();
+            const bool is_src_valid =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+
+            constexpr auto lds_access_offset = [&]() {
+                constexpr auto coord_offset = SpaceFillingCurve::GetIndex(idx_1d) * thread_steps;
+                return make_tensor_coordinate(DstDesc{}, coord_offset).GetOffset();
+            }();
+
+            src_buf.template AsyncCopyToLds<remove_cvref_t<decltype(dst_buf)>,
+                                            ScalarPerVector,
+                                            lds_access_offset>(
+                dst_buf, src_offset, dst_coord_.GetOffset(), is_src_valid);
+
+            // move coordinate
+            if constexpr(idx_1d.value != num_access - 1)
+            {
+                constexpr auto forward_step =
+                    SpaceFillingCurve::GetForwardStep(idx_1d) * thread_steps;
+                move_tensor_coordinate(
+                    src_desc, src_coord_, make_tensor_coordinate_step(src_desc, forward_step));
+            }
+        });
+#else
         constexpr auto dst_access_lengths = thread_slice_lengths;
 
         const auto dst_forward_steps  = generate_steps(dst_desc, 1);
@@ -239,15 +273,13 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
         // Loop over the destination block and copy data.
         static_ford<decltype(dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
             const auto src_offset = src_coord_.GetOffset();
-            const auto dst_offset = __builtin_amdgcn_readfirstlane(dst_coord_.GetOffset());
-
             // Check if src data is not in the logic padding area.
             const bool is_src_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
 
+            const auto dst_offset = __builtin_amdgcn_readfirstlane(dst_coord_.GetOffset());
             src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
                 dst_buf, src_offset, dst_offset, is_src_valid);
-
             constexpr auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
@@ -300,6 +332,7 @@ struct ThreadGroupTensorSliceTransfer_DirectLoad
 
         // Reset the destination slice since the entire buffer has been already filled.
         ResetDstSliceWindow(dst_desc);
+#endif
     }
 
     __device__ void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& step)

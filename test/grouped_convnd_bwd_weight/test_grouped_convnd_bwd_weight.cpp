@@ -34,7 +34,11 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
     std::vector<ck::index_t> split_ks{-1, 1, 2};
-
+#if defined(CK_TEST_DISABLE_GPU_VALIDATION)
+    static constexpr int verify_ = 1; // CPU reference
+#else
+    static constexpr int verify_ = 2; // GPU reference
+#endif
     bool skip_case(const ck::index_t split_k)
     {
         // 1d NWGC is only supported by DL kernel
@@ -42,6 +46,44 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         if constexpr(std::is_same_v<InLayout, NWGC> && std::is_same_v<OutLayout, NWGK>)
         {
             if(split_k != 1)
+            {
+                return true;
+            }
+        }
+        if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
+        {
+            // on gfx11 only support for 3d is implemented
+            if constexpr(NDimSpatial{} != 3)
+            {
+                return true;
+            }
+            // on gfx11 only support for i8 and fp16 is implemented
+            if constexpr(!((std::is_same_v<InDataType, int8_t> &&
+                            std::is_same_v<WeiDataType, int8_t> &&
+                            std::is_same_v<OutDataType, int8_t>) ||
+                           (std::is_same_v<InDataType, ck::half_t> &&
+                            std::is_same_v<WeiDataType, ck::half_t> &&
+                            std::is_same_v<OutDataType, ck::half_t>)))
+            {
+                return true;
+            }
+            // WMMA kernel is only supported for split_k=1
+            if(split_k != 1)
+            {
+                return true;
+            }
+            // Skip due to the lack of kernels for NGCDHW
+            if constexpr(std::is_same_v<InLayout, NGCW> || std::is_same_v<InLayout, NGCHW> ||
+                         std::is_same_v<InLayout, NGCDHW>)
+            {
+                return true;
+            }
+        }
+        else
+        {
+            // support for i8 is only implemented on gfx11
+            if constexpr(std::is_same_v<InDataType, int8_t> &&
+                         std::is_same_v<WeiDataType, int8_t> && std::is_same_v<OutDataType, int8_t>)
             {
                 return true;
             }
@@ -74,10 +116,10 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                                                                            InDataType,
                                                                            WeiDataType,
                                                                            OutDataType>(
-                            2,     // do_verification
-                            1,     // init_method: integer value
-                            false, // do_log
-                            false, // time_kernel
+                            verify_, // do_verification
+                            1,       // init_method: integer value
+                            false,   // do_log
+                            false,   // time_kernel
                             param,
                             std::to_string(split_k),
                             instance_index);

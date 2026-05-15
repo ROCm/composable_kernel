@@ -333,7 +333,17 @@ struct MoeFlatmmKernel
             '_', "moe_flatmm", gemm_prec_str<ADataType, BDataType>(), FlatmmPipeline::GetName());
     }
 
-    static constexpr auto BlockSize() -> dim3 { return dim3(kBlockSize); }
+    static auto BlockSize() -> dim3
+    {
+        if(ck_tile::is_wave32())
+        {
+            return dim3(kBlockSize / 2);
+        }
+        else
+        {
+            return dim3(kBlockSize);
+        }
+    }
 
     static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
@@ -375,13 +385,9 @@ struct MoeFlatmmKernel
         }
     }
 
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPingSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return max(FlatmmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
-    }
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPongSize()
-    {
-        return FlatmmPipeline::GetSmemSize();
     }
 
     struct SplitKBatchOffset
@@ -927,8 +933,7 @@ struct MoeFlatmmKernel
         const index_t coord_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
         const index_t coord_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
         // allocate LDS
-        __shared__ char smem_ptr_ping[GetSmemPingSize()];
-        __shared__ char smem_ptr_pong[GetSmemPongSize()];
+        __shared__ char smem_ptr[GetSmemSize()];
 
         const index_t expert_id = kargs.p_sorted_expert_ids[iM];
 
@@ -1010,8 +1015,7 @@ struct MoeFlatmmKernel
                         a_scale_block_window, // weight scale with granularityK = 32
                         b_scale_block_window, // weight scale with granularityK = 32
                         num_loop,
-                        smem_ptr_ping,
-                        smem_ptr_pong);
+                        smem_ptr);
                 }
                 else
                 {
@@ -1021,18 +1025,13 @@ struct MoeFlatmmKernel
                         b_scale_block_window, // weight scale with granularityK = 32
                         num_loop,
                         kargs.k_padded_zeros,
-                        smem_ptr_ping,
-                        smem_ptr_pong);
+                        smem_ptr);
                 }
             }
             else
             {
-                return FlatmmPipeline{}(a_gather_block_tile,
-                                        b_block_window,
-                                        number<IsGateUp>{},
-                                        num_loop,
-                                        smem_ptr_ping,
-                                        smem_ptr_pong);
+                return FlatmmPipeline{}(
+                    a_gather_block_tile, b_block_window, number<IsGateUp>{}, num_loop, smem_ptr);
             }
         }();
 
@@ -1070,7 +1069,7 @@ struct MoeFlatmmKernel
 
             // EpiloguePipeline::template MakeLdsBlockDescriptor<EpiProblem>();
             auto o_lds_block = make_tensor_view<address_space_enum::lds>(
-                reinterpret_cast<ODataType*>(smem_ptr_ping), lds_block_desc);
+                reinterpret_cast<ODataType*>(smem_ptr), lds_block_desc);
 
             constexpr int ScaleGranularityM = decltype(kargs.scale_m)::GranularityMN;
             constexpr int ScaleGranularityN = decltype(kargs.scale_n)::GranularityMN;
@@ -1274,13 +1273,15 @@ struct MoeFlatmmKernel
                           "Currently, the CShuffle EpiloguePipeline only supports the Row Major "
                           "Output layout");
 
-            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<
-                kBlockSize,
-                MPerIterationShuffle,
-                LDS_NPerIterationShuffle,
-                kind == MoeFlatmmKind::kFFN_gemm2 ? 2 : EpiloguePipeline::GetVectorSizeC(),
-                tile_distribution_pattern::thread_raked,
-                EpiProblem::kNumWaveGroups>;
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_2d<kBlockSize,
+                                                      MPerIterationShuffle,
+                                                      LDS_NPerIterationShuffle,
+                                                      kind == MoeFlatmmKind::kFFN_gemm2
+                                                          ? (get_warp_size() == 64 ? 2 : 4)
+                                                          : EpiloguePipeline::GetVectorSizeC(),
+                                                      tile_distribution_pattern::thread_raked,
+                                                      EpiProblem::kNumWaveGroups>;
 
             constexpr auto dram_tile_distribution =
                 TileEncodingPattern::make_2d_static_tile_distribution();

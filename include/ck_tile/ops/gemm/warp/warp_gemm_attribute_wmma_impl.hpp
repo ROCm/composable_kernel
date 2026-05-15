@@ -15,7 +15,8 @@ template <typename Arch,
           typename CType,
           index_t M,
           index_t N,
-          index_t K>
+          index_t K,
+          typename MXTypeEnable = void>
 struct WmmaTraits;
 
 // Generic WMMA implementation using traits
@@ -39,12 +40,17 @@ struct WarpGemmAttributeWmmaImpl
     static constexpr index_t kAMBlock = Traits::kAMBlock;
     static constexpr index_t kBNBlock = Traits::kBNBlock;
 
-    static constexpr index_t kRepeat      = Traits::kRepeat;
-    static constexpr index_t kAMLane      = Traits::kAMLane;
-    static constexpr index_t kBNLane      = Traits::kBNLane;
-    static constexpr index_t kABK0PerLane = Traits::kABK0PerLane;
-    static constexpr index_t kABKLane     = Traits::kABKLane;
-    static constexpr index_t kABK1PerLane = Traits::kABK1PerLane;
+    static constexpr index_t kCMBlock = Traits::kCMBlock;
+    static constexpr index_t kCNBlock = Traits::kCNBlock;
+
+    static constexpr index_t kRepeat     = Traits::kRepeat;
+    static constexpr index_t kAMLane     = Traits::kAMLane;
+    static constexpr index_t kBNLane     = Traits::kBNLane;
+    static constexpr index_t kAK0PerLane = Traits::kAK0PerLane;
+    static constexpr index_t kBK0PerLane = Traits::kBK0PerLane;
+    static constexpr index_t kAK1PerLane = Traits::kAK1PerLane;
+    static constexpr index_t kBK1PerLane = Traits::kBK1PerLane;
+    static constexpr index_t kABKLane    = Traits::kABKLane;
 
     static constexpr index_t kCMLane     = Traits::kCMLane;
     static constexpr index_t kCNLane     = Traits::kCNLane;
@@ -67,25 +73,47 @@ struct WarpGemmAttributeWmmaImpl
     using kCTYs2RHsMinor  = typename Traits::kCTYs2RHsMinor;
 
     // c_vec += a_vec * b_vec
-    template <bool clamp = false, bool post_nop_ = false>
-    CK_TILE_DEVICE void operator()(CVecType& c_vec,
-                                   const AVecType& a_vec,
-                                   const BVecType& b_vec,
-                                   bool_constant<post_nop_> = {}) const
+    template <typename... Params>
+    CK_TILE_DEVICE void
+    operator()(CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
     {
-        c_vec = Traits::template wmma_intrinsic<clamp>(a_vec, b_vec, c_vec);
+        c_vec = Traits::template wmma_intrinsic<Params...>(a_vec, b_vec, c_vec);
     }
 
     // c_vec = a_vec * b_vec
-    template <bool clamp = false>
+    template <typename... Params>
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
     {
         return bit_cast<CVecType>(
-            Traits::template wmma_intrinsic<clamp>(a_vec, b_vec, CVecType{0.f}));
+            Traits::template wmma_intrinsic<Params...>(a_vec, b_vec, CVecType{0.f}));
+    }
+
+    template <typename... Params>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const int32_t& a_scale,
+                                   const BVecType& b_vec,
+                                   const int32_t& b_scale) const
+    {
+        c_vec = Traits::template wmma_intrinsic<Params...>(a_vec, a_scale, b_vec, b_scale, c_vec);
+    }
+
+    // c_vec = a_vec * b_vec
+    template <typename... Params>
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec,
+                                       const int32_t& a_scale,
+                                       const BVecType& b_vec,
+                                       const int32_t& b_scale) const
+    {
+        return bit_cast<CVecType>(Traits::template wmma_intrinsic<Params...>(
+            a_vec, a_scale, b_vec, b_scale, CVecType{0.f}));
     }
 };
 
 using DeviceIp = remove_cvref_t<decltype(ck_tile::get_device_arch())>;
+using WarpGemmAttributeWmmaImpl_f32_16x16x4_f32 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, float, float, float, 16, 16, 4>>;
+
 using WarpGemmAttributeWmmaImpl_f32_16x16x16_f16_f16 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<DeviceIp, fp16_t, fp16_t, float, 16, 16, 16>>;
 
@@ -96,16 +124,78 @@ using WarpGemmAttributeWmmaImpl_i32_16x16x16_i8_i8 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<DeviceIp, int8_t, int8_t, int32_t, 16, 16, 16>>;
 
 using WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_f8 =
-    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, fp8_t, fp8_t, float, 16, 16, 16>>;
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx120_t, fp8_t, fp8_t, float, 16, 16, 16>>;
 
 using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_bf8 =
-    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, bf8_t, bf8_t, float, 16, 16, 16>>;
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx120_t, bf8_t, bf8_t, float, 16, 16, 16>>;
 
 using WarpGemmAttributeWmmaImpl_f32_16x16x16_f8_bf8 =
-    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, fp8_t, bf8_t, float, 16, 16, 16>>;
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx120_t, fp8_t, bf8_t, float, 16, 16, 16>>;
 
 using WarpGemmAttributeWmmaImpl_f32_16x16x16_bf8_f8 =
-    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx12_t, bf8_t, fp8_t, float, 16, 16, 16>>;
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx120_t, bf8_t, fp8_t, float, 16, 16, 16>>;
+
+using WarpGemmAttributeWmmaImpl_f32_16x16x32_f16_f16 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, fp16_t, fp16_t, float, 16, 16, 32>>;
+
+using WarpGemmAttributeWmmaImpl_f32_16x16x32_bf16_bf16 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, bf16_t, bf16_t, float, 16, 16, 32>>;
+
+using WarpGemmAttributeWmmaImpl_i32_16x16x64_i8_i8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, int8_t, int8_t, int32_t, 16, 16, 64>>;
+
+using WarpGemmAttributeWmmaImpl_i32_16x16x64_u8_u8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, uint8_t, uint8_t, int32_t, 16, 16, 64>>;
+
+using WarpGemmAttributeWmmaImpl_f32_16x16x64_f8_f8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, fp8_t, fp8_t, float, 16, 16, 64>>;
+
+using WarpGemmAttributeWmmaImpl_f32_16x16x64_bf8_bf8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, bf8_t, bf8_t, float, 16, 16, 64>>;
+
+using WarpGemmAttributeWmmaImpl_f32_16x16x64_f8_bf8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, fp8_t, bf8_t, float, 16, 16, 64>>;
+
+using WarpGemmAttributeWmmaImpl_f32_16x16x64_bf8_f8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, bf8_t, fp8_t, float, 16, 16, 64>>;
+
+using WarpGemmAttributeWmmaImpl_f32_16x16x128_f8_f8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, fp8_t, fp8_t, float, 16, 16, 128>>;
+
+using WarpGemmAttributeWmmaImpl_f32_16x16x128_bf8_bf8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, bf8_t, bf8_t, float, 16, 16, 128>>;
+
+using WarpGemmAttributeWmmaImpl_f32_16x16x128_f8_bf8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, fp8_t, bf8_t, float, 16, 16, 128>>;
+
+using WarpGemmAttributeWmmaImpl_f32_16x16x128_bf8_f8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, bf8_t, fp8_t, float, 16, 16, 128>>;
+
+using WarpGemmAttributeWmmaImpl_f32_32x16x128_f4 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, pk_fp4_t, pk_fp4_t, float, 32, 16, 128>>;
+
+using WarpGemmAttributeWmmaImpl_f32_32x32x128_f4 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, pk_fp4_t, pk_fp4_t, float, 32, 32, 128>>;
+
+using WarpGemmAttributeWmmaImpl_f16_16x16x64_f8_f8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, fp8_t, fp8_t, fp16_t, 16, 16, 64>>;
+
+using WarpGemmAttributeWmmaImpl_f16_16x16x64_bf8_bf8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, bf8_t, bf8_t, fp16_t, 16, 16, 64>>;
+
+using WarpGemmAttributeWmmaImpl_f16_16x16x64_f8_bf8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, fp8_t, bf8_t, fp16_t, 16, 16, 64>>;
+
+using WarpGemmAttributeWmmaImpl_f16_16x16x64_bf8_f8 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, bf8_t, fp8_t, fp16_t, 16, 16, 64>>;
+
+template <typename AType, typename BType>
+using WarpGemmAttributeWmmaImpl_f32_16x16x128_f8f6f4 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, AType, BType, float, 16, 16, 128>>;
+
+template <typename AType, typename BType>
+using WarpGemmAttributeWmmaImpl_f32_32x32x128_f8f6f4 =
+    WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, AType, BType, float, 32, 32, 128>>;
 
 template <typename Arch,
           typename AType,

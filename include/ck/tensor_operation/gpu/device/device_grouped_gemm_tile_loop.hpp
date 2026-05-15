@@ -88,7 +88,7 @@ struct TileLoopKernelConfig
         int occupancy = 0;
         ck::hip_check_error(
             hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
-        return occupancy;
+        return std::max(occupancy, 1);
     }
 
     static int GetComputeUnitCount()

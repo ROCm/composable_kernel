@@ -266,7 +266,6 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_V3_Large_Tensor
 
     static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
-    static constexpr auto WmmaK  = 16;
 
     using ConvToGemmFwdTransformerIndexT = TransformConvFwdToGemm<NDimSpatial,
                                                                   ConvForwardSpecialization,

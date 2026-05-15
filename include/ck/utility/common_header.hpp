@@ -45,6 +45,7 @@
 #include "ck/utility/thread_group.hpp"
 #include "ck/utility/synchronization.hpp"
 #include "ck/utility/amd_address_space.hpp"
+#include "ck/utility/amd_cluster_load.hpp"
 #include "ck/utility/static_buffer.hpp"
 #include "ck/utility/dynamic_buffer.hpp"
 

@@ -241,8 +241,9 @@ class TestMXFlatmmBase : public ::testing::Test
             ck_tile::host_tensor_descriptor(M, N, stride_C, ck_tile::bool_constant<c_row_major>{}));
         c_ref.SetZero();
 
-        ck_tile::reference_mx_gemm<ADataType, BDataType, ScaleType, AccDataType, CDataType>(
-            a_host, b_origin_host, c_ref, scale_a, scale_b);
+        ck_tile::
+            reference_mx_gemm<ADataType, BDataType, ScaleType, ScaleType, AccDataType, CDataType>(
+                a_host, b_origin_host, c_ref, scale_a, scale_b);
 
         const float rtol = 1e-2f;
         const float atol = 1e-2f;

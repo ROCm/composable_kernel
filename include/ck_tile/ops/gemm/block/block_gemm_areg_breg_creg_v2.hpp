@@ -43,7 +43,8 @@ struct BlockGemmARegBRegCRegV2
 
         static constexpr auto BlockGemmLoopOrder = Policy::BlockGemmLoopOrder;
 
-        static constexpr index_t KPack = WarpGemm::kKPerThread;
+        static constexpr index_t KPackA = WarpGemm::kKPerThread;
+        static constexpr index_t KPackB = WarpGemm::kKPerThread;
     };
 
     public:

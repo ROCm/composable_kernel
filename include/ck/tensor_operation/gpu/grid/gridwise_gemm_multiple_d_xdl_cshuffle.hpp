@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/utility/common_header.hpp"
+#include "ck/utility/env.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -352,10 +353,54 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         return true;
     }
 
+    template <bool IsGfx11>
+    static constexpr index_t GetEstimateVgprCount()
+    {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
+
+        // VGPR used in LDS loading and WMMA
+        constexpr index_t BaseInputVgprCount =
+            MPerBlock * KPerBlock / MWave / WaveSize * sizeof(ADataType) / sizeof(uint32_t) +
+            NPerBlock * KPerBlock / NWave / WaveSize * sizeof(BDataType) / sizeof(uint32_t);
+        // WMMA input is duplicated in GFX11
+        constexpr index_t InputVgprCount = IsGfx11 ? BaseInputVgprCount * 2 : BaseInputVgprCount;
+        // VGPR used in Accumulator
+        constexpr index_t AccVgprCount =
+            MPerBlock * NPerBlock / BlockSize * sizeof(AccDataType) / sizeof(uint32_t);
+
+        if constexpr(PipelineVer == PipelineVersion::v1)
+        {
+            return InputVgprCount + AccVgprCount + BaseInputVgprCount * (NumGemmKPrefetchStage - 1);
+        }
+        else if constexpr(PipelineVer == PipelineVersion::v2)
+        {
+            return InputVgprCount + AccVgprCount + BaseInputVgprCount;
+        }
+        else if constexpr(PipelineVer == PipelineVersion::weight_only)
+        {
+            return InputVgprCount + AccVgprCount;
+        }
+        else if constexpr(PipelineVer == PipelineVersion::v4)
+        {
+            return InputVgprCount * 2 + AccVgprCount;
+        }
+        else
+        {
+            // invalid pipeline version
+            static_assert(0);
+        }
+    }
+
     __host__ static index_t GetSharedMemoryNumberOfByteOnHost()
     {
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
-        if(ck::get_device_name() == "gfx950")
+        if(is_gfx125_supported())
+        {
+            return Base::GetSharedMemoryNumberOfByte(gfx125_t{});
+        }
+        else if(ck::get_device_name() == "gfx950")
         {
             return Base::GetSharedMemoryNumberOfByte(gfx950_t{});
         }
@@ -370,7 +415,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
     __device__ static bool constexpr IsValidCompilationParameter()
     {
-#if defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx11__) || defined(__gfx120__)
         if constexpr(is_same_v<AComputeDataType_, float>)
         {
 
@@ -382,8 +427,33 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         }
 #endif
 
+#if defined(__gfx125__)
+        if constexpr(sizeof(AComputeDataType) == 1)
+        {
+            if constexpr(KPerBlock % 64)
+            {
+                return false;
+            }
+        }
+        else if constexpr(sizeof(AComputeDataType) == 2)
+        {
+            if constexpr(KPerBlock % 32)
+            {
+                return false;
+            }
+        }
+#endif
+
         if constexpr(Base::GetSharedMemoryNumberOfByte(get_device_arch()) >
                      get_lds_size(get_device_arch()))
+        {
+            return false;
+        }
+
+        constexpr bool IsGfx11            = is_same_v<decltype(get_device_arch()), gfx11_t>;
+        constexpr auto EstimateVgprCount  = GetEstimateVgprCount<IsGfx11>();
+        constexpr auto AvailableVgprCount = get_max_vgpr_count(get_device_arch());
+        if constexpr(EstimateVgprCount > (AvailableVgprCount + AvailableVgprCount / 4))
         {
             return false;
         }
@@ -474,12 +544,50 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         {
             return false;
         }
+
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
+        if(!is_xdl_wmma_k_supported<AComputeDataType, KPerBlock>())
+        {
+            return false;
+        }
+
         if(GetSharedMemoryNumberOfByteOnHost() > get_lds_size())
         {
             return false;
         }
+        const auto availableVgprCount = []() {
+            if(ck::is_gfx125_supported())
+            {
+                return get_max_vgpr_count(gfx125_t{});
+            }
+            else if(ck::is_gfx120_supported())
+            {
+                return get_max_vgpr_count(gfx120_t{});
+            }
+            else if(ck::is_gfx11_supported())
+            {
+                return get_max_vgpr_count(gfx11_t{});
+            }
+            else
+            {
+                return get_max_vgpr_count(gfx9_t{});
+            }
+        }();
+        const auto estimateVgprCount =
+            ck::is_gfx11_supported() ? GetEstimateVgprCount<true>() : GetEstimateVgprCount<false>();
+        if(estimateVgprCount > (availableVgprCount + availableVgprCount / 4))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Estimated VGPR count (" << estimateVgprCount
+                          << ") exceeds available VGPR count (" << availableVgprCount << ")! "
+                          << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                          << std::endl;
+            }
+            return false;
+        }
 #endif
+
         return true;
     }
 
@@ -731,7 +839,11 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
               lcm_AK1_BK1 <= 4) ||
              (is_same<AComputeDataType, int8_t>::value && lcm_AK1_BK1 <= 8) ||
              ((is_same<AComputeDataType, f8_t>::value || is_same<AComputeDataType, bf8_t>::value) &&
+#if defined(__gfx125__)
+              lcm_AK1_BK1 < 128))
+#else
               lcm_AK1_BK1 < 32))
+#endif
                 ? true
                 : false;
         constexpr auto is_scale_mfma = false;

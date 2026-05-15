@@ -8,13 +8,26 @@
 
 namespace ck_tile {
 
+template <typename Policy, typename Problem, typename = void>
+struct has_get_pipeline_subtile_params : std::false_type
+{
+};
+
+template <typename Policy, typename Problem>
+struct has_get_pipeline_subtile_params<
+    Policy,
+    Problem,
+    std::void_t<decltype(Policy::template GetPipelineSubTileNum<Problem>())>> : std::true_type
+{
+};
+
 template <typename Problem, typename Policy>
 struct GemmPipelineAgBgCrImplBase
 {
-    using AsDataType     = remove_cvref_t<typename Problem::AsDataTypeTuple>;
-    using BsDataType     = remove_cvref_t<typename Problem::BsDataTypeTuple>;
-    using AsLayout       = remove_cvref_t<typename Problem::AsLayoutTuple>;
-    using BsLayout       = remove_cvref_t<typename Problem::BsLayoutTuple>;
+    using AsDataType     = problem_as_data_type_t<Problem>;
+    using BsDataType     = problem_bs_data_type_t<Problem>;
+    using AsLayout       = problem_as_layout_t<Problem>;
+    using BsLayout       = problem_bs_layout_t<Problem>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     using ADataType   = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
@@ -42,49 +55,10 @@ struct GemmPipelineAgBgCrImplBase
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
-#if defined(__gfx950__)
-    // The combination of pk_int4_t and transposed loading causes compilation errors.
-    // Therefore do not use transposed loading in this case.
-    // Also, transpose load (ds_read_tr) requires specific tile distribution patterns
-    // that only work for certain K warp tile sizes based on data type size:
-    // - For 1-byte types (fp8/bf8): K warp tile <= 64
-    // - For 2-byte types (fp16/bf16): K warp tile <= 32
-    // - For 4-byte types (float/tf32): transpose load not supported
-    static constexpr bool is_a_load_tr = []() {
-        using WarpTile                  = typename BlockGemmShape::WarpTile;
-        constexpr index_t kKWarpTile    = WarpTile::at(number<2>{});
-        constexpr index_t kMaxKWarpTile = (sizeof(ADataType) == 1) ? 64 : 32;
-        if constexpr(std::is_same_v<ADataType, float>)
-            return false;
-        else if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-            return false;
-        else if constexpr(sizeof(ADataType) >= 4)
-            return false; // 4-byte types (float/tf32) don't support transpose load
-        else if constexpr(kKWarpTile > kMaxKWarpTile)
-            return false;
-        else
-            return std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
-    }();
 
-    static constexpr bool is_b_load_tr = []() {
-        using WarpTile                  = typename BlockGemmShape::WarpTile;
-        constexpr index_t kKWarpTile    = WarpTile::at(number<2>{});
-        constexpr index_t kMaxKWarpTile = (sizeof(BDataType) == 1) ? 64 : 32;
-        if constexpr(std::is_same_v<BDataType, float>)
-            return false;
-        else if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-            return false;
-        else if constexpr(sizeof(BDataType) >= 4)
-            return false; // 4-byte types (float/tf32) don't support transpose load
-        else if constexpr(kKWarpTile > kMaxKWarpTile)
-            return false;
-        else
-            return std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
-    }();
-#else
-    static constexpr bool is_a_load_tr = false;
-    static constexpr bool is_b_load_tr = false;
-#endif
+    // Delegate to Policy's single definition to avoid duplication
+    static constexpr bool is_a_load_tr = Policy::template is_a_load_tr<Problem>;
+    static constexpr bool is_b_load_tr = Policy::template is_b_load_tr<Problem>;
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
@@ -107,6 +81,28 @@ struct GemmPipelineAgBgCrImplBase
     {
         async_load_tile(dst_block_window, dram_tile_window);
         move_tile_window(dram_tile_window, dram_tile_window_step);
+    }
+
+    template <typename TDMConfig_,
+              typename DstBlockWindow,
+              typename SrcTileWindow,
+              typename DramTileWindowStep>
+    CK_TILE_DEVICE void GlobalPrefetchTDM(const TDMConfig_& tdm_config,
+                                          DstBlockWindow& dst_block_window,
+                                          SrcTileWindow& dram_tile_window,
+                                          const DramTileWindowStep& dram_tile_window_step) const
+    {
+        load_tile_tdm(tdm_config, dst_block_window, dram_tile_window);
+        move_tile_window(dram_tile_window, dram_tile_window_step);
+    }
+
+    // overload without dram_tile_window_step
+    template <typename TDMConfig_, typename DstBlockWindow, typename SrcTileWindow>
+    CK_TILE_DEVICE void GlobalPrefetchTDM(const TDMConfig_& tdm_config,
+                                          DstBlockWindow& dst_block_window,
+                                          SrcTileWindow& dram_tile_window) const
+    {
+        load_tile_tdm(tdm_config, dst_block_window, dram_tile_window);
     }
 
     template <typename DstTileWindow, typename SrcBlockTile, typename ElementFunction>
@@ -136,29 +132,72 @@ struct GemmPipelineAgBgCrImplBase
             load_tile(dst_block_tile, lds_tile_window);
     }
 
-    template <typename OverrideADataType = ADataType, typename OverrideBDataType = BDataType>
     CK_TILE_DEVICE auto GetABLdsTensorViews(void* p_smem) const
     {
+        using ALdsType = typename Policy::template ALdsDataType_<Problem>;
+        using BLdsType = typename Policy::template BLdsDataType_<Problem>;
         // A tile in LDS
-        OverrideADataType* __restrict__ p_a_lds = static_cast<OverrideADataType*>(p_smem);
-        constexpr auto a_lds_block_desc =
-            Policy::template MakeALdsBlockDescriptor<Problem, OverrideADataType>();
+        ALdsType* __restrict__ p_a_lds  = static_cast<ALdsType*>(p_smem);
+        constexpr auto a_lds_block_desc = Policy::template MakeALdsBlockDescriptor<Problem>();
         auto a_lds_block = make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
 
+        constexpr index_t APackedSize =
+            ck_tile::numeric_traits<remove_cvref_t<ALdsType>>::PackedSize;
+
         // TODO: LDS alignment should come from Policy!
-        constexpr index_t APackedSize = numeric_traits<OverrideADataType>::PackedSize;
-        constexpr index_t a_lds_block_space_size =
-            sizeof(OverrideADataType) * a_lds_block_desc.get_element_space_size() / APackedSize;
-        constexpr index_t a_lds_block_space_size_aligned =
-            integer_least_multiple(a_lds_block_space_size, 16);
+        constexpr index_t a_lds_block_space_size_aligned = integer_least_multiple(
+            sizeof(ALdsType) * a_lds_block_desc.get_element_space_size() / APackedSize, 16);
 
         // B tile in LDS
-        OverrideBDataType* __restrict__ p_b_lds = static_cast<OverrideBDataType*>(
+        BLdsType* __restrict__ p_b_lds = static_cast<BLdsType*>(
             static_cast<void*>(static_cast<char*>(p_smem) + a_lds_block_space_size_aligned));
         constexpr auto b_lds_block_desc = Policy::template MakeBLdsBlockDescriptor<Problem>();
         auto b_lds_block = make_tensor_view<address_space_enum::lds>(p_b_lds, b_lds_block_desc);
 
         return make_tuple(std::move(a_lds_block), std::move(b_lds_block));
+    }
+
+    // this is used in gfx1250 to avoid lds partition conflict
+    template <index_t num_lds_buffers>
+    CK_TILE_DEVICE auto GetABLdsTensorViews(void* p_smem) const
+    {
+        using ALdsType                  = typename Policy::template ALdsDataType_<Problem>;
+        using BLdsType                  = typename Policy::template BLdsDataType_<Problem>;
+        constexpr auto a_lds_block_desc = Policy::template MakeALdsBlockDescriptor<Problem>();
+        constexpr auto b_lds_block_desc = Policy::template MakeBLdsBlockDescriptor<Problem>();
+
+        constexpr index_t APackedSize =
+            ck_tile::numeric_traits<remove_cvref_t<ALdsType>>::PackedSize;
+        constexpr index_t BPackedSize =
+            ck_tile::numeric_traits<remove_cvref_t<BLdsType>>::PackedSize;
+
+        constexpr index_t a_lds_block_space_size_aligned = integer_least_multiple(
+            sizeof(ALdsType) * a_lds_block_desc.get_element_space_size() / APackedSize, 16);
+        constexpr index_t b_lds_block_space_size_aligned = integer_least_multiple(
+            sizeof(BLdsType) * b_lds_block_desc.get_element_space_size() / BPackedSize, 16);
+
+        constexpr index_t all_a_buffers_size = a_lds_block_space_size_aligned * num_lds_buffers;
+
+        // num_lds_buffers a_lds_block: [A_0][A_1]
+        auto a_lds_blocks = generate_tuple(
+            [&](auto i) {
+                ALdsType* __restrict__ p_a_lds = static_cast<ALdsType*>(static_cast<void*>(
+                    static_cast<char*>(p_smem) + a_lds_block_space_size_aligned * i.value));
+                return make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
+            },
+            number<num_lds_buffers>{});
+
+        // num_lds_buffers b_lds_block: [B_0][B_1]
+        auto b_lds_blocks = generate_tuple(
+            [&](auto i) {
+                BLdsType* __restrict__ p_b_lds = static_cast<BLdsType*>(
+                    static_cast<void*>(static_cast<char*>(p_smem) + all_a_buffers_size +
+                                       b_lds_block_space_size_aligned * i.value));
+                return make_tensor_view<address_space_enum::lds>(p_b_lds, b_lds_block_desc);
+            },
+            number<num_lds_buffers>{});
+
+        return make_tuple(std::move(a_lds_blocks), std::move(b_lds_blocks));
     }
 
     template <typename DramBlockWindowTmp,
@@ -274,8 +313,22 @@ struct GemmPipelineAgBgCrImplBase
             }
         }();
 
+        constexpr index_t KSubTileNum = []() {
+            if constexpr(has_get_pipeline_subtile_params<Policy, Problem>::value)
+                return Policy::template GetPipelineSubTileNum<Problem>().value;
+            else
+                return 1;
+        }();
+
+        auto a_lds_gemm_shape = []() {
+            if constexpr(is_a_load_tr)
+                return make_tuple(number<KPerBlock / KSubTileNum>{}, number<MPerBlock>{});
+            else
+                return make_tuple(number<MPerBlock>{}, number<KPerBlock / KSubTileNum>{});
+        }();
+
         auto a_lds_gemm_window =
-            make_tile_window(a_lds_block_view, a_lds_shape, {0, 0}, a_lds_load_tile_distr);
+            make_tile_window(a_lds_block_view, a_lds_gemm_shape, {0, 0}, a_lds_load_tile_distr);
 
         return make_tuple(std::move(a_copy_lds_window), std::move(a_lds_gemm_window));
     }
@@ -356,8 +409,22 @@ struct GemmPipelineAgBgCrImplBase
             }
         }();
 
+        constexpr index_t KSubTileNum = []() {
+            if constexpr(has_get_pipeline_subtile_params<Policy, Problem>::value)
+                return Policy::template GetPipelineSubTileNum<Problem>().value;
+            else
+                return 1;
+        }();
+
+        auto b_lds_gemm_shape = []() {
+            if constexpr(is_b_load_tr)
+                return make_tuple(number<KPerBlock / KSubTileNum>{}, number<NPerBlock>{});
+            else
+                return make_tuple(number<NPerBlock>{}, number<KPerBlock / KSubTileNum>{});
+        }();
+
         auto b_lds_gemm_window =
-            make_tile_window(b_lds_block_view, b_lds_shape, {0, 0}, b_lds_load_tile_distr);
+            make_tile_window(b_lds_block_view, b_lds_gemm_shape, {0, 0}, b_lds_load_tile_distr);
 
         return make_tuple(std::move(b_copy_lds_window), std::move(b_lds_gemm_window));
     }

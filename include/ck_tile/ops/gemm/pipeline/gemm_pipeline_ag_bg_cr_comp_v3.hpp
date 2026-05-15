@@ -46,6 +46,7 @@ struct BaseGemmPipelineAgBgCrCompV3
     CK_TILE_HOST_DEVICE static auto
     TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
     {
+#if !defined(CK_TILE_FORCE_SINGLE_TAIL_HANDLER)
         // Use amd_wave_read_first_lane to avoid higher resource usage.
         // It forces to store these values in SGPR.
         // Compiler cannot deduce if one path is used for all threads
@@ -74,6 +75,12 @@ struct BaseGemmPipelineAgBgCrCompV3
         else if constexpr(I + 1 < scenarios.size())
             return TailHandler<I + 1>(run_func, has_hot_loop, tail_number);
 
+#else
+        ignore = has_hot_loop;
+        ignore = tail_number;
+        return run_func(bool_constant<true>{},
+                        integral_constant<TailNumber, ck_tile::TailNumber::Odd>{});
+#endif
 #if defined(__HIP_DEVICE_COMPILE__)
         // This path should be unreachable in device code if tail_number is valid.
         __builtin_unreachable();
@@ -263,8 +270,14 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             constexpr index_t A_LDS_Read_Width = GetSmemPackA();
             constexpr index_t B_LDS_Read_Width = GetSmemPackB();
 
+// lds write width is the same as buffer load width for gfx1250; other archs need to double check
+#if defined(__gfx125__)
+            constexpr index_t A_LDS_Write_Width = GetVectorSizeA();
+            constexpr index_t B_LDS_Write_Width = GetVectorSizeB();
+#else
             constexpr index_t A_LDS_Write_Width = GetSmemPackA();
             constexpr index_t B_LDS_Write_Width = GetSmemPackB();
+#endif
 
             constexpr index_t A_Buffer_Load_Inst_Num =
                 MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
@@ -302,7 +315,23 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
             constexpr auto num_mfma_inst = C_MFMA_Inst_Num;
 
-            constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
+            // constexpr auto mfma_cycle = NPerXDL == 16 ? 16 : 32;
+            // TODO: need to double check
+            constexpr auto mfma_cycle = []() {
+                if constexpr(NPerXDL == 16)
+                {
+                    return KPerXDL == 128 ? 32 : 16;
+                }
+                else if constexpr(NPerXDL == 32)
+                {
+                    return KPerXDL == 64 ? 64 : 32;
+                }
+                else
+                {
+                    return 32;
+                }
+            }();
+
             constexpr auto ds_read_a_issue_cycle =
                 A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? 8 : 4;
             constexpr auto ds_read_b_issue_cycle =

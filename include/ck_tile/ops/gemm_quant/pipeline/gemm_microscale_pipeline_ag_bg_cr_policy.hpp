@@ -15,6 +15,13 @@ struct GemmMicroscalePipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPo
     using Base::I0;
     using Base::I1;
     using Base::I2;
+    template <typename Problem>
+    using ALdsDataType_ = typename Problem::ADataType;
+
+    template <typename Problem>
+    using BLdsDataType_ = std::conditional_t<Problem::BCastPolicy == CastPolicy::BeforeLDSWrite,
+                                             typename Problem::BComputeDataType,
+                                             typename Problem::BDataType>;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeBQ()
@@ -94,8 +101,8 @@ struct GemmMicroscalePipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPo
             constexpr index_t KPerBlockBQ = KPerBlock / Problem::BQuantGroupSize::kK;
 
             using WarpTile = typename Problem::BlockGemmShape::WarpTile;
-            using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                                typename Problem::ComputeDataType,
+            using WarpGemm = WarpGemmDispatcher<typename Problem::AComputeDataType,
+                                                typename Problem::BComputeDataType,
                                                 typename Problem::CDataType,
                                                 WarpTile::at(I0),
                                                 WarpTile::at(I1),
@@ -237,17 +244,20 @@ struct GemmMicroscalePipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPo
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
-        using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
-        using ComputeDataType = typename Problem::ComputeDataType;
-        using LDSADataType    = typename Problem::ADataType;
-        using LDSBDataType = std::conditional_t<Problem::BCastPolicy == CastPolicy::BeforeLDSWrite,
-                                                ComputeDataType,
-                                                typename Problem::BDataType>;
+        using BlockWarps       = typename Problem::BlockGemmShape::BlockWarps;
+        using WarpTile         = typename Problem::BlockGemmShape::WarpTile;
+        using AComputeDataType = typename Problem::AComputeDataType;
+        using BComputeDataType = typename Problem::BComputeDataType;
+#if defined(__gfx125__)
+        constexpr auto wg_attr_num_accessA = WGAttrNumAccessEnum::Default;
+        constexpr auto wg_attr_num_accessB = WGAttrNumAccessEnum::Default;
+#else
+
+        using LDSADataType = ALdsDataType_<Problem>;
+        using LDSBDataType = BLdsDataType_<Problem>;
 
         static_assert(Problem::BQuantGroupSize::kK % WarpTile::at(I2) == 0,
                       "KPerWarpGemm must be a multiple of QuantGroupSize!");
-
         constexpr auto thread_elements =
             number<WarpTile::at(I1) * WarpTile::at(I2) / get_warp_size()>{};
 
@@ -256,7 +266,7 @@ struct GemmMicroscalePipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPo
         constexpr auto is_any_load_tr = is_a_load_tr_v || is_b_load_tr_v;
 
         constexpr auto wg_attr_num_access_compute =
-            GetAttrNumAccess<ComputeDataType>(is_any_load_tr, thread_elements);
+            GetAttrNumAccess<AComputeDataType>(is_any_load_tr, thread_elements);
         constexpr auto wg_attr_num_accessA =
             std::is_same_v<LDSADataType, LDSBDataType>
                 ? wg_attr_num_access_compute
@@ -265,9 +275,9 @@ struct GemmMicroscalePipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPo
             std::is_same_v<LDSADataType, LDSBDataType>
                 ? wg_attr_num_access_compute
                 : GetAttrNumAccess<LDSBDataType>(is_b_load_tr_v, thread_elements);
-
-        using WarpGemm = WarpGemmDispatcher<ComputeDataType,
-                                            ComputeDataType,
+#endif
+        using WarpGemm = WarpGemmDispatcher<AComputeDataType,
+                                            BComputeDataType,
                                             typename Problem::CDataType,
                                             WarpTile::at(I0),
                                             WarpTile::at(I1),
@@ -277,7 +287,8 @@ struct GemmMicroscalePipelineAgBgCrPolicy : public UniversalGemmPipelineAgBgCrPo
                                             false,
                                             wg_attr_num_accessA,
                                             wg_attr_num_accessB>;
-        static_assert(is_any_of<ComputeDataType, fp8_t, bf8_t, bf16_t, fp16_t>::value);
+        static_assert(is_any_of<AComputeDataType, fp8_t, bf8_t, bf16_t, fp16_t>::value &&
+                      is_any_of<BComputeDataType, fp8_t, bf8_t, bf16_t, fp16_t>::value);
         static_assert(std::is_same_v<typename Problem::CDataType, float>);
 
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<

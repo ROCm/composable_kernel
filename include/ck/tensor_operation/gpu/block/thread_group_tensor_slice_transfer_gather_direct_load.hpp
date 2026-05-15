@@ -52,7 +52,8 @@ template <typename ThreadGroup,
           index_t DstVectorDim,
           index_t ScalarPerVector,
           typename IndexType,
-          index_t GatherDim = 1>
+          index_t GatherDim = 1,
+          bool UseXor       = true>
 struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
 {
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
@@ -168,7 +169,11 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
 
         const auto thread_cluster_idx =
             thread_cluster_desc_.CalculateBottomIndex(make_multi_index(ThreadGroup::GetThreadId()));
-
+        const auto thread_data_idx_begin = thread_cluster_idx * thread_single_load_size;
+        SetSrcSliceOrigin(src_desc, src_block_slice_origin + thread_data_idx_begin);
+#if defined(__gfx125__)
+        SetDstSliceOrigin(dst_desc, dst_block_slice_origin + thread_data_idx_begin);
+#else
         constexpr auto wave_cluster_lengths = generate_sequence_v2(
             [&](auto i) {
                 if constexpr(ThreadClusterArrangeOrder{}.At(i) == (nDim - 3))
@@ -191,13 +196,12 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
         const auto wave_cluster_idx = wave_cluster_desc_.CalculateBottomIndex(
             make_multi_index(ThreadGroup::GetThreadId() / 64));
 
-        const auto thread_data_idx_begin = thread_cluster_idx * thread_single_load_size;
-        const auto wave_data_idx_begin   = wave_cluster_idx * wave_single_load_size;
+        const auto wave_data_idx_begin = wave_cluster_idx * wave_single_load_size;
 
-        SetSrcSliceOrigin(src_desc, src_block_slice_origin + thread_data_idx_begin);
         // We don't need threadwise offset for lds since it was calculate by HW
         // We still need input the wavewise offset.
         SetDstSliceOrigin(dst_desc, dst_block_slice_origin + wave_data_idx_begin);
+#endif
     }
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
@@ -255,25 +259,50 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
 
         // Loop over the destination block and copy data.
         static_ford<decltype(dst_access_lengths)>{}([&](auto ordered_dst_access_idx) {
-            IndexType gather_offset = gather_offsets_[ordered_dst_access_idx[Number<GatherDim>{}]];
-            // src_coord_xor_          = src_coord_;
-            // src_coord_xor_.GetIndex().At(I0) =
-            //     src_coord_.GetIndex().At(I0) ^ ((threadIdx.x % 64) / 8);
-            Index new_index = src_coord_.GetIndex();
-            new_index(I0)   = src_coord_.GetIndex().At(I0) ^ ((threadIdx.x % 64) / 8);
-            src_coord_xor_  = make_tensor_coordinate(src_desc, new_index);
-
-            const IndexType src_offset = src_coord_xor_.GetOffset() + gather_offset;
-            const IndexType dst_offset = __builtin_amdgcn_readfirstlane(dst_coord_.GetOffset());
-
+            IndexType gather_offset = [&]() {
+                if constexpr(ordered_dst_access_idx[I0] & 1)
+                {
+                    // backward
+                    constexpr auto offset0 = dst_access_lengths[Number<GatherDim>{}] - 1 -
+                                             ordered_dst_access_idx[Number<GatherDim>{}];
+                    return gather_offsets_[Number<offset0>{}];
+                }
+                else
+                {
+                    // forward
+                    return gather_offsets_[ordered_dst_access_idx[Number<GatherDim>{}]];
+                }
+            }();
+            const IndexType src_offset = [&]() {
+                if constexpr(UseXor)
+                {
+                    Index new_index = src_coord_.GetIndex();
+                    new_index(I0)   = src_coord_.GetIndex().At(I0) ^ ((threadIdx.x % 64) / 8);
+                    src_coord_xor_  = make_tensor_coordinate(src_desc, new_index);
+                    return src_coord_xor_.GetOffset() + gather_offset;
+                }
+                else
+                {
+                    return src_coord_.GetOffset() + gather_offset;
+                }
+            }();
+#if defined(__gfx125__)
             // Check if src data is not in the logic padding area.
             // Leave the HW for oob checking
-            // const bool is_src_valid =
-            //     coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc,
-            //     src_coord_);
-
+            const bool is_src_valid =
+                coordinate_has_valid_offset_assuming_visible_index_is_valid(src_desc, src_coord_);
+            src_buf.template AsyncCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector, 0>(
+                dst_buf,
+                src_offset,
+                dst_coord_.GetOffset(),
+                is_src_valid && (src_offset < src_buf.element_space_size_));
+#else
+            // Check if src data is not in the logic padding area.
+            // Leave the HW for oob checking
+            const IndexType dst_offset = __builtin_amdgcn_readfirstlane(dst_coord_.GetOffset());
             src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
                 dst_buf, src_offset, dst_offset, true);
+#endif
 
             constexpr auto move_src_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;

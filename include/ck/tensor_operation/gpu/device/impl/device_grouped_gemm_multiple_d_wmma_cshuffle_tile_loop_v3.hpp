@@ -197,6 +197,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 
         tile_id += get_grid_size();
         tile_offset += get_grid_size();
+        block_sync_lds();
 
     } while(group_id < group_count);
 #else

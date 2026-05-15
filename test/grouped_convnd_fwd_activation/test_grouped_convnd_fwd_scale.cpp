@@ -14,10 +14,11 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/element/combined_element_wise_operation.hpp"
 
-using I8   = int8_t;
-using F16  = ck::half_t;
-using BF16 = ck::bhalf_t;
-
+using I8                          = int8_t;
+using F16                         = ck::half_t;
+using BF16                        = ck::bhalf_t;
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 template <typename Tuple>
 class TestGroupedConvndFwdScale : public ::testing::Test
 {
@@ -31,14 +32,23 @@ class TestGroupedConvndFwdScale : public ::testing::Test
     using IndexType   = ck::index_t;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
-
+#if defined(CK_TEST_DISABLE_GPU_VALIDATION)
+    static constexpr int verify_ = 1; // CPU reference
+#else
+    static constexpr int verify_ = 2; // GPU reference
+#endif
     template <ck::index_t NDimSpatial>
     void Run()
     {
         EXPECT_FALSE(conv_params.empty());
         bool pass = true;
-        for(auto& param : conv_params)
+        for(size_t i = 0; i < conv_params.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& param = conv_params[i];
             if(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a")
             {
                 if(std::is_same<InDataType, ck::f8_t>::value ||
@@ -58,11 +68,12 @@ class TestGroupedConvndFwdScale : public ::testing::Test
                                OutDataType,
                                ck::tensor_operation::element_wise::Scale,
                                InDataType,
-                               InDataType>(2,     // do_verification: 2 = GPU reference
-                                           1,     // init_method: integer value
-                                           false, // do_log
-                                           false, // time_kernel
-                                           param);
+                               InDataType>(verify_, // do_verification: 2 = GPU reference
+                                           1,       // init_method: integer value
+                                           false,   // do_log
+                                           false,   // time_kernel
+                                           param,
+                                           instance_index);
         }
         EXPECT_TRUE(pass);
     }
@@ -121,4 +132,21 @@ TYPED_TEST(TestGroupedConvndFwdScale3d, Test3D)
         {3, 96, 1, 1, 1, {3, 3, 3}, {120, 40, 20}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
 
     this->template Run<3>();
+}
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }

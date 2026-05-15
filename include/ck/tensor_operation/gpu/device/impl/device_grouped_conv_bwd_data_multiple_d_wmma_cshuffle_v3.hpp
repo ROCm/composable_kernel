@@ -1802,12 +1802,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             p_ds_grid_dummy[i] = nullptr;
             StrideDs_dummy[i]  = I0;
         });
-        for(std::size_t i = 0; i < arg.a_grid_desc_ak0_m_ak1_container_.size(); i++)
+        for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); i++)
         {
-            const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I1);
-            const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_container_[i].GetLength(I1);
-            const index_t GemmK = arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I0) *
-                                  arg.a_grid_desc_ak0_m_ak1_container_[i].GetLength(I2);
+            const index_t GemmM = arg.a_grid_desc_m_k_container_[i].GetLength(I0);
+            const index_t GemmN = arg.b_grid_desc_n_k_container_[i].GetLength(I0);
+            const index_t GemmK = arg.a_grid_desc_m_k_container_[i].GetLength(I1);
             // Create gemm arguments with dummy values to check for validity
             typename GridwiseGemmCTranspose::Argument gemm_arg{
                 std::array<const void*, 1>{nullptr}, // p_as_grid

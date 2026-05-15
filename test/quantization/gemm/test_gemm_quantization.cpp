@@ -15,7 +15,8 @@ template <typename Tuple>
 class TestGemmQuantization : public ck::test::TestGemmQuantizationCommon<Tuple>
 {
     protected:
-    using ProfileCall = bool (*const)(int, int, bool, bool, int, int, int, int, int, int, float);
+    using ProfileCall =
+        bool (*const)(int, int, bool, bool, int, int, int, int, int, int, float, int);
 
     ProfileCall GetImpl() override
     {

@@ -523,7 +523,7 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
 bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
     {
         return 1;
     }
@@ -536,7 +536,7 @@ bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
 
     problem_size.M = 128 * (dis(gen) + 1);
     problem_size.N = 128 * (dis(gen) + 1);
-    problem_size.K = 256 * (dis(gen) + 2);
+    problem_size.K = 256 * (dis(gen) + 4);
 
     problem_size.batch_count = 2;
 

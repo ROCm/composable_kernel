@@ -67,22 +67,14 @@ struct BlockwiseGemmXdlops_pipeline_base
     static constexpr index_t BMmaKStride = KPack;
 
     static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
-    static constexpr index_t KRepeat       = KPerThread / KPack;
+    static constexpr index_t KRepeat       = math::max(KPerThread / KPack, 1);
     static constexpr index_t KPerInnerLoop = KPack;
 
     static constexpr index_t KGroup = []() {
-        if constexpr(is_same_v<remove_cvref_t<ComputeDataType>, f8_t>)
-            // On gfx950, we have mfma that required 32 f8 elements as input,
-            // splited into 2 groups of 16 f8 elements.
-            // the 2 groups is not contiguous in the B preshuffed layout.
-            // and we do not want it to be contiguous in the B preshuffled layout
-            // because a memory instruction can only read 16 f8 elements at a time.
-            return ((MPerXDL == 16 && MPerXDL == 16 && xdlops_gemm.KPerXdlops == 128) ||
-                    (MPerXDL == 32 && MPerXDL == 32 && xdlops_gemm.KPerXdlops == 64))
-                       ? 2
-                       : 1;
-        else
-            return 1;
+        // A memory instruction can only read 16 bytes at a time. If K1PerXdlops *
+        // sizeof(ComputeDataType) > 16, memory read will not conitnues  in a wave in B preshuffle
+        // mode so, we need split K into mutiple groups.
+        return xdlops_gemm.K1PerXdlops * sizeof(ComputeDataType) > 16 ? 2 : 1;
     }();
 
     using HotLoopInstList =
@@ -103,7 +95,7 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                       xdlops_gemm.KPerXdlops>;
 
 #if defined(__HIP_DEVICE_COMPILE__)
-    static_assert(KPerThread % KPack == 0,
+    static_assert(WaveSize != get_warp_size() || (KPerThread % KPack == 0),
                   "Wrong KPack setting; try increasing KPerThread or decreasing KPack");
 #endif
 
@@ -165,6 +157,7 @@ struct BlockwiseGemmXdlops_pipeline_base
     __device__ static auto
     CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
+
         const auto wave_idx = GetWaveIdx();
 
         const auto waveId_m = wave_idx[I0];

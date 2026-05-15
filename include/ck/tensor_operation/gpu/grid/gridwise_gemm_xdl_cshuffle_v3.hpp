@@ -5,6 +5,7 @@
 
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/env.hpp"
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -35,7 +36,7 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
@@ -66,7 +67,7 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
@@ -199,6 +200,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 ///                             in global memory (pre-shuffled).
 /// @tparam DoElementwiseBeforeCShuffle Whether the cde_elementwise should be performed before or
 ///                                     after elementwise op.
+/// @tparam UseDataCachePrefetch        Whether to use data cache prefetching feature of hardware.
 template <typename ALayout,
           typename BLayout,
           typename CLayout,
@@ -247,7 +249,9 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           bool PermuteA                               = false,
           bool PermuteB                               = false,
-          bool DoElementwiseBeforeCShuffle            = false>
+          bool DoElementwiseBeforeCShuffle            = false,
+          index_t MinimumOccupancy                    = 0,
+          bool UseDataCachePrefetch                   = false>
 struct GridwiseGemm_xdl_cshuffle_v3
     : public GridwiseGemm_xdl_cshuffle_base<
           ALayout,
@@ -351,8 +355,13 @@ struct GridwiseGemm_xdl_cshuffle_v3
     using Base::I0;
     using Base::I1;
     using Base::I2;
-    using ThisThreadBlock                = typename Base::ThisThreadBlock;
-    static constexpr index_t TransposeC  = false;
+    using ThisThreadBlock = typename Base::ThisThreadBlock;
+
+#if defined(__gfx12__)
+    static constexpr index_t TransposeC = true;
+#else
+    static constexpr index_t TransposeC = false;
+#endif
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
             return 2;
@@ -366,6 +375,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         else
             return 1;
     }();
+
     static constexpr auto lcm_AK1_BK1 = math::lcm(AK1Number, BK1Number);
     static constexpr bool is_single_rate_mfma =
         (((is_same<ComputeTypeA, half_t>::value || is_same<ComputeTypeA, bhalf_t>::value) &&
@@ -739,7 +749,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                       << "BK0:" << BK0 << ", " 
                       << "MBlock: " << MBlock << ", "
                       << "NBlock: " << NBlock << "}" << std::endl;
-            // clang-format off
+            // clang-format on
         }
 
         index_t M;
@@ -867,68 +877,143 @@ struct GridwiseGemm_xdl_cshuffle_v3
         index_t c_reduce_offset;
     };
 
-    using BlockwiseGemmPipe =
-        remove_cvref_t<decltype(BlockGemmPipeline_Selector<
-                                BlkGemmPipelineVer,
-                                BlkGemmPipeSched,
-                                BlockSize,
-                                ADataType,
-                                BDataType,
-                                ComputeTypeA,
-                                AccDataType,
-                                decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch())),
-                                decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch())),
-                                decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
-                                    GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch()))),
-                                decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
-                                    GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch()))),
-                                ABlockTransferSrcScalarPerVector,
-                                BBlockTransferSrcScalarPerVector,
-                                MPerBlock,
-                                NPerBlock,
-                                KPerBlock,
-                                MPerXdl,
-                                NPerXdl,
-                                MXdlPerWave,
-                                NXdlPerWave,
-                                KPack>())>;
+    using BlockwiseGemmPipe = remove_cvref_t<
+        decltype(BlockGemmPipeline_Selector<
+                 BlkGemmPipelineVer,
+                 BlkGemmPipeSched,
+                 BlockSize,
+                 ADataType,
+                 BDataType,
+                 ComputeTypeA,
+                 AccDataType,
+                 decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch())),
+                 decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch())),
+                 decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
+                     GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch()))),
+                 decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
+                     GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch()))),
+                 ABlockTransferSrcScalarPerVector,
+                 BBlockTransferSrcScalarPerVector,
+                 MPerBlock,
+                 NPerBlock,
+                 KPerBlock,
+                 MPerXdl,
+                 NPerXdl,
+                 MXdlPerWave,
+                 NXdlPerWave,
+                 KPack,
+                 false,
+                 TransposeC,
+                 UseDataCachePrefetch>())>;
+
+    template <bool IsGfx11>
+    static constexpr index_t GetEstimateVgprCount()
+    {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
+
+        // VGPR used in LDS loading and WMMA
+        constexpr index_t BaseInputVgprCount =
+            MPerBlock * KPerBlock / MWave / WaveSize * sizeof(ComputeTypeA) / sizeof(uint32_t) +
+            NPerBlock * KPerBlock / NWave / WaveSize * sizeof(ComputeTypeB) / sizeof(uint32_t);
+        // WMMA input is duplicated in GFX11
+        constexpr index_t InputVgprCount = IsGfx11 ? BaseInputVgprCount * 2 : BaseInputVgprCount;
+        // VGPR used in Accumulator
+        constexpr index_t AccVgprCount =
+            MPerBlock * NPerBlock / BlockSize * sizeof(AccDataType) / sizeof(uint32_t);
+        if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+        {
+            return InputVgprCount + AccVgprCount;
+        }
+        else if constexpr((BlkGemmPipelineVer == BlockGemmPipelineVersion::v2) ||
+                          (BlkGemmPipelineVer == BlockGemmPipelineVersion::v3) ||
+                          (BlkGemmPipelineVer == BlockGemmPipelineVersion::v5))
+        {
+            return 2 * InputVgprCount + AccVgprCount;
+        }
+        else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+        {
+            return 3 * InputVgprCount + AccVgprCount;
+        }
+        else
+        {
+            // invalid pipeline version
+            static_assert(0);
+        }
+    }
 
     template <InMemoryDataOperationEnum CGlobalMemoryDataOperation>
     __device__ static bool constexpr IsValidCompilationParameter()
     {
-        enum struct Arch : bool
-        {
-#if defined(__gfx950__)
-            is_gfx950_build = true,
-#else
-            is_gfx950_build = false,
-#endif
-        };
-        
         // skip building the instances with K1>=32 && PackedSize != 2 on pre-gfx950
-        if constexpr(static_cast<bool>(Arch::is_gfx950_build) ||
-                    (AK1Number < 32 && BK1Number < 32) ||
-                    (AK1Number >= 32 && APackedSize == 2) ||
-                    (BK1Number >= 32 && BPackedSize == 2))
+        if constexpr(is_same_v<decltype(get_device_arch()), gfx950_t> ||
+                     (AK1Number < 32 && BK1Number < 32) || (AK1Number >= 32 && APackedSize == 2) ||
+                     (BK1Number >= 32 && BPackedSize == 2))
         {
-        
         }
         else
         {
             return false;
         }
 
+        constexpr bool IsGfx11            = is_same_v<decltype(get_device_arch()), gfx11_t>;
+        constexpr auto EstimateVgprCount  = GetEstimateVgprCount<IsGfx11>();
+        constexpr auto AvailableVgprCount = [&]() {
+            if constexpr(MinimumOccupancy != 0)
+            {
+                constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+                constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+                constexpr index_t WaveSize = BlockSize / (MWave * NWave);
+                return get_max_vgpr_count(get_device_arch()) / MinimumOccupancy /
+                       (math::integer_divide_ceil(BlockSize, WaveSize * 4));
+            }
+            else
+            {
+                return get_max_vgpr_count(get_device_arch());
+            }
+        }();
+        if constexpr(EstimateVgprCount > (AvailableVgprCount + AvailableVgprCount / 4))
+        {
+            return false;
+        }
+        constexpr index_t LdsSize = BlkGemmPipelineVer == BlockGemmPipelineVersion::v4
+                                        ? GetSharedMemoryNumberOfByte(get_device_arch()) * 2
+                                        : GetSharedMemoryNumberOfByte(get_device_arch());
+        if constexpr(LdsSize > get_lds_size(get_device_arch()))
+        {
+            return false;
+        }
+
         return ck::tensor_operation::device::IsValidGemmCompilationParameter<
-                   BlockSize,
-                   MPerBlock,
-                   NPerBlock,
-                   MPerXdl,
-                   NPerXdl,
-                   MXdlPerWave,
-                   NXdlPerWave,
-                   CDataType,
-                   CGlobalMemoryDataOperation>();
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            MPerXdl,
+            NPerXdl,
+            MXdlPerWave,
+            NXdlPerWave,
+            CDataType,
+            CGlobalMemoryDataOperation>();
     }
+    __host__ static index_t GetSharedMemoryNumberOfByteOnHost()
+    {
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
+        if(is_gfx125_supported())
+        {
+            return GetSharedMemoryNumberOfByte(gfx125_t{});
+        }
+        else if(ck::get_device_name() == "gfx950")
+        {
+            return GetSharedMemoryNumberOfByte(gfx950_t{});
+        }
+        else
+#endif
+        {
+            return GetSharedMemoryNumberOfByte(gfx_invalid_t{});
+        }
+    }
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)
     {
@@ -1118,8 +1203,76 @@ struct GridwiseGemm_xdl_cshuffle_v3
         {
             if(num_k_loop <= BlockwiseGemmPipe::PrefetchStages)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Insufficient number of K-block loops for the selected pipeline! "
+                              << "Number of K-block loops: " << num_k_loop
+                              << ", Prefetch stages: " << BlockwiseGemmPipe::PrefetchStages << " "
+                              << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                              << std::endl;
+                }
                 return false;
             }
+        }
+
+        constexpr index_t ldsBufferCount =
+            BlkGemmPipelineVer == BlockGemmPipelineVersion::v4 ? 2 : 1;
+        if(GetSharedMemoryNumberOfByteOnHost() * ldsBufferCount > get_lds_size())
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Required LDS size exceeds the available LDS size! Required LDS size: "
+                          << GetSharedMemoryNumberOfByteOnHost() * ldsBufferCount
+                          << ", Available LDS size: " << get_lds_size() << " " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+            }
+            return false;
+        }
+
+        const auto maxVgprCount = []() {
+            if(ck::is_gfx125_supported())
+            {
+                return get_max_vgpr_count(gfx125_t{});
+            }
+            else if(ck::is_gfx120_supported())
+            {
+                return get_max_vgpr_count(gfx120_t{});
+            }
+            else if(ck::is_gfx11_supported())
+            {
+                return get_max_vgpr_count(gfx11_t{});
+            }
+            else
+            {
+                return get_max_vgpr_count(gfx9_t{});
+            }
+        }();
+
+        const index_t availableVgprCount = [&]() {
+            if constexpr(MinimumOccupancy != 0)
+            {
+                return maxVgprCount / math::max(MinimumOccupancy, 1) /
+                       (math::integer_divide_ceil(BlockSize, ck::get_warp_size() * 4));
+            }
+            else
+            {
+                return maxVgprCount;
+            }
+        }();
+
+        const auto estimateVgprCount =
+            ck::is_gfx11_supported() ? GetEstimateVgprCount<true>() : GetEstimateVgprCount<false>();
+
+        if(estimateVgprCount > (availableVgprCount + availableVgprCount / 4))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout
+                    << "Estimated VGPR count exceeds available VGPR count! Estimated VGPR count: "
+                    << estimateVgprCount << ", Available VGPR count: " << availableVgprCount << " "
+                    << __FILE__ << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+            }
+            return false;
         }
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
@@ -1208,10 +1361,12 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
 
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch());
+        constexpr auto a_block_desc_ak0_m_ak1 =
+            GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch());
 
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch());
+        constexpr auto b_block_desc_bk0_n_bk1 =
+            GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch());
 
         // A matrix blockwise copy
         auto a_blockwise_copy =
@@ -1315,7 +1470,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                                          b_block_slice_copy_step,
                                                                          c_thread_buf,
                                                                          num_k_block_main_loop);
-
         // shuffle C and write out
         Base::template RunEpilogue<CGlobalMemoryDataOperation,
                                    DoElementwiseBeforeCShuffle,
@@ -1326,7 +1480,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                block_n_id,
                                                p_shared,
                                                p_c_grid,
-                                               problem.c_element_op_);        
+                                               problem.c_element_op_);
     }
 
     template <bool HasMainKBlockLoop,
@@ -1413,10 +1567,12 @@ struct GridwiseGemm_xdl_cshuffle_v3
         constexpr auto max_lds_align = math::lcm(AK1Number, BK1Number);
 
         // A matrix in LDS memory, dst of blockwise copy
-        constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch());
+        constexpr auto a_block_desc_ak0_m_ak1 =
+            GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1(get_device_arch());
 
         // B matrix in LDS memory, dst of blockwise copy
-        constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch());
+        constexpr auto b_block_desc_bk0_n_bk1 =
+            GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1(get_device_arch());
 
         // A matrix blockwise copy
         auto a_blockwise_copy =
@@ -1531,15 +1687,16 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                                          num_k_block_main_loop);
 
         // shuffle C and write out
-        Base::template RunEpilogue<CGlobalMemoryDataOperation, DoElementwiseBeforeCShuffle, TransposeC>(
-            blockwise_gemm_pipeline,
-            c_grid_desc_mblock_mperblock_nblock_nperblock,
-            c_thread_buf,
-            block_m_id,
-            block_n_id,
-            p_shared_0,
-            p_c_grid,
-            problem.c_element_op_);
+        Base::template RunEpilogue<CGlobalMemoryDataOperation,
+                                   DoElementwiseBeforeCShuffle,
+                                   TransposeC>(blockwise_gemm_pipeline,
+                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                               c_thread_buf,
+                                               block_m_id,
+                                               block_n_id,
+                                               p_shared_0,
+                                               p_c_grid,
+                                               problem.c_element_op_);
     }
 
     template <bool HasMainKBlockLoop,
@@ -1583,4 +1740,3 @@ struct GridwiseGemm_xdl_cshuffle_v3
 } // namespace ck
 
 #pragma clang diagnostic pop
-

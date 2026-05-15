@@ -5,6 +5,9 @@
 #include "ck/ck.hpp"
 #include "profiler/profile_gemm_bias_add_reduce_impl.hpp"
 
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
+
 namespace ck {
 namespace test {
 
@@ -41,17 +44,26 @@ class TestGemmBiasAddReduceCommon : public ::testing::Test
         int StrideC  = std::is_same_v<CLayout, Row> ? N : M;
 
         all_success =
-            all_success &
-            ck::profiler::profile_gemm_bias_add_reduce_impl<ADataType,
-                                                            BDataType,
-                                                            CDataType,
-                                                            BiasDataType,
-                                                            D0DataType,
-                                                            ReduceDataType,
-                                                            ALayout,
-                                                            BLayout,
-                                                            CLayout>(
-                verify_, init_method_, log_, bench_, M, N, K, StrideA, StrideB, StrideC, StrideD0);
+            all_success & ck::profiler::profile_gemm_bias_add_reduce_impl<ADataType,
+                                                                          BDataType,
+                                                                          CDataType,
+                                                                          BiasDataType,
+                                                                          D0DataType,
+                                                                          ReduceDataType,
+                                                                          ALayout,
+                                                                          BLayout,
+                                                                          CLayout>(verify_,
+                                                                                   init_method_,
+                                                                                   log_,
+                                                                                   bench_,
+                                                                                   M,
+                                                                                   N,
+                                                                                   K,
+                                                                                   StrideA,
+                                                                                   StrideB,
+                                                                                   StrideC,
+                                                                                   StrideD0,
+                                                                                   instance_index);
 
         EXPECT_TRUE(all_success);
     }
@@ -59,3 +71,19 @@ class TestGemmBiasAddReduceCommon : public ::testing::Test
 
 } // namespace test
 } // namespace ck
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
+}

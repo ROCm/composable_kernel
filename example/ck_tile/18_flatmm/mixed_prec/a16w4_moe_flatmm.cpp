@@ -197,8 +197,8 @@ float a16w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(kargs);
-        constexpr dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::GridSize(kargs);
+        const dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -288,11 +288,12 @@ float a16w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config
 template <class FlatmmConfig, ck_tile::MoeFlatmmKind moe_kind, class IterSrc, class IterDst>
 void shuffle_mxfp4_weight(const IterSrc src, IterDst dst, int experts_cnt, int N, int K)
 {
-    int KPack = 16;
-    int NLane = FlatmmConfig::N_Warp_Tile;
-    int KLane = 64 / NLane;
-    int K_pk  = K / 2;
-    int K0    = K_pk / (KLane * KPack);
+    int KPack   = 16;
+    int NLane   = FlatmmConfig::N_Warp_Tile;
+    int warp_sz = ck_tile::is_wave32() ? 32 : 64;
+    int KLane   = warp_sz / NLane;
+    int K_pk    = K / 2;
+    int K0      = K_pk / (KLane * KPack);
     // K -> K0 KLane KPack
     // N -> N0 NLane
     // N, K -> N0 K0 KLane NLane KPack
@@ -365,15 +366,16 @@ auto shuffle_mxfp4_scale(const ck_tile::HostTensor<T>& scale, int experts_cnt)
 
     int k_per_expert = k_ / experts_cnt;
 
-    constexpr int K_Pack       = 2;  // fixed for mxfp4
-    constexpr int N_Pack       = 2;  // fixed for mxfp4
-    constexpr int GranularityK = 32; // fixed for mxfp4
+    constexpr int K_Pack = 2; // fixed for mxfp4
+    constexpr int N_Pack = 2; // fixed for mxfp4
 
-    constexpr int K_Lane = 64 / FlatmmConfig::N_Warp_Tile; // 4
+    const int warp_sz = ck_tile::is_wave32() ? 32 : 64;
+    const int K_Lane  = warp_sz / FlatmmConfig::N_Warp_Tile;
 
     static_assert(FlatmmConfig::N_Warp_Tile == 16, "only support XDL_N == 16");
     static_assert(FlatmmConfig::N_Repeat % N_Pack == 0);
-    static_assert(FlatmmConfig::K_Tile % (K_Pack * K_Lane * GranularityK) == 0);
+    assert(FlatmmConfig::K_Tile % (K_Pack * K_Lane * 32) ==
+           0); // GranularityK is fixed as 32 for mxfp4
 
     if constexpr(moe_kind == ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up)
     {

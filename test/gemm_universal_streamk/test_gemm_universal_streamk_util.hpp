@@ -102,6 +102,7 @@ class TestGemmUniversal_Streamk : public testing::Test
                                                                                Grid_size,
                                                                                n_warmup,
                                                                                n_iter,
+                                                                               0,
                                                                                instance_index);
         EXPECT_TRUE(pass);
     }

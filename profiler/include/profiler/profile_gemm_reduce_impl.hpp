@@ -293,10 +293,15 @@ bool profile_gemm_reduce_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
-    int num_kernel        = 0;
     // profile device GEMM instances
-    for(auto& gemm_ptr : gemm_ptrs)
+    for(size_t i = 0; i < gemm_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& gemm_ptr    = gemm_ptrs[i];
         auto argument_ptr = gemm_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
                                                           b_device_buf.GetDeviceBuffer(),
                                                           nullptr,
@@ -321,12 +326,6 @@ bool profile_gemm_reduce_impl(int do_verification,
 
         if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            ++num_kernel;
-            if((instance_index != -1) && (instance_index + 1 != num_kernel))
-            {
-                // skip test if instance_index is specified
-                continue;
-            }
             // init DO, D1 to 0
             reduce0_device_buf.SetZero();
             reduce1_device_buf.SetZero();
@@ -395,11 +394,7 @@ bool profile_gemm_reduce_impl(int do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
-    if(instance_index != -1)
-    {
-        std::cout << "gemm_reduce_instance (" << instance_index << "/" << num_kernel << "): Passed"
-                  << std::endl;
-    }
+
     return pass;
 }
 

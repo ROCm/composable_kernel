@@ -41,11 +41,10 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
     using Base             = BaseGemmPipelineAgBgCrCompV5<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
-    using AsDataType      = remove_cvref_t<typename Problem::AsDataTypeTuple>;
-    using BsDataType      = remove_cvref_t<typename Problem::BsDataTypeTuple>;
-    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
-    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-    using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using AsDataType     = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    using BsDataType     = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
     using AElementWise = remove_cvref_t<typename Problem::AElementWise>;
     using BElementWise = remove_cvref_t<typename Problem::BElementWise>;

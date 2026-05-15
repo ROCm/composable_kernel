@@ -87,7 +87,8 @@ struct EnvVar
         is_unset = false;
         value    = val;
     }
-
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
     explicit EnvVar(const char* const name, const T& def_val)
     {
         // NOLINTNEXTLINE (concurrency-mt-unsafe)
@@ -102,6 +103,7 @@ struct EnvVar
             value = def_val;
         }
     }
+#pragma clang diagnostic pop
 };
 } // end namespace internal
 

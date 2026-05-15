@@ -12,6 +12,8 @@ using Col = ck::tensor_layout::gemm::ColumnMajor;
 using F16 = ck::half_t;
 using F32 = float;
 using ck::index_t;
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 
 template <typename Tuple>
 class TestGemmAddReluAddLayernorm : public ::testing::Test
@@ -37,8 +39,13 @@ class TestGemmAddReluAddLayernorm : public ::testing::Test
         std::vector<std::vector<ck::index_t>> lengths = {
             {1024, 1024, 1024}, {2048, 640, 640}, {1, 1, 1}};
 
-        for(auto length : lengths)
+        for(size_t i = 0; i < lengths.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& length = lengths[i];
             int M        = length[0];
             int N        = length[1];
             int K        = length[2];
@@ -48,21 +55,34 @@ class TestGemmAddReluAddLayernorm : public ::testing::Test
             int StrideD1 = ck::is_same_v<D1Layout, Row> ? N : M;
             int StrideH  = ck::is_same_v<HLayout, Row> ? N : M;
 
-            bool success = ck::profiler::profile_gemm_add_relu_add_layernorm_impl<ADataType,
-                                                                                  BDataType,
-                                                                                  AccDataType,
-                                                                                  D0DataType,
-                                                                                  D1DataType,
-                                                                                  EMeanVarDataType,
-                                                                                  GammaDataType,
-                                                                                  BetaDataType,
-                                                                                  HDataType,
-                                                                                  ALayout,
-                                                                                  BLayout,
-                                                                                  D0Layout,
-                                                                                  D1Layout,
-                                                                                  HLayout>(
-                true, 1, false, false, M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideH);
+            bool success =
+                ck::profiler::profile_gemm_add_relu_add_layernorm_impl<ADataType,
+                                                                       BDataType,
+                                                                       AccDataType,
+                                                                       D0DataType,
+                                                                       D1DataType,
+                                                                       EMeanVarDataType,
+                                                                       GammaDataType,
+                                                                       BetaDataType,
+                                                                       HDataType,
+                                                                       ALayout,
+                                                                       BLayout,
+                                                                       D0Layout,
+                                                                       D1Layout,
+                                                                       HLayout>(true,
+                                                                                1,
+                                                                                false,
+                                                                                false,
+                                                                                M,
+                                                                                N,
+                                                                                K,
+                                                                                StrideA,
+                                                                                StrideB,
+                                                                                StrideD0,
+                                                                                StrideD1,
+                                                                                StrideH,
+                                                                                1e-5, // epsilon
+                                                                                instance_index);
 
             EXPECT_TRUE(success);
         }
@@ -80,5 +100,16 @@ TYPED_TEST(TestGemmAddReluAddLayernorm, Test_FP16) { this->Run(); }
 int main(int argc, char** argv)
 {
     testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
     return RUN_ALL_TESTS();
 }

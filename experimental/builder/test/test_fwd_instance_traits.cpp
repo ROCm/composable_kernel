@@ -888,6 +888,7 @@ TEST(InstanceTraits, TileInstanceStringReturnsCorrectFormat)
         ck_tile::element_wise::PassThrough /*AElementwiseOperation*/,
         ck_tile::element_wise::PassThrough /*BElementwiseOperation*/,
         ck_tile::bf16_t /*OutDataType*/,
+        ck_tile::bf16_t,
         GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
         GroupedConvTraitsType::VectorSizeA,
         GroupedConvTraitsType::VectorSizeB>;

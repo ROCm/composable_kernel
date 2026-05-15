@@ -127,6 +127,19 @@ struct ThreadGroupTensorSliceTransfer_v4r1
         }
     }
 
+    template <typename SrcBuffer, index_t ThreadScratchId = 0>
+    __device__ void
+    RunPrefetch(const SrcDesc& src_desc,
+                const SrcBuffer& src_buf,
+                Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
+    {
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+           ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
+        {
+            threadwise_transfer_.RunPrefetch(src_desc, src_buf, thread_scratch_id);
+        }
+    }
+
     template <typename DstBuffer, index_t ThreadScratchId = 0>
     __device__ void RunWrite(const DstDesc& dst_desc,
                              DstBuffer& dst_buf,

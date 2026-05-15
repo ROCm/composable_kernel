@@ -99,7 +99,7 @@ struct BaseGemmPipelineAgBgCrCompAsync
  * This pipeline introduces asynchronous load from global memory to LDS,
  * skipping the intermediate loading into pipeline registers.
  */
-template <typename Problem, typename Policy = GemmPipelineAgBgCrCompAsyncDefaultPolicy>
+template <typename Problem, typename Policy = GemmPipelineAgBgCrCompAsyncDefaultPolicy<>>
 struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompAsync<Problem>;
@@ -262,8 +262,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             using BDramBlockWindowTmp =
                 remove_cvref_t<std::tuple_element_t<number<0>{}, BsDramBlockWindowTmp>>;
             // TODO currently fused elementwise are not supported
-            ignore = a_element_func;
-            ignore = b_element_func;
             static_assert(std::is_same_v<remove_cvref_t<decltype(a_element_func)>,
                                          element_wise::PassThrough>);
             static_assert(std::is_same_v<remove_cvref_t<decltype(b_element_func)>,
@@ -432,10 +430,13 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             block_sync_lds();
             // read A(2), B(2) from DRAM to LDS window(0)
             // and advance the DRAM windows
-            Base::GlobalPrefetchAsync(
-                a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
-            Base::GlobalPrefetchAsync(
-                b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
+            if constexpr((!HasHotLoop && (TailNum == TailNumber::Three)) || HasHotLoop)
+            {
+                Base::GlobalPrefetchAsync(
+                    a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
+                Base::GlobalPrefetchAsync(
+                    b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
+            }
 
             if constexpr(HasHotLoop)
             {
@@ -648,6 +649,18 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
         };
 
         return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
+    }
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
+        constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
+        return concat('_', "pipeline_AgBgCrCompAsync", 
+                      concat('x', MPerBlock, NPerBlock, KPerBlock),  BlockSize,
+                      concat('x', WaveNumM, WaveNumN),
+                      concat('x', kPadM, kPadN, kPadK));
+        // clang-format on
     }
 };
 } // namespace ck_tile

@@ -35,17 +35,28 @@ template <typename ADataType,
 float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<DsDataType::size()>& args,
                                const ck_tile::stream_config& s)
 {
+
+#if CK_TILE_USE_WMMA
+    constexpr ck_tile::index_t M_Tile = 128;
+    constexpr ck_tile::index_t N_Tile = 128;
+#else
     constexpr ck_tile::index_t M_Tile = 256;
     constexpr ck_tile::index_t N_Tile = 256;
+#endif
     constexpr ck_tile::index_t K_Tile = 64;
 
     constexpr ck_tile::index_t M_Warp = 2;
     constexpr ck_tile::index_t N_Warp = 2;
     constexpr ck_tile::index_t K_Warp = 1;
 
+#if CK_TILE_USE_WMMA
+    constexpr ck_tile::index_t M_Warp_Tile = 16;
+    constexpr ck_tile::index_t N_Warp_Tile = 16;
+#else
     constexpr ck_tile::index_t M_Warp_Tile = 32;
     constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 16;
+#endif
+    constexpr ck_tile::index_t K_Warp_Tile = ck_tile::get_k_warp_tile<ADataType, M_Warp_Tile>();
 
     constexpr bool DoubleSmemBuffer = false;
 

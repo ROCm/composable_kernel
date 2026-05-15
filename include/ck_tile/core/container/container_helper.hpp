@@ -239,7 +239,6 @@ template <typename TData, index_t NSize, typename Reduce, typename Init>
 CK_TILE_HOST_DEVICE constexpr auto
 container_reverse_exclusive_scan(const array<TData, NSize>& x, Reduce f, Init init)
 {
-#if 0
     array<TData, NSize> y;
 
     TData r = init;
@@ -252,21 +251,6 @@ container_reverse_exclusive_scan(const array<TData, NSize>& x, Reduce f, Init in
     y(number<0>{}) = r;
 
     return y;
-#else
-    array<TData, NSize> y;
-
-    TData r = init;
-
-    for(index_t i = NSize - 1; i > 0; --i)
-    {
-        y(i) = r;
-        r    = f(r, x[i]);
-    }
-
-    y(0) = r;
-
-    return y;
-#endif
 }
 
 template <index_t... Is, typename Reduce, index_t Init>

@@ -25,6 +25,9 @@ using Default = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
 using WeightPreshuffleV2 =
     ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::WeightPreshuffleV2>;
 
+using WeightPreshuffleTDM =
+    ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::WeightPreshuffleTDM>;
+
 // clang-format off
 
 using KernelTypesWeightPreshuffle = ::testing::Types<
@@ -35,6 +38,17 @@ using KernelTypesWeightPreshuffle = ::testing::Types<
      std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,             Default,        WeightPreshuffleV2>,
      std::tuple<    Row,     Col,     Row,       F8,        BF8,         F32,       F16,             Default,        WeightPreshuffleV2>,
      std::tuple<    Row,     Col,     Row,       F8,        I4,          F32,       F16,             Default,        WeightPreshuffleV2>
+#endif     
+     >;
+
+using KernelTypesWeightPreshuffleTDM = ::testing::Types<
+     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Default,        WeightPreshuffleTDM>,
+     std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,            Default,        WeightPreshuffleTDM>
+#if !CK_TILE_USE_WMMA || CK_TILE_USE_OCP_FP8
+     ,
+     std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,             Default,        WeightPreshuffleTDM>,
+     std::tuple<    Row,     Col,     Row,       F8,        BF8,         F32,       F16,             Default,        WeightPreshuffleTDM>,
+     std::tuple<    Row,     Col,     Row,       F8,        I4,          F32,       F16,             Default,        WeightPreshuffleTDM>
 #endif     
      >;
 

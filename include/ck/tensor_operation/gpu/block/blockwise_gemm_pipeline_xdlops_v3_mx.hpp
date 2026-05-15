@@ -33,7 +33,8 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t NPerXDL,
           index_t MRepeat, // MXdlPerWave
           index_t NRepeat, // NXdlPerWave
-          index_t KPack>
+          index_t KPack,
+          bool TransposeC>
 struct BlockwiseGemmXdlops_pipeline_v3_mx
 {
 };
@@ -57,7 +58,8 @@ template <index_t ThreadBlockSize,
           index_t NPerXDL,
           index_t MRepeat, // MXdlPerWave
           index_t NRepeat, // NXdlPerWave
-          index_t KPack>
+          index_t KPack,
+          bool TransposeC>
 struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                           ThreadBlockSize,
                                           ScaleBlockSize,
@@ -78,10 +80,14 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                           NPerXDL,
                                           MRepeat,
                                           NRepeat,
-                                          KPack>
+                                          KPack,
+                                          TransposeC>
     : BlockwiseGemmXdlops_mx_pipeline_base<ThreadBlockSize,
+                                           ScaleBlockSize,
                                            ADataType,
+                                           AScaleDataType,
                                            BDataType,
+                                           BScaleDataType,
                                            ATileDesc,
                                            BTileDesc,
                                            AMmaTileDesc,
@@ -95,13 +101,17 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                            NPerXDL,
                                            MRepeat,
                                            NRepeat,
-                                           KPack>
+                                           KPack,
+                                           TransposeC>
 
 {
 
     using Base = BlockwiseGemmXdlops_mx_pipeline_base<ThreadBlockSize,
+                                                      ScaleBlockSize,
                                                       ADataType,
+                                                      AScaleDataType,
                                                       BDataType,
+                                                      BScaleDataType,
                                                       ATileDesc,
                                                       BTileDesc,
                                                       AMmaTileDesc,
@@ -115,7 +125,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                                       NPerXDL,
                                                       MRepeat,
                                                       NRepeat,
-                                                      KPack>;
+                                                      KPack,
+                                                      TransposeC>;
     using Base::I0;
     using Base::I1;
     using Base::KRepeat;
@@ -137,11 +148,15 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
     using Base::MakeCGridDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2;
     using Base::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2;
 
+    using Base::a_scale_thread_vec_size;
+    using Base::b_scale_thread_vec_size;
+
     using Base::a_block_desc_m0_m1_m2_m3_k;
     using Base::b_block_desc_n0_n1_n2_n3_k;
 
     using Base::AMmaKStride;
     using Base::APackedSize;
+    using Base::BKPack;
     using Base::BMmaKStride;
     using Base::BPackedSize;
     using Base::KThreadChunk;
@@ -158,27 +173,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
-
-    static constexpr auto ScalesPerKBlockSize =
-        KPerBlock / ScaleBlockSize; // How many mx-vectors per K block
-
-    //> How many mx-vectors in each row/col is processed in one call to xdlops_gemm.Run()
-    static constexpr auto ScalesPerXdlopsRun =
-        (APackedSize * KPack * xdlops_gemm.K0PerXdlops) / ScaleBlockSize;
-
-    //> How many scales a thread must read to accommodate one call to xdlops_gemm.Run()
-    static constexpr auto ScalesPerXdlopsRunPerThread =
-        ScalesPerXdlopsRun / xdlops_gemm.mfma_instr.num_input_blks;
-
-    using mx_scale_t                        = e8m0_bexp_t;
-    static constexpr auto scale_pack_size_a = sizeof(AScaleDataType) / sizeof(mx_scale_t);
-    static constexpr auto scale_pack_size_b = sizeof(BScaleDataType) / sizeof(mx_scale_t);
-    static_assert(KXdlPack * MXdlPack % scale_pack_size_a == 0,
-                  "A scale pack data type too large!");
-    static_assert(KXdlPack * NXdlPack % scale_pack_size_b == 0,
-                  "B scale pack data type too large!");
-    static constexpr auto a_scale_thread_vec_size = KXdlPack * MXdlPack / scale_pack_size_a;
-    static constexpr auto b_scale_thread_vec_size = KXdlPack * NXdlPack / scale_pack_size_b;
 
     __host__ static constexpr bool BlockHasHotloop(index_t num_loop)
     {
@@ -233,9 +227,9 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                                num_buffer_load_a_scale + num_buffer_load_b_scale;
 
         constexpr auto mfma_perstage_more =
-            math::integer_divide_ceil(num_mfma_stage1, num_buffer_load_total);
+            math::max(1, math::integer_divide_ceil(num_mfma_stage1, num_buffer_load_total));
         constexpr auto mfma_perstage_less =
-            math::integer_divide_floor(num_mfma_stage1, num_buffer_load_total);
+            math::max(1, math::integer_divide_floor(num_mfma_stage1, num_buffer_load_total));
 
         constexpr auto mfma_stages_more =
             num_mfma_stage1 - mfma_perstage_less * num_buffer_load_total;
@@ -454,11 +448,17 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             b_scale_grid_desc,
             make_multi_index(-NWaves * NRepeat / NXdlPack, KRepeat / KXdlPack, 0));
 
-        // Local prefetch 1, sync the async load
-        __builtin_amdgcn_s_waitcnt(3952);
+// Local prefetch 1, sync the async load
+#if defined(__gfx125__)
+        block_sync_lds_async_load();
+#else
+        __builtin_amdgcn_s_waitcnt(3952); // wait for EXP_CNT, LDS, GDS, Constant and Message
         block_sync_lds();
+#endif
+
         static_for<0, KRepeat, 1>{}([&](auto k) {
-            constexpr auto k_step = k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
+            constexpr auto k_step  = k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
+            constexpr auto bk_step = k * xdlops_gemm.KPerXdlops * BKPack / xdlops_gemm.K1PerXdlops;
             static_ford<
                 Sequence<MRepeat, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk)>>{}(
                 [&](auto mc) {
@@ -488,7 +488,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     constexpr auto n0    = Number<nc[Number<0>{}]>{};
                     constexpr auto chunk = Number<nc[Number<1>{}]>{};
                     constexpr auto b_k_step_chunk =
-                        k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                        bk_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                     b_thread_copy_.Run(b_block_desc_n0_n1_n2_n3_k,
                                        make_tuple(Number<n0 / NXdlPack>{},
                                                   I0,
@@ -525,8 +525,13 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
             do
             {
                 auto LoopFunc = [&](auto scale_comp_buf, auto scale_mem_buf) {
+#if defined(__gfx125__)
+                    block_sync_lds_async_load();
+#else
+                    // wait for EXP_CNT, LDS, GDS, Constant and Message
                     __builtin_amdgcn_s_waitcnt(3952);
                     block_sync_lds();
+#endif
 
                     a_blockwise_copy.Run(
                         a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(scale_comp_buf));
@@ -591,10 +596,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                             constexpr index_t b_scale_offset =
                                 b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, I0));
 
-                            static_assert(0 < ScalesPerXdlopsRunPerThread,
-                                          "Must have at least one scale per Xdlops "
-                                          "per Thread.");
-
                             vector_type<AScaleDataType, a_scale_thread_vec_size> a_scale_thread_vec;
                             vector_type<BScaleDataType, b_scale_thread_vec_size> b_scale_thread_vec;
 
@@ -619,12 +620,14 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                 constexpr auto kxdl  = ikxdl + k0 * KXdlPack;
 
                                 vector_type<ComputeTypeA, KPack> a_thread_vec;
-                                vector_type<ComputeTypeB, KPack> b_thread_vec;
+                                vector_type<ComputeTypeB, BKPack> b_thread_vec;
 
                                 static_for<0, KPack, 1>{}([&](auto ik) {
                                     a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                         a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                             make_tuple(m0, I0, imxdl, kxdl, ik))>{}];
+                                });
+                                static_for<0, BKPack, 1>{}([&](auto ik) {
                                     b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                         b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                             make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
@@ -675,6 +678,8 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     static_for<0, KRepeat, 1>{}([&](auto k) {
                         constexpr auto k_step =
                             k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
+                        constexpr auto bk_step =
+                            k * xdlops_gemm.KPerXdlops * BKPack / xdlops_gemm.K1PerXdlops;
                         static_for<0, MRepeat, 1>{}([&](auto m0) {
                             static_for<0,
                                        xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk),
@@ -704,7 +709,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                                        xdlops_gemm.K1PerXdlops / (BPackedSize * KThreadChunk),
                                        1>{}([&](auto chunk) {
                                 constexpr auto b_k_step_chunk =
-                                    k_step +
+                                    bk_step +
                                     chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                                 b_thread_copy_.Run(b_block_desc_n0_n1_n2_n3_k,
                                                    make_tuple(Number<n0 / NXdlPack>{},
@@ -781,10 +786,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     constexpr index_t b_scale_offset =
                         b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, I0));
 
-                    static_assert(0 < ScalesPerXdlopsRunPerThread,
-                                  "Must have at least one scale per Xdlops "
-                                  "per Thread.");
-
                     vector_type<AScaleDataType, a_scale_thread_vec_size> a_scale_thread_vec;
                     vector_type<BScaleDataType, b_scale_thread_vec_size> b_scale_thread_vec;
 
@@ -806,12 +807,14 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                         constexpr auto kxdl  = ikxdl + k0 * KXdlPack;
 
                         vector_type<ComputeTypeA, KPack> a_thread_vec;
-                        vector_type<ComputeTypeB, KPack> b_thread_vec;
+                        vector_type<ComputeTypeB, BKPack> b_thread_vec;
 
                         static_for<0, KPack, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(m0, I0, imxdl, kxdl, ik))>{}];
+                        });
+                        static_for<0, BKPack, 1>{}([&](auto ik) {
                             b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                 b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                     make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
@@ -846,12 +849,18 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     });
                 });
 
-            __builtin_amdgcn_s_waitcnt(3952);
+#if defined(__gfx125__)
+            block_sync_lds_async_load();
+#else
+            __builtin_amdgcn_s_waitcnt(3952); // wait for EXP_CNT, LDS, GDS, Constant and Message
             block_sync_lds();
+#endif
 
             static_for<0, KRepeat, 1>{}([&](auto k) {
                 constexpr auto k_step =
                     k * xdlops_gemm.KPerXdlops * KPack / xdlops_gemm.K1PerXdlops;
+                constexpr auto bk_step =
+                    k * xdlops_gemm.KPerXdlops * BKPack / xdlops_gemm.K1PerXdlops;
                 static_ford<
                     Sequence<MRepeat, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk)>>{}(
                     [&](auto mc) {
@@ -881,7 +890,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                         constexpr auto n0    = Number<nc[Number<0>{}]>{};
                         constexpr auto chunk = Number<nc[Number<1>{}]>{};
                         constexpr auto b_k_step_chunk =
-                            k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                            bk_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
                         b_thread_copy_.Run(b_block_desc_n0_n1_n2_n3_k,
                                            make_tuple(Number<n0 / NXdlPack>{},
                                                       I0,
@@ -910,10 +919,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     constexpr index_t b_scale_offset =
                         b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, I0));
 
-                    static_assert(0 < ScalesPerXdlopsRunPerThread,
-                                  "Must have at least one scale per Xdlops "
-                                  "per Thread.");
-
                     vector_type<AScaleDataType, a_scale_thread_vec_size> a_scale_thread_vec;
                     vector_type<BScaleDataType, b_scale_thread_vec_size> b_scale_thread_vec;
 
@@ -935,12 +940,14 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                         constexpr auto kxdl  = ikxdl + k0 * KXdlPack;
 
                         vector_type<ComputeTypeA, KPack> a_thread_vec;
-                        vector_type<ComputeTypeB, KPack> b_thread_vec;
+                        vector_type<ComputeTypeB, BKPack> b_thread_vec;
 
                         static_for<0, KPack, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(m0, I0, imxdl, kxdl, ik))>{}];
+                        });
+                        static_for<0, BKPack, 1>{}([&](auto ik) {
                             b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                 b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                     make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
@@ -988,10 +995,6 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                     constexpr index_t b_scale_offset =
                         b_scale_thread_desc.CalculateOffset(make_tuple(n0, k0, I0));
 
-                    static_assert(0 < ScalesPerXdlopsRunPerThread,
-                                  "Must have at least one scale per Xdlops "
-                                  "per Thread.");
-
                     vector_type<AScaleDataType, a_scale_thread_vec_size> a_scale_thread_vec;
                     vector_type<BScaleDataType, b_scale_thread_vec_size> b_scale_thread_vec;
 
@@ -1013,12 +1016,14 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
                         constexpr auto kxdl  = ikxdl + k0 * KXdlPack;
 
                         vector_type<ComputeTypeA, KPack> a_thread_vec;
-                        vector_type<ComputeTypeB, KPack> b_thread_vec;
+                        vector_type<ComputeTypeB, BKPack> b_thread_vec;
 
                         static_for<0, KPack, 1>{}([&](auto ik) {
                             a_thread_vec.template AsType<ComputeTypeA>()(ik) =
                                 a_thread_buf[Number<a_thread_desc_.CalculateOffset(
                                     make_tuple(m0, I0, imxdl, kxdl, ik))>{}];
+                        });
+                        static_for<0, BKPack, 1>{}([&](auto ik) {
                             b_thread_vec.template AsType<ComputeTypeB>()(ik) =
                                 b_thread_buf[Number<b_thread_desc_.CalculateOffset(
                                     make_tuple(n0, I0, inxdl, kxdl, ik))>{}];
@@ -1057,17 +1062,17 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx<BlockGemmPipelineScheduler::Intrawave,
 
     // TODO: make this field protected when a_scale_thread_copy_ is moved
     // here
-    static constexpr auto a_scale_thread_desc = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<MRepeat / MXdlPack>{},
-                   Number<KRepeat / KXdlPack>{},
-                   Number<ScalesPerXdlopsRunPerThread * a_scale_thread_vec_size>{}));
+    static constexpr auto a_scale_thread_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat / MXdlPack>{},
+                                                       Number<KRepeat / KXdlPack>{},
+                                                       Number<a_scale_thread_vec_size>{}));
 
     // TODO: make this field protected when b_scale_thread_copy_ is moved
     // here
-    static constexpr auto b_scale_thread_desc = make_naive_tensor_descriptor_packed(
-        make_tuple(Number<NRepeat / NXdlPack>{},
-                   Number<KRepeat / KXdlPack>{},
-                   Number<ScalesPerXdlopsRunPerThread * b_scale_thread_vec_size>{}));
+    static constexpr auto b_scale_thread_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(Number<NRepeat / NXdlPack>{},
+                                                       Number<KRepeat / KXdlPack>{},
+                                                       Number<b_scale_thread_vec_size>{}));
 
     protected:
     using Base::a_thread_copy_;

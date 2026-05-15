@@ -23,14 +23,14 @@ using DeviceConvFwdInstance =
         1,           //
         256,         // BlockSize
         128,         // MPerBlock
-        256,         // NPerBlock
-        16,          // KPerBlock
+        128,         // NPerBlock
+        64,          // KPerBlock
         4,           // AK1
         4,           // BK1
         16,          // MPerXdl
         16,          // NPerXdl
         4,           // MXdlPerWave
-        8,           // NXdlPerWave
+        4,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -104,7 +104,6 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
     in_device_buf.ToDevice(in.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
 #endif
-
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> a_g_n_c_wis_strides{};
     std::array<ck::index_t, NDimSpatial + 3> b_g_k_c_xs_lengths{};
@@ -128,7 +127,6 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
     copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
     copy(conv_param.input_left_pads_, input_left_pads);
     copy(conv_param.input_right_pads_, input_right_pads);
-
     // do Conv
     auto conv     = DeviceConvFwdInstance<NDimSpatial>{};
     auto invoker  = conv.MakeInvoker();
@@ -151,7 +149,6 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
                                       InElementOp{},
                                       WeiElementOp{},
                                       OutElementOp{});
-
     if(!conv.IsSupportedArgument(argument))
     {
         throw std::runtime_error(

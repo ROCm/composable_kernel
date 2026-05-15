@@ -39,21 +39,9 @@ namespace details {
 {
     return amd_assembly_pk_add_f16(x, y);
 }
+
 } // namespace details
 } // namespace
-
-#if defined(__gfx950__)
-inline __device__ bhalf_t static_cast_float_to_bf16(float x)
-{
-    union
-    {
-        uint16_t uint16;
-        __bf16 bf16;
-    } out;
-    out.bf16 = static_cast<__bf16>(x);
-    return out.uint16;
-}
-#endif
 
 // Declare a template function for bf16 conversion using RTN
 template <typename Y, typename X>
@@ -63,13 +51,13 @@ __host__ __device__ constexpr Y bf16_convert_rtn(X x);
 template <>
 inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(float x)
 {
-#if defined(__gfx950__)
-    return static_cast_float_to_bf16(x);
+#if CK_USE_LLVM_BUILTIN_BF16 && (CK_ARCH_SUPPORT_BUILTIN_BF16 || !defined(__HIP_DEVICE_COMPILE__))
+    return static_cast<__bf16>(x);
 #else
     // Nan check
     if(x != x)
     {
-        return uint16_t(0x7FC0);
+        return bit_cast<bhalf_t>(uint16_t(0x7FC0));
     }
 
     union
@@ -81,7 +69,7 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
     const uint32_t first_bf16_mantisa_bit = ((u.int32 >> 16) & 1);
     constexpr uint32_t rounding_bias      = uint32_t((1 << 15) - 1);
 
-    return uint16_t((u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16);
+    return bit_cast<bhalf_t>(uint16_t((u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16));
 #endif
 }
 
@@ -122,13 +110,17 @@ __host__ __device__ constexpr Y type_convert(X x)
 template <>
 inline __host__ __device__ constexpr float type_convert<float, bhalf_t>(bhalf_t x)
 {
+#if CK_USE_LLVM_BUILTIN_BF16 && (CK_ARCH_SUPPORT_BUILTIN_BF16 || !defined(__HIP_DEVICE_COMPILE__))
+    return static_cast<float>(x);
+#else
     union
     {
         uint32_t int32;
         float fp32;
-    } u = {uint32_t(x) << 16};
+    } u = {static_cast<uint32_t>(bit_cast<uint16_t>(x)) << 16};
 
     return u.fp32;
+#endif
 }
 
 // convert fp32 to bfp16, round to nearest even
@@ -138,7 +130,8 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
 #if CK_USE_RNE_BF16_CONVERSION
     return bf16_convert_rtn<bhalf_t>(x);
 #else
-    return uint16_t(static_cast<uint32_t>(x) >> 16);
+    const uint32_t x_bits = bit_cast<uint32_t>(x);
+    return bit_cast<bhalf_t>(uint16_t(x_bits >> 16));
 #endif
 }
 
@@ -164,18 +157,26 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, half_t>(half_
 template <>
 inline __host__ __device__ constexpr int8_t type_convert<int8_t, bhalf_t>(bhalf_t x)
 {
+#if CK_USE_LLVM_BUILTIN_BF16 && !defined(__HIP_DEVICE_COMPILE__)
+    return static_cast<int8_t>(x);
+#else
     float x_fp32 = type_convert<float>(x);
 
     return static_cast<int8_t>(x_fp32);
+#endif
 }
 
 // convert int8 to bfp16 via fp32
 template <>
 inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, int8_t>(int8_t x)
 {
+#if CK_USE_LLVM_BUILTIN_BF16 && !defined(__HIP_DEVICE_COMPILE__)
+    return static_cast<bhalf_t>(x);
+#else
     float x_fp32 = static_cast<float>(x);
 
     return type_convert<bhalf_t>(x_fp32);
+#endif
 }
 
 template <>
@@ -326,10 +327,10 @@ __host__ __device__ constexpr Y f8_convert_sr(X x);
 template <>
 inline __host__ __device__ f8_fnuz_t f8_convert_sr<f8_fnuz_t, float>(float x)
 {
-#if defined(__gfx950__)
+#if defined(__gfx950__) || defined(__gfx125__)
     // use HW clock for stochastic input multiply by incremented thread id
-    uint32_t rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
-                                             (get_thread_global_1d_id() + 1));
+    uint32_t rng =
+        __builtin_amdgcn_prng_b32(__builtin_readcyclecounter() * (get_thread_global_1d_id() + 1));
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
@@ -394,10 +395,10 @@ inline __host__ __device__ f8_fnuz_t f8_convert_sr<f8_fnuz_t, half_t>(half_t x)
 template <>
 inline __host__ __device__ bf8_fnuz_t f8_convert_sr<bf8_fnuz_t, float>(float x)
 {
-#if defined(__gfx950__)
+#if defined(__gfx950__) || defined(__gfx125__)
     // use HW clock for stochastic input multiply by incremented thread id
-    uint32_t rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
-                                             (get_thread_global_1d_id() + 1));
+    uint32_t rng =
+        __builtin_amdgcn_prng_b32(__builtin_readcyclecounter() * (get_thread_global_1d_id() + 1));
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
@@ -991,7 +992,7 @@ inline __host__ __device__ float2_t type_convert<float2_t, f8x2_ocp_t>(f8x2_ocp_
 #if CK_OCP_FP8_CVT_FAST_PATH
 // __builtin_amdgcn_cvt_pk_f32_fp8 can produce incorrect results due to a compiler issue.
 // TODO: Enable when SWDEV-532959 is fixed.
-#if defined(__gfx12__)
+#if defined(__gfx120__)
     return float2_t{__builtin_amdgcn_cvt_f32_fp8(bit_cast<uint16_t>(x), 0),
                     __builtin_amdgcn_cvt_f32_fp8(bit_cast<uint16_t>(x), 1)};
 #else
@@ -1030,6 +1031,14 @@ inline __host__ __device__ half_t type_convert<half_t, f8_ocp_t>(f8_ocp_t x)
     output.half_vec = __builtin_amdgcn_cvt_scalef32_pk_f16_fp8(input.i16val, /*scale*/ 1.f, 0);
 
     return output.half_arr[0];
+#elif defined(__gfx125__)
+    union
+    {
+        int ival;
+        fp8_storage_t i8val[4];
+    } input{};
+    input.i8val[0] = x.data;
+    return __builtin_amdgcn_cvt_f16_fp8(input.ival, 0);
 #else
     return fp8_impl::cast_from_f8<half_t, f8_ocp_t::wm, f8_ocp_t::we, false>(x.data);
 #endif
@@ -1046,6 +1055,8 @@ inline __host__ __device__ half2_t type_convert<half2_t, f8x2_ocp_t>(f8x2_ocp_t 
 {
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_pk_f16_fp8(bit_cast<uint16_t>(x), /*scale*/ 1.f, 0);
+#elif defined(__gfx125__)
+    return __builtin_amdgcn_cvt_pk_f16_fp8(bit_cast<uint16_t>(x));
 #else
     return half2_t{type_convert<half_t>(float(x.AsType<f8_ocp_t>()[Number<0>{}])),
                    type_convert<half_t>(float(x.AsType<f8_ocp_t>()[Number<1>{}]))};
@@ -1077,6 +1088,20 @@ inline __host__ __device__ bhalf_t type_convert<bhalf_t, f8_ocp_t>(f8_ocp_t x)
     output.bhalf_vec = __builtin_amdgcn_cvt_scalef32_pk_bf16_fp8(input.i16val, /*scale*/ 1.f, 0);
 
     return output.bhalf_arr[0];
+#elif defined(__gfx125__)
+    union
+    {
+        fp8_impl::uint32x2_t ival;
+        f8_ocp_t f8val[8];
+    } input{};
+    input.f8val[0] = x;
+    union
+    {
+        bhalf8_t bhalf_vec;
+        bhalf_t bhalf_arr[8];
+    } output;
+    output.bhalf_vec = __builtin_amdgcn_cvt_scale_pk8_bf16_fp8(input.ival, uint32_t{0x7F}, 0);
+    return output.bhalf_arr[0];
 #else
     return type_convert<bhalf_t>(
         fp8_impl::cast_from_f8<float, f8_ocp_t::wm, f8_ocp_t::we, false>(x.data));
@@ -1094,6 +1119,20 @@ inline __host__ __device__ bhalf2_t type_convert<bhalf2_t, f8x2_ocp_t>(f8x2_ocp_
 {
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_pk_bf16_fp8(bit_cast<uint16_t>(x), /*scale*/ 1.f, 0);
+#elif defined(__gfx125__)
+    union
+    {
+        fp8_impl::uint32x2_t ival;
+        f8x2_ocp_t f8x2val[4];
+    } input{};
+    input.f8x2val[0] = x;
+    union
+    {
+        bhalf8_t bhalf_vec;
+        bhalf2_t bhalf_arr[4];
+    } output;
+    output.bhalf_vec = __builtin_amdgcn_cvt_scale_pk8_bf16_fp8(input.ival, uint32_t{0x7F}, 0);
+    return output.bhalf_arr[0];
 #else
     return bhalf2_t{type_convert<bhalf_t>(float(x.AsType<f8_ocp_t>()[Number<0>{}])),
                     type_convert<bhalf_t>(float(x.AsType<f8_ocp_t>()[Number<1>{}]))};
@@ -1134,7 +1173,7 @@ inline __host__ __device__ float2_t type_convert<float2_t, bf8x2_ocp_t>(bf8x2_oc
 #if CK_OCP_FP8_CVT_FAST_PATH
 // __builtin_amdgcn_cvt_pk_f32_bf8 can produce incorrect results due to a compiler issue.
 // TODO: Enable when SWDEV-532959 is fixed.
-#if defined(__gfx12__)
+#if defined(__gfx120__)
     return float2_t{__builtin_amdgcn_cvt_f32_bf8(bit_cast<uint16_t>(x), 0),
                     __builtin_amdgcn_cvt_f32_bf8(bit_cast<uint16_t>(x), 1)};
 #else
@@ -1165,6 +1204,14 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_ocp_t>(bf8_ocp_t x)
     } val;
     val.i8val[0] = x.data;
     return __builtin_amdgcn_cvt_scalef32_pk_f16_bf8(val.i16val, /*scale*/ 1.f, 0)[0];
+#elif defined(__gfx125__)
+    union
+    {
+        int ival;
+        fp8_storage_t i8val[4];
+    } input{};
+    input.i8val[0] = x.data;
+    return __builtin_amdgcn_cvt_f16_bf8(input.ival, 0);
 #else
     return fp8_impl::cast_from_f8<half_t, bf8_ocp_t::wm, bf8_ocp_t::we, false>(x.data);
 #endif
@@ -1181,6 +1228,8 @@ inline __host__ __device__ half2_t type_convert<half2_t, bf8x2_ocp_t>(bf8x2_ocp_
 {
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_pk_f16_bf8(bit_cast<uint16_t>(x), /*scale*/ 1.f, 0);
+#elif defined(__gfx125__)
+    return __builtin_amdgcn_cvt_pk_f16_bf8(bit_cast<uint16_t>(x));
 #else
     return half2_t{type_convert<half_t>(float(x.AsType<bf8_ocp_t>()[Number<0>{}])),
                    type_convert<half_t>(float(x.AsType<bf8_ocp_t>()[Number<1>{}]))};
@@ -1212,6 +1261,20 @@ inline __host__ __device__ bhalf_t type_convert<bhalf_t, bf8_ocp_t>(bf8_ocp_t x)
     output.bhalf_vec = __builtin_amdgcn_cvt_scalef32_pk_bf16_bf8(input.i16val, /*scale*/ 1.f, 0);
 
     return output.bhalf_arr[0];
+#elif defined(__gfx125__)
+    union
+    {
+        fp8_impl::uint32x2_t ival;
+        bf8_ocp_t bf8val[8];
+    } input{};
+    input.bf8val[0] = x;
+    union
+    {
+        bhalf8_t bhalf_vec;
+        bhalf_t bhalf_arr[8];
+    } output;
+    output.bhalf_vec = __builtin_amdgcn_cvt_scale_pk8_bf16_bf8(input.ival, uint32_t{0x7F}, 0);
+    return output.bhalf_arr[0];
 #else
     return type_convert<bhalf_t>(
         fp8_impl::cast_from_f8<float, bf8_ocp_t::wm, bf8_ocp_t::we, false>(x.data));
@@ -1229,6 +1292,20 @@ inline __host__ __device__ bhalf2_t type_convert<bhalf2_t, bf8x2_ocp_t>(bf8x2_oc
 {
 #if defined(__gfx950__)
     return __builtin_amdgcn_cvt_scalef32_pk_bf16_bf8(bit_cast<uint16_t>(x), /*scale*/ 1.f, 0);
+#elif defined(__gfx125__)
+    union
+    {
+        fp8_impl::uint32x2_t ival;
+        bf8x2_ocp_t f8x2val[4];
+    } input{};
+    input.f8x2val[0] = x;
+    union
+    {
+        bhalf8_t bhalf_vec;
+        bhalf2_t bhalf_arr[4];
+    } output;
+    output.bhalf_vec = __builtin_amdgcn_cvt_scale_pk8_bf16_bf8(input.ival, uint32_t{0x7F}, 0);
+    return output.bhalf_arr[0];
 #else
     return bhalf2_t{type_convert<bhalf_t>(float(x.AsType<bf8_ocp_t>()[Number<0>{}])),
                     type_convert<bhalf_t>(float(x.AsType<bf8_ocp_t>()[Number<1>{}]))};
@@ -1466,200 +1543,182 @@ inline __host__ __device__ half_t type_convert<half_t, bf8_fnuz_t>(bf8_fnuz_t x)
     return utils::cast_from_f8<bf8_fnuz_t, half_t, negative_zero_nan>(x);
 #endif
 }
+
 #ifndef CK_CODE_GEN_RTC
-// convert fp32 to fp4 with rounding to nearest even
-inline __host__ __device__ f4_t f4_convert_rne(float x, float scale = 1.0f)
+// convert fp32 to fp4 with round to nearest even
+template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == 1>>
+inline __host__ __device__ f4_t f4_convert_rne(T x, float scale = 1.f)
 {
-#if defined(__gfx950__)
-    union
-    {
-        uint32_t bitwise;
-        f4_t f4_array[4];
-    } value{0};
-    value.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(value.bitwise, x, x, scale, 0);
-    return value.f4_array[0];
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_to_f4_scaled<T, false>(x, scale);
 #else
-    return utils::sat_convert_to_type<f4_t>(x / scale);
+    float f = type_convert<float>(x);
+    return utils::sat_convert_to_type<f4_t>(f / scale);
 #endif
 }
 
-// convert vector of 2 fp32 to vector of 2 fp4 with rne
-inline __host__ __device__ f4x2_t f4_convert_rne(float2_t x, float scale = 1.0f)
+template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == 2>>
+inline __host__ __device__ f4x2_t f4_convert_rne(T x, float scale = 1.f)
 {
-#if defined(__gfx950__)
-    union
-    {
-        uint32_t bitwise;
-        f4x2_t f4x2_array[4];
-    } value{0};
-    value.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(value.bitwise, x[0], x[1], scale, 0);
-    return value.f4x2_array[0];
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_to_f4_scaled<T, false>(x, scale);
 #else
     union
     {
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    uint8_t l     = utils::sat_convert_to_type<f4_t>(x[0] / scale);
-    uint8_t h     = utils::sat_convert_to_type<f4_t>(x[1] / scale);
+    float f0      = type_convert<float>(x[0]);
+    float f1      = type_convert<float>(x[1]);
+    uint8_t l     = utils::sat_convert_to_type<f4_t>(f0 / scale);
+    uint8_t h     = utils::sat_convert_to_type<f4_t>(f1 / scale);
     value.bitwise = (h << 4) | l;
     return value.f4x2_array[0];
 #endif
 }
 
-// convert vector of 32 fp32 to vector of 32 fp4 with rne
-inline __host__ __device__ f4x32_t f4_convert_rne(float32_t x, float scale = 1.0f)
+template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == 8>>
+inline __host__ __device__ f4x8_t f4_convert_rne(T x, float scale = 1.f)
 {
-#if defined(__gfx950__)
-    union
-    {
-        __uint128_t bitwise;
-        f4x2_t f4x2_array[16];
-        f4x32_t f4x32_array;
-    } f4_values{}, tmp_values{};
-
-    ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
-        tmp_values.bitwise = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(
-            tmp_values.bitwise, x[2 * idx], x[2 * idx + 1], scale, 0);
-        f4_values.f4x2_array[idx] = tmp_values.f4x2_array[0];
-    });
-
-    return f4_values.f4x32_array;
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_to_f4_scaled<T, false>(x, scale);
 #else
     union
     {
-        __uint128_t bitwise;
-        f4x2_t f4x2_array[16];
-        f4x32_t f4x32_array;
-    } f4_values{};
+        uint8_t i8x4[4];
+        f4x8_t f4x8;
+    } ret{};
 
-    f4_t tmp;
-
-    ck::static_for<0, 32, 1>{}([&](auto idx) {
-        tmp = utils::sat_convert_to_type<f4_t>(x[static_cast<int>(idx)] / scale);
-        f4_values.bitwise <<= 4;
-        f4_values.bitwise |= tmp;
+    ck::static_for<0, 4, 1>{}([&](auto i) {
+        float f0    = type_convert<float>(x[static_cast<int>(2 * i)]);
+        float f1    = type_convert<float>(x[static_cast<int>(2 * i + 1)]);
+        uint8_t l   = utils::sat_convert_to_type<f4_t>(f0 / scale);
+        uint8_t h   = utils::sat_convert_to_type<f4_t>(f1 / scale);
+        ret.i8x4[i] = (h << 4) | l;
     });
-
-    return f4_values.f4x32_array;
+    return ret.f4x8;
 #endif
 }
 
-// convert fp32 to fp4 with stochastic rounding
-inline __host__ __device__ f4_t f4_convert_sr(float x, float scale = 1.0f)
+template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == 32>>
+inline __host__ __device__ f4x32_t f4_convert_rne(T x, float scale = 1.f)
 {
-#if defined(__gfx950__)
-    // use HW clock for stochastic input multiply by incremented thread id
-    uint32_t rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
-                                             (get_thread_global_1d_id() + 1));
-    union
-    {
-        uint32_t bitwise;
-        f4_t f4_array[4];
-    } value{0};
-    union
-    {
-        float float_array[2];
-        float2_t float2_array;
-    } float_values{{x}};
+    using BaseT         = typename scalar_type<T>::type;
+    constexpr int Npack = scalar_type<T>::vector_size / 8;
 
-    value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-        value.bitwise, float_values.float2_array, rng, scale, 0);
-    return value.f4_array[0];
+    union
+    {
+        f4x32_t v32f4;
+        f4x8_t v8f4x4[Npack];
+    } ret{};
+    union
+    {
+        T v32;
+        typename vector_type<BaseT, 8>::type v8_array[Npack];
+    } value{x};
+
+    ck::static_for<0, Npack, 1>{}(
+        [&](auto idx) { ret.v8f4x4[Number<idx>{}] = f4_convert_rne(value.v8_array[idx], scale); });
+
+    return ret.v32f4;
+}
+
+// convert fp32 to fp4 with stochastic rounding
+template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == 1>>
+inline __host__ __device__ f4_t f4_convert_sr(T x, float scale = 1.f)
+{
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_to_f4_scaled<T, true>(x, scale);
 #else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
-#endif
-    return utils::sat_convert_to_type_sr<f4_t>(x / scale, rng);
+#endif // #ifndef CK_CODE_GEN_RTC
+    float f = type_convert<float>(x);
+    return utils::sat_convert_to_type_sr<f4_t>(f / scale, rng);
 #endif
 }
 
-// convert vector of 2 fp32 to vector of 2 fp4 with sr
-inline __host__ __device__ f4x2_t f4_convert_sr(float2_t x, float scale = 1.0f)
+template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == 2>>
+inline __host__ __device__ f4x2_t f4_convert_sr(T x, float scale = 1.f)
 {
-#if defined(__gfx950__)
-    // use HW clock for stochastic input multiply by incremented thread id
-    uint32_t rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
-                                             (get_thread_global_1d_id() + 1));
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_to_f4_scaled<T, true>(x, scale);
+#else
     union
     {
         uint32_t bitwise;
         f4x2_t f4x2_array[4];
     } value{0};
-    value.bitwise = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(value.bitwise, x, rng, scale, 0);
-    return value.f4x2_array[0];
-#else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
-#endif
-    union
-    {
-        uint32_t bitwise;
-        f4x2_t f4x2_array[4];
-    } value{0};
-    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(x[0] / scale, rng);
-    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(x[1] / scale, rng);
+#endif // #ifndef CK_CODE_GEN_RTC
+
+    float f0      = type_convert<float>(x[0]);
+    float f1      = type_convert<float>(x[1]);
+    uint8_t l     = utils::sat_convert_to_type_sr<f4_t>(f0 / scale, rng);
+    uint8_t h     = utils::sat_convert_to_type_sr<f4_t>(f1 / scale, rng);
     value.bitwise = (h << 4) | l;
     return value.f4x2_array[0];
 #endif
 }
 
-// convert vector of 32 fp32 to vector of 32 fp4 with sr
-inline __host__ __device__ f4x32_t f4_convert_sr(float32_t x, float scale = 1.0f)
+template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == 8>>
+inline __host__ __device__ f4x8_t f4_convert_sr(T x, float scale = 1.f)
 {
-#if defined(__gfx950__)
-    // use HW clock for stochastic input multiply by incremented thread id
-    uint32_t rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
-                                             (get_thread_global_1d_id() + 1));
-    union
-    {
-        __uint128_t bitwise;
-        f4x2_t f4x2_array[16];
-        f4x32_t f4x32_array;
-    } f4_values{0};
-    union
-    {
-        float2_t floatx2_array[16];
-        float32_t floatx32_array;
-    } float_values{{0}};
-    float_values.floatx32_array = x;
-
-    ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
-        f4_values.f4x2_array[idx] = __builtin_amdgcn_cvt_scalef32_sr_pk_fp4_f32(
-            f4_values.bitwise, float_values.floatx2_array[idx], rng, scale, 0);
-    });
-
-    return f4_values.f4x32_array;
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_to_f4_scaled<T, false>(x, scale);
 #else
+    union
+    {
+        uint8_t i8x4[4];
+        f4x8_t f4x8;
+    } ret{};
+
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x[0]);
 #else
     uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x[0]);
+#endif // #ifndef CK_CODE_GEN_RTC
+
+    ck::static_for<0, 4, 1>{}([&](auto i) {
+        float f0    = type_convert<float>(x[static_cast<int>(2 * i)]);
+        float f1    = type_convert<float>(x[static_cast<int>(2 * i + 1)]);
+        uint8_t l   = utils::sat_convert_to_type_sr<f4_t>(f0 / scale, rng);
+        uint8_t h   = utils::sat_convert_to_type_sr<f4_t>(f1 / scale, rng);
+        ret.i8x4[i] = (h << 4) | l;
+    });
+    return ret.f4x8;
 #endif
+}
+
+template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == 32>>
+inline __host__ __device__ f4x32_t f4_convert_sr(T x, float scale = 1.f)
+{
+    using BaseT         = typename scalar_type<T>::type;
+    constexpr int Npack = scalar_type<T>::vector_size / 8;
+
     union
     {
-        __uint128_t bitwise;
-        f4x2_t f4x2_array[16];
-        f4x32_t f4x32_array;
-    } f4_values{0};
+        f4x32_t v32f4;
+        f4x8_t v8f4x4[Npack];
+    } ret{};
+    union
+    {
+        T v32;
+        typename vector_type<BaseT, 8>::type v8_array[Npack];
+    } value{x};
 
-    f4_t tmp;
+    ck::static_for<0, Npack, 1>{}(
+        [&](auto idx) { ret.v8f4x4[Number<idx>{}] = f4_convert_sr(value.v8_array[idx], scale); });
 
-    ck::static_for<0, 32, 1>{}([&](auto idx) {
-        tmp = utils::sat_convert_to_type_sr<f4_t>(x[static_cast<int>(idx)] / scale, rng);
-        f4_values.bitwise <<= 4;
-        f4_values.bitwise |= tmp;
-    });
-
-    return f4_values.f4x32_array;
-#endif
+    return ret.v32f4;
 }
 
 // convert fp32 to fp4
@@ -1689,6 +1748,17 @@ inline __host__ __device__ f4x2_pk_t type_convert<f4x2_pk_t, float2_t>(float2_t 
     return static_cast<f4x2_pk_t>(type_convert<f4x2_t>(x));
 }
 
+// convert vector of 8 fp32 to vector of 8 fp4
+template <>
+inline __host__ __device__ f4x8_t type_convert<f4x8_t, float8_t>(float8_t x)
+{
+#if CK_USE_SR_F4_CONVERSION
+    return f4_convert_sr(x);
+#else
+    return f4_convert_rne(x);
+#endif
+}
+
 // convert vector of 32 fp32 to vector of 32 fp4
 template <>
 inline __host__ __device__ f4x32_t type_convert<f4x32_t, float32_t>(float32_t x)
@@ -1704,15 +1774,8 @@ inline __host__ __device__ f4x32_t type_convert<f4x32_t, float32_t>(float32_t x)
 template <>
 inline __host__ __device__ float type_convert<float, f4_t>(f4_t x)
 {
-#if defined(__gfx950__)
-    union
-    {
-        float float_array[2];
-        float2_t float2_array;
-    } float_values{};
-    float scale               = 1.0f;
-    float_values.float2_array = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(x, scale, 0);
-    return float_values.float_array[0];
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_from_f4_scaled<float>(x);
 #else
     return utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
 #endif
@@ -1722,15 +1785,8 @@ inline __host__ __device__ float type_convert<float, f4_t>(f4_t x)
 template <>
 inline __host__ __device__ float2_t type_convert<float2_t, f4x2_t>(f4x2_t x)
 {
-#if defined(__gfx950__)
-    union
-    {
-        uint32_t bitwise;
-        f4x2_t f4x2_array[4];
-    } value{};
-    value.f4x2_array[0] = x;
-    float scale         = 1.0f;
-    return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, scale, 0);
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_from_f4_scaled<float2_t>(x);
 #else
     float2_t ret{
         utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(),
@@ -1741,213 +1797,496 @@ inline __host__ __device__ float2_t type_convert<float2_t, f4x2_t>(f4x2_t x)
 #endif
 }
 
+// convert vector of 8 fp4 to vector of 8 fp32
+template <>
+inline __host__ __device__ float8_t type_convert<float8_t, f4x8_t>(f4x8_t x)
+{
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_from_f4_scaled<float8_t>(x);
+#else
+    union
+    {
+        float8_t vf32_8x1;
+        float vf32[8];
+    } ret{};
+
+    ck::static_for<0, 4, 1>{}([&](auto i) {
+        ret.vf32[2 * i] = utils::to_float<f4_t>(
+            NumericLimits<e8m0_bexp_t>::Binary_1(),
+            x.AsType<f4x2_pk_t>()[Number<i>{}].template unpack<>(Number<0>{}));
+        ret.vf32[2 * i + 1] = utils::to_float<f4_t>(
+            NumericLimits<e8m0_bexp_t>::Binary_1(),
+            x.AsType<f4x2_pk_t>()[Number<i>{}].template unpack<>(Number<1>{}));
+    });
+    return ret.vf32_8x1;
+#endif
+}
+
 // convert vector of 32 fp4 to vector of 32 fp32
 template <>
 inline __host__ __device__ float32_t type_convert<float32_t, f4x32_t>(f4x32_t x)
 {
-#if defined(__gfx950__)
+    constexpr int N = 32 / 8;
     union
     {
-        f4x32_t f4x32_array;
-        f4x2_t fp4x2[16];
+        f4x32_t vf4;
+        f4x8_t v8f4[N];
     } value{x};
-    float2_t op;
-    float32_t ret;
-    float scale = 1.0f;
+    union
+    {
+        float32_t vf32;
+        float8_t v8f32[N];
+    } ret{};
 
-    ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
-        op               = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[idx], scale, 0);
-        ret[2 * idx]     = op[0];
-        ret[2 * idx + 1] = op[1];
-    });
+    ck::static_for<0, N, 1>{}(
+        [&](auto idx) { ret.v8f32[idx] = type_convert<float8_t>(value.v8f4[idx]); });
+    return ret.vf32;
+}
 
+// convert f16 to f4
+template <>
+inline __host__ __device__ f4_t type_convert<f4_t, half_t>(half_t x)
+{
+#if CK_USE_SR_F4_CONVERSION
+    return f4_convert_sr(x);
+#else
+    return f4_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ f4x2_t type_convert<f4x2_t, half2_t>(half2_t x)
+{
+#if CK_USE_SR_F4_CONVERSION
+    return f4_convert_sr(x);
+#else
+    return f4_convert_rne(x);
+#endif
+}
+template <>
+inline __host__ __device__ f4x2_pk_t type_convert<f4x2_pk_t, half2_t>(half2_t x)
+{
+    return static_cast<f4x2_pk_t>(type_convert<f4x2_t>(x));
+}
+
+// convert vector of 8 fp32 to vector of 8 fp4
+template <>
+inline __host__ __device__ f4x8_t type_convert<f4x8_t, half8_t>(half8_t x)
+{
+#if CK_USE_SR_F4_CONVERSION
+    return f4_convert_sr(x);
+#else
+    return f4_convert_rne(x);
+#endif
+}
+
+// convert vector of 32 fp32 to vector of 32 fp4
+template <>
+inline __host__ __device__ f4x32_t type_convert<f4x32_t, half32_t>(half32_t x)
+{
+#if CK_USE_SR_F4_CONVERSION
+    return f4_convert_sr(x);
+#else
+    return f4_convert_rne(x);
+#endif
+}
+
+// convert fp4 to fp16
+template <>
+inline __host__ __device__ half_t type_convert<half_t, f4_t>(f4_t x)
+{
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_from_f4_scaled<half_t>(x);
+#else
+    return type_convert<half_t>(utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x));
+#endif
+}
+
+template <>
+inline __host__ __device__ half2_t type_convert<half2_t, f4x2_t>(f4x2_t x)
+{
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_from_f4_scaled<half2_t>(x);
+#else
+    half2_t ret{type_convert<half_t>(utils::to_float<f4_t>(
+                    NumericLimits<e8m0_bexp_t>::Binary_1(),
+                    x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}))),
+                type_convert<half_t>(utils::to_float<f4_t>(
+                    NumericLimits<e8m0_bexp_t>::Binary_1(),
+                    x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{})))};
     return ret;
+#endif
+}
+
+template <>
+inline __host__ __device__ half8_t type_convert<half8_t, f4x8_t>(f4x8_t x)
+{
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_from_f4_scaled<half8_t>(x);
 #else
     union
     {
-        float32_t float32_array;
-        float float_array[32];
-    } float_values{};
-    union
-    {
-        __uint128_t bitwise;
-        f4x2_t f4x2_array[16];
-        f4x32_t f4x32_array;
-    } f4_values{bit_cast<__uint128_t>(x)};
+        half8_t vf16_8x1;
+        half_t vf16[8];
+    } ret{};
 
-    ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
-        float_values.float_array[2 * idx] = utils::to_float<f4_t>(
+    ck::static_for<0, 4, 1>{}([&](auto i) {
+        ret.vf16[2 * i]     = type_convert<half_t>(utils::to_float<f4_t>(
             NumericLimits<e8m0_bexp_t>::Binary_1(),
-            f4_values.f4x2_array[idx].template AsType<f4x2_pk_t>()[Number<0>{}].template unpack<>(
-                Number<0>{}));
-
-        float_values.float_array[2 * idx + 1] = utils::to_float<f4_t>(
+            x.AsType<f4x2_pk_t>()[Number<i>{}].template unpack<>(Number<0>{})));
+        ret.vf16[2 * i + 1] = type_convert<half_t>(utils::to_float<f4_t>(
             NumericLimits<e8m0_bexp_t>::Binary_1(),
-            f4_values.f4x2_array[idx].template AsType<f4x2_pk_t>()[Number<0>{}].template unpack<>(
-                Number<1>{}));
+            x.AsType<f4x2_pk_t>()[Number<i>{}].template unpack<>(Number<1>{})));
     });
-
-    return float_values.float32_array;
+    return ret.vf16_8x1;
 #endif
 }
 
-/**
- * @brief Converts a float to a 6-bit float type (f6_t) using round-to-nearest-even.
- *
- * Divides the input by the specified scale, then saturates and converts it
- * to the 6-bit floating-point format (f6_t).
- *
- * @param x     The input float value.
- * @param scale A scaling factor applied to `x` before conversion.
- * @return      The converted f6_t value.
- */
-inline __host__ __device__ f6_t f6_convert_rne(float x, float scale = 1.0f)
+template <>
+inline __host__ __device__ half32_t type_convert<half32_t, f4x32_t>(f4x32_t x)
 {
-#if defined(__gfx950__)
-    float16_t in1{x};
-    float16_t in2{};
-
+    constexpr int N = 32 / 8;
     union
     {
-        f6x32_t f6_vector;
-        f6_t f6_array[32];
-    } out{};
+        f4x32_t vf4;
+        f4x8_t v8f4[N];
+    } value{x};
+    union
+    {
+        half32_t vf16;
+        half8_t v8f16[N];
+    } ret{};
 
-    out.f6_vector = f6x32_t{__builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(in1, in2, scale)};
+    ck::static_for<0, N, 1>{}(
+        [&](auto idx) { ret.v8f16[idx] = type_convert<half8_t>(value.v8f4[idx]); });
+    return ret.vf16;
+}
 
-    return out.f6_array[0];
+// convert bf16 to f4
+template <>
+inline __host__ __device__ f4_t type_convert<f4_t, bhalf_t>(bhalf_t x)
+{
+#if CK_USE_SR_F4_CONVERSION
+    return f4_convert_sr(x);
 #else
-    return utils::sat_convert_to_type<f6_t>(x / scale);
+    return f4_convert_rne(x);
 #endif
 }
 
-/**
- * @brief Converts a 32-element single-precision float array into a packed 6-bit representation.
- *
- * This function divides each input float by the provided scale value, then performs conversion with
- * rounding to nearest / even to pack each element into 6 bits of precision.
- *
- * @param x     A vector of 32 floats stored in float32_t.
- * @param scale A scaling factor for each float before conversion.
- * @return An f6x32_t object storing the compressed 6-bit representation.
- */
-inline __host__ __device__ f6x32_t f6_convert_rne(float32_t x, float scale = 1.0f)
+template <>
+inline __host__ __device__ f4x2_t type_convert<f4x2_t, bhalf2_t>(bhalf2_t x)
 {
-#if defined(__gfx950__)
-    float16_t* in1 = reinterpret_cast<float16_t*>(&x);
-    float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
-    return f6x32_t{__builtin_amdgcn_cvt_scalef32_2xpk16_fp6_f32(*in1, *in2, scale)};
+#if CK_USE_SR_F4_CONVERSION
+    return f4_convert_sr(x);
+#else
+    return f4_convert_rne(x);
+#endif
+}
+template <>
+inline __host__ __device__ f4x2_pk_t type_convert<f4x2_pk_t, bhalf2_t>(bhalf2_t x)
+{
+    return static_cast<f4x2_pk_t>(type_convert<f4x2_t>(x));
+}
+
+// convert vector of 8 fp32 to vector of 8 fp4
+template <>
+inline __host__ __device__ f4x8_t type_convert<f4x8_t, bhalf8_t>(bhalf8_t x)
+{
+#if CK_USE_SR_F4_CONVERSION
+    return f4_convert_sr(x);
+#else
+    return f4_convert_rne(x);
+#endif
+}
+
+// convert vector of 32 fp32 to vector of 32 fp4
+template <>
+inline __host__ __device__ f4x32_t type_convert<f4x32_t, bhalf32_t>(bhalf32_t x)
+{
+#if CK_USE_SR_F4_CONVERSION
+    return f4_convert_sr(x);
+#else
+    return f4_convert_rne(x);
+#endif
+}
+
+// convert fp4 to bf16
+template <>
+inline __host__ __device__ bhalf_t type_convert<bhalf_t, f4_t>(f4_t x)
+{
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_from_f4_scaled<bhalf_t>(x);
+#else
+    return type_convert<bhalf_t>(utils::to_float<f4_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x));
+#endif
+}
+
+template <>
+inline __host__ __device__ bhalf2_t type_convert<bhalf2_t, f4x2_t>(f4x2_t x)
+{
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_from_f4_scaled<bhalf2_t>(x);
+#else
+    bhalf2_t ret{type_convert<bhalf_t>(utils::to_float<f4_t>(
+                     NumericLimits<e8m0_bexp_t>::Binary_1(),
+                     x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{}))),
+                 type_convert<bhalf_t>(utils::to_float<f4_t>(
+                     NumericLimits<e8m0_bexp_t>::Binary_1(),
+                     x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<1>{})))};
+    return ret;
+#endif
+}
+
+template <>
+inline __host__ __device__ bhalf8_t type_convert<bhalf8_t, f4x8_t>(f4x8_t x)
+{
+#if CK_MX_FP4_CVT_FAST_PATH
+    return cast_from_f4_scaled<bhalf8_t>(x);
 #else
     union
     {
-        float32_t float_vector;
-        float float_array[32];
+        bhalf8_t vf16_8x1;
+        bhalf_t vf16[8];
+    } ret{};
+
+    ck::static_for<0, 4, 1>{}([&](auto i) {
+        ret.vf16[2 * i]     = type_convert<bhalf_t>(utils::to_float<f4_t>(
+            NumericLimits<e8m0_bexp_t>::Binary_1(),
+            x.AsType<f4x2_pk_t>()[Number<i>{}].template unpack<>(Number<0>{})));
+        ret.vf16[2 * i + 1] = type_convert<bhalf_t>(utils::to_float<f4_t>(
+            NumericLimits<e8m0_bexp_t>::Binary_1(),
+            x.AsType<f4x2_pk_t>()[Number<i>{}].template unpack<>(Number<1>{})));
+    });
+    return ret.vf16_8x1;
+#endif
+}
+
+template <>
+inline __host__ __device__ bhalf32_t type_convert<bhalf32_t, f4x32_t>(f4x32_t x)
+{
+    constexpr int N = 32 / 8;
+    union
+    {
+        f4x32_t vf4;
+        f4x8_t v8f4[N];
+    } value{x};
+    union
+    {
+        bhalf32_t vf16;
+        bhalf8_t v8f16[N];
+    } ret{};
+
+    ck::static_for<0, N, 1>{}(
+        [&](auto idx) { ret.v8f16[idx] = type_convert<bhalf8_t>(value.v8f4[idx]); });
+    return ret.vf16;
+}
+/**
+ * @brief Fallback conversion to 6-bit floating-point using round-to-nearest-even.
+ *
+ * This function provides implementation for converting to 6-bit floating-point
+ * formats when hardware intrinsics are unavailable (CK_MX_FP6_CVT_FAST_PATH = 0). It supports
+ * scalar and vector types with round-to-nearest-even (RNE) rounding and saturation for out-of-range
+ * values.
+ *
+ * @tparam T_F6 Target 6-bit floating-point type (f6_t, bf6_t, or their vector types).
+ * @tparam T    Source data type (scalar or vector).
+ * @param x     The value to convert.
+ * @param scale Scaling factor applied before conversion (default: 1.0).
+ * @return      The converted value in 6-bit floating-point format.
+ *
+ * @note Used when fast hardware conversion instructions are not available.
+ * @note Values are first converted to float, divided by scale, then saturated to f6 range.
+ */
+template <typename T_F6, typename T>
+inline __host__ __device__ T_F6 slowcast_to_f6_rne(T x, float scale = 1.0f)
+{
+    constexpr int N = scalar_type<T>::vector_size;
+    if constexpr(N == 1)
+    {
+        return utils::sat_convert_to_type<T_F6>(type_convert<float>(x) / scale);
+    }
+    else
+    {
+        using BaseT    = typename scalar_type<T>::type;
+        using BaseT_F6 = typename utils::get_f6_bit_type<T_F6>::type;
+        union
+        {
+            T vector;
+            BaseT array[N];
+        } in{x};
+
+        using array_type = NativeVectorT<uint8_t, N>;
+        array_type uint8_array;
+
+        // collect the 6-bit values into an array
+        static_for<0, N, 1>{}([&](auto i) {
+            uint8_array[static_cast<index_t>(i)] =
+                utils::sat_convert_to_type<BaseT_F6>(type_convert<float>(in.array[i]) / scale);
+        });
+        return T_F6{f6_pk_t<BaseT_F6, N>{uint8_array}};
+    }
+}
+
+/**
+ * @brief Fallback conversion to 6-bit floating-point using stochastic rounding.
+ *
+ * This function provides implementation for converting to 6-bit floating-point
+ * formats when hardware intrinsics are unavailable (CK_MX_FP6_CVT_FAST_PATH = 0). It supports
+ * scalar and vector types with stochastic rounding (SR) and saturation for out-of-range
+ * values.
+ *
+ * @tparam T_F6 Target 6-bit floating-point type (f6_t, bf6_t, or their vector types).
+ * @tparam T    Source data type (scalar or vector).
+ * @param x     The value to convert.
+ * @param scale Scaling factor applied before conversion (default: 1.0).
+ * @return      The converted value in 6-bit floating-point format.
+ *
+ * @note Used when fast hardware conversion instructions are not available.
+ * @note Values are first converted to float, divided by scale, then saturated to f6 range.
+ */
+template <typename T_F6, typename T>
+inline __host__ __device__ T_F6 slowcast_to_f6_sr(T x, float scale = 1.0f)
+{
+    using BaseT     = typename scalar_type<T>::type;
+    constexpr int N = scalar_type<T>::vector_size;
+    union
+    {
+        T vector;
+        BaseT array[N];
     } in{x};
 
-    using array_type = NativeVectorT<uint8_t, 32>;
-    array_type uint8_array;
-
-    // collect the 6-bit values into an array
-    ck::static_for<0, 32, 1>{}([&](auto i) {
-        uint8_array[static_cast<index_t>(i)] =
-            utils::sat_convert_to_type<f6_t>(in.float_array[i] / scale);
-    });
-    return f6x32_t{f6x32_pk_t{uint8_array}};
-#endif
-}
-
-/**
- * @brief Converts a float to the 6-bit floating-point type (f6_t) using stochastic rounding.
- *
- * Divides the input by the specified scale, then performs saturation and conversion
- * to f6_t based on a pseudo-randomly generated seed.
- *
- * @param x     The input float value.
- * @param scale A scaling factor applied to `x` before conversion.
- * @return      The converted f6_t value.
- */
-inline __host__ __device__ f6_t f6_convert_sr(float x, float scale = 1.0f)
-{
-#if defined(__gfx950__)
-    // use HW clock for stochastic input multiply by incremented thread id
-    uint32_t rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
-                                             (get_thread_global_1d_id() + 1));
-    union
-    {
-        float32_t float_vector;
-        float float_array[32];
-    } in{x};
-
-    union
-    {
-        f6x32_t f6_vector;
-        f6_t f6_array[32];
-    } out{};
-
-    out.f6_vector =
-        f6x32_t{__builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(in.float_vector, rng, scale)};
-
-    return out.f6_array[0];
-#else
     constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), in.array[0]);
+#else  // #ifndef CK_CODE_GEN_RTC
+    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), in.array[0]);
+#endif // #ifndef CK_CODE_GEN_RTC
+
+    if constexpr(N == 1)
+    {
+        return utils::sat_convert_to_type_sr<T_F6>(type_convert<float>(x) / scale, rng);
+    }
+    else
+    {
+        using T_F6_PK  = utils::get_f6_packed_type_t<T_F6>;
+        using BaseT_F6 = typename utils::get_f6_bit_type<T_F6>::type; // fp6_t or bf6_t
+        T_F6_PK out{};
+
+        static_for<0, N, 1>{}([&](auto i) {
+            auto f6_val = utils::sat_convert_to_type_sr<BaseT_F6>(
+                type_convert<float>(in.array[i]) / scale, rng);
+            out.pack(f6_val, static_cast<int>(i));
+        });
+
+        return T_F6{out};
+    }
+}
+
+/**
+ * @brief Fallback conversion from 6-bit floating-point to higher precision with E8M0 scaling.
+ *
+ * This function provides implementation for converting from 6-bit floating-point
+ * formats when hardware intrinsics are unavailable (CK_MX_FP6_CVT_FAST_PATH = 0).
+ *
+ * @tparam T      Target data type (scalar or vector of float, half_t, or bhalf_t).
+ * @tparam T_F6   Source 6-bit floating-point type (f6_t, bf6_t, or their vector types).
+ * @param x       The 6-bit floating-point value to convert.
+ * @param scale   E8M0 exponent scale factor applied during conversion (default: 2^0 = 1.0).
+ * @return        The converted value in the target precision format.
+ */
+template <typename T, typename T_F6>
+inline __host__ __device__ T
+slowcast_from_f6(T_F6 x, e8m0_bexp_t scale = NumericLimits<e8m0_bexp_t>::Binary_1())
+{
+    constexpr int N = scalar_type<T>::vector_size;
+    using BaseT     = typename scalar_type<T>::type;
+    if constexpr(N == 1)
+    {
+        return type_convert<BaseT>(utils::to_float<T_F6>(scale, x));
+    }
+    else
+    {
+        using T_F6_PK    = utils::get_f6_packed_type_t<T_F6>;
+        T_F6_PK x_packed = static_cast<T_F6_PK>(x);
+
+        union
+        {
+            T vector;
+            BaseT array[N];
+        } out{};
+
+        static_for<0, N, 1>{}([&](auto i) {
+            auto f6_elem = x_packed.unpack(i);
+            out.array[i] = type_convert<BaseT>(utils::to_float<decltype(f6_elem)>(scale, f6_elem));
+        });
+
+        return out.vector;
+    }
+}
+
+/**
+ * @brief Converts a scalar or vector of float/float16/bfloat16 to packed 6-bit representation.
+ *
+ * Divides each input element by the provided scale value, then performs conversion
+ * with rounding to nearest even to pack each element into 6 bits of precision.
+ *
+ * @tparam X Input type (scalar or vector of float/float16/bfloat16 with size 1, 16, or 32)
+ * @param x     Input scalar or vector value
+ * @param scale Scaling factor applied before conversion
+ * @return      Converted Y type storing the compressed 6-bit representation (bf6_t, bf6x16_t,
+ * bf6x32_t)
+ */
+template <typename X>
+inline __host__ __device__ auto f6_convert_rne(X x, float scale = 1.0f) ->
+    typename utils::f6_result_type<X>::type
+{
+    /* derived return type */
+    using Y = typename utils::f6_result_type<X>::type;
+
+    /* template constraints */
+    constexpr int N = scalar_type<X>::vector_size;
+    using BaseT     = typename scalar_type<X>::type;
+    static_assert(N == 1 || N == 16 || N == 32, "Unsupported vector size");
+    static_assert(is_same_v<BaseT, float> || is_same_v<BaseT, half_t> || is_same_v<BaseT, bhalf_t>,
+                  "Input type must be float, half_t, or bhalf_t");
+
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_to_f6_scaled<Y, false>(x, scale);
 #else
-    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
-#endif
-    return utils::sat_convert_to_type_sr<f6_t>(x / scale, rng);
+    return slowcast_to_f6_rne<Y>(x, scale);
 #endif
 }
 
 /**
- * @brief Converts a 32-element single-precision float array into a packed 6-bit representation.
+ * @brief Converts a scalar or vector of float/half_t/bhalf_t to packed 6-bit representation.
  *
- * This function divides each input float by the provided scale value, then performs conversion with
+ * Divides each input element by the provided scale value, then performs conversion
  * stochastic rounding to pack each element into 6 bits of precision.
  *
- * @param x     A vector of 32 floats stored in float32_t.
- * @param scale A scaling factor for each float before conversion.
- * @return An f6x32_t object storing the compressed 6-bit representation.
+ * @tparam X Input type (scalar or vector of float/float16/bfloat16 with size 1, 16, or 32)
+ * @param x     Input scalar or vector value
+ * @param scale Scaling factor applied before conversion
+ * @return      Converted Y type storing the compressed 6-bit representation (bf6_t, bf6x16_t,
+ * bf6x32_t)
  */
-inline __host__ __device__ f6x32_t f6_convert_sr(float32_t x, float scale = 1.0f)
+template <typename X>
+inline __host__ __device__ auto f6_convert_sr(X x, float scale = 1.0f) ->
+    typename utils::f6_result_type<X>::type
 {
-#if defined(__gfx950__)
-    // use HW clock for stochastic input multiply by incremented thread id
-    uint32_t rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
-                                             (get_thread_global_1d_id() + 1));
-    return f6x32_t{__builtin_amdgcn_cvt_scalef32_sr_pk32_fp6_f32(x, rng, scale)};
+    /* derived return type */
+    using Y = typename utils::f6_result_type<X>::type;
+
+    /* template constraints */
+    constexpr int N = scalar_type<X>::vector_size;
+    using BaseT     = typename scalar_type<X>::type;
+    static_assert(N == 1 || N == 16 || N == 32, "Unsupported vector size");
+    static_assert(is_same_v<BaseT, float> || is_same_v<BaseT, half_t> || is_same_v<BaseT, bhalf_t>,
+                  "Input type must be float, half_t, or bhalf_t");
+
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_to_f6_scaled<Y, true>(x, scale);
 #else
-    constexpr int seed = 1254739;
-    union
-    {
-        float32_t float_vector;
-        float float_array[32];
-    } float_values{x};
-#ifndef CK_CODE_GEN_RTC
-    uint32_t rng =
-        prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), float_values.float_array[0]);
-#else
-    uint32_t rng =
-        prand_generator<float, seed>(reinterpret_cast<size_t>(&x), float_values.float_array[0]);
-#endif
-
-    union
-    {
-        float32_t float_vector;
-        float float_array[32];
-    } in{x};
-
-    union
-    {
-        f6x32_t f6_vector;
-        f6_t f6_array[32];
-    } out{};
-
-    ck::static_for<0, 32, 1>{}([&](auto i) {
-        out.f6_array[i] = utils::sat_convert_to_type_sr<f6_t>(in.float_array[i] / scale, rng);
-    });
-
-    return out.f6_vector;
+    return slowcast_to_f6_sr<Y>(x, scale);
 #endif
 }
 
@@ -2002,26 +2341,11 @@ inline __host__ __device__ f6x32_pk_t type_convert<f6x32_pk_t, float32_t>(float3
 template <>
 inline __host__ __device__ f6x16_t type_convert<f6x16_t, float16_t>(float16_t x)
 {
-
-    union
-    {
-        float16_t v16x2[2];
-        float32_t v32;
-    } in{{x, x}};
-
-    union
-    {
-        f6x32_t v32;
-        f6x16_t v16x2[2];
-    } out{};
-
 #if CK_USE_SR_F6_CONVERSION
-    out.v32 = f6_convert_sr(in.v32);
+    return f6_convert_sr(x);
 #else
-    out.v32 = f6_convert_rne(in.v32);
+    return f6_convert_rne(x);
 #endif
-
-    return out.v16x2[0];
 }
 
 template <>
@@ -2042,25 +2366,10 @@ inline __host__ __device__ f6x16_pk_t type_convert<f6x16_pk_t, float16_t>(float1
 template <>
 inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
 {
-#if defined(__gfx950__)
-    union
-    {
-        f6_t f6_array[32];
-        f6x32_t f6_vector;
-    } in{{x}};
-
-    union
-    {
-        float32_t float_vector;
-        float float_array[32];
-    } out{};
-
-    out.float_vector = __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(
-        in.f6_vector.template AsType<f6x32_t::data_t>()[Number<0>{}],
-        type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
-    return out.float_array[0];
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<float>(x, 1.0f);
 #else
-    return utils::to_float<f6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
+    return slowcast_from_f6<float>(x);
 #endif
 }
 
@@ -2076,49 +2385,21 @@ inline __host__ __device__ float type_convert<float, f6_t>(f6_t x)
 template <>
 inline __host__ __device__ float32_t type_convert<float32_t, f6x32_t>(f6x32_t x)
 {
-#if defined(__gfx950__)
-    return __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(
-        x.template AsType<f6x32_t::data_t>()[Number<0>{}],
-        type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<float32_t>(x, 1.0f);
 #else
-    union
-    {
-        f6x32_t f6_vector;
-        f6_t f6_array[32];
-    } in{x};
-
-    union
-    {
-        float32_t float_vector;
-        float float_array[32];
-    } out{};
-
-    ck::static_for<0, 32, 1>{}([&](auto i) {
-        out.float_array[i] =
-            utils::to_float<f6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), in.f6_array[i]);
-    });
-
-    return out.float_vector;
+    return slowcast_from_f6<float32_t>(x);
 #endif
 }
 
 template <>
 inline __host__ __device__ float16_t type_convert<float16_t, f6x16_t>(f6x16_t x)
 {
-    union
-    {
-        f6x16_t v16x2[2];
-        f6x32_t v32;
-    } in{{x, x}};
-
-    union
-    {
-        float16_t v16x2[2];
-        float32_t v32;
-    } out{};
-
-    out.v32 = type_convert<float32_t>(in.v32);
-    return out.v16x2[0];
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<float16_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<float16_t>(x);
+#endif
 }
 
 template <>
@@ -2127,166 +2408,237 @@ inline __host__ __device__ float16_t type_convert<float16_t, f6x16_pk_t>(f6x16_p
     return type_convert<float16_t>(static_cast<f6x16_t>(x));
 }
 
-/**
- * @brief Converts a float to the 6-bit BF6 type using round-to-nearest-even.
- *
- * Divides the input by the specified scale, then saturates and converts
- * it to a 6-bit BF6 floating-point format.
- *
- * @param x     The float value to be converted.
- * @param scale The scaling factor applied to the input before conversion.
- * @return      The converted bf6_t value.
- */
-inline __host__ __device__ bf6_t bf6_convert_rne(float x, float scale = 1.0f)
+/* float16(half_t) -> fp6
+ * single value, vector 16, vector 32 conversion
+ * Uses stochastic rounding if CK_USE_SR_F6_CONVERSION is defined,
+ * otherwise uses round-to-nearest-even.*/
+template <>
+inline __host__ __device__ f6_t type_convert<f6_t, half_t>(half_t x)
 {
-#if defined(__gfx950__)
-    float16_t in1{x};
-    float16_t in2{};
-
-    union
-    {
-        bf6x32_t bf6_vector;
-        bf6_t bf6_array[32];
-    } out{};
-
-    out.bf6_vector = bf6x32_t{__builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(in1, in2, scale)};
-
-    return out.bf6_array[0];
+#if CK_USE_SR_F6_CONVERSION
+    return f6_convert_sr(x);
 #else
-    return utils::sat_convert_to_type<bf6_t>(x / scale);
+    return f6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ f6x32_t type_convert<f6x32_t, half32_t>(half32_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return f6_convert_sr(x);
+#else
+    return f6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ f6x32_pk_t type_convert<f6x32_pk_t, half32_t>(half32_t x)
+{
+    return static_cast<f6x32_pk_t>(type_convert<f6x32_t>(x));
+}
+
+template <>
+inline __host__ __device__ f6x16_t type_convert<f6x16_t, half16_t>(half16_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return f6_convert_sr(x);
+#else
+    return f6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ f6x16_pk_t type_convert<f6x16_pk_t, half16_t>(half16_t x)
+{
+    return static_cast<f6x16_pk_t>(type_convert<f6x16_t>(x));
+}
+
+/* float16(half_t) <- fp6
+ * single value, vector 16, vector 32 conversion*/
+template <>
+inline __host__ __device__ half_t type_convert<half_t, f6_t>(f6_t x)
+{
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<half_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<half_t>(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ half32_t type_convert<half32_t, f6x32_t>(f6x32_t x)
+{
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<half32_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<half32_t>(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ half16_t type_convert<half16_t, f6x16_t>(f6x16_t x)
+{
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<half16_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<half16_t>(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ half16_t type_convert<half16_t, f6x16_pk_t>(f6x16_pk_t x)
+{
+    return type_convert<half16_t>(static_cast<f6x16_t>(x));
+}
+
+/* float16(bhalf_t) -> fp6
+ * single value, vector 16, vector 32 conversion
+ * Uses stochastic rounding if CK_USE_SR_F6_CONVERSION is defined,
+ * otherwise uses round-to-nearest-even.*/
+template <>
+inline __host__ __device__ f6_t type_convert<f6_t, bhalf_t>(bhalf_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return f6_convert_sr(x);
+#else
+    return f6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ f6x32_t type_convert<f6x32_t, bhalf32_t>(bhalf32_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return f6_convert_sr(x);
+#else
+    return f6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ f6x32_pk_t type_convert<f6x32_pk_t, bhalf32_t>(bhalf32_t x)
+{
+    return static_cast<f6x32_pk_t>(type_convert<f6x32_t>(x));
+}
+
+template <>
+inline __host__ __device__ f6x16_t type_convert<f6x16_t, bhalf16_t>(bhalf16_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return f6_convert_sr(x);
+#else
+    return f6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ f6x16_pk_t type_convert<f6x16_pk_t, bhalf16_t>(bhalf16_t x)
+{
+    return static_cast<f6x16_pk_t>(type_convert<f6x16_t>(x));
+}
+
+/* float16(bhalf_t) <- fp6
+ * single value, vector 16, vector 32 conversion*/
+template <>
+inline __host__ __device__ bhalf_t type_convert<bhalf_t, f6_t>(f6_t x)
+{
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<bhalf_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<bhalf_t>(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ bhalf32_t type_convert<bhalf32_t, f6x32_t>(f6x32_t x)
+{
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<bhalf32_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<bhalf32_t>(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ bhalf16_t type_convert<bhalf16_t, f6x16_t>(f6x16_t x)
+{
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<bhalf16_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<bhalf16_t>(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ bhalf16_t type_convert<bhalf16_t, f6x16_pk_t>(f6x16_pk_t x)
+{
+    return type_convert<bhalf16_t>(static_cast<f6x16_t>(x));
+}
+
+/**
+ * @brief Converts a scalar or vector of float/float16/bfloat16 to packed 6-bit representation.
+ *
+ * Divides each input element by the provided scale value, then performs conversion
+ * with rounding to nearest even to pack each element into 6 bits of precision.
+ *
+ * @tparam X Input type (scalar or vector of float/float16/bfloat16 with size 1, 16, or 32)
+ * @param x     Input scalar or vector value
+ * @param scale Scaling factor applied before conversion
+ * @return      Converted Y type storing the compressed 6-bit representation (bf6_t, bf6x16_t,
+ * bf6x32_t)
+ */
+template <typename X>
+inline __host__ __device__ auto bf6_convert_rne(X x, float scale = 1.0f) ->
+    typename utils::bf6_result_type<X>::type
+{
+    /* derived return type */
+    using Y = typename utils::bf6_result_type<X>::type;
+
+    /* template constraints */
+    constexpr int N = scalar_type<X>::vector_size;
+    using BaseT     = typename scalar_type<X>::type;
+    static_assert(N == 1 || N == 16 || N == 32, "Unsupported vector size");
+    static_assert(is_same_v<BaseT, float> || is_same_v<BaseT, half_t> || is_same_v<BaseT, bhalf_t>,
+                  "Input type must be float, half_t, or bhalf_t");
+
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_to_f6_scaled<Y, false>(x, scale);
+#else
+    return slowcast_to_f6_rne<Y>(x, scale);
 #endif
 }
 
 /**
- * @brief Converts a vector of 32 floats to the vector of 32 6-bit BF6 types using
- * round-to-nearest-even.
+ * @brief Converts a scalar or vector of float/float16/bfloat16 to packed 6-bit representation.
  *
- * Divides the input by the specified scale, then saturates and converts
- * it to a 6-bit BF6 floating-point format.
+ * Divides each input element by the provided scale value, then performs conversion
+ * stochastic rounding to pack each element into 6 bits of precision.
  *
- * @param x     The float vector to be converted.
- * @param scale The scaling factor applied to the input before conversion.
- * @return      The converted bf6x32_t vector.
+ * @tparam X Input type (scalar or vector of float/float16/bfloat16 with size 1, 16, or 32)
+ * @param x     Input scalar or vector value
+ * @param scale Scaling factor applied before conversion
+ * @return      Converted Y type storing the compressed 6-bit representation (bf6_t, bf6x16_t,
+ * bf6x32_t)
  */
-inline __host__ __device__ bf6x32_t bf6_convert_rne(float32_t x, float scale = 1.0f)
+template <typename X>
+inline __host__ __device__ auto bf6_convert_sr(X x, float scale = 1.0f) ->
+    typename utils::bf6_result_type<X>::type
 {
-#if defined(__gfx950__)
-    float16_t* in1 = reinterpret_cast<float16_t*>(&x);
-    float16_t* in2 = reinterpret_cast<float16_t*>(&x + 16);
-    return bf6x32_t{__builtin_amdgcn_cvt_scalef32_2xpk16_bf6_f32(*in1, *in2, scale)};
+    /* derived return type */
+    using Y = typename utils::bf6_result_type<X>::type;
+
+    /* template constraint */
+    constexpr int N = scalar_type<X>::vector_size;
+    using BaseT     = typename scalar_type<X>::type;
+    static_assert(N == 1 || N == 16 || N == 32, "Unsupported vector size");
+    static_assert(is_same_v<BaseT, float> || is_same_v<BaseT, half_t> || is_same_v<BaseT, bhalf_t>,
+                  "Input type must be float, half_t, or bhalf_t");
+
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_to_f6_scaled<Y, true>(x, scale);
 #else
-    union
-    {
-        float32_t float_vector;
-        float float_array[32];
-    } in{x};
-
-    using array_type = NativeVectorT<uint8_t, 32>;
-    array_type uint8_array;
-
-    // collect the 6-bit values into an array
-    ck::static_for<0, 32, 1>{}([&](auto i) {
-        uint8_array[static_cast<index_t>(i)] =
-            utils::sat_convert_to_type<bf6_t>(in.float_array[i] / scale);
-    });
-    return bf6x32_t{bf6x32_pk_t{uint8_array}};
-#endif
-}
-
-/**
- * @brief Converts a float to the 6-bit BF6 type using stochastic rounding.
- *
- * Divides the input by the specified scale,
- * and converts the result to a 6-bit BF6 floating-point
- * format with stochastic rounding.
- *
- * @param x     The float value to be converted.
- * @param scale The scaling factor applied to the input before conversion.
- * @return      The converted bf6_t value.
- */
-inline __host__ __device__ bf6_t bf6_convert_sr(float x, float scale = 1.0f)
-{
-#if defined(__gfx950__)
-    // use HW clock for stochastic input multiply by incremented thread id
-    uint32_t rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
-                                             (get_thread_global_1d_id() + 1));
-    union
-    {
-        float32_t float_vector;
-        float float_array[32];
-    } in{x};
-
-    union
-    {
-        bf6x32_t bf6_vector;
-        bf6_t bf6_array[32];
-    } out{};
-
-    out.bf6_vector =
-        bf6x32_t{__builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(in.float_vector, rng, scale)};
-
-    return out.bf6_array[0];
-#else
-    constexpr int seed = 1254739;
-#ifndef CK_CODE_GEN_RTC
-    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), x);
-#else
-    uint32_t rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x), x);
-#endif
-    return utils::sat_convert_to_type_sr<bf6_t>(x / scale, rng);
-#endif
-}
-
-/**
- * @brief Converts a vector of 32 floats to the vector of 32 6-bit BF6 types using stochastic
- * rounding.
- *
- * Divides the input by the specified scale,
- * and converts the result to a 6-bit BF6 floating-point
- * format with stochastic rounding.
- *
- * @param x     The float vector to be converted.
- * @param scale The scaling factor applied to the input before conversion.
- * @return      The converted bf6x32_t vector.
- */
-inline __host__ __device__ bf6x32_t bf6_convert_sr(float32_t x, float scale = 1.0f)
-{
-#if defined(__gfx950__)
-    // use HW clock for stochastic input multiply by incremented thread id
-    uint32_t rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
-                                             (get_thread_global_1d_id() + 1));
-    return bf6x32_t{__builtin_amdgcn_cvt_scalef32_sr_pk32_bf6_f32(x, rng, scale)};
-#else
-    constexpr int seed = 1254739;
-    union
-    {
-        float32_t float_vector;
-        float float_array[32];
-    } float_values{x};
-#ifndef CK_CODE_GEN_RTC
-    uint32_t rng =
-        prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x), float_values.float_array[0]);
-#else
-    uint32_t rng =
-        prand_generator<float, seed>(reinterpret_cast<size_t>(&x), float_values.float_array[0]);
-#endif
-    union
-    {
-        float32_t float_vector;
-        float float_array[32];
-    } in{x};
-
-    union
-    {
-        bf6x32_t bf6_vector;
-        bf6_t bf6_array[32];
-    } out{};
-
-    ck::static_for<0, 32, 1>{}([&](auto i) {
-        out.bf6_array[i] = utils::sat_convert_to_type_sr<bf6_t>(in.float_array[i] / scale, rng);
-    });
-
-    return out.bf6_vector;
+    return slowcast_to_f6_sr<Y>(x, scale);
 #endif
 }
 
@@ -2337,26 +2689,11 @@ inline __host__ __device__ bf6x32_pk_t type_convert<bf6x32_pk_t, float32_t>(floa
 template <>
 inline __host__ __device__ bf6x16_t type_convert<bf6x16_t, float16_t>(float16_t x)
 {
-
-    union
-    {
-        float16_t v16x2[2];
-        float32_t v32;
-    } in{{x, x}};
-
-    union
-    {
-        bf6x32_t v32;
-        bf6x16_t v16x2[2];
-    } out{};
-
 #if CK_USE_SR_F6_CONVERSION
-    out.v32 = bf6_convert_sr(in.v32);
+    return bf6_convert_sr(x);
 #else
-    out.v32 = bf6_convert_rne(in.v32);
+    return bf6_convert_rne(x);
 #endif
-
-    return out.v16x2[0];
 }
 
 template <>
@@ -2377,25 +2714,10 @@ inline __host__ __device__ bf6x16_pk_t type_convert<bf6x16_pk_t, float16_t>(floa
 template <>
 inline __host__ __device__ float type_convert<float, bf6_t>(bf6_t x)
 {
-#if defined(__gfx950__)
-    union
-    {
-        bf6_t bf6_array[32];
-        bf6x32_t bf6_vector;
-    } in{{x}};
-
-    union
-    {
-        float32_t float_vector;
-        float float_array[32];
-    } out{};
-
-    out.float_vector = __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(
-        in.bf6_vector.template AsType<bf6x32_t::data_t>()[Number<0>{}],
-        type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
-    return out.float_array[0];
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<float>(x, 1.0f);
 #else
-    return utils::to_float<bf6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), x);
+    return slowcast_from_f6<float>(x);
 #endif
 }
 
@@ -2412,49 +2734,21 @@ inline __host__ __device__ float type_convert<float, bf6_t>(bf6_t x)
 template <>
 inline __host__ __device__ float32_t type_convert<float32_t, bf6x32_t>(bf6x32_t x)
 {
-#if defined(__gfx950__)
-    return __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(
-        x.template AsType<bf6x32_t::data_t>()[Number<0>{}],
-        type_convert<float>(NumericLimits<e8m0_bexp_t>::Binary_1()));
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<float32_t>(x, 1.0f);
 #else
-    union
-    {
-        bf6x32_t bf6_vector;
-        bf6_t bf6_array[32];
-    } in{x};
-
-    union
-    {
-        float32_t float_vector;
-        float float_array[32];
-    } out{};
-
-    ck::static_for<0, 32, 1>{}([&](auto i) {
-        out.float_array[i] =
-            utils::to_float<bf6_t>(NumericLimits<e8m0_bexp_t>::Binary_1(), in.bf6_array[i]);
-    });
-
-    return out.float_vector;
+    return slowcast_from_f6<float32_t>(x);
 #endif
 }
 
 template <>
 inline __host__ __device__ float16_t type_convert<float16_t, bf6x16_t>(bf6x16_t x)
 {
-    union
-    {
-        bf6x16_t v16x2[2];
-        bf6x32_t v32;
-    } in{{x, x}};
-
-    union
-    {
-        float16_t v16x2[2];
-        float32_t v32;
-    } out{};
-
-    out.v32 = type_convert<float32_t>(in.v32);
-    return out.v16x2[0];
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<float16_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<float16_t>(x);
+#endif
 }
 
 template <>
@@ -2463,7 +2757,175 @@ inline __host__ __device__ float16_t type_convert<float16_t, bf6x16_pk_t>(bf6x16
     return type_convert<float16_t>(static_cast<bf6x16_t>(x));
 }
 
+/* float16(half_t) -> bf6
+ * single value, vector 16, vector 32 conversion
+ * Uses stochastic rounding if CK_USE_SR_F6_CONVERSION is defined,
+ * otherwise uses round-to-nearest-even.*/
+template <>
+inline __host__ __device__ bf6_t type_convert<bf6_t, half_t>(half_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return bf6_convert_sr(x);
+#else
+    return bf6_convert_rne(x);
 #endif
+}
+
+template <>
+inline __host__ __device__ bf6x32_t type_convert<bf6x32_t, half32_t>(half32_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return bf6_convert_sr(x);
+#else
+    return bf6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ bf6x32_pk_t type_convert<bf6x32_pk_t, half32_t>(half32_t x)
+{
+    return static_cast<bf6x32_pk_t>(type_convert<bf6x32_t>(x));
+}
+
+template <>
+inline __host__ __device__ bf6x16_t type_convert<bf6x16_t, half16_t>(half16_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return bf6_convert_sr(x);
+#else
+    return bf6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ bf6x16_pk_t type_convert<bf6x16_pk_t, half16_t>(half16_t x)
+{
+    return static_cast<bf6x16_pk_t>(type_convert<bf6x16_t>(x));
+}
+
+/* float16(half_t) <- bf6
+ * single value, vector 16, vector 32 conversion */
+template <>
+inline __host__ __device__ half_t type_convert<half_t, bf6_t>(bf6_t x)
+{
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<half_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<half_t>(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ half32_t type_convert<half32_t, bf6x32_t>(bf6x32_t x)
+{
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<half32_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<half32_t>(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ half16_t type_convert<half16_t, bf6x16_t>(bf6x16_t x)
+{
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<half16_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<half16_t>(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ half16_t type_convert<half16_t, bf6x16_pk_t>(bf6x16_pk_t x)
+{
+    return type_convert<half16_t>(static_cast<bf6x16_t>(x));
+}
+
+/* float16(bhalf_t) -> bf6
+ * single value, vector 16, vector 32 conversion
+ * Uses stochastic rounding if CK_USE_SR_F6_CONVERSION is defined,
+ * otherwise uses round-to-nearest-even.*/
+template <>
+inline __host__ __device__ bf6_t type_convert<bf6_t, bhalf_t>(bhalf_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return bf6_convert_sr(x);
+#else
+    return bf6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ bf6x32_t type_convert<bf6x32_t, bhalf32_t>(bhalf32_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return bf6_convert_sr(x);
+#else
+    return bf6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ bf6x32_pk_t type_convert<bf6x32_pk_t, bhalf32_t>(bhalf32_t x)
+{
+    return static_cast<bf6x32_pk_t>(type_convert<bf6x32_t>(x));
+}
+
+template <>
+inline __host__ __device__ bf6x16_t type_convert<bf6x16_t, bhalf16_t>(bhalf16_t x)
+{
+#if CK_USE_SR_F6_CONVERSION
+    return bf6_convert_sr(x);
+#else
+    return bf6_convert_rne(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ bf6x16_pk_t type_convert<bf6x16_pk_t, bhalf16_t>(bhalf16_t x)
+{
+    return static_cast<bf6x16_pk_t>(type_convert<bf6x16_t>(x));
+}
+
+/* float16(bhalf_t) <- bf6
+ * single value, vector 16, vector 32 conversion */
+template <>
+inline __host__ __device__ bhalf_t type_convert<bhalf_t, bf6_t>(bf6_t x)
+{
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<bhalf_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<bhalf_t>(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ bhalf32_t type_convert<bhalf32_t, bf6x32_t>(bf6x32_t x)
+{
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<bhalf32_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<bhalf32_t>(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ bhalf16_t type_convert<bhalf16_t, bf6x16_t>(bf6x16_t x)
+{
+#if CK_MX_FP6_CVT_FAST_PATH
+    return cast_from_f6_scaled<bhalf16_t>(x, 1.0f);
+#else
+    return slowcast_from_f6<bhalf16_t>(x);
+#endif
+}
+
+template <>
+inline __host__ __device__ bhalf16_t type_convert<bhalf16_t, bf6x16_pk_t>(bf6x16_pk_t x)
+{
+    return type_convert<bhalf16_t>(static_cast<bf6x16_t>(x));
+}
+#endif
+
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 template <typename Y, typename X, size_t NumElems>
 inline __host__ __device__ void array_convert(std::array<Y, NumElems>& y,

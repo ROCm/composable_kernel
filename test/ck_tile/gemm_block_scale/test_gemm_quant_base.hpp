@@ -17,6 +17,20 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm_quant.hpp"
 
+template <bool Is8Bit, ck_tile::index_t M_Warp_Tile = 16>
+constexpr ck_tile::index_t get_k_warp_tile()
+{
+#if CK_TILE_USE_WMMA
+#if defined(CK_USE_GFX1250)
+    return Is8Bit ? 64 : 32;
+#else
+    return 16;
+#endif
+#else
+    return Is8Bit ? 64 : 32;
+#endif
+}
+
 // Forward declarations for quant type-specific implementations
 template <ck_tile::QuantType QT>
 struct QuantTypeTraits;
@@ -74,12 +88,21 @@ class TestCkTileGemmQuantBase : public ::testing::Test
 
     static constexpr ck_tile::index_t M_Warp_Tile = GemmConfig::M_Warp_Tile;
     static constexpr ck_tile::index_t N_Warp_Tile = GemmConfig::N_Warp_Tile;
+
+    // K_Warp_Tile is variant with respect to the compute data type and M warp tile size.
+#if defined(CK_USE_GFX1250)
+    static constexpr bool is_8bit = !(std::is_same_v<ComputeDataType, ck_tile::fp16_t> ||
+                                      std::is_same_v<ComputeDataType, ck_tile::bf16_t>);
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<is_8bit, M_Warp_Tile>();
+#else
     static constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
-    static constexpr bool APreshuffleQuant        = GemmConfig::APreshuffleQuant;
-    static constexpr bool BPreshuffleQuant        = GemmConfig::BPreshuffleQuant;
-    static constexpr bool PreshuffleB             = GemmConfig::PreshuffleB;
-    static constexpr bool TiledMMAPermuteN        = GemmConfig::TiledMMAPermuteN;
-    static constexpr bool DoubleSmemBuffer        = GemmConfig::DoubleSmemBuffer;
+#endif
+
+    static constexpr bool APreshuffleQuant = GemmConfig::APreshuffleQuant;
+    static constexpr bool BPreshuffleQuant = GemmConfig::BPreshuffleQuant;
+    static constexpr bool PreshuffleB      = GemmConfig::PreshuffleB;
+    static constexpr bool TiledMMAPermuteN = GemmConfig::TiledMMAPermuteN;
+    static constexpr bool DoubleSmemBuffer = GemmConfig::DoubleSmemBuffer;
 
     static constexpr bool kPadM = GemmConfig::kPadM;
     static constexpr bool kPadN = GemmConfig::kPadN;
@@ -95,13 +118,12 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     {
         // WP pipeline requires per-thread tile size aligned to Problem::VectorLoadSize.
         // static_assert((WG::kM * WG::kK * sizeof(ADataType) * MIterPerWarp / WaveSize) %
-        // VectorLoadSize == 0). gfx9 cards match the requirements but it fails on gfx12. so we only
-        // need to check the limitation on RDNA cards, i.e. assume wave size is 32.
-        constexpr ck_tile::index_t WaveSize     = 32;
-        constexpr ck_tile::index_t MIterPerWarp = M_Tile / (M_Warp * M_Warp_Tile);
-        constexpr bool SupportVectorSize16 =
+        // VectorLoadSize == 0).
+        const ck_tile::index_t WaveSize     = ck_tile::get_warp_size();
+        const ck_tile::index_t MIterPerWarp = M_Tile / (M_Warp * M_Warp_Tile);
+        const bool SupportVectorSize16 =
             (M_Warp_Tile * K_Warp_Tile * sizeof(ADataType) * MIterPerWarp / WaveSize) % 16 == 0;
-        constexpr int VectorSize = PreshuffleB ? (SupportVectorSize16 ? 16 : 8) : 16;
+        const int VectorSize = PreshuffleB ? (SupportVectorSize16 ? 16 : 8) : 16;
         using CodegenGemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,

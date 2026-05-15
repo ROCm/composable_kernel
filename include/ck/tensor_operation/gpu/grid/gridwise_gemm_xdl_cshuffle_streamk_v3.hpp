@@ -247,7 +247,11 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
           lcm_AK1_BK1 <= 4) ||
          (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8) ||
          ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
+#if defined(__gfx125__)
+          lcm_AK1_BK1 < 128))
+#else
           lcm_AK1_BK1 < 32))
+#endif
             ? true
             : false;
     static constexpr auto is_scale_mfma = false;
@@ -1476,7 +1480,8 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                         }
                     }
                 } // shuffle c and write-out end
-
+                // make sure next loop LDS is ready for use
+                block_sync_lds();
                 // exit condition
                 iter_end -= current_iter_length;
                 if(iter_end <= iter_start)
@@ -1485,8 +1490,6 @@ struct GridwiseGemm_xdl_cshuffle_streamk_v3
                 {
                     block_acc_offset -= MPerBlock * NPerBlock;
                 }
-                // make sure next loop LDS is ready for use
-                block_sync_lds();
             } // while loop
 
         } // for loop

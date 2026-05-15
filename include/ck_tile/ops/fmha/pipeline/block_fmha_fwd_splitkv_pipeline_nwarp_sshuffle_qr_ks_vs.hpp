@@ -293,7 +293,16 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                 {
                     auto lse_acc =
                         make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
-                    set_tile(lse_acc, SMPLComputeDataType{sink_v * scale_s});
+
+                    if(__builtin_isinf_sign(sink_v) >= 0 && i_split == 0)
+                    {
+                        set_tile(lse_acc, SMPLComputeDataType{sink_v * scale_s});
+                    }
+                    else
+                    {
+                        set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
+                    }
+
                     if(get_thread_local_1d_id() < kM0)
                     {
                         store_tile(lse_acc_dram_window_tmp,

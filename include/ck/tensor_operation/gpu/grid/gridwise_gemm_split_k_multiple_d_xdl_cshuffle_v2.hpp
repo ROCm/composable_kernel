@@ -610,7 +610,11 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
               lcm_AK1_BK1 <= 4) ||
              (is_same<ComputeType, int8_t>::value && lcm_AK1_BK1 <= 8) ||
              ((is_same<ComputeType, f8_t>::value || is_same<ComputeType, bf8_t>::value) &&
+#if defined(__gfx125__)
+              lcm_AK1_BK1 < 128))
+#else
               lcm_AK1_BK1 < 32))
+#endif
                 ? true
                 : false;
         constexpr auto is_scale_mfma = false;
@@ -673,7 +677,7 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
                                        m_tid * mThreadSize,
                                        block_work_idx[I2],
                                        n_tid * nThreadSize),
-                      ck::tensor_operation::element_wise::PassThrough{}};
+                      ck::tensor_operation::element_wise::PassThrough {}};
 
             c_thread_copy.Run(c_thread_desc_mblock_mperblock_nblock_nperblock,
                               make_tuple(I0, I0, I0, I0),

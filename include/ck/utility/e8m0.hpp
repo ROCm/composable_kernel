@@ -5,6 +5,7 @@
 
 #ifndef CK_CODE_GEN_RTC
 #include "ck/utility/type.hpp"
+#include "ck/utility/scale_utils.hpp"
 
 namespace ck {
 
@@ -33,6 +34,10 @@ struct e8m0_bexp_t
     __host__ __device__ constexpr e8m0_bexp_t() : data{type{}} {}
     __host__ __device__ constexpr e8m0_bexp_t(type init) : data{init} {}
     __host__ __device__ constexpr e8m0_bexp_t(int init) : data{static_cast<type>(init & nan_mask)}
+    {
+    }
+    __host__ __device__ constexpr e8m0_bexp_t(uint32_t init)
+        : data{static_cast<type>(init & nan_mask)}
     {
     }
     __host__ __device__ explicit constexpr e8m0_bexp_t(float scale)
@@ -66,9 +71,6 @@ struct e8m0_bexp_t
 };
 
 namespace utils {
-
-template <typename T>
-__host__ __device__ inline constexpr int32_t get_exponent_value(T x);
 
 template <>
 __host__ __device__ inline constexpr int32_t get_exponent_value<e8m0_bexp_t>(e8m0_bexp_t x)

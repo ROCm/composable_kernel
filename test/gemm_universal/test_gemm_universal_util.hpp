@@ -91,6 +91,7 @@ class TestGemmUniversal : public testing::Test
                                                                        kbatch,
                                                                        n_warmup,
                                                                        n_iter,
+                                                                       0,
                                                                        instance_index);
         EXPECT_TRUE(pass);
     }

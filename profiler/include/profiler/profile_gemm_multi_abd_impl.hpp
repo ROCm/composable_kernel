@@ -44,7 +44,8 @@ bool profile_gemm_multi_abd_impl(int do_verification,
                                  int StrideA,
                                  int StrideB,
                                  int StrideD,
-                                 int StrideE)
+                                 int StrideE,
+                                 int instance_index = -1)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -237,8 +238,14 @@ bool profile_gemm_multi_abd_impl(int do_verification,
     bool pass = true;
 
     // profile device operation instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t j = 0; j < op_ptrs.size(); j++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(j)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[j];
         std::array<const void*, NumATensor> as_pointer;
         std::array<ck::index_t, NumATensor> as_stride;
         static_for<0, NumATensor, 1>{}([&](auto i) {

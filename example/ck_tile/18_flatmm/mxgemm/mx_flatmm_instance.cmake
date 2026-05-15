@@ -13,6 +13,10 @@ function(mx_flatmm_instance_generate FILE_LIST)
         list(APPEND MXFLATMM_ARCH MXFlatmm_GFX950_)
     endif()
 
+    if (GPU_TARGETS MATCHES "gfx125")
+        list(APPEND MXFLATMM_ARCH MXFlatmm_GFX1250_ MXFlatmmTDM_GFX1250_)
+    endif()
+
     # foreach(PERSISTENT false true)
     # TODO: Persistent kernels are disabled due to compilation failures with some LLVM versions.  
     foreach(PERSISTENT false)

@@ -193,10 +193,29 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
 {
     using DeviceOp = DeviceBatchedGemmGemm_Xdl_CShuffle;
 
-    static constexpr auto MXdlPerWave64 =
-        GetXdlPerWave2<BlockSize, NPerBlock, MPerBlock, NPerXDL, MPerXDL, NXdlPerWave, true>();
-    static constexpr auto MXdlPerWave32 =
-        GetXdlPerWave2<BlockSize, NPerBlock, MPerBlock, NPerXDL, MPerXDL, NXdlPerWave, false>();
+    // GEMM0 NXdlPerWave has limiations on GEMM_GEMM kernel, so we have swap M/N to update
+    // MXdlPerWave. the M/N order in WarpTileConfig64/32 is also permuted.
+    static constexpr auto WarpTileConfig64 = GetWarpTileConfig<BlockSize,
+                                                               NPerBlock,
+                                                               MPerBlock,
+                                                               NPerXDL,
+                                                               MPerXDL,
+                                                               NXdlPerWave,
+                                                               1,
+                                                               1,
+                                                               true>();
+    static constexpr auto WarpTileConfig32 = GetWarpTileConfig<BlockSize,
+                                                               NPerBlock,
+                                                               MPerBlock,
+                                                               NPerXDL,
+                                                               MPerXDL,
+                                                               NXdlPerWave,
+                                                               1,
+                                                               1,
+                                                               false>();
+    static constexpr auto MXdlPerWave64    = WarpTileConfig64.At(3);
+    static constexpr auto MXdlPerWave32    = WarpTileConfig32.At(3);
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -358,7 +377,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
     using CGridDesc_M_N        = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    template <index_t MXdlPerWave_>
+    template <typename WarpTileConfig>
     using GridwiseGemmBase = GridwiseBatchedGemmGemm_Xdl_CShuffle<
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
@@ -384,11 +403,11 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
         AK1,
         BK1,
         B1K1,
-        MPerXDL,
-        NPerXDL,
-        MXdlPerWave_,
-        NXdlPerWave,
-        Gemm1NXdlPerWave,
+        WarpTileConfig::At(1),
+        WarpTileConfig::At(0),
+        WarpTileConfig::At(3),
+        WarpTileConfig::At(2),
+        Gemm1NXdlPerWave * NPerXDL / WarpTileConfig::At(0),
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -414,12 +433,13 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
         false,
         B1BlockLdsExtraN,
         CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
+        math::min(CShuffleNXdlPerWavePerShuffle* NPerXDL / WarpTileConfig::At(0),
+                  Gemm1NXdlPerWave* NPerXDL / WarpTileConfig::At(0)),
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
-    using GridwiseGemm64 = GridwiseGemmBase<math::max(MXdlPerWave64, 1)>;
-    using GridwiseGemm32 = GridwiseGemmBase<MXdlPerWave32>;
+    using GridwiseGemm64 = GridwiseGemmBase<decltype(WarpTileConfig64)>;
+    using GridwiseGemm32 = GridwiseGemmBase<decltype(WarpTileConfig32)>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -609,7 +629,12 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<ADataType,
+                                      BDataType,
+                                      MPerXDL,
+                                      NPerXDL,
+                                      WarpTileConfig32.At(1),
+                                      WarpTileConfig32.At(0)>())
         {
             return false;
         }

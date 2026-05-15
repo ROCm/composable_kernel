@@ -15,12 +15,36 @@ list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS
     -enable-noalias-to-md-conversion=0
 )
 
+# Helper function to add a generated test
+function(add_wp_test TEST_CLASS_NAME KERNEL_TYPES TEST_SUFFIX)
+    set(GENERATED_FILE "${CMAKE_CURRENT_BINARY_DIR}/test_gemm_pipeline_${TEST_SUFFIX}.cpp")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/test_gemm_pipeline_wp.cpp.in"
+        "${GENERATED_FILE}"
+        @ONLY
+    )
+    add_gtest_executable(test_ck_tile_gemm_pipeline_${TEST_SUFFIX} ${GENERATED_FILE})
+    target_compile_options(test_ck_tile_gemm_pipeline_${TEST_SUFFIX} PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+    target_include_directories(test_ck_tile_gemm_pipeline_${TEST_SUFFIX} PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR})
+endfunction()
+
+# TestCkTileGemmPipelineWeightPreshuffle: gfx94/gfx95/gfx11/gfx12
 if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx11|gfx12")
     if(NOT WIN32) #TODO: Figure out why this fails
-        add_gtest_executable(test_ck_tile_gemm_pipeline_wp test_gemm_pipeline_wp.cpp)
-        target_compile_options(test_ck_tile_gemm_pipeline_wp PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+        add_wp_test(
+            TestCkTileGemmPipelineWeightPreshuffle
+            KernelTypesWeightPreshuffle
+            wp
+        )
     endif()
-else()
-    message(DEBUG "Skipping ck_tile_gemm tests for current target")
 endif()
 
+# TestCkTileGemmPipelineWeightPreshuffleTDM: gfx125 only
+if(GPU_TARGETS MATCHES "gfx125")
+    add_wp_test(
+        TestCkTileGemmPipelineWeightPreshuffleTDM
+        KernelTypesWeightPreshuffleTDM
+        wp_tdm
+    )
+endif()

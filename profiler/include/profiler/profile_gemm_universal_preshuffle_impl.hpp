@@ -30,7 +30,7 @@ void preShuffleBuffer(const T* src, T* dst, int N, int K, int NXdl)
 {
     int KPack = 16;
     int NLane = NXdl;
-    int KLane = 64 / NLane;
+    int KLane = get_warp_size() / NLane;
     int K0    = K / (KLane * KPack);
     // K -> K0 KLane KPack
     // N -> N0 NLane
@@ -74,7 +74,8 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
                                             int KBatch,
                                             int n_warmup,
                                             int n_iter,
-                                            uint64_t rotating = 0)
+                                            uint64_t rotating  = 0,
+                                            int instance_index = -1)
 {
     bool pass = true;
 
@@ -207,8 +208,15 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
     float best_kbatch     = 0;
 
     // profile device GEMM instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t op_idx = 0; op_idx < op_ptrs.size(); op_idx++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(op_idx)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[op_idx];
+
         const int KPerBlock = op_ptr->GetKPerBlock();
 
         if(op_ptr->GetPermuteB())

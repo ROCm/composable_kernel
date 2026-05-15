@@ -26,6 +26,7 @@ TYPED_TEST(TestCkTileBatchedGemm, Basic)
     std::vector<GemmParams> gemmParams{{256, 256, 256, 1},
                                        {256, 256, 256, 2},
                                        {256, 256, 512, 2},
+                                       {256, 256, 128, 2},
                                        {256, 256, 64, 2},
                                        {256, 256, 64, 3},
                                        {256, 256, 64, 4},

@@ -18,14 +18,15 @@ namespace ck_tile {
 template <typename Problem, typename PipelinePolicy = GemmWPQuantPipelineAgBgCrPolicy>
 struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV2<Problem>
 {
-    using Base            = WeightPreshufflePipelineAGmemBGmemCRegV2<Problem>;
-    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
-    using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
-    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
-    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-    using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
-    using BQuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
+    using Base             = WeightPreshufflePipelineAGmemBGmemCRegV2<Problem>;
+    using ADataType        = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType        = remove_cvref_t<typename Problem::BDataType>;
+    using BQDataType       = remove_cvref_t<typename Problem::BQDataType>;
+    using CDataType        = remove_cvref_t<typename Problem::CDataType>;
+    using AComputeDataType = remove_cvref_t<typename Problem::AComputeDataType>;
+    using BComputeDataType = remove_cvref_t<typename Problem::BComputeDataType>;
+    using BlockGemmShape   = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using BQuantGroupSize  = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
     using ALayout  = remove_cvref_t<typename Problem::ALayout>;
     using BLayout  = remove_cvref_t<typename Problem::BLayout>;
@@ -68,6 +69,9 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
     using Base::flatNPerWarp;
 
     using Base::m_preload;
+
+    using Base::WarpTileK;
+    using Base::WarpTileM;
 
     static constexpr bool BPreshuffleQuant  = Problem::Traits::BPreshuffleQuant;
     static constexpr index_t VectorLoadSize = Problem::VectorLoadSize;
@@ -252,18 +256,41 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                              {0, 0},
                              PipelinePolicy::template MakeADramTileDistribution<Problem>());
 
-        // ping-pong window for A LDS
+// ping-pong window for A LDS
+#ifdef __gfx125__
+        constexpr index_t MWarpBlock = WarpTileM / 16;
+
+        constexpr index_t KLane      = get_warp_size() / 16;
+        constexpr index_t KPerThread = WarpTileK / KLane;
+
+        constexpr index_t PackedSize    = numeric_traits<typename Problem::ADataType>::PackedSize;
+        constexpr index_t MaxVecSize    = 16 / sizeof(ADataType) * PackedSize;
+        constexpr index_t KItemsPerLoad = min(MaxVecSize, KPerThread);
+        constexpr index_t KFragment     = KPerThread / KItemsPerLoad;
+        constexpr auto a_block_inner_dstr_encoding = tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<MWarpBlock, 16>, sequence<KFragment, KLane, KItemsPerLoad>>,
+            tuple<sequence<2, 1>>,
+            tuple<sequence<1, 1>>,
+            sequence<1, 2, 2>,
+            sequence<0, 0, 2>>{};
+
+        auto a_warp_tile_distribution = make_static_tile_distribution(a_block_inner_dstr_encoding);
+#else
+        auto a_warp_tile_distribution =
+            make_static_tile_distribution(typename WG::AWarpDstrEncoding{});
+#endif
         auto a_warp_window_ping_tmp =
             make_tile_window(a_lds_block_ping,
                              make_tuple(number<WG::kM>{}, number<WG::kK>{}),
                              {iMWarp * WG::kM, 0},
-                             make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
+                             a_warp_tile_distribution);
 
         auto a_warp_window_pong_tmp =
             make_tile_window(a_lds_block_pong,
                              make_tuple(number<WG::kM>{}, number<WG::kK>{}),
                              {iMWarp * WG::kM, 0},
-                             make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
+                             a_warp_tile_distribution);
 
         statically_indexed_array<
             statically_indexed_array<decltype(a_warp_window_ping_tmp), KIterPerWarp>,

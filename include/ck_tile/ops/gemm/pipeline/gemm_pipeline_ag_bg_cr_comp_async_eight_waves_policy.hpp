@@ -22,15 +22,19 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     static constexpr auto I2             = number<2>{};
     static constexpr auto WGAccessDouble = WGAttrNumAccessEnum::Double;
 
-    using ALayout         = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout         = remove_cvref_t<typename Problem::BLayout>;
-    using ADataType       = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType       = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType       = remove_cvref_t<typename Problem::CDataType>;
-    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
+    using ALayout          = remove_cvref_t<typename Problem::ALayout>;
+    using BLayout          = remove_cvref_t<typename Problem::BLayout>;
+    using ADataType        = remove_cvref_t<typename Problem::ADataType>;
+    using BDataType        = remove_cvref_t<typename Problem::BDataType>;
+    using CDataType        = remove_cvref_t<typename Problem::CDataType>;
+    using AComputeDataType = remove_cvref_t<typename Problem::AComputeDataType>;
+    using BComputeDataType = remove_cvref_t<typename Problem::BComputeDataType>;
     static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>, "Wrong!");
     static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>, "Wrong!");
-    static_assert(std::is_same_v<ComputeDataType, fp8_t> || std::is_same_v<ComputeDataType, bf8_t>);
+    static_assert(std::is_same_v<AComputeDataType, fp8_t> ||
+                  std::is_same_v<AComputeDataType, bf8_t>);
+    static_assert(std::is_same_v<BComputeDataType, fp8_t> ||
+                  std::is_same_v<BComputeDataType, bf8_t>);
     static_assert(std::is_same_v<CDataType, float>);
 
     using BlockGemmShape = typename Problem::BlockGemmShape;
@@ -382,8 +386,11 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
 } // namespace detail
 
 struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
+    : public UniversalGemmBasePolicy<GemmPipelineAgBgCrCompAsyncEightWavesPolicy>
 {
-
+    using Base = UniversalGemmBasePolicy<GemmPipelineAgBgCrCompAsyncEightWavesPolicy>;
+    using Base::is_a_load_tr;
+    using Base::is_b_load_tr;
 #define FORWARD_METHOD_(method)                                                      \
     template <typename Problem, typename... Args>                                    \
     CK_TILE_HOST_DEVICE static constexpr auto method(Args&&... args)                 \

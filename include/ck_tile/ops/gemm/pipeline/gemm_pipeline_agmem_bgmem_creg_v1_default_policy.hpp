@@ -405,8 +405,8 @@ struct GemmPipelineAGmemBGmemCRegV1DefaultPolicy
         using AccDataType = float;
         using BlockWarps  = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile    = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm    = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                               typename Problem::ComputeDataType,
+        using WarpGemm    = WarpGemmDispatcher<typename Problem::AComputeDataType,
+                                               typename Problem::BComputeDataType,
                                                AccDataType,
                                                WarpTile::at(I0),
                                                WarpTile::at(I1),

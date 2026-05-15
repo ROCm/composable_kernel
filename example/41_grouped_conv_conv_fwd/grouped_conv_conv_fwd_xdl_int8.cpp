@@ -106,7 +106,7 @@ using DeviceBatchedGemmGemmInstance =
         1,              // CShuffleMXdlPerWavePerShuffle
         2,              // CShuffleNXdlPerWavePerShuffle
         S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-        8>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
+        4>;             // CShuffleBlockTransferScalarPerVector_NPerBlock
 
 #include "run_grouped_conv_conv_fwd_example.inc"
 

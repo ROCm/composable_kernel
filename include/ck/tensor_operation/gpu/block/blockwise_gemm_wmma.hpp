@@ -55,13 +55,12 @@ template <index_t BlockSize,
  */
 struct BlockwiseGemmWMMA
 {
-    static constexpr auto I0    = Number<0>{};
-    static constexpr auto I1    = Number<1>{};
-    static constexpr auto I2    = Number<2>{};
-    static constexpr auto I3    = Number<3>{};
-    static constexpr auto I4    = Number<4>{};
-    static constexpr auto I5    = Number<5>{};
-    static constexpr auto WmmaK = Number<16>{};
+    static constexpr auto I0 = Number<0>{};
+    static constexpr auto I1 = Number<1>{};
+    static constexpr auto I2 = Number<2>{};
+    static constexpr auto I3 = Number<3>{};
+    static constexpr auto I4 = Number<4>{};
+    static constexpr auto I5 = Number<5>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -79,6 +78,8 @@ struct BlockwiseGemmWMMA
 
     static constexpr auto wmma_gemm =
         WmmaGemm<FloatA, FloatB, FloatAcc, MPerWMMA, NPerWMMA, KPack, TransposeC>{};
+
+    static constexpr auto WmmaK = Number<wmma_gemm.wmma_instr.k_per_wmma>{};
 
     static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerWMMA);
     static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerWMMA);

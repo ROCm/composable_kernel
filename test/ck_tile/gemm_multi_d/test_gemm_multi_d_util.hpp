@@ -84,7 +84,21 @@ class TestCkTileGemmMultiD : public ::testing::Test
     using UseCshuffleEpilog = std::tuple_element_t<12, Tuple>;
     using DsLayout          = ck_tile::tuple<D0Layout, D1Layout>;
     using DsDataType        = ck_tile::tuple<D0DataType, D1DataType>;
+    using ComputeType =
+        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
 
+#if CK_TILE_USE_WMMA
+    struct GemmWarpConfig_Wmma
+    {
+        static constexpr ck_tile::index_t M_Tile      = 128;
+        static constexpr ck_tile::index_t N_Tile      = 128;
+        static constexpr ck_tile::index_t K_Tile      = 64;
+        static constexpr ck_tile::index_t M_Warp_Tile = 16;
+        static constexpr ck_tile::index_t N_Warp_Tile = 16;
+        static constexpr ck_tile::index_t K_Warp_Tile =
+            ck_tile::get_k_warp_tile<ComputeType, M_Warp_Tile>();
+    };
+#else
     struct GemmWarpConfig_Mfma
     {
         static constexpr ck_tile::index_t M_Tile      = 256;
@@ -94,16 +108,7 @@ class TestCkTileGemmMultiD : public ::testing::Test
         static constexpr ck_tile::index_t N_Warp_Tile = 32;
         static constexpr ck_tile::index_t K_Warp_Tile = 16;
     };
-
-    struct GemmWarpConfig_Wmma
-    {
-        static constexpr ck_tile::index_t M_Tile      = 128;
-        static constexpr ck_tile::index_t N_Tile      = 128;
-        static constexpr ck_tile::index_t K_Tile      = 64;
-        static constexpr ck_tile::index_t M_Warp_Tile = 16;
-        static constexpr ck_tile::index_t N_Warp_Tile = 16;
-        static constexpr ck_tile::index_t K_Warp_Tile = 16;
-    };
+#endif
 
     template <typename GemmWarpConfig,
               typename ADataType,

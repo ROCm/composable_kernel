@@ -368,10 +368,7 @@ struct BatchedContractionKernel
 
     /// @brief Returns the GPU block size for kernel launch.
     /// @return 3D block dimensions for GPU kernel execution
-    CK_TILE_HOST static constexpr auto GetBlockSize()
-    {
-        return dim3(UniversalGemmKernel::kBlockSize);
-    }
+    CK_TILE_HOST static constexpr auto GetBlockSize() { return UniversalGemmKernel::BlockSize(); }
 
     CK_TILE_HOST static constexpr auto GridSize(const KernelArgs& kargs)
     {

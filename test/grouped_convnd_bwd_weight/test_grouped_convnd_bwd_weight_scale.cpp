@@ -22,7 +22,8 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_weight.hpp"
-
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 template <typename Tuple>
 class TestGroupedConvndBwdWeight : public ::testing::Test
 {
@@ -155,11 +156,16 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         // get device op instances
         const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
             DeviceOp>::GetInstances();
-
+        std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
         int num_kernel = 0;
 
         for(std::size_t i = 0; i < op_ptrs.size(); ++i)
         {
+            if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
             auto& op_ptr      = op_ptrs[i];
             auto argument_ptr = op_ptr->MakeArgumentPointer(
                 static_cast<InDataType*>(in_device_buf.GetDeviceBuffer()),
@@ -253,9 +259,14 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
         for(auto split_k : split_ks)
         {
-            for(auto& param : conv_params)
+            for(size_t i = 0; i < conv_params.size(); i++)
             {
-                pass = pass && PerformConvWeightScale(param, split_k);
+                if((param_mask & (1 << i)) == 0)
+                {
+                    continue;
+                }
+                auto& param = conv_params[i];
+                pass        = pass && PerformConvWeightScale(param, split_k);
             }
         }
         EXPECT_TRUE(pass);
@@ -293,4 +304,21 @@ TYPED_TEST(TestGroupedConvndBwdWeight3d, Test3D)
     this->conv_params.push_back(
         {3, 1, 1, 4, 4, {3, 3, 3}, {14, 16, 16}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->Run();
+}
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }

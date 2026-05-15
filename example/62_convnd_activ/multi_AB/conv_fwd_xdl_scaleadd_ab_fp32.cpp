@@ -26,9 +26,9 @@ using DeviceGroupedConvNDActivInstance = DeviceGroupedConvNDMultiABFwdInstance<D
 int main(int argc, char* argv[])
 {
 
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
     {
-        std::cout << "FP32 are not supported on gfx11 and gfx12" << std::endl;
+        std::cout << "FP32 are not supported on gfx11 and gfx120x" << std::endl;
         return 0;
     }
 

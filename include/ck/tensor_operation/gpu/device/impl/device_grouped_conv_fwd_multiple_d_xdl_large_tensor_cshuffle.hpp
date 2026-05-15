@@ -878,6 +878,14 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
         {
             return false;
         }
+        if(!is_xdl_wmma_k_supported<AComputeDataType, KPerBlock, AK1>())
+        {
+            return false;
+        }
+        if(!is_xdl_wmma_k_supported<BComputeDataType, KPerBlock, BK1>())
+        {
+            return false;
+        }
         if constexpr(is_same_v<AComputeDataType, ck::tf32_t> ||
                      is_same_v<BComputeDataType, ck::tf32_t>)
         {

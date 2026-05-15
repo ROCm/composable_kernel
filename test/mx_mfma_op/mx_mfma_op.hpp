@@ -361,43 +361,45 @@ __device__ AFragT load_mx_A_row_major(AType const* input_ptr,
                                       ScaleFragT& fragX)
 {
     // clang-format off
-    // Register Mapping for 16x128:                                                                              ||    Register Mapping for 32x64:
-    // Size              |   BLOCK_M  |   BLOCK_M   |          |   BLOCK_M  |   BLOCK_M   |          |           ||    Size              |   BLOCK_M  |   BLOCK_M   |        |          |
-    // M                 | 0  ...  15 |  0  ...  15 |          | 0  ...  15 |  0  ...  15 |          | Vector    ||    M                 | 0  ...  31 |  0  ...  31 | Vector |          |
-    // Thread Id         | 0  ...  15 | 16  ...  31 |  Scale   | 32  ... 47 | 48  ...  63 |  Scale   | Element   ||    Thread Id         | 0  ...  31 | 32  ...  63 | Element|  Scale   |
-    // Register Element   ------------ ------------- ----------|------------ ------------- ----------|-----------||    Register Element  |------------|-------------|--------|----------|
-    // Reg 0 [0:7]       |     K0     |     K16     |  x(M,0)  |     K32    |     K48     |  x(M,1)  |  v[0]     ||    Reg 0 [0:7]       |     K0     |     K16     |  v[0]  |  x(M,0)  |
-    // Reg 0 [8:15]      |     K1     |     K17     |  x(M,0)  |     K33    |     K49     |  x(M,1)  |  v[1]     ||    Reg 0 [8:15]      |     K1     |     K17     |  v[1]  |  x(M,0)  |
-    // Reg 0 [16:23]     |     K2     |     K18     |  x(M,0)  |     K34    |     K50     |  x(M,1)  |  v[2]     ||    Reg 0 [16:23]     |     K2     |     K18     |  v[2]  |  x(M,0)  |
-    // Reg 0 [24:31]     |     K3     |     K19     |  x(M,0)  |     K35    |     K51     |  x(M,1)  |  v[3]     ||    Reg 0 [24:31]     |     K3     |     K19     |  v[3]  |  x(M,0)  |
-    // Reg 1 [0:7]       |     K4     |     K20     |  x(M,0)  |     K36    |     K52     |  x(M,1)  |  v[4]     ||    Reg 1 [0:7]       |     K4     |     K20     |  v[4]  |  x(M,0)  |
-    // Reg 1 [8:15]      |     K5     |     K21     |  x(M,0)  |     K37    |     K53     |  x(M,1)  |  v[5]     ||    Reg 1 [8:15]      |     K5     |     K21     |  v[5]  |  x(M,0)  |
-    // Reg 1 [16:23]     |     K6     |     K22     |  x(M,0)  |     K38    |     K54     |  x(M,1)  |  v[6]     ||    Reg 1 [16:23]     |     K6     |     K22     |  v[6]  |  x(M,0)  |
-    // Reg 1 [24:31]     |     K7     |     K23     |  x(M,0)  |     K39    |     K55     |  x(M,1)  |  v[7]     ||    Reg 1 [24:31]     |     K7     |     K23     |  v[7]  |  x(M,0)  |
-    // Reg 2 [0:7]       |     K8     |     K24     |  x(M,0)  |     K40    |     K56     |  x(M,1)  |  v[8]     ||    Reg 2 [0:7]       |     K8     |     K24     |  v[8]  |  x(M,0)  |
-    // Reg 2 [8:15]      |     K9     |     K25     |  x(M,0)  |     K41    |     K57     |  x(M,1)  |  v[9]     ||    Reg 2 [8:15]      |     K9     |     K25     |  v[9]  |  x(M,0)  |
-    // Reg 2 [16:23]     |     K10    |     K26     |  x(M,0)  |     K42    |     K58     |  x(M,1)  |  v[10]    ||    Reg 2 [16:23]     |     K10    |     K26     |  v[10] |  x(M,0)  |
-    // Reg 2 [24:31]     |     K11    |     K27     |  x(M,0)  |     K43    |     K59     |  x(M,1)  |  v[11]    ||    Reg 2 [24:31]     |     K11    |     K27     |  v[11] |  x(M,0)  |
-    // Reg 3 [0:7]       |     K12    |     K28     |  x(M,0)  |     K44    |     K60     |  x(M,1)  |  v[12]    ||    Reg 3 [0:7]       |     K12    |     K28     |  v[12] |  x(M,0)  |
-    // Reg 3 [8:15]      |     K13    |     K29     |  x(M,0)  |     K45    |     K61     |  x(M,1)  |  v[13]    ||    Reg 3 [8:15]      |     K13    |     K29     |  v[13] |  x(M,0)  |
-    // Reg 3 [16:23]     |     K14    |     K30     |  x(M,0)  |     K46    |     K62     |  x(M,1)  |  v[14]    ||    Reg 3 [16:23]     |     K14    |     K30     |  v[14] |  x(M,0)  |
-    // Reg 3 [24:31]     |     K15    |     K31     |  x(M,0)  |     K47    |     K63     |  x(M,1)  |  v[15]    ||    Reg 3 [24:31]     |     K15    |     K31     |  v[15] |  x(M,0)  |
-    // Reg 4 [0:7]       |     K64    |     K80     |  x(M,2)  |     K96    |     K112    |  x(M,3)  |  v[16]    ||    Reg 4 [0:7]       |     K32    |     K48     |  v[16] |  x(M,1)  |
-    // Reg 4 [8:15]      |     K65    |     K81     |  x(M,2)  |     K97    |     K113    |  x(M,3)  |  v[17]    ||    Reg 4 [8:15]      |     K33    |     K49     |  v[17] |  x(M,1)  |
-    // Reg 4 [16:23]     |     K66    |     K82     |  x(M,2)  |     K98    |     K114    |  x(M,3)  |  v[18]    ||    Reg 4 [16:23]     |     K34    |     K50     |  v[18] |  x(M,1)  |
-    // Reg 4 [24:31]     |     K67    |     K83     |  x(M,2)  |     K99    |     K115    |  x(M,3)  |  v[19]    ||    Reg 4 [24:31]     |     K35    |     K51     |  v[19] |  x(M,1)  |
-    // Reg 5 [0:7]       |     K68    |     K84     |  x(M,2)  |     K100   |     K116    |  x(M,3)  |  v[20]    ||    Reg 5 [0:7]       |     K36    |     K52     |  v[20] |  x(M,1)  |
-    // Reg 5 [8:15]      |     K69    |     K85     |  x(M,2)  |     K101   |     K117    |  x(M,3)  |  v[21]    ||    Reg 5 [8:15]      |     K37    |     K53     |  v[21] |  x(M,1)  |
-    // Reg 5 [16:23]     |     K70    |     K86     |  x(M,2)  |     K102   |     K118    |  x(M,3)  |  v[22]    ||    Reg 5 [16:23]     |     K38    |     K54     |  v[22] |  x(M,1)  |
-    // Reg 5 [24:31]     |     K71    |     K87     |  x(M,2)  |     K103   |     K119    |  x(M,3)  |  v[23]    ||    Reg 5 [24:31]     |     K39    |     K55     |  v[23] |  x(M,1)  |
-    // Reg 6 [0:7]       |     K72    |     K88     |  x(M,2)  |     K104   |     K120    |  x(M,3)  |  v[24]    ||    Reg 6 [0:7]       |     K40    |     K56     |  v[24] |  x(M,1)  |
-    // Reg 6 [8:15]      |     K73    |     K89     |  x(M,2)  |     K105   |     K121    |  x(M,3)  |  v[25]    ||    Reg 6 [8:15]      |     K41    |     K57     |  v[25] |  x(M,1)  |
-    // Reg 6 [16:23]     |     K74    |     K90     |  x(M,2)  |     K106   |     K122    |  x(M,3)  |  v[26]    ||    Reg 6 [16:23]     |     K42    |     K58     |  v[26] |  x(M,1)  |
-    // Reg 6 [24:31]     |     K75    |     K91     |  x(M,2)  |     K107   |     K123    |  x(M,3)  |  v[27]    ||    Reg 6 [24:31]     |     K43    |     K59     |  v[27] |  x(M,1)  |
-    // Reg 7 [0:7]       |     K76    |     K92     |  x(M,2)  |     K108   |     K124    |  x(M,3)  |  v[28]    ||    Reg 7 [0:7]       |     K44    |     K60     |  v[28] |  x(M,1)  |
-    // Reg 7 [8:15]      |     K77    |     K93     |  x(M,2)  |     K109   |     K125    |  x(M,3)  |  v[29]    ||    Reg 7 [8:15]      |     K45    |     K61     |  v[29] |  x(M,1)  |
-    // Reg 7 [16:23]     |     K78    |     K94     |  x(M,2)  |     K110   |     K126    |  x(M,3)  |  v[30]    ||    Reg 7 [16:23]     |     K46    |     K62     |  v[30] |  x(M,1)  |
-    // Reg 7 [24:31]     |     K79    |     K95     |  x(M,2)  |     K111   |     K127    |  x(M,3)  |  v[31]    ||    Reg 7 [24:31]     |     K47    |     K63     |  v[31] |  x(M,1)  |
+    // Register Mapping for 16x128:                                                        ||    Register Mapping for 32x64:
+    // Size              |   BLOCK_M  |   BLOCK_M   |   BLOCK_M  |   BLOCK_M   |           ||    Size              |   BLOCK_M  |   BLOCK_M   |        |
+    // M                 | 0  ...  15 |  0  ...  15 | 0  ...  15 |  0  ...  15 | Vector    ||    M                 | 0  ...  31 |  0  ...  31 | Vector |
+    // Thread Id         | 0  ...  15 | 16  ...  31 | 32  ... 47 | 48  ...  63 | Element   ||    Thread Id         | 0  ...  31 | 32  ...  63 | Element|
+    // Register           ------------ -------------|------------ -------------|-----------||    Register          |------------|-------------|--------|
+    // Scale Element     |   x(M,0)   |    x(M,1)   |   x(M,2)   |    x(M,3)   |  v[0]     ||    Scale Element     |   x(M,0)   |   x(M,1)    |        |
+    // Register Element   ------------ -------------|------------ -------------|-----------||    Register Element  |------------|-------------|--------|
+    // Reg 0 [0:7]       |     K0     |     K16     |     K32    |     K48     |  v[0]     ||    Reg 0 [0:7]       |     K0     |     K16     |  v[0]  |
+    // Reg 0 [8:15]      |     K1     |     K17     |     K33    |     K49     |  v[1]     ||    Reg 0 [8:15]      |     K1     |     K17     |  v[1]  |
+    // Reg 0 [16:23]     |     K2     |     K18     |     K34    |     K50     |  v[2]     ||    Reg 0 [16:23]     |     K2     |     K18     |  v[2]  |
+    // Reg 0 [24:31]     |     K3     |     K19     |     K35    |     K51     |  v[3]     ||    Reg 0 [24:31]     |     K3     |     K19     |  v[3]  |
+    // Reg 1 [0:7]       |     K4     |     K20     |     K36    |     K52     |  v[4]     ||    Reg 1 [0:7]       |     K4     |     K20     |  v[4]  |
+    // Reg 1 [8:15]      |     K5     |     K21     |     K37    |     K53     |  v[5]     ||    Reg 1 [8:15]      |     K5     |     K21     |  v[5]  |
+    // Reg 1 [16:23]     |     K6     |     K22     |     K38    |     K54     |  v[6]     ||    Reg 1 [16:23]     |     K6     |     K22     |  v[6]  |
+    // Reg 1 [24:31]     |     K7     |     K23     |     K39    |     K55     |  v[7]     ||    Reg 1 [24:31]     |     K7     |     K23     |  v[7]  |
+    // Reg 2 [0:7]       |     K8     |     K24     |     K40    |     K56     |  v[8]     ||    Reg 2 [0:7]       |     K8     |     K24     |  v[8]  |
+    // Reg 2 [8:15]      |     K9     |     K25     |     K41    |     K57     |  v[9]     ||    Reg 2 [8:15]      |     K9     |     K25     |  v[9]  |
+    // Reg 2 [16:23]     |     K10    |     K26     |     K42    |     K58     |  v[10]    ||    Reg 2 [16:23]     |     K10    |     K26     |  v[10] |
+    // Reg 2 [24:31]     |     K11    |     K27     |     K43    |     K59     |  v[11]    ||    Reg 2 [24:31]     |     K11    |     K27     |  v[11] |
+    // Reg 3 [0:7]       |     K12    |     K28     |     K44    |     K60     |  v[12]    ||    Reg 3 [0:7]       |     K12    |     K28     |  v[12] |
+    // Reg 3 [8:15]      |     K13    |     K29     |     K45    |     K61     |  v[13]    ||    Reg 3 [8:15]      |     K13    |     K29     |  v[13] |
+    // Reg 3 [16:23]     |     K14    |     K30     |     K46    |     K62     |  v[14]    ||    Reg 3 [16:23]     |     K14    |     K30     |  v[14] |
+    // Reg 3 [24:31]     |     K15    |     K31     |     K47    |     K63     |  v[15]    ||    Reg 3 [24:31]     |     K15    |     K31     |  v[15] |
+    // Reg 4 [0:7]       |     K64    |     K80     |     K96    |     K112    |  v[16]    ||    Reg 4 [0:7]       |     K32    |     K48     |  v[16] |
+    // Reg 4 [8:15]      |     K65    |     K81     |     K97    |     K113    |  v[17]    ||    Reg 4 [8:15]      |     K33    |     K49     |  v[17] |
+    // Reg 4 [16:23]     |     K66    |     K82     |     K98    |     K114    |  v[18]    ||    Reg 4 [16:23]     |     K34    |     K50     |  v[18] |
+    // Reg 4 [24:31]     |     K67    |     K83     |     K99    |     K115    |  v[19]    ||    Reg 4 [24:31]     |     K35    |     K51     |  v[19] |
+    // Reg 5 [0:7]       |     K68    |     K84     |     K100   |     K116    |  v[20]    ||    Reg 5 [0:7]       |     K36    |     K52     |  v[20] |
+    // Reg 5 [8:15]      |     K69    |     K85     |     K101   |     K117    |  v[21]    ||    Reg 5 [8:15]      |     K37    |     K53     |  v[21] |
+    // Reg 5 [16:23]     |     K70    |     K86     |     K102   |     K118    |  v[22]    ||    Reg 5 [16:23]     |     K38    |     K54     |  v[22] |
+    // Reg 5 [24:31]     |     K71    |     K87     |     K103   |     K119    |  v[23]    ||    Reg 5 [24:31]     |     K39    |     K55     |  v[23] |
+    // Reg 6 [0:7]       |     K72    |     K88     |     K104   |     K120    |  v[24]    ||    Reg 6 [0:7]       |     K40    |     K56     |  v[24] |
+    // Reg 6 [8:15]      |     K73    |     K89     |     K105   |     K121    |  v[25]    ||    Reg 6 [8:15]      |     K41    |     K57     |  v[25] |
+    // Reg 6 [16:23]     |     K74    |     K90     |     K106   |     K122    |  v[26]    ||    Reg 6 [16:23]     |     K42    |     K58     |  v[26] |
+    // Reg 6 [24:31]     |     K75    |     K91     |     K107   |     K123    |  v[27]    ||    Reg 6 [24:31]     |     K43    |     K59     |  v[27] |
+    // Reg 7 [0:7]       |     K76    |     K92     |     K108   |     K124    |  v[28]    ||    Reg 7 [0:7]       |     K44    |     K60     |  v[28] |
+    // Reg 7 [8:15]      |     K77    |     K93     |     K109   |     K125    |  v[29]    ||    Reg 7 [8:15]      |     K45    |     K61     |  v[29] |
+    // Reg 7 [16:23]     |     K78    |     K94     |     K110   |     K126    |  v[30]    ||    Reg 7 [16:23]     |     K46    |     K62     |  v[30] |
+    // Reg 7 [24:31]     |     K79    |     K95     |     K111   |     K127    |  v[31]    ||    Reg 7 [24:31]     |     K47    |     K63     |  v[31] |
 
     // Register Mapping for 16x128 for FP4:                                                                                            ||    Register Mapping for 32x64 for FP4:
     // Size              |   BLOCK_M  |          |   BLOCK_M   |          |   BLOCK_M  |          |   BLOCK_M   |          |           ||    Size              |   BLOCK_M  |          |   BLOCK_M   |          |        |
@@ -1247,30 +1249,23 @@ struct TestMXMFMA
         case 2:
             // expect small round off errors
             a_m_k.GenerateTensorValue(GeneratorTensor_3<PackedAType>{-2.0, 2.0});
-            a_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
+            a_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{0, 4});
             b_n_k.GenerateTensorValue(GeneratorTensor_3<PackedBType>{-2.0, 2.0});
-            b_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{126, 129});
+            b_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{0, 4});
             break;
         case 3:
             // expect small round off errors
             a_m_k.GenerateTensorValue(GeneratorTensor_4<PackedAType>(0, 1, time(nullptr)));
-            a_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{126, 129}); // scales: {0.5, 1, 2}
+            a_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{0, 4});
             b_n_k.GenerateTensorValue(GeneratorTensor_4<PackedBType>(0, 1, time(nullptr) / 2));
-            b_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{126, 129}); //  scales: {0.5, 1, 2}
+            b_scales.GenerateTensorValue(GeneratorTensor_2<ScaleType>{0, 4});
             break;
-
         default:
             // all initial values are representable in FP8, BF8
             a_m_k.GenerateTensorValue(GeneratorTensor_2<PackedAType>{-6, 7}); // Z[-6,6]
-            a_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{122, 129}); // scales: [1/32,..., 2]
+            a_scales.GenerateTensorValue(GeneratorTensor_3<ScaleType>{0.0625f, 8.0f});
             b_n_k.GenerateTensorValue(GeneratorTensor_2<PackedBType>{-6, 7}); // Z[-6,6]
-            b_scales.GenerateTensorValue(
-                GeneratorTensor_2<ScaleType>{122, 129}); //  scales: [1/32,..., 2]
-
+            b_scales.GenerateTensorValue(GeneratorTensor_3<ScaleType>{0.0625f, 8.0f});
             break;
         }
 

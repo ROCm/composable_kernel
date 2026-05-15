@@ -13,7 +13,8 @@
 #include "profiler/profile_batched_gemm_multiple_d_gemm_multiple_d_impl.hpp"
 
 using ck::tensor_operation::device::GemmSpecialization;
-
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 template <ck::index_t N>
 using I = ck::Number<N>;
 
@@ -100,7 +101,8 @@ struct BaseTestBatchedGemmMultipleDGemmMultipleD : public ::testing::Test
                 -1,
                 -1,
                 -1,
-                fail_if_no_supported_instances);
+                fail_if_no_supported_instances,
+                instance_index);
 
         EXPECT_TRUE(pass);
     }
@@ -119,3 +121,20 @@ struct BaseTestBatchedGemmMultipleDGemmMultipleD : public ::testing::Test
         }
     }
 };
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
+}

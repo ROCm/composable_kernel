@@ -34,10 +34,9 @@ using F32  = float;
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using A0DataType           = F8;
-using B0DataType           = F8;
-static constexpr int KPack = 16;
-using ComputeType          = F8;
+using A0DataType  = F8;
+using B0DataType  = F8;
+using ComputeType = F8;
 
 using AccDataType      = F32;
 using CShuffleDataType = F32;
@@ -60,7 +59,13 @@ using BElementOp   = PassThrough;
 using CDEElementOp = MultiplyMultiply;
 
 static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecialization::Default;
-
+static constexpr int KPerBlock = 256;
+#if defined(CK_USE_GFX1250)
+static constexpr int KPack = 32;
+#else
+static constexpr int KPack = 16;
+#endif
+static constexpr auto K0 = KPerBlock / KPack;
 // clang-format off
 using DeviceOpInstance =
     ck::tensor_operation::device::DeviceGemmMultiD_Wmma_CShuffle_V3_BPreshuffle<
@@ -68,12 +73,12 @@ using DeviceOpInstance =
         A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
         AElementOp, BElementOp, CDEElementOp, GemmSpec,
         256,
-        32, 128, 256,
-        16, 16,
+        32, 128, KPerBlock,
+        KPack, KPack,
         16, 16,
         2, 1,
-        S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-        S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+        S<K0, 256 / K0, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
+        S<K0, 256 / K0, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
         1, 1, S<1, 16, 1, 16>, S<8, 8, 1>,
         ck::BlockGemmPipelineScheduler::Intrawave,
         ck::BlockGemmPipelineVersion::v1,

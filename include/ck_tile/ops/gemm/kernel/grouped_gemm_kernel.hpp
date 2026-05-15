@@ -199,6 +199,10 @@ struct GroupedGemmKernel
         int occupancy;
         HIP_CHECK_ERROR(
             hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, kBlockSize, 0));
+        // TODO: the below is a temporary fix which is due to kernel metadata
+        // .workgroup_processor_mode isn’t used correctly in clr for gfx1250. Will removed when clr
+        // and compiler team fix this.
+        occupancy           = occupancy > 0 ? occupancy : 1;
         const int grid_size = get_available_compute_units(s) * occupancy;
         return dim3(grid_size, 1, 1);
     }
@@ -313,7 +317,6 @@ struct GroupedGemmKernel
         // Can we simplify this branching logic?
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
-
             RunGemmWithPipelineSelection2LDS(
                 a_ptr, b_ptr, c_ptr, kargs.ds_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
         }

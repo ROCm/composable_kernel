@@ -10,6 +10,7 @@
 #include "ck_tile/core/container/sequence.hpp"
 #include "ck_tile/core/container/tuple.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
+#include "ck_tile/core/tensor/null_tile_window.hpp"
 #include "ck_tile/core/tensor/static_distributed_tensor.hpp"
 #include "ck_tile/core/tensor/tensor_adaptor.hpp"
 #include "ck_tile/core/tensor/tensor_view.hpp"
@@ -17,6 +18,8 @@
 #include "ck_tile/core/tensor/tile_window_base.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+
+#include "ck_tile/core/utility/data_cache_prefetch.hpp"
 
 namespace ck_tile {
 
@@ -342,74 +345,147 @@ struct tile_window_with_static_distribution
             else
                 return get_load_offset(offset_t{});
         }();
-        // loop over thread tensor space [y0, y1, ...]
-        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
-            /// TODO: use structure binding (to be captured later) if compiled in C++20
-            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
-            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
-            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
-                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+        // this is an optimization used in gfx125 where lds descriptor don't include xor swizzle
+        if constexpr((Base::BottomTensorView::buffer_view::get_address_space() ==
+                      address_space_enum::lds) &&
+                     (!remove_cvref_t<
+                         decltype(typename Base::BottomTensorView{}.get_tensor_descriptor())>::
+                          template has_transform<coord_transform_enum::xor_t>()))
+        {
+            static_assert(
+                []() constexpr {
+                    [[maybe_unused]] constexpr auto desc =
+                        typename Base::BottomTensorView{}.get_tensor_descriptor();
+                    return true;
+                }(),
+                "BottomTensorView::get_tensor_descriptor() must be constexpr for LDS");
+            // For LDS, compute offsets at compile time to optimize LDS access
+            static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+                /// TODO: use structure binding (to be captured later) if compiled in C++20
+                const auto& bottom_tensor_thread_coord = pre_computed_coords_[iCoord][I1];
 
-                constexpr auto idx_ys_offset = [&]() {
-                    constexpr auto idx_off_ys = SFC_Ys::get_step_between(number<0>{}, iAccess);
-                    constexpr auto adapter_ys_offset = make_tensor_adaptor_coordinate(
-                        StaticTileDistribution_{}.get_ps_ys_to_xs_adaptor(),
-                        container_concat(array<index_t, Base::NDimP>{0},
-                                         to_array<index_t, idx_off_ys.size()>(idx_off_ys)));
-                    return adapter_ys_offset.get_bottom_index();
-                }();
-                const auto ys_offset = [&]() {
-                    if constexpr(static_move_ys)
-                    {
-                        const auto coord_ys_offset = make_tensor_coordinate(
-                            this->get_bottom_tensor_view().get_tensor_descriptor(), idx_ys_offset);
+                static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                    constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+
+                    // data index [y0, y1, ...]
+                    constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+
+                    // Compute compile-time offset from access 0 to current access
+                    constexpr auto lds_access_offset = [&]() {
+                        constexpr auto idx_off_ys = SFC_Ys::get_step_between(number<0>{}, iAccess);
+                        constexpr auto adapter_ys_offset = make_tensor_adaptor_coordinate(
+                            tile_dstr.get_ps_ys_to_xs_adaptor(),
+                            container_concat(array<index_t, Base::NDimP>{0},
+                                             to_array<index_t, idx_off_ys.size()>(idx_off_ys)));
+                        constexpr auto coord_ys_offset = make_tensor_coordinate(
+                            typename Base::BottomTensorView{}.get_tensor_descriptor(),
+                            adapter_ys_offset.get_bottom_index());
                         return coord_ys_offset.get_offset();
-                    }
-                    else
-                        return 0;
-                }();
+                    }();
 
-                // data index [y0, y1, ...]
-                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+                    // read from bottom tensor with compile-time offset
+                    const vector_t vec_value =
+                        this->get_bottom_tensor_view()
+                            .template get_vectorized_elements<vector_t, lds_access_offset>(
+                                bottom_tensor_thread_coord,
+                                linear_off,
+                                bool_constant<oob_conditional_check>{});
+                    // write into distributed tensor
+                    static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
+                        constexpr auto idx_ys = generate_tuple(
+                            [&](auto jj) {
+                                return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
+                                                                : idx_ys_start[jj];
+                            },
+                            number<Base::NDimY>{});
 
-                // read from bottom tensor
-                const vector_t vec_value =
-                    this->get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
-                        bottom_tensor_thread_coord,
-                        linear_off + ys_offset,
-                        bool_constant<oob_conditional_check>{});
-                // write into distributed tensor
-                static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
-                    constexpr auto idx_ys = generate_tuple(
-                        [&](auto jj) {
-                            return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
-                                                            : idx_ys_start[jj];
-                        },
-                        number<Base::NDimY>{});
+                        constexpr index_t d =
+                            tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
+                            Traits::PackedSize;
 
-                    constexpr index_t d =
-                        tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
-                        Traits::PackedSize;
-
-                    dst_tensor.get_thread_buffer().template at<d>() =
-                        vec_value
-                            .template get_as<typename Base::DataType>()[j / Traits::PackedSize];
+                        dst_tensor.get_thread_buffer().template at<d>() =
+                            vec_value
+                                .template get_as<typename Base::DataType>()[j / Traits::PackedSize];
+                    });
                 });
-                // move thread coordinate
-                if constexpr(!static_move_ys && iCoordAccess != (NumAccessPerCoord - 1))
-                {
-                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
-
-                    constexpr auto idx_diff_ps_ys = container_concat(
-                        generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
-                        idx_diff_ys);
-
-                    Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
-                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
-                }
             });
-        });
+        }
+        else
+        {
+            // loop over thread tensor space [y0, y1, ...]
+            static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+                /// TODO: use structure binding (to be captured later) if compiled in C++20
+                auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+                auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+
+                static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                    constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+
+                    constexpr auto idx_ys_offset = [&]() {
+                        constexpr auto idx_off_ys = SFC_Ys::get_step_between(number<0>{}, iAccess);
+                        constexpr auto adapter_ys_offset = make_tensor_adaptor_coordinate(
+                            StaticTileDistribution_{}.get_ps_ys_to_xs_adaptor(),
+                            container_concat(array<index_t, Base::NDimP>{0},
+                                             to_array<index_t, idx_off_ys.size()>(idx_off_ys)));
+                        return adapter_ys_offset.get_bottom_index();
+                    }();
+                    const auto ys_offset = [&]() {
+                        if constexpr(static_move_ys)
+                        {
+                            const auto coord_ys_offset = make_tensor_coordinate(
+                                this->get_bottom_tensor_view().get_tensor_descriptor(),
+                                idx_ys_offset);
+                            return coord_ys_offset.get_offset();
+                        }
+                        else
+                            return 0;
+                    }();
+
+                    // data index [y0, y1, ...]
+                    constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+
+                    // read from bottom tensor
+                    const vector_t vec_value =
+                        this->get_bottom_tensor_view().template get_vectorized_elements<vector_t>(
+                            bottom_tensor_thread_coord,
+                            linear_off + ys_offset,
+                            bool_constant<oob_conditional_check>{});
+                    // write into distributed tensor
+                    static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
+                        constexpr auto idx_ys = generate_tuple(
+                            [&](auto jj) {
+                                return jj == Traits::VectorDimY ? (idx_ys_start[jj] + j)
+                                                                : idx_ys_start[jj];
+                            },
+                            number<Base::NDimY>{});
+
+                        constexpr index_t d =
+                            tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys) /
+                            Traits::PackedSize;
+
+                        dst_tensor.get_thread_buffer().template at<d>() =
+                            vec_value
+                                .template get_as<typename Base::DataType>()[j / Traits::PackedSize];
+                    });
+                    // move thread coordinate
+                    if constexpr(!static_move_ys && iCoordAccess != (NumAccessPerCoord - 1))
+                    {
+                        constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+                        constexpr auto idx_diff_ps_ys =
+                            container_concat(generate_tuple([&](auto) { return number<0>{}; },
+                                                            number<Base::NDimP>{}),
+                                             idx_diff_ys);
+
+                        Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                            window_adaptor_thread_coord,
+                            bottom_tensor_thread_coord,
+                            idx_diff_ps_ys);
+                    }
+                });
+            });
+        }
     }
 
     template <typename DstTile,
@@ -591,91 +667,672 @@ struct tile_window_with_static_distribution
         const auto& bottom_tensor_view = lds_tile.get_bottom_tensor_view();
         const auto& tensor_descriptor  = bottom_tensor_view.get_tensor_descriptor();
         auto lds_base_ptr              = bottom_tensor_view.get_buffer_view().p_data_;
+#if defined(__gfx125__)
+        // this is an optimization used in gfx125 where lds descriptor don't include xor swizzle
+        if constexpr(!remove_cvref_t<decltype(tensor_descriptor)>::template has_transform<
+                         coord_transform_enum::xor_t>() &&
+                     static_move_ys == false)
+        {
+            static_assert(
+                []() constexpr {
+                    [[maybe_unused]] constexpr auto desc =
+                        LdsTileWindow{}.get_bottom_tensor_view().get_tensor_descriptor();
+                    return true;
+                }(),
+                "LdsTileWindow::get_tensor_descriptor() must be constexpr");
 
-        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
-            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
-            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+            // For LDS, compute offsets at compile time to optimize LDS access
+            static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+                /// TODO: use structure binding (to be captured later) if compiled in C++20
+                auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+                auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+                constexpr index_t dram_ys_offset = 0;
+                constexpr index_t lds_ys_offset  = 0;
 
-            auto window_adaptor_warp_coord = pre_computed_warp_coords_[iCoord][I0];
-            auto bottom_tensor_warp_coord  = pre_computed_warp_coords_[iCoord][I1];
-
-            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
-                constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
-
-                constexpr auto idx_ys_offset = [&]() {
-                    constexpr auto idx_off_ys = SFC_Ys::get_step_between(number<0>{}, iAccess);
-                    constexpr auto adapter_ys_offset = make_tensor_adaptor_coordinate(
-                        StaticTileDistribution_{}.get_ps_ys_to_xs_adaptor(),
-                        container_concat(array<index_t, Base::NDimP>{0},
-                                         to_array<index_t, idx_off_ys.size()>(idx_off_ys)));
-                    return adapter_ys_offset.get_bottom_index();
-                }();
-                constexpr auto lds_ys_offset = [&]() {
-                    if constexpr(static_move_ys)
-                    {
-                        const auto coord_ys_offset =
-                            make_tensor_coordinate(decltype(tensor_descriptor){}, idx_ys_offset);
-                        return coord_ys_offset.get_offset();
-                    }
-                    else
-                        return 0;
-                }();
-
-                // Use precomputed window origin & tensor descriptor
                 auto lds_bottom_tensor_thread_idx =
-                    window_origin + window_adaptor_warp_coord.get_bottom_index();
-                const auto lds_coord =
+                    window_origin + window_adaptor_thread_coord.get_bottom_index();
+                const auto lds_origin_coord =
                     make_tensor_coordinate(tensor_descriptor, lds_bottom_tensor_thread_idx);
 
                 // Calculate SMEM address using base pointer
                 CK_TILE_LDS_ADDR LdsDataType* smem =
-                    lds_base_ptr + (lds_coord.get_offset() + lds_ys_offset) / Traits::PackedSize;
+                    lds_base_ptr + lds_origin_coord.get_offset() / Traits::PackedSize +
+                    lds_ys_offset / Traits::PackedSize;
 
-                const auto dram_ys_offset = [&]() {
-                    if constexpr(static_move_ys)
-                    {
-                        const auto coord_ys_offset = make_tensor_coordinate(
-                            this->get_bottom_tensor_view().get_tensor_descriptor(), idx_ys_offset);
+                static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                    constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+
+                    // Compute compile-time offset from access 0 to current access
+                    constexpr auto tile_dstr         = typename Base::TileDstr{};
+                    constexpr auto lds_access_offset = [&]() {
+                        constexpr auto idx_off_ys = SFC_Ys::get_step_between(number<0>{}, iAccess);
+                        constexpr auto adapter_ys_offset = make_tensor_adaptor_coordinate(
+                            tile_dstr.get_ps_ys_to_xs_adaptor(),
+                            container_concat(array<index_t, Base::NDimP>{0},
+                                             to_array<index_t, idx_off_ys.size()>(idx_off_ys)));
+                        constexpr auto coord_ys_offset = make_tensor_coordinate(
+                            LdsTileWindow{}.get_bottom_tensor_view().get_tensor_descriptor(),
+                            adapter_ys_offset.get_bottom_index());
                         return coord_ys_offset.get_offset();
-                    }
-                    else
-                        return 0;
-                }();
+                    }();
 
-                if constexpr(!static_move_ys)
                     this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
                         smem,
                         bottom_tensor_thread_coord,
                         offset + dram_ys_offset,
+                        number<lds_access_offset>{},
                         bool_constant<oob_conditional_check>{});
-                else
-                {
-                    this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
-                        smem,
-                        bottom_tensor_thread_coord.get_offset() + offset,
-                        dram_ys_offset,
-                        number<0>{},
-                        bool_constant<oob_conditional_check>{});
-                }
-                // Move thread coordinate if not last access
-                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
-                {
-                    constexpr auto idx_diff_ys    = SFC_Ys::get_forward_step(iAccess);
-                    constexpr auto idx_diff_ps_ys = container_concat(
-                        generate_tuple([&](auto) { return number<0>{}; }, number<Base::NDimP>{}),
-                        idx_diff_ys);
 
-                    if constexpr(!static_move_ys)
+                    // Move thread coordinate if not last access
+                    if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+                    {
+                        constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+                        constexpr auto idx_diff_ps_ys =
+                            container_concat(generate_tuple([&](auto) { return number<0>{}; },
+                                                            number<Base::NDimP>{}),
+                                             idx_diff_ys);
+
                         Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                             window_adaptor_thread_coord,
                             bottom_tensor_thread_coord,
                             idx_diff_ps_ys);
+                    }
+                });
+            });
+        }
+        else
+#endif
+        {
+            static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+                auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+                auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+#if !defined(__gfx125__)
+                auto window_adaptor_warp_coord = pre_computed_warp_coords_[iCoord][I0];
+                auto bottom_tensor_warp_coord  = pre_computed_warp_coords_[iCoord][I1];
+#endif
+                static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                    constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+
+                    constexpr auto idx_ys_offset = [&]() {
+                        constexpr auto idx_off_ys = SFC_Ys::get_step_between(number<0>{}, iAccess);
+                        constexpr auto adapter_ys_offset = make_tensor_adaptor_coordinate(
+                            StaticTileDistribution_{}.get_ps_ys_to_xs_adaptor(),
+                            container_concat(array<index_t, Base::NDimP>{0},
+                                             to_array<index_t, idx_off_ys.size()>(idx_off_ys)));
+                        return adapter_ys_offset.get_bottom_index();
+                    }();
+                    constexpr auto lds_ys_offset = [&]() {
+                        if constexpr(static_move_ys)
+                        {
+                            const auto coord_ys_offset = make_tensor_coordinate(
+                                decltype(tensor_descriptor){}, idx_ys_offset);
+                            return coord_ys_offset.get_offset();
+                        }
+                        else
+                            return 0;
+                    }();
+
+                    // Use precomputed window origin & tensor descriptor
+#if defined(__gfx125__)
+                    auto lds_bottom_tensor_thread_idx =
+                        window_origin + window_adaptor_thread_coord.get_bottom_index();
+#else // else branch for gfx950
+                    auto lds_bottom_tensor_thread_idx =
+                        window_origin + window_adaptor_warp_coord.get_bottom_index();
+#endif
+                    const auto lds_coord =
+                        make_tensor_coordinate(tensor_descriptor, lds_bottom_tensor_thread_idx);
+
+                    // Calculate SMEM address using base pointer
+                    CK_TILE_LDS_ADDR LdsDataType* smem =
+                        lds_base_ptr + lds_coord.get_offset() / Traits::PackedSize +
+                        lds_ys_offset / Traits::PackedSize;
+
+                    const auto dram_ys_offset = [&]() {
+                        if constexpr(static_move_ys)
+                        {
+                            const auto coord_ys_offset = make_tensor_coordinate(
+                                this->get_bottom_tensor_view().get_tensor_descriptor(),
+                                idx_ys_offset);
+                            return coord_ys_offset.get_offset();
+                        }
+                        else
+                            return 0;
+                    }();
 
                     if constexpr(!static_move_ys)
-                        Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
-                            window_adaptor_warp_coord, bottom_tensor_warp_coord, idx_diff_ps_ys);
-                }
+                        this->get_bottom_tensor_view()
+                            .template async_get_vectorized_elements<vector_t>(
+                                smem,
+                                bottom_tensor_thread_coord,
+                                offset + dram_ys_offset,
+                                bool_constant<oob_conditional_check>{});
+                    else
+                    {
+                        this->get_bottom_tensor_view()
+                            .template async_get_vectorized_elements<vector_t>(
+                                smem,
+                                bottom_tensor_thread_coord.get_offset() + offset,
+                                dram_ys_offset,
+                                number<0>{},
+                                bool_constant<oob_conditional_check>{});
+                    }
+                    // Move thread coordinate if not last access
+                    if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+                    {
+                        constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+                        constexpr auto idx_diff_ps_ys =
+                            container_concat(generate_tuple([&](auto) { return number<0>{}; },
+                                                            number<Base::NDimP>{}),
+                                             idx_diff_ys);
+
+                        if constexpr(!static_move_ys)
+                            Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                                window_adaptor_thread_coord,
+                                bottom_tensor_thread_coord,
+                                idx_diff_ps_ys);
+#if !defined(__gfx125__)
+                        if constexpr(!static_move_ys)
+                            Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                                window_adaptor_warp_coord,
+                                bottom_tensor_warp_coord,
+                                idx_diff_ps_ys);
+#endif
+                    }
+                });
             });
+        }
+    }
+
+    template <typename TDMConfig_,
+              typename LdsTileWindow_,
+              typename GatherIndexView_,
+              index_t i_access_ = -1>
+    CK_TILE_DEVICE auto tdm_load_to_lds(const TDMConfig_& tdm_config,
+                                        LdsTileWindow_&& lds_tile,
+                                        const GatherIndexView_& gather_index_view,
+                                        number<i_access_> = {}) const
+    {
+        using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
+        using LdsDataType   = typename LdsTileWindow::DataType;
+
+        static_assert(std::is_same_v<LdsDataType, typename Base::DataType>,
+                      "LdsDataType must match tile window's DataType");
+
+        using Traits             = typename Base::Traits;
+        constexpr auto tile_dstr = typename Base::TileDstr{};
+
+        static constexpr index_t num_tensor_dims = BottomTensorView_::get_num_of_dimension();
+
+        const auto lds_window_origin       = lds_tile.get_window_origin();
+        const auto& lds_bottom_tensor_view = lds_tile.get_bottom_tensor_view();
+        const auto& lds_tensor_descriptor  = lds_bottom_tensor_view.get_tensor_descriptor();
+        auto smem_base_ptr                 = lds_bottom_tensor_view.get_buffer_view().p_data_;
+
+        const auto& glb_tensor_descriptor = this->get_bottom_tensor_view().get_tensor_descriptor();
+
+        // Use cached computation for global strides
+        auto&& global_strides = get_cached_global_strides();
+
+        auto process_coord = [&](auto iCoord) {
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0]; // without origin
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1]; // with origin
+
+            auto lds_bottom_tensor_thread_idx =
+                lds_window_origin + window_adaptor_thread_coord.get_bottom_index();
+
+            // tdm's box dim is reversed from tile distribution
+            constexpr auto raw_box_dim =
+                to_sequence(tile_dstr.get_ys_to_d_descriptor().get_lengths()).reverse();
+
+            constexpr auto box_dim = raw_box_dim.modify(
+                number<0>{}, number<raw_box_dim.at(number<0>{}) / Traits::PackedSize>{});
+            // Use precomputed tensor descriptor
+            const auto lds_coord =
+                make_tensor_coordinate(lds_tensor_descriptor, lds_bottom_tensor_thread_idx);
+
+            // Calculate SMEM address using base pointer
+            CK_TILE_LDS_ADDR LdsDataType* smem =
+                smem_base_ptr + lds_coord.get_offset() / Traits::PackedSize;
+
+            // Calculate remaining tensor dimensions, clamping negative values to 0
+            // This prevents out-of-bounds access when window_origin + bottom_index > tensor_length
+            auto&& tensor_dims = to_array<index_t, Base::NDimBottomTensor>(tuple_reverse(
+                transform_tuples([](auto x) { return max(index_t{0}, x); },
+                                 glb_tensor_descriptor.get_lengths() - this->get_window_origin() -
+                                     window_adaptor_thread_coord.get_bottom_index())));
+            tensor_dims[0] /= Traits::PackedSize;
+            // Assert that both window origins have the same dimensionality
+            static_assert(
+                std::is_same<std::remove_cv_t<std::remove_reference_t<decltype(lds_window_origin)>>,
+                             std::remove_cv_t<std::remove_reference_t<
+                                 decltype(this->get_window_origin())>>>::value,
+                "Window origin types mismatch - dimensions must be consistent!");
+            // if GatherIndexView_ is null_tile_window, then we are doing TDM load
+            if constexpr(is_null_tile_window_v<GatherIndexView_>)
+            {
+                this->get_bottom_tensor_view()
+                    .template get_tdm_elements<TDMConfig_,
+                                               remove_cvref_t<decltype(box_dim)>,
+                                               num_tensor_dims>(tdm_config,
+                                                                smem,
+                                                                bottom_tensor_thread_coord,
+                                                                tensor_dims,
+                                                                global_strides,
+                                                                number<num_tensor_dims>{});
+            }
+            // if GatherIndexView_ is not null_tile_view, then we are doing TDM gather
+            else
+            {
+                constexpr index_t RowNumPerTDMIter =
+                    std::is_same_v<typename GatherIndexView_::DataType, uint16_t> ? 16 : 8;
+                constexpr index_t NumIterations = i_access_ / RowNumPerTDMIter;
+
+                static_for<0, NumIterations, 1>{}([&](auto iIter) {
+                    this->get_bottom_tensor_view()
+                        .template get_tdm_elements<TDMConfig_,
+                                                   remove_cvref_t<decltype(box_dim)>,
+                                                   num_tensor_dims>(
+                            tdm_config,
+                            smem,
+                            bottom_tensor_thread_coord,
+                            tensor_dims,
+                            global_strides,
+                            number<num_tensor_dims>{},
+                            gather_index_view.get_bottom_tensor_view(),
+                            number<iIter * RowNumPerTDMIter>{});
+                });
+            }
+        };
+
+        if constexpr(is_null_tile_window_v<GatherIndexView_>)
+        {
+            ignore = gather_index_view;
+        }
+
+        static_for<0, NumCoord, 1>{}(process_coord);
+    }
+
+#if defined(__gfx125__)
+    template <DataCachePrefetchKind PrefetchKind = DataCachePrefetchKind::None>
+    static constexpr index_t getCachelineSize()
+    {
+        static_assert(PrefetchKind != DataCachePrefetchKind::None,
+                      "getCachelineSize() called with DataCachePrefetchKind::None; "
+                      "prefetching must target L1 or L2");
+        if constexpr(PrefetchKind == DataCachePrefetchKind::L1)
+            return 32; // L1 cacheline size in bytes for gfx125
+        else
+            return 256; // L2 cacheline size in bytes for gfx125
+    }
+#endif
+
+    // NOTE:
+    // We assume that the prefetch_for_tdm call starts with coordinates aligned to cacheline size
+    // i.e for 32 byte cacheline they're aligned to 32. We also assume the step coordinate that is
+    // moving in contiguous dimension is at the last dimension of the tile distribution (i.e x
+    // dimension in row-major layout), and we only consider the step in that dimension for prefetch
+    // coverage calculation.
+    template <DataCachePrefetchKind PrefetchKind = DataCachePrefetchKind::None,
+              typename DramTileWindowStep>
+    CK_TILE_DEVICE constexpr index_t
+    prefetch_for_tdm_covers_more_calls([[maybe_unused]] const DramTileWindowStep& step)
+    {
+        if constexpr(PrefetchKind == DataCachePrefetchKind::None)
+            return 0;
+#if defined(__gfx125__)
+        // TODO: move it somewhere and call when we need these values
+        constexpr index_t cacheline_size = getCachelineSize<PrefetchKind>();
+
+        using Traits             = typename Base::Traits;
+        constexpr auto tile_dstr = typename Base::TileDstr{};
+
+        // Get tile dimensions
+        constexpr auto raw_box_dim =
+            to_sequence(tile_dstr.get_ys_to_d_descriptor().get_lengths()).reverse();
+
+        const index_t x_step = step.at(number<DramTileWindowStep{}.size() - 1>{});
+        if(x_step == 0)
+            return 0; // if step is 0, it means we are not moving in that dimension, so prefetch
+                      // won't cover more calls
+
+        const index_t bytes_per_x_step =
+            x_step * Traits::PackedSize * sizeof(typename Base::DataType);
+
+        constexpr index_t cacheline_part_covered_by_prefetch_for_tdm =
+            raw_box_dim.at(number<0>{}) * sizeof(typename Base::DataType);
+
+        const index_t additional_prefetches_covered =
+            max(0,
+                (cacheline_size - cacheline_part_covered_by_prefetch_for_tdm) /
+                    bytes_per_x_step); // we don't want negatives
+        return additional_prefetches_covered;
+#else
+        return 0;
+#endif
+    }
+    // Prefetch DRAM memory that would be accessed by TDM load
+    // Similar to tdm_load_to_lds but issues cache prefetch hints instead of loading to LDS
+    // We try to fill entire wave with multiple rows and columns per single call to prefetch
+    // For OOB we set is_valid to false
+    // For now TDMConfig_ is unused, but we keep it for future use when maybe TDM will have prefetch
+    // config
+    template <DataCachePrefetchKind PrefetchKind = DataCachePrefetchKind::None, typename TDMConfig_>
+    CK_TILE_DEVICE void prefetch_for_tdm([[maybe_unused]] const TDMConfig_& tdm_config) const
+    {
+        if constexpr(PrefetchKind == DataCachePrefetchKind::None)
+            return;
+#if defined(__gfx125__)
+        // TODO: move it somewhere and call when we need these values
+        constexpr index_t cacheline_size   = getCachelineSize<PrefetchKind>();
+        constexpr auto preferred_coherence = PrefetchKind == DataCachePrefetchKind::L1
+                                                 ? amd_buffer_coherence_enum::CU_RT
+                                                 : amd_buffer_coherence_enum::SE_RT;
+
+        using Traits             = typename Base::Traits;
+        constexpr auto tile_dstr = typename Base::TileDstr{};
+
+        // Use cached computation for global strides (same as tdm_load_to_lds)
+        auto&& global_strides = get_cached_global_strides();
+
+        const auto& glb_tensor_descriptor = this->get_bottom_tensor_view().get_tensor_descriptor();
+
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0]; // without origin
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1]; // with origin
+
+            // Get tile dimensions
+            constexpr auto raw_box_dim =
+                to_sequence(tile_dstr.get_ys_to_d_descriptor().get_lengths()).reverse();
+            constexpr index_t x_len = raw_box_dim.at(number<0>{}) / Traits::PackedSize;
+            constexpr index_t y_len = (raw_box_dim.size() > 1 ? raw_box_dim.at(number<1>{}) : 1);
+
+            // Calculate remaining tensor dimensions, clamping negative values to 0
+            // This prevents out-of-bounds access when window_origin + bottom_index > tensor_length
+            auto&& tensor_dims = to_array<index_t, Base::NDimBottomTensor>(tuple_reverse(
+                transform_tuples([](auto x) { return max(index_t{0}, x); },
+                                 glb_tensor_descriptor.get_lengths() - this->get_window_origin() -
+                                     window_adaptor_thread_coord.get_bottom_index())));
+            tensor_dims[0] /= Traits::PackedSize;
+
+            // Prefetch across the 2D tile using strides
+            // Distribute column prefetches across lanes - each lane prefetches different x
+            // positions
+            constexpr index_t col_prefetch_stride =
+                max(1,
+                    static_cast<index_t>(
+                        cacheline_size /
+                        (Traits::PackedSize *
+                         sizeof(typename Base::DataType)))); // prefetch every cacheline bytes in
+                                                             // packed element units
+            constexpr index_t num_lanes = get_warp_size();
+
+            // Calculate how many lanes needed to cover one row
+            constexpr index_t num_unique_x  = max(1, x_len / col_prefetch_stride);
+            constexpr index_t lanes_per_row = num_unique_x < num_lanes ? num_unique_x : num_lanes;
+            constexpr index_t num_rows_parallel =
+                num_lanes / lanes_per_row; // how many rows we can process in parallel
+
+            // Determine which row and column offset this lane handles
+            const index_t y_lane_offset = (get_lane_id() / lanes_per_row) % y_len;
+            const index_t x_lane_offset = (get_lane_id() % lanes_per_row) * col_prefetch_stride;
+
+            // Get base offset for this thread's starting position
+            const auto base_offset = bottom_tensor_thread_coord.get_offset();
+
+            constexpr index_t num_x_iterations =
+                integer_divide_ceil(x_len, lanes_per_row * col_prefetch_stride);
+            constexpr index_t num_y_iterations = integer_divide_ceil(y_len, num_rows_parallel);
+            constexpr auto box_dim             = [&]() {
+                if constexpr(raw_box_dim.size() > 1)
+                {
+                    return raw_box_dim.modify(number<0>{}, number<num_x_iterations>{})
+                        .modify(number<1>{}, number<num_y_iterations>{});
+                }
+                else
+                {
+                    return raw_box_dim.modify(number<0>{}, number<num_x_iterations>{});
+                }
+            }();
+
+            // Create reverse iteration order: dimension 0 moves fastest
+            constexpr auto reverse_order =
+                typename arithmetic_sequence_gen<box_dim.size() - 1, -1, -1>::type{};
+            static_ford<decltype(box_dim), remove_cvref_t<decltype(reverse_order)>>{}(
+                [&](auto box_dim_idx) {
+                    const index_t x =
+                        x_lane_offset + box_dim_idx[I0] * lanes_per_row * col_prefetch_stride;
+                    index_t prefetch_offset = base_offset + x * Traits::PackedSize;
+                    bool is_valid           = x < tensor_dims[0];
+
+                    if constexpr(box_dim.size() > 1)
+                    {
+                        const index_t y = y_lane_offset + box_dim_idx[I1] * num_rows_parallel;
+                        prefetch_offset += y * global_strides[0];
+                        is_valid = is_valid && y < tensor_dims[1];
+                    }
+
+                    static_for<2, box_dim.size(), 1>{}([&](auto i) {
+                        prefetch_offset += box_dim_idx[i] * global_strides[i - 1];
+                        is_valid = is_valid && box_dim_idx[i] < tensor_dims[i];
+                    });
+
+                    using DataType = typename Base::DataType;
+                    this->get_bottom_tensor_view()
+                        .get_buffer_view()
+                        .template prefetch<DataType, preferred_coherence>(
+                            0, prefetch_offset, is_valid);
+                });
+        });
+#endif
+    }
+
+    // NOTE:
+    // We assume that the prefetch_for_flat call starts with coordinates aligned to cacheline size
+    // i.e for 32 byte cacheline they're aligned to 32. We also assume the step coordinate that is
+    // moving in contiguous dimension is at the last dimension of the tile distribution (i.e x
+    // dimension in row-major layout), and we only consider the step in that dimension for prefetch
+    // coverage calculation.
+    // NWaveN_/NWaveK_ are accepted for API symmetry but do not affect coverage.
+    template <DataCachePrefetchKind PrefetchKind = DataCachePrefetchKind::None,
+              index_t NWaveN_                    = 1,
+              index_t NWaveK_                    = 1,
+              typename DramTileWindowStep>
+    CK_TILE_DEVICE constexpr index_t
+    prefetch_for_flat_covers_more_calls([[maybe_unused]] const DramTileWindowStep& step) const
+    {
+        if constexpr(PrefetchKind == DataCachePrefetchKind::None)
+            return 0;
+#if defined(__gfx125__)
+        constexpr index_t cacheline_size = getCachelineSize<PrefetchKind>();
+        using Traits                     = typename Base::Traits;
+
+        const index_t x_step = step.at(number<DramTileWindowStep{}.size() - 1>{});
+        if(x_step == 0)
+            return 0;
+
+        const index_t bytes_per_x_step =
+            x_step * Traits::PackedSize * sizeof(typename Base::DataType);
+
+        // bytes covered by the full K extent of the window
+        constexpr auto win_lengths = typename Base::WindowLengths{};
+        constexpr index_t x_len_bytes =
+            win_lengths.at(number<1>{}) * sizeof(typename Base::DataType);
+        // how many bytes the last cacheline extends past the window's K end
+        constexpr index_t cacheline_overhang =
+            (cacheline_size - x_len_bytes % cacheline_size) % cacheline_size;
+
+        const index_t additional_prefetches_covered =
+            max(0, static_cast<index_t>(cacheline_overhang) / bytes_per_x_step);
+        return additional_prefetches_covered;
+#else
+        return 0;
+#endif
+    }
+
+    // NWaveN_: number of N-direction warps per block (e.g. BlockWarps::at(I1)).
+    // NWaveK_: number of K-direction warps per block (e.g. BlockWarps::at(I2)).
+    // NWaveN/MWaveK used to partition the tile among warps, but only in the N dimension, so they
+    // don't affect coverage calculation. They are used here to determine which rows each warp
+    // should prefetch to minimize cross-warp redundancy(i.e. to not prefetch the same data in each
+    // warp).
+    template <DataCachePrefetchKind PrefetchKind = DataCachePrefetchKind::None,
+              index_t NWaveN_                    = 1,
+              index_t NWaveK_                    = 1>
+    CK_TILE_DEVICE void prefetch_for_flat() const
+    {
+        if constexpr(PrefetchKind == DataCachePrefetchKind::None)
+            return;
+#if defined(__gfx125__)
+        constexpr index_t cacheline_size   = getCachelineSize<PrefetchKind>();
+        constexpr auto preferred_coherence = PrefetchKind == DataCachePrefetchKind::L1
+                                                 ? amd_buffer_coherence_enum::CU_RT
+                                                 : amd_buffer_coherence_enum::SE_RT;
+
+        using Traits = typename Base::Traits;
+
+        auto&& global_strides             = get_cached_global_strides();
+        const auto& glb_tensor_descriptor = this->get_bottom_tensor_view().get_tensor_descriptor();
+
+        // Use window lengths (X-space) instead of ys_to_d lengths (Y-space)
+        constexpr auto win_lengths = typename Base::WindowLengths{};
+        constexpr index_t x_len    = win_lengths.at(number<1>{}) / Traits::PackedSize;
+        constexpr index_t y_len    = win_lengths.at(number<0>{});
+
+        // Partition N-rows among N-warps using ceil-div so every warp gets at least one row even
+        // when y_len < NWaveN_.  The actual rows covered by a warp are clamped against y_len in
+        // the is_valid predicate, so warps whose base exceeds y_len simply issue no prefetches.
+        constexpr index_t y_per_wave = max(index_t{1}, integer_divide_ceil(y_len, NWaveN_));
+
+        // n_wave_id = which N-warp this thread belongs to.
+        const index_t n_wave_id   = (get_warp_id() / NWaveK_) % NWaveN_;
+        const index_t y_wave_base = n_wave_id * y_per_wave;
+
+        // Base from window origin (warp-level, same for all lanes), not per-thread coords.
+        const auto win_origin_coord =
+            make_tensor_coordinate(glb_tensor_descriptor, this->get_window_origin());
+        const auto base_offset = win_origin_coord.get_offset() / Traits::PackedSize;
+
+        // OOB: remaining tensor extents measured from window origin
+        auto&& tensor_dims = to_array<index_t, Base::NDimBottomTensor>(tuple_reverse(
+            transform_tuples([](auto x) { return max(index_t{0}, x); },
+                             glb_tensor_descriptor.get_lengths() - this->get_window_origin())));
+        tensor_dims[0] /= Traits::PackedSize;
+
+        // Distribute cache-line prefetches across warp lanes
+        constexpr index_t col_prefetch_stride =
+            max(1,
+                static_cast<index_t>(cacheline_size /
+                                     (Traits::PackedSize * sizeof(typename Base::DataType))));
+        constexpr index_t num_lanes         = get_warp_size();
+        constexpr index_t num_unique_x      = max(1, x_len / col_prefetch_stride);
+        constexpr index_t lanes_per_row     = num_unique_x < num_lanes ? num_unique_x : num_lanes;
+        constexpr index_t num_rows_parallel = num_lanes / lanes_per_row;
+
+        // Lane offset within this warp's N-stripe [0, y_per_wave).
+        // y_per_wave >= 1 by construction so the modulus is safe.
+        const index_t y_lane_offset = (get_lane_id() / lanes_per_row) % y_per_wave;
+        const index_t x_lane_offset = (get_lane_id() % lanes_per_row) * col_prefetch_stride;
+
+        constexpr index_t num_x_iterations =
+            integer_divide_ceil(x_len, lanes_per_row * col_prefetch_stride);
+        constexpr index_t num_y_iterations = integer_divide_ceil(y_per_wave, num_rows_parallel);
+
+        constexpr auto box_dim = sequence<num_x_iterations, num_y_iterations>{};
+        constexpr auto reverse_order =
+            typename arithmetic_sequence_gen<box_dim.size() - 1, -1, -1>::type{};
+
+        static_ford<decltype(box_dim), remove_cvref_t<decltype(reverse_order)>>{}(
+            [&](auto box_dim_idx) {
+                const index_t x =
+                    x_lane_offset + box_dim_idx[I0] * lanes_per_row * col_prefetch_stride;
+                const index_t y = y_wave_base + y_lane_offset + box_dim_idx[I1] * num_rows_parallel;
+
+                index_t prefetch_offset = base_offset + x + y * global_strides[0];
+                bool is_valid           = x < tensor_dims[0] && y < tensor_dims[1];
+
+                static_for<2, box_dim.size(), 1>{}([&](auto i) {
+                    prefetch_offset += box_dim_idx[i] * global_strides[i - 1];
+                    is_valid = is_valid && box_dim_idx[i] < tensor_dims[i];
+                });
+
+                using DataType = typename Base::DataType;
+                this->get_bottom_tensor_view()
+                    .get_buffer_view()
+                    .template prefetch<DataType, preferred_coherence>(0, prefetch_offset, is_valid);
+            });
+#endif
+    }
+
+    template <typename TDMConfig_, typename LdsTileWindow_, index_t i_access_unsupport_ = -1>
+    CK_TILE_DEVICE auto tdm_store_from_lds(const TDMConfig_& tdm_config,
+                                           const LdsTileWindow_& lds_tile,
+                                           number<i_access_unsupport_> = {}) const
+    {
+        using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
+        using LdsDataType   = typename LdsTileWindow::DataType;
+
+        static_assert(std::is_same_v<LdsDataType, typename Base::DataType>,
+                      "LdsDataType must match tile window's DataType");
+        using Traits             = typename Base::Traits;
+        constexpr auto tile_dstr = typename Base::TileDstr{};
+
+        static constexpr index_t num_tensor_dims = BottomTensorView_::get_num_of_dimension();
+
+        const auto& glb_tensor_descriptor = this->get_bottom_tensor_view().get_tensor_descriptor();
+
+        const auto lds_window_origin       = lds_tile.get_window_origin();
+        const auto& lds_bottom_tensor_view = lds_tile.get_bottom_tensor_view();
+        const auto& lds_tensor_descriptor  = lds_bottom_tensor_view.get_tensor_descriptor();
+        auto smem_base_ptr                 = lds_bottom_tensor_view.get_buffer_view().p_data_;
+
+        // Use cached computation for global strides
+        auto&& global_strides = get_cached_global_strides();
+
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0]; // without origin
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1]; // with origin
+
+            auto lds_bottom_tensor_thread_idx =
+                lds_window_origin + window_adaptor_thread_coord.get_bottom_index();
+
+            // Calculate remaining tensor dimensions, clamping negative values to 0
+            // This prevents out-of-bounds access when window_origin + bottom_index >
+            // tensor_length
+            auto&& tensor_dims = to_array<index_t, Base::NDimBottomTensor>(tuple_reverse(
+                transform_tuples([](auto x) { return max(index_t{0}, x); },
+                                 glb_tensor_descriptor.get_lengths() - this->get_window_origin() -
+                                     window_adaptor_thread_coord.get_bottom_index())));
+            tensor_dims[0] /= Traits::PackedSize;
+
+            constexpr auto raw_box_dim =
+                to_sequence(tile_dstr.get_ys_to_d_descriptor().get_lengths()).reverse();
+
+            constexpr auto box_dim = raw_box_dim.modify(
+                number<0>{}, number<raw_box_dim.at(number<0>{}) / Traits::PackedSize>{});
+            // Use precomputed tensor descriptor
+            const auto lds_coord =
+                make_tensor_coordinate(lds_tensor_descriptor, lds_bottom_tensor_thread_idx);
+
+            // Calculate SMEM address using base pointer
+            CK_TILE_LDS_ADDR LdsDataType* smem =
+                smem_base_ptr + lds_coord.get_offset() / Traits::PackedSize;
+            // Assert that both window origins have the same dimensionality
+            static_assert(
+                std::is_same<std::remove_cv_t<std::remove_reference_t<decltype(lds_window_origin)>>,
+                             std::remove_cv_t<std::remove_reference_t<
+                                 decltype(this->get_window_origin())>>>::value,
+                "Window origin types mismatch - dimensions must be consistent!");
+
+            this->get_bottom_tensor_view()
+                .template store_tdm_elements<TDMConfig_,
+                                             remove_cvref_t<decltype(box_dim)>,
+                                             num_tensor_dims>(tdm_config,
+                                                              smem,
+                                                              bottom_tensor_thread_coord,
+                                                              tensor_dims,
+                                                              global_strides,
+                                                              number<num_tensor_dims>{});
         });
     }
 
@@ -1121,11 +1778,34 @@ struct tile_window_with_static_distribution
         });
     }
 
+    private:
+    // Cached computation for global strides
+    CK_TILE_DEVICE auto get_cached_global_strides() const
+    {
+        if(!tensor_cache_initialized_)
+        {
+            using Traits = typename Base::Traits;
+            const auto& glb_tensor_descriptor =
+                this->get_bottom_tensor_view().get_tensor_descriptor();
+            cached_global_strides_ = to_array<index_t, Base::NDimBottomTensor>(
+                transform_tuples([](auto x) { return max(x / Traits::PackedSize, index_t{1}); },
+                                 tuple_reverse(container_reverse_inclusive_scan(
+                                     glb_tensor_descriptor.get_lengths(), multiplies<>{}, 1))));
+            tensor_cache_initialized_ = true;
+        }
+
+        return cached_global_strides_;
+    }
+
     // this contains:
     //   per-thread coordinate for window adaptor
     //   per-thread coordinate for bottom tensor
     array<tuple<typename Base::WindowAdaptorCoord, typename Base::BottomTensorCoord>, NumCoord>
         pre_computed_coords_;
+
+    // Cached tensor computation variables
+    mutable bool tensor_cache_initialized_ = false;
+    mutable typename Base::BottomTensorIndex cached_global_strides_;
     // pre_computed_warp_coords_ exists only in the global memory tile_window
     std::conditional_t<
         Base::BottomTensorView::buffer_view::get_address_space() == address_space_enum::global,

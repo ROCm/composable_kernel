@@ -22,9 +22,6 @@ template <typename ABLayout,
 struct ABTransferWaveTiles
 {
     __device__ static constexpr bool IsLDSNeeded() { return true; }
-
-    static_assert(!(is_same_v<remove_cvref_t<LDSTypeAB>, pk_i4_t>),
-                  "wave tile transfer method does not support pk_i4_t");
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -65,7 +62,8 @@ struct ABTransferWaveTiles
             ? std::min(MNPerBlock / MNPerWmma, NumberOfWaves)
             : (MNPerBlock / MNPerWmma % 2 == 0 ? 2 : 1);
     static constexpr index_t KMajorWaves_ =
-        KPerBlock / KPack % std::min(KPerBlock / KPack, NumberOfWaves) == 0
+        KPerBlock <= KPack ? 1
+        : KPerBlock / KPack % std::min(KPerBlock / KPack, NumberOfWaves) == 0
             ? std::min(KPerBlock / KPack, NumberOfWaves)
             : (KPerBlock / KPack % 2 == 0 ? 2 : 1);
 

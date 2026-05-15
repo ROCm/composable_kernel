@@ -20,7 +20,6 @@ TYPED_TEST_SUITE(TestBatchedGemmGemmBF16, KernelTypes);
 
 TYPED_TEST(TestBatchedGemmGemmBF16, Test_BF16)
 {
-    this->bench_  = true;
     this->verify_ = true;
     this->Run();
 }
@@ -30,7 +29,6 @@ TYPED_TEST(TestBatchedGemmGemmBF16, Test_BF16_PadM)
     this->lengths_ = std::vector<std::vector<int>>{
         {136, 128, 32, 128, 1},
     };
-    this->bench_  = true;
     this->verify_ = true;
     this->Run();
 }
@@ -40,7 +38,6 @@ TYPED_TEST(TestBatchedGemmGemmBF16, Test_BF16_PadN)
     this->lengths_ = std::vector<std::vector<int>>{
         {128, 136, 32, 128, 1},
     };
-    this->bench_  = true;
     this->verify_ = true;
     this->Run();
 }
@@ -51,7 +48,7 @@ TYPED_TEST(TestBatchedGemmGemmBF16, Test_BF16_PadK)
         {128, 128, 40, 128, 1},
         {128, 128, 136, 128, 1},
     };
-    this->bench_  = true;
+
     this->verify_ = true;
     this->Run();
 }
@@ -61,7 +58,7 @@ TYPED_TEST(TestBatchedGemmGemmBF16, Test_BF16_PadO)
     this->lengths_ = std::vector<std::vector<int>>{
         {128, 128, 32, 136, 1},
     };
-    this->bench_  = true;
+
     this->verify_ = true;
     this->Run();
 }
@@ -71,7 +68,7 @@ TYPED_TEST(TestBatchedGemmGemmBF16, Test_BF16_OddM)
     this->lengths_ = std::vector<std::vector<int>>{
         {129, 128, 32, 128, 1},
     };
-    this->bench_  = true;
+
     this->verify_ = true;
     this->Run();
 }
@@ -81,7 +78,7 @@ TYPED_TEST(TestBatchedGemmGemmBF16, Test_BF16_OddN)
     this->lengths_ = std::vector<std::vector<int>>{
         {128, 129, 32, 128, 1},
     };
-    this->bench_  = true;
+
     this->verify_ = true;
     this->Run();
 }
@@ -92,7 +89,7 @@ TYPED_TEST(TestBatchedGemmGemmBF16, Test_BF16_OddK)
         {128, 128, 33, 128, 1},
         {128, 128, 129, 128, 1},
     };
-    this->bench_  = true;
+
     this->verify_ = true;
     this->Run();
 }
@@ -103,7 +100,7 @@ TYPED_TEST(TestBatchedGemmGemmBF16, Test_BF16_OddO)
     this->lengths_ = std::vector<std::vector<int>>{
         {128, 128, 32, 129, 1},
     };
-    this->bench_  = true;
+
     this->verify_ = true;
     this->Run();
 }
@@ -122,7 +119,7 @@ TYPED_TEST(TestBatchedGemmGemmBF16, DISABLED_Bench_BF16)
         {4096, 4096, 64, 64, 768},
         {4096, 4096, 128, 128, 768},
     };
-    this->bench_  = true;
+
     this->verify_ = false;
     this->Run();
 }

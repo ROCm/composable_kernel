@@ -48,14 +48,14 @@ using DeviceGroupedConvNDFwdInstance =
         1,           //
         256,         // BlockSize
         128,         // MPerBlock
-        256,         // NPerBlock
-        32,          // KPerBlock
-        8,           // AK1
-        8,           // BK1
+        128,         // NPerBlock
+        128,         // KPerBlock
+        32,          // AK1
+        32,          // BK1
         16,          // MPerXdl
         16,          // NPerXdl
         4,           // MXdlPerWave
-        8,           // NXdlPerWave
+        4,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder

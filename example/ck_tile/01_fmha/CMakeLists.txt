@@ -3,7 +3,7 @@
 
 set(INST_TARGETS ${SUPPORTED_GPU_TARGETS})
 # Currently only gfx9 and gfx12 archs are supported by FMHA
-list(FILTER INST_TARGETS INCLUDE REGEX "gfx9|gfx1[12]")
+list(FILTER INST_TARGETS INCLUDE REGEX "gfx9|gfx12")
 if(NOT INST_TARGETS)
   message(WARNING "Skipping Tile Engine FMHA compilation: No supported GPU targets (gfx9, gfx11, gfx12) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
   return()
@@ -234,6 +234,7 @@ message(DEBUG "adding example ${EXAMPLE_FMHA_FWD}")
 add_executable(${EXAMPLE_FMHA_FWD} EXCLUDE_FROM_ALL example_fmha_fwd.cpp)
 target_link_libraries(${EXAMPLE_FMHA_FWD} ${FMHA_FWD_INSTANCES})
 target_include_directories(${EXAMPLE_FMHA_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+set_property(TARGET ${EXAMPLE_FMHA_FWD} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 
 message(DEBUG "adding example ${EXAMPLE_FMHA_BWD}")
 # not using add_example_executable() to add this target, since we don't want this to be included in
@@ -241,6 +242,7 @@ message(DEBUG "adding example ${EXAMPLE_FMHA_BWD}")
 add_executable(${EXAMPLE_FMHA_BWD} EXCLUDE_FROM_ALL example_fmha_bwd.cpp)
 target_link_libraries(${EXAMPLE_FMHA_BWD} ${FMHA_BWD_INSTANCES})
 target_include_directories(${EXAMPLE_FMHA_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+set_property(TARGET ${EXAMPLE_FMHA_BWD} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long

@@ -354,13 +354,13 @@ int run_add_rmsnorm2d_rdquant_combinations(std::string const& data_type)
 
     bool result      = true;
     std::string pr_i = "-prec=" + data_type;
-    strncpy(bufs[0], "add_rmsnorm2d_rdquant_fwd", 64);
-    strncpy(bufs[1], pr_i.c_str(), 64);
+    snprintf(bufs[0], 64, "%s", "add_rmsnorm2d_rdquant_fwd");
+    snprintf(bufs[1], 64, "%s", pr_i.c_str());
     for(size_t i = 0; i < params.size(); i++)
     {
         for(size_t j = 0; j < params[i].size(); j++)
         {
-            strncpy(bufs[j + 2], params[i][j].c_str(), 64);
+            snprintf(bufs[j + 2], 64, "%s", params[i][j].c_str());
         }
         int argc = params[i].size() + 2;
 

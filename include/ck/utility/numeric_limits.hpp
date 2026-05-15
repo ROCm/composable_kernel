@@ -106,6 +106,7 @@ struct NumericLimits<half_t>
     static constexpr unsigned short binary_max    = 0x7BFF;
     static constexpr unsigned short binary_lowest = 0xFBFF;
     static constexpr unsigned short binary_qnan   = 0x7FFF;
+    static constexpr unsigned short binary_inf    = 0x7C00;
 
     __host__ __device__ static constexpr half_t Min() { return bit_cast<half_t>(binary_min); }
 
@@ -114,7 +115,41 @@ struct NumericLimits<half_t>
     __host__ __device__ static constexpr half_t Lowest() { return bit_cast<half_t>(binary_lowest); }
 
     __host__ __device__ static constexpr half_t QuietNaN() { return bit_cast<half_t>(binary_qnan); }
+
+    __host__ __device__ static constexpr half_t Infinity() { return bit_cast<half_t>(binary_inf); }
 };
+
+#if CK_USE_LLVM_BUILTIN_BF16
+template <>
+struct NumericLimits<bhalf_t>
+{
+    // bfloat16: 1 sign bit, 8 exponent bits, 7 mantissa bits
+    static constexpr unsigned short binary_min    = 0x0080; // 2^-126 (min positive normal)
+    static constexpr unsigned short binary_max    = 0x7F7F; // max finite
+    static constexpr unsigned short binary_lowest = 0xFF7F; // lowest finite
+    static constexpr unsigned short binary_qnan   = 0x7FC0; // quiet NaN (exp=all 1s, mant!=0)
+    static constexpr unsigned short binary_inf    = 0x7F80; // +infinity
+
+    __host__ __device__ static constexpr bhalf_t Min() { return bit_cast<bhalf_t>(binary_min); }
+
+    __host__ __device__ static constexpr bhalf_t Max() { return bit_cast<bhalf_t>(binary_max); }
+
+    __host__ __device__ static constexpr bhalf_t Lowest()
+    {
+        return bit_cast<bhalf_t>(binary_lowest);
+    }
+
+    __host__ __device__ static constexpr bhalf_t QuietNaN()
+    {
+        return bit_cast<bhalf_t>(binary_qnan);
+    }
+
+    __host__ __device__ static constexpr bhalf_t Infinity()
+    {
+        return bit_cast<bhalf_t>(binary_inf);
+    }
+};
+#endif
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 template <>
@@ -325,6 +360,7 @@ struct NumericLimits<half_t>
     static constexpr unsigned short binary_max    = 0x7BFF;
     static constexpr unsigned short binary_lowest = 0xFBFF;
     static constexpr unsigned short binary_qnan   = 0x7FFF;
+    static constexpr unsigned short binary_inf    = 0x7C00;
 
     __host__ __device__ static constexpr half_t Min() { return bit_cast<half_t>(binary_min); }
 
@@ -333,7 +369,41 @@ struct NumericLimits<half_t>
     __host__ __device__ static constexpr half_t Lowest() { return bit_cast<half_t>(binary_lowest); }
 
     __host__ __device__ static constexpr half_t QuietNaN() { return bit_cast<half_t>(binary_qnan); }
+
+    __host__ __device__ static constexpr half_t Infinity() { return bit_cast<half_t>(binary_inf); }
 };
+
+#if CK_USE_LLVM_BUILTIN_BF16
+template <>
+struct NumericLimits<bhalf_t>
+{
+    // bfloat16: 1 sign bit, 8 exponent bits, 7 mantissa bits
+    static constexpr unsigned short binary_min    = 0x0080; // 2^-126 (min positive normal)
+    static constexpr unsigned short binary_max    = 0x7F7F; // max finite
+    static constexpr unsigned short binary_lowest = 0xFF7F; // lowest finite
+    static constexpr unsigned short binary_qnan   = 0x7FC0; // quiet NaN (exp=all 1s, mant!=0)
+    static constexpr unsigned short binary_inf    = 0x7F80; // +infinity
+
+    __host__ __device__ static constexpr bhalf_t Min() { return bit_cast<bhalf_t>(binary_min); }
+
+    __host__ __device__ static constexpr bhalf_t Max() { return bit_cast<bhalf_t>(binary_max); }
+
+    __host__ __device__ static constexpr bhalf_t Lowest()
+    {
+        return bit_cast<bhalf_t>(binary_lowest);
+    }
+
+    __host__ __device__ static constexpr bhalf_t QuietNaN()
+    {
+        return bit_cast<bhalf_t>(binary_qnan);
+    }
+
+    __host__ __device__ static constexpr bhalf_t Infinity()
+    {
+        return bit_cast<bhalf_t>(binary_inf);
+    }
+};
+#endif
 
 #ifdef CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
 template <>
@@ -549,6 +619,38 @@ struct NumericLimits<e8m0_bexp_t>
     {
         return e8m0_bexp_t(binary_142);
     }
+};
+
+template <>
+struct NumericLimits<e4m3_scale_t>
+{
+    static constexpr e4m3_scale_t binary_min  = e4m3_scale_t(0x01); // 0b00000001
+    static constexpr e4m3_scale_t binary_max  = e4m3_scale_t(0x7E); // 0b01111110
+    static constexpr e4m3_scale_t binary_qnan = e4m3_scale_t(0x7F); // 0b01111111
+    static constexpr e4m3_scale_t binary_1    = e4m3_scale_t(0x38); // 0b00111000
+    static constexpr e4m3_scale_t binary_2    = e4m3_scale_t(0x40); // 0b01000000
+
+    __host__ __device__ static constexpr e4m3_scale_t Min() { return binary_min; }
+    __host__ __device__ static constexpr e4m3_scale_t Max() { return binary_max; }
+    __host__ __device__ static constexpr e4m3_scale_t QuietNaN() { return binary_qnan; }
+    __host__ __device__ static constexpr e4m3_scale_t Binary_1() { return binary_1; }
+    __host__ __device__ static constexpr e4m3_scale_t Binary_2() { return binary_2; }
+};
+
+template <>
+struct NumericLimits<e5m3_scale_t>
+{
+    static constexpr e5m3_scale_t binary_min  = e5m3_scale_t(0x01); // 0b00000001
+    static constexpr e5m3_scale_t binary_max  = e5m3_scale_t(0xFE); // 0b11111110
+    static constexpr e5m3_scale_t binary_qnan = e5m3_scale_t(0xFF); // 0b11111111
+    static constexpr e5m3_scale_t binary_1    = e5m3_scale_t(0x78); // 0b01111000
+    static constexpr e5m3_scale_t binary_2    = e5m3_scale_t(0x80); // 0b10000000
+
+    __host__ __device__ static constexpr e5m3_scale_t Min() { return binary_min; }
+    __host__ __device__ static constexpr e5m3_scale_t Max() { return binary_max; }
+    __host__ __device__ static constexpr e5m3_scale_t QuietNaN() { return binary_qnan; }
+    __host__ __device__ static constexpr e5m3_scale_t Binary_1() { return binary_1; }
+    __host__ __device__ static constexpr e5m3_scale_t Binary_2() { return binary_2; }
 };
 #endif
 

@@ -556,8 +556,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
     static constexpr auto I5 = Number<5>{};
     static constexpr auto I6 = Number<6>{};
 
-    static constexpr auto WmmaK = 16;
-
     static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr auto LWaves = LPerBlock / (LRepeat * LPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
@@ -595,11 +593,12 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
         }
         else
         {
+            const index_t WmmaK = get_wmma_k<ADataType>();
             return Transform::
                 MakeAGridDescriptor_AKWmma_MBlockRepeat_MWaves_AK0PerWmma_AKRow_MPerWmma_AK1(
                     Transform::MakeAGridDescriptor_M_K(a_gs_ms_ks_lengths_vec,
                                                        a_gs_ms_ks_strides_vec),
-                    Number<WmmaK>{},
+                    WmmaK,
                     Number<MRepeat>{},
                     Number<MWaves>{},
                     Number<MPerWmma>{},
@@ -620,11 +619,12 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
         }
         else
         {
+            const index_t WmmaK = get_wmma_k<B0DataType>();
             return Transform::
                 MakeB0GridDescriptor_BKWmma_LBlockRepeat_LWaves_BK0PerWmma_BKRow_LPerWmma_BK1(
                     Transform::MakeB0GridDescriptor_N_K(b0_gs_ls_ks_lengths_vec,
                                                         b0_gs_ls_ks_strides_vec),
-                    Number<WmmaK>{},
+                    WmmaK,
                     Number<LRepeat>{},
                     Number<LWaves>{},
                     Number<LPerWmma>{},
@@ -645,11 +645,12 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
         }
         else
         {
+            const index_t WmmaK = get_wmma_k<B1DataType>();
             return Transform::
                 MakeB1GridDescriptor_BLWmma_NBlockRepeat_NWaves__BL0PerWmma_BLRow_NPerWmma_BL1(
                     Transform::MakeB1GridDescriptor_N_K(b1_gs_ns_ls_lengths_vec,
                                                         b1_gs_ns_ls_strides_vec),
-                    Number<WmmaK>{},
+                    WmmaK,
                     Number<NRepeat>{},
                     Number<NWaves>{},
                     Number<NPerWmma>{},
@@ -882,7 +883,14 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
             printf("DeviceOp: Arch err");
             return false;
         }
-
+        if(!is_xdl_wmma_k_supported<ADataType, KPerBlock>())
+        {
+            return false;
+        }
+        if(!is_xdl_wmma_k_supported<ADataType, LPerBlock>())
+        {
+            return false;
+        }
         constexpr index_t array_size = 4;
         ck::index_t G0               = arg.G0_;
         ck::index_t G1               = arg.G1_;

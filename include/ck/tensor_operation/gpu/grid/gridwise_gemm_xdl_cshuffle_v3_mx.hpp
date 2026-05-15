@@ -37,12 +37,12 @@ template <bool Use2LDS,
           TailNumber TailNum       = TailNumber::Full>
 __global__ enable_if_t<!Use2LDS, void>
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_mx(typename GridwiseGemm::Argument karg)
 {
-#if defined(__gfx950__)
+#if defined(__gfx950__) || defined(__gfx125__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte(get_device_arch())];
@@ -60,7 +60,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     }
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx9__))
+#endif
 }
 
 template <bool Use2LDS,
@@ -71,12 +71,12 @@ template <bool Use2LDS,
           TailNumber TailNum       = TailNumber::Full>
 __global__ enable_if_t<Use2LDS, void>
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
 #endif
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_mx(typename GridwiseGemm::Argument karg)
 {
-#if defined(__gfx950__)
+#if defined(__gfx950__) || defined(__gfx125__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
         // Pass two lds pointer is the key to tell compiler that ds_read/write
@@ -98,7 +98,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     }
 #else
     ignore = karg;
-#endif // end of if (defined(__gfx9__))
+#endif
 }
 
 template <typename ALayout,
@@ -253,8 +253,10 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
     using Base::AK0Number;
     using Base::AK1Number;
+    using Base::AKPerBlock;
     using Base::BK0Number;
     using Base::BK1Number;
+    using Base::BKPerBlock;
     using ThisThreadBlock = typename Base::ThisThreadBlock;
     using Base::GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1;
     using Base::GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1;
@@ -270,10 +272,11 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     static constexpr auto I8 = Number<8>{};
     static constexpr auto I9 = Number<9>{};
 
-    static constexpr auto lcm_AK1_BK1         = math::lcm(AK1Number, BK1Number);
     static constexpr bool is_single_rate_mfma = false;
     static constexpr auto is_scale_mfma       = true;
 
+    // XXX: Redefinition from BlockwiseGemmXdlops_mx_pipeline_base
+    // TODO: Use values from BlockwiseGemmXdlops_mx_pipeline_base
     static constexpr auto MXdlPack = 2;
     static constexpr auto NXdlPack = 2;
     static constexpr auto KXdlPack = 2;
@@ -285,6 +288,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     // KPack in packed data types for pk A/B
     static constexpr index_t APackedSize = packed_size_v<ADataType>;
     static constexpr index_t BPackedSize = packed_size_v<BDataType>;
+    static constexpr auto lcm_AK1_BK1 = math::lcm(AK1Number * APackedSize, BK1Number* BPackedSize);
 
     static constexpr index_t KPack =
         math::max(lcm_AK1_BK1,
@@ -293,8 +297,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                NPerXdl,
                                ComputeTypeB,
                                is_single_rate_mfma,
-                               is_scale_mfma>::selected_mfma.k_per_blk /
-                      APackedSize);
+                               is_scale_mfma>::selected_mfma.k_per_blk) /
+        APackedSize;
 
     __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch)
     {
@@ -319,13 +323,13 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     __host__ static auto CalculateAK0Padded(index_t K, index_t K_Batch = 1)
     {
         auto K_t = K_Batch * KPerBlock;
-        return (K + K_t - 1) / K_t * (KPerBlock / AK1Value);
+        return (K + K_t - 1) / K_t * (AKPerBlock / AK1Value);
     }
 
     __host__ static auto CalculateBK0Padded(index_t K, index_t K_Batch = 1)
     {
         auto K_t = K_Batch * KPerBlock;
-        return (K + K_t - 1) / K_t * (KPerBlock / BK1Value);
+        return (K + K_t - 1) / K_t * (BKPerBlock / BK1Value);
     }
 
     __host__ static auto CalculateKPadded(index_t K, index_t K_Batch = 1)
@@ -612,7 +616,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             else
             {
                 // Weight Tile Permute
-                constexpr index_t BK01 = KPerBlock / BK1Value;
+                constexpr index_t BK01 = BK0Number;
                 // const index_t BK00     = BK0 / BK01;
                 const index_t BK0_ = StrideB / BK1Value;
                 const index_t BK00 = BK0_ / BK01;
@@ -833,11 +837,11 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
 
             // Calculate A scale offset
             a_scale_k_split_offset =
-                k_id * karg.KRead / (ScaleBlockSize / APackedSize) * MXdlPack * MPerXdl;
+                k_id * karg.KRead * APackedSize / ScaleBlockSize * MXdlPack * MPerXdl;
 
             // Calculate B scale offset
             b_scale_k_split_offset =
-                k_id * karg.KRead / (ScaleBlockSize / BPackedSize) * NXdlPack * NPerXdl;
+                k_id * karg.KRead * APackedSize / ScaleBlockSize * NXdlPack * NPerXdl;
 
             if(k_id < (karg.KBatch - 1))
             {
@@ -865,6 +869,11 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         index_t c_reduce_offset;
     };
 
+#if defined(__gfx125__)
+    static constexpr index_t TransposeC = true;
+#else
+    static constexpr index_t TransposeC = false;
+#endif
     using BlockwiseGemmPipe = remove_cvref_t<
         decltype(BlockGemmMXPipeline_Selector<
                  BlkGemmPipelineVer,
@@ -892,7 +901,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                  NPerXdl,
                  MXdlPerWave,
                  NXdlPerWave,
-                 KPack>())>;
+                 KPack,
+                 TransposeC>())>;
 
     IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType)
 
@@ -903,7 +913,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
-        static_assert(KPerBlock % (ScaleBlockSize / BPackedSize) == 0,
+        static_assert(BKPerBlock % (ScaleBlockSize / BPackedSize) == 0,
                       "KPerBlock should be multiple of ScaleBlockSize");
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
@@ -1128,6 +1138,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
     using Block2CTileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
     // using Block2CTileMap = BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>;
 
+    // XXX: Redefinition from BlockwiseGemmXdlops_mx_pipeline_base
+    // TODO: Use values from BlockwiseGemmXdlops_mx_pipeline_base
     using mx_scale_t                           = e8m0_bexp_t;
     static constexpr index_t scale_pack_size_a = sizeof(AScaleDataType) / sizeof(mx_scale_t);
     static constexpr index_t scale_pack_size_b = sizeof(BScaleDataType) / sizeof(mx_scale_t);
@@ -1262,8 +1274,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                          a_block_space_size_aligned * sizeof(ADataType)),
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
-        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
+        constexpr auto a_block_slice_copy_step = make_multi_index(AK0Number, 0, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(BK0Number, 0, 0);
 
         // Blockwise GEMM pipeline
         static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
@@ -1360,7 +1372,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                                                          num_k_block_main_loop);
 
         // shuffle C and write out
-        Base::template RunEpilogue<CGlobalMemoryDataOperation, false, false>(
+        Base::template RunEpilogue<CGlobalMemoryDataOperation, false, TransposeC>(
             blockwise_gemm_pipeline,
             c_grid_desc_mblock_mperblock_nblock_nperblock,
             c_thread_buf,
@@ -1396,26 +1408,27 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         // MNRepeat -> KRepeat -> KThreadPerXdl -> MNThreadPerXdl -> KXdlPack -> MNXdlPack
         const auto Padded_Scale_M =
             math::integer_divide_ceil(problem.M, ScaleBlockSize) * ScaleBlockSize;
+
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
             make_tuple(Padded_Scale_M / (MXdlPack * MPerXdl),
-                       math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
-                           (KXdlPack * 64 / MPerXdl),
-                       64 * KXdlPack * MXdlPack / scale_pack_size_a),
-            make_tuple(math::integer_divide_ceil(problem.K * problem.KBatch,
-                                                 (ScaleBlockSize / APackedSize)) *
+                       math::integer_divide_ceil(problem.K * APackedSize, ScaleBlockSize) /
+                           (KXdlPack * BlockwiseGemmPipe::WaveSize / MPerXdl),
+                       BlockwiseGemmPipe::WaveSize * KXdlPack * MXdlPack / scale_pack_size_a),
+            make_tuple(math::integer_divide_ceil(problem.K * APackedSize * problem.KBatch,
+                                                 ScaleBlockSize) *
                            MPerXdl * MXdlPack / scale_pack_size_a,
-                       64 * KXdlPack * MXdlPack / scale_pack_size_a,
+                       BlockwiseGemmPipe::WaveSize * KXdlPack * MXdlPack / scale_pack_size_a,
                        1));
 
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
             make_tuple(problem.N / (NXdlPack * NPerXdl),
-                       math::integer_divide_ceil(problem.K, (ScaleBlockSize / BPackedSize)) /
-                           (KXdlPack * 64 / NPerXdl),
-                       64 * KXdlPack * NXdlPack / scale_pack_size_b),
-            make_tuple(math::integer_divide_ceil(problem.K * problem.KBatch,
-                                                 (ScaleBlockSize / BPackedSize)) *
+                       math::integer_divide_ceil(problem.K * APackedSize, ScaleBlockSize) /
+                           (KXdlPack * BlockwiseGemmPipe::WaveSize / NPerXdl),
+                       BlockwiseGemmPipe::WaveSize * KXdlPack * NXdlPack / scale_pack_size_b),
+            make_tuple(math::integer_divide_ceil(problem.K * APackedSize * problem.KBatch,
+                                                 ScaleBlockSize) *
                            NPerXdl * NXdlPack / scale_pack_size_b,
-                       64 * KXdlPack * NXdlPack / scale_pack_size_b,
+                       BlockwiseGemmPipe::WaveSize * KXdlPack * NXdlPack / scale_pack_size_b,
                        1));
 
         Run<decltype(a_grid_desc_ak0_m_ak1),
@@ -1572,8 +1585,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
         auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);
         auto b_block_bufs = make_tuple(b_block_buf_ping, b_block_buf_pong);
 
-        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
+        constexpr auto a_block_slice_copy_step = make_multi_index(AK0Number, 0, 0);
+        constexpr auto b_block_slice_copy_step = make_multi_index(BK0Number, 0, 0);
 
         // Blockwise GEMM pipeline
         static_assert(std::is_default_constructible_v<BlockwiseGemmPipe>);
@@ -1670,7 +1683,7 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
                                                                          num_k_block_main_loop);
 
         // shuffle C and write out
-        Base::template RunEpilogue<CGlobalMemoryDataOperation, false, false>(
+        Base::template RunEpilogue<CGlobalMemoryDataOperation, false, TransposeC>(
             blockwise_gemm_pipeline,
             c_grid_desc_mblock_mperblock_nblock_nperblock,
             c_thread_buf,
@@ -1709,24 +1722,24 @@ struct GridwiseGemmMX_xdl_cshuffle_v3
             math::integer_divide_ceil(problem.M, ScaleBlockSize) * ScaleBlockSize;
         const auto a_scale_grid_desc_am_ak = make_naive_tensor_descriptor(
             make_tuple(Padded_Scale_M / (MXdlPack * MPerXdl),
-                       math::integer_divide_ceil(problem.K, (ScaleBlockSize / APackedSize)) /
-                           (KXdlPack * 64 / MPerXdl),
-                       64 * KXdlPack * MXdlPack / scale_pack_size_a),
-            make_tuple(math::integer_divide_ceil(problem.K * problem.KBatch,
-                                                 (ScaleBlockSize / APackedSize)) *
+                       math::integer_divide_ceil(problem.K * APackedSize, ScaleBlockSize) /
+                           (KXdlPack * BlockwiseGemmPipe::WaveSize / MPerXdl),
+                       BlockwiseGemmPipe::WaveSize * KXdlPack * MXdlPack / scale_pack_size_a),
+            make_tuple(math::integer_divide_ceil(problem.K * APackedSize * problem.KBatch,
+                                                 ScaleBlockSize) *
                            MPerXdl * MXdlPack / scale_pack_size_a,
-                       64 * KXdlPack * MXdlPack / scale_pack_size_a,
+                       BlockwiseGemmPipe::WaveSize * KXdlPack * MXdlPack / scale_pack_size_a,
                        1));
 
         const auto b_scale_grid_desc_bn_ak = make_naive_tensor_descriptor(
             make_tuple(problem.N / (NXdlPack * NPerXdl),
-                       math::integer_divide_ceil(problem.K, (ScaleBlockSize / BPackedSize)) /
-                           (KXdlPack * 64 / NPerXdl),
-                       64 * KXdlPack * NXdlPack / scale_pack_size_b),
-            make_tuple(math::integer_divide_ceil(problem.K * problem.KBatch,
-                                                 (ScaleBlockSize / BPackedSize)) *
+                       math::integer_divide_ceil(problem.K * APackedSize, ScaleBlockSize) /
+                           (KXdlPack * BlockwiseGemmPipe::WaveSize / NPerXdl),
+                       BlockwiseGemmPipe::WaveSize * KXdlPack * NXdlPack / scale_pack_size_b),
+            make_tuple(math::integer_divide_ceil(problem.K * APackedSize * problem.KBatch,
+                                                 ScaleBlockSize) *
                            NPerXdl * NXdlPack / scale_pack_size_b,
-                       64 * KXdlPack * NXdlPack / scale_pack_size_b,
+                       BlockwiseGemmPipe::WaveSize * KXdlPack * NXdlPack / scale_pack_size_b,
                        1));
 
         Run_2Lds<decltype(a_grid_desc_ak0_m_ak1),

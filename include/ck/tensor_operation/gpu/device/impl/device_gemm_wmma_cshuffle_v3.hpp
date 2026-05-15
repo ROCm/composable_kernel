@@ -387,7 +387,7 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
         return str.str();
     }
     REGISTER_EXTRA_PRINTING_METHODS
-};
+}; // namespace device
 
 } // namespace device
 } // namespace tensor_operation

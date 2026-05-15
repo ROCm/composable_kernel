@@ -34,6 +34,7 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV2
     CK_TILE_HOST_DEVICE static auto
     TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
     {
+#if !defined(CK_TILE_FORCE_SINGLE_TAIL_HANDLER)
         if(has_hot_loop)
         {
             if(tail_number == TailNumber::Odd)
@@ -60,6 +61,11 @@ struct BaseWeightPreshufflePipelineAGmemBGmemCRegV2
                                 integral_constant<TailNumber, TailNumber::Even>{});
             }
         }
+#else
+        ignore = has_hot_loop;
+        ignore = tail_number;
+        return run_func(bool_constant<true>{}, integral_constant<TailNumber, TailNumber::Even>{});
+#endif
     }
 };
 

@@ -49,7 +49,8 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
                                          int Grid_size,
                                          int n_warmup,
                                          int n_iter,
-                                         uint64_t rotating = 0)
+                                         uint64_t rotating  = 0,
+                                         int instance_index = -1)
 {
     bool pass = true;
 
@@ -162,7 +163,7 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
             b_element_op,
             c_element_op);
 
-        if(ref_gemm_gpu.IsSupportedArgument(&ref_argument_gpu))
+        if(do_verification == 2 && ref_gemm_gpu.IsSupportedArgument(&ref_argument_gpu))
         {
             ref_invoker_gpu.Run(ref_argument_gpu, StreamConfig{nullptr, true});
             c_m_n_device_ref_buf.FromDevice(c_m_n_host_result.mData.data());
@@ -239,8 +240,14 @@ bool profile_gemm_universal_streamk_impl(int do_verification,
     std::cout << std::endl;
 
     // profile device GEMM instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t l = 0; l < op_ptrs.size(); l++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(l)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr                      = op_ptrs[l];
         std::vector<int> streamk_sel_list = {
             0, 1, 2, 3, 4}; // 0: Data Parallel (DP) mode (Stream-K OFF), 1: 1-tile Stream-K+ DP,
                             // 2:2-tile Stream-K + DP

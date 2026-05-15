@@ -72,10 +72,16 @@
     defined(__gfx1152__) || defined(__gfx1153__) || defined(__gfx11_generic__)
 #define __gfx11__
 #endif
-#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
+#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__) || \
+    defined(__gfx1250__)
 #define __gfx12__
 #endif
-
+#if defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx12_generic__)
+#define __gfx120__
+#endif
+#if defined(__gfx1250__)
+#define __gfx125__
+#endif
 // buffer resource
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_BUFFER_RESOURCE_3RD_DWORD -1
@@ -83,8 +89,10 @@
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx101__) || defined(__gfx103__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31014000
-#elif defined(__gfx11__) || defined(__gfx12__)
+#elif defined(__gfx11__) || defined(__gfx120__)
 #define CK_BUFFER_RESOURCE_3RD_DWORD 0x31004000
+#elif defined(__gfx125__)
+#define CK_BUFFER_RESOURCE_3RD_DWORD 0
 #endif
 
 // FMA instruction
@@ -96,7 +104,7 @@
 #define CK_USE_AMD_V_DOT4_I32_I8
 #elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx101__)
 #define CK_USE_AMD_V_MAC_F32
-#elif defined(__gfx11__) || defined(__gfx12__)
+#elif defined(__gfx11__) || defined(__gfx120__)
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8_GFX11
@@ -149,13 +157,59 @@
 
 // V_DOT inline instructions, less efficient since they require adding
 // `s_nop`s to avoid hazard
+#ifdef __gfx125__
+#define CK_USE_AMD_V_DOT_INLINE_ASM 1
+#else
 #define CK_USE_AMD_V_DOT_INLINE_ASM 0
+#endif
 
+#ifdef __gfx12__
+#define CK_USE_AMD_V_DOT_DPP8_INLINE_ASM 0
+#else
 // inner product using V_DOT with DPP8 modifiers
 #define CK_USE_AMD_V_DOT_DPP8_INLINE_ASM 1
+#endif
 
 // LDS direct loads using inline assembly
+#if defined(__gfx125__)
+#define CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM 1
+#else
 #define CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM 0
+#endif
+
+// cluster launch support for gfx1250
+#ifndef CK_ENABLE_CLUSTER_LAUNCH
+#ifdef __HIP_DEVICE_COMPILE__ // for device code
+#if defined(__gfx125__)
+#define CK_ENABLE_CLUSTER_LAUNCH 1
+#else
+#define CK_ENABLE_CLUSTER_LAUNCH 0
+#endif
+#else // for host code
+#if defined(CK_USE_GFX1250)
+#define CK_ENABLE_CLUSTER_LAUNCH 1
+#else
+#define CK_ENABLE_CLUSTER_LAUNCH 0
+#endif
+#endif
+#endif
+
+// use llvm builtin bf16 data type after ROCm 6.5
+#ifndef CK_USE_LLVM_BUILTIN_BF16
+#if(HIP_VERSION_MAJOR == 6 && HIP_VERSION_MINOR == 5 && HIP_VERSION_PATCH >= 50421) || \
+    (HIP_VERSION_MAJOR >= 7)
+#define CK_USE_LLVM_BUILTIN_BF16 1
+#else
+#define CK_USE_LLVM_BUILTIN_BF16 0
+#endif
+#endif
+
+// hardware support _bf16 data type
+#if(defined(__gfx950__) || defined(__gfx12__))
+#define CK_ARCH_SUPPORT_BUILTIN_BF16 1
+#else
+#define CK_ARCH_SUPPORT_BUILTIN_BF16 0
+#endif
 
 // set rounding to nearest even as default for bf16 conversions
 #define CK_USE_RNE_BF16_CONVERSION 1
@@ -234,6 +288,9 @@
 
 // workaround: compiler gnerating inefficient ds_write instructions
 #define CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE 1
+
+// workaround: gfx1250 does not support a negative offset
+#define CK_WORKAROUND_SWDEV_XXXXXX_GFX1250_NEG_OFFSET_ISSUE 1
 
 // workaround: verifaction failure, due to compiler regression, for conv bwd-data fp16 using some
 // tuning parameter

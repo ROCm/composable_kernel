@@ -9,7 +9,6 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_mx.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/utility/blkgemmpipe_scheduler.hpp"
 #include "ck/utility/data_type.hpp"
@@ -27,9 +26,10 @@ using ::ck::Tensor;
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
-using Row  = ck::tensor_layout::gemm::RowMajor;
-using Col  = ck::tensor_layout::gemm::ColumnMajor;
-using MFMA = ck::tensor_layout::gemm::MFMA;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using MFMA   = ck::tensor_layout::gemm::MFMA;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -116,7 +116,7 @@ bool parse_cmd_args(int argc,
 }
 
 template <bool KLast>
-void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
+void preShuffleScaleBuffer_gfx950(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
 {
     int MNXdlPack = 2;
     int KXdlPack  = 2;
@@ -126,8 +126,9 @@ void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, i
 
     int K0 = K / KXdlPack / XdlKThread; // KRepeat
 
-    // The 4 16x128 building blocks will be packed into 1 32x256 for F4
-    // The 8 16x16x128 mfma will be packed into 1 32x32x256 for F4
+    // On gfx950, WarpSize=64:
+    // The 4 16x128 building blocks will be packed into 1 32x256
+    // The 8 16x16x128 mfma will be packed into 1 32x32x256
 
     // unfold the MN32xK(256/32) scale buffer
     //    4            16             2           2
@@ -163,13 +164,74 @@ void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, i
     }
 }
 
-void preShuffleBuffer(const ck::f4x2_pk_t* src, ck::f4x2_pk_t* dst, int N, int K, int NXdl)
+/**
+ * Pre-shuffle scale buffer for gfx1250 16x16x128 wmma scale instruction
+ *
+ * @tparam ScaleType Scale data type
+ * @tparam KStride Whether K is the leading dimension of the scale buffer
+ */
+template <typename ScaleType, ck::index_t ScaleBlockSize, bool KStride>
+void preShuffleScaleBuffer_gfx1250(const ScaleType* src,
+                                   ScaleType* dst,
+                                   ck::index_t MN,
+                                   ck::index_t K)
 {
-    int KPack = 16;
-    int NLane = NXdl;
-    int KLane = 64 / NLane;
-    int K_pk  = K / 2;
-    int K0    = K_pk / (KLane * KPack);
+
+    static_assert(ScaleBlockSize == 32 && sizeof(ScaleType) == 1,
+                  "wrong! only support 8-bit scale with ScaleBlockSize=32");
+
+    constexpr ck::index_t MPerXdlops = 16;
+    // constexpr ck::index_t NPerXdlops = 16;
+    constexpr ck::index_t KPerXdlops = 128;
+
+    int MNPack = 2; // 2 sets of scales in M/N direction
+    int KPack  = 1; // 1 set of scales in K direction
+
+    int MNStep = MPerXdlops;
+    int KStep  = KPerXdlops / ScaleBlockSize; // scales per thread
+
+    int K0 = K / KPack / KStep; // KRepeat - how many KStep blocks
+
+    // On gfx1250, WarpSize=32:
+    // -- The 2 16x128 building blocks will be packed into 1 32x128
+    // -- The 4 16x16x128 wmma will be packed into 1 32x32x128
+
+    // unfold the MN32xK(128/32) scale buffer
+    //    4            16        1        2
+    // To KStep  ->  MNStep -> KPack -> MNPack
+    // or ???
+    //    2         16        1        4
+    //  MNPack -> MNStep -> KPack -> KStep
+    for(int mn = 0; mn < MN; ++mn)
+    {
+        int iMNRepeat = mn / (MNStep * MNPack); // i MNRepeat (MN block id)
+        int tempmn    = mn % (MNStep * MNPack); // position in MN block
+
+        for(int k = 0; k < K; ++k)
+        {
+            int iKRepeat = k / (KStep * KPack); // i KRepeat
+            int tempk    = k % (KStep * KPack); // position in KStep block
+
+            int outputIndex = (iMNRepeat * MNPack * MNStep) * (KStep * KPack * K0) +
+                              (iKRepeat * KStep * KPack) * (MNStep * MNPack) +
+                              tempmn * (KStep * KPack) + tempk;
+
+            if constexpr(KStride)
+                dst[outputIndex] = src[mn * K + k];
+            else
+                dst[outputIndex] = src[k * MN + mn];
+        }
+    }
+}
+
+template <typename T>
+void preShuffleBuffer(const T* src, T* dst, int N, int K, int NXdl)
+{
+    const int KPack = 16;
+    const int NLane = NXdl;
+    const int KLane = ck::get_warp_size() / NLane;
+    const int K_pk  = K / ck::packed_size_v<T>;
+    const int K0    = K_pk / (KLane * KPack);
     // K -> K0 KLane KPack
     // N -> N0 NLane
     // N, K -> N0 K0 KLane NLane KPack
@@ -352,7 +414,6 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         a_m_k_scale.GenerateTensorDistr(int_distr{125, 128}); // scales: {0.25, 0.5, 1, 2}
         b_k_n_scale.GenerateTensorDistr(int_distr{125, 128}); // scales: {0.25, 0.5, 1, 2}
         break;
-
     case 2:
         a_m_k.GenerateTensorDistr(
             float_distr{-2.0, 2.0}, ck::identity{}, std::minstd_rand(time(nullptr))); // R[-2,2]
@@ -369,12 +430,34 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         }
     }
 
-    preShuffleScaleBuffer<ck::is_same_v<ALayout, Row>>(a_m_k_scale.mData.data(),
-                                                       a_shuffled_scale.mData.data(),
-                                                       Scale_Padded_M,
-                                                       K / ScaleBlockSize);
-    preShuffleScaleBuffer<ck::is_same_v<BRefLayout, Col>>(
-        b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
+    if(ck::get_warp_size() == 64)
+    {
+        preShuffleScaleBuffer_gfx950<ck::is_same_v<ALayout, Row>>(a_m_k_scale.mData.data(),
+                                                                  a_shuffled_scale.mData.data(),
+                                                                  Scale_Padded_M,
+                                                                  K / ScaleBlockSize);
+
+        preShuffleScaleBuffer_gfx950<ck::is_same_v<BRefLayout, Col>>(
+            b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
+    }
+    else if(ck::get_warp_size() == 32)
+    {
+        preShuffleScaleBuffer_gfx1250<ck::e8m0_bexp_t, ScaleBlockSize, ck::is_same_v<ALayout, Row>>(
+            a_m_k_scale.mData.data(),
+            a_shuffled_scale.mData.data(),
+            Scale_Padded_M,
+            K / ScaleBlockSize);
+
+        preShuffleScaleBuffer_gfx1250<ck::e8m0_bexp_t,
+                                      ScaleBlockSize,
+                                      ck::is_same_v<BRefLayout, Col>>(
+            b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
+    }
+    else
+    {
+        throw std::runtime_error("wrong! Scale pre-shuffle unsupported warp size");
+    }
+
     if constexpr(BPreShuffle)
     {
         int NPerXdl = 16; // Fixed 16
@@ -459,7 +542,7 @@ bool run_mx_gemm(const ProblemSizeSplitK& problem_size, const ExecutionConfig& c
         c_device_buf.FromDevice(c_m_n_device_result.mData.data());
         if(config.verbosity > 0)
         {
-            std::cout << "Done." << std::endl;
+            std::cout << "\nDone." << std::endl;
             std::cout << "Computing GEMM on host..." << std::endl;
         }
 

@@ -43,29 +43,29 @@ using DeviceConvBwdWeightInstance =
         256,                  // BlockSize
         128,                  // MPerBlock
         128,                  // NPerBlock
-        32,                   // K0PerBlock
-        8,                    // K1
-        32,                   // MPerXdl
-        32,                   // NPerXdl
+        64,                   // K0PerBlock
+        16,                   // K1
+        16,                   // MPerXdl
+        16,                   // NPerXdl
         2,                    // MXdlPerWave
         2,                    // NXdlPerWave
         S<4, 16, 1>,          // ABlockTransferThreadClusterLengths_K0_M_K1
         S<2, 0, 1>,           // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,           // ABlockTransferSrcAccessOrder
-        2,                    // ABlockTransferSrcVectorDim
+        1,                    // ABlockTransferSrcVectorDim
         1,                    // ABlockTransferSrcScalarPerVector
         2,                    // ABlockTransferDstScalarPerVector_K1
         true,                 // ABlockLdsAddExtraM
         S<4, 16, 1>,          // BBlockTransferThreadClusterLengths_K0_N_K1
         S<2, 0, 1>,           // BBlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,           // BBlockTransferSrcAccessOrder
-        2,                    // BBlockTransferSrcVectorDim
+        1,                    // BBlockTransferSrcVectorDim
         1,                    // BBlockTransferSrcScalarPerVector
         2,                    // BBlockTransferDstScalarPerVector_K1
         true,                 // BBlockLdsAddExtraN
         1,                    // CShuffleMXdlPerWavePerShuffle
         1,                    // CShuffleNXdlPerWavePerShuffle
-        S<1, 32, 1, 4>,       // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
+        S<1, 64, 1, 2>,       // CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
         128 / (sizeof(WeiDataType) * CHAR_BIT)>; // CBlockTransferScalarPerVector_NWaveNPerXdl
                                                  // clang-format off
 

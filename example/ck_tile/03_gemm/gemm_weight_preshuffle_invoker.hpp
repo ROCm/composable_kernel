@@ -45,15 +45,31 @@ struct WeightPreshuffleInvoker
                                              GemmConfig::UseStructuredSparsity,
                                              Persistent,
                                              GemmConfig::NumWaveGroups,
-                                             GemmConfig::Preshuffle>;
+                                             GemmConfig::Preshuffle,
+                                             16,
+                                             GemmConfig::DataCachePrefetchA,
+                                             GemmConfig::DataCachePrefetchB>;
         constexpr auto scheduler = GemmConfig::Scheduler;
 
-        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                           BDataType,
-                                                                           AccDataType,
-                                                                           GemmShape,
-                                                                           GemmUniversalTraits,
-                                                                           scheduler>;
+        using AComputeDataType =
+            std::conditional_t<std::is_same_v<ADataType, ck_tile::pk_int4_t>, BDataType, ADataType>;
+        using BComputeDataType =
+            std::conditional_t<std::is_same_v<BDataType, ck_tile::pk_int4_t> ||
+                                   std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>,
+                               ADataType,
+                               BDataType>;
+
+        using UniversalGemmProblem =
+            ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                  BDataType,
+                                                  AccDataType,
+                                                  GemmShape,
+                                                  GemmUniversalTraits,
+                                                  scheduler,
+                                                  ck_tile::element_wise::PassThrough,
+                                                  ck_tile::element_wise::PassThrough,
+                                                  AComputeDataType,
+                                                  BComputeDataType>;
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;

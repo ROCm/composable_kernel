@@ -48,8 +48,8 @@ struct PipelineSelector<PipelineTag::LDSLoadTranspose>
 
 template <typename DataType_,
           PipelineTag kPipelineId_     = PipelineTag::Universal,
-          ck_tile::index_t kBlockX_    = 64,
-          ck_tile::index_t kBlockY_    = 64,
+          ck_tile::index_t kBlockX_    = 32,
+          ck_tile::index_t kBlockY_    = 32,
           ck_tile::index_t kNumWarpsX_ = 1,
           ck_tile::index_t kNumWarpsY_ = 1,
           bool kPadM_                  = true,
@@ -122,7 +122,8 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
         const auto device_name = ck_tile::get_device_name();
 
         if(Config::kPipelineId == PipelineTag::LDSLoadTranspose &&
-           device_name.find("gfx950") == std::string::npos)
+           (device_name.find("gfx950") == std::string::npos &&
+            device_name.find("gfx125") == std::string::npos))
         {
             GTEST_SKIP_("LDS Load Transpose cannot be launched with this device");
         }
@@ -218,15 +219,15 @@ class CaseByteLoadTranspose : public TestCkTileBatchedTranspose<
 
 class CaseHalfPad
     : public TestCkTileBatchedTranspose<
-          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 64, 64, 1, 1, false, false>>
+          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 32, 32, 1, 1, false, false>>
 {
 };
 
 class CaseHalfPadLoadTranspose
     : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
                                                        PipelineTag::LDSLoadTranspose,
-                                                       64,
-                                                       64,
+                                                       32,
+                                                       32,
                                                        1,
                                                        1,
                                                        false,
@@ -272,13 +273,13 @@ class CaseHalfPadMultiWarp128MN
 
 class CaseHalfPadRectTile1
     : public TestCkTileBatchedTranspose<
-          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 32, 64, 1, 1, false, false>>
+          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 32, 32, 1, 1, false, false>>
 {
 };
 
 class CaseHalfPadRectTile2
     : public TestCkTileBatchedTranspose<
-          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 64, 32, 1, 1, false, false>>
+          PipelineConfig<ck_tile::half_t, PipelineTag::Universal, 32, 32, 1, 1, false, false>>
 {
 };
 
@@ -286,7 +287,7 @@ class CaseHalfPadRectTile1LoadTranspose
     : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
                                                        PipelineTag::LDSLoadTranspose,
                                                        32,
-                                                       64,
+                                                       32,
                                                        1,
                                                        1,
                                                        false,
@@ -297,7 +298,7 @@ class CaseHalfPadRectTile1LoadTranspose
 class CaseHalfPadRectTile2LoadTranspose
     : public TestCkTileBatchedTranspose<PipelineConfig<ck_tile::half_t,
                                                        PipelineTag::LDSLoadTranspose,
-                                                       64,
+                                                       32,
                                                        32,
                                                        1,
                                                        1,

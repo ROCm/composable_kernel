@@ -66,15 +66,15 @@ using DeviceBatchedGemmV2Instance =
         ADataType, BDataType, BScaleDataType, CDataType, AccDataType, CShuffleDataType, 
         AElementOp, BElementOp, CElementOp, GemmDefault, 
         256, Scale_Block_N, Scale_Block_K,
-        16, 64,
+        32, 64,
         KPerBlock, 8, 32,
         16,   16,
-        1,    1,
+        1,    2,
         S<32, 8, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 8, 8, 0,
         S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 32, 32, 0,
-        1, 1, S<1, 16, 1, 8>, 8,
+        1, 1, S<1, 16, 1, 8>, 4,
         ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, CDataType, CDataType, PermuteA, PermuteB>;
 // clang-format on
 

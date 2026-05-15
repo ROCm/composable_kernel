@@ -297,6 +297,8 @@ bool profile_reduce_impl_impl(bool do_verification,
             ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
                 ReduceOp>::GetInstances();
 
+        std::cout << "found " << reduce_ptrs.size() << " instances" << std::endl;
+
         if(reduce_ptrs.empty())
         {
             throw std::runtime_error("Wrong! No device REDUCE instance found");
@@ -355,8 +357,14 @@ bool profile_reduce_impl_impl(bool do_verification,
             (void)invoker_ptr_ref->Run(argument_ptr_ref.get());
         };
 
-        for(auto& reduce_ptr : reduce_ptrs)
+        for(size_t i = 0; i < reduce_ptrs.size(); i++)
         {
+            if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
+            auto& reduce_ptr  = reduce_ptrs[i];
             auto argument_ptr = reduce_ptr->MakeArgumentPointer(arrInLengths,
                                                                 arrInStrides,
                                                                 arrOutLengths,
@@ -376,11 +384,6 @@ bool profile_reduce_impl_impl(bool do_verification,
             else
             {
                 num_kernel++;
-                if((instance_index != -1) && (instance_index + 1 != num_kernel))
-                {
-                    // skip test if instance_index is specified
-                    continue;
-                }
             }
 
             std::string reduce_name = reduce_ptr->GetTypeString();
@@ -455,16 +458,12 @@ bool profile_reduce_impl_impl(bool do_verification,
             "The requested reduction operation is not supported, please check!");
     };
 
-    if(num_kernel == 0)
+    if(num_kernel == 0 && instance_index == -1)
     {
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     };
-    if(instance_index != -1)
-    {
-        std::cout << "reduce_instance (" << instance_index << "/" << num_kernel << "): Passed"
-                  << std::endl;
-    }
+
     return pass;
 };
 

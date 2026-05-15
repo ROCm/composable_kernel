@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "gemm_mx_common.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_mx.hpp"
 
 using ADataType = ck::bf8_t;
 using BDataType = ck::bf8_t;
@@ -44,14 +45,14 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMX_Xdl_CShuffle
     GemmSpec,         // GemmSpec
     ScaleBlockSize,   // ScaleBlockSize: Scaling block size
     128,              // BlockSize: Thread block size
-    128,              // MPerBlock
-    32,               // NPerBlock
+    64,               // MPerBlock
+    64,               // NPerBlock
     KPerBlock,        // KPerBlock
     16,               // AK1
     16,               // BK1
     16,               // MPerXDL
     16,               // NPerXDL
-    4,                // MXdlPerWave
+    2,                // MXdlPerWave
     2,                // NXdlPerWave
     S<16, 8, 1>,      // ABlockTransferThreadClusterLengths_AK0_M_AK1
     S<1, 0, 2>,       // ABlockTransferThreadClusterArrangeOrder

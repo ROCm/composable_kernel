@@ -41,7 +41,8 @@ bool profile_gemm_streamk_impl(int do_verification,
                                int StrideA,
                                int StrideB,
                                int StrideC,
-                               uint32_t NumSKBlocks = 0xffffffff)
+                               uint32_t NumSKBlocks = 0xffffffff,
+                               int instance_index   = -1)
 {
     bool pass = true;
 
@@ -139,8 +140,14 @@ bool profile_gemm_streamk_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device GEMM instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[i];
         auto argument_ptr =
             op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),
                                         static_cast<BDataType*>(b_device_buf.GetDeviceBuffer()),

@@ -328,7 +328,8 @@ int main(int argc, char* argv[])
 
     problem_size.Ms = {0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0};
 
-    if(argc == 5)
+    if(argc == 1) {}
+    else if(argc == 5)
     {
         config.do_verification = std::stoi(argv[1]);
         config.init_method     = std::stoi(argv[2]);

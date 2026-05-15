@@ -148,6 +148,23 @@ __device__ float8_t atomic_add<float8_t>(float8_t* p_dst, const float8_t& x)
 }
 
 template <>
+__device__ half2_t atomic_add<half2_t>(half2_t* p_dst, const half2_t& x)
+{
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+
+    const vector_type<half_t, 2> vx{x};
+    vector_type<half_t, 2> vy{0};
+
+    vy.template AsType<half_t>()(I0) =
+        atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst), vx.template AsType<half_t>()[I0]);
+    vy.template AsType<half_t>()(I1) = atomic_add<half_t>(c_style_pointer_cast<half_t*>(p_dst) + 1,
+                                                          vx.template AsType<half_t>()[I1]);
+
+    return vy.template AsType<half2_t>()[I0];
+}
+
+template <>
 __device__ half4_t atomic_add<half4_t>(half4_t* p_dst, const half4_t& x)
 {
     constexpr auto I0 = Number<0>{};

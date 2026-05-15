@@ -24,13 +24,14 @@ struct BlockUniversalGemmAsBsCr
     template <typename PipelineProblem_, typename GemmPolicy_>
     struct GemmTraits_
     {
-        using Problem         = remove_cvref_t<PipelineProblem_>;
-        using Policy          = remove_cvref_t<GemmPolicy_>;
-        using ADataType       = remove_cvref_t<typename Problem::ADataType>;
-        using BDataType       = remove_cvref_t<typename Problem::BDataType>;
-        using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-        using CDataType       = remove_cvref_t<typename Problem::CDataType>;
-        using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
+        using Problem          = remove_cvref_t<PipelineProblem_>;
+        using Policy           = remove_cvref_t<GemmPolicy_>;
+        using ADataType        = remove_cvref_t<typename Problem::ADataType>;
+        using BDataType        = remove_cvref_t<typename Problem::BDataType>;
+        using AComputeDataType = remove_cvref_t<typename Problem::AComputeDataType>;
+        using BComputeDataType = remove_cvref_t<typename Problem::BComputeDataType>;
+        using CDataType        = remove_cvref_t<typename Problem::CDataType>;
+        using BlockGemmShape   = remove_cvref_t<typename Problem::BlockGemmShape>;
 
         static constexpr index_t kBlockSize = Problem::kBlockSize;
         static constexpr auto Scheduler     = Problem::Scheduler;
@@ -82,25 +83,22 @@ struct BlockUniversalGemmAsBsCr
         static constexpr index_t InterWaveSchedulingMacClusters = 1;
 
         // should be at least equal to: WarpGemm::Impl::kABKPerLane
-        static constexpr index_t KPack      = WarpGemm::kKPerThread;
+        static constexpr index_t KPackA     = WarpGemm::kAKPack;
+        static constexpr index_t KPackB     = WarpGemm::kBKPack;
         static constexpr index_t KPerThread = KIterPerWarp * WarpGemm::kKPerThread;
     };
 
     public:
     using Traits = GemmTraits_<Problem_, Policy_>;
 
-    using ADataType       = remove_cvref_t<typename Traits::ADataType>;
-    using BDataType       = remove_cvref_t<typename Traits::BDataType>;
-    using ComputeDataType = remove_cvref_t<typename Traits::ComputeDataType>;
-    using CDataType       = remove_cvref_t<typename Traits::CDataType>;
+    using ADataType        = remove_cvref_t<typename Traits::ADataType>;
+    using BDataType        = remove_cvref_t<typename Traits::BDataType>;
+    using AComputeDataType = remove_cvref_t<typename Traits::AComputeDataType>;
+    using BComputeDataType = remove_cvref_t<typename Traits::BComputeDataType>;
+    using CDataType        = remove_cvref_t<typename Traits::CDataType>;
 
-    using ATypeToUse =
-        std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
-    using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
-                                              std::is_same_v<BDataType, pk_fp4_t> ||
-                                              sizeof(BDataType) < sizeof(ADataType),
-                                          ADataType,
-                                          BDataType>;
+    using ATypeToUse = if_select_t<AComputeDataType, tf32_t, float_t, AComputeDataType>;
+    using BTypeToUse = if_select_t<BComputeDataType, tf32_t, float_t, BComputeDataType>;
 
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 
@@ -196,6 +194,91 @@ struct BlockUniversalGemmAsBsCr
     };
 
     template <typename GemmTraits>
+    struct BlockGemmImpl<GemmPipelineScheduler::Default, GemmTraits>
+    {
+        static constexpr auto ALdsTileDistr =
+            decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
+        static constexpr auto BLdsTileDistr =
+            decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
+
+        using ALdsTile = decltype(make_static_distributed_tensor<ATypeToUse>(ALdsTileDistr));
+        using BLdsTile = decltype(make_static_distributed_tensor<BTypeToUse>(BLdsTileDistr));
+
+        ALdsTile a_warp_tile_;
+        BLdsTile b_warp_tile_;
+
+        // C += A * B
+        template <typename CBlockTensor,
+                  typename ASmemBlockWindow,
+                  typename BSmemBlockWindow,
+                  bool ALoadTranspose = false,
+                  bool BLoadTranspose = false>
+        CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
+                                       const ASmemBlockWindow& a_block_window,
+                                       const BSmemBlockWindow& b_block_window,
+                                       bool_constant<ALoadTranspose> = {},
+                                       bool_constant<BLoadTranspose> = {})
+        {
+            static_assert(std::is_same_v<CDataType, typename CBlockTensor::DataType>,
+                          "The CDataType as defined in traits should be the same as correspoinding "
+                          "C block tensor data type!");
+            static_assert(std::is_same_v<ADataType, typename ASmemBlockWindow::DataType> &&
+                              std::is_same_v<BDataType, typename BSmemBlockWindow::DataType>,
+                          "The ADataType and BDataType as defined in "
+                          "traits should be the same as correspoinding block window data type!");
+
+            load_and_convert_tile<UnaryOpSize_, ALoadTranspose>(a_warp_tile_, a_block_window);
+            load_and_convert_tile<UnaryOpSize_, BLoadTranspose>(b_warp_tile_, b_block_window);
+
+            // hot loop:
+            static_for<0, GemmTraits::KIterPerWarp, 1>{}([&](auto kIter) {
+                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                    // read A warp tensor from A block tensor
+                    AWarpTensor a_warp_tensor;
+
+                    a_warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
+
+                    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                        // read B warp tensor from B block tensor
+                        BWarpTensor b_warp_tensor;
+
+                        b_warp_tensor.get_thread_buffer() = b_warp_tile_.get_y_sliced_thread_data(
+                            merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
+
+                        // read C warp tensor from C block tensor-
+                        CWarpTensor c_warp_tensor;
+
+                        c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+                        // warp GEMM
+                        if constexpr(nIter != 0)
+                        {
+                            WarpGemm{}.template operator()<ReuseA<true>, ReuseB<false>>(
+                                c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                        }
+                        else
+                        {
+                            WarpGemm{}.template operator()<ReuseA<false>, ReuseB<false>>(
+                                c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                        }
+
+                        // write C warp tensor into C block tensor
+                        c_block_tensor.set_y_sliced_thread_data(
+                            merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                            c_warp_tensor.get_thread_buffer());
+                    });
+                });
+            });
+        }
+    };
+
+    template <typename GemmTraits>
     struct BlockGemmImpl<GemmPipelineScheduler::Intrawave, GemmTraits>
     {
         static constexpr auto ALdsTileDistr =
@@ -265,7 +348,16 @@ struct BlockUniversalGemmAsBsCr
                         merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
                     // warp GEMM
-                    WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                    if constexpr(nIter != 0)
+                    {
+                        WarpGemm{}.template operator()<ReuseA<true>, ReuseB<false>>(
+                            c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                    }
+                    else
+                    {
+                        WarpGemm{}.template operator()<ReuseA<false>, ReuseB<false>>(
+                            c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                    }
 
                     // write C warp tensor into C block tensor
                     c_block_tensor.set_y_sliced_thread_data(
@@ -431,8 +523,16 @@ struct BlockUniversalGemmAsBsCr
                             __builtin_amdgcn_sched_barrier(0);
                         }
                         // warp GEMM
-                        WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
-
+                        if constexpr(nIter != 0)
+                        {
+                            WarpGemm{}.template operator()<ReuseA<true>, ReuseB<false>>(
+                                c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                        }
+                        else
+                        {
+                            WarpGemm{}.template operator()<ReuseA<false>, ReuseB<false>>(
+                                c_warp_tensor, a_warp_tensor, b_warp_tensor);
+                        }
                         // write C warp tensor into C block tensor
                         c_block_tensor.set_y_sliced_thread_data(
                             merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),

@@ -16,6 +16,7 @@ struct LaneGroupTransposeTraits;
 template <typename T, index_t LaneGroupSize>
 struct LaneGroupTransposeTraits<T, LaneGroupSize, std::enable_if_t<sizeof(T) == 2>>
 {
+#if defined(__gfx950__)
     static_assert(LaneGroupSize == 16 || LaneGroupSize == 32 || LaneGroupSize == 64,
                   "LaneGroupSize must be 16, 32, or 64");
     // before transpose, 4x16
@@ -24,6 +25,7 @@ struct LaneGroupTransposeTraits<T, LaneGroupSize, std::enable_if_t<sizeof(T) == 
     // after transpose, 16x4
     static constexpr index_t ksecondDimT = LaneGroupSize;
     static constexpr index_t kleadDimT   = 4;
+
     template <index_t kOuterDistDim0,
               index_t kOuterDistDim1,
               index_t kInnerDistDim0,
@@ -36,11 +38,9 @@ struct LaneGroupTransposeTraits<T, LaneGroupSize, std::enable_if_t<sizeof(T) == 
         tuple<sequence<0, 0, 2, 2, 3>>,
         sequence<2, 1, 2>,
         sequence<1, 1, 4>>;
-};
+#else // now this branch just for gfx125
+    static_assert(LaneGroupSize == 16, "LaneGroupSize must be 16");
 
-template <typename T, index_t LaneGroupSize>
-struct LaneGroupTransposeTraits<T, LaneGroupSize, std::enable_if_t<sizeof(T) == 1>>
-{
     static constexpr index_t ksecondDim = 8;
     static constexpr index_t kleadDim   = LaneGroupSize;
 
@@ -55,10 +55,48 @@ struct LaneGroupTransposeTraits<T, LaneGroupSize, std::enable_if_t<sizeof(T) == 
         sequence<>,
         tuple<sequence<kOuterDistDim0, kOuterDistDim1, 8>,
               sequence<kInnerDistDim0, kInnerDistDim1, LaneGroupSize / 16, 2, 8>>,
+        tuple<sequence<1, 2, 2, 2, 1>>,
+        tuple<sequence<0, 0, 2, 3, 2>>,
+        sequence<2, 1, 2>,
+        sequence<1, 1, 4>>;
+#endif
+};
+
+template <typename T, index_t LaneGroupSize>
+struct LaneGroupTransposeTraits<T, LaneGroupSize, std::enable_if_t<sizeof(T) == 1>>
+{
+    static constexpr index_t ksecondDim = 8;
+    static constexpr index_t kleadDim   = LaneGroupSize;
+
+    static constexpr index_t ksecondDimT = LaneGroupSize;
+    static constexpr index_t kleadDimT   = 8;
+#if defined(__gfx950__)
+    template <index_t kOuterDistDim0,
+              index_t kOuterDistDim1,
+              index_t kInnerDistDim0,
+              index_t kInnerDistDim1>
+    using TileDistribution = tile_distribution_encoding<
+        sequence<>,
+        tuple<sequence<kOuterDistDim0, kOuterDistDim1, 8>,
+              sequence<kInnerDistDim0, kInnerDistDim1, LaneGroupSize / 16, 2, 8>>,
         tuple<sequence<1, 2, 2, 1, 2>>,
         tuple<sequence<0, 0, 2, 2, 3>>,
         sequence<2, 1, 2>,
         sequence<1, 1, 4>>;
+#else // now this branch just for gfx125
+    template <index_t kOuterDistDim0,
+              index_t kOuterDistDim1,
+              index_t kInnerDistDim0,
+              index_t kInnerDistDim1>
+    using TileDistribution = tile_distribution_encoding<
+        sequence<>,
+        tuple<sequence<kOuterDistDim0, kOuterDistDim1, 2, 4>,
+              sequence<kInnerDistDim0, kInnerDistDim1, LaneGroupSize / 16, 2, 8>>,
+        tuple<sequence<1, 2, 2, 1, 2, 1>>,
+        tuple<sequence<0, 0, 2, 2, 3, 3>>,
+        sequence<2, 1, 2>,
+        sequence<1, 1, 4>>;
+#endif
 };
 
 /*

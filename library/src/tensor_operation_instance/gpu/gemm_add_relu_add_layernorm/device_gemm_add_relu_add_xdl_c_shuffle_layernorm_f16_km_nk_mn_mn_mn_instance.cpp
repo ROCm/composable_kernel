@@ -30,7 +30,6 @@ using AddReluAdd  = ck::tensor_operation::element_wise::AddReluAdd;
 
 static constexpr auto GemmDefault    = ck::tensor_operation::device::GemmSpecialization::Default;
 static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecialization::MNKPadding;
-
 // e = elementwise((a * b), d0, d1)
 // h = layernorm(e, gamma, beta)
 // outout: h[m, n]

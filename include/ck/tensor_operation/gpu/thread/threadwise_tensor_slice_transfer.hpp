@@ -1249,6 +1249,8 @@ struct ThreadwiseTensorSliceTransfer_v3
 //     3. DstOriginIdx is known at compile-time
 //     4. use direct address calculation
 //   3. vector access on src
+//     Note:
+//     SrcScalarStrideInVector is not used in this implementation
 template <typename SrcData,
           typename DstData,
           typename SrcDesc,

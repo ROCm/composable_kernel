@@ -69,6 +69,7 @@ using KernelTypes = ::testing::Types<
     KernelConfig<    Row,     Col,     Row,       BF16,      BF16,         F32,       BF16,   True,    16,     64,    256,         1>,
     KernelConfig<    Row,     Col,     Row,       BF16,      BF16,         F32,       BF16,   True,  128,    128,    128,         2>,
     KernelConfig<    Row,     Col,     Row,       BF16,      BF16,         F32,       BF16,   True,   128,    128,    128,         2>
+
     >;
 // clang-format on
 

@@ -41,7 +41,8 @@ bool profile_gemm_bias_add_reduce_impl(int do_verification,
                                        int StrideA,
                                        int StrideB,
                                        int StrideC,
-                                       int StrideD0)
+                                       int StrideD0,
+                                       int instance_index = -1)
 {
     bool pass = true;
 
@@ -224,8 +225,14 @@ bool profile_gemm_bias_add_reduce_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device GEMM instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
                                                         b_device_buf.GetDeviceBuffer(),
                                                         bias_device_buf.GetDeviceBuffer(),

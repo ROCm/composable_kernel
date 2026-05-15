@@ -33,7 +33,8 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
-          bool GUFusion = false>
+          bool GUFusion   = false,
+          bool TransposeC = false>
 constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
 {
 
@@ -67,7 +68,8 @@ constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
                 NPerXDL,
                 MRepeat,
                 NRepeat,
-                KPack>{};
+                KPack,
+                TransposeC>{};
         }
     }
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
@@ -95,7 +97,8 @@ constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
                 NPerXDL,
                 MRepeat,
                 NRepeat,
-                KPack>{};
+                KPack,
+                TransposeC>{};
         }
         else
         {
@@ -120,7 +123,8 @@ constexpr auto BlockGemmMXBPreshufflePipeline_Selector()
                 NPerXDL,
                 MRepeat,
                 NRepeat,
-                KPack>{};
+                KPack,
+                TransposeC>{};
         }
     }
     else

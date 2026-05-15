@@ -709,7 +709,10 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffle
         {
             return false;
         }
-
+        if(!is_xdl_wmma_k_supported<ADataType, KPerBlock>())
+        {
+            return false;
+        }
         // TODO: Add support for split_k > 1
         if(arg.k_batch_ != 1)
         {

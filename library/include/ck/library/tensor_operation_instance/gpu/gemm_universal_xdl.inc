@@ -338,6 +338,19 @@ void add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_mem_v2_kpadding_insta
     std::vector<std::unique_ptr<
         DeviceGemmV2<Row, Col, Row, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&
         instances);
+
+#ifdef CK_USE_GFX1250
+void add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_v3_prefetch_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmV2<Row, Col, Row, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+
+void add_device_gemm_xdl_universal_bf16_bf16_bf16_mk_nk_mn_v3_no_prefetch_instances(
+    std::vector<std::unique_ptr<
+        DeviceGemmV2<Row, Col, Row, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&
+        instances);
+#endif
+
 void add_device_gemm_xdl_universal_bf16_bf16_bf16_km_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<
         DeviceGemmV2<Col, Row, Row, BF16, BF16, BF16, PassThrough, PassThrough, PassThrough>>>&

@@ -59,7 +59,8 @@ bool profile_batched_gemm_multiple_d_gemm_multiple_d_impl(
     int BatchStrideB1                  = -1,
     int BatchStrideD1                  = -1,
     int BatchStrideE1                  = -1,
-    bool fail_if_no_supported_instance = false)
+    bool fail_if_no_supported_instance = false,
+    int instance_index                 = -1)
 
 {
     using Row = tensor_layout::gemm::RowMajor;
@@ -275,8 +276,14 @@ bool profile_batched_gemm_multiple_d_gemm_multiple_d_impl(
     int instances_supported = 0;
 
     // profile device op instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
             static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),
@@ -369,7 +376,7 @@ bool profile_batched_gemm_multiple_d_gemm_multiple_d_impl(
             std::cout << "Warning! No supported instances found." << std::endl;
         }
 
-        if(fail_if_no_supported_instance)
+        if(fail_if_no_supported_instance && instance_index == -1)
         {
             return false;
         }

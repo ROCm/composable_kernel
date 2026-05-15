@@ -12,8 +12,11 @@
 namespace ck {
 
 template <index_t BlockSize,
+          index_t ScaleBlockSize,
           typename ADataType,
+          typename AScaleDataType,
           typename BDataType,
+          typename BScaleDataType,
           typename ATileDesc,
           typename BTileDesc,
           typename AMmaTileDesc,
@@ -45,7 +48,6 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    // Hardcode to 64, as HIP-provided "WarpSize" would return 32 on RDNA GPUs.
     static constexpr index_t MWaves   = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t NWaves   = NPerBlock / (NRepeat * NPerXDL);
     static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
@@ -65,25 +67,59 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                    TransposeC,
                                                    true>{};
 
-    static constexpr index_t AMmaKStride = KPack;
-    static constexpr index_t BMmaKStride = KPack;
+    static constexpr index_t AKPack      = KPack;
+    static constexpr index_t BKPack      = KPack * APackedSize / BPackedSize;
+    static constexpr index_t AMmaKStride = AKPack;
+    static constexpr index_t BMmaKStride = BKPack;
 
     // store rows/cols into thread registers in chunks of 16 for FP8
     // e.g. [k0,...,k15,k64,...,k79] or [k0,...,k15,k32,...,k47]
     // or in chunks of 32 / APackedSize for FP6/FP4
     static constexpr index_t KThreadChunk = (APackedSize == 1) ? 16 : 32 / APackedSize;
 
-    static_assert(APackedSize == BPackedSize, "APackedSize must be equal to BPackedSize for now");
+    // FP8/FP4 mixed precision is valid
+    static_assert(APackedSize == BPackedSize || KThreadChunk == 16,
+                  "APackedSize must be equal to BPackedSize for now");
 
     static constexpr index_t KPerThread    = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat       = KPerThread / KPack;
     static constexpr index_t KPerInnerLoop = KPack;
 
-    // Hardcode to 2, for better 8-bit access pattern
+    // Tuning parameters for better 8-bit access pattern
+    // gfx125 scale32 wmma instructions can access two sets of scales per wave per matrix
+    // gfx950 mfma instructions can access four sets of scales per wave per matrix
+    // Ultimately, we aim to support the following configurations:
+    // gfx950: MXdlPack=2, NXdlPack=2, KXdlPack=2
+    // gfx1250, scale32: MXdlPack=2, NXdlPack=2, KXdlPack=1
+    // gfx1250, scale16: MXdlPack=1, NXdlPack=1, KXdlPack=1
+    static constexpr index_t MXdlPack = (ScaleBlockSize == 32) ? 2 : 1;
+    static constexpr index_t NXdlPack = (ScaleBlockSize == 32) ? 2 : 1;
+    static constexpr index_t KXdlPack = (xdlops_gemm.K1PerXdlops == 64) ? 1 : 2;
 
-    static constexpr index_t MXdlPack = 2;
-    static constexpr index_t NXdlPack = 2;
-    static constexpr index_t KXdlPack = 2;
+    using mx_scale_t                        = e8m0_bexp_t;
+    static constexpr auto scale_pack_size_a = sizeof(AScaleDataType) / sizeof(mx_scale_t);
+    static constexpr auto scale_pack_size_b = sizeof(BScaleDataType) / sizeof(mx_scale_t);
+
+    static_assert(scale_pack_size_a == 1 || scale_pack_size_a == 2 || scale_pack_size_a == 4,
+                  "A scale must be packed into 1, 2 or 4 bytes!");
+    static_assert(scale_pack_size_b == 1 || scale_pack_size_b == 2 || scale_pack_size_b == 4,
+                  "B scale must be packed into 1, 2 or 4 bytes!");
+
+    // MX WMMA/MFMA builtins pack scales into int32_t registers
+    static constexpr auto a_scale_thread_vec_size = sizeof(int32_t) / scale_pack_size_a;
+    static constexpr auto b_scale_thread_vec_size = sizeof(int32_t) / scale_pack_size_b;
+
+    // Detect FP4/FP6 separately for A and B based on packed_size_v:
+    // FP4: packed_size_v = 2 (f4x2_pk_t)
+    // FP6: packed_size_v = 16 or 32 (f6x16_pk_t, f6x32_pk_t, bf6x16_pk_t, bf6x32_pk_t)
+    // FP8: packed_size_v = 1 or other small values
+    // Note: 2x MFMA speedup requires BOTH operands to be the right type
+    static constexpr bool IsF4_A = (packed_size_v<ComputeTypeA> == 2);
+    static constexpr bool IsF4_B = (packed_size_v<ComputeTypeB> == 2);
+    static constexpr bool IsF6_A =
+        (packed_size_v<ComputeTypeA> == 16 || packed_size_v<ComputeTypeA> == 32);
+    static constexpr bool IsF6_B =
+        (packed_size_v<ComputeTypeB> == 16 || packed_size_v<ComputeTypeB> == 32);
 
     using HotLoopInstList = ck::BlockwiseGemmXdlops_pipeline_hotloop_inst< //
         BlockSize,
@@ -101,10 +137,14 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
         MPerXDL,
         NPerXDL,
         xdlops_gemm.KPerXdlops,
-        (packed_size_v<ComputeTypeA> > 1 || packed_size_v<ComputeTypeB> > 1)>;
-
+        IsF4_A,
+        IsF4_B,
+        IsF6_A,
+        IsF6_B>;
+#if defined(__HIP_DEVICE_COMPILE__)
     static_assert(KPerThread % KPack == 0,
                   "Wrong KPack setting; try increasing KPerThread or decreasing KPack");
+#endif
 
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               AccType,
@@ -216,6 +256,7 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
 
         static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat) == 0,
                       "wrong!");
+        static_assert(MRepeat % MXdlPack == 0);
 #endif
     }
 
@@ -267,6 +308,27 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                               M1,
                                                               M2,
                                                               N));
+    }
+    // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl' packed mfma
+    __host__ __device__ static constexpr auto GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5()
+    {
+        constexpr auto c_m0_m1_m2_n_tblk_lens = xdlops_gemm.GetCM0M1M2NThreadBlkLengths();
+
+        constexpr auto M0 = c_m0_m1_m2_n_tblk_lens[I0];
+        constexpr auto M1 = c_m0_m1_m2_n_tblk_lens[I1];
+        constexpr auto M2 = c_m0_m1_m2_n_tblk_lens[I2];
+        constexpr auto N  = c_m0_m1_m2_n_tblk_lens[I3];
+
+        return make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat / MXdlPack>{},
+                                                              Number<NRepeat / NXdlPack>{},
+                                                              I1,
+                                                              I1,
+                                                              Number<MXdlPack>{},
+                                                              Number<NXdlPack>{},
+                                                              N,
+                                                              M0,
+                                                              M1,
+                                                              M2));
     }
 
     __host__ __device__ static constexpr auto GetCThreadDescriptor_G_M0_N0_M1_N1_M2_M3_M4_N2()
@@ -324,6 +386,23 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
                                                            Number<NPerXDL>{}));
 
         return xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_N2_M3_M4_M5_N3(
+            c_block_desc_m0_n0_m1_n1_m2_n2);
+    }
+
+    // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'_packed mfma
+    __host__ __device__ static constexpr auto GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5()
+    {
+        constexpr auto c_block_desc_m0_n0_m1_n1_m2_n2 =
+            make_naive_tensor_descriptor_packed(make_tuple(Number<MRepeat / MXdlPack>{},
+                                                           Number<NRepeat / NXdlPack>{},
+                                                           Number<MWaves>{},
+                                                           Number<NWaves>{},
+                                                           Number<MXdlPack>{},
+                                                           Number<NXdlPack>{},
+                                                           Number<MPerXDL>{},
+                                                           Number<NPerXDL>{}));
+
+        return xdlops_gemm.MakeCDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
             c_block_desc_m0_n0_m1_n1_m2_n2);
     }
 
@@ -389,11 +468,11 @@ struct BlockwiseGemmXdlops_mx_pipeline_base
     // Read buffer + Compute buffer
     // A[M0, M1, M2, KPack]
     static constexpr auto a_thread_desc_ = make_naive_tensor_descriptor_packed(make_tuple(
-        Number<MRepeat / MXdlPack>{}, I1, Number<MXdlPack>{}, Number<KRepeat>{}, Number<KPack>{}));
+        Number<MRepeat / MXdlPack>{}, I1, Number<MXdlPack>{}, Number<KRepeat>{}, Number<AKPack>{}));
 
     // B[N0, N1, N2, KPack]
     static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(make_tuple(
-        Number<NRepeat / NXdlPack>{}, I1, Number<NXdlPack>{}, Number<KRepeat>{}, Number<KPack>{}));
+        Number<NRepeat / NXdlPack>{}, I1, Number<NXdlPack>{}, Number<KRepeat>{}, Number<BKPack>{}));
 
     // C[M, N, NumRegXdlops]
     static constexpr auto c_thread_desc_ =

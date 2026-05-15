@@ -412,4 +412,250 @@ struct GemmSpatiallyLocalTilePartitioner
     index_t M;
     index_t N;
 };
+
+enum class ClusterTilePattern : index_t
+{
+    // Contiguous block assignment - each cluster processes a rectangular region
+    ContiguousBlock = 0,
+
+    // Interleaved along both M and N dimensions - tiles strided in both directions
+    InterleavedBoth = 1,
+
+    // Interleaved along M dimension - tiles strided along M, contiguous along N
+    InterleavedM = 2
+};
+
+/**
+ * @brief Class mapping 2D block index into 2D output tile space with cluster tiling.
+ *
+ * @tparam BlockGemmShapeType - A class providing basic GEMM parameters.
+ * @tparam Pattern  - Cluster tile mapping pattern
+ *
+ */
+template <typename BlockGemmShapeType,
+          ClusterTilePattern Pattern = ClusterTilePattern::ContiguousBlock>
+struct GemmClusterTilePartitioner
+{
+    using BlockGemmShape = remove_cvref_t<BlockGemmShapeType>;
+
+    static constexpr index_t MPerBlock = BlockGemmShape::kM;
+    static constexpr index_t NPerBlock = BlockGemmShape::kN;
+    static constexpr index_t KPerBlock = BlockGemmShape::kK;
+
+    static constexpr index_t ClusterM = BlockGemmShape::kclusterM;
+    static constexpr index_t ClusterN = BlockGemmShape::kclusterN;
+    static constexpr index_t ClusterK = BlockGemmShape::kclusterK;
+
+    static_assert(ClusterK == 1, "only support ClusterK == 1");
+
+    CK_TILE_HOST_DEVICE GemmClusterTilePartitioner() noexcept = delete;
+    CK_TILE_HOST_DEVICE GemmClusterTilePartitioner(index_t M_, index_t N_) noexcept : M(M_), N(N_)
+    {
+    }
+
+    /**
+     * @brief Calculates the grid size (in blocks) required to cover a GEMM operation, rounding up
+     * to cluster sizes.
+     *
+     * This function computes the number of blocks needed in the X and Y dimensions to
+     * process an MxN matrix, given the per-block sizes (MPerBlock, NPerBlock) and cluster sizes
+     * (ClusterM, ClusterN). The grid dimensions are rounded up to the nearest multiples of the
+     * cluster sizes.
+     *
+     * @param M GEMM's M dimension.
+     * @param N GEMM's N dimension.
+     * @return dim3 The grid dimensions (GridDimXRoundUp, GridDimYRoundUp, 1).
+     */
+    CK_TILE_HOST_DEVICE static auto
+    GridSize(index_t M, index_t N) noexcept(noexcept(MPerBlock != 0 && NPerBlock != 0)) -> dim3
+    {
+        const index_t GridDimX        = integer_divide_ceil(M, MPerBlock);
+        const index_t GridDimY        = integer_divide_ceil(N, NPerBlock);
+        const index_t GridDimXRoundUp = integer_divide_ceil(GridDimX, ClusterM) * ClusterM;
+        const index_t GridDimYRoundUp = integer_divide_ceil(GridDimY, ClusterN) * ClusterN;
+        return dim3(GridDimXRoundUp, GridDimYRoundUp, 1);
+    }
+
+    /**
+     * @brief Calculate number of loop iterations over K dimension for given work unit
+     */
+    CK_TILE_HOST_DEVICE static auto GetLoopNum(uint32_t K) noexcept -> uint32_t
+    {
+        return integer_divide_ceil(K, KPerBlock);
+    }
+
+    /*
+    ============================================================================
+    Cluster Tile Patterns: Mapping Block Index to Output Tile Coordinates
+    ============================================================================
+
+    PURPOSE:
+    These patterns determine how 2D block indices (blockIdx.x, blockIdx.y) are
+    mapped to output tile coordinates (tile_m, tile_n) in a GEMM operation when
+    using cluster launch.
+
+
+    EXAMPLE CONFIGURATION:
+    - Cluster dimensions: ClusterM = 2, ClusterN = 2 (2×2 cluster)
+    - Grid dimensions:    GridM = 6, GridN = 4 (6×4 output tiles)
+    - Number of clusters: (6/2) × (4/2) = 3 × 2 = 6 clusters
+    - Blocks per cluster: 2 × 2 = 4 blocks
+
+    The tables below show which BLOCK (identified by its flattened cluster_id) processes
+    each output TILE position (tile_m, tile_n). Values 0-5 represent the 6
+    different clusters in the grid.
+
+    ═══════════════════════════════════════════════════════════════════════════
+    Pattern::ContiguousBlock (ClusterTilePattern::ContiguousBlock)
+    ═══════════════════════════════════════════════════════════════════════════
+
+    DESCRIPTION:
+    Tiles are assigned in CONTIGUOUS blocks within each cluster. Each cluster
+    processes a rectangular region of output tiles. This is the simplest pattern.
+
+    TILE ASSIGNMENT (each cell shows which cluster processes that tile):
+
+             N→ 0    1    2    3
+           ┌────────────────────────┐
+      M  0 │ │  0  │  0  │  3  │  3  │
+           │ ├────────────────────┤
+      │  1 │ │  0  │  0  │  3  │  3  │
+           │ ├────────────────────┤
+      ↓  2 │ │  1  │  1  │  4  │  4  │
+           │ ├────────────────────┤
+         3 │ │  1  │  1  │  4  │  4  │
+           │ ├────────────────────┤
+         4 │ │  2  │  2  │  5  │  5  │
+           │ ├────────────────────┤
+         5 │ │  2  │  2  │  5  │  5  │
+           └────────────────────────┘
+
+    CLUSTER LAYOUT:
+    - Cluster 0: tiles (0,0), (0,1), (1,0), (1,1) - Top-left block
+    - Cluster 1: tiles (2,0), (2,1), (3,0), (3,1) - Middle-left block
+    - Cluster 2: tiles (4,0), (4,1), (5,0), (5,1) - Bottom-left block
+    - Cluster 3: tiles (0,2), (0,3), (1,2), (1,3) - Top-right block
+    - Cluster 4: tiles (2,2), (2,3), (3,2), (3,3) - Middle-right block
+    - Cluster 5: tiles (4,2), (4,3), (5,2), (5,3) - Bottom-right block
+
+    ═══════════════════════════════════════════════════════════════════════════
+    Pattern::InterleavedBoth (ClusterTilePattern::InterleavedBoth)
+    ═══════════════════════════════════════════════════════════════════════════
+
+    DESCRIPTION:
+    Tiles are INTERLEAVED along both M and N dimensions. Within each cluster,
+    tiles are strided in both directions, creating a distributed access pattern.
+
+    TILE ASSIGNMENT (interleaved along both M and N):
+
+             N→ 0    1    2    3
+           ┌────────────────────────┐
+      M  0 │ │  0  │  3  │  0  │  3  │
+           │ ├────────────────────┤
+      │  1 │ │  1  │  4  │  1  │  4  │
+           │ ├────────────────────┤
+      ↓  2 │ │  2  │  5  │  2  │  5  │
+           │ ├────────────────────┤
+         3 │ │  0  │  3  │  0  │  3  │
+           │ ├────────────────────┤
+         4 │ │  1  │  4  │  1  │  4  │
+           │ ├────────────────────┤
+         5 │ │  2  │  5  │  2  │  5  │
+           └────────────────────────┘
+
+    CLUSTER LAYOUT:
+    - Cluster 0: tiles (0,0), (0,2), (3,0), (3,2) - Strided along M and N
+    - Cluster 1: tiles (1,0), (1,2), (4,0), (4,2) - Strided along M and N
+    - Cluster 2: tiles (2,0), (2,2), (5,0), (5,2) - Strided along M and N
+    - Cluster 3: tiles (0,1), (0,3), (3,1), (3,3) - Strided along M and N
+    - Cluster 4: tiles (1,1), (1,3), (4,1), (4,3) - Strided along M and N
+    - Cluster 5: tiles (2,1), (2,3), (5,1), (5,3) - Strided along M and N
+
+    ═══════════════════════════════════════════════════════════════════════════
+    Pattern::InterleavedM (ClusterTilePattern::InterleavedM)
+    ═══════════════════════════════════════════════════════════════════════════
+
+    DESCRIPTION:
+    Tiles are INTERLEAVED along the M dimension while contiguous along N.
+    Within each cluster, tiles are strided in M but adjacent in N dimension.
+
+    TILE ASSIGNMENT (interleaved along M, contiguous along N):
+
+             N→ 0    1    2    3
+           ┌────────────────────────┐
+      M  0 │ │  0  │  0  │  3  │  3  │
+           │ ├────────────────────┤
+      │  1 │ │  1  │  1  │  4  │  4  │
+           │ ├────────────────────┤
+      ↓  2 │ │  2  │  2  │  5  │  5  │
+           │ ├────────────────────┤
+         3 │ │  0  │  0  │  3  │  3  │
+           │ ├────────────────────┤
+         4 │ │  1  │  1  │  4  │  4  │
+           │ ├────────────────────┤
+         5 │ │  2  │  2  │  5  │  5  │
+           └────────────────────────┘
+
+    CLUSTER LAYOUT:
+    - Cluster 0: tiles (0,0), (0,1), (3,0), (3,1) - Strided along M, contiguous N
+    - Cluster 1: tiles (1,0), (1,1), (4,0), (4,1) - Strided along M, contiguous N
+    - Cluster 2: tiles (2,0), (2,1), (5,0), (5,1) - Strided along M, contiguous N
+    - Cluster 3: tiles (0,2), (0,3), (3,2), (3,3) - Strided along M, contiguous N
+    - Cluster 4: tiles (1,2), (1,3), (4,2), (4,3) - Strided along M, contiguous N
+    - Cluster 5: tiles (2,2), (2,3), (5,2), (5,3) - Strided along M, contiguous N
+
+    IMPLEMENTATION NOTE:
+    The actual mapping is implemented in GetOutputTileIndex() method, which
+    uses cluster_id and block_offset to compute final tile coordinates based
+    on the selected pattern.
+    */
+    CK_TILE_DEVICE static auto
+    GetOutputTileIndex(index_t blockIdx, index_t blockIdy) noexcept -> const tuple<index_t, index_t>
+    {
+        if constexpr(Pattern == ClusterTilePattern::ContiguousBlock)
+        {
+            const index_t iM = amd_wave_read_first_lane(blockIdx);
+            const index_t iN = amd_wave_read_first_lane(blockIdy);
+            return make_tuple(iM, iN);
+        }
+        else
+        {
+            const index_t iM = amd_wave_read_first_lane(blockIdx);
+            const index_t iN = amd_wave_read_first_lane(blockIdy);
+
+            const index_t cluster_m = get_cluster_id_x();
+            const index_t cluster_n = get_cluster_id_y();
+
+            const index_t cluster_offset_m = iM % ClusterM;
+            const index_t cluster_offset_n = iN % ClusterN;
+
+            const index_t cluster_m_num = amd_wave_read_first_lane(gridDim.x / ClusterM);
+            const index_t cluster_n_num = amd_wave_read_first_lane(gridDim.y / ClusterN);
+
+            if constexpr(Pattern == ClusterTilePattern::InterleavedBoth)
+            {
+                const index_t tileM = cluster_m + cluster_m_num * cluster_offset_m;
+                const index_t tileN = cluster_n + cluster_n_num * cluster_offset_n;
+                return make_tuple(tileM, tileN);
+            }
+            else // InterleavedM
+            {
+                const index_t tileM = cluster_m + cluster_m_num * cluster_offset_m;
+                const index_t tileN = cluster_n * ClusterN + cluster_offset_n;
+                return make_tuple(tileM, tileN);
+            }
+        }
+    }
+
+    CK_TILE_DEVICE static auto
+    GetOutputTileIndex(index_t blockId) noexcept -> const tuple<index_t, index_t>
+    {
+        const index_t iM = amd_wave_read_first_lane(blockId % gridDim.x);
+        const index_t iN = amd_wave_read_first_lane(blockId / gridDim.x);
+        return GetOutputTileIndex(iM, iN);
+    }
+
+    private:
+    index_t M, N;
+};
 } // namespace ck_tile

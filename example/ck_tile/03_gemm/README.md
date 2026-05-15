@@ -49,6 +49,8 @@ make tile_example_gemm_basic -j`nproc`
 make tile_example_gemm_universal -j`nproc`
 # The weight preshuffle pipeline on the gemm calculation
 make tile_example_gemm_weight_preshuffle -j`nproc`
+# gfx125 only: weight preshuffle TDM pipeline with data cache prefetch controls
+make tile_example_gemm_weight_preshuffle_tdm_data_cache_prefetch -j`nproc`
 ```
 This will result in an executable `build/bin/tile_example_gemm_basic` & `build/bin/tile_example_gemm_universal`
 

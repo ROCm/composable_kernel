@@ -179,7 +179,6 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm_Wmma
     }
 
     template <typename AGridDesc_M_K,
-              typename WmmaK,
               typename MRepeat,
               typename MWaves,
               typename MPerWmma,
@@ -187,23 +186,23 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm_Wmma
     __host__ __device__ static constexpr auto
     MakeAGridDescriptor_AKWmma_MBlockRepeat_MWaves_AK0PerWmma_AKRow_MPerWmma_AK1(
         const AGridDesc_M_K& a_grid_desc_m_k,
-        const WmmaK&,
+        const index_t WmmaK,
         const MRepeat&,
         const MWaves&,
         const MPerWmma&,
         const AK1&)
     {
-        const auto M0             = a_grid_desc_m_k.GetLength(I0) / MPerBlock;
-        const auto K              = a_grid_desc_m_k.GetLength(I1);
-        const auto AKWmma         = K / WmmaK{};
-        constexpr auto AKRow      = 2;
-        constexpr auto AK0PerWmma = WmmaK{} / AKRow / AK1{};
+        const auto M0         = a_grid_desc_m_k.GetLength(I0) / MPerBlock;
+        const auto K          = a_grid_desc_m_k.GetLength(I1);
+        constexpr auto AKRow  = 2;
+        const auto AKWmma     = K / WmmaK;
+        const auto AK0PerWmma = WmmaK / AKRow / AK1{};
 
         return transform_tensor_descriptor(
             a_grid_desc_m_k,
-            make_tuple(make_unmerge_transform(
-                           make_tuple(AKWmma, Number<AK0PerWmma>{}, Number<AKRow>{}, AK1{})),
-                       make_unmerge_transform(make_tuple(M0 * MRepeat{}, MWaves{}, MPerWmma{}))),
+            make_tuple(
+                make_unmerge_transform(make_tuple(AKWmma, AK0PerWmma, Number<AKRow>{}, AK1{})),
+                make_unmerge_transform(make_tuple(M0 * MRepeat{}, MWaves{}, MPerWmma{}))),
             make_tuple(Sequence<1>{}, Sequence<0>{}),
             make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
     }
@@ -252,7 +251,6 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm_Wmma
     }
 
     template <typename BGridDesc_L_K,
-              typename WmmaK,
               typename LRepeat,
               typename LWaves,
               typename LPerWmma,
@@ -260,7 +258,7 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm_Wmma
     __host__ __device__ static constexpr auto
     MakeB0GridDescriptor_BKWmma_LBlockRepeat_LWaves_BK0PerWmma_BKRow_LPerWmma_BK1(
         const BGridDesc_L_K& b_grid_desc_l_k,
-        const WmmaK&,
+        const index_t WmmaK,
         const LRepeat&,
         const LWaves&,
         const LPerWmma&,
@@ -268,15 +266,15 @@ struct TransformBatchedContractionContractionToBatchedGemmGemm_Wmma
     {
         const auto L0             = b_grid_desc_l_k.GetLength(I0) / NPerBlock;
         const auto K              = b_grid_desc_l_k.GetLength(I1);
-        const auto BKWmma         = K / WmmaK{};
+        const auto BKWmma         = K / WmmaK;
         constexpr auto BKRow      = 2;
-        constexpr auto BK0PerWmma = WmmaK{} / BKRow / BK1{};
+        constexpr auto BK0PerWmma = WmmaK / BKRow / BK1{};
 
         return transform_tensor_descriptor(
             b_grid_desc_l_k,
-            make_tuple(make_unmerge_transform(
-                           make_tuple(BKWmma, Number<BK0PerWmma>{}, Number<BKRow>{}, BK1{})),
-                       make_unmerge_transform(make_tuple(L0 * LRepeat{}, LWaves{}, LPerWmma{}))),
+            make_tuple(
+                make_unmerge_transform(make_tuple(BKWmma, BK0PerWmma, Number<BKRow>{}, BK1{})),
+                make_unmerge_transform(make_tuple(L0 * LRepeat{}, LWaves{}, LPerWmma{}))),
             make_tuple(Sequence<1>{}, Sequence<0>{}),
             make_tuple(Sequence<0, 3, 4, 6>{}, Sequence<1, 2, 5>{}));
     }

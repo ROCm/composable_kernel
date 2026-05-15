@@ -57,6 +57,41 @@ struct MXfp4_FlatmmConfig16 : public MXFlatmmConfigBase16
     static constexpr ck_tile::index_t N_Tile = 512;
 };
 
+using MXFp6FlatmmConfigBase16 = MXFlatmmConfigBase16;
+
+// Base FlatmmConfig with 32x32 warp tile (for GFX1250 TDM)
+struct MXFlatmmConfigBase32TDM
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 256;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 128;
+
+    static constexpr bool kPadM = false;
+    static constexpr bool kPadN = false;
+    static constexpr bool kPadK = false;
+
+    static constexpr bool TransposeC            = false;
+    static constexpr bool UseStructuredSparsity = false;
+
+    static constexpr int kBlockPerCu                = 1;
+    static constexpr int TileParitionerGroupNum     = 8;
+    static constexpr int TileParitionerM01          = 4;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+    static constexpr bool DoubleSmemBuffer          = false;
+
+    static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr bool TiledMMAPermuteN = false;
+};
+
 // Architecture traits for MX Flatmm - Primary template (gfx950 implementation)
 template <ck_tile::core::arch::TargetId Arch, typename FlatmmConfig>
 struct MXFlatmmArchTraits
@@ -176,3 +211,106 @@ using MXFlatmm_GFX950_FP8FP4_Traits =
     MXFlatmmArchTraits<ck_tile::core::arch::TargetId::GFX950, MXFlatmmConfigBase16>;
 using MXFlatmm_GFX950_FP4FP8_Traits =
     MXFlatmmArchTraits<ck_tile::core::arch::TargetId::GFX950, MXFlatmmConfigBase16>;
+
+template <ck_tile::core::arch::TargetId Arch, typename FlatmmConfig>
+struct MXFlatmmTDMArchTraits;
+
+// Architecture traits for MX Flatmm - GFX1250 TDM
+template <typename FlatmmConfig>
+struct MXFlatmmTDMArchTraits<ck_tile::core::arch::TargetId::GFX1250, FlatmmConfig>
+{
+    static constexpr int BlockedXDLN_PerWarp = 1;
+
+    using Config = FlatmmConfig;
+
+    template <typename MXPipelineProblem>
+    using MXFlatmmPipeline = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegTDM<MXPipelineProblem>;
+
+    static constexpr int GetNLane()
+    {
+        // gfx1250 uses 32x32x128 wmma, but still use 16 NLanes for weight preshuffle
+        return 16;
+    }
+
+    template <bool KLast, typename dtype>
+    static auto preShuffleScale(ck_tile::HostTensor<dtype>& src)
+    {
+        auto src_lengths = src.get_lengths();
+        const auto MN    = KLast ? src_lengths[0] : src_lengths[1];
+        const auto K     = KLast ? src_lengths[1] : src_lengths[0];
+        // K  -> K/KPack,     KPack(KPack is used to make sure int32 alignment)
+        // MN -> MN/WarpSize, WarpSize
+        //  MN/WarpSize, K/KPack, WarpSize, KPack
+        size_t KPack = sizeof(int32_t) / sizeof(dtype); // scale always use fp8; KPack = 4
+        size_t K0    = K / KPack;
+        size_t M1    = 32; // this is used to align 32x32x128 block scaled wmma
+
+        const auto MN_Paded = ck_tile::integer_least_multiple(MN, 32);
+
+        ck_tile::HostTensor<dtype> shuffled(ck_tile::HostTensorDescriptor({MN_Paded * K}, {1}));
+
+        for(size_t n = 0; n < MN_Paded; ++n)
+        {
+            for(size_t k = 0; k < K; ++k)
+            {
+                auto n0 = n / M1; // i MNRepeat
+                auto n1 = n % M1; // i M1
+
+                auto k0 = k / KPack; // i KRepeat
+                auto k2 = k % KPack; // i K1
+
+                auto outputIndex = n0 * K0 * M1 * KPack + k0 * M1 * KPack + n1 * KPack + k2;
+
+                if constexpr(KLast)
+                    shuffled(outputIndex) = n < MN ? src(n, k) : dtype{};
+                else
+                    shuffled(outputIndex) = n < MN ? src(k, n) : dtype{};
+            }
+        }
+        return shuffled;
+    }
+};
+
+using MXFlatmmTDM_GFX1250_FP4FP4_Traits =
+    MXFlatmmTDMArchTraits<ck_tile::core::arch::TargetId::GFX1250, MXFlatmmConfigBase32TDM>;
+using MXFlatmmTDM_GFX1250_FP8FP8_Traits =
+    MXFlatmmTDMArchTraits<ck_tile::core::arch::TargetId::GFX1250, MXFlatmmConfigBase32TDM>;
+using MXFlatmmTDM_GFX1250_FP8FP4_Traits =
+    MXFlatmmTDMArchTraits<ck_tile::core::arch::TargetId::GFX1250, MXFlatmmConfigBase32TDM>;
+using MXFlatmmTDM_GFX1250_FP4FP8_Traits =
+    MXFlatmmTDMArchTraits<ck_tile::core::arch::TargetId::GFX1250, MXFlatmmConfigBase32TDM>;
+
+// Helper to get current target ID based on compile-time macros
+constexpr ck_tile::core::arch::TargetId GetCurrentTargetId()
+{
+#if defined(CK_USE_GFX1250)
+    return ck_tile::core::arch::TargetId::GFX1250;
+#else
+    return ck_tile::core::arch::TargetId::GFX950; // Default fallback
+#endif
+}
+
+using MXFlatmm_GFX1250_FP4FP4_Traits =
+    MXFlatmmArchTraits<ck_tile::core::arch::TargetId::GFX950, MXFlatmmConfigBase32TDM>;
+using MXFlatmm_GFX1250_FP8FP8_Traits =
+    MXFlatmmArchTraits<ck_tile::core::arch::TargetId::GFX950, MXFlatmmConfigBase32TDM>;
+using MXFlatmm_GFX1250_FP6FP6_Traits =
+    MXFlatmmArchTraits<ck_tile::core::arch::TargetId::GFX950, MXFlatmmConfigBase32TDM>;
+using MXFlatmm_GFX1250_FP8FP4_Traits =
+    MXFlatmmArchTraits<ck_tile::core::arch::TargetId::GFX950, MXFlatmmConfigBase32TDM>;
+using MXFlatmm_GFX1250_FP4FP8_Traits =
+    MXFlatmmArchTraits<ck_tile::core::arch::TargetId::GFX950, MXFlatmmConfigBase32TDM>;
+
+#if defined(CK_USE_GFX1250)
+using MXFlatmm_FP4FP4_Traits = MXFlatmm_GFX1250_FP4FP4_Traits;
+using MXFlatmm_FP8FP8_Traits = MXFlatmm_GFX1250_FP8FP8_Traits;
+using MXFlatmm_FP6FP6_Traits = MXFlatmm_GFX1250_FP6FP6_Traits;
+using MXFlatmm_FP8FP4_Traits = MXFlatmm_GFX1250_FP8FP4_Traits;
+using MXFlatmm_FP4FP8_Traits = MXFlatmm_GFX1250_FP4FP8_Traits;
+#else
+using MXFlatmm_FP4FP4_Traits = MXFlatmm_GFX950_FP4FP4_Traits;
+using MXFlatmm_FP8FP8_Traits = MXFlatmm_GFX950_FP8FP8_Traits;
+using MXFlatmm_FP6FP6_Traits = MXFlatmm_GFX950_FP6FP6_Traits;
+using MXFlatmm_FP8FP4_Traits = MXFlatmm_GFX950_FP8FP4_Traits;
+using MXFlatmm_FP4FP8_Traits = MXFlatmm_GFX950_FP4FP8_Traits;
+#endif

@@ -14,6 +14,7 @@
 #include "ck/tensor_operation/gpu/block/thread_group_tensor_slice_transfer_v4r1.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_common.hpp"
 
@@ -238,7 +239,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
     __device__ static bool constexpr IsValidCompilationParameter()
     {
-        return ck::tensor_operation::device::IsValidGemmCompilationParameter<
+        constexpr bool valid = ck::tensor_operation::device::IsValidGemmCompilationParameter<
             BlockSize,
             MPerBlock,
             NPerBlock,
@@ -248,15 +249,26 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
             NXdlPerWave,
             FloatC,
             CGlobalMemoryDataOperation>();
+        if constexpr(!valid)
+        {
+            return false;
+        }
+
+        if constexpr(KPerBlock %
+                         MfmaSelector<FloatAB, MPerXdl, NPerXdl, FloatAB, true>::GetKPerXdlops() !=
+                     0)
+        {
+            return false;
+        }
+        return true;
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2CTileMap>
-    __host__ __device__ static constexpr bool
-    CheckValidity(const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
-                  const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
-                  const CGridDesc_M_N& c_grid_desc_m_n,
-                  const Block2CTileMap& block_2_ctile_map)
+    __host__ __device__ static bool CheckValidity(const AGridDesc_AK0_M_AK1& a_grid_desc_ak0_m_ak1,
+                                                  const BGridDesc_BK0_N_BK1& b_grid_desc_bk0_n_bk1,
+                                                  const CGridDesc_M_N& c_grid_desc_m_n,
+                                                  const Block2CTileMap& block_2_ctile_map)
     {
         // static_assert(is_known_at_compile_time<remove_cv_t<decltype(AK1)>>::value &&
         //               is_known_at_compile_time<remove_cv_t<decltype(BK1)>>::value,
@@ -276,6 +288,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0))
             return false;
 
+        if(!is_xdl_wmma_k_supported<FloatAB, KPerBlock>())
+        {
+            return false;
+        }
         // check gridwise gemm pipeline
         const auto num_k_loop = K / KPerBlock;
 
@@ -472,7 +488,11 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
               lcm_AK1_BK1 <= 4) ||
              (is_same<FloatAB, int8_t>::value && lcm_AK1_BK1 <= 8) ||
              ((is_same<FloatAB, f8_t>::value || is_same<FloatAB, bf8_t>::value) &&
+#if defined(__gfx125__)
+              lcm_AK1_BK1 < 128))
+#else
               lcm_AK1_BK1 < 32))
+#endif
                 ? true
                 : false;
         constexpr auto is_scale_mfma = false;

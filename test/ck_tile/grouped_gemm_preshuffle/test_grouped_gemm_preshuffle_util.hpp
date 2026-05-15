@@ -80,7 +80,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
         return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<>);
     }
 
-    template <typename ALayout, typename BLayout, typename CLayout>
+    template <typename ALayout, typename BLayout, typename CLayout, bool IsPersistent = false>
     void invoke_grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                              const ck_tile::stream_config& s,
                              void* kargs_ptr)
@@ -98,19 +98,19 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        // for testing purposes, we can hardcode the values here as we what is compatible with
-        // pipeline
+        // Select padding strategy based on persistent mode
+        // Persistent mode requires all dimensions to be padded
         using GemmUniversalTraits =
-            ck_tile::TileGemmUniversalTraits<kPadM,
-                                             kPadN,
-                                             kPadK,
+            ck_tile::TileGemmUniversalTraits<IsPersistent ? true : kPadM,
+                                             IsPersistent ? true : kPadN,
+                                             IsPersistent ? true : kPadK,
                                              DoubleSmemBuffer,
                                              ALayout,
                                              BLayout,
                                              CLayout,
                                              TransposeC,
                                              /*UseStructuredSparsity*/ false,
-                                             /*Persistent*/ false,
+                                             IsPersistent,
                                              /*NumWaveGroups*/ 1,
                                              /*Preshuffle*/ true,
                                              VectorSize>;
@@ -342,7 +342,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
             ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
 
             // Host-side preshuffle of B
-            auto b_shuffle_host = ck_tile::shuffle_b<BShuffleGemmConfig>(b_k_n_tensors[i]);
+            auto b_shuffle_host = ck_tile::shuffle_b_v0<BShuffleGemmConfig>(b_k_n_tensors[i]);
 
             a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
                 a_m_k_tensors[i].get_element_space_size_in_bytes()));
@@ -377,20 +377,10 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
         ck_tile::DeviceMem gemm_workspace;
         gemm_workspace.Realloc(get_workspace_size(gemm_descs));
 
-        if constexpr(Persistent)
-        {
-            invoke_grouped_gemm_persistent<ALayout, BLayout, CLayout>(
-                gemm_descs,
-                ck_tile::stream_config{nullptr, false, 1},
-                gemm_workspace.GetDeviceBuffer());
-        }
-        else
-        {
-            invoke_grouped_gemm<ALayout, BLayout, CLayout>(
-                gemm_descs,
-                ck_tile::stream_config{nullptr, false, 1},
-                gemm_workspace.GetDeviceBuffer());
-        }
+        invoke_grouped_gemm<ALayout, BLayout, CLayout, Persistent>(
+            gemm_descs,
+            ck_tile::stream_config{nullptr, false, 1},
+            gemm_workspace.GetDeviceBuffer());
 
         // Copy results back to host for validation
         for(int i = 0; i < group_count; i++)

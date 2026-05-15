@@ -48,7 +48,7 @@ using DeviceGroupedConvNDFwdInstance =
         64,               // BlockSize
         64,               // MPerBlock
         64,               // NPerBlock
-        32,               // KPerBlock
+        128,              // KPerBlock
         8,                // AK1
         8,                // BK1
         16,               // MPerWmma

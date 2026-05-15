@@ -100,6 +100,8 @@ class ContractionDeviceOpWrapper
         const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
             DeviceOp>::GetInstances();
 
+        std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
         for(auto& op_ptr : op_ptrs)
         {
             auto argument_ptr =
@@ -184,7 +186,7 @@ TEST(TestContractionSupportedArgs, DEMemoryAccess)
 
 int main(int argc, char** argv)
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
     {
         std::cout << "FP32/64 are not supported on gfx11 and gfx12." << std::endl;
         return 0;

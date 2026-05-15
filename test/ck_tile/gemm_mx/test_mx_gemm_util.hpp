@@ -196,8 +196,9 @@ class TestMxGemmUtil : public ::testing::Test
         ck_tile::HostTensor<CDataType> c_ref(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         c_ref.SetZero();
-        ck_tile::reference_mx_gemm<ADataType, BDataType, ScaleType, AccDataType, CDataType>(
-            a_host, b_host, c_ref, scale_a_host, scale_b_host);
+        ck_tile::
+            reference_mx_gemm<ADataType, BDataType, ScaleType, ScaleType, AccDataType, CDataType>(
+                a_host, b_host, c_ref, scale_a_host, scale_b_host);
 
         const float max_accumulated_value = ck_tile::type_convert<float>(c_ref.max());
         const auto rtol_atol = calculate_rtol_atol_mx<ADataType, BDataType, AccDataType, CDataType>(

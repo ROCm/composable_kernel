@@ -479,6 +479,8 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     };
 
     // do GEMM
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
     std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
     std::array<ck::index_t, NDimSpatial + 3> out_strides{};
     std::array<ck::index_t, NDimSpatial + 3> wei_lengths{};
@@ -514,8 +516,16 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     {
         std::cout << "\nValid instances for this problem:" << std::endl;
     }
-    for(auto& op_ptr : op_ptrs)
+
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[i];
+
         for(std::size_t split_k_id = 0; split_k_id < split_k_list.size(); split_k_id++)
         {
             auto argument_ptr = op_ptr->MakeArgumentPointer(
@@ -564,11 +574,6 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
               << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << ", SplitK "
               << best_split_k << std::endl;
 
-    if(instance_index != -1)
-    {
-        std::cout << "grouped_conv_bwd_data_instance (" << instance_index << "/" << num_kernel
-                  << "): Passed" << std::endl;
-    }
     return pass;
 }
 

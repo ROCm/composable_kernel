@@ -132,7 +132,6 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
 
     static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
-    static constexpr auto WmmaK  = K1 == 16 ? 32 : 16;
 
     static constexpr auto MaxVectorLoadA = K1 * sizeof(ADataType) == 16 ? true : false;
     static constexpr auto MaxVectorLoadB = K1 * sizeof(BDataType) == 16 ? true : false;
@@ -226,17 +225,18 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         }
         else
         {
-            constexpr auto A_KRow      = 2;
-            constexpr auto A_K0PerWmma = WmmaK / A_KRow / K1Number;
-            const auto A_KWmma         = K / WmmaK;
+            const index_t WmmaK    = get_wmma_k<ADataType, K1>();
+            constexpr auto A_KRow  = 2;
+            const auto A_K0PerWmma = WmmaK / A_KRow / K1Number;
+            const auto A_KWmma     = K / WmmaK;
 
             const auto M0 = M / MPerBlock;
             // 0   1     0         1                2        3             4        5          6
             // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
             return transform_tensor_descriptor(
                 a_grid_desc_m_k,
-                make_tuple(make_unmerge_transform(make_tuple(
-                               A_KWmma, Number<A_K0PerWmma>{}, Number<A_KRow>{}, K1Number)),
+                make_tuple(make_unmerge_transform(
+                               make_tuple(A_KWmma, A_K0PerWmma, Number<A_KRow>{}, K1Number)),
                            make_unmerge_transform(
                                make_tuple(M0 * MRepeat, Number<MWaves>{}, Number<MPerWmma>{}))),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
@@ -318,17 +318,18 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         }
         else
         {
-            constexpr auto B_KRow      = 2;
-            constexpr auto B_K0PerWmma = WmmaK / B_KRow / K1Number;
-            const auto B_KWmma         = K / WmmaK;
+            const index_t WmmaK    = get_wmma_k<BDataType, K1>();
+            constexpr auto B_KRow  = 2;
+            const auto B_K0PerWmma = WmmaK / B_KRow / K1Number;
+            const auto B_KWmma     = K / WmmaK;
 
             const auto N0 = N / NPerBlock;
             // 0   1     0         1                2        3             4        5          6
             // M - K <-> A_KWmma - MBlock*MRepeat - MWaves - A_K0PerWmma - A_KRow - MPerWmma - A_K1
             return transform_tensor_descriptor(
                 b_grid_desc_n_k,
-                make_tuple(make_unmerge_transform(make_tuple(
-                               B_KWmma, Number<B_K0PerWmma>{}, Number<B_KRow>{}, K1Number)),
+                make_tuple(make_unmerge_transform(
+                               make_tuple(B_KWmma, B_K0PerWmma, Number<B_KRow>{}, K1Number)),
                            make_unmerge_transform(
                                make_tuple(N0 * NRepeat, Number<NWaves>{}, Number<NPerWmma>{}))),
                 make_tuple(Sequence<1>{}, Sequence<0>{}),
@@ -842,7 +843,10 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
         {
             return false;
         }
-
+        if(!is_xdl_wmma_k_supported<ADataType, KPerBlock>())
+        {
+            return false;
+        }
         if(!GridwiseOp::CheckValidity(arg.a_grid_desc_,
                                       arg.b_grid_desc_,
                                       arg.ds_grid_desc_m_n_,

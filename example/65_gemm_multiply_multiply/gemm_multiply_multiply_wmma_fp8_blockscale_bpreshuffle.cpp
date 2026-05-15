@@ -50,8 +50,6 @@ using D1Layout = Col;
 using DsLayout = ck::Tuple<>;
 using ELayout  = Row;
 
-static constexpr int KPack = 16;
-
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using AElementOp   = PassThrough;
@@ -63,6 +61,13 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 static constexpr ck::index_t Scale_Block_M = 1;
 static constexpr ck::index_t Scale_Block_N = 128;
 static constexpr ck::index_t Scale_Block_K = 128;
+static constexpr int KPerBlock             = 128;
+#if defined(CK_USE_GFX1250)
+static constexpr int KPack = 32;
+#else
+static constexpr int KPack = 16;
+#endif
+static constexpr auto K0 = KPerBlock / KPack;
 
 using DeviceOpInstance =
     ck::tensor_operation::device::DeviceGemmMultiD_BlockScale_Wmma_CShuffle_V3_BPreshuffle
@@ -71,13 +76,13 @@ using DeviceOpInstance =
           A0DataType, A1DataType, B0DataType, B1DataType, DsDataType, EDataType, AccDataType, CShuffleDataType, 
           AElementOp,  BElementOp, CDEElementOp, GemmSpec,
           256, Scale_Block_M, Scale_Block_N, Scale_Block_K,
-          128, 128, 128,
-          16, 16,
+          128, 128, KPerBlock,
+          KPack, KPack,
           16, 16,
           4, 2,
-          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>,
+          S<K0, 256 / K0, 1>, S<1, 0, 2>, S<1, 0, 2>,
           2, 16, 16, 0,
-          S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>,
+          S<K0, 256 / K0, 1>, S<1, 0, 2>, S<1, 0, 2>,
           2, 16, 16, 0,
           1, 1,
           S<1, 32, 1, 8>,  S<8>,

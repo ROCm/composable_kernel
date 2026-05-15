@@ -42,7 +42,8 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
                                                 int init_method,
                                                 bool do_log,
                                                 bool time_kernel,
-                                                const ck::utils::conv::ConvParam& conv_param)
+                                                const ck::utils::conv::ConvParam& conv_param,
+                                                index_t instance_index = -1)
 {
     auto pass = true;
 
@@ -361,8 +362,30 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
         }
     };
 
-    for(auto& op_ptr : op_ptrs)
+    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NDimSpatial,
+                                                                                   InLayout,
+                                                                                   WeiLayout,
+                                                                                   ck::Tuple<>,
+                                                                                   OutLayout,
+                                                                                   InDataType,
+                                                                                   WeiDataType,
+                                                                                   ck::Tuple<>,
+                                                                                   OutDataType,
+                                                                                   InElementOp,
+                                                                                   WeiElementOp,
+                                                                                   OutElementOp,
+                                                                                   AComputeType,
+                                                                                   BComputeType>;
+
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[i];
+
         auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
                                                         wei_device_buf.GetDeviceBuffer(),
                                                         {},

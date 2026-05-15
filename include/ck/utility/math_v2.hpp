@@ -545,13 +545,41 @@ static inline __device__ double sqrt(double x) { return __builtin_amdgcn_sqrt(x)
 template <typename T>
 inline __device__ T tanh(T x)
 {
+#if defined(__gfx125__)
+    return ck::type_convert<T>(__builtin_amdgcn_tanhf(ck::type_convert<float>(x)));
+#else
     return ck::type_convert<T>(::tanhf(ck::type_convert<float>(x)));
+#endif
 };
 
 template <>
 inline __device__ float tanh<float>(float x)
 {
+#if defined(__gfx125__)
+    return __builtin_amdgcn_tanhf(x);
+#else
     return ::tanhf(x);
+#endif
+};
+
+template <>
+inline __device__ half_t tanh<half_t>(half_t x)
+{
+#if defined(__gfx125__)
+    return __builtin_amdgcn_tanhh(x);
+#else
+    return ck::type_convert<half_t>(::tanhf(ck::type_convert<float>(x)));
+#endif
+};
+
+template <>
+inline __device__ bhalf_t tanh<bhalf_t>(bhalf_t x)
+{
+#if defined(__gfx125__)
+    return bit_cast<bhalf_t>(__builtin_amdgcn_tanh_bf16(bit_cast<__bf16>(x)));
+#else
+    return ck::type_convert<bhalf_t>(::tanhf(ck::type_convert<float>(x)));
+#endif
 };
 
 template <>

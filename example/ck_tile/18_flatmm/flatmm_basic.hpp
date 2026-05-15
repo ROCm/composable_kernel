@@ -96,6 +96,14 @@ struct FlatmmConfig16_950 : public FlatmmConfig16<DataType>
     static constexpr bool TiledMMAPermuteN = N_Repeat % 4 == 0;
 };
 
+template <typename DataType>
+struct FlatmmConfig16_Wmma : public FlatmmConfig16<DataType>
+{
+    static constexpr ck_tile::index_t M_Tile      = 64;
+    static constexpr ck_tile::index_t K_Tile      = 64;
+    static constexpr ck_tile::index_t K_Warp_Tile = ck_tile::get_k_warp_tile<DataType, 16>();
+};
+
 template <typename ADataType>
 struct GemmBasicTypeConfig;
 

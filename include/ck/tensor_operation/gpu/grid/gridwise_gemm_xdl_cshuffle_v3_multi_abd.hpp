@@ -5,6 +5,7 @@
 
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/env.hpp"
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -296,7 +297,11 @@ struct GridwiseGemm_xdl_cshuffle_v3
           lcm_AK1_BK1 <= 4) ||
          (is_same<ComputeTypeA, int8_t>::value && lcm_AK1_BK1 <= 8) ||
          ((is_same<ComputeTypeA, f8_t>::value || is_same<ComputeTypeA, bf8_t>::value) &&
+#if defined(__gfx125__)
+          lcm_AK1_BK1 < 128))
+#else
           lcm_AK1_BK1 < 32))
+#endif
             ? true
             : false;
     static constexpr auto is_scale_mfma = false;
@@ -835,7 +840,66 @@ struct GridwiseGemm_xdl_cshuffle_v3
                  NXdlPerWave,
                  KPack>())>;
 
-    IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType)
+    template <bool IsGfx11>
+    static constexpr index_t GetEstimateVgprCount()
+    {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
+
+        // VGPR used in LDS loading and WMMA
+        constexpr index_t BaseInputVgprCount =
+            MPerBlock * KPerBlock / MWave / WaveSize * sizeof(ComputeTypeA) / sizeof(uint32_t) +
+            NPerBlock * KPerBlock / NWave / WaveSize * sizeof(ComputeTypeB) / sizeof(uint32_t);
+        // WMMA input is duplicated in GFX11
+        constexpr index_t InputVgprCount = IsGfx11 ? BaseInputVgprCount * 2 : BaseInputVgprCount;
+        // VGPR used in Accumulator
+        constexpr index_t AccVgprCount =
+            MPerBlock * NPerBlock / BlockSize * sizeof(AccDataType) / sizeof(uint32_t);
+
+        if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+        {
+            return InputVgprCount + AccVgprCount;
+        }
+        else if constexpr((BlkGemmPipelineVer == BlockGemmPipelineVersion::v2) ||
+                          (BlkGemmPipelineVer == BlockGemmPipelineVersion::v3) ||
+                          (BlkGemmPipelineVer == BlockGemmPipelineVersion::v5))
+        {
+            return 2 * InputVgprCount + AccVgprCount;
+        }
+        else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+        {
+            return 3 * InputVgprCount + AccVgprCount;
+        }
+        else
+        {
+            // invalid pipeline version
+            static_assert(0);
+        }
+    }
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+        constexpr bool IsGfx11            = is_same_v<decltype(get_device_arch()), gfx11_t>;
+        constexpr auto EstimateVgprCount  = GetEstimateVgprCount<IsGfx11>();
+        constexpr auto AvailableVgprCount = get_max_vgpr_count(get_device_arch());
+        if constexpr(EstimateVgprCount > (AvailableVgprCount + AvailableVgprCount / 4))
+        {
+            return false;
+        }
+
+        return ck::tensor_operation::device::IsValidGemmCompilationParameter<
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            MPerXdl,
+            NPerXdl,
+            MXdlPerWave,
+            NXdlPerWave,
+            CDataType,
+            CGlobalMemoryDataOperation_>();
+    }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)
@@ -1007,6 +1071,38 @@ struct GridwiseGemm_xdl_cshuffle_v3
             {
                 return false;
             }
+        }
+
+        const auto availableVgprCount = []() {
+            if(ck::is_gfx125_supported())
+            {
+                return get_max_vgpr_count(gfx125_t{});
+            }
+            else if(ck::is_gfx120_supported())
+            {
+                return get_max_vgpr_count(gfx120_t{});
+            }
+            else if(ck::is_gfx11_supported())
+            {
+                return get_max_vgpr_count(gfx11_t{});
+            }
+            else
+            {
+                return get_max_vgpr_count(gfx9_t{});
+            }
+        }();
+        const auto estimateVgprCount =
+            ck::is_gfx11_supported() ? GetEstimateVgprCount<true>() : GetEstimateVgprCount<false>();
+        if(estimateVgprCount > (availableVgprCount + availableVgprCount / 4))
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Estimated VGPR count (" << estimateVgprCount
+                          << ") exceeds available VGPR count (" << availableVgprCount << ")! "
+                          << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                          << std::endl;
+            }
+            return false;
         }
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)

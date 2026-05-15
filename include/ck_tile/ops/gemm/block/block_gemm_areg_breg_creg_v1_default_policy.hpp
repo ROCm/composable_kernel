@@ -28,6 +28,8 @@ struct BlockGemmARegBRegCRegV1DefaultPolicy
             return make_tuple(WarpGemmMfmaBf16Bf16F32M32N32K8TransposedCDistribution{}, 4, 1);
         }
     }
+
+    static constexpr index_t KSubTileNum = 1;
 };
 
 } // namespace ck_tile

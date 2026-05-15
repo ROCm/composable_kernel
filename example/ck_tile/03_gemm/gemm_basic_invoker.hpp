@@ -52,7 +52,9 @@ struct BasicInvoker
 
         constexpr ck_tile::index_t M_Warp_Tile = 16;
         constexpr ck_tile::index_t N_Warp_Tile = 16;
-        constexpr ck_tile::index_t K_Warp_Tile = 16;
+        constexpr ck_tile::index_t K_Warp_Tile =
+            ck_tile::get_k_warp_tile<ADataType_, M_Warp_Tile, true>();
+        ck_tile::ignore = is_tf32_compute;
 #else
         // gfx950: fp32 uses 16x16x16 tile (native MFMA)
         //         tf32 uses 32x32x16 tile (3x bf16 32x32x16 MFMA emulation)
@@ -79,15 +81,20 @@ struct BasicInvoker
                                                           BLayout,
                                                           CLayout>;
 
-        using CodegenPipelineProblem =
-            ck_tile::GemmPipelineProblem<ADataTypeBuf,
-                                         BDataTypeBuf,
-                                         AccDataType,
-                                         CodegenGemmShape,
-                                         CodegenGemmTraits,
-                                         ck_tile::element_wise::PassThrough,
-                                         ck_tile::element_wise::PassThrough,
-                                         ADataTypeCompute>;
+        using AComputeDataType = std::
+            conditional_t<std::is_same_v<ADataType_, ck_tile::pk_int4_t>, BDataType_, ADataType_>;
+        using BComputeDataType =
+            std::conditional_t<std::is_same_v<BDataType_, ck_tile::pk_int4_t> ||
+                                   std::is_same_v<BDataType_, ck_tile::pk_fp4_raw_t>,
+                               ADataType_,
+                               BDataType_>;
+        using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<ADataTypeBuf,
+                                                                    BDataTypeBuf,
+                                                                    AccDataType,
+                                                                    CodegenGemmShape,
+                                                                    CodegenGemmTraits,
+                                                                    AComputeDataType,
+                                                                    BComputeDataType>;
 
         using CodegenGemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 

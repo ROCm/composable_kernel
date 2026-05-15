@@ -106,7 +106,6 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16_Irregul
                                                    {1024, 1024, 80, 80, 1, 16},
                                                    {1024, 64, 80, 64, 1, 16},
                                                    {4096, 64, 40, 64, 1, 16}};
-    this->bench_   = true;
     this->verify_  = false;
     this->Run();
 }
@@ -152,7 +151,6 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, Bench_BF16)
         std::cout << "Running full benchmarks for high-performance device" << std::endl;
     }
 
-    this->bench_  = true;
     this->verify_ = false;
     this->Run();
 }

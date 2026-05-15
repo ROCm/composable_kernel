@@ -10,11 +10,11 @@
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "1024", "m dimension")
+    arg_parser.insert("op", "square", "unary operations: square|tanh|fastgelu|convert")
+        .insert("m", "1024", "m dimension")
         .insert("n", "1024", "n dimension")
         .insert("stride", "-1", "stride per row, if -1 then equal to n")
         .insert("v", "1", "cpu validation or not")
-        .insert("op", "1", "unary operation, 1: square, 2: convert")
         .insert("x_prec", "fp16", "input precision")
         .insert("y_prec", "fp16", "output precision")
         .insert("warmup", "10", "cold iter")
@@ -156,15 +156,8 @@ bool filter_then_run(const ck_tile::ArgParser& arg_parser)
     };
     bool pass = true;
 
-    if constexpr(std::is_same_v<XElementwiseOperation, ck_tile::element_wise::UnarySquare> &&
-                 (std::is_same_v<XDataType, ck_tile::bf16_t> ||
+    if constexpr((std::is_same_v<XDataType, ck_tile::bf16_t> ||
                   std::is_same_v<YDataType, ck_tile::bf16_t>))
-    {
-        throw_unsupported();
-    }
-    else if constexpr(std::is_same_v<XElementwiseOperation, ck_tile::element_wise::UnaryConvert> &&
-                      (std::is_same_v<XDataType, ck_tile::bf16_t> ||
-                       std::is_same_v<YDataType, ck_tile::bf16_t>))
     {
         throw_unsupported();
     }
@@ -178,13 +171,19 @@ bool filter_then_run(const ck_tile::ArgParser& arg_parser)
 
 auto string_to_op(const std::string& op)
 {
-    using OpVariant =
-        std::variant<ck_tile::element_wise::UnarySquare, ck_tile::element_wise::UnaryConvert>;
+    using OpVariant = std::variant<ck_tile::element_wise::UnarySquare,
+                                   ck_tile::element_wise::UnaryConvert,
+                                   ck_tile::element_wise::TanH,
+                                   ck_tile::element_wise::FastGelu>;
 
-    if(op == "1")
+    if(op == "square")
         return OpVariant{ck_tile::element_wise::UnarySquare{}};
-    else if(op == "2")
+    else if(op == "convert")
         return OpVariant{ck_tile::element_wise::UnaryConvert{}};
+    else if(op == "tanh")
+        return OpVariant{ck_tile::element_wise::TanH{}};
+    else if(op == "fastgelu")
+        return OpVariant{ck_tile::element_wise::FastGelu{}};
     else
     {
         throw std::runtime_error("Unsupported unary operation: " + op);
@@ -209,7 +208,7 @@ int main(int argc, char* argv[])
                 using XElementwiseOperation = std::decay_t<decltype(op)>;
                 using XDataType             = std::decay_t<decltype(x_dt)>;
                 using YDataType             = std::decay_t<decltype(y_dt)>;
-                return filter_then_run<XElementwiseOperation, XDataType, YDataType>(arg_parser);
+                return !filter_then_run<XElementwiseOperation, XDataType, YDataType>(arg_parser);
             },
             op_variant,
             x_prec_variant,

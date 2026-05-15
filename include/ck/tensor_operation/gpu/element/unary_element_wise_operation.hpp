@@ -401,6 +401,12 @@ struct PassThrough
     }
 
     template <>
+    __host__ __device__ void operator()<int32_t, float>(int32_t& y, const float& x) const
+    {
+        y = static_cast<int32_t>(x);
+    }
+
+    template <>
     __host__ __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
     {
         y = x;
@@ -967,6 +973,13 @@ struct FastGelu
     template <>
     __device__ void operator()<float, float>(float& y, const float& x) const
     {
+#if defined(__gfx125__)
+        const float c1 = 0.035677f;
+        const float c2 = 0.797885f;
+        const float u  = x * (c1 * x * x + c2);
+
+        y = 0.5f * x * (1.f + __builtin_amdgcn_tanhf(u));
+#else
         // const float u   = 2.f * x * (0.035677f * x * x + 0.797885f);
         const float c1  = -2.0 * 0.035677f;
         const float c2  = -2.0 * 0.797885f;
@@ -974,6 +987,7 @@ struct FastGelu
         const float emu = __ocml_exp_f32(u);
 
         y = x * math::rcp(1.f + emu);
+#endif
     }
 
     template <>
@@ -989,11 +1003,20 @@ struct FastGelu
     template <>
     __device__ void operator()<half_t, half_t>(half_t& y, const half_t& x) const
     {
+#if defined(__gfx125__)
+        const half_t c1 = type_convert<half_t>(0.035677f);
+        const half_t c2 = type_convert<half_t>(0.797885f);
+        const half_t u  = x * (c1 * x * x + c2);
+
+        y = type_convert<half_t>(0.5f) * x *
+            (type_convert<half_t>(1.f) + __builtin_amdgcn_tanhh(u));
+#else
         float y_f;
 
         this->operator()<float, float>(y_f, type_convert<float>(x));
 
         y = type_convert<half_t>(y_f);
+#endif
     }
 
     template <>
@@ -1009,11 +1032,19 @@ struct FastGelu
     template <>
     __device__ void operator()<half_t, float>(half_t& y, const float& x) const
     {
+#if defined(__gfx125__)
+        const float c1 = 0.035677f;
+        const float c2 = 0.797885f;
+        const float u  = x * (c1 * x * x + c2);
+
+        y = type_convert<half_t>(0.5f * x * (1.f + __builtin_amdgcn_tanhf(u)));
+#else
         float y_f;
 
         this->operator()<float, float>(y_f, x);
 
         y = type_convert<half_t>(y_f);
+#endif
     }
 
     template <>
@@ -1029,21 +1060,38 @@ struct FastGelu
     template <>
     __device__ void operator()<bhalf_t, float>(bhalf_t& y, const float& x) const
     {
+#if defined(__gfx125__)
+        const float c1 = 0.035677f;
+        const float c2 = 0.797885f;
+        const float u  = x * (c1 * x * x + c2);
+
+        y = type_convert<bhalf_t>(0.5f * x * (1.f + __builtin_amdgcn_tanhf(u)));
+#else
         float y_f;
 
         this->operator()<float, float>(y_f, x);
 
         y = type_convert<bhalf_t>(y_f);
+#endif
     }
 
     template <>
     __device__ void operator()<bhalf_t, bhalf_t>(bhalf_t& y, const bhalf_t& x) const
     {
+#if defined(__gfx125__)
+        const bhalf_t c1 = type_convert<bhalf_t>(0.035677f);
+        const bhalf_t c2 = type_convert<bhalf_t>(0.797885f);
+        const bhalf_t u  = x * (c1 * x * x + c2);
+
+        y = type_convert<bhalf_t>(0.5f) * x *
+            (type_convert<bhalf_t>(1.f) + __builtin_amdgcn_tanh_bf16(u));
+#else
         float y_f;
 
         this->operator()<float, float>(y_f, type_convert<float>(x));
 
         y = type_convert<bhalf_t>(y_f);
+#endif
     }
 
     template <>

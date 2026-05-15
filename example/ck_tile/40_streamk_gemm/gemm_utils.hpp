@@ -45,6 +45,26 @@ struct GemmConfigurationMemoryInterwave : public GemmConfigurationBase
     static constexpr auto SCHEDULER  = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
+template <typename PrecisionType, bool IsPersistent>
+struct GemmConfigurationMemoryInterwaveWmma : public GemmConfigurationBase
+{
+    static constexpr ck_tile::index_t M_TILE = 128;
+    static constexpr ck_tile::index_t N_TILE = 128;
+    static constexpr ck_tile::index_t K_TILE = 64;
+
+    static constexpr ck_tile::index_t M_WARP = 2;
+    static constexpr ck_tile::index_t N_WARP = 2;
+    static constexpr ck_tile::index_t K_WARP = 1;
+
+    static constexpr ck_tile::index_t M_WARP_TILE = 16;
+    static constexpr ck_tile::index_t N_WARP_TILE = 16;
+    static constexpr ck_tile::index_t K_WARP_TILE =
+        ck_tile::get_k_warp_tile<PrecisionType, M_WARP_TILE>();
+
+    static constexpr bool PERSISTENT = IsPersistent;
+    static constexpr auto SCHEDULER  = ck_tile::GemmPipelineScheduler::Intrawave;
+};
+
 template <typename ADataType_, typename BDataType_ = ADataType_, typename CDataType_ = ADataType_>
 struct StreamKGemmTypeConfiguration
 {

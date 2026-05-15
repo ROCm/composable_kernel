@@ -86,7 +86,8 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
         using Problem = ck_tile::TileCopyProblem<DataType, Shape, AsyncCopy, CpyCfg>;
         using Kernel  = ck_tile::TileCopy<Problem>;
 
-        constexpr ck_tile::index_t kBlockSize  = 128;
+        ck_tile::index_t kBlockSize =
+            ck_tile::is_wave32() ? Shape::BlockSize / 2 : Shape::BlockSize;
         constexpr ck_tile::index_t kBlockPerCu = 1;
         // when copy fp6x16 buffer, tread it as int8 buffer and recompute n-dim size.
         ck_tile::index_t cpy_n =
@@ -107,6 +108,78 @@ class TestCkTileMemoryCopy : public ::testing::TestWithParam<std::tuple<int, int
                                               warp_id));
 
         auto bytes = 2 * m * n * sizeof(DataType) / ck_tile::numeric_traits<DataType>::PackedSize;
+        std::cout << "elapsed: " << ms << " (ms)" << std::endl;
+        std::cout << (bytes * 1e-6 / ms) << " (GB/s)" << std::endl;
+
+        // reference
+        y_buf.FromDevice(y_host_dev.mData.data());
+        bool pass = ck_tile::check_err(y_host_dev, x_host);
+        EXPECT_TRUE(pass);
+    }
+
+    void Run_b128x3(const MemoryCopyParam& memcpy_params)
+    {
+        using XDataType = DataType;
+        using YDataType = DataType;
+
+        ck_tile::index_t m       = memcpy_params.m;
+        ck_tile::index_t n       = memcpy_params.n;
+        ck_tile::index_t warp_id = memcpy_params.warp_id;
+
+        static_assert(std::is_same_v<DataType, ck_tile::pk_fp6x16_t>,
+                      "This function support pk_fp6x16_t only.");
+
+        const ck_tile::index_t CpyCfg = 2;
+        std::cout << "CpyCfg: " << CpyCfg << std::endl;
+
+        ck_tile::HostTensor<XDataType> x_host({m, n});
+        ck_tile::HostTensor<YDataType> y_host_dev({m, n});
+        ck_tile::HostTensor<int8_t> host_init_buf({x_host.get_element_space_size_in_bytes()});
+        std::cout << "input: " << x_host.mDesc << std::endl;
+        std::cout << "output: " << y_host_dev.mDesc << std::endl;
+
+        for(size_t i = 0; i < x_host.get_element_space_size_in_bytes(); i++)
+            host_init_buf.mData[i] = i % 64;
+        memcpy(x_host.mData.data(),
+               host_init_buf.mData.data(),
+               x_host.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem y_buf(y_host_dev.get_element_space_size_in_bytes());
+
+        x_buf.ToDevice(x_host.data());
+
+        using BlockWaves = ck_tile::sequence<2, 1>;
+        using BlockTile  = ck_tile::sequence<16, 96>;
+        using WaveTile   = ck_tile::sequence<16, 96>;
+        using Vector     = ck_tile::sequence<1, 48>; // b128x3 covers 4xf6x16
+
+        ck_tile::index_t kGridSize =
+            ck_tile::integer_divide_ceil(m, BlockTile::at(ck_tile::number<0>{}));
+
+        using Shape   = ck_tile::TileCopyShape<BlockWaves, BlockTile, WaveTile, Vector>;
+        using Problem = ck_tile::TileCopyProblem<DataType, Shape, AsyncCopy, CpyCfg>;
+        using Kernel  = ck_tile::TileCopy<Problem>;
+
+        ck_tile::index_t kBlockSize =
+            ck_tile::is_wave32() ? Shape::BlockSize / 2 : Shape::BlockSize;
+        constexpr ck_tile::index_t kBlockPerCu = 1;
+        // when copy fp6x16 buffer, treat it as int8 buffer and recompute n-dim size.
+        ck_tile::index_t cpy_n =
+            n * sizeof(DataType) / ck_tile::numeric_traits<DataType>::PackedSize;
+
+        auto ms = launch_kernel(
+            ck_tile::stream_config{nullptr, true},
+            ck_tile::make_kernel<kBlockPerCu>(Kernel{},
+                                              kGridSize,
+                                              kBlockSize,
+                                              0,
+                                              static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
+                                              static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
+                                              m,
+                                              cpy_n,
+                                              warp_id));
+
+        auto bytes = 2 * m * cpy_n;
         std::cout << "elapsed: " << ms << " (ms)" << std::endl;
         std::cout << (bytes * 1e-6 / ms) << " (GB/s)" << std::endl;
 
@@ -144,13 +217,21 @@ class TestCkTileMemoryCopyFP8Async : public TestCkTileMemoryCopy<ck_tile::fp8_t>
 TEST_P(TestCkTileMemoryCopyF6x16, TestCorrectness)
 {
     auto [M, N, warp_id] = GetParam();
+#if !defined(CK_USE_GFX1250)
     this->Run({M, N, warp_id});
+#else
+    this->Run_b128x3({M, N, warp_id});
+#endif
 }
 
 TEST_P(TestCkTileMemoryCopyF6x16Async, TestCorrectness)
 {
     auto [M, N, warp_id] = GetParam();
+#if !defined(CK_USE_GFX1250)
     this->Run({M, N, warp_id});
+#else
+    this->Run_b128x3({M, N, warp_id});
+#endif
 }
 
 TEST_P(TestCkTileMemoryCopyHalfAsync, TestCorrectness)

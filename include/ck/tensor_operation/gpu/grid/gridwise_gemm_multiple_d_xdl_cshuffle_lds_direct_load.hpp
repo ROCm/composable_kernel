@@ -34,10 +34,11 @@ template <typename GridwiseGemm,
           typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
           typename EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
           typename Block2ETileMap,
-          bool HasMainKBlockLoop>
+          bool HasMainKBlockLoop,
+          index_t MinimumOccupancy = CK_MIN_BLOCK_PER_CU>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(GridwiseGemm::MaxBlockSize, MinimumOccupancy)
 #endif
     kernel_gemm_multiple_d_xdl_cshuffle_lds_direct_load(
         const ADataType* __restrict__ p_a_grid,
@@ -55,7 +56,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
             e_grid_desc_mblock_mperblock_nblock_nperblock,
         const Block2ETileMap block_2_etile_map)
 {
-#if(defined(__gfx90a__) || defined(__gfx94__))
+#if(defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx125__))
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -450,8 +451,39 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
 
     using Block2ETileMap = remove_cvref_t<decltype(MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
-    IS_VALID_COMPILATION_PARAMETER_IMPL(EDataType)
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+        constexpr bool isValid = ck::tensor_operation::device::IsValidGemmCompilationParameter<
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            MPerXdl,
+            NPerXdl,
+            MXdlPerWave,
+            NXdlPerWave,
+            EDataType,
+            CGlobalMemoryDataOperation_>();
+        if constexpr(!isValid)
+        {
+            return false;
+        }
 
+        if constexpr(!(ABlockTransferSrcVectorDim == 2 || ABlockTransferScalarPerVector == 1))
+        {
+            return false;
+        }
+        if constexpr(!(BBlockTransferSrcVectorDim == 2 || BBlockTransferScalarPerVector == 1))
+        {
+            return false;
+        }
+        if constexpr(is_same_v<ADataType, pk_i4_t> || is_same_v<BDataType, pk_i4_t>)
+        {
+            return false;
+        }
+        return true;
+    }
     __host__ __device__ static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
                                                             const BGridDesc_N_K& b_grid_desc_n_k,
                                                             const DsGridDesc_M_N& ds_grid_desc_m_n,
@@ -476,6 +508,19 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
         const auto N  = b_grid_desc_n_k.GetLength(I0);
         const auto AK = a_grid_desc_m_k.GetLength(I1);
         const auto BK = b_grid_desc_n_k.GetLength(I1);
+
+        if(!(ABlockTransferSrcVectorDim == 2 || ABlockTransferScalarPerVector == 1))
+        {
+            return false;
+        }
+        if(!(BBlockTransferSrcVectorDim == 2 || BBlockTransferScalarPerVector == 1))
+        {
+            return false;
+        }
+        if constexpr(is_same_v<ADataType, pk_i4_t> || is_same_v<BDataType, pk_i4_t>)
+        {
+            return false;
+        }
 
         // Check the consistency of descriptors.
         if(!(M == e_grid_desc_m_n.GetLength(I0) && N == e_grid_desc_m_n.GetLength(I1) && AK == BK))
@@ -646,7 +691,11 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
               lcm_AK1_BK1 <= 4) ||
              (is_same<AComputeDataType, int8_t>::value && lcm_AK1_BK1 <= 8) ||
              ((is_same<AComputeDataType, f8_t>::value || is_same<AComputeDataType, bf8_t>::value) &&
+#if defined(__gfx125__)
+              lcm_AK1_BK1 < 128))
+#else
               lcm_AK1_BK1 < 32))
+#endif
                 ? true
                 : false;
         constexpr auto is_scale_mfma = false;

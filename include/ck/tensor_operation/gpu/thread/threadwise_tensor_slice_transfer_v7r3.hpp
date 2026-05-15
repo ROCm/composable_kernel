@@ -285,7 +285,6 @@ struct ThreadwiseTensorSliceTransfer_v7r3
                 // convolution forward. For some reason for that specific type there is an ambiguity
                 // in the type resolution for the ternary expression. I added an explicit cast to
                 // disambiguate and only use it for f8 just in case it affects performance.
-                // TODO: Add same exception for ck::f8_fnuz_t?
                 if constexpr(is_same_v<scalar_t, ck::f8_ocp_t>)
                 {
                     elm_vectors(i).template AsType<elm_vector_t>()(I0) =

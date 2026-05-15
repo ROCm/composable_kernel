@@ -159,6 +159,13 @@ struct DeviceMem
             HIP_CHECK_ERROR(hipMemset(mpDeviceBuf, 0, mMemSize));
         }
     }
+    void SetBytePattern(uint8_t pattern) const
+    {
+        if(mpDeviceBuf)
+        {
+            HIP_CHECK_ERROR(hipMemset(mpDeviceBuf, pattern, mMemSize));
+        }
+    }
     template <typename T>
     void SetValue(T x) const
     {

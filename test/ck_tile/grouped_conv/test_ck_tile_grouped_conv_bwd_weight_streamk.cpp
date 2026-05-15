@@ -90,6 +90,7 @@ struct BuildKernel
                                      element_wise::PassThrough,
                                      element_wise::PassThrough,
                                      PrecType,
+                                     PrecType,
                                      ConvTraits::FixedGemmParams::FixedVectorSize,
                                      ConvTraits::VectorSizeA,
                                      ConvTraits::VectorSizeB>;

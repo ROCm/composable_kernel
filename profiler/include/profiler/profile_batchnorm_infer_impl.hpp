@@ -234,8 +234,14 @@ bool profile_batchnorm_infer_impl(int do_verification,
     int num_kernel = 0;
     bool pass      = true;
 
-    for(auto& inst_ptr : instance_ptrs)
+    for(size_t j = 0; j < instance_ptrs.size(); j++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(j)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& inst_ptr    = instance_ptrs[j];
         auto argument_ptr = inst_ptr->MakeArgumentPointer(arrInOutLengths,
                                                           {arrInOutStrides,
                                                            aligned_scaleBiasMeanVarStrides,
@@ -254,11 +260,6 @@ bool profile_batchnorm_infer_impl(int do_verification,
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             num_kernel++;
-            if((instance_index != -1) && (instance_index + 1 != num_kernel))
-            {
-                // skip test if instance_index is specified
-                continue;
-            }
         }
         else
         {
@@ -328,15 +329,10 @@ bool profile_batchnorm_infer_impl(int do_verification,
                   << best_instance_name << std::endl;
     }
 
-    if(num_kernel == 0)
+    if(num_kernel == 0 && instance_index == -1)
     {
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
-    }
-    if (instance_index != -1)
-    {
-        std::cout << "batchnorm_infer_instance (" << instance_index << "/" << num_kernel
-            << "): Passed" << std::endl;
     }
     return pass;
 }

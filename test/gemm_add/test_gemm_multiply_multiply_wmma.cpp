@@ -8,13 +8,14 @@
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
-using I8   = int8_t;
-using I32  = int32_t;
-using F8   = ck::f8_t;
-using BF16 = ck::bhalf_t;
-using F16  = ck::half_t;
-using F32  = float;
-
+using I8                          = int8_t;
+using I32                         = int32_t;
+using F8                          = ck::f8_t;
+using BF16                        = ck::bhalf_t;
+using F16                         = ck::half_t;
+using F32                         = float;
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 template <typename Tuple>
 class TestGemmMultiplyMultiply : public ::testing::Test
 {
@@ -54,8 +55,13 @@ class TestGemmMultiplyMultiply : public ::testing::Test
 
         bool all_success = true;
 
-        for(auto length : lengths)
+        for(size_t i = 0; i < lengths.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& length = lengths[i];
             int M        = length[0];
             int N        = length[1];
             int K        = length[2];
@@ -80,7 +86,8 @@ class TestGemmMultiplyMultiply : public ::testing::Test
                                                                         1,
                                                                         1,
                                                                         1,
-                                                                        0);
+                                                                        0,
+                                                                        instance_index);
         }
 
         EXPECT_TRUE(all_success);
@@ -97,3 +104,19 @@ using KernelTypes = ::testing::Types<
 
 TYPED_TEST_SUITE(TestGemmMultiplyMultiply, KernelTypes);
 TYPED_TEST(TestGemmMultiplyMultiply, Test) { this->Run(); }
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
+}

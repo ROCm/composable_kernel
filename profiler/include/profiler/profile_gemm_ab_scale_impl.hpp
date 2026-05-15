@@ -50,7 +50,8 @@ bool profile_gemm_ab_scale_impl(int do_verification,
                                 int KBatch,
                                 int n_warmup,
                                 int n_iter,
-                                uint64_t rotating = 0)
+                                uint64_t rotating  = 0,
+                                int instance_index = -1)
 {
     bool pass = true;
 
@@ -218,10 +219,15 @@ bool profile_gemm_ab_scale_impl(int do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
-
     // profile device GEMM instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[i];
         auto argument_ptr =
             op_ptr->MakeArgumentPointer(static_cast<A0DataType*>(a0_device_buf.GetDeviceBuffer()),
                                         static_cast<B0DataType*>(b0_device_buf.GetDeviceBuffer()),

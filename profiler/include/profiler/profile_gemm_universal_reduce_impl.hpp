@@ -47,7 +47,8 @@ bool profile_gemm_universal_reduce_impl(int do_verification,
                                         int KBatch,
                                         int n_warmup,
                                         int n_iter,
-                                        uint64_t rotating = 0)
+                                        uint64_t rotating  = 0,
+                                        int instance_index = -1)
 {
     bool pass = true;
 
@@ -164,8 +165,15 @@ bool profile_gemm_universal_reduce_impl(int do_verification,
     float best_kbatch     = 0;
 
     // profile device GEMM instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr = op_ptrs[i];
+
         std::vector<int> kbatch_list = {1, 2, 4, 8, 12, 16, 19, 20, 32, 38};
 
         if(KBatch > 0)
@@ -173,9 +181,9 @@ bool profile_gemm_universal_reduce_impl(int do_verification,
             kbatch_list = {KBatch};
         }
 
-        for(std::size_t i = 0; i < kbatch_list.size(); i++)
+        for(std::size_t batch_id = 0; batch_id < kbatch_list.size(); batch_id++)
         {
-            auto kbatch_curr = kbatch_list[i];
+            auto kbatch_curr = kbatch_list[batch_id];
 
             auto argument_ptr =
                 op_ptr->MakeArgumentPointer(static_cast<ADataType*>(a_device_buf.GetDeviceBuffer()),

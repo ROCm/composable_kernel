@@ -249,7 +249,13 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         else
         {
             static_assert(TileShape::WarpTile::at(I1) == 16);
+#if defined(__gfx11__)
+            return TileShape::WarpTile::at(I2);
+#elif defined(__gfx12__)
+            return TileShape::WarpTile::at(I2) / 2;
+#else
             return TileShape::WarpTile::at(I2) / 4;
+#endif
         }
     }
 

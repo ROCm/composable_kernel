@@ -451,8 +451,38 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         std::cout << "\nValid instances for this problem:" << std::endl;
     }
 
-    for(auto& op_ptr : op_ptrs)
+    // Run first instance twice to get proper time
     {
+        auto argument_ptr = op_ptrs[0]->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
+                                                            wei_device_buf.GetDeviceBuffer(),
+                                                            {},
+                                                            out_device_buf.GetDeviceBuffer(),
+                                                            a_g_n_c_wis_lengths,
+                                                            a_g_n_c_wis_strides,
+                                                            b_g_k_c_xs_lengths,
+                                                            b_g_k_c_xs_strides,
+                                                            {},
+                                                            {},
+                                                            e_g_n_k_wos_lengths,
+                                                            e_g_n_k_wos_strides,
+                                                            conv_filter_strides,
+                                                            conv_filter_dilations,
+                                                            input_left_pads,
+                                                            input_right_pads,
+                                                            in_element_op,
+                                                            wei_element_op,
+                                                            out_element_op);
+
+        run_impl(op_ptrs[0], argument_ptr);
+    }
+    for(size_t i = 0; i < op_ptrs.size(); i++)
+    {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
                                                         wei_device_buf.GetDeviceBuffer(),
                                                         {},

@@ -332,7 +332,27 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
             e_grid_desc_m_n);
     }
 
-    IS_VALID_COMPILATION_PARAMETER_IMPL(EDataType)
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+#if defined(__gfx11__) || defined(__gfx120__)
+        if constexpr(is_same_v<AComputeDataType_, float>)
+        {
+            return false;
+        }
+#endif
+        return ck::tensor_operation::device::IsValidGemmCompilationParameter<
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            MPerXdl,
+            NPerXdl,
+            MXdlPerWave,
+            NXdlPerWave,
+            EDataType,
+            CGlobalMemoryDataOperation_>();
+    }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename AsGridDesc_M_K,
@@ -710,7 +730,11 @@ struct GridwiseGemmMultipleABD_xdl_cshuffle
              (is_same<AComputeDataType_, int8_t>::value && lcm_AK1_BK1 <= 8) ||
              ((is_same<AComputeDataType_, f8_t>::value ||
                is_same<AComputeDataType_, bf8_t>::value) &&
+#if defined(__gfx125__)
+              lcm_AK1_BK1 < 128))
+#else
               lcm_AK1_BK1 < 32))
+#endif
                 ? true
                 : false;
         static constexpr auto is_scale_mfma = false;

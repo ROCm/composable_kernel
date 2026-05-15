@@ -186,7 +186,7 @@ bool run_batched_transpose(ck_tile::ArgParser args)
         return a_;
     }();
 
-    ck_tile::stream_config sc{nullptr, true, n_warmup, n_repeat};
+    ck_tile::stream_config sc{nullptr, true, 0, n_warmup, n_repeat};
 
     auto ms = batched_transpose(trait, karg, sc);
 

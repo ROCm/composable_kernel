@@ -88,8 +88,28 @@ struct BatchedTransposeLdsPolicy : public BatchedTransposeCommonPolicy
     CK_TILE_DEVICE static constexpr auto MakeLdsLoadTileDistribution()
     {
         using DataType = typename Problem::DataType;
-
         // Calculate block-level dimensions
+        // TODO: unify for all architectures
+#if defined(__gfx125__)
+        constexpr index_t kLeadIterPerWarp =
+            Problem::kLeadSizePerBlock / Problem::kWarpTileLeadDim / Problem::kLeadNumWarps;
+        constexpr index_t kSecondIterPerWarp =
+            Problem::kSecondSizePerBlock / Problem::kWarpTileSecondDim / Problem::kSecondNumWarps;
+        constexpr index_t kLeadNumWarps   = Problem::kLeadNumWarps;
+        constexpr index_t kSecondNumWarps = Problem::kSecondNumWarps;
+
+        // Calculate repetitions of base pattern
+        constexpr index_t kLeadRepetitions   = Problem::kLeadQuadSize;
+        constexpr index_t kSecondRepetitions = Problem::kSecondQuadSize;
+
+        constexpr index_t kLaneGroupSize      = 16;
+        constexpr auto xdllevel_dstr_encoding = make_transposed_distr_encode<DataType,
+                                                                             kLaneGroupSize,
+                                                                             kSecondRepetitions,
+                                                                             1,
+                                                                             kLeadRepetitions,
+                                                                             1>();
+#else
         constexpr index_t kLeadIterPerWarp   = 1;
         constexpr index_t kSecondIterPerWarp = 1;
         constexpr index_t kLeadNumWarps      = Problem::kLeadNumWarps;
@@ -108,7 +128,7 @@ struct BatchedTransposeLdsPolicy : public BatchedTransposeCommonPolicy
                                                                              kSecondDimIterations,
                                                                              kLeadRepetitions,
                                                                              1>();
-
+#endif
         constexpr auto input_tile_encode =
             InputTileDistributionEncoding<decltype(xdllevel_dstr_encoding),
                                           kLeadIterPerWarp,

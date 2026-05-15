@@ -118,7 +118,7 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                         {
 
                             f4_t f4 = 0;
-                            if(k % 2 == 1)
+                            if(k % 2 == 0)
                                 f4 = (a_f4x2 >> 0) & 0xf;
                             else
                                 f4 = (a_f4x2 >> 4) & 0xf;
@@ -127,7 +127,7 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                         }
                         else
                         {
-                            v_a = type_convert<ComputeTypeA>(a_f4x2) *
+                            v_a = type_convert<ComputeTypeA>(bit_cast<ADataType>(a_f4x2)) *
                                   type_convert<ComputeTypeA>(a_scale);
                             arg.a_element_op_(v_a, v_a);
                         }
@@ -140,7 +140,7 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
 
                             f4_t f4    = 0;
                             f4_t f4_up = 0;
-                            if(k % 2 == 1)
+                            if(k % 2 == 0)
                             {
                                 f4    = (b_f4x2 >> 0) & 0xf;
                                 f4_up = (b_f4x2_up >> 0) & 0xf;
@@ -157,9 +157,9 @@ struct ReferenceMoeMXGemm1 : public device::BaseOperator
                         }
                         else
                         {
-                            v_b = type_convert<ComputeTypeB>(b_f4x2) *
+                            v_b = type_convert<ComputeTypeB>(bit_cast<BDataType>(b_f4x2)) *
                                   type_convert<ComputeTypeB>(b_scale);
-                            v_b_up = type_convert<ComputeTypeB>(b_f4x2_up) *
+                            v_b_up = type_convert<ComputeTypeB>(bit_cast<BDataType>(b_f4x2_up)) *
                                      type_convert<ComputeTypeB>(b_scale_up);
                             arg.b_element_op_(v_b, v_b);
                             arg.b_element_op_(v_b_up, v_b_up);

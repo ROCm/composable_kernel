@@ -58,4 +58,12 @@ CK_TILE_DEVICE auto get_async_store_smem_info(LdsTileWindow_&& lds_tile)
     return make_tuple(m0_init_value, size_per_issue);
 }
 
+// used in LocalPrefetch in TDM pipeline
+enum struct WindowSlideMode
+{
+    Stay,
+    Move,
+    Reset
+};
+
 } // namespace ck_tile

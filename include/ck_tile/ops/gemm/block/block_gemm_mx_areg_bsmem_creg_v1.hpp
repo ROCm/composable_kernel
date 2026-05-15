@@ -206,7 +206,7 @@ struct BlockGemmMxARegBSmemCRegV1
                     merge_sequences(sequence<1, 1, 1>{}, c_warp_y_lengths));
 
                 // warp GEMM
-                WarpGemm{}.template operator()<0, 0>(
+                WarpGemm{}.template operator()<OpSelA<0>, OpSelB<0>>(
                     c_warp_tensor,
                     a_warp_tensor,
                     b_warp_tensor,

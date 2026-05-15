@@ -240,7 +240,7 @@ TYPED_TEST(TestBatchedGemmGemmFP16, DISABLED_Bench_FP16)
         {4096, 4096, 64, 64, 768},
         {4096, 4096, 128, 128, 768},
     };
-    this->bench_  = true;
+
     this->verify_ = false;
     this->Run();
 }

@@ -26,7 +26,8 @@ bool profile_groupnorm_bwd_gamma_beta_impl(int do_verification,
                                            int init_method,
                                            bool do_log,
                                            bool time_kernel,
-                                           std::vector<index_t> length)
+                                           std::vector<index_t> length,
+                                           index_t instance_index = -1)
 {
     // we don't need GammaDataType and DXDataType here, just for reference class
     using GammaDataType = DYDataType;
@@ -154,9 +155,14 @@ bool profile_groupnorm_bwd_gamma_beta_impl(int do_verification,
                             dbeta.mDesc.GetElementSize() * sizeof(DBetaDataType);
 
     int num_kernel = 0;
-
-    for(auto& inst_ptr : instance_ptrs)
+    for(size_t i = 0; i < instance_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& inst_ptr    = instance_ptrs[i];
         auto argument_ptr = inst_ptr->MakeArgumentPointer(length,
                                                           strideDy,
                                                           strideX,
@@ -248,7 +254,7 @@ bool profile_groupnorm_bwd_gamma_beta_impl(int do_verification,
                   << best_instance_name << std::endl;
     }
 
-    if(num_kernel == 0)
+    if(num_kernel == 0 && instance_index == -1)
     {
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;

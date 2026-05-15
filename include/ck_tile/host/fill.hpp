@@ -14,6 +14,7 @@
 #include <unordered_set>
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/numeric/pk_fp6.hpp"
 #include "ck_tile/host/joinable_thread.hpp"
 
 namespace ck_tile {
@@ -82,6 +83,23 @@ struct FillUniformDistribution
                 auto t_fn = [&]() {
                     if constexpr(PackedSize == 2)
                         return type_convert<T_iter>(fp32x2_t{d_(g_), d_(g_)});
+                    else if constexpr(PackedSize == 16)
+                    {
+#if CK_TILE_AVX512F_WA
+                        // Use fp32x8_t[2] workaround when AVX-512 is not supported
+                        fp32x8_t tmp[2];
+                        for(int i = 0; i < 8; ++i)
+                        {
+                            tmp[0][i] = d_(g_);
+                            tmp[1][i] = d_(g_);
+                        }
+#else
+                        fp32x16_t tmp{};
+                        for(int i = 0; i < PackedSize; ++i)
+                            tmp[i] = d_(g_);
+#endif
+                        return type_convert<T_iter>(tmp);
+                    }
                     else
                         return type_convert<T_iter>(d_(g_));
                 };

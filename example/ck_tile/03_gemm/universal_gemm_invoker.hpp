@@ -21,22 +21,41 @@ struct UniversalInvoker
               typename DsLayout,
               typename ELayout,
               bool Persistent,
-              typename CDEElementWise>
-    static float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
-
+              typename CDEElementWise,
+              typename ComputeDataType = void>
+    static float gemm(const ck_tile::GemmHostArgs& args,
+                      const ck_tile::stream_config& s,
+                      bool check_arg_only = false)
     {
-        using GemmShape = ck_tile::TileGemmShape<
-            ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
-            ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
-            ck_tile::
-                sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>,
-            GemmConfig::PermuteA,
-            GemmConfig::PermuteB>;
+        constexpr bool ClusterLaunch =
+            GemmConfig::kClusterSizeM > 1 || GemmConfig::kClusterSizeN > 1;
 
-        using TilePartitioner =
+        using GemmShape = std::conditional_t<
+            ClusterLaunch,
+            ck_tile::ClusterTileGemmShape<
+                ck_tile::sequence<GemmConfig::kClusterSizeM, GemmConfig::kClusterSizeN, 1>,
+                ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
+                ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
+                ck_tile::sequence<GemmConfig::M_Warp_Tile,
+                                  GemmConfig::N_Warp_Tile,
+                                  GemmConfig::K_Warp_Tile>,
+                GemmConfig::PermuteA,
+                GemmConfig::PermuteB>,
+            ck_tile::TileGemmShape<
+                ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
+                ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
+                ck_tile::sequence<GemmConfig::M_Warp_Tile,
+                                  GemmConfig::N_Warp_Tile,
+                                  GemmConfig::K_Warp_Tile>,
+                GemmConfig::PermuteA,
+                GemmConfig::PermuteB>>;
+
+        using TilePartitioner = std::conditional_t<
+            ClusterLaunch,
+            ck_tile::GemmClusterTilePartitioner<GemmShape>,
             ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
                                                        GemmConfig::TileParitionerGroupNum,
-                                                       GemmConfig::TileParitionerM01>;
+                                                       GemmConfig::TileParitionerM01>>;
 
         using GemmUniversalTraits =
             ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
@@ -50,21 +69,45 @@ struct UniversalInvoker
                                              GemmConfig::UseStructuredSparsity,
                                              Persistent,
                                              GemmConfig::NumWaveGroups,
-                                             GemmConfig::Preshuffle>;
+                                             GemmConfig::Preshuffle,
+                                             16,
+                                             GemmConfig::DataCachePrefetchA,
+                                             GemmConfig::DataCachePrefetchB>;
 
         constexpr auto scheduler = GemmConfig::Scheduler;
 
-        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                           BDataType,
-                                                                           AccDataType,
-                                                                           GemmShape,
-                                                                           GemmUniversalTraits,
-                                                                           scheduler>;
+        using AComputeDataType =
+            std::conditional_t<std::is_same_v<ComputeDataType, void>,
+                               std::conditional_t<std::is_same_v<ADataType, ck_tile::pk_int4_t> ||
+                                                      std::is_same_v<ADataType, ck_tile::pk_fp4_t>,
+                                                  BDataType,
+                                                  ADataType>,
+                               ComputeDataType>;
+        using BComputeDataType =
+            std::conditional_t<std::is_same_v<ComputeDataType, void>,
+                               std::conditional_t<std::is_same_v<BDataType, ck_tile::pk_int4_t> ||
+                                                      std::is_same_v<BDataType, ck_tile::pk_fp4_t>,
+                                                  ADataType,
+                                                  BDataType>,
+                               ComputeDataType>;
+
+        using UniversalGemmProblem =
+            ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                  BDataType,
+                                                  AccDataType,
+                                                  GemmShape,
+                                                  GemmUniversalTraits,
+                                                  scheduler,
+                                                  ck_tile::element_wise::PassThrough,
+                                                  ck_tile::element_wise::PassThrough,
+                                                  AComputeDataType,
+                                                  BComputeDataType>;
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
+        using GemmEpilogue = typename EpilogueTypeTraits<
+            GemmConfig::Pipeline,
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,
                                              DsDataType,
@@ -82,18 +125,29 @@ struct UniversalInvoker
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC,
                                              GemmConfig::NumWaveGroups,
-                                             false, /*FixedVectorSize_*/
-                                             1,     /*VectorSizeC_*/
-                                             1,     /*BlockedXDLN_PerWarp_*/
-                                             GemmConfig::DoubleSmemBuffer /*DoubleSmemBuffer*/>>;
+                                             false,                        /*FixedVectorSize_*/
+                                             1,                            /*VectorSizeC_*/
+                                             1,                            /*BlockedXDLN_PerWarp_*/
+                                             GemmConfig::DoubleSmemBuffer, /*DoubleSmemBuffer*/
+                                             AComputeDataType,
+                                             BComputeDataType>>::Epilogue;
 
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
-        auto kargs = Kernel::MakeKernelArgs(args);
+        auto kargs       = Kernel::MakeKernelArgs(args);
+        const dim3 grids = [&]() {
+            if constexpr(Persistent)
+                return Kernel::MaxOccupancyGridSize(s);
+            else
+                return Kernel::GridSize(args.M, args.N, args.k_batch);
+        }();
 
-        const dim3 grids  = Persistent ? Kernel::MaxOccupancyGridSize(s)
-                                       : Kernel::GridSize(args.M, args.N, args.k_batch);
         const dim3 blocks = Kernel::BlockSize();
+
+        if(check_arg_only)
+        {
+            return Kernel::IsSupportedArgument(kargs) ? 1.0f : 0.0f;
+        }
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -147,11 +201,22 @@ struct UniversalInvoker
         {
             preprocess = clear_gemm_output;
         }
-
-        return ck_tile::launch_kernel_time_mask(
-            s,
-            preprocess,
-            ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        if constexpr(ClusterLaunch)
+        {
+            dim3 clusters = Kernel::ClusterSize();
+            return ck_tile::launch_kernel_time_mask(
+                s,
+                preprocess,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                    Kernel{}, clusters, grids, blocks, 0, kargs));
+        }
+        else
+        {
+            return ck_tile::launch_kernel_time_mask(
+                s,
+                preprocess,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        }
     }
 
     template <typename GemmConfig,
@@ -164,7 +229,8 @@ struct UniversalInvoker
               typename BLayout,
               typename DsLayout,
               typename ELayout,
-              typename CDEElementWise>
+              typename CDEElementWise,
+              typename ComputeDataType = void>
     static void test_async_input_scheduler(const ck_tile::GemmHostArgs& args,
                                            const ck_tile::stream_config& s)
     {
@@ -196,13 +262,32 @@ struct UniversalInvoker
                                              GemmConfig::Preshuffle>;
 
         constexpr auto scheduler = GemmConfig::Scheduler;
+        using AComputeDataType =
+            std::conditional_t<std::is_same_v<ComputeDataType, void>,
+                               std::conditional_t<std::is_same_v<ADataType, ck_tile::pk_int4_t> ||
+                                                      std::is_same_v<ADataType, ck_tile::pk_fp4_t>,
+                                                  BDataType,
+                                                  ADataType>,
+                               ComputeDataType>;
+        using BComputeDataType =
+            std::conditional_t<std::is_same_v<ComputeDataType, void>,
+                               std::conditional_t<std::is_same_v<BDataType, ck_tile::pk_int4_t> ||
+                                                      std::is_same_v<BDataType, ck_tile::pk_fp4_t>,
+                                                  ADataType,
+                                                  BDataType>,
+                               ComputeDataType>;
 
-        using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
-                                                                           BDataType,
-                                                                           AccDataType,
-                                                                           GemmShape,
-                                                                           GemmUniversalTraits,
-                                                                           scheduler>;
+        using UniversalGemmProblem =
+            ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                  BDataType,
+                                                  AccDataType,
+                                                  GemmShape,
+                                                  GemmUniversalTraits,
+                                                  scheduler,
+                                                  ck_tile::element_wise::PassThrough,
+                                                  ck_tile::element_wise::PassThrough,
+                                                  AComputeDataType,
+                                                  BComputeDataType>;
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
@@ -228,7 +313,9 @@ struct UniversalInvoker
                                              false, /*FixedVectorSize_*/
                                              1,     /*VectorSizeC_*/
                                              1,     /*BlockedXDLN_PerWarp_*/
-                                             GemmConfig::DoubleSmemBuffer>>;
+                                             GemmConfig::DoubleSmemBuffer,
+                                             AComputeDataType,
+                                             BComputeDataType>>;
 
         using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 

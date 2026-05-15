@@ -150,8 +150,13 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
                                                     const index_t block_idx_n)
     {
         // Step 1: Create tensor view with special flat layout
-        constexpr index_t kKPerBlock    = MXFlatmmPipeline::kKPerBlock;
-        constexpr index_t kNWarpTile    = BlockGemmShape::WarpTile::at(I1);
+        constexpr index_t kKPerBlock = MXFlatmmPipeline::kKPerBlock;
+// even warpTile will use 32x32 WarpTile, but the flatB will always use 16x16 in gfx1250
+#if defined(__gfx125__)
+        constexpr index_t kNWarpTile = 16;
+#else
+        constexpr index_t kNWarpTile = BlockGemmShape::WarpTile::at(I1);
+#endif
         constexpr index_t flatKPerBlock = kKPerBlock * kNWarpTile;
         const index_t kFlatKBlocks      = kargs.K / kKPerBlock;
         const index_t kFlatN            = kargs.N / kNWarpTile;
@@ -173,11 +178,10 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
 
         // Step 2: No padding for flat B
         // Step 3: Create tile window
-        return make_tile_window(
-            b_flat_tensor_view,
-            make_tuple(number<MXFlatmmPipeline::flatNPerWarp>{},
-                       number<MXFlatmmPipeline::flatKPerWarp>{}),
-            {static_cast<int>(block_idx_n / BlockGemmShape::WarpTile::at(I1)), 0});
+        return make_tile_window(b_flat_tensor_view,
+                                make_tuple(number<MXFlatmmPipeline::flatNPerWarp>{},
+                                           number<MXFlatmmPipeline::flatKPerWarp>{}),
+                                {static_cast<int>(block_idx_n / kNWarpTile), 0});
     }
 
     template <typename KernelArgs>
@@ -313,7 +317,30 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
                                                      const index_t block_idx_m)
     {
         static constexpr int BlockScaleSize = 32;
+#if defined(__gfx125__)
+        const auto&& scale_packs_m = integer_divide_ceil(kargs.M, MThreadPerXdl);
+        const auto&& scale_packs_k =
+            kargs.K / BlockScaleSize / 4; // 4 is because scale tensor is
+                                          // int32_t data type, each int32_t
+                                          // exists 4 fp8 scale values
 
+        const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(scale_packs_m, scale_packs_k, MThreadPerXdl));
+        const auto scale_a_desc = transform_tensor_descriptor(
+            scale_a_naive_desc,
+            make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
+                       make_pass_through_transform(scale_packs_k)),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+        const auto& scale_a_tensor_view = make_tensor_view<address_space_enum::global>(
+            reinterpret_cast<const int32_t*>(kargs.scale_m_ptr.ptr), scale_a_desc);
+
+        return make_tile_window(
+            scale_a_tensor_view,
+            make_tuple(number<TilePartitioner::MPerBlock>{},
+                       number<TilePartitioner::KPerBlock / (BlockScaleSize * 4)>{}),
+            {block_idx_m, 0});
+#else
         const auto&& scale_packs_m = integer_divide_ceil(kargs.M, (MXdlPack * MThreadPerXdl));
         const auto&& scale_packs_k = kargs.K / BlockScaleSize / (KXdlPack * KThreadPerXdl);
 
@@ -336,6 +363,7 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
             make_tuple(number<TilePartitioner::MPerBlock / MXdlPack>{},
                        number<TilePartitioner::KPerBlock / (BlockScaleSize * KXdlPack)>{}),
             {block_idx_m / MXdlPack, 0});
+#endif
     }
 
     template <typename KernelArgs>
@@ -343,7 +371,30 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
                                                      const index_t block_idx_n)
     {
         static constexpr int BlockScaleSize = 32;
+#if defined(__gfx125__)
+        const auto&& scale_packs_n = integer_divide_ceil(kargs.N, NThreadPerXdl);
+        const auto&& scale_packs_k =
+            kargs.K / BlockScaleSize / 4; // 4 is because scale tensor is
+                                          // int32_t data type, each int32_t
+                                          // exists 4 fp8 scale values
 
+        const auto scale_b_naive_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(scale_packs_n, scale_packs_k, NThreadPerXdl));
+        const auto scale_b_desc = transform_tensor_descriptor(
+            scale_b_naive_desc,
+            make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
+                       make_pass_through_transform(scale_packs_k)),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+        const auto& scale_b_tensor_view = make_tensor_view<address_space_enum::global>(
+            reinterpret_cast<const int32_t*>(kargs.scale_n_ptr.ptr), scale_b_desc);
+
+        return make_tile_window(
+            scale_b_tensor_view,
+            make_tuple(number<TilePartitioner::NPerBlock>{},
+                       number<TilePartitioner::KPerBlock / (BlockScaleSize * 4)>{}),
+            {block_idx_n, 0});
+#else
         const auto&& scale_packs_n = integer_divide_ceil(kargs.N, (NXdlPack * NThreadPerXdl));
         const auto&& scale_packs_k = kargs.K / BlockScaleSize / (KXdlPack * KThreadPerXdl);
 
@@ -366,6 +417,7 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
             make_tuple(number<TilePartitioner::NPerBlock / NXdlPack>{},
                        number<TilePartitioner::KPerBlock / (BlockScaleSize * KXdlPack)>{}),
             {block_idx_n / NXdlPack, 0});
+#endif
     }
 
     template <class ScaleM, class ScaleN, bool UseDefaultScheduler = true>
@@ -374,8 +426,7 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
               const BDataType* b_flat_ptr,
               const std::array<const void*, NumDTensor>& ds_ptr,
               EDataType* e_ptr,
-              void* smem_ptr_ping,
-              void* smem_ptr_pong,
+              void* smem_ptr,
               const FlatmmKernelArgs<ScaleM, ScaleN, DsDataType::size()>& kargs,
               const SplitKBatchOffset& splitk_batch_offset,
               const index_t block_idx_m,
@@ -404,8 +455,7 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
                                                       scale_a_block_window,
                                                       scale_b_block_window,
                                                       num_loop,
-                                                      smem_ptr_ping,
-                                                      smem_ptr_pong);
+                                                      smem_ptr);
 
         // Run Epilogue Pipeline with split_k dispatch
         if constexpr(DoEpiScale)
@@ -417,7 +467,7 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
                 EpiloguePipeline{}(e_block_window,
                                    c_block_tile,
                                    ds_block_window,
-                                   smem_ptr_ping,
+                                   smem_ptr,
                                    kargs.scale_m_ptr + block_idx_m,
                                    kargs.scale_n_ptr + block_idx_n);
             }
@@ -428,7 +478,7 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
                 EpiloguePipeline{}(e_block_window,
                                    c_block_tile,
                                    ds_block_window,
-                                   smem_ptr_ping,
+                                   smem_ptr,
                                    kargs.scale_m_ptr + block_idx_m,
                                    kargs.scale_n_ptr + block_idx_n);
             }
@@ -439,13 +489,13 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
             {
                 auto e_block_window = MakeEBlockWindow<memory_operation_enum::set>(
                     e_ptr, kargs, block_idx_m, block_idx_n);
-                EpiloguePipeline{}(e_block_window, c_block_tile, ds_block_window, smem_ptr_ping);
+                EpiloguePipeline{}(e_block_window, c_block_tile, ds_block_window, smem_ptr);
             }
             else
             {
                 auto e_block_window = MakeEBlockWindow<memory_operation_enum::atomic_add>(
                     e_ptr, kargs, block_idx_m, block_idx_n);
-                EpiloguePipeline{}(e_block_window, c_block_tile, ds_block_window, smem_ptr_ping);
+                EpiloguePipeline{}(e_block_window, c_block_tile, ds_block_window, smem_ptr);
             }
         }
     }
@@ -472,16 +522,14 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
             EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
 
             // allocate LDS
-            __shared__ char smem_ptr_ping[Underlying::GetSmemPingSize()];
-            __shared__ char smem_ptr_pong[Underlying::GetSmemPongSize()];
+            __shared__ char smem_ptr[Underlying::GetSmemSize()];
 
             constexpr auto scheduler_type = (MXFlatmmPipeline::NumWaveGroups == 1);
             RunFlatmm<ScaleM, ScaleN, scheduler_type>(a_ptr,
                                                       b_flat_ptr,
                                                       kargs.ds_ptr,
                                                       e_ptr,
-                                                      smem_ptr_ping,
-                                                      smem_ptr_pong,
+                                                      smem_ptr,
                                                       kargs,
                                                       splitk_batch_offset,
                                                       i_m,

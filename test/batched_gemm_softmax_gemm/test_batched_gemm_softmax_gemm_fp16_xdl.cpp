@@ -107,7 +107,7 @@ TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, DISABLED_Bench_FP16)
         {4096, 4096, 64, 64, 768},
         {4096, 4096, 128, 128, 768},
     };
-    this->bench_  = true;
+
     this->verify_ = false;
     this->Run();
 }
@@ -120,8 +120,8 @@ TYPED_TEST(TestBatchedGemmSoftmaxGemmFP16, DISABLED_Bench_FP16_IrregularK)
                                                    {1024, 64, 80, 64, 16},
                                                    {4096, 4096, 40, 40, 16},
                                                    {4096, 64, 40, 64, 16}};
-    this->bench_   = true;
-    this->verify_  = false;
+
+    this->verify_ = false;
     this->Run();
 }
 

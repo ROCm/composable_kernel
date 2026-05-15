@@ -36,20 +36,30 @@ struct GemmWPQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipelin
     CK_TILE_DEVICE static constexpr auto MakeBFlatDramTileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape;
+        using BTypeToUse =
+            std::conditional_t<std::is_same_v<typename Problem::BDataType, ck_tile::pk_int4_t>,
+                               typename Problem::ADataType,
+                               typename Problem::BDataType>;
+
+        constexpr index_t PackedSize = numeric_traits<BTypeToUse>::PackedSize;
 
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t WaveSize  = get_warp_size();
         constexpr index_t WaveNum   = BlockSize / WaveSize;
-        constexpr index_t KBPerLoad = GetKBPerLoad<Problem>();
+
 #if defined(__gfx11__)
         constexpr index_t KRepeatInWave = 2;
 #else
         constexpr index_t KRepeatInWave = 1;
 #endif
+        constexpr index_t KBPerLoad =
+            min(GetKBPerLoad<Problem>(),
+                KRepeatInWave * 16 / static_cast<index_t>(sizeof(BTypeToUse)) * PackedSize);
         constexpr index_t KThdPerWave = WaveSize / KRepeatInWave; // threads cnt in K dim
         constexpr index_t KWavePerBlk = 1;
         constexpr index_t KRepeat     = 1;
-        static_assert(TileShape::flatKPerWarp == KThdPerWave * KBPerLoad, "wrong");
+        constexpr index_t KAccess     = GetKBPerLoad<Problem>() / KBPerLoad;
+        static_assert(TileShape::flatKPerWarp == KAccess * KThdPerWave * KBPerLoad, "wrong");
 
         constexpr index_t NBPerLoad   = 1;
         constexpr index_t NThdPerWave = 1;
@@ -59,16 +69,17 @@ struct GemmWPQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipelin
         constexpr index_t WaveRepeat = WaveNum / TileShape::flatNPerWarp;
         return make_static_tile_distribution(
             tile_distribution_encoding<
-                sequence<WaveRepeat, KRepeatInWave>,                           // ?
-                tuple<sequence<NRepeat, NWavePerBlk, NThdPerWave, NBPerLoad>,  // second direction
-                      sequence<KRepeat, KWavePerBlk, KThdPerWave, KBPerLoad>>, // first  direction
-                // wave in blk,     // thd in wave
-                // <M, K>           // <M, K>
+                sequence<WaveRepeat, KRepeatInWave>,                          // ?
+                tuple<sequence<NRepeat, NWavePerBlk, NThdPerWave, NBPerLoad>, // second direction
+                      sequence<KRepeat,
+                               KAccess,
+                               KWavePerBlk,
+                               KThdPerWave,
+                               KBPerLoad>>,                  // first direction
                 tuple<sequence<0, 1, 2>, sequence<0, 1, 2>>, // which direction
-                tuple<sequence<0, 1, 1>, sequence<1, 2, 2>>, // which index
-                // <repeat, vec_load>
-                sequence<1, 1, 2, 2>,
-                sequence<0, 3, 0, 3>>{});
+                tuple<sequence<0, 1, 2>, sequence<1, 2, 3>>, // which index
+                sequence<1, 2, 1, 2, 2>,
+                sequence<0, 0, 3, 1, 4>>{});
     }
 
     template <typename Problem>

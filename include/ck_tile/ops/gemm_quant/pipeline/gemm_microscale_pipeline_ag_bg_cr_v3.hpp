@@ -112,10 +112,7 @@ struct MicroscaleGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        constexpr index_t smem_size_a = Policy::template GetSmemSizeA<Problem>();
-        constexpr index_t smem_size_b = Policy::template GetSmemSizeB<Problem>();
-
-        return smem_size_a + smem_size_b;
+        return Policy::template GetSmemSize<Problem>();
     }
 
     CK_TILE_HOST static std::string Print()

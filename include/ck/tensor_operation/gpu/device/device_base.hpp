@@ -142,9 +142,10 @@ static constexpr auto GetWarpTileConfig()
     if constexpr(IsWave64 == false && NXdlPerWave != 0)
     {
         constexpr auto CShuffleNXdlPerWavePerShuffle32 =
-            NXdlPerWave >= CShuffleNXdlPerWavePerShuffle_ * NPerXDL_ / 16
+            (NXdlPerWave >= CShuffleNXdlPerWavePerShuffle_ * NPerXDL_ / 16) &&
+                    (NXdlPerWave % (CShuffleNXdlPerWavePerShuffle_ * NPerXDL_ / 16) == 0)
                 ? CShuffleNXdlPerWavePerShuffle_ * NPerXDL_ / 16
-                : CShuffleNXdlPerWavePerShuffle_;
+                : NXdlPerWave;
         static_assert(CShuffleNXdlPerWavePerShuffle32 > 0);
         return Sequence<16,
                         16,

@@ -106,7 +106,6 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, DISABLED_Bench_BF1
                                                    {1024, 64, 80, 64, 1, 16},
                                                    {4096, 4096, 40, 40, 1, 16},
                                                    {4096, 64, 40, 64, 1, 16}};
-    this->bench_   = true;
     this->verify_  = false;
     this->Run();
 }
@@ -125,7 +124,7 @@ TYPED_TEST(TestBatchedGemmMaskingScaleSoftmaxGemmPermuteBF16, DISABLED_Bench_BF1
         {4096, 4096, 64, 64, 48, 16},
         {4096, 4096, 128, 128, 48, 16},
     };
-    this->bench_  = true;
+
     this->verify_ = false;
     this->Run();
 }

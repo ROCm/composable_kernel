@@ -14,6 +14,7 @@
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/block/blockwise_softmax.hpp"
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_common.hpp"
 
 namespace ck {
@@ -283,8 +284,49 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
     MakeGemm1BMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
     {
         constexpr index_t Gemm1NWaves = Gemm1NPerBlock / (Gemm1NXdlPerWave * NPerXdl);
-        return MakeGemmMmaTileDescriptor_MN0_MN1_MN2_K<Gemm1NXdlPerWave, Gemm1NWaves, NPerXdl>(
-            BBlockDesc_BK0_N_BK1{});
+        constexpr auto mfma_info      = MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma;
+        if constexpr(mfma_info.k_per_blk > mfma_info.group_size && mfma_info.num_input_blks > 1)
+        {
+            constexpr auto KGroup      = mfma_info.k_per_blk / mfma_info.group_size;
+            constexpr auto K0PerXdlops = mfma_info.num_input_blks;
+            constexpr auto KPerXdlops  = mfma_info.k_per_blk * mfma_info.num_input_blks;
+            static_assert(mfma_info.group_size % B1K1 == 0);
+            static_assert(Gemm1KPerBlock % KPerXdlops == 0);
+            static_assert(B1K0 == BBlockDesc_BK0_N_BK1{}.GetLength(Number<0>{}));
+            static_assert(B1K1 == BBlockDesc_BK0_N_BK1{}.GetLength(Number<2>{}));
+
+            constexpr auto K0 = Gemm1KPerBlock / KPerXdlops;
+            constexpr auto K1 = KGroup;
+            constexpr auto K2 = K0PerXdlops;
+            constexpr auto K3 = KPerXdlops / K1 / K2 / B1K1;
+            constexpr auto N  = BBlockDesc_BK0_N_BK1{}.GetLength(Number<1>{});
+
+            constexpr auto b1_blockdesc_k0_k1_k2_k3_n_k4 = transform_tensor_descriptor(
+                BBlockDesc_BK0_N_BK1{},
+                make_tuple(make_unmerge_transform(
+                               make_tuple(Number<K0>{}, Number<K1>{}, Number<K2>{}, Number<K3>{})),
+                           make_pass_through_transform(N),
+                           make_pass_through_transform(B1K1)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0, 1, 2, 3>{}, Sequence<4>{}, Sequence<5>{}));
+
+            constexpr auto b1_permute_blockdesc_k0_n_k1 = transform_tensor_descriptor(
+                b1_blockdesc_k0_k1_k2_k3_n_k4,
+                make_tuple(make_merge_transform_v3_division_mod(
+                               make_tuple(Number<K0>{}, Number<K2>{}, Number<K1>{}, Number<K3>{})),
+                           make_pass_through_transform(N),
+                           make_pass_through_transform(B1K1)),
+                make_tuple(Sequence<0, 2, 1, 3>{}, Sequence<4>{}, Sequence<5>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+            return MakeGemmMmaTileDescriptor_MN0_MN1_MN2_K<Gemm1NXdlPerWave, Gemm1NWaves, NPerXdl>(
+                b1_permute_blockdesc_k0_n_k1);
+        }
+        else
+        {
+            return MakeGemmMmaTileDescriptor_MN0_MN1_MN2_K<Gemm1NXdlPerWave, Gemm1NWaves, NPerXdl>(
+                BBlockDesc_BK0_N_BK1{});
+        }
     }
 
     __host__ __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
@@ -308,6 +350,12 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
     __device__ static bool constexpr IsValidCompilationParameter()
     {
+        if constexpr(KPerBlock %
+                         MfmaSelector<FloatAB, MPerXdl, NPerXdl, FloatAB, true>::GetKPerXdlops() !=
+                     0)
+        {
+            return false;
+        }
         return ck::tensor_operation::device::IsValidGemmCompilationParameter<
             BlockSize,
             MPerBlock,
@@ -348,7 +396,12 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         {
             return false;
         }
-
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
+        if(!is_xdl_wmma_k_supported<FloatAB, KPerBlock>())
+        {
+            return false;
+        }
+#endif
         // check gemm0 gridwise gemm pipeline
         const auto num_gemm0_k_loop = K / KPerBlock;
         if(!GridwiseGemmPipe::IsSupported(num_gemm0_k_loop))
@@ -586,7 +639,11 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
               lcm_AK1_BK1 <= 4) ||
              (is_same<FloatAB, int8_t>::value && lcm_AK1_BK1 <= 8) ||
              ((is_same<FloatAB, f8_t>::value || is_same<FloatAB, bf8_t>::value) &&
+#if defined(__gfx125__)
+              lcm_AK1_BK1 < 128))
+#else
               lcm_AK1_BK1 < 32))
+#endif
                 ? true
                 : false;
         constexpr auto is_scale_mfma = false;
@@ -775,8 +832,8 @@ struct GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle
         constexpr index_t Gemm1KPack =
             MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size * 2;
 #else
-        constexpr index_t Gemm1KPack =
-            MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma.group_size;
+        constexpr auto mfma_info     = MfmaSelector<FloatAB, MPerXdl, NPerXdl>::selected_mfma;
+        constexpr index_t Gemm1KPack = math::max(mfma_info.k_per_blk, mfma_info.group_size);
 #endif
 
         auto gemm1_blockwise_gemm = BlockwiseGemmXdlops_v2<

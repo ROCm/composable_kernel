@@ -31,7 +31,8 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool TransposeC = false>
 constexpr auto BlockGemmMXPipeline_Selector()
 {
 
@@ -58,7 +59,8 @@ constexpr auto BlockGemmMXPipeline_Selector()
                                                   NPerXDL,
                                                   MRepeat,
                                                   NRepeat,
-                                                  KPack>{};
+                                                  KPack,
+                                                  TransposeC>{};
     }
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
     {
@@ -82,7 +84,8 @@ constexpr auto BlockGemmMXPipeline_Selector()
                                                   NPerXDL,
                                                   MRepeat,
                                                   NRepeat,
-                                                  KPack>{};
+                                                  KPack,
+                                                  TransposeC>{};
     }
     else
     {

@@ -5,6 +5,7 @@
 
 #include "ck/utility/common_header.hpp"
 #include "ck/utility/env.hpp"
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -478,12 +479,42 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
         return gemm_padder.PadCDescriptor_M_N(c_grid_desc_m_n);
     }
 
-    static constexpr auto MXdlPerWave = MRepeat;
-    static constexpr auto NXdlPerWave = NRepeat;
-    IS_VALID_COMPILATION_PARAMETER_IMPL(FloatC)
-
-    __host__ __device__ static constexpr bool CheckValidity(const Argument& karg)
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
     {
+        constexpr bool valid = tensor_operation::device::IsValidGemmCompilationParameter<
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            MPerXdl,
+            NPerXdl,
+            MRepeat,
+            NRepeat,
+            FloatC,
+            CGlobalMemoryDataOperation_>();
+        if constexpr(!valid)
+        {
+            return false;
+        }
+
+        if constexpr(K1Value %
+                         MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>::selected_mfma
+                             .k_per_blk !=
+                     0)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    __host__ static bool CheckValidity(const Argument& karg)
+    {
+        if(!is_xdl_wmma_k_supported<ComputeTypeA, K1Value * K0PerBlock, K1Value>())
+        {
+            return false;
+        }
+
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||

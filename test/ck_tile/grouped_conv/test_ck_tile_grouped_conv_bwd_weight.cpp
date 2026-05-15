@@ -86,6 +86,7 @@ struct BuildKernel
                             element_wise::PassThrough,
                             element_wise::PassThrough,
                             PrecType, // WeiDataType (C in bwd weight)
+                            PrecType,
                             ConvTraits::FixedGemmParams::FixedVectorSize,
                             ConvTraits::VectorSizeA,
                             ConvTraits::VectorSizeB>;
@@ -99,6 +100,7 @@ struct BuildKernel
                                      ConvConfig::Scheduler,
                                      element_wise::PassThrough,
                                      element_wise::PassThrough,
+                                     PrecType,
                                      PrecType,
                                      ConvTraits::FixedGemmParams::FixedVectorSize,
                                      ConvTraits::VectorSizeA,

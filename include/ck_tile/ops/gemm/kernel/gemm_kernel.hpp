@@ -124,6 +124,8 @@ struct GemmKernel
         return UniversalGemmKernel::GetName();
     }
 
+    CK_TILE_HOST static constexpr auto ClusterSize() { return UniversalGemmKernel::ClusterSize(); }
+
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t KBatch) -> dim3
     {
         return UniversalGemmKernel::GridSize(M, N, KBatch);

@@ -32,6 +32,8 @@ using BiasLayout = typename LayoutSettingSelector<NDimSpatial>::BiasLayout;
 template <ck::index_t NDimSpatial>
 using ResidualLayout = typename LayoutSettingSelector<NDimSpatial>::ResidualLayout;
 
+static constexpr auto KPerBlock = sizeof(InKernelDataType) == 1 ? 64 : 32;
+
 // instance for double rate mfma on gfx950 (vs gfx942)
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance2 =
@@ -105,7 +107,7 @@ using DeviceConvFwdInstance =
         256,         // BlockSize
         128,         // MPerBlock
         128,         // NPerBlock
-        32,          // KPerBlock
+        KPerBlock,   // KPerBlock
         4,           // AK1
         4,           // BK1
         16,          // MPerXdl
@@ -333,11 +335,17 @@ bool run_grouped_conv_fwd_bias_relu_add(const ExecutionConfig& config,
 #ifdef BUILD_INT4_EXAMPLE
         const Tensor<OutUserDataType> out_device_converted(out_device);
 
-        return ck::utils::check_err(
-            out_device_converted, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
+        return ck::utils::check_err(out_device_converted,
+                                    out_host,
+                                    "Error: incorrect results!",
+                                    get_rtol<OutUserDataType>(),
+                                    get_atol<OutUserDataType>());
 #else
-        return ck::utils::check_err(
-            out_device, out_host, "Error: incorrect results!", 1e-5f, 1e-4f);
+        return ck::utils::check_err(out_device,
+                                    out_host,
+                                    "Error: incorrect results!",
+                                    get_rtol<OutUserDataType>(),
+                                    get_atol<OutUserDataType>());
 #endif
     }
 

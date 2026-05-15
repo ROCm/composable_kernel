@@ -38,8 +38,11 @@ float batched_gemm(const ck_tile::BatchedGemmHostArgs& args, const ck_tile::stre
 
     constexpr ck_tile::index_t M_Warp_Tile = GemmConfig::M_Warp_Tile;
     constexpr ck_tile::index_t N_Warp_Tile = GemmConfig::N_Warp_Tile;
+#if CK_TILE_USE_WMMA
+    constexpr ck_tile::index_t K_Warp_Tile = ck_tile::get_k_warp_tile<ADataType, M_Warp_Tile>();
+#else
     constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
-
+#endif
     constexpr bool DoubleSmemBuffer = GemmConfig::DoubleSmemBuffer;
 
     constexpr bool kPadM = false;

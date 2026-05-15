@@ -40,19 +40,20 @@ bool profile_batched_gemm_add_relu_gemm_add_impl(bool do_verification,
                                                  int N,
                                                  int K,
                                                  int O,
-                                                 int BatchCount    = 1,
-                                                 int StrideA0      = -1,
-                                                 int StrideB0      = -1,
-                                                 int StrideD0      = -1,
-                                                 int StrideB1      = -1,
-                                                 int StrideD1      = -1,
-                                                 int StrideE1      = -1,
-                                                 int BatchStrideA0 = -1,
-                                                 int BatchStrideB0 = -1,
-                                                 int BatchStrideD0 = -1,
-                                                 int BatchStrideB1 = -1,
-                                                 int BatchStrideD1 = -1,
-                                                 int BatchStrideE1 = -1)
+                                                 int BatchCount     = 1,
+                                                 int StrideA0       = -1,
+                                                 int StrideB0       = -1,
+                                                 int StrideD0       = -1,
+                                                 int StrideB1       = -1,
+                                                 int StrideD1       = -1,
+                                                 int StrideE1       = -1,
+                                                 int BatchStrideA0  = -1,
+                                                 int BatchStrideB0  = -1,
+                                                 int BatchStrideD0  = -1,
+                                                 int BatchStrideB1  = -1,
+                                                 int BatchStrideD1  = -1,
+                                                 int BatchStrideE1  = -1,
+                                                 int instance_index = -1)
 
 {
     using Row = tensor_layout::gemm::RowMajor;
@@ -267,8 +268,14 @@ bool profile_batched_gemm_add_relu_gemm_add_impl(bool do_verification,
     float best_gb_per_sec = 0;
 
     // profile device op instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             static_cast<A0DataType*>(a0_g_m_k_device_buf.GetDeviceBuffer()),
             static_cast<B0DataType*>(b0_g_k_n_device_buf.GetDeviceBuffer()),

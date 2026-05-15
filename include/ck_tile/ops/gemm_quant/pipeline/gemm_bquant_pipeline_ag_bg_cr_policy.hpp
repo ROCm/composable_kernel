@@ -8,12 +8,16 @@
 
 namespace ck_tile {
 
-struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgCrPolicy
+struct GemmBQuantPipelineAgBgCrDefaultPolicy
+    : UniversalGemmBasePolicy<GemmBQuantPipelineAgBgCrDefaultPolicy>
 {
-    using Base = UniversalGemmPipelineAgBgCrPolicy;
-    using Base::I0;
-    using Base::I1;
-    using Base::I2;
+
+    template <typename Problem>
+    using LdsBDataType = std::conditional_t<
+        std::is_same_v<typename Problem::BDataType, pk_int4_t> &&
+            std::is_same_v<typename Problem::BLayout, tensor_layout::gemm::RowMajor>,
+        typename Problem::ADataType,
+        typename Problem::BDataType>;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeBQ()
@@ -53,8 +57,8 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         constexpr bool BPreshuffleQuant = Problem::Traits::BPreshuffleQuant;
 
         using WarpTile = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                            typename Problem::ComputeDataType,
+        using WarpGemm = WarpGemmDispatcher<typename Problem::AComputeDataType,
+                                            typename Problem::BComputeDataType,
                                             typename Problem::CDataType,
                                             WarpTile::at(I0),
                                             WarpTile::at(I1),
@@ -101,15 +105,17 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         static_assert(Problem::BQuantGroupSize::kK % WarpTile::at(I2) == 0,
                       "KPerWarpGemm must be a multiple of QuantGroupSize!");
 
-        using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                            typename Problem::ComputeDataType,
+        using WarpGemm = WarpGemmDispatcher<typename Problem::AComputeDataType,
+                                            typename Problem::BComputeDataType,
                                             typename Problem::CDataType,
                                             WarpTile::at(I0),
                                             WarpTile::at(I1),
                                             WarpTile::at(I2),
                                             Problem::TransposeC>;
-        static_assert(std::is_same_v<typename Problem::ComputeDataType, fp8_t> ||
-                      std::is_same_v<typename Problem::ComputeDataType, bf8_t>);
+        static_assert(std::is_same_v<typename Problem::AComputeDataType, fp8_t> ||
+                      std::is_same_v<typename Problem::AComputeDataType, bf8_t>);
+        static_assert(std::is_same_v<typename Problem::BComputeDataType, fp8_t> ||
+                      std::is_same_v<typename Problem::BComputeDataType, bf8_t>);
         static_assert(std::is_same_v<typename Problem::CDataType, float>);
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,

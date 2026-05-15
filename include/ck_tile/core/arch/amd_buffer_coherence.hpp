@@ -15,7 +15,11 @@ enum struct amd_buffer_coherence_enum
     coherence_default = 0, // default value
 #if defined(__gfx12__)
     // Temporal hint
-    RT    = 0, // regular temporal
+    RT = 0, // regular temporal
+#if defined(__gfx125__)
+    RT_NON_SPECULATIVE = 1, // regular temporal with non-speculative prefetch
+    HT_NON_SPECULATIVE = 3, // high priority temporal with non-speculative prefetch
+#endif
     NT    = 1, // non temporal
     HT    = 2, // high priority temporal
     LU    = 3, // last use (load op)

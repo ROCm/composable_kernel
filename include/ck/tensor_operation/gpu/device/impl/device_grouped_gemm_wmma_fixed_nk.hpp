@@ -452,7 +452,7 @@ struct DeviceGroupedGemm_Wmma_Fixed_Nk : public DeviceGroupedGemmFixedNK<ALayout
                     throw std::runtime_error("wrong! block_2_etile_map validation failed");
                 }
 
-                if(!GridwiseGemm::CheckValidity(
+                if(!GridwiseGemm::CheckValidityGemmKArg(
                        AverM, N, K, StrideA, StrideB, StrideDs, StrideE, k_batch_))
                 {
                     throw std::runtime_error("wrong! GridwiseGemm has invalid "

@@ -56,7 +56,8 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
                                      std::vector<ck::index_t> conv_filter_strides,
                                      std::vector<ck::index_t> conv_filter_dilations,
                                      std::vector<ck::index_t> input_left_pads,
-                                     std::vector<ck::index_t> input_right_pads)
+                                     std::vector<ck::index_t> input_right_pads,
+                                     int instance_index = -1)
 {
     const ck::index_t Y = filter_spatial_lengths[0];
     const ck::index_t X = filter_spatial_lengths[1];
@@ -184,8 +185,14 @@ void profile_conv_fwd_bias_relu_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device Conv instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             static_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
             static_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),

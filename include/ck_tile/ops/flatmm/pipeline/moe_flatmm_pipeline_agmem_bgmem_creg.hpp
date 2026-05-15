@@ -442,8 +442,7 @@ struct MoeFlatmmPipelineAGmemBGmemCRegV1
                                         const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                         number<IsGateUpMode>,
                                         index_t num_loop,
-                                        void* p_smem_ping,
-                                        void* p_smem_pong) const
+                                        void* p_smem) const
     {
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
@@ -467,8 +466,9 @@ struct MoeFlatmmPipelineAGmemBGmemCRegV1
         __builtin_amdgcn_sched_barrier(0);
 
         // A tile in LDS
-        ADataType* p_a_lds_ping = static_cast<ADataType*>(p_smem_ping);
-        ADataType* p_a_lds_pong = static_cast<ADataType*>(p_smem_pong);
+        ADataType* p_a_lds_ping = static_cast<ADataType*>(p_smem);
+        ADataType* p_a_lds_pong = static_cast<ADataType*>(static_cast<void*>(
+            static_cast<char*>(p_smem) + PipelinePolicy::template GetSmemSize<Problem>()));
 
         constexpr auto a_lds_block_desc =
             PipelinePolicy::template MakeALdsBlockDescriptor<Problem>();
@@ -986,8 +986,7 @@ struct MoeFlatmmPipelineAGmemBGmemCRegV1
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    number<IsGateUpMode> is_gate_up_mode,
                                    index_t num_loop,
-                                   void* p_smem_ping,
-                                   void* p_smem_pong) const
+                                   void* p_smem) const
     {
         return operator()(
             a_dram_block_window_tmp,
@@ -995,8 +994,7 @@ struct MoeFlatmmPipelineAGmemBGmemCRegV1
             b_flat_dram_block_window_tmp,
             is_gate_up_mode,
             num_loop,
-            p_smem_ping,
-            p_smem_pong);
+            p_smem);
     }
 };
 

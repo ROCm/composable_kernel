@@ -193,23 +193,34 @@ struct pad : public base_transform<1, 1>
                       "wrong! inconsistent # of dimension");
 
         idx_low(number<0>{}) = idx_up[number<0>{}] - left_pad_length_;
+#if defined(__gfx125__) && CK_TILE_WORKAROUND_SWDEV_XXXXXX_GFX1250_NEG_OFFSET_ISSUE
+        idx_low(number<0>{}) = max(idx_low(number<0>{}), 0);
+#endif
     }
 
     template <typename LowIdxDiff, typename UpIdxDiff, typename LowIdx, typename UpIdx>
-    CK_TILE_HOST_DEVICE static void update_lower_index(LowIdxDiff& idx_diff_low,
-                                                       const UpIdxDiff& idx_diff_up,
-                                                       LowIdx& idx_low,
-                                                       const UpIdx&)
+    CK_TILE_HOST_DEVICE void update_lower_index(LowIdxDiff& idx_diff_low,
+                                                [[maybe_unused]] const UpIdxDiff& idx_diff_up,
+                                                LowIdx& idx_low,
+                                                [[maybe_unused]] const UpIdx& idx_up) const
     {
         static_assert(LowIdxDiff::size() == 1 && UpIdxDiff::size() == 1 && LowIdx::size() == 1 &&
                           UpIdx::size() == 1,
                       "wrong! inconsistent # of dimension");
 
+#if defined(__gfx125__) && CK_TILE_WORKAROUND_SWDEV_XXXXXX_GFX1250_NEG_OFFSET_ISSUE
+        const auto idx_low_old = idx_low;
+
+        calculate_lower_index(idx_low, idx_up);
+
+        idx_diff_low = idx_low - idx_low_old;
+#else
         constexpr auto I0 = number<0>{};
 
         idx_diff_low[I0] = idx_diff_up[I0];
 
         idx_low += idx_diff_low;
+#endif
     }
 
     CK_TILE_HOST_DEVICE static constexpr bool
@@ -281,23 +292,33 @@ struct left_pad
                       "wrong! inconsistent # of dimension");
 
         idx_low(number<0>{}) = idx_up[number<0>{}] - left_pad_length_;
+#if defined(__gfx125__) && CK_TILE_WORKAROUND_SWDEV_XXXXXX_GFX1250_NEG_OFFSET_ISSUE
+        idx_low(number<0>{}) = max(idx_low(number<0>{}), 0);
+#endif
     }
 
     template <typename LowIdxDiff, typename UpIdxDiff, typename LowIdx, typename UpIdx>
-    CK_TILE_HOST_DEVICE static void update_lower_index(LowIdxDiff& idx_diff_low,
-                                                       const UpIdxDiff& idx_diff_up,
-                                                       LowIdx& idx_low,
-                                                       const UpIdx&)
+    CK_TILE_HOST_DEVICE void update_lower_index(LowIdxDiff& idx_diff_low,
+                                                [[maybe_unused]] const UpIdxDiff& idx_diff_up,
+                                                LowIdx& idx_low,
+                                                [[maybe_unused]] const UpIdx& idx_up) const
     {
         static_assert(LowIdxDiff::size() == 1 && UpIdxDiff::size() == 1 && LowIdx::size() == 1 &&
                           UpIdx::size() == 1,
                       "wrong! inconsistent # of dimension");
+#if defined(__gfx125__) && CK_TILE_WORKAROUND_SWDEV_XXXXXX_GFX1250_NEG_OFFSET_ISSUE
+        const auto idx_low_old = idx_low;
 
+        calculate_lower_index(idx_low, idx_up);
+
+        idx_diff_low = idx_low - idx_low_old;
+#else
         constexpr auto I0 = number<0>{};
 
         idx_diff_low[I0] = idx_diff_up[I0];
 
         idx_low += idx_diff_low;
+#endif
     }
 
     CK_TILE_HOST_DEVICE static constexpr bool

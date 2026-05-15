@@ -56,7 +56,11 @@ struct KernelConfig
 #if CK_TILE_USE_WMMA
     static constexpr int M_Warp_Tile_ = 16;
     static constexpr int N_Warp_Tile_ = 16;
+#if defined(CK_USE_GFX1250)
+    static constexpr int K_Warp_Tile_ = 32;
+#else
     static constexpr int K_Warp_Tile_ = 16;
+#endif
 #else
     static constexpr int M_Warp_Tile_ = 32;
     static constexpr int N_Warp_Tile_ = 32;

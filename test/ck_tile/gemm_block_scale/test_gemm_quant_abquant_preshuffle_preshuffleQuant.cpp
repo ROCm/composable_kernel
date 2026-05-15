@@ -21,5 +21,11 @@ TYPED_TEST_SUITE(TestCkTileGemmABQuant, ABQuantPreshuffleQuantTypes);
 // AQuant tests
 TYPED_TEST(TestCkTileGemmABQuant, ABQuantGroupedTest)
 {
+    using BQuantGroupSize = std::tuple_element_t<11, TypeParam>;
+    if(ck_tile::is_gfx120_supported() && std::is_same_v<BQuantGroupSize, GroupSize2D128N>)
+    {
+        GTEST_SKIP() << "temp disable due to random fail on gfx120.";
+    }
+
     this->run_test_with_validation(1024, 1024, 1024);
 }

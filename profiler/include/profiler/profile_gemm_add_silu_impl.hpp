@@ -41,7 +41,8 @@ bool profile_gemm_add_silu_impl(int do_verification,
                                 int StrideA,
                                 int StrideB,
                                 int StrideD0,
-                                int StrideE)
+                                int StrideE,
+                                int instance_index = -1)
 {
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
@@ -159,8 +160,14 @@ bool profile_gemm_add_silu_impl(int do_verification,
     bool pass = true;
 
     // profile device operation instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             a_device_buf.GetDeviceBuffer(),
             b_device_buf.GetDeviceBuffer(),

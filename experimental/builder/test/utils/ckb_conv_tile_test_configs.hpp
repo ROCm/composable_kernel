@@ -42,9 +42,15 @@ constexpr TileThreadBlock TileThreadBlock_64x32x32{.tile_size = {.m = 64, .n = 3
 
 constexpr TileThreadBlock TileThreadBlock_64x64x64{.tile_size = {.m = 64, .n = 64, .k = 64}};
 
+#ifdef CK_USE_GFX1250
+constexpr int warp_tile_k = 32;
+#else
+constexpr int warp_tile_k = 16;
+#endif
+
 constexpr TileBlockGemm TileBlockGemmDesc_16x16_v1_intrawave = {
     .warps              = {.m = 2, .n = 2, .k = 1},
-    .warp_tile          = {.m = 16, .n = 16, .k = 16},
+    .warp_tile          = {.m = 16, .n = 16, .k = warp_tile_k},
     .double_smem_buffer = false,
     .num_wave_groups    = 1,
     .pipeline_version   = PipelineVersion::V1,
@@ -52,7 +58,7 @@ constexpr TileBlockGemm TileBlockGemmDesc_16x16_v1_intrawave = {
 
 constexpr TileBlockGemm TileBlockGemmDesc_16x16_v2_intrawave = {
     .warps              = {.m = 2, .n = 2, .k = 1},
-    .warp_tile          = {.m = 16, .n = 16, .k = 16},
+    .warp_tile          = {.m = 16, .n = 16, .k = warp_tile_k},
     .double_smem_buffer = false,
     .num_wave_groups    = 1,
     .pipeline_version   = PipelineVersion::V2,
@@ -60,7 +66,7 @@ constexpr TileBlockGemm TileBlockGemmDesc_16x16_v2_intrawave = {
 
 constexpr TileBlockGemm TileBlockGemmDesc_16x16_v3_intrawave = {
     .warps              = {.m = 2, .n = 2, .k = 1},
-    .warp_tile          = {.m = 16, .n = 16, .k = 16},
+    .warp_tile          = {.m = 16, .n = 16, .k = warp_tile_k},
     .double_smem_buffer = false,
     .num_wave_groups    = 1,
     .pipeline_version   = PipelineVersion::V3,
@@ -68,7 +74,7 @@ constexpr TileBlockGemm TileBlockGemmDesc_16x16_v3_intrawave = {
 
 constexpr TileBlockGemm TileBlockGemmDesc_16x16_v4_intrawave = {
     .warps              = {.m = 2, .n = 2, .k = 1},
-    .warp_tile          = {.m = 16, .n = 16, .k = 16},
+    .warp_tile          = {.m = 16, .n = 16, .k = warp_tile_k},
     .double_smem_buffer = false,
     .num_wave_groups    = 1,
     .pipeline_version   = PipelineVersion::V4,
@@ -76,7 +82,7 @@ constexpr TileBlockGemm TileBlockGemmDesc_16x16_v4_intrawave = {
 
 constexpr TileBlockGemm TileBlockGemmDesc_16x16_v5_intrawave = {
     .warps              = {.m = 2, .n = 2, .k = 1},
-    .warp_tile          = {.m = 16, .n = 16, .k = 16},
+    .warp_tile          = {.m = 16, .n = 16, .k = warp_tile_k},
     .double_smem_buffer = false,
     .num_wave_groups    = 1,
     .pipeline_version   = PipelineVersion::V5,

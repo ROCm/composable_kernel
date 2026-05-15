@@ -25,7 +25,11 @@ class TestGroupedConvndFwd : public ::testing::Test
     using IndexType = ck::index_t;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
-
+#if defined(CK_TEST_DISABLE_GPU_VALIDATION)
+    static constexpr int verify_ = 1; // CPU reference
+#else
+    static constexpr int verify_ = 2; // GPU reference
+#endif
     template <ck::index_t NDimSpatial>
     void Run()
     {
@@ -49,10 +53,10 @@ class TestGroupedConvndFwd : public ::testing::Test
                                                                                   DataType,
                                                                                   IndexType,
                                                                                   true /*BiasGK*/>(
-                               2,     // do_verification
-                               1,     // init_method: integer value
-                               false, // do_log
-                               false, // time_kernel
+                               verify_, // do_verification
+                               1,       // init_method: integer value
+                               false,   // do_log
+                               false,   // time_kernel
                                param,
                                instance_index);
         }

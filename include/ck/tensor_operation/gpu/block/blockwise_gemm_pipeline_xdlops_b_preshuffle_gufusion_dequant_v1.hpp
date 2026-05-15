@@ -32,7 +32,8 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPacks>
+          index_t KPacks,
+          bool TransposeC>
 struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_bdequant_v1
 {
 };
@@ -55,9 +56,8 @@ template <index_t BlockSize,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack
-          // ,bool TransposeC //disable transposec right now...
-          >
+          index_t KPack,
+          bool TransposeC>
 struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_bdequant_v1<
     BlockGemmPipelineScheduler::Intrawave,
     BlockSize,
@@ -78,25 +78,27 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_bdequant_v1<
     NPerXDL,
     MRepeat,
     NRepeat,
-    KPack> : BlockwiseGemmXdlops_pipeline_base<BlockSize,
-                                               ADataType,
-                                               BDataType,
-                                               ComputeDataType,
-                                               AccDataType,
-                                               ATileDesc,
-                                               BTileDesc,
-                                               AMmaTileDesc,
-                                               BMmaTileDesc,
-                                               ABlockTransferSrcScalarPerVector,
-                                               BBlockTransferSrcScalarPerVector,
-                                               MPerBlock,
-                                               NPerBlock,
-                                               KPerBlock,
-                                               MPerXDL,
-                                               NPerXDL,
-                                               MRepeat,
-                                               NRepeat,
-                                               KPack>
+    KPack,
+    TransposeC> : BlockwiseGemmXdlops_pipeline_base<BlockSize,
+                                                    ADataType,
+                                                    BDataType,
+                                                    ComputeDataType,
+                                                    AccDataType,
+                                                    ATileDesc,
+                                                    BTileDesc,
+                                                    AMmaTileDesc,
+                                                    BMmaTileDesc,
+                                                    ABlockTransferSrcScalarPerVector,
+                                                    BBlockTransferSrcScalarPerVector,
+                                                    MPerBlock,
+                                                    NPerBlock,
+                                                    KPerBlock,
+                                                    MPerXDL,
+                                                    NPerXDL,
+                                                    MRepeat,
+                                                    NRepeat,
+                                                    KPack,
+                                                    TransposeC>
 
 {
     using Base = BlockwiseGemmXdlops_pipeline_base<BlockSize,
@@ -117,7 +119,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_bdequant_v1<
                                                    NPerXDL,
                                                    MRepeat,
                                                    NRepeat,
-                                                   KPack>;
+                                                   KPack,
+                                                   TransposeC>;
     using Base::A_K1;
     using Base::B_K1;
     using Base::I0;

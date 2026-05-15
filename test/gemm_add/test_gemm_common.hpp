@@ -22,6 +22,9 @@ using TestMatrixSizes = std::vector<std::vector<ck::index_t>>;
 static const TestMatrixSizes DefaultTestMatrixSizes = {
     {16, 32, 64}, {512, 2048, 4096}, {2048, 1024, 16}};
 
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
+
 template <typename Tuple>
 class TestGemmCommon : public ::testing::Test
 {
@@ -34,7 +37,7 @@ class TestGemmCommon : public ::testing::Test
     using BLayout     = std::tuple_element_t<5, Tuple>;
     using ELayout     = std::tuple_element_t<6, Tuple>;
 
-    using ProfileCall = bool (*const)(int, int, bool, bool, int, int, int, int, int, int);
+    using ProfileCall = bool (*const)(int, int, bool, bool, int, int, int, int, int, int, int);
 
     virtual ProfileCall GetImpl() = 0;
 
@@ -42,17 +45,23 @@ class TestGemmCommon : public ::testing::Test
     {
         bool all_success = true;
 
-        for(auto length : lengths)
+        for(size_t i = 0; i < lengths.size(); i++)
         {
-            int M       = length[0];
-            int N       = length[1];
-            int K       = length[2];
-            int StrideA = ck::is_same_v<ALayout, Row> ? K : M;
-            int StrideB = ck::is_same_v<BLayout, Row> ? N : K;
-            int StrideE = ck::is_same_v<ELayout, Row> ? N : M;
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& length = lengths[i];
+            int M        = length[0];
+            int N        = length[1];
+            int K        = length[2];
+            int StrideA  = ck::is_same_v<ALayout, Row> ? K : M;
+            int StrideB  = ck::is_same_v<BLayout, Row> ? N : K;
+            int StrideE  = ck::is_same_v<ELayout, Row> ? N : M;
 
             all_success =
-                all_success & GetImpl()(1, 1, false, true, M, N, K, StrideA, StrideB, StrideE);
+                all_success &
+                GetImpl()(1, 1, false, false, M, N, K, StrideA, StrideB, StrideE, instance_index);
         }
 
         EXPECT_TRUE(all_success);
@@ -73,7 +82,7 @@ class TestGemmD0Common : public ::testing::Test
     using D0Layout    = std::tuple_element_t<7, Tuple>;
     using ELayout     = std::tuple_element_t<8, Tuple>;
 
-    using ProfileCall = bool (*const)(int, int, bool, bool, int, int, int, int, int, int, int);
+    using ProfileCall = bool (*const)(int, int, bool, bool, int, int, int, int, int, int, int, int);
 
     virtual ProfileCall GetImpl() = 0;
 
@@ -81,8 +90,13 @@ class TestGemmD0Common : public ::testing::Test
     {
         bool all_success = true;
 
-        for(auto length : lengths)
+        for(size_t i = 0; i < lengths.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& length = lengths[i];
             int M        = length[0];
             int N        = length[1];
             int K        = length[2];
@@ -91,9 +105,18 @@ class TestGemmD0Common : public ::testing::Test
             int StrideD0 = ck::is_same_v<D0Layout, Row> ? N : M;
             int StrideE  = ck::is_same_v<ELayout, Row> ? N : M;
 
-            all_success =
-                all_success &
-                GetImpl()(1, 1, false, true, M, N, K, StrideA, StrideB, StrideD0, StrideE);
+            all_success = all_success & GetImpl()(1,
+                                                  1,
+                                                  false,
+                                                  false,
+                                                  M,
+                                                  N,
+                                                  K,
+                                                  StrideA,
+                                                  StrideB,
+                                                  StrideD0,
+                                                  StrideE,
+                                                  instance_index);
         }
 
         EXPECT_TRUE(all_success);
@@ -116,7 +139,8 @@ class TestGemmD0D1Common : public ::testing::Test
     using D1Layout    = std::tuple_element_t<9, Tuple>;
     using ELayout     = std::tuple_element_t<10, Tuple>;
 
-    using ProfileCall = bool (*const)(int, int, bool, bool, int, int, int, int, int, int, int, int);
+    using ProfileCall =
+        bool (*const)(int, int, bool, bool, int, int, int, int, int, int, int, int, int);
 
     virtual ProfileCall GetImpl() = 0;
 
@@ -124,8 +148,13 @@ class TestGemmD0D1Common : public ::testing::Test
     {
         bool all_success = true;
 
-        for(auto length : lengths)
+        for(size_t i = 0; i < lengths.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& length = lengths[i];
             int M        = length[0];
             int N        = length[1];
             int K        = length[2];
@@ -135,12 +164,38 @@ class TestGemmD0D1Common : public ::testing::Test
             int StrideD1 = ck::is_same_v<D1Layout, Row> ? N : M;
             int StrideE  = ck::is_same_v<ELayout, Row> ? N : M;
 
-            all_success =
-                all_success &
-                GetImpl()(
-                    1, 1, false, true, M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE);
+            all_success = all_success & GetImpl()(1,
+                                                  1,
+                                                  false,
+                                                  false,
+                                                  M,
+                                                  N,
+                                                  K,
+                                                  StrideA,
+                                                  StrideB,
+                                                  StrideD0,
+                                                  StrideD1,
+                                                  StrideE,
+                                                  instance_index);
         }
 
         EXPECT_TRUE(all_success);
     }
 };
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
+}

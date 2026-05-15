@@ -164,6 +164,12 @@ struct DeviceGemmMultiD_Wmma_CShuffle_V3_BPreshuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        // ABTransferThreadTilesPreShuffle do shuffle according to KPack, instead of ABK1Value. But
+        // preShuffleBuffer do shuffle according to ABK1Value.
+        if(BK1 < (get_wmma_k<BDataType>() / 2))
+        {
+            return false;
+        }
         return DeviceGemmCommon::IsSupportedArgument(arg);
     }
 

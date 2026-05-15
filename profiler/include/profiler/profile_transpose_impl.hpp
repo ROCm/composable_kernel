@@ -43,7 +43,8 @@ bool profile_transpose_impl(int do_verification,
                             int init_method,
                             bool do_log,
                             bool time_kernel,
-                            std::vector<index_t> lengths)
+                            std::vector<index_t> lengths,
+                            int instance_index = -1)
 {
     bool pass = true;
 
@@ -103,8 +104,14 @@ bool profile_transpose_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
 
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             ab_lengths, {a_strides}, {b_strides}, input, output, ElementOp{});
 

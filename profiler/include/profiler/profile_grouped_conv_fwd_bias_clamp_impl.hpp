@@ -288,7 +288,6 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
     float best_avg_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
-    int num_kernel        = 0;
     int valids            = 0;
     // profile device op instances
     bool pass = true;
@@ -301,13 +300,6 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
-            ++num_kernel;
-            if((instance_index != -1) && (instance_index + 1 != num_kernel))
-            {
-                // skip test if instance_index is specified
-                std::cout << op_ptr->GetTypeString() << " skipped" << std::endl;
-                return;
-            }
             // re-init output to zero before profiling next kernel
             out_device_buf.SetZero();
 
@@ -371,8 +363,14 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
         }
     }
 
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(in_device_buf.GetDeviceBuffer(),
                                                         wei_device_buf.GetDeviceBuffer(),
                                                         {bias_device_buf.GetDeviceBuffer()},
@@ -401,11 +399,7 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
     std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
               << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
               << "\nGB/s: " << best_gb_per_sec << std::endl;
-    if(instance_index != -1)
-    {
-        std::cout << "grouped_conv_fwd_bias_clamp_instance (" << instance_index << "/" << num_kernel
-                  << "): Passed" << std::endl;
-    }
+
     return pass;
 }
 

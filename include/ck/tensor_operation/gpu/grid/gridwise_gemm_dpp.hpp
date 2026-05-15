@@ -32,7 +32,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
     kernel_gemm_dpp(const typename GridwiseGemm::Argument karg)
 {
-#if(defined(__gfx103__) || defined(__gfx11__))
+#if defined(__gfx103__) || defined(__gfx11__) || defined(__gfx12__)
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const auto a_grid_desc_ak0_m_ak1 = amd_wave_read_first_lane(

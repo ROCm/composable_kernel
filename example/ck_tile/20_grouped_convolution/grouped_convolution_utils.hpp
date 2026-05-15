@@ -19,6 +19,21 @@
 #pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
 
+struct GemmWarpConfig_Mfma
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
+struct GemmWarpConfig_Wmma
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        ck_tile::get_k_warp_tile<ck_tile::fp16_t, M_Warp_Tile>();
+};
+
 template <typename InDataType, typename WeiDataType, typename AccDataType, typename OutDataType>
 auto calculate_rtol_atol(const ck_tile::index_t GemmK,
                          const ck_tile::index_t kbatch,

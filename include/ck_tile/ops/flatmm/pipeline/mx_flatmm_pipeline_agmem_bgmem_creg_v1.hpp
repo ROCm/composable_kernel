@@ -173,8 +173,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
     static constexpr index_t dswrite_mIter  = (DsWritePreIssue - 1) % MIterPerWarp;
     static constexpr index_t dswrite_kIter  = (DsWritePreIssue - 1) / MIterPerWarp;
 
-    // For the basic gemm pipelien DoubleSmemBuffer set to be false naturally.
-    static constexpr bool DoubleSmemBuffer = false;
+    static constexpr bool DoubleSmemBuffer = true;
 
     CK_TILE_HOST_DEVICE static constexpr auto
     SchedulerPerM(index_t dsread_perM, index_t dswrite_perM, index_t load_perM)
@@ -502,8 +501,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                              const ScaleADramBlockWindowTmp& scale_a_window,
                              const ScaleBDramBlockWindowTmp& scale_b_window,
                              index_t num_loop,
-                             void* __restrict__ p_smem_ping,
-                             void* __restrict__ p_smem_pong) const
+                             void* __restrict__ p_smem) const
     {
 #ifndef __gfx950__
         static_assert(false, "Only gfx950 is supported for MXFP4 flatmm pipeline now.");
@@ -528,13 +526,17 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         __builtin_amdgcn_sched_barrier(0);
 
         // A tile in LDS
+        uint8_t* p_smem_ping = static_cast<uint8_t*>(p_smem);
+        uint8_t* p_smem_pong = static_cast<uint8_t*>(static_cast<void*>(
+            static_cast<char*>(p_smem) + PipelinePolicy::template GetSmemSize<Problem>()));
+
         constexpr auto a_lds_block_desc =
             PipelinePolicy::template MakeMX_ALdsBytesBlockDescriptor<Problem>();
 
-        auto a_lds_block_ping = make_tensor_view<address_space_enum::lds>(
-            static_cast<uint8_t*>(p_smem_ping), a_lds_block_desc);
-        auto a_lds_block_pong = make_tensor_view<address_space_enum::lds>(
-            static_cast<uint8_t*>(p_smem_pong), a_lds_block_desc);
+        auto a_lds_block_ping =
+            make_tensor_view<address_space_enum::lds>(p_smem_ping, a_lds_block_desc);
+        auto a_lds_block_pong =
+            make_tensor_view<address_space_enum::lds>(p_smem_pong, a_lds_block_desc);
 
         auto a_store_lds_window_ping = make_tile_window( //
             a_lds_block_ping,
@@ -736,7 +738,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                     constexpr auto k_iter    = ikpack * KXdlPack + ikxdl;
                     constexpr auto APackIter = ikxdl * MXdlPack + imxdl; // idx inside a xdl pack
                     //  warp GEMM
-                    WG{}.template operator()<APackIter, ikxdl * NXdlPack + inxdl>(
+                    WG{}.template operator()<OpSelA<APackIter>, OpSelB<ikxdl * NXdlPack + inxdl>>(
                         c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
                         bit_cast<typename WG::AWarpTensor>(a_warp_tensor(number<APackIter>{})),
                         bit_cast<typename WG::BWarpTensor>(
@@ -826,7 +828,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                     constexpr auto k_iter    = ikpack * KXdlPack + ikxdl;
                     constexpr auto APackIter = ikxdl * MXdlPack + imxdl; // idx inside a xdl pack
                     // warp GEMM
-                    WG{}.template operator()<APackIter, ikxdl * NXdlPack + inxdl>(
+                    WG{}.template operator()<OpSelA<APackIter>, OpSelB<ikxdl * NXdlPack + inxdl>>(
                         c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
                         bit_cast<typename WG::AWarpTensor>(a_warp_tensor(number<APackIter>{})),
                         bit_cast<typename WG::BWarpTensor>(
@@ -920,7 +922,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                     constexpr auto k_iter    = ikpack * KXdlPack + ikxdl;
                     constexpr auto APackIter = ikxdl * MXdlPack + imxdl; // idx inside a xdl pack
                     // warp GEMM
-                    WG{}.template operator()<APackIter, ikxdl * NXdlPack + inxdl>(
+                    WG{}.template operator()<OpSelA<APackIter>, OpSelB<ikxdl * NXdlPack + inxdl>>(
                         c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
                         bit_cast<typename WG::AWarpTensor>(a_warp_tensor(number<APackIter>{})),
                         bit_cast<typename WG::BWarpTensor>(
@@ -970,7 +972,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                     constexpr auto k_iter    = ikpack * KXdlPack + ikxdl;
                     constexpr auto APackIter = ikxdl * MXdlPack + imxdl; // idx inside a xdl pack
                     // warp GEMM
-                    WG{}.template operator()<APackIter, ikxdl * NXdlPack + inxdl>(
+                    WG{}.template operator()<OpSelA<APackIter>, OpSelB<ikxdl * NXdlPack + inxdl>>(
                         c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
                         bit_cast<typename WG::AWarpTensor>(a_warp_tensor(number<APackIter>{})),
                         bit_cast<typename WG::BWarpTensor>(
@@ -1007,7 +1009,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                     constexpr auto k_iter    = ikpack * KXdlPack + ikxdl;
                     constexpr auto APackIter = ikxdl * MXdlPack + imxdl; // idx inside a xdl pack
                     // warp GEMM
-                    WG{}.template operator()<APackIter, ikxdl * NXdlPack + inxdl>(
+                    WG{}.template operator()<OpSelA<APackIter>, OpSelB<ikxdl * NXdlPack + inxdl>>(
                         c_warp_tensors(number<m_iter>{})(number<n_iter>{}),
                         bit_cast<typename WG::AWarpTensor>(a_warp_tensor(number<APackIter>{})),
                         bit_cast<typename WG::BWarpTensor>(

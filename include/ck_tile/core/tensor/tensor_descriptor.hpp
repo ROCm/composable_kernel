@@ -77,6 +77,20 @@ struct tensor_descriptor : public tensor_adaptor<Transforms,
     {
     }
 
+    template <coord_transform_enum TargetTransformType>
+    CK_TILE_HOST_DEVICE static constexpr bool has_transform()
+    {
+        bool found = false;
+        static_for<0, ntransform_, 1>{}([&](auto i) {
+            using TransformType = remove_cvref_t<decltype(Transforms{}.at(i))>;
+            if constexpr(TransformType::get_type_enum() == TargetTransformType)
+            {
+                found = true;
+            }
+        });
+        return found;
+    }
+
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_dimension()
     {
         return Base::get_num_of_top_dimension();

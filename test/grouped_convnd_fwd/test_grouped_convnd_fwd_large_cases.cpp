@@ -8,7 +8,8 @@
 #include <gtest/gtest.h>
 
 #include "profiler/profile_grouped_conv_fwd_impl.hpp"
-
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 template <typename Tuple>
 class TestGroupedConvndFwd : public ::testing::Test
 {
@@ -26,23 +27,30 @@ class TestGroupedConvndFwd : public ::testing::Test
     {
         EXPECT_FALSE(conv_params.empty());
         bool pass = true;
-        for(auto& param : conv_params)
+        for(size_t i = 0; i < conv_params.size(); i++)
         {
-            pass = pass && ck::profiler::profile_grouped_conv_fwd_impl<NDimSpatial,
-                                                                       InLayout,
-                                                                       WeiLayout,
-                                                                       OutLayout,
-                                                                       DataType,
-                                                                       DataType,
-                                                                       DataType,
-                                                                       DataType,
-                                                                       DataType,
-                                                                       IndexType>(
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& param = conv_params[i];
+            pass        = pass && ck::profiler::profile_grouped_conv_fwd_impl<NDimSpatial,
+                                                                              InLayout,
+                                                                              WeiLayout,
+                                                                              OutLayout,
+                                                                              DataType,
+                                                                              DataType,
+                                                                              DataType,
+                                                                              DataType,
+                                                                              DataType,
+                                                                              IndexType>(
                                true,  // do_verification
                                1,     // init_method: integer value
                                false, // do_log
                                false, // time_kernel
-                               param);
+                               param,
+                               ck::tensor_operation::element_wise::PassThrough{},
+                               instance_index);
         }
         EXPECT_TRUE(pass);
     }
@@ -128,4 +136,21 @@ TYPED_TEST(TestGroupedConvndFwd3d, Test3D)
                                  {1, 1, 1},
                                  {1, 1, 1}});
     this->template Run<3>();
+}
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }

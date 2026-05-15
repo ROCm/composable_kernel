@@ -7,6 +7,7 @@
 #include "ck/utility/array.hpp"
 #include "ck/utility/env.hpp"
 #include "ck/utility/common_header.hpp"
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -575,6 +576,92 @@ struct GridwiseGemm_wmma_cshuffle_v3
     using Block2CTileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
     // using Block2CTileMap = BlockToCTileMap_3DGrid_KSplit<MPerBlock, NPerBlock>;
 
+    template <bool IsGfx11>
+    static constexpr index_t GetEstimateVgprCount()
+    {
+        constexpr index_t MWave    = MPerBlock / (MRepeat * MPerWmma);
+        constexpr index_t NWave    = NPerBlock / (NRepeat * NPerWmma);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
+
+        // VGPR used in LDS loading and WMMA
+        constexpr index_t BaseInputVgprCount =
+            MPerBlock * KPerBlock / MWave / WaveSize * sizeof(ComputeTypeA) / sizeof(uint32_t) +
+            NPerBlock * KPerBlock / NWave / WaveSize * sizeof(ComputeTypeB) / sizeof(uint32_t);
+        // WMMA input is duplicated in GFX11
+        constexpr index_t InputVgprCount = IsGfx11 ? BaseInputVgprCount * 2 : BaseInputVgprCount;
+        // VGPR used in buffer load and LDS store
+        constexpr index_t TempVgprCount = BaseInputVgprCount / 2;
+        // VGPR used in Accumulator
+        constexpr index_t AccVgprCount =
+            MPerBlock * NPerBlock / BlockSize * sizeof(AccDataType) / sizeof(uint32_t);
+
+        if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+        {
+            return InputVgprCount + TempVgprCount + AccVgprCount;
+        }
+        else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+        {
+            return InputVgprCount * 2 + TempVgprCount + AccVgprCount;
+        }
+        else
+        {
+            static_assert(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3 ||
+                              BlkGemmPipelineVer == BlockGemmPipelineVersion::v1,
+                          "Invalid pipeline version");
+        }
+    }
+
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+#if defined(__gfx12__)
+        if constexpr(KPerBlock % (Base::KPerWmmaBlk * 2) != 0)
+        {
+            return false;
+        }
+#endif
+        constexpr bool IsGfx11            = is_same_v<decltype(get_device_arch()), gfx11_t>;
+        constexpr auto EstimateVgprCount  = GetEstimateVgprCount<IsGfx11>();
+        constexpr auto AvailableVgprCount = get_max_vgpr_count(get_device_arch());
+        if constexpr(EstimateVgprCount > (AvailableVgprCount + AvailableVgprCount / 4))
+        {
+            return false;
+        }
+        else
+        {
+            return true;
+        }
+    }
+
+    template <typename Argument>
+    __host__ static bool CheckValidity(const Argument& karg, bool allow_short_v3_pipe = false)
+    {
+        const auto availableVgprCount = []() {
+            if(ck::is_gfx125_supported())
+            {
+                return get_max_vgpr_count(gfx125_t{});
+            }
+            else if(ck::is_gfx120_supported())
+            {
+                return get_max_vgpr_count(gfx120_t{});
+            }
+            else if(ck::is_gfx11_supported())
+            {
+                return get_max_vgpr_count(gfx11_t{});
+            }
+            else
+            {
+                return get_max_vgpr_count(gfx_invalid_t{});
+            }
+        }();
+        const auto estimateVgprCount =
+            ck::is_gfx11_supported() ? GetEstimateVgprCount<true>() : GetEstimateVgprCount<false>();
+        if(estimateVgprCount > (availableVgprCount + availableVgprCount / 4))
+        {
+            return false;
+        }
+
+        return Base::template CheckValidity<Argument>(karg, allow_short_v3_pipe);
+    }
     __device__ static index_t GetKBlockPerScale() { return 1; }
 
     template <bool HasMainKBlockLoop,
@@ -674,59 +761,61 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                const index_t A_k_id = 0,
                                const index_t B_k_id = 0)
     {
-
-        const auto block_work_idx =
-            block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
-
-        if(!block_2_ctile_map.ValidCTileIndex(
-               block_work_idx,
-               make_tuple(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
-                          e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
+        if constexpr(IsValidCompilationParameter())
         {
-            return;
+            const auto block_work_idx =
+                block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));
+
+            if(!block_2_ctile_map.ValidCTileIndex(
+                   block_work_idx,
+                   make_tuple(e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
+                              e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2))))
+            {
+                return;
+            }
+
+            const index_t block_m_id =
+                __builtin_amdgcn_readfirstlane(block_work_idx[Number<BlockMapMBlockIndex>{}]);
+            const index_t block_n_id =
+                __builtin_amdgcn_readfirstlane(block_work_idx[Number<BlockMapNBlockIndex>{}]);
+
+            // BScale struct (Empty)
+            using Scale         = typename BlockwiseGemmPipe::Empty;
+            auto a_scale_struct = Scale{};
+            auto b_scale_struct = Scale{};
+
+            const index_t num_k_block_per_scale = GetKBlockPerScale();
+
+            Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
+                               decltype(bs_grid_desc_bk0_n_bk1),
+                               decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
+                               decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                               decltype(a_scale_struct),
+                               decltype(b_scale_struct),
+                               decltype(epilogue_args),
+                               HasMainKBlockLoop,
+                               EGlobalMemoryDataOperation,
+                               TailNum>(p_as_grid,
+                                        p_bs_grid,
+                                        p_ds_grid,
+                                        p_e_grid,
+                                        p_shared,
+                                        as_grid_desc_ak0_m_ak1,
+                                        bs_grid_desc_bk0_n_bk1,
+                                        ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                        e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                        a_element_op,
+                                        b_element_op,
+                                        cde_element_op,
+                                        block_m_id,
+                                        block_n_id,
+                                        num_k_block_per_scale,
+                                        a_scale_struct,
+                                        b_scale_struct,
+                                        epilogue_args,
+                                        A_k_id,
+                                        B_k_id);
         }
-
-        const index_t block_m_id =
-            __builtin_amdgcn_readfirstlane(block_work_idx[Number<BlockMapMBlockIndex>{}]);
-        const index_t block_n_id =
-            __builtin_amdgcn_readfirstlane(block_work_idx[Number<BlockMapNBlockIndex>{}]);
-
-        // BScale struct (Empty)
-        using Scale         = typename BlockwiseGemmPipe::Empty;
-        auto a_scale_struct = Scale{};
-        auto b_scale_struct = Scale{};
-
-        const index_t num_k_block_per_scale = GetKBlockPerScale();
-
-        Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
-                           decltype(bs_grid_desc_bk0_n_bk1),
-                           decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
-                           decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                           decltype(a_scale_struct),
-                           decltype(b_scale_struct),
-                           decltype(epilogue_args),
-                           HasMainKBlockLoop,
-                           EGlobalMemoryDataOperation,
-                           TailNum>(p_as_grid,
-                                    p_bs_grid,
-                                    p_ds_grid,
-                                    p_e_grid,
-                                    p_shared,
-                                    as_grid_desc_ak0_m_ak1,
-                                    bs_grid_desc_bk0_n_bk1,
-                                    ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    a_element_op,
-                                    b_element_op,
-                                    cde_element_op,
-                                    block_m_id,
-                                    block_n_id,
-                                    num_k_block_per_scale,
-                                    a_scale_struct,
-                                    b_scale_struct,
-                                    epilogue_args,
-                                    A_k_id,
-                                    B_k_id);
     }
 
     template <bool HasMainKBlockLoop,

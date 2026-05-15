@@ -22,11 +22,13 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_data_gpu.hpp"
+#include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
 
 using ::ck::DeviceMem;
 using ::ck::HostTensorDescriptor;
 using ::ck::Tensor;
-
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 template <typename Tuple>
 class TestGroupedConvndBwdData : public ::testing::Test
 {
@@ -49,14 +51,18 @@ class TestGroupedConvndBwdData : public ::testing::Test
     using Scale                              = ck::tensor_operation::element_wise::Scale;
     static constexpr ck::index_t NDimSpatial = 3;
     static constexpr float alpha             = 2.f;
-
+#if defined(CK_TEST_DISABLE_GPU_VALIDATION)
+    static constexpr int verify_ = 1; // CPU reference
+#else
+    static constexpr int verify_ = 2; // GPU reference
+#endif
     std::vector<ck::utils::conv::ConvParam> conv_params;
     std::vector<ck::index_t> split_ks{1};
 
-    void RunReference(ck::utils::conv::ConvParam& conv_param,
-                      Tensor<InDataType>& in_host,
-                      DeviceMem& wei_device_buf,
-                      DeviceMem& out_device_buf)
+    void RunGpuReference(ck::utils::conv::ConvParam& conv_param,
+                         Tensor<InDataType>& in_host,
+                         DeviceMem& wei_device_buf,
+                         DeviceMem& out_device_buf)
     {
         // GPU reference
         DeviceMem gpu_ref_in_dev(sizeof(InDataType) * in_host.mDesc.GetElementSpaceSize());
@@ -73,6 +79,42 @@ class TestGroupedConvndBwdData : public ::testing::Test
 
         ck::hip_check_error(hipDeviceSynchronize());
         gpu_ref_in_dev.FromDevice(in_host.mData.data());
+    }
+
+    void RunCpuReference(ck::utils::conv::ConvParam& conv_param,
+                         Tensor<InDataType>& in_host,
+                         Tensor<WeiDataType>& wei,
+                         Tensor<OutDataType>& out)
+    {
+        auto ref_conv =
+            ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
+                                                             InDataType,
+                                                             WeiDataType,
+                                                             OutDataType,
+                                                             InElementOp,
+                                                             WeiElementOp,
+                                                             OutElementOp,
+                                                             0, /*Num A Elementwise Tensors*/
+                                                             0, /*Num B Elementwise Tensors*/
+                                                             0,
+                                                             ComputeDataType> /*Num D Elementwise
+                                                                                 Tensors*/
+            {};
+
+        auto ref_invoker = ref_conv.MakeInvoker();
+
+        auto ref_argument = ref_conv.MakeArgument(in_host,
+                                                  wei,
+                                                  out,
+                                                  conv_param.conv_filter_strides_,
+                                                  conv_param.conv_filter_dilations_,
+                                                  conv_param.input_left_pads_,
+                                                  conv_param.input_right_pads_,
+                                                  InElementOp{alpha},
+                                                  WeiElementOp{},
+                                                  OutElementOp{});
+
+        ref_invoker.Run(ref_argument);
     }
 
     bool PerformConvDataScale(ck::utils::conv::ConvParam& conv_param, const ck::index_t split_k)
@@ -110,7 +152,10 @@ class TestGroupedConvndBwdData : public ::testing::Test
         out_device_buf.ToDevice(out.mData.data());
         wei_device_buf.ToDevice(wei.mData.data());
 
-        RunReference(conv_param, in_host, wei_device_buf, out_device_buf);
+        if(verify_ == 2)
+        {
+            RunGpuReference(conv_param, in_host, wei_device_buf, out_device_buf);
+        }
 
         std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
         std::array<ck::index_t, NDimSpatial + 3> out_strides{};
@@ -135,7 +180,10 @@ class TestGroupedConvndBwdData : public ::testing::Test
         copy(conv_param.conv_filter_dilations_, conv_filter_dilations);
         copy(conv_param.input_left_pads_, input_left_pads);
         copy(conv_param.input_right_pads_, input_right_pads);
-
+        if(verify_ == 1)
+        {
+            RunCpuReference(conv_param, in_host, wei, out);
+        }
         using DeviceOp =
             ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
                                                                             OutLayout,
@@ -153,11 +201,17 @@ class TestGroupedConvndBwdData : public ::testing::Test
         // get device op instances
         const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
             DeviceOp>::GetInstances();
-
+        std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
         int num_kernel = 0;
 
         for(std::size_t i = 0; i < op_ptrs.size(); ++i)
         {
+            if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
+
             auto& op_ptr      = op_ptrs[i];
             auto argument_ptr = op_ptr->MakeArgumentPointer(out_device_buf.GetDeviceBuffer(),
                                                             wei_device_buf.GetDeviceBuffer(),
@@ -188,7 +242,7 @@ class TestGroupedConvndBwdData : public ::testing::Test
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
                 num_kernel++;
-                float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, true});
+                float avg_time = invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, false});
                 in_device_buf.FromDevice(in_device.mData.data());
 
                 using ComputeType_ = std::conditional_t<sizeof(OutDataType) < sizeof(InDataType),
@@ -262,9 +316,14 @@ class TestGroupedConvndBwdData : public ::testing::Test
 
         for(auto split_k : split_ks)
         {
-            for(auto& param : conv_params)
+            for(size_t i = 0; i < conv_params.size(); i++)
             {
-                pass = pass && PerformConvDataScale(param, split_k);
+                if((param_mask & (1 << i)) == 0)
+                {
+                    continue;
+                }
+                auto& param = conv_params[i];
+                pass        = pass && PerformConvDataScale(param, split_k);
             }
         }
         EXPECT_TRUE(pass);
@@ -306,4 +365,21 @@ TYPED_TEST(TestGroupedConvndBwdData3d, Test3D)
         {3, 1, 64, 16, 32, {3, 3, 3}, {28, 28, 28}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
 
     this->Run();
+}
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }

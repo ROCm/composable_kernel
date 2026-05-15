@@ -106,13 +106,13 @@ struct ReferenceMoeMXGemm2 : public device::BaseOperator
                 {
                     for(int k = 0; k < K; ++k)
                     {
+                        auto a_scale = arg.a_t_k_k_scale_(t, topk_id, k / SCALE_BLOCK);
                         if constexpr(is_same_v<ADataType, f4x2_pk_t>)
                         {
-                            auto f4x2    = arg.a_t_k_k_(t, topk_id, k).data;
-                            auto a_scale = arg.a_t_k_k_scale_(t, topk_id, k / SCALE_BLOCK);
+                            auto f4x2 = arg.a_t_k_k_(t, topk_id, k).data;
 
                             f4_t f4 = 0;
-                            if(k % 2 == 1)
+                            if(k % 2 == 0)
                                 f4 = (f4x2 >> 0) & 0xf;
                             else
                                 f4 = (f4x2 >> 4) & 0xf;
@@ -123,15 +123,17 @@ struct ReferenceMoeMXGemm2 : public device::BaseOperator
                         else
                         {
                             arg.a_element_op_(
-                                v_a, type_convert<ComputeTypeA>(arg.a_t_k_k_(t, topk_id, k)));
+                                v_a,
+                                type_convert<ComputeTypeA>(arg.a_t_k_k_(t, topk_id, k)) *
+                                    type_convert<ComputeTypeA>(a_scale));
                         }
+                        auto b_scale = arg.b_e_n_k_scale_(e, k / SCALE_BLOCK, n);
                         if constexpr(is_same_v<BDataType, f4x2_pk_t>)
                         {
-                            auto f4x2    = arg.b_e_n_k_(e, k, n).data;
-                            auto b_scale = arg.b_e_n_k_scale_(e, k / SCALE_BLOCK, n);
+                            auto f4x2 = arg.b_e_n_k_(e, k, n).data;
 
                             f4_t f4 = 0;
-                            if(k % 2 == 1)
+                            if(k % 2 == 0)
                                 f4 = (f4x2 >> 0) & 0xf;
                             else
                                 f4 = (f4x2 >> 4) & 0xf;
@@ -142,7 +144,8 @@ struct ReferenceMoeMXGemm2 : public device::BaseOperator
                         else
                         {
                             arg.b_element_op_(v_b,
-                                              type_convert<ComputeTypeB>(arg.b_e_n_k_(e, k, n)));
+                                              type_convert<ComputeTypeB>(arg.b_e_n_k_(e, k, n)) *
+                                                  type_convert<ComputeTypeB>(b_scale));
                         }
 
                         v_acc +=

@@ -189,6 +189,8 @@ bool profile_grouped_gemm_impl(int do_verification,
     auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
     if(op_ptrs.size() <= 0)
     {
         throw std::runtime_error("wrong! no device GEMM instance found");
@@ -199,7 +201,6 @@ bool profile_grouped_gemm_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
     float best_kbatch     = 0;
-    int num_kernel        = 0;
     auto p_ds             = std::vector<std::array<const void*, 0>>{};
 
     StreamConfig stream_config{nullptr, time_kernel};
@@ -261,8 +262,15 @@ bool profile_grouped_gemm_impl(int do_verification,
     // profile device GEMM instances
     int instances_supported         = 0;
     int instances_supporting_splitk = 0;
-    for(auto& gemm_ptr : op_ptrs)
+
+    for(size_t k = 0; k < op_ptrs.size(); k++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(k)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& gemm_ptr    = op_ptrs[k];
         auto argument_ptr = gemm_ptr->MakeArgumentPointer(
             p_a, p_b, p_ds, p_c, gemm_descs, a_element_op, b_element_op, c_element_op);
 
@@ -303,13 +311,6 @@ bool profile_grouped_gemm_impl(int do_verification,
 
             if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-                ++num_kernel;
-                if((instance_index != -1) && (instance_index + 1 != num_kernel))
-                {
-                    // skip test if instance_index is specified
-                    continue;
-                }
-
                 // Keep track of which supported instances we found
                 any_supported_instance = true;
                 if(kbatch_curr > 1)
@@ -416,7 +417,7 @@ bool profile_grouped_gemm_impl(int do_verification,
     {
         std::cout << "Warning! No supported instance found." << std::endl;
 
-        if(fail_if_no_supported_instance)
+        if(fail_if_no_supported_instance && instance_index == -1)
         {
             return false;
         }
@@ -436,11 +437,6 @@ bool profile_grouped_gemm_impl(int do_verification,
     {
         std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
                   << best_gb_per_sec << " GB/s, " << best_gemm_name << ", KBatch = " << best_kbatch
-                  << std::endl;
-    }
-    if(instance_index != -1)
-    {
-        std::cout << "grouped_gemm_instance (" << instance_index << "/" << num_kernel << "): Passed"
                   << std::endl;
     }
 

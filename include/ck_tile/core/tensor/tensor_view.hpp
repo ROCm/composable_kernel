@@ -20,6 +20,14 @@
 
 namespace ck_tile {
 
+// placeholder type if we want to opt-out a tensor view parameter
+struct null_tensor_view
+{
+    CK_TILE_HOST_DEVICE constexpr auto get_buffer_view() const { return null_buffer_view{}; }
+
+    CK_TILE_HOST_DEVICE constexpr auto get_buffer_view() { return null_buffer_view{}; }
+};
+
 /*
  * tensor_view
  * abstract the underneath memory buffer(global, LDS, etc...)
@@ -79,6 +87,7 @@ struct tensor_view
     // X is vector of DataType.
     // "coord" is coordinate of DataType, not X. "coord" should be aligned to X
     template <typename X,
+              index_t static_offset      = 0,
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
@@ -89,7 +98,7 @@ struct tensor_view
                             index_t linear_offset,
                             bool_constant<oob_conditional_check> = {}) const
     {
-        return buf_.template get<X>(
+        return buf_.template get<X, static_offset / PackedSize>(
             coord.get_offset() / PackedSize,
             linear_offset / PackedSize,
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
@@ -97,6 +106,7 @@ struct tensor_view
     }
 
     template <typename X,
+              index_t static_offset      = 0,
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
@@ -108,10 +118,11 @@ struct tensor_view
                             bool is_valid_element, // flag
                             bool_constant<oob_conditional_check> = {}) const
     {
-        return buf_.template get<X>(coord.get_offset() / PackedSize,
-                                    linear_offset / PackedSize,
-                                    is_valid_element,
-                                    bool_constant<oob_conditional_check>{});
+        return buf_.template get<X, static_offset / PackedSize>(
+            coord.get_offset() / PackedSize,
+            linear_offset / PackedSize,
+            is_valid_element,
+            bool_constant<oob_conditional_check>{});
     }
 
     // X is vector of DataType.
@@ -193,9 +204,29 @@ struct tensor_view
             smem,
             coord.get_offset() / PackedSize + linear_offset / PackedSize,
             0,
-            0, // linear_offset need to be imm and is not supported currently
+            number<0>{}, // linear_offset need to be imm and is not supported currently
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
             bool_constant<oob_conditional_check>{});
+    }
+
+    template <typename X,
+              bool oob_conditional_check = true,
+              index_t IMM                = 0,
+              typename                   = std::enable_if_t<
+                                    std::is_same_v<typename vector_traits<remove_cvref_t<X>>::scalar_type,
+                                                   typename vector_traits<DataType_>::scalar_type>>>
+    CK_TILE_HOST_DEVICE constexpr void
+    async_get_vectorized_elements(CK_TILE_LDS_ADDR DataType_* smem,
+                                  const TensorCoord& coord,
+                                  index_t linear_offset,
+                                  number<IMM>,
+                                  bool_constant<oob_conditional_check> = {}) const
+    {
+        return buf_.template async_get<X>(smem,
+                                          coord.get_offset() / PackedSize,
+                                          linear_offset / PackedSize,
+                                          number<IMM / PackedSize>{},
+                                          bool_constant<oob_conditional_check>{});
     }
 
     template <typename X,
@@ -212,8 +243,8 @@ struct tensor_view
     {
         return buf_.template async_get<X>(smem,
                                           coord.get_offset() / PackedSize,
-                                          0,
                                           linear_offset / PackedSize,
+                                          number<0>{},
                                           is_valid_element,
                                           bool_constant<oob_conditional_check>{});
     }
@@ -461,14 +492,78 @@ struct tensor_view
             coord.get_offset() / PackedSize, linear_offset / PackedSize, is_valid_element, x);
     }
 
+    template <typename TDMConfig_,
+              typename BoxDim_,
+              index_t num_tensor_dims,
+              typename DimTuple_,
+              typename GatherIndexView_   = null_tensor_view,
+              index_t gather_index_offset = -1>
+    CK_TILE_DEVICE constexpr void
+    get_tdm_elements(const TDMConfig_& tdm_config,
+                     CK_TILE_LDS_ADDR remove_cvref_t<DataType>* smem,
+                     const TensorCoord& coord,
+                     DimTuple_& tensor_dims,
+                     DimTuple_& global_strides,
+                     number<num_tensor_dims>                   = {},
+                     const GatherIndexView_& gather_index_view = null_tensor_view{},
+                     number<gather_index_offset>               = {})
+    {
+        if constexpr(std::is_same_v<GatherIndexView_, null_tensor_view>)
+        {
+            return buf_.template tdm_get<TDMConfig_,
+                                         DimTuple_,
+                                         BoxDim_,
+                                         num_tensor_dims,
+                                         null_buffer_view,
+                                         gather_index_offset>(tdm_config,
+                                                              smem,
+                                                              coord.get_offset() / PackedSize,
+                                                              tensor_dims,
+                                                              global_strides,
+                                                              number<num_tensor_dims>{},
+                                                              null_buffer_view{},
+                                                              number<gather_index_offset>{});
+        }
+        else
+        {
+            auto buffer_view = gather_index_view.get_buffer_view();
+            return buf_.template tdm_get<TDMConfig_,
+                                         DimTuple_,
+                                         BoxDim_,
+                                         num_tensor_dims,
+                                         decltype(buffer_view),
+                                         gather_index_offset>(tdm_config,
+                                                              smem,
+                                                              coord.get_offset() / PackedSize,
+                                                              tensor_dims,
+                                                              global_strides,
+                                                              number<num_tensor_dims>{},
+                                                              buffer_view,
+                                                              number<gather_index_offset>{});
+        }
+    }
+
+    template <typename TDMConfig_, typename BoxDim_, index_t num_tensor_dims, typename DimTuple_>
+    CK_TILE_DEVICE constexpr void
+    store_tdm_elements(const TDMConfig_& tdm_config,
+                       CK_TILE_LDS_ADDR remove_cvref_t<DataType>* smem,
+                       const TensorCoord& coord,
+                       DimTuple_& tensor_dims,
+                       DimTuple_& global_strides,
+                       number<num_tensor_dims> = {})
+    {
+        return buf_.template tdm_store<TDMConfig_, DimTuple_, BoxDim_, num_tensor_dims>(
+            tdm_config,
+            smem,
+            coord.get_offset() / PackedSize,
+            tensor_dims,
+            global_strides,
+            number<num_tensor_dims>{});
+    }
+
     // member
     buffer_view buf_;
     TensorDesc desc_;
-};
-
-// placeholder type if we want to opt-out a tile view parameter
-struct null_tensor_view
-{
 };
 
 template <typename T>

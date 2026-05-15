@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "gemm_mx_common.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_mx.hpp"
 
 using ADataType = ck::bf6x16_pk_t;
 using BDataType = ck::bf6x16_pk_t;

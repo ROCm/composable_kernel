@@ -89,7 +89,8 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
                                       int StrideA,
                                       int StrideB,
                                       int StrideC,
-                                      int BatchCount)
+                                      int BatchCount,
+                                      int instance_index = -1)
 {
     bool pass = true;
 
@@ -307,8 +308,14 @@ bool profile_batched_gemm_reduce_impl(int do_verification,
     float best_gb_per_sec = 0;
 
     // profile device GEMM instances
-    for(auto& gemm_ptr : gemm_ptrs)
+    for(size_t i = 0; i < gemm_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& gemm_ptr    = gemm_ptrs[i];
         auto argument_ptr = gemm_ptr->MakeArgumentPointer(a_device_buf.GetDeviceBuffer(),
                                                           b_device_buf.GetDeviceBuffer(),
                                                           nullptr,

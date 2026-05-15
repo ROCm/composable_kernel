@@ -125,9 +125,14 @@ bool profile_softmax_impl(int do_verification,
     float best_avg_time   = std::numeric_limits<float>::max();
     float best_gb_per_sec = 0;
     std::vector<bool> instance_pass;
-    index_t num_kernel = 0;
-    for(auto& inst_ptr : instances)
+    for(size_t i = 0; i < instances.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& inst_ptr    = instances[i];
         auto argument_ptr = inst_ptr->MakeArgumentPointer(in_tensor_lengths,
                                                           in_tensor_strides,
                                                           reduce_dims,
@@ -146,15 +151,6 @@ bool profile_softmax_impl(int do_verification,
             LogRange(std::cout << ", reduce dims = [", reduce_dims, ", ") << "]." << std::endl;
             instance_pass.push_back(true);
             continue;
-        }
-        else
-        {
-            num_kernel++;
-            if((instance_index != -1) && (instance_index + 1 != num_kernel))
-            {
-                // skip test if instance_index is specified
-                continue;
-            }
         }
 
         out_dev.ToDevice(prior_out.data());
@@ -226,11 +222,7 @@ bool profile_softmax_impl(int do_verification,
         std::cout << "alpha = " << alpha << ", " << "beta = " << beta << ", " << best_avg_time
                   << " ms, " << best_gb_per_sec << " GB/s, " << best_instance_name << std::endl;
     }
-    if(instance_index != -1)
-    {
-        std::cout << "reduce_instance (" << instance_index << "/" << num_kernel << "): Passed"
-                  << std::endl;
-    }
+
     return std::all_of(
         std::begin(instance_pass), std::end(instance_pass), [](bool p) { return p; });
 }

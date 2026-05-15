@@ -27,7 +27,7 @@ __device__ static auto AllocateLdsBuffers(void* lds_ptr,
                                           int32_t start_offset_elems,
                                           int32_t lds_alignment)
 {
-    const DataType* lds_start = static_cast<DataType*>(lds_ptr) + start_offset_elems;
+    DataType* lds_start = static_cast<DataType*>(lds_ptr) + start_offset_elems;
     const int32_t single_buffer_offset =
         math::integer_least_multiple(num_elems_per_buffer, lds_alignment);
     return generate_tuple(

@@ -601,6 +601,8 @@ struct HostTensor
 
     typename Data::size_type size() const { return mData.size(); }
 
+    bool empty() const { return mData.empty(); }
+
     T max() const { return *std::max_element(mData.begin(), mData.end()); }
 
     // return a slice of this tensor

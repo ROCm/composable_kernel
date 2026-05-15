@@ -24,9 +24,8 @@
 namespace ck {
 namespace profiler {
 
-#if 1
 template <bool KLast>
-void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
+void preShuffleScaleBuffer_gfx950(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, int K)
 {
     int MNXdlPack = 2;
     int KXdlPack  = 2;
@@ -36,8 +35,9 @@ void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, i
 
     int K0 = K / KXdlPack / XdlKThread; // KRepeat
 
-    // The 4 16x128 building blocks will be packed into 1 32x256 for F4
-    // The 8 16x16x128 mfma will be packed into 1 32x32x256 for F4
+    // On gfx950, WarpSize=64:
+    // The 4 16x128 building blocks will be packed into 1 32x256
+    // The 8 16x16x128 mfma will be packed into 1 32x32x256
 
     // unfold the MN32xK(256/32) scale buffer
     //    4            16             2           2
@@ -62,8 +62,9 @@ void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, i
                               k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
                               k1 * MNXdlPack * KXdlPack * XdlMNThread + n1 * MNXdlPack * KXdlPack +
                               k2 * MNXdlPack + n2;
-            // src[n * K + k] = ck::type_convert<ck::e8m0_bexp_t>(static_cast<float>(powf(2.0f, n2 +
-            // k2 * MNXdlPack)));
+            // src[n * K + k] = ck::type_convert<ck::e8m0_bexp_t>(static_cast<float>(powf(2.0f,
+            // 2-k)));
+
             if constexpr(KLast)
                 dst[outputIndex] = src[n * K + k];
             else
@@ -72,13 +73,73 @@ void preShuffleScaleBuffer(ck::e8m0_bexp_t* src, ck::e8m0_bexp_t* dst, int MN, i
     }
 }
 
-void preShuffleBuffer(const ck::f4x2_pk_t* src, ck::f4x2_pk_t* dst, int N, int K, int NXdl)
+/**
+ * Pre-shuffle scale buffer for gfx1250 16x16x128 wmma scale instruction
+ *
+ * @tparam ScaleType Scale data type
+ * @tparam KStride Whether K is the leading dimension of the scale buffer
+ */
+template <typename ScaleType, ck::index_t ScaleBlockSize, bool KStride>
+void preShuffleScaleBuffer_gfx1250(const ScaleType* src,
+                                   ScaleType* dst,
+                                   ck::index_t MN,
+                                   ck::index_t K)
 {
-    int KPack = 16;
-    int NLane = NXdl;
-    int KLane = 64 / NLane;
-    int K_pk  = K / 2;
-    int K0    = K_pk / (KLane * KPack);
+
+    static_assert(ScaleBlockSize == 32 && sizeof(ScaleType) == 1,
+                  "wrong! only support 8-bit scale with ScaleBlockSize=32");
+
+    constexpr ck::index_t MPerXdlops = 16;
+    constexpr ck::index_t KPerXdlops = 128;
+
+    int MNPack = 2; // 2 sets of scales in M/N direction
+    int KPack  = 1; // 1 set of scales in K direction
+
+    int MNStep = MPerXdlops;
+    int KStep  = KPerXdlops / ScaleBlockSize; // scales per thread
+
+    int K0 = K / KPack / KStep; // KRepeat - how many KStep blocks
+
+    // On gfx1250, WarpSize=32:
+    // -- The 2 16x128 building blocks will be packed into 1 32x128
+    // -- The 4 16x16x128 wmma will be packed into 1 32x32x128
+
+    // unfold the MN32xK(128/32) scale buffer
+    //    4            16        1        2
+    // To KStep  ->  MNStep -> KPack -> MNPack
+    // or ???
+    //    2         16        1        4
+    //  MNPack -> MNStep -> KPack -> KStep
+    for(int mn = 0; mn < MN; ++mn)
+    {
+        int iMNRepeat = mn / (MNStep * MNPack); // i MNRepeat (MN block id)
+        int tempmn    = mn % (MNStep * MNPack); // position in MN block
+
+        for(int k = 0; k < K; ++k)
+        {
+            int iKRepeat = k / (KStep * KPack); // i KRepeat
+            int tempk    = k % (KStep * KPack); // position in KStep block
+
+            int outputIndex = (iMNRepeat * MNPack * MNStep) * (KStep * KPack * K0) +
+                              (iKRepeat * KStep * KPack) * (MNStep * MNPack) +
+                              tempmn * (KStep * KPack) + tempk;
+
+            if constexpr(KStride)
+                dst[outputIndex] = src[mn * K + k];
+            else
+                dst[outputIndex] = src[k * MN + mn];
+        }
+    }
+}
+
+template <typename T>
+void preShuffleBuffer(const T* src, T* dst, int N, int K, int NXdl)
+{
+    const int KPack = 16;
+    const int NLane = NXdl;
+    const int KLane = ck::get_warp_size() / NLane;
+    const int K_pk  = K / ck::packed_size_v<T>;
+    const int K0    = K_pk / (KLane * KPack);
     // K -> K0 KLane KPack
     // N -> N0 NLane
     // N, K -> N0 K0 KLane NLane KPack
@@ -102,7 +163,6 @@ void preShuffleBuffer(const ck::f4x2_pk_t* src, ck::f4x2_pk_t* dst, int N, int K
         }
     }
 }
-#endif
 
 template <typename ADataType,
           typename BDataType,
@@ -124,7 +184,8 @@ bool profile_gemm_mx_impl(int do_verification,
                           int KBatch,
                           int n_warmup,
                           int n_iter,
-                          uint64_t rotating = 0)
+                          uint64_t rotating  = 0,
+                          int instance_index = -1)
 {
     using tensor_operation::device::instance::Col;
     using tensor_operation::device::instance::E8M0;
@@ -273,19 +334,39 @@ bool profile_gemm_mx_impl(int do_verification,
         break;
     }
 
-#if 1
-    preShuffleScaleBuffer<ck::is_same_v<ALayout, Row>>(a_m_k_scale.mData.data(),
-                                                       a_shuffled_scale.mData.data(),
-                                                       Scale_Padded_M,
-                                                       K / ScaleBlockSize);
-    preShuffleScaleBuffer<ck::is_same_v<BRefLayout, Col>>(
-        b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
+    if(ck::get_warp_size() == 64)
+    {
+        preShuffleScaleBuffer_gfx950<ck::is_same_v<ALayout, Row>>(a_m_k_scale.mData.data(),
+                                                                  a_shuffled_scale.mData.data(),
+                                                                  Scale_Padded_M,
+                                                                  K / ScaleBlockSize);
+
+        preShuffleScaleBuffer_gfx950<ck::is_same_v<BRefLayout, Col>>(
+            b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
+    }
+    else if(ck::get_warp_size() == 32)
+    {
+        preShuffleScaleBuffer_gfx1250<ck::e8m0_bexp_t, ScaleBlockSize, ck::is_same_v<ALayout, Row>>(
+            a_m_k_scale.mData.data(),
+            a_shuffled_scale.mData.data(),
+            Scale_Padded_M,
+            K / ScaleBlockSize);
+
+        preShuffleScaleBuffer_gfx1250<ck::e8m0_bexp_t,
+                                      ScaleBlockSize,
+                                      ck::is_same_v<BRefLayout, Col>>(
+            b_k_n_scale.mData.data(), b_shuffled_scale.mData.data(), N, K / ScaleBlockSize);
+    }
+    else
+    {
+        throw std::runtime_error("wrong! Scale pre-shuffle unsupported warp size");
+    }
+
     if constexpr(BPreShuffle)
     {
         int NPerXdl = 16; // Fixed 16
         preShuffleBuffer(b_k_n->mData.data(), b_input->mData.data(), N, K, NPerXdl);
     }
-#endif
 
     using AElementOp = ck::tensor_operation::element_wise::PassThrough;
     using BElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -333,7 +414,7 @@ bool profile_gemm_mx_impl(int do_verification,
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     // Run reference GEMM
-    if(do_verification)
+    if(do_verification && op_ptrs.size() > 0)
     {
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMXGemm< //
             ADataType,
@@ -359,8 +440,11 @@ bool profile_gemm_mx_impl(int do_verification,
                                                   a_element_op,
                                                   b_element_op,
                                                   c_element_op);
-
+        if(do_log > 0)
+            std::cout << "Run reference GEMM..." << std::endl;
         ref_invoker.Run(ref_argument);
+        if(do_log > 0)
+            std::cout << "Done." << std::endl;
     }
 
     std::string best_op_name;
@@ -372,8 +456,14 @@ bool profile_gemm_mx_impl(int do_verification,
     bool pass             = true;
 
     // profile device GEMM instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t j = 0; j < op_ptrs.size(); j++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(j)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr                 = op_ptrs[j];
         std::vector<int> kbatch_list = {1, 2, 4, 8, 16, 19, 32, 38}; // use these when KBatch <= 0
 
         if(KBatch > 0)
@@ -412,11 +502,20 @@ bool profile_gemm_mx_impl(int do_verification,
                 // re-init C to zero before profiling next kernel
                 c_device_buf.SetZero();
 
-                invoker_ptr->Run(argument_ptr.get(),
-                                 StreamConfig{nullptr, false, 0, n_warmup, n_iter});
+                if(do_log > 0)
+                    std::cout << "Run device GEMM..." << std::endl;
+
+                float ave_time = invoker_ptr->Run(
+                    argument_ptr.get(), StreamConfig{nullptr, false, 0, n_warmup, n_iter});
+
+                if(do_log > 0)
+                    std::cout << "Done." << std::endl;
 
                 if(do_verification)
                 {
+                    if(do_log > 0)
+                        std::cout << "Verification ..." << std::endl;
+
                     c_device_buf.FromDevice(c_m_n_device_result.mData.data());
 
                     if(do_log)
@@ -460,20 +559,42 @@ bool profile_gemm_mx_impl(int do_verification,
                         }
                     }
 
-                    pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                    const float rtol = 1e-2;
+                    const float atol = 1e-2;
+                    if(do_log > 0)
+                    {
+                        std::cout << "Relative error threshold: " << rtol
+                                  << " Absolute error threshold: " << atol << std::endl;
+                    }
+                    pass = pass & ck::utils::check_err(c_m_n_device_result,
+                                                       c_m_n_host_result,
+                                                       "Error: Incorrect results!",
+                                                       rtol,
+                                                       atol);
+                    if(do_log > 0)
+                    {
+                        std::cout << "Verification: " << (pass ? "CORRECT" : "FAILED") << std::endl;
+                    }
                 }
 
                 std::string op_name                    = op_ptr->GetTypeString();
                 std::optional<std::string> op_obj_name = op_ptr->GetObjectName();
 
-                float ave_time = invoker_ptr->Run(argument_ptr.get(),
-                                                  StreamConfig{nullptr,
-                                                               time_kernel,
-                                                               0,
-                                                               n_warmup,
-                                                               n_iter,
-                                                               rotating_count > 1,
-                                                               rotating_count});
+                if(time_kernel)
+                {
+                    if(do_log > 0)
+                        std::cout << "Run benchmark ..." << std::endl;
+                    ave_time = invoker_ptr->Run(argument_ptr.get(),
+                                                StreamConfig{nullptr,
+                                                             time_kernel,
+                                                             0,
+                                                             n_warmup,
+                                                             n_iter,
+                                                             rotating_count > 1,
+                                                             rotating_count});
+                    if(do_log > 0)
+                        std::cout << "Done." << std::endl;
+                }
 
                 // Output size(M*N) * [dot product(2K) + product of scales(K/ScaleBlockSize) +
                 // scaling of partial sums(K/ScaleBlockSize)]

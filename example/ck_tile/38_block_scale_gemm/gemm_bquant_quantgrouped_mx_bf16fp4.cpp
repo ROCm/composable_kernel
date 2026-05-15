@@ -6,10 +6,10 @@
 template <typename T>
 using GemmConfig = GemmConfigQuantPrefill<T>;
 
-#define RUN_GEMM_EXAMPLE_PREC_TYPE                            \
-    run_gemm_example_prec_type<GemmConfig<ck_tile::pk_fp4_t>, \
-                               TypeConfig,                    \
-                               QuantGroupSize,                \
+#define RUN_GEMM_EXAMPLE_PREC_TYPE                          \
+    run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t>, \
+                               TypeConfig,                  \
+                               QuantGroupSize,              \
                                ck_tile::QuantType::BQuantGrouped>(arg_parser);
 
 static auto _ = []() {

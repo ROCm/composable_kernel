@@ -11,34 +11,17 @@
 
 namespace ck_tile {
 
-static inline index_t get_available_compute_units(const stream_config& s)
+static inline index_t get_available_compute_units(const stream_config&)
 {
-    constexpr static uint32_t MAX_MASK_DWORDS = 64;
-
-    // assume at most 64*32 = 2048 CUs
-    uint32_t cu_mask[MAX_MASK_DWORDS]{};
-
-    auto count_set_bits = [](uint32_t dword) {
-        index_t count = 0;
-        while(dword != 0)
-        {
-            if(dword & 0x1)
-            {
-                count++;
-            }
-            dword = dword >> 1;
-        }
-        return count;
-    };
-
-    HIP_CHECK_ERROR(hipExtStreamGetCUMask(s.stream_id_, MAX_MASK_DWORDS, &cu_mask[0]));
-
-    index_t num_cu = 0;
-    for(uint32_t i = 0; i < MAX_MASK_DWORDS; i++)
-    {
-        num_cu += count_set_bits(cu_mask[i]);
-    }
-
+    index_t num_cu;
+    hipError_t rtn;
+    hipDeviceProp_t dev_prop;
+    hipDevice_t dev;
+    rtn = hipGetDevice(&dev);
+    hip_check_error(rtn);
+    rtn = hipGetDeviceProperties(&dev_prop, dev);
+    hip_check_error(rtn);
+    num_cu = dev_prop.multiProcessorCount;
     return num_cu;
 };
 

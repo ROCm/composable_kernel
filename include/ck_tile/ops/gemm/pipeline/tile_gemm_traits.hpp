@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/utility/data_cache_prefetch.hpp"
 
 namespace ck_tile {
 
@@ -39,12 +40,14 @@ template <bool kPadM_,
           typename AsLayout_,
           typename BsLayout_,
           typename CLayout_,
-          bool TransposeC_            = false,
-          bool UseStructuredSparsity_ = false,
-          bool UsePersistentKernel_   = false,
-          index_t NumWaveGroups_      = 1,
-          bool Preshuffle_            = false,
-          int VectorSize_             = 16>
+          bool TransposeC_                          = false,
+          bool UseStructuredSparsity_               = false,
+          bool UsePersistentKernel_                 = false,
+          index_t NumWaveGroups_                    = 1,
+          bool Preshuffle_                          = false,
+          int VectorSize_                           = 16,
+          DataCachePrefetchKind DataCachePrefetchA_ = DataCachePrefetchKind::None,
+          DataCachePrefetchKind DataCachePrefetchB_ = DataCachePrefetchKind::None>
 struct TileGemmUniversalTraits
 {
     static constexpr bool kPadM            = kPadM_;
@@ -58,10 +61,12 @@ struct TileGemmUniversalTraits
     using CLayout                    = CLayout_;
     static constexpr bool TransposeC = TransposeC_;
 
-    static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
-    static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
-    static constexpr index_t NumWaveGroups      = NumWaveGroups_;
-    static constexpr bool Preshuffle            = Preshuffle_;
+    static constexpr bool UseStructuredSparsity               = UseStructuredSparsity_;
+    static constexpr bool UsePersistentKernel                 = UsePersistentKernel_;
+    static constexpr index_t NumWaveGroups                    = NumWaveGroups_;
+    static constexpr bool Preshuffle                          = Preshuffle_;
+    static constexpr DataCachePrefetchKind DataCachePrefetchA = DataCachePrefetchA_;
+    static constexpr DataCachePrefetchKind DataCachePrefetchB = DataCachePrefetchB_;
 };
 
 template <bool kPadM_,

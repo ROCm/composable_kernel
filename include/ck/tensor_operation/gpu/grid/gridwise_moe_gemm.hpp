@@ -279,6 +279,12 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
     using Base::NumDTensor;
     static constexpr auto BlockSizeNumber = Number<BlockSize>{};
 
+#if defined(__gfx125__)
+    static constexpr bool is_single_rate_mfma = true;
+#else
+    static constexpr bool is_single_rate_mfma = false;
+#endif
+
     // Clamp limit for swiglustep_and_mul: silu(g).clamp(max=L) * u.clamp(+-L), L hardcoded to 7.0
     static constexpr float kSwiGluClamp = 7.0f;
 
@@ -291,14 +297,26 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
         up   = math::min(math::max(up, -kSwiGluClamp), kSwiGluClamp);
         return gate * up;
     }
+    using mfma_selector =
+        MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB, is_single_rate_mfma>;
 
-    using mfma_selector = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>;
     static constexpr index_t KPack =
         math::max(math::lcm(AK1Number, BK1Number), mfma_selector::selected_mfma.k_per_blk);
     static constexpr index_t KLane =
         mfma_selector::GetKPerXdlops() / mfma_selector::GetK1PerXdlops();
 
     static constexpr index_t KGroup = []() {
+#if defined(__gfx125__)
+        // A memory instruction can only read 16 bytes at a time. If K1PerXdlops *
+        // sizeof(ComputeDataType) > 16, memory read will not conitnues in a wave in B preshuffle
+        // mode. So, we need split K into mutiple groups.
+        // TODO: Dequant pipeline doesn't support KGroup now, we have to align it in grid level.
+        constexpr bool isDequantPipe = (is_same_v<ADataType, BDataType> == false) &&
+                                       (BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
+                                        BlkGemmPipelineVer == BlockGemmPipelineVersion::v3);
+        return (mfma_selector::GetK1PerXdlops() * sizeof(ComputeTypeA) > 16) && !isDequantPipe ? 2
+                                                                                               : 1;
+#else
         if constexpr(is_same_v<remove_cvref_t<BDataType>, f8_t>)
             // On gfx950, we have a mfma that required 32 f8 elements as input,
             // splited into 2 groups of 16 f8 elements.
@@ -308,6 +326,7 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
             return mfma_selector::selected_mfma.k_per_blk == 32 ? 2 : 1;
         else
             return 1;
+#endif
     }();
 
     static constexpr index_t KRepeat = KPerBlock / KLane / (KPack / KGroup);

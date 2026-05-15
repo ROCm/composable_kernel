@@ -10,6 +10,7 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/flatmm.hpp"
 #include "ck_tile/ops/gemm.hpp"
+#include "mx_flatmm_arch_traits.hpp"
 
 #include "mx_flatmm_arch_traits.hpp"
 

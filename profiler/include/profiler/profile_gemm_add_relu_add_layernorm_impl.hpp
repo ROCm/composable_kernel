@@ -130,7 +130,8 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
                                               int StrideD0,
                                               int StrideD1,
                                               int StrideH,
-                                              AccDataType epsilon = 1e-5)
+                                              AccDataType epsilon = 1e-5,
+                                              int instance_index  = -1)
 {
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
         return HostTensorDescriptor({len}, {stride});
@@ -271,8 +272,14 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
     int num_kernel = 0;
 
     // profile device operation instances
-    for(auto& op_ptr : op_ptrs)
+    for(size_t i = 0; i < op_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& op_ptr      = op_ptrs[i];
         auto argument_ptr = op_ptr->MakeArgumentPointer(
             a_device_buf.GetDeviceBuffer(),
             b_device_buf.GetDeviceBuffer(),
@@ -342,10 +349,10 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
         }
     }
 
-    if(num_kernel == 0)
+    if(num_kernel == 0 && instance_index == -1)
     {
         std::cout << "Error: No kernel is applicable" << std::endl;
-        pass = false;
+        return false;
     }
     else
     {

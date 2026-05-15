@@ -95,6 +95,7 @@ struct ConvTileFactory
         typename Ops::AElementwiseOp,
         typename Ops::BElementwiseOp,
         typename Types::EDataType,
+        typename Types::EDataType, // TODO: need to double check
         GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
         GroupedConvTraitsType::VectorSizeA,
         GroupedConvTraitsType::VectorSizeB>;

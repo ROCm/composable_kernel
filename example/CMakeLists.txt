@@ -52,6 +52,9 @@ function(add_example_dependencies EXAMPLE_NAME FILE_NAME)
 endfunction(add_example_dependencies EXAMPLE_NAME)
 
 function(add_example_executable EXAMPLE_NAME FILE_NAME)
+    foreach(source IN LISTS ARGN)
+        set(FILE_NAME ${FILE_NAME} ${source})
+    endforeach()
     message(DEBUG "adding example ${EXAMPLE_NAME}")
     set(result 1)
     if(DEFINED DTYPES)
@@ -110,9 +113,9 @@ function(add_example_executable EXAMPLE_NAME FILE_NAME)
             message(DEBUG "removing wmma example ${source} ")
             list(REMOVE_ITEM FILE_NAME "${source}")
         endif()
-        #Do not build any microscaling examples if gfx950 target is not on the list
-        if(NOT EX_TARGETS MATCHES "gfx950" AND source_name MATCHES "_mx")
-            message(DEBUG "removing microscaling example ${source} ")
+        #Do not build any microscaling examples if gfx950|gfx125 target is not on the list
+        if(source_name MATCHES "_mx" AND NOT EX_TARGETS MATCHES "gfx95|gfx125")
+            message(STATUS "removing microscaling example ${source} ")
             list(REMOVE_ITEM FILE_NAME "${source}")
         endif()
         #Do not build any FP8 examples if CK_ENABLE_FP8 not set

@@ -168,4 +168,49 @@ CK_TILE_DEVICE void store_tile_raw(
     tile_window.store_raw(dstr_tensor, number<-1>{});
 }
 
+template <typename TDMConfig_,
+          typename LdsTileWindow_,
+          typename BottomTensorView_,
+          typename WindowLengths_,
+          typename TileDistribution_,
+          index_t NumCoord,
+          index_t i_access = -1>
+CK_TILE_DEVICE auto store_tile_tdm(const TDMConfig_& tdm_config,
+                                   tile_window_with_static_distribution<BottomTensorView_,
+                                                                        WindowLengths_,
+                                                                        TileDistribution_,
+                                                                        NumCoord>& tile_window,
+                                   const LdsTileWindow_& lds_tile,
+                                   number<i_access> = {})
+{
+    return tile_window.tdm_store_from_lds(tdm_config, lds_tile, number<i_access>{});
+}
+
+template <typename TDMConfig_,
+          typename LdsTileWindow_,
+          typename BottomTensorView_,
+          typename WindowLengths_,
+          index_t i_access = -1>
+CK_TILE_DEVICE void
+store_tile_tdm(const TDMConfig_& tdm_config,
+               tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& tile_window_tmp,
+               const LdsTileWindow_& lds_tile,
+               number<i_access> = {})
+{
+    using DataType    = remove_cvref_t<typename BottomTensorView_::DataType>;
+    using LdsDataType = remove_cvref_t<typename remove_cvref_t<LdsTileWindow_>::DataType>;
+    using TileDstr    = remove_cvref_t<typename remove_cvref_t<LdsTileWindow_>::TileDstr>;
+
+    static_assert(std::is_same_v<remove_cvref_t<DataType>, LdsDataType>, "wrong!");
+
+    constexpr auto tile_dstr = TileDstr{};
+
+    auto tile_window = make_tile_window(tile_window_tmp.get_bottom_tensor_view(),
+                                        tile_window_tmp.get_window_lengths(),
+                                        tile_window_tmp.get_window_origin(),
+                                        tile_dstr);
+
+    store_tile_tdm(tdm_config, tile_window, lds_tile, number<i_access>{});
+}
+
 } // namespace ck_tile

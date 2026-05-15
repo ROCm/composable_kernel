@@ -5,15 +5,17 @@
 #include "test_gemm_pipeline_util.hpp"
 #include "gtest/gtest.h"
 
+// clang-format off
 template <typename T>
-class TestCkTileGemmPipelineWeightPreshuffle : public TestCkTileGemmPipeline<T>
+class @TEST_CLASS_NAME@ : public TestCkTileGemmPipeline<T>
 {
 };
 
-#define TEST_SUITE_NAME TestCkTileGemmPipelineWeightPreshuffle
+#define TEST_SUITE_NAME @TEST_CLASS_NAME@
 
-TYPED_TEST_SUITE(TestCkTileGemmPipelineWeightPreshuffle, KernelTypesWeightPreshuffle);
+TYPED_TEST_SUITE(@TEST_CLASS_NAME@, @KERNEL_TYPES@);
 
 #include "test_gemm_pipeline_ut_cases.inc"
 
 #undef TEST_SUITE_NAME
+// clang-format on

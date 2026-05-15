@@ -46,7 +46,8 @@ bool profile_grouped_conv_fwd_bilinear_impl(
     bool time_kernel,
     const ck::utils::conv::ConvParam& conv_param,
     const ck::tensor_operation::element_wise::Bilinear& bilinear_op =
-        ck::tensor_operation::element_wise::Bilinear{})
+        ck::tensor_operation::element_wise::Bilinear{},
+    index_t instance_index = -1)
 {
     using InElementOp      = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp     = ck::tensor_operation::element_wise::PassThrough;
@@ -254,6 +255,11 @@ bool profile_grouped_conv_fwd_bilinear_impl(
 
     for(std::size_t i = 0; i < op_ptrs.size(); ++i)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
         auto& op_ptr = op_ptrs[i];
 
         auto argument_ptr = op_ptr->MakeArgumentPointer(

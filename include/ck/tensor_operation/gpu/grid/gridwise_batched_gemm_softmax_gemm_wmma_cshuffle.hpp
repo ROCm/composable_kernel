@@ -113,8 +113,13 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
     static constexpr auto MWaves = MPerBlock / (MRepeat * MPerWmma);
     static constexpr auto LWaves = LPerBlock / (LRepeat * LPerWmma);
     static constexpr auto NWaves = NPerBlock / (NRepeat * NPerWmma);
-    static constexpr auto WmmaK  = 16;
-    static constexpr auto WmmaL  = 16;
+#ifdef __gfx125__
+    static constexpr auto WmmaK = is_same<ADataType, int8_t>::value ? 64 : 32;
+    static constexpr auto WmmaL = is_same<Acc0DataType, int8_t>::value ? 64 : 32;
+#else
+    static constexpr auto WmmaK = 16;
+    static constexpr auto WmmaL = 16;
+#endif
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -347,17 +352,44 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
             else
             {
                 // KWmma_MRepeat_MWave_K0PerWmma_KRow_MPerWmma_K1 -> K0_MRepeat_Mwaves_MPerWmma_K1
-                constexpr auto KWmma     = ABlockDesc_{}.GetLength(I0);
-                constexpr auto K0PerWmma = ABlockDesc_{}.GetLength(I3);
-                constexpr auto A_KRow    = ABlockDesc_{}.GetLength(I4);
-                constexpr auto A_K1      = ABlockDesc_{}.GetLength(I6);
+                constexpr auto KWmmaPerblock = ABlockDesc_{}.GetLength(I0);
+                constexpr auto K0PerWmma     = ABlockDesc_{}.GetLength(I3);
+                constexpr auto A_K1          = ABlockDesc_{}.GetLength(I6);
 
-                return make_naive_tensor_descriptor_packed(make_tuple(Number<KWmma * K0PerWmma>{},
-                                                                      Number<MRepeat>{},
-                                                                      I1,
-                                                                      Number<A_KRow>{},
-                                                                      I1,
-                                                                      Number<A_K1>{}));
+                static_assert(ABlockDesc_{}.GetLength(I2) == 1);
+                static_assert(ABlockDesc_{}.GetLength(I4) == 1);
+                static_assert(ABlockDesc_{}.GetLength(I5) == 1);
+
+                // Workaround, Freeze transform
+                if constexpr(K0PerWmma == 1)
+                {
+                    return make_naive_tensor_descriptor_packed(make_tuple(
+                        Number<KWmmaPerblock>{}, Number<MRepeat>{}, I1, I1, I1, Number<A_K1>{}));
+                }
+                else
+                {
+                    return transform_tensor_descriptor(
+                        ABlockDesc_{},
+                        make_tuple(make_merge_transform_v3_division_mod(
+                                       make_tuple(Number<KWmmaPerblock>{}, Number<K0PerWmma>{})),
+                                   make_pass_through_transform(Number<MRepeat>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<A_K1>{})),
+                        make_tuple(Sequence<0, 3>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<4>{},
+                                   Sequence<5>{},
+                                   Sequence<6>{}),
+                        make_tuple(Sequence<0>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<3>{},
+                                   Sequence<4>{},
+                                   Sequence<5>{}));
+                }
             }
         }();
 
@@ -391,18 +423,44 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
             else
             {
                 // KWmma_MRepeat_MWave_K0PerWmma_KRow_MPerWmma_K1 -> K0_MRepeat_Mwaves_MPerWmma_K1
-                constexpr auto KWmma     = B0BlockDesc_{}.GetLength(I0);
-                constexpr auto K0PerWmma = B0BlockDesc_{}.GetLength(I3);
-                constexpr auto B_KRow    = B0BlockDesc_{}.GetLength(I4);
-                constexpr auto B_K1      = B0BlockDesc_{}.GetLength(I6);
+                constexpr auto KWmmaPerblock = B0BlockDesc_{}.GetLength(I0);
+                constexpr auto K0PerWmma     = B0BlockDesc_{}.GetLength(I3);
+                constexpr auto B_K1          = B0BlockDesc_{}.GetLength(I6);
+
+                static_assert(B0BlockDesc_{}.GetLength(I2) == 1);
+                static_assert(B0BlockDesc_{}.GetLength(I4) == 1);
+                static_assert(B0BlockDesc_{}.GetLength(I5) == 1);
 
                 // Workaround, Freeze transform
-                return make_naive_tensor_descriptor_packed(make_tuple(Number<KWmma * K0PerWmma>{},
-                                                                      Number<LRepeat>{},
-                                                                      I1,
-                                                                      Number<B_KRow>{},
-                                                                      I1,
-                                                                      Number<B_K1>{}));
+                if constexpr(K0PerWmma == 1)
+                {
+                    return make_naive_tensor_descriptor_packed(make_tuple(
+                        Number<KWmmaPerblock>{}, Number<LRepeat>{}, I1, I1, I1, Number<B_K1>{}));
+                }
+                else
+                {
+                    return transform_tensor_descriptor(
+                        B0BlockDesc_{},
+                        make_tuple(make_merge_transform_v3_division_mod(
+                                       make_tuple(Number<KWmmaPerblock>{}, Number<K0PerWmma>{})),
+                                   make_pass_through_transform(Number<LRepeat>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<B_K1>{})),
+                        make_tuple(Sequence<0, 3>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<4>{},
+                                   Sequence<5>{},
+                                   Sequence<6>{}),
+                        make_tuple(Sequence<0>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<3>{},
+                                   Sequence<4>{},
+                                   Sequence<5>{}));
+                }
             }
         }();
 
@@ -451,17 +509,44 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
             }
             else
             {
-                constexpr auto LWmma     = B1BlockDesc_{}.GetLength(I0);
-                constexpr auto L0PerWmma = B1BlockDesc_{}.GetLength(I3);
-                constexpr auto B_LRow    = B1BlockDesc_{}.GetLength(I4);
-                constexpr auto B_L1      = B1BlockDesc_{}.GetLength(I6);
+                constexpr auto LWmmaPerblock = B1BlockDesc_{}.GetLength(I0);
+                constexpr auto L0PerWmma     = B1BlockDesc_{}.GetLength(I3);
+                constexpr auto B_L1          = B1BlockDesc_{}.GetLength(I6);
 
-                return make_naive_tensor_descriptor_packed(make_tuple(Number<LWmma * L0PerWmma>{},
-                                                                      Number<NRepeat>{},
-                                                                      I1,
-                                                                      Number<B_LRow>{},
-                                                                      I1,
-                                                                      Number<B_L1>{}));
+                static_assert(B1BlockDesc_{}.GetLength(I2) == 1);
+                static_assert(B1BlockDesc_{}.GetLength(I4) == 1);
+                static_assert(B1BlockDesc_{}.GetLength(I5) == 1);
+
+                // Workaround, Freeze transform
+                if constexpr(L0PerWmma == 1)
+                {
+                    return make_naive_tensor_descriptor_packed(make_tuple(
+                        Number<LWmmaPerblock>{}, Number<NRepeat>{}, I1, I1, I1, Number<B_L1>{}));
+                }
+                else
+                {
+                    return transform_tensor_descriptor(
+                        B1BlockDesc_{},
+                        make_tuple(make_merge_transform_v3_division_mod(
+                                       make_tuple(Number<LWmmaPerblock>{}, Number<L0PerWmma>{})),
+                                   make_pass_through_transform(Number<NRepeat>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<I1>{}),
+                                   make_pass_through_transform(Number<B_L1>{})),
+                        make_tuple(Sequence<0, 3>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<4>{},
+                                   Sequence<5>{},
+                                   Sequence<6>{}),
+                        make_tuple(Sequence<0>{},
+                                   Sequence<1>{},
+                                   Sequence<2>{},
+                                   Sequence<3>{},
+                                   Sequence<4>{},
+                                   Sequence<5>{}));
+                }
             }
         }();
 

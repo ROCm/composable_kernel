@@ -115,12 +115,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        // We are not storing the original packed type in LDS, so we need to multiply the smem size
-        // by the packed size.
-        constexpr index_t smem_size_a = Policy::template GetSmemSizeA<Problem>() * APackedSize;
-        constexpr index_t smem_size_b = Policy::template GetSmemSizeB<Problem>() * BPackedSize;
-
-        return smem_size_a + smem_size_b;
+        return Policy::template GetSmemSize<Problem>();
     }
 
     CK_TILE_HOST static std::string Print()
@@ -268,8 +263,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Prob
             using BQDramTileWindowStep = typename BQDramBlockWindowTmp::BottomTensorIndex;
 
             // Note: BDataType PkInt4 gets converted during loading, before going to LDS
-            auto&& [a_lds_block, b_lds_block] =
-                Base::template GetABLdsTensorViews<ADataType, OverrideBDataType>(p_smem);
+            auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
 
             constexpr auto a_lds_load_tile_distr =
                 make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());

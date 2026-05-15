@@ -23,8 +23,9 @@ struct GemmPipelineAgBgCrCompV6DefaultPolicy
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
 
+#if defined(__gfx950__)
         constexpr index_t vector_size =
-            DS_READ_TR_SIZE() / sizeof(typename Problem::ComputeDataType);
+            DS_READ_TR_SIZE() / sizeof(typename Problem::AComputeDataType);
         constexpr index_t thread_elements = WarpTile::at(I1) * WarpTile::at(I2) / get_warp_size();
         constexpr auto wg_attr_num_access =
             !(is_a_load_tr<Problem> || is_b_load_tr<Problem>) ? WGAttrNumAccessEnum::Single
@@ -32,7 +33,9 @@ struct GemmPipelineAgBgCrCompV6DefaultPolicy
             : vector_size * 2 == thread_elements              ? WGAttrNumAccessEnum::Double
             : vector_size * 4 == thread_elements              ? WGAttrNumAccessEnum::Quad
                                                               : WGAttrNumAccessEnum::Invalid;
-
+#else
+        constexpr auto wg_attr_num_access = WGAttrNumAccessEnum::Default;
+#endif
         using WarpGemm = WarpGemmDispatcher<typename Problem::ADataType,
                                             typename Problem::BDataType,
                                             typename Problem::CDataType,

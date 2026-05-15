@@ -73,7 +73,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
 
     static_assert(KPack % (A_K1 * A_KRow) == 0, "wrong!");
     static_assert(KPack % (B_K1 * B_KRow) == 0, "wrong!");
-    static constexpr index_t KRepeat = KPerBlock / KPack;
+    static constexpr index_t KRepeat = ck::math::max(KPerBlock / KPack, 1);
 
     static constexpr auto WmmaK = Number<wmma_gemm.wmma_instr.k_per_wmma>{};
 

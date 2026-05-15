@@ -2,9 +2,20 @@
 // SPDX-License-Identifier: MIT
 
 #include "gemm_mx_common.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3_mx.hpp"
+using F4 = ck::f4x2_pk_t;
+using F8 = ck::f8_t;
 
-using ADataType = ck::f4x2_pk_t;
-using BDataType = ck::f4x2_pk_t;
+#if defined(A_DATATYPE)
+using ADataType = A_DATATYPE;
+#else
+using ADataType = F4;
+#endif
+#if defined(B_DATATYPE)
+using BDataType = B_DATATYPE;
+#else
+using BDataType = F4;
+#endif
 
 using XDataType       = ck::e8m0_bexp_t;
 using XPackedDataType = int32_t;
@@ -21,7 +32,8 @@ using AElementOp = PassThrough; // elementwise transformation for A matrix
 using BElementOp = PassThrough; // elementwise transformation for B matrix
 using CElementOp = PassThrough; // elementwise transformation for C matrix
 
-constexpr ck::index_t DataPackedSize = 2;                    // Packed representation of data
+constexpr ck::index_t DataPackedSize =
+    ck::packed_size_v<ADataType>;                            // Packed representation of data
 constexpr ck::index_t ScaleBlockSize = 32;                   // scaling block size
 constexpr ck::index_t KPerBlock      = 256 / DataPackedSize; // 256 f4 = 128 fp4x2
 

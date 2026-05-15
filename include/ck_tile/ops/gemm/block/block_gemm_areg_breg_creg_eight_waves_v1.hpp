@@ -19,13 +19,14 @@ struct BlockGemmARegBRegCRegEightWavesV1
     template <typename PipelineProblem_, typename GemmPolicy_>
     struct GemmTraits_
     {
-        using Problem         = remove_cvref_t<PipelineProblem_>;
-        using Policy          = remove_cvref_t<GemmPolicy_>;
-        using ADataType       = remove_cvref_t<typename Problem::ADataType>;
-        using BDataType       = remove_cvref_t<typename Problem::BDataType>;
-        using CDataType       = remove_cvref_t<typename Problem::CDataType>;
-        using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-        using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
+        using Problem          = remove_cvref_t<PipelineProblem_>;
+        using Policy           = remove_cvref_t<GemmPolicy_>;
+        using ADataType        = remove_cvref_t<typename Problem::ADataType>;
+        using BDataType        = remove_cvref_t<typename Problem::BDataType>;
+        using CDataType        = remove_cvref_t<typename Problem::CDataType>;
+        using AComputeDataType = remove_cvref_t<typename Problem::AComputeDataType>;
+        using BComputeDataType = remove_cvref_t<typename Problem::BComputeDataType>;
+        using BlockGemmShape   = remove_cvref_t<typename Problem::BlockGemmShape>;
 
         static constexpr index_t kBlockSize = Problem::kBlockSize;
         static constexpr auto Scheduler     = Problem::Scheduler;
@@ -77,10 +78,11 @@ struct BlockGemmARegBRegCRegEightWavesV1
     using WarpGemm       = typename Traits::WarpGemm;
     using BlockGemmShape = typename Traits::BlockGemmShape;
 
-    using ADataType       = remove_cvref_t<typename Traits::ADataType>;
-    using BDataType       = remove_cvref_t<typename Traits::BDataType>;
-    using CDataType       = remove_cvref_t<typename Traits::CDataType>;
-    using ComputeDataType = remove_cvref_t<typename Traits::ComputeDataType>;
+    using ADataType        = remove_cvref_t<typename Traits::ADataType>;
+    using BDataType        = remove_cvref_t<typename Traits::BDataType>;
+    using CDataType        = remove_cvref_t<typename Traits::CDataType>;
+    using AComputeDataType = remove_cvref_t<typename Traits::AComputeDataType>;
+    using BComputeDataType = remove_cvref_t<typename Traits::BComputeDataType>;
 
     static constexpr index_t KIterPerWarp = Traits::KIterPerWarp;
     static constexpr index_t MIterPerWarp = Traits::MIterPerWarp;
@@ -195,10 +197,10 @@ struct BlockGemmARegBRegCRegEightWavesV1
             make_static_tile_distribution(MakeCBlockDistributionEncode()));
     }
 
-    using ALdsTile  = decltype(make_static_distributed_tensor<ComputeDataType>(
+    using ALdsTile  = decltype(make_static_distributed_tensor<AComputeDataType>(
         make_static_tile_distribution(MakeABlockDistributionEncode())));
     using BLdsTiles = statically_indexed_array<
-        statically_indexed_array<decltype(make_static_distributed_tensor<ComputeDataType>(
+        statically_indexed_array<decltype(make_static_distributed_tensor<BComputeDataType>(
                                      make_static_tile_distribution(
                                          MakeBBlockDistributionEncode()))),
                                  KIterPerWarp>,

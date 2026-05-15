@@ -36,8 +36,13 @@ class TestGemmBilinear : public ::testing::Test
     {
         bool all_success = true;
 
-        for(auto length : lengths)
+        for(size_t i = 0; i < lengths.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& length = lengths[i];
             int M        = length[0];
             int N        = length[1];
             int K        = length[2];
@@ -46,10 +51,20 @@ class TestGemmBilinear : public ::testing::Test
             int StrideD0 = ck::is_same_v<D0Layout, Row> ? N : M;
             int StrideE  = ck::is_same_v<ELayout, Row> ? N : M;
 
-            all_success =
-                all_success &
-                ProfileGemmBilinearImpl(
-                    1, 1, false, true, M, N, K, StrideA, StrideB, StrideD0, StrideE, 1.F, 1.F);
+            all_success = all_success & ProfileGemmBilinearImpl(1,
+                                                                1,
+                                                                false,
+                                                                false,
+                                                                M,
+                                                                N,
+                                                                K,
+                                                                StrideA,
+                                                                StrideB,
+                                                                StrideD0,
+                                                                StrideE,
+                                                                1.F,
+                                                                1.F,
+                                                                instance_index);
         }
 
         EXPECT_TRUE(all_success);

@@ -296,7 +296,11 @@ int main(int argc, char* argv[])
     try
     {
 #if CK_TILE_USE_WMMA
+#ifdef CLUSTER_LAUNCH_ENABLED
+        return !run_gemm_example<GemmConfigComputeV3_WMMA_ClusterLaunch>(arg_parser);
+#else
         return !run_gemm_example<GemmConfigComputeV3_WMMA>(arg_parser);
+#endif
 #else
         return !run_gemm_example<GemmConfigComputeV3_2>(arg_parser);
 #endif

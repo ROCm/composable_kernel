@@ -23,21 +23,22 @@ template <typename ADataType,
           typename BDataType,
           typename CDataType,
           typename AccDataType,
-          typename ScaleDataType,
+          typename AScaleDataType,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CElementwiseOperation,
-          typename ComputeTypeA = CDataType,
-          typename ComputeTypeB = ComputeTypeA>
+          typename ComputeTypeA   = CDataType,
+          typename ComputeTypeB   = ComputeTypeA,
+          typename BScaleDataType = AScaleDataType>
 struct ReferenceMXGemm : public device::BaseOperator
 {
     // Argument
     struct Argument : public device::BaseArgument
     {
         Argument(const Tensor<ADataType>& a_m_k,
-                 const Tensor<ScaleDataType>& a_m_kblock_scales,
+                 const Tensor<AScaleDataType>& a_m_kblock_scales,
                  const Tensor<BDataType>& b_k_n,
-                 const Tensor<ScaleDataType>& b_kblock_n_scales,
+                 const Tensor<BScaleDataType>& b_kblock_n_scales,
                  Tensor<CDataType>& c_m_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
@@ -54,9 +55,9 @@ struct ReferenceMXGemm : public device::BaseOperator
         }
 
         const Tensor<ADataType>& a_m_k_;
-        const Tensor<ScaleDataType>& a_m_kblock_scales_;
+        const Tensor<AScaleDataType>& a_m_kblock_scales_;
         const Tensor<BDataType>& b_k_n_;
-        const Tensor<ScaleDataType>& b_kblock_n_scales_;
+        const Tensor<BScaleDataType>& b_kblock_n_scales_;
         Tensor<CDataType>& c_m_n_;
 
         AElementwiseOperation a_element_op_;
@@ -197,9 +198,9 @@ struct ReferenceMXGemm : public device::BaseOperator
     bool IsSupportedArgument(const device::BaseArgument*) override { return true; }
 
     static auto MakeArgument(const Tensor<ADataType>& a_m_k,
-                             const Tensor<ScaleDataType>& a_m_kblock_scales,
+                             const Tensor<AScaleDataType>& a_m_kblock_scales,
                              const Tensor<BDataType>& b_k_n,
-                             const Tensor<ScaleDataType>& b_kblock_n_scales,
+                             const Tensor<BScaleDataType>& b_kblock_n_scales,
                              Tensor<CDataType>& c_m_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,

@@ -186,6 +186,8 @@ bool profile_grouped_gemm_fixed_nk_impl(int do_verification,
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
     if(op_ptrs.size() <= 0)
     {
         throw std::runtime_error("wrong! no device GEMM instance found");

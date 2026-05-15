@@ -75,6 +75,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
             ck_tile::element_wise::PassThrough,
             ck_tile::element_wise::PassThrough,
             WeiDataType,
+            WeiDataType, // TODO: need to double check
             GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
             GroupedConvTraitsType::VectorSizeA,
             GroupedConvTraitsType::VectorSizeB>;
@@ -82,7 +83,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
         using GemmPipeline = typename PipelineTypeTraits<
             ConvConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
-        using ConvEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+        using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
             OutDataType, // A: Out
             InDataType,  // B: In
             DsDataType,
@@ -101,7 +102,13 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
             GroupedConvTraitsType::FixedGemmParams::TransposeC,
             ConvConfig::NumWaveGroups,
             GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
-            GroupedConvTraitsType::VectorSizeC>>;
+            GroupedConvTraitsType::VectorSizeC>;
+
+        using ConvEpilogue =
+            std::conditional_t<ConvConfig::Pipeline == ck_tile::GemmPipeline::COMPUTE_TDM_V1 ||
+                                   ConvConfig::Pipeline == ck_tile::GemmPipeline::COMPUTE_TDM_V2,
+                               ck_tile::TdmEpilogue<EpilogueProblem>,
+                               ck_tile::CShuffleEpilogue<EpilogueProblem>>;
 
         using Kernel = ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType,
                                                                        TilePartitioner,

@@ -32,7 +32,10 @@ template <index_t BlockSize,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t KPerXDL,
-          bool IsF4F6 = false>
+          bool IsF4_A = false,
+          bool IsF4_B = false,
+          bool IsF6_A = false,
+          bool IsF6_B = false>
 struct BlockwiseGemmXdlops_pipeline_hotloop_inst
 {
     static constexpr index_t WaveNumM = MPerBlock / (MRepeat * MPerXDL);
@@ -60,7 +63,14 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
     static constexpr index_t C_MFMA_Inst_Num =
         MPerBlock * NPerBlock * KPerBlock / (BlockSize / WaveSize) / (MPerXDL * NPerXDL * KPerXDL);
 
-    static constexpr index_t C_MFMA_SpeedUp = IsF4F6 ? 2 : 1;
+    static constexpr index_t C_MFMA_SpeedUp =
+#if defined(__gfx125__)
+        (IsF4_A && IsF4_B) ? 2 : 1; // gfx1250: 2x speedup only if BOTH are FP4
+#else
+        ((IsF4_A || IsF6_A) && (IsF4_B || IsF6_B))
+            ? 2
+            : 1; // Other archs: 2x speedup if BOTH are FP4 or FP6
+#endif
 
     static constexpr index_t C_MFMA_Inst_Cycle = []() {
         if constexpr(NPerXDL == 16)

@@ -177,8 +177,14 @@ bool profile_elementwise_layernorm_impl(int do_verification,
 
     int num_kernel = 0;
 
-    for(auto& inst_ptr : instance_ptrs)
+    for(size_t i = 0; i < instance_ptrs.size(); i++)
     {
+        if((instance_index != -1) && (instance_index != static_cast<int>(i)))
+        {
+            // skip test if instance_index is specified
+            continue;
+        }
+        auto& inst_ptr    = instance_ptrs[i];
         auto argument_ptr = inst_ptr->MakeArgumentPointer(
             length,
             {
@@ -270,17 +276,12 @@ bool profile_elementwise_layernorm_impl(int do_verification,
                   << best_gb_per_sec << " GB/s, " << best_instance_name << std::endl;
     }
 
-    if(num_kernel == 0)
+    if(num_kernel == 0 && instance_index == -1)
     {
         std::cout << "Error: No kernel is tested" << std::endl;
         return false;
     }
 
-    if(instance_index != -1)
-    {
-        std::cout << "elementwise_layernorm_instance (" << instance_index << "/" << num_kernel
-                  << "): Passed" << std::endl;
-    }
     return true;
 }
 

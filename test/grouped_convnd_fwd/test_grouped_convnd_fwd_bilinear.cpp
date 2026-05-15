@@ -12,13 +12,14 @@
 #include "profiler/profile_grouped_conv_fwd_bilinear_impl.hpp"
 #include "ck/tensor_operation/gpu/element/binary_element_wise_operation.hpp"
 
-using I8   = int8_t;
-using F8   = ck::f8_t;
-using BF8  = ck::bf8_t;
-using F16  = ck::half_t;
-using BF16 = ck::bhalf_t;
-using F32  = float;
-
+using I8                          = int8_t;
+using F8                          = ck::f8_t;
+using BF8                         = ck::bf8_t;
+using F16                         = ck::half_t;
+using BF16                        = ck::bhalf_t;
+using F32                         = float;
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
 template <typename Tuple>
 class TestGroupedConvndFwdBilinear : public ::testing::Test
 {
@@ -34,7 +35,11 @@ class TestGroupedConvndFwdBilinear : public ::testing::Test
     using IndexType    = ck::index_t;
 
     std::vector<ck::utils::conv::ConvParam> conv_params;
-
+#if defined(CK_TEST_DISABLE_GPU_VALIDATION)
+    static constexpr int verify_ = 1; // CPU reference
+#else
+    static constexpr int verify_ = 2; // GPU reference
+#endif
     template <ck::index_t NDimSpatial>
     void Run()
     {
@@ -44,8 +49,13 @@ class TestGroupedConvndFwdBilinear : public ::testing::Test
         // Create a Bilinear operation (binary element-wise operation)
         const auto bilinear_op = ck::tensor_operation::element_wise::Bilinear{};
 
-        for(auto& param : conv_params)
+        for(size_t i = 0; i < conv_params.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& param = conv_params[i];
             if(ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a")
             {
                 if(std::is_same<InDataType, F8>::value || std::is_same<InDataType, BF8>::value)
@@ -66,12 +76,13 @@ class TestGroupedConvndFwdBilinear : public ::testing::Test
                                OutDataType,
                                AComputeType,
                                BComputeType,
-                               IndexType>(2,     // do_verification
-                                          1,     // init_method: integer value
-                                          false, // do_log
-                                          false, // time_kernel
+                               IndexType>(verify_, // do_verification
+                                          1,       // init_method: integer value
+                                          false,   // do_log
+                                          false,   // time_kernel
                                           param,
-                                          bilinear_op);
+                                          bilinear_op,
+                                          instance_index);
         }
         EXPECT_TRUE(pass);
     }
@@ -131,4 +142,21 @@ TYPED_TEST(TestGroupedConvndFwdBilinear3d, Test3D)
     this->conv_params.push_back(
         {3, 96, 1, 1, 1, {3, 3, 3}, {120, 40, 20}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}, {1, 1, 1}});
     this->template Run<3>();
+}
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }

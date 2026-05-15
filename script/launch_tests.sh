@@ -27,7 +27,7 @@ fi
 
 python3 "$SCRIPT_DIR/dependency-parser/main.py" parse "$BUILD_NINJA_FILE" --workspace-root "$GIT_ROOT"
 
-# Path to enhanced_dependency_mapping.json in the same directory
+# Path to enhanced_dependency_mapping.json in the same directory 
 JSON_FILE="$BUILD_DIR/enhanced_dependency_mapping.json"
 
 # Check if the JSON file exists
@@ -40,7 +40,7 @@ branch=$(git -C "$GIT_ROOT" rev-parse --abbrev-ref HEAD)
 
 # Run the command from the git root so that git diff paths are correct
 cd "$GIT_ROOT"
-python3 "$SCRIPT_DIR/dependency-parser/main.py" select "$JSON_FILE" origin/develop "$branch"
+python3 "$SCRIPT_DIR/dependency-parser/main.py" select "$JSON_FILE" FETCH_HEAD "$branch"
 
 # Path to tests_to_run.json in the same directory
 TEST_FILE="tests_to_run.json"

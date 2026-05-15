@@ -27,17 +27,18 @@ struct BQuantBlockUniversalGemmAsBsCr
     template <typename PipelineProblem_, typename GemmPolicy_>
     struct GemmTraits_
     {
-        using Problem         = remove_cvref_t<PipelineProblem_>;
-        using Policy          = remove_cvref_t<GemmPolicy_>;
-        using ADataType       = remove_cvref_t<typename Problem::ADataType>;
-        using BDataType       = remove_cvref_t<typename Problem::BDataType>;
-        using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;
-        using BLayout         = remove_cvref_t<typename Problem::BLayout>;
-        using BQLayout        = remove_cvref_t<typename Problem::BQLayout>;
-        using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
-        using CDataType       = remove_cvref_t<typename Problem::CDataType>;
-        using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
-        using BQuantGroupSize = remove_cvref_t<typename Problem::BQuantGroupSize>;
+        using Problem          = remove_cvref_t<PipelineProblem_>;
+        using Policy           = remove_cvref_t<GemmPolicy_>;
+        using ADataType        = remove_cvref_t<typename Problem::ADataType>;
+        using BDataType        = remove_cvref_t<typename Problem::BDataType>;
+        using BQDataType       = remove_cvref_t<typename Problem::BQDataType>;
+        using BLayout          = remove_cvref_t<typename Problem::BLayout>;
+        using BQLayout         = remove_cvref_t<typename Problem::BQLayout>;
+        using AComputeDataType = remove_cvref_t<typename Problem::AComputeDataType>;
+        using BComputeDataType = remove_cvref_t<typename Problem::BComputeDataType>;
+        using CDataType        = remove_cvref_t<typename Problem::CDataType>;
+        using BlockGemmShape   = remove_cvref_t<typename Problem::BlockGemmShape>;
+        using BQuantGroupSize  = remove_cvref_t<typename Problem::BQuantGroupSize>;
 
         static constexpr index_t kBlockSize = Problem::kBlockSize;
         static constexpr auto Scheduler     = Problem::Scheduler;
@@ -108,12 +109,14 @@ struct BQuantBlockUniversalGemmAsBsCr
             is_any_of<ADataType, fp8_t, bf8_t, bf16_t, fp16_t>::value &&
             is_any_of<BDataType, fp8_t, bf8_t, pk_int4_t, bf16_t, pk_fp4_t, fp16_t>::value &&
             is_any_of<BQDataType, float, fp8_t, bf8_t, e8m0_t>::value &&
-            is_any_of<ComputeDataType, fp8_t, bf8_t, bf16_t, fp16_t>::value &&
+            is_any_of<AComputeDataType, fp8_t, bf8_t, bf16_t, fp16_t>::value &&
+            is_any_of<BComputeDataType, fp8_t, bf8_t, bf16_t, fp16_t>::value &&
             std::is_same_v<CDataType, fp32_t>);
 
         static constexpr index_t InterWaveSchedulingMacClusters = 1;
 
-        static constexpr index_t KPack      = WarpGemm::kKPerThread;
+        static constexpr index_t KPackA     = WarpGemm::kKPerThread;
+        static constexpr index_t KPackB     = WarpGemm::kKPerThread;
         static constexpr index_t KPerThread = KIterPerWarp * WarpGemm::kKPerThread;
 
         template <typename T>
@@ -134,11 +137,12 @@ struct BQuantBlockUniversalGemmAsBsCr
     public:
     using Traits = GemmTraits_<Problem_, Policy_>;
 
-    using ADataType       = remove_cvref_t<typename Traits::ADataType>;
-    using BDataType       = remove_cvref_t<typename Traits::BDataType>;
-    using BQDataType      = remove_cvref_t<typename Traits::BQDataType>;
-    using ComputeDataType = remove_cvref_t<typename Traits::ComputeDataType>;
-    using CDataType       = remove_cvref_t<typename Traits::CDataType>;
+    using ADataType        = remove_cvref_t<typename Traits::ADataType>;
+    using BDataType        = remove_cvref_t<typename Traits::BDataType>;
+    using BQDataType       = remove_cvref_t<typename Traits::BQDataType>;
+    using AComputeDataType = remove_cvref_t<typename Traits::AComputeDataType>;
+    using BComputeDataType = remove_cvref_t<typename Traits::BComputeDataType>;
+    using CDataType        = remove_cvref_t<typename Traits::CDataType>;
 
     // BDataType gets converted from PkInt4 during loading
     // OverrideBDataType is only used when BCastPolicy is CastBeforeLDSWrite for microscale.
@@ -288,7 +292,7 @@ struct BQuantBlockUniversalGemmAsBsCr
             constexpr index_t thread_buffer_size = nelements / UnaryOpSize_;
             const element_wise::DequantPack8 elementwise_op{};
             using SrcVectorRawType = ext_vector_t<BDataTypeRaw, UnaryOpSize_ / BPackedSize>;
-            using DstVectorType    = ext_vector_t<ComputeDataType, UnaryOpSize_>;
+            using DstVectorType    = ext_vector_t<BComputeDataType, UnaryOpSize_>;
 
             static_ford<sequence<NIterPerWarp, Traits::QScalesPerBlockRow>>{}([&](auto nk) {
                 constexpr auto nIter   = number<nk[number<0>{}]>{};

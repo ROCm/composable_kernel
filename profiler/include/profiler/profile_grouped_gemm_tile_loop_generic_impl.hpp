@@ -266,6 +266,8 @@ bool profile_grouped_gemm_tile_loop_generic_impl(
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
+    std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
+
     if(op_ptrs.size() <= 0)
     {
         throw std::runtime_error("wrong! no device GEMM instance found");

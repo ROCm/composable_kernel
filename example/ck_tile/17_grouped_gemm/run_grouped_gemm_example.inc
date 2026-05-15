@@ -233,7 +233,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
         if constexpr(GemmConfig::Preshuffle)
         {
             ck_tile::HostTensor<BDataType> b_shuffle_host =
-                ck_tile::shuffle_b<GemmConfig>(b_k_n_tensors[i]);
+                ck_tile::shuffle_b_v0<GemmConfig>(b_k_n_tensors[i]);
             b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(b_shuffle_host));
         }
         else

@@ -8,6 +8,7 @@
 #include "ck_tile/host.hpp"
 #include "test_grouped_gemm_util.hpp"
 
+using F8    = ck_tile::fp8_t;
 using F16   = ck_tile::half_t;
 using F32   = float;
 using Row   = ck_tile::tensor_layout::gemm::RowMajor;

@@ -1,7 +1,7 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a")
+if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx125")
   set(TARGET_NAME tile_example_batched_transpose)
   add_executable(${TARGET_NAME} batched_transpose_example.cpp batched_transpose_api.cpp)
   target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/)

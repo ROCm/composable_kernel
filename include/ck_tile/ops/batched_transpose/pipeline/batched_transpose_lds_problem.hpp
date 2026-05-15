@@ -46,6 +46,20 @@ struct BatchedTransposeLdsProblem
                   "xdl dim should be divided by quad dim!");
     static_assert(kSecondSizePerWarp % kQuadrantSecondDim == 0,
                   "xdl dim should be divided by quad dim!");
+
+    // TODO: unify for all architectures
+    // Specific to gfx125x
+    // TODO: these two should be tuned ; but kLeadQuadSize * kSecondQuadSize will be 4(wave64) or
+    //  2(wave32)
+    static constexpr index_t kLeadQuadSize = 1;
+    // if warp size is 64; quad size is 4; otherwise quad size is 2
+    static constexpr index_t kSecondQuadSize = (get_warp_size() == 64 ? 4 : 2) / kLeadQuadSize;
+
+    // this will be the smallest granularity of warp tile for transpose
+    static constexpr index_t kWarpTileLeadDim   = kLeadQuadSize * kQuadrantLeadDim;
+    static constexpr index_t kWarpTileSecondDim = kSecondQuadSize * kQuadrantSecondDim;
+
+    // pre gfx125
     // xdl rows/cols is divided into quadrants.
     static constexpr index_t kQuadNumPerLeadDim   = kLeadSizePerWarp / kQuadrantLeadDim;
     static constexpr index_t kQuadNumPerSecondDim = kSecondSizePerWarp / kQuadrantSecondDim;
