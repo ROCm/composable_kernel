@@ -68,6 +68,36 @@ constexpr auto SIGNATURE_NDHWGC_FP16_FWD =
                        .output                 = {.config = {.layout = ckb::TensorLayout::NDHWGK}}};
 
 /////////////////////////////////////////
+// FWD signatures (NGCHW / NGCDHW)
+//////////////////////////////////////////
+
+constexpr auto SIGNATURE_NGCHW_FP32_FWD =
+    ckt::ConvSignature{.spatial_dim            = 2,
+                       .direction              = ckb::ConvDirection::FORWARD,
+                       .data_type              = ckb::DataType::FP32,
+                       .accumulation_data_type = ckb::DataType::FP32,
+                       .input                  = {.config = {.layout = ckb::TensorLayout::NGCHW}},
+                       .weight                 = {.config = {.layout = ckb::TensorLayout::GKCYX}},
+                       .output                 = {.config = {.layout = ckb::TensorLayout::NGKHW}}};
+
+constexpr auto SIGNATURE_NGCHW_FP16_FWD =
+    ckt::ConvSignature{.spatial_dim            = 2,
+                       .direction              = ckb::ConvDirection::FORWARD,
+                       .data_type              = ckb::DataType::FP16,
+                       .accumulation_data_type = ckb::DataType::FP32,
+                       .input                  = {.config = {.layout = ckb::TensorLayout::NGCHW}},
+                       .weight                 = {.config = {.layout = ckb::TensorLayout::GKCYX}},
+                       .output                 = {.config = {.layout = ckb::TensorLayout::NGKHW}}};
+
+constexpr auto SIGNATURE_NGCHW_BF16_FWD =
+    ckt::ConvSignature{.spatial_dim            = 2,
+                       .direction              = ckb::ConvDirection::FORWARD,
+                       .data_type              = ckb::DataType::BF16,
+                       .accumulation_data_type = ckb::DataType::FP32,
+                       .input                  = {.config = {.layout = ckb::TensorLayout::NGCHW}},
+                       .weight                 = {.config = {.layout = ckb::TensorLayout::GKCYX}},
+                       .output                 = {.config = {.layout = ckb::TensorLayout::NGKHW}}};
+/////////////////////////////////////////
 // BWD WEIGHT signatures
 //////////////////////////////////////////
 
