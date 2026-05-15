@@ -49,6 +49,7 @@ def rocmnode(name) {
 def show_node_info() {
     sh """
         echo "NODE_NAME = \$NODE_NAME"
+        hostname
         lsb_release -sd
         uname -r
         cat /sys/module/amdgpu/version
