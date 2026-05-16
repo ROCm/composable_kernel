@@ -156,6 +156,9 @@ concept TileOptimizationsDescriptor = requires(T t) {
     { t.split_image } -> std::convertible_to<bool>;
     { t.explicit_gemm } -> std::convertible_to<bool>;
     { t.two_stage } -> std::convertible_to<bool>;
+    { t.streamk.enabled } -> std::convertible_to<bool>;
+    { t.streamk.reduction_strategy } -> std::convertible_to<StreamKReductionStrategy>;
+    { t.streamk.persistent } -> std::convertible_to<bool>;
 };
 
 // Concept to check if struct specifies depthwise convolution tile parameters.
@@ -311,13 +314,18 @@ concept SpecifiesTileBlockGemm = requires {
     { T::block_gemm.scheduler } -> std::convertible_to<PipelineScheduler>;
 };
 
-// Concept to check if struct specifies block GEMM (CK Tile).
+// Concept to check if struct specifies optimizations (CK Tile).
 template <typename T>
 concept SpecifiesTileOptimizations = requires {
     { T::optimizations.num_groups_to_merge } -> std::convertible_to<int>;
     { T::optimizations.split_image } -> std::convertible_to<bool>;
     { T::optimizations.explicit_gemm } -> std::convertible_to<bool>;
     { T::optimizations.two_stage } -> std::convertible_to<bool>;
+    { T::optimizations.streamk.enabled } -> std::convertible_to<bool>;
+    {
+        T::optimizations.streamk.reduction_strategy
+    } -> std::convertible_to<StreamKReductionStrategy>;
+    { T::optimizations.streamk.persistent } -> std::convertible_to<bool>;
 };
 
 // Concept to check if struct specifies depthwise convolution tile parameters.

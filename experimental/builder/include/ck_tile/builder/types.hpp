@@ -248,6 +248,19 @@ enum class StreamKReductionStrategy
     TREE
 };
 
+// StreamK configuration for tile-level optimizations.
+struct StreamKConfig
+{
+    bool enabled;
+    StreamKReductionStrategy reduction_strategy;
+    bool persistent;
+
+    static constexpr StreamKConfig disabled()
+    {
+        return {false, StreamKReductionStrategy::LINEAR, false};
+    }
+};
+
 // to_string methods for enum classes
 inline std::string_view to_string(DataType dt)
 {

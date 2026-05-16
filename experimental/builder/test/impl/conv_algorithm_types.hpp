@@ -379,6 +379,8 @@ struct TileOptimizations
     bool explicit_gemm;
     // Two-stage kernels
     bool two_stage;
+    // StreamK work distribution
+    ckb::StreamKConfig streamk = ckb::StreamKConfig::disabled();
 };
 static_assert(ckb::TileOptimizationsDescriptor<TileOptimizations>);
 

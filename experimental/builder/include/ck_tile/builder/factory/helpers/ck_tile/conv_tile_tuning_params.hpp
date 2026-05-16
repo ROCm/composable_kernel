@@ -36,6 +36,7 @@ struct TileOptimizations
     bool split_image        = false;
     bool explicit_gemm      = false;
     bool two_stage          = false;
+    StreamKConfig streamk   = StreamKConfig::disabled();
 };
 
 template <ConvAlgorithmDescriptor auto ALGORITHM>
@@ -181,10 +182,12 @@ consteval TileOptimizations SetTileOptimizations()
 {
     constexpr auto& OPT = ALGORITHM.optimizations;
 
-    return TileOptimizations{.num_groups_to_merge = OPT.num_groups_to_merge,
-                             .split_image         = OPT.split_image,
-                             .explicit_gemm       = OPT.explicit_gemm,
-                             .two_stage           = OPT.two_stage};
+    return TileOptimizations{
+        .num_groups_to_merge = OPT.num_groups_to_merge,
+        .split_image         = OPT.split_image,
+        .explicit_gemm       = OPT.explicit_gemm,
+        .two_stage           = OPT.two_stage,
+        .streamk = {OPT.streamk.enabled, OPT.streamk.reduction_strategy, OPT.streamk.persistent}};
 }
 
 // Maps builder StreamKReductionStrategy to ck_tile::StreamKReductionStrategy.
@@ -211,12 +214,12 @@ struct TilePartitionerType
 };
 
 template <ConvAlgorithmDescriptor auto ALGORITHM, typename GemmShape_, typename ConvTraitsType_>
-    requires SpecifiesStreamK<decltype(ALGORITHM)>
+    requires(ALGORITHM.optimizations.streamk.enabled)
 struct TilePartitionerType<ALGORITHM, GemmShape_, ConvTraitsType_>
 {
     static constexpr auto CK_STRATEGY =
-        MapStreamKReductionStrategy(ALGORITHM.streamk.reduction_strategy);
-    static constexpr bool PERSISTENT = ALGORITHM.streamk.persistent;
+        MapStreamKReductionStrategy(ALGORITHM.optimizations.streamk.reduction_strategy);
+    static constexpr bool PERSISTENT = ALGORITHM.optimizations.streamk.persistent;
 
     using type = ck_tile::StreamKTilePartitioner<GemmShape_, CK_STRATEGY, PERSISTENT>;
 };

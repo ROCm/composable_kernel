@@ -5,6 +5,7 @@ import argparse
 import shutil
 from pathlib import Path
 
+
 class ConvInstanceTemplateParams:
     def __init__(
         self,
@@ -22,6 +23,9 @@ class ConvInstanceTemplateParams:
         split_image,
         explicit_gemm,
         id,
+        streamk_enabled=False,
+        streamk_reduction_strategy=None,
+        streamk_persistent=False,
     ):
         self.specialization = specialization
         self.tile_size = tile_size
@@ -37,13 +41,27 @@ class ConvInstanceTemplateParams:
         self.split_image = split_image
         self.explicit_gemm = explicit_gemm
         self.id = id
+        self.streamk_enabled = streamk_enabled
+        self.streamk_reduction_strategy = streamk_reduction_strategy
+        self.streamk_persistent = streamk_persistent
 
     def get_optimizations(self):
         explicit_gemm = "true" if self.explicit_gemm else "false"
         split_image = "true" if self.split_image else "false"
         num_groups_to_merge = str(self.num_groups_to_merge)
         two_stage_instance = "true" if self.is_two_stage_instance else "false"
-        return f"ckt::TileOptimizations{{.num_groups_to_merge = {num_groups_to_merge}, .split_image = {split_image}, .explicit_gemm = {explicit_gemm}, .two_stage = {two_stage_instance}}}"
+        if self.streamk_enabled:
+            streamk_str = (
+                f"{{true, ckb::StreamKReductionStrategy::{self.streamk_reduction_strategy}, "
+                f"{'true' if self.streamk_persistent else 'false'}}}"
+            )
+        else:
+            streamk_str = "ckb::StreamKConfig::disabled()"
+        return (
+            f"ckt::TileOptimizations{{.num_groups_to_merge = {num_groups_to_merge}, "
+            f".split_image = {split_image}, .explicit_gemm = {explicit_gemm}, "
+            f".two_stage = {two_stage_instance}, .streamk = {streamk_str}}}"
+        )
 
     def get_specialization(self):
         namespace = "ckb::TileConvSpecialization::"
@@ -89,6 +107,7 @@ def get_dtype(problem_name):
     else:
         raise RuntimeError("Cannot parse data type from problem name: " + problem_name)
 
+
 def get_k_mfma(dtype, m_per_xdl, n_per_xdl):
     if m_per_xdl != n_per_xdl:
         raise RuntimeError("Not supported")
@@ -103,6 +122,7 @@ def get_k_mfma(dtype, m_per_xdl, n_per_xdl):
         else:
             return 16
 
+
 def check_vectors(a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector):
     if a_scalar_per_vector != 1 and a_scalar_per_vector % 2 != 0:
         return False
@@ -112,31 +132,33 @@ def check_vectors(a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector)
         return False
     return True
 
+
 def parse_instance_string(instance_string):
     """Parse instance string, treating Seq(...) as a single parameter."""
     params = []
     current_param = ""
     paren_depth = 0
-    
+
     for char in instance_string:
-        if char == '(':
+        if char == "(":
             paren_depth += 1
             current_param += char
-        elif char == ')':
+        elif char == ")":
             paren_depth -= 1
             current_param += char
-        elif char == ',' and paren_depth == 0:
+        elif char == "," and paren_depth == 0:
             # Only split on comma if we're not inside parentheses
             params.append(current_param.strip())
             current_param = ""
         else:
             current_param += char
-    
+
     # Add the last parameter
     if current_param.strip():
         params.append(current_param.strip())
-    
+
     return params
+
 
 def copy_includes(instances_path):
     inc_dir = Path(__file__).resolve().parent
@@ -146,12 +168,15 @@ def copy_includes(instances_path):
     shutil.copy(f"{inc_dir}/include/instance_run.inc", instances_path)
     shutil.copy(f"{inc_dir}/include/signatures.hpp", instances_path)
 
+
 def generate_calls_inc(instances, problem_name, direction, filter_pattern):
     generate_dir = Path(__file__).resolve().parent
     output_dir = Path(f"{generate_dir}/instances/{direction}")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(f"{generate_dir}/instances/{direction}/{problem_name}_calls.inc", "w") as f:
+    with open(
+        f"{generate_dir}/instances/{direction}/{problem_name}_calls.inc", "w"
+    ) as f:
         if problem_name.find(filter_pattern) == -1:
             return
         for instance in instances:
@@ -176,7 +201,14 @@ def generate_defs_inc(instances, problem_name, signature, direction, filter_patt
 
 
 def generate_conv_cpp(
-    instances, problem_name, config, direction, signature_name, filter_pattern, instances_path):
+    instances,
+    problem_name,
+    config,
+    direction,
+    signature_name,
+    filter_pattern,
+    instances_path,
+):
     for instance in instances:
         if problem_name.find(filter_pattern) == -1:
             break
@@ -185,20 +217,157 @@ def generate_conv_cpp(
         directory_path.mkdir(parents=True, exist_ok=True)
         parent_dir = Path(__file__).resolve().parent
         template_file = "include/grouped_convolution_tile.cpp.in"
-        
-        with open(f"{parent_dir}/{template_file}", "r",) as f:
+
+        with open(
+            f"{parent_dir}/{template_file}",
+            "r",
+        ) as f:
             content = f.read()
 
             content = content.replace("gen_signature", signature_name)
             content = content.replace("gen_instance_name", instance_name)
-            content = content.replace("gen_specialization", instance.get_specialization())
+            content = content.replace(
+                "gen_specialization", instance.get_specialization()
+            )
             content = content.replace("gen_thread_block", instance.get_thread_block())
-            content = content.replace("gen_block_gemm_desc", instance.get_block_gemm_desc())
-            content = content.replace("gen_block_transfer", instance.get_block_transfer())
+            content = content.replace(
+                "gen_block_gemm_desc", instance.get_block_gemm_desc()
+            )
+            content = content.replace(
+                "gen_block_transfer", instance.get_block_transfer()
+            )
             content = content.replace("gen_optimizations", instance.get_optimizations())
 
-        with open(f"{instances_path}/{direction}/{config}/{instance_name}.cpp","w",) as f:
+        with open(
+            f"{instances_path}/{direction}/{config}/{instance_name}.cpp",
+            "w",
+        ) as f:
             f.write(content)
+
+
+# Maps ck_tile pipeline names (from GetPipelineName()) to builder PipelineVersion enum names.
+PIPELINE_NAME_TO_VERSION = {
+    "BASIC_V1": "V1",
+    "MEMORY": "V2",
+    "COMPUTE_V3": "V3",
+    "COMPUTE_V4": "V4",
+    "COMPUTE_V5": "V5",
+    "COMPUTE_V6": "V6",
+    "BASIC_ASYNC_V1": "ASYNC_V1",
+    "COMPUTE_ASYNC": "ASYNC_V4",
+}
+
+# Maps ck_tile StreamKReductionStrategy int values (from static_cast<int> in instance string)
+# to builder enum names. ck_tile enum: Atomic=0, Linear=1, Tree=2.
+# Atomic=0 is omitted: it is not expected in generated instances. If encountered, .get()
+# falls back to str(reduction_int) ("0"), which will cause a downstream build error.
+STREAMK_REDUCTION_STRATEGY = {
+    1: "LINEAR",
+    2: "TREE",
+}
+
+
+def parse_native_bwd_weight_instance(args, instance_id, problem_name):
+    """Parse a native CK Tile instance string (GroupedConvolutionBackwardWeightKernel<...>).
+
+    Fields (0-indexed after splitting on commas inside <>):
+    0: NDimSpatial, 1: ConvSpec, 2: InLayout, 3: WeiLayout, 4: DsLayout, 5: OutLayout,
+    6: VecA, 7: VecB, 8: VecC, 9: NumGroupsToMerge, 10: SplitImage, 11: ExplicitGemm,
+    12: MPerBlock, 13: NPerBlock, 14: KPerBlock, 15: MWarp, 16: NWarp, 17: KWarp,
+    18: MWarpTile, 19: NWarpTile, 20: KWarpTile, 21: ADataType, 22: BDataType,
+    23: PipelineName, 24: Scheduler, 25: DoubleSmemBuffer, 26: NumWaveGroups,
+    27: AccDataType, 28: EDataType, 29: DsDataType, 30: CDEElementwiseOp,
+    31: IsStreamK, [32: ReductionStrategy, 33: PersistentDP]
+    """
+    spec = args[1]
+    tile_size = [int(args[12]), int(args[13]), int(args[14])]
+    warps = [int(args[15]), int(args[16]), int(args[17])]
+    warp_tile = [int(args[18]), int(args[19]), int(args[20])]
+
+    pipeline_name = args[23]
+    if pipeline_name not in PIPELINE_NAME_TO_VERSION:
+        raise RuntimeError(
+            f"Unknown pipeline name '{pipeline_name}' in native instance {instance_id}"
+        )
+    pipeline_version = PIPELINE_NAME_TO_VERSION[pipeline_name]
+
+    scheduler = args[24]
+    double_smem_buffer = int(args[25]) != 0
+    num_wave_groups = int(args[26])
+
+    scalar_per_vector = [int(args[6]), int(args[7]), int(args[8])]
+    num_groups_to_merge = int(args[9])
+    split_image = int(args[10]) != 0
+    explicit_gemm = int(args[11]) != 0
+
+    is_streamk = int(args[31]) != 0
+    streamk_reduction_strategy = None
+    streamk_persistent = False
+    is_two_stage = get_dtype(problem_name) != "float" and scalar_per_vector[2] == 1
+    if is_streamk:
+        is_two_stage = False
+        reduction_int = int(args[32])
+        streamk_reduction_strategy = STREAMK_REDUCTION_STRATEGY.get(
+            reduction_int, str(reduction_int)
+        )
+        streamk_persistent = int(args[33]) != 0
+
+    return ConvInstanceTemplateParams(
+        spec,
+        tile_size,
+        warps,
+        warp_tile,
+        double_smem_buffer,
+        num_wave_groups,
+        is_two_stage,
+        pipeline_version,
+        scheduler,
+        scalar_per_vector,
+        num_groups_to_merge,
+        split_image,
+        explicit_gemm,
+        instance_id,
+        streamk_enabled=is_streamk,
+        streamk_reduction_strategy=streamk_reduction_strategy,
+        streamk_persistent=streamk_persistent,
+    )
+
+
+def parse_native_fwd_instance(args, instance_id, problem_name):
+    """Parse a native CK Tile forward conv instance string."""
+    raise NotImplementedError("Native forward instance parsing is not yet implemented.")
+
+
+def parse_native_bwd_data_instance(args, instance_id, problem_name):
+    """Parse a native CK Tile backward data instance string."""
+    raise NotImplementedError(
+        "Native backward data instance parsing is not yet implemented."
+    )
+
+
+# Maps kernel type prefix to native parser function.
+NATIVE_PARSERS = {
+    "GroupedConvolutionBackwardWeightKernel": parse_native_bwd_weight_instance,
+    "GroupedConvolutionForwardKernel": parse_native_fwd_instance,
+    "GroupedConvolutionBackwardDataKernel": parse_native_bwd_data_instance,
+}
+
+
+def try_parse_native_instance(instance, instance_id, problem_name):
+    """Try to parse an instance line as a native CK Tile instance string.
+
+    Returns a ConvInstanceTemplateParams if the line matches a native format,
+    or None if it doesn't match (so the caller can fall through to old CK parsing).
+    """
+    stripped = instance.strip()
+    for prefix, parser in NATIVE_PARSERS.items():
+        if stripped.startswith(prefix + "<"):
+            start = stripped.index("<") + 1
+            end = stripped.rindex(">")
+            params_str = stripped[start:end]
+            args = parse_instance_string(params_str)
+            return parser(args, instance_id, problem_name)
+    return None
 
 
 def parse_fwd_instances(instances, problem_name):
@@ -206,8 +375,12 @@ def parse_fwd_instances(instances, problem_name):
     for instance_id, instance in enumerate(instances):
         if instance.find("#") != -1 or instance.find(";") != -1:
             continue
-        start = instance.index('<') + 1
-        end = instance.rindex('>')
+        native = try_parse_native_instance(instance, instance_id, problem_name)
+        if native is not None:
+            convs.append(native)
+            continue
+        start = instance.index("<") + 1
+        end = instance.rindex(">")
         params_str = instance[start:end]
         args = parse_instance_string(params_str)
 
@@ -260,7 +433,9 @@ def parse_fwd_instances(instances, problem_name):
             elif pipeline_version == "v4":
                 pipeline_version = "ASYNC_V4"
             else:
-                raise RuntimeError(f"{pipeline_version} not supported pipeline for direct load")
+                raise RuntimeError(
+                    f"{pipeline_version} not supported pipeline for direct load"
+                )
         else:
             pipeline_version = pipeline_version.upper()
 
@@ -272,13 +447,19 @@ def parse_fwd_instances(instances, problem_name):
         k_per_xdl = max(k1, get_k_mfma(dtype, m_per_xdl, n_per_xdl))
 
         if split_image:
-            print(f"Skipping instance {instance_id} with split_image since it's not supported yet.")
+            print(
+                f"Skipping instance {instance_id} with split_image since it's not supported yet."
+            )
             continue
         if pipeline_version == "V5":
-            print(f"Skipping instance {instance_id} with V5 since it's not supported yet.")
+            print(
+                f"Skipping instance {instance_id} with V5 since it's not supported yet."
+            )
             continue
         if pipeline_version == "ASYNC_V4":
-            print(f"Skipping instance {instance_id} with ASYNC_V4 since it's not supported yet.")
+            print(
+                f"Skipping instance {instance_id} with ASYNC_V4 since it's not supported yet."
+            )
             continue
 
         is_two_stage = False
@@ -302,19 +483,27 @@ def parse_fwd_instances(instances, problem_name):
         convs.append(conv)
     return convs
 
+
 def parse_bwd_weight_instances(instances, problem_name):
     convs = []
 
     for instance_id, instance in enumerate(instances):
         if instance.find("#") != -1 or instance.find(";") != -1:
             continue
+        native = try_parse_native_instance(instance, instance_id, problem_name)
+        if native is not None:
+            if native.streamk_enabled and get_dtype(problem_name) == "float" and native.pipeline_version.find("ASYNC") != -1:
+                print(f"Skipping instance {instance_id} with streamk, async, float since it's not supported yet.")
+                continue
+            convs.append(native)
+            continue
 
         device_op_name = instance.split("<")[0]
-        start = instance.index('<') + 1
-        end = instance.rindex('>')
+        start = instance.index("<") + 1
+        end = instance.rindex(">")
         params_str = instance[start:end]
         args = parse_instance_string(params_str)
-        
+
         direct_load = False
 
         is_v3_instance = instance.find("Xdl_CShuffleV3") != -1
@@ -322,7 +511,9 @@ def parse_bwd_weight_instances(instances, problem_name):
         is_explicit_gemm = device_op_name.find("Explicit") != -1
 
         if is_explicit_gemm:
-            gemm_params = device_op_name = instance.split("<")[2].split(">")[1].split(",")
+            gemm_params = device_op_name = (
+                instance.split("<")[2].split(">")[1].split(",")
+            )
             args = [param.split(":")[1].strip() for param in gemm_params]
 
             spec = "Filter1x1Stride1Pad0"
@@ -332,7 +523,7 @@ def parse_bwd_weight_instances(instances, problem_name):
             m_per_block = int(mnk_per_block[0])
             n_per_block = int(mnk_per_block[1])
             k_per_block = int(mnk_per_block[2])
-            
+
             wave_tile = args[2].split("x")
             m_per_xdl = int(wave_tile[0])
             n_per_xdl = int(wave_tile[1])
@@ -349,11 +540,16 @@ def parse_bwd_weight_instances(instances, problem_name):
             vector_read = args[5].split("x")
             a_scalar_per_vector = int(vector_read[0])
             b_scalar_per_vector = int(vector_read[1])
-            c_scalar_per_vector_seq = [int(x) for x in vector_read[2].strip("Seq").strip("(").strip(")").split(",")]
+            c_scalar_per_vector_seq = [
+                int(x)
+                for x in vector_read[2].strip("Seq").strip("(").strip(")").split(",")
+            ]
 
             if len(set(c_scalar_per_vector_seq)) != 1:
-                raise RuntimeError(f"c_scalar_per_vector must be the same across all waves for instance {instance_id} with device op {device_op_name}. Found values: {c_scalar_per_vector_seq}")
-            
+                raise RuntimeError(
+                    f"c_scalar_per_vector must be the same across all waves for instance {instance_id} with device op {device_op_name}. Found values: {c_scalar_per_vector_seq}"
+                )
+
             c_scalar_per_vector = c_scalar_per_vector_seq[0]
 
             num_groups_to_merge = 1
@@ -383,7 +579,9 @@ def parse_bwd_weight_instances(instances, problem_name):
 
             if is_v3_instance:
                 if len(args) != 45:
-                    raise RuntimeError(f"Wrong number of parameters in the V3 XDL CShuffle instance string: {instance}")
+                    raise RuntimeError(
+                        f"Wrong number of parameters in the V3 XDL CShuffle instance string: {instance}"
+                    )
 
                 direct_load = int(args[43]) == 1
                 num_groups_to_merge = int(args[44])
@@ -393,9 +591,11 @@ def parse_bwd_weight_instances(instances, problem_name):
                 blk_gemm_pipeline_version = args[40]
             elif is_two_stage_instance:
                 if len(args) != 46:
-                    raise RuntimeError(f"Wrong number of parameters in the TwoStage instance string: {instance}\n" + 
-                                       f"Expected 46 parameters for TwoStage instance. Found {len(args)} parameters.")
-                
+                    raise RuntimeError(
+                        f"Wrong number of parameters in the TwoStage instance string: {instance}\n"
+                        + f"Expected 46 parameters for TwoStage instance. Found {len(args)} parameters."
+                    )
+
                 num_groups_to_merge = args[41]
 
                 # Block GEMM pipeline parameters
@@ -405,9 +605,11 @@ def parse_bwd_weight_instances(instances, problem_name):
             else:
                 # Regular V1 XDL CShuffle instance
                 if len(args) != 43:
-                    raise RuntimeError(f"Wrong number of parameters in the XDL CShuffle instance string: {instance}\n" + 
-                                       f"Expected 43 parameters for V1 instance. Found {len(args)} parameters.")
-                
+                    raise RuntimeError(
+                        f"Wrong number of parameters in the XDL CShuffle instance string: {instance}\n"
+                        + f"Expected 43 parameters for V1 instance. Found {len(args)} parameters."
+                    )
+
                 num_groups_to_merge = 1
 
                 # Block GEMM pipeline parameters
@@ -420,9 +622,13 @@ def parse_bwd_weight_instances(instances, problem_name):
         # Scheduler must be either Intrawave or Interwave.
         # Version must be from v1 to v5
         if block_gemm_pipeline_scheduler not in ["Intrawave", "Interwave"]:
-            raise RuntimeError(f"Invalid Block GEMM pipeline scheduler: {block_gemm_pipeline_scheduler} in instance: {instance}")
+            raise RuntimeError(
+                f"Invalid Block GEMM pipeline scheduler: {block_gemm_pipeline_scheduler} in instance: {instance}"
+            )
         if blk_gemm_pipeline_version not in ["v1", "v2", "v3", "v4", "v5"]:
-            raise RuntimeError(f"Invalid Block GEMM pipeline version: {blk_gemm_pipeline_version} in instance: {instance}")
+            raise RuntimeError(
+                f"Invalid Block GEMM pipeline version: {blk_gemm_pipeline_version} in instance: {instance}"
+            )
 
         split_image = instance.find("Large") != -1
         double_smem_buffer = blk_gemm_pipeline_version == "v4"
@@ -452,14 +658,24 @@ def parse_bwd_weight_instances(instances, problem_name):
 
         k_per_xdl = max(k1, get_k_mfma(dtype, m_per_xdl, n_per_xdl))
 
-        if check_vectors(a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector) == False:
-            print(f"Skipping instance {instance_id} with irregular load since it's not supported yet.")
+        if not check_vectors(
+            a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector
+        ):
+            print(
+                f"Skipping instance {instance_id} with irregular load since it's not supported yet."
+            )
             continue
         if pipeline_version == "V6":
-            print(f"Skipping instance {instance_id} with V6 since it's not supported yet.")
+            print(
+                f"Skipping instance {instance_id} with V6 since it's not supported yet."
+            )
             continue
-        if m_per_block > (warp_size * a_scalar_per_vector) or n_per_block > (warp_size * b_scalar_per_vector):
-            print(f"Skipping instance {instance_id} with multiple warps per continous tile dim since it's not supported yet.")
+        if m_per_block > (warp_size * a_scalar_per_vector) or n_per_block > (
+            warp_size * b_scalar_per_vector
+        ):
+            print(
+                f"Skipping instance {instance_id} with multiple warps per continous tile dim since it's not supported yet."
+            )
             continue
 
         if is_explicit_gemm:
@@ -483,14 +699,19 @@ def parse_bwd_weight_instances(instances, problem_name):
             instance_id,
         )
         convs.append(conv)
-            
+
     return convs
+
 
 def parse_bwd_data_instances(instances, problem_name):
     convs = []
 
     for instance_id, instance in enumerate(instances):
         if instance.find("#") != -1 or instance.find(";") != -1:
+            continue
+        native = try_parse_native_instance(instance, instance_id, problem_name)
+        if native is not None:
+            convs.append(native)
             continue
 
         start = instance.index('<') + 1
@@ -613,60 +834,90 @@ def parse_bwd_data_instances(instances, problem_name):
             
     return convs
 
-def generate_instances_fwd(instances, problem_name, config, filter_pattern, instances_path):
+
+def get_signature_base(config):
+    """Extract layout_dtype from config name, stripping variant suffixes.
+
+    Config names follow {layout}_{dtype}[_{variant}], e.g. nhwgc_fp16_streamk.
+    The signature is determined by layout and dtype only.
+    """
+    parts = config.split("_")
+    return f"{parts[0]}_{parts[1]}"
+
+
+def generate_instances_fwd(
+    instances, problem_name, config, filter_pattern, instances_path
+):
     direction = "forward"
-    signature_name = f"SIGNATURE_{config.upper()}_FWD"
+    signature_name = f"SIGNATURE_{get_signature_base(config).upper()}_FWD"
     instances = parse_fwd_instances(instances, problem_name)
     generate_calls_inc(instances, problem_name, direction, filter_pattern)
     generate_defs_inc(
-        instances,
-        problem_name,
-        signature_name,
-        direction,
-        filter_pattern
+        instances, problem_name, signature_name, direction, filter_pattern
     )
     generate_conv_cpp(
-        instances, problem_name, config, direction, signature_name, filter_pattern, instances_path
+        instances,
+        problem_name,
+        config,
+        direction,
+        signature_name,
+        filter_pattern,
+        instances_path,
     )
 
-def generate_instances_bwd_weight(instances, problem_name, config, filter_pattern, instances_path):
+
+def generate_instances_bwd_weight(
+    instances, problem_name, config, filter_pattern, instances_path
+):
     direction = "backward_weight"
-    signature_name = f"SIGNATURE_{config.upper()}_BWD_WEIGHT"
+    signature_name = f"SIGNATURE_{get_signature_base(config).upper()}_BWD_WEIGHT"
     instances = parse_bwd_weight_instances(instances, problem_name)
     generate_calls_inc(instances, problem_name, direction, filter_pattern)
     generate_defs_inc(
-        instances,
-        problem_name,
-        signature_name,
-        direction,
-        filter_pattern
+        instances, problem_name, signature_name, direction, filter_pattern
     )
     generate_conv_cpp(
-        instances, problem_name, config, direction, signature_name, filter_pattern, instances_path
+        instances,
+        problem_name,
+        config,
+        direction,
+        signature_name,
+        filter_pattern,
+        instances_path,
     )
 
-def generate_instances_bwd_data(instances, problem_name, config, filter_pattern, instances_path):
+
+def generate_instances_bwd_data(
+    instances, problem_name, config, filter_pattern, instances_path
+):
     direction = "backward_data"
-    signature_name = f"SIGNATURE_{config.upper()}_BWD_DATA"
+    signature_name = f"SIGNATURE_{get_signature_base(config).upper()}_BWD_DATA"
     instances = parse_bwd_data_instances(instances, problem_name)
     generate_calls_inc(instances, problem_name, direction, filter_pattern)
     generate_defs_inc(
-        instances,
-        problem_name,
-        signature_name,
-        direction,
-        filter_pattern
+        instances, problem_name, signature_name, direction, filter_pattern
     )
     generate_conv_cpp(
-        instances, problem_name, config, direction, signature_name, filter_pattern, instances_path
+        instances,
+        problem_name,
+        config,
+        direction,
+        signature_name,
+        filter_pattern,
+        instances_path,
     )
 
-def process_direction(configs, direction, generate_func, configs_prefix, filter_pattern, instances_path):
+
+def process_direction(
+    configs, direction, generate_func, configs_prefix, filter_pattern, instances_path
+):
     """Helper function to process a single direction."""
     for config in configs:
         instances = []
         generate_dir = Path(__file__).resolve().parent
-        config_path = f"{generate_dir}/configs/{direction}/{configs_prefix}/{config}.conf"
+        config_path = (
+            f"{generate_dir}/configs/{direction}/{configs_prefix}/{config}.conf"
+        )
         with open(config_path, "r") as file:
             instances = file.readlines()
 
@@ -828,7 +1079,6 @@ if __name__ == "__main__":
         "ndhwgc_bf16",
     ]
 
-    # FP32 doesn't work for bwd weigth currently
     bwd_weight_configs = [
         "nhwgc_fp32",
         "nhwgc_fp16",
@@ -836,6 +1086,12 @@ if __name__ == "__main__":
         "ndhwgc_fp32",
         "ndhwgc_fp16",
         "ndhwgc_bf16",
+        "nhwgc_fp32_streamk",
+        "nhwgc_fp16_streamk",
+        "nhwgc_bf16_streamk",
+        "ndhwgc_fp32_streamk",
+        "ndhwgc_fp16_streamk",
+        "ndhwgc_bf16_streamk",
     ]
 
     bwd_data_configs = [
@@ -868,13 +1124,13 @@ if __name__ == "__main__":
         choices=["forward", "backward_weight", "backward_data", "all"],
         type=str,
         default="all",
-        help="Convolution direction for which to generate instances."
+        help="Convolution direction for which to generate instances.",
     )
     parser.add_argument(
         "--instances_dir",
         type=str,
         default="../build/experimental/grouped_convolution_tile_instances",
-        help="Directory store generated instances."
+        help="Directory store generated instances.",
     )
     args = parser.parse_args()
 
@@ -895,9 +1151,23 @@ if __name__ == "__main__":
             process_direction(fwd_configs, args.direction, generate_instances_fwd, configs_prefix, args.filter_pattern, args.instances_dir)
             process_depthwise_forward(configs_prefix, args.instances_dir)
         case "backward_weight":
-            process_direction(bwd_weight_configs, args.direction, generate_instances_bwd_weight, configs_prefix, args.filter_pattern, args.instances_dir)
+            process_direction(
+                bwd_weight_configs,
+                args.direction,
+                generate_instances_bwd_weight,
+                configs_prefix,
+                args.filter_pattern,
+                args.instances_dir,
+            )
         case "backward_data":
-            process_direction(bwd_data_configs, args.direction, generate_instances_bwd_data, configs_prefix, args.filter_pattern, args.instances_dir)
+            process_direction(
+                bwd_data_configs,
+                args.direction,
+                generate_instances_bwd_data,
+                configs_prefix,
+                args.filter_pattern,
+                args.instances_dir,
+            )
         case "all":
             process_direction(fwd_configs, "forward", generate_instances_fwd, configs_prefix, args.filter_pattern, args.instances_dir)
             process_depthwise_forward(configs_prefix, args.instances_dir)
