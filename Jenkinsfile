@@ -616,7 +616,13 @@ def cmake_build(Map conf=[:]){
     }
 
     //cmake_env can overwrite default CXX variables.
-    def cmake_envs = "CXX=${params.BUILD_COMPILER} CXXFLAGS='-Werror' " + conf.get("cmake_ex_env","")
+    def cmake_envs
+    if(!setup_args.contains("gfx1250")){
+        cmake_envs = "CXX=${params.BUILD_COMPILER} CXXFLAGS='-Werror' " + conf.get("cmake_ex_env","")
+    }
+    else{ //use default compiler for gfx1250
+        cmake_envs = "CXX=/opt/rocm/llvm/bin/clang++ CXXFLAGS='-Werror' " + conf.get("cmake_ex_env","")
+    }
 
     if(conf.get("build_install","") == "true")
     {
@@ -782,9 +788,11 @@ def cmake_build(Map conf=[:]){
                     archiveArtifacts "clang_build_analysis_${arch_name}.log"
                 }
                 // Process ninja build trace after full build
-                sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${arch_name}.json"
-                archiveArtifacts "ck_build_trace_${arch_name}.json"
-                sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${arch_name}.json"
+                if(fileExists(".ninja_log")) {
+                    sh "python3 ../script/ninja_json_converter.py .ninja_log --legacy-format --output ck_build_trace_${arch_name}.json"
+                    archiveArtifacts "ck_build_trace_${arch_name}.json"
+                    sh "python3 ../script/parse_ninja_trace.py ck_build_trace_${arch_name}.json"
+                }
 
                 if (params.NINJA_FTIME_TRACE) {
                     echo "running ClangBuildAnalyzer"
