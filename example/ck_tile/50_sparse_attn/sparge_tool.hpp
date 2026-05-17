@@ -16,7 +16,10 @@ namespace sparge {
 
 struct SpargeParams
 {
-    int BLKQ = 128;
+    // BLKQ=64, BLKK=128 align with SpargeAttn SM90 (Hopper) convention;
+    // cf. upstream csrc/qattn/qk_int_sv_f8_cuda_sm90.cu:143-144.
+    // SM80/SM89 path uses the inverse 128/64 (cf. qk_int_sv_f16_cuda_sm80.cu:137-138).
+    int BLKQ = 64;
     int BLKK = 128;
 
     // Similarity gate threshold (TODO: per-head support).
