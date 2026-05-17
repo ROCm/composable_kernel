@@ -89,6 +89,43 @@ set_tests_properties(dispatcher_test_arch_support PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+add_test(
+    NAME dispatcher_test_fmha_codegen
+    COMMAND ${Python3_EXECUTABLE} -m unittest test_fmha_codegen -v
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_fmha_codegen PROPERTIES
+    LABELS "dispatcher;python;fmha;codegen"
+    TIMEOUT 120
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+add_test(
+    NAME dispatcher_test_fmha_rules
+    COMMAND ${Python3_EXECUTABLE} -m unittest test_fmha_rules -v
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+set_tests_properties(dispatcher_test_fmha_rules PROPERTIES
+    LABELS "dispatcher;python;fmha;rules"
+    TIMEOUT 60
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+# FMHA parity test (requires GPU)
+add_test(
+    NAME dispatcher_test_fmha_parity
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_fmha_parity.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+
+set_tests_properties(dispatcher_test_fmha_parity PROPERTIES
+    LABELS "dispatcher;python;fmha;parity;gpu"
+    TIMEOUT 600
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
 # Stress Test Script
 add_test(
     NAME dispatcher_stress_test
@@ -180,6 +217,9 @@ set(TEST_SOURCES
     test_registry.cpp
     test_dispatcher.cpp
     test_tile_backend.cpp
+    test_fmha_problem.cpp
+    test_fmha_dispatcher.cpp
+    test_fmha_registry.cpp
     
     # Extended unit tests (more comprehensive coverage)
     test_kernel_key_extended.cpp
@@ -221,6 +261,7 @@ set(STANDALONE_TESTS
     test_grouped_conv_problem.cpp
     test_grouped_conv_kernel_decl.cpp
     test_grouped_conv_registry.cpp
+    test_fmha_kernel_decl.cpp
 )
 
 foreach(test_source ${STANDALONE_TESTS})

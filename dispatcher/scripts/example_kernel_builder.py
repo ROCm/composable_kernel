@@ -11,6 +11,7 @@ configuration parameters, and generates appropriate kernels.
 """
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -152,6 +153,230 @@ def parse_conv_declarations(content: str) -> List[Dict]:
                 # Auto-fill missing parameters with defaults (autocorrect)
                 kernel = auto_fill_conv_defaults(kernel)
                 kernels.append(kernel)
+
+    return kernels
+
+
+def parse_fmha_declarations(content: str) -> List[Dict]:
+    """Parse DECL_FMHA_KERNEL_SET declarations into config-json-ready dicts."""
+    kernels = []
+
+    def parse_bool(value: str) -> bool:
+        return value.strip().lower() == "true"
+
+    def parse_int_list(match_text: str) -> List[int]:
+        return [int(v.strip()) for v in match_text.split(",") if v.strip()]
+
+    for match in re.finditer(r"DECL_FMHA_KERNEL_SET\s*\(", content):
+        body = extract_balanced_parens(content, match.end() - 1)
+        if not body:
+            continue
+
+        for add_match in re.finditer(r"\.add\s*\(", body):
+            add_body = extract_balanced_parens(body, add_match.end() - 1)
+            if not add_body:
+                continue
+
+            sig = {
+                "family": "fwd",
+                "data_type": "fp16",
+                "mode": "batch",
+                "vlayout": "r",
+                "hdim_q": 128,
+                "hdim_v": 128,
+                "mask": "no",
+                "bias": "no",
+                "lse": False,
+                "dropout": False,
+                "qscale": "no",
+                "rope": "none",
+                "logits": False,
+                "paged_kv": False,
+                "fp8_static_quant": False,
+                "skip_min_seqlen_q": False,
+                "sink": False,
+                "dbias": False,
+                "store_randval": False,
+                "deterministic": False,
+                "kv_memory_layout": "vectorized",
+                "kv_lookup_table": "sglang",
+                "page_size": 1,
+            }
+            profile = None
+            receipt = None
+            alg = {
+                "pipeline": "qr",
+                "tile": [128, 64, 32, 128, 32, 128],
+                "wave": [2, 2, 1, 2, 2, 1, 1, 1, 1],
+                "warp": [32, 32, 16, 32, 32, 16, 16, 16, 16],
+                "padding": [True, True, True, True],
+                "use_trload": False,
+                "hdim_q_alignment": 128,
+                "hdim_v_alignment": 128,
+                "block_per_cu": 1,
+                "num_wave_groups": 1,
+                "max_splits_log2": 0,
+                "max_seq_len_q": 0,
+                "selection_rank": 0,
+                "constraint_tag": "",
+            }
+
+            if m := re.search(r'\.family\s*\(\s*"([^"]+)"\s*\)', add_body):
+                sig["family"] = m.group(1)
+            if m := re.search(r'\.dtype\s*\(\s*"([^"]+)"\s*\)', add_body):
+                sig["data_type"] = m.group(1)
+            if m := re.search(r'\.mode\s*\(\s*"([^"]+)"\s*\)', add_body):
+                sig["mode"] = m.group(1)
+            if m := re.search(r'\.vlayout\s*\(\s*"([^"]+)"\s*\)', add_body):
+                sig["vlayout"] = m.group(1)
+            if m := re.search(r"\.hdim\s*\(\s*(\d+)\s*(?:,\s*(\d+)\s*)?\)", add_body):
+                sig["hdim_q"] = int(m.group(1))
+                sig["hdim_v"] = int(m.group(2)) if m.group(2) else int(m.group(1))
+            if m := re.search(r'\.mask\s*\(\s*"([^"]+)"\s*\)', add_body):
+                sig["mask"] = m.group(1)
+            if m := re.search(r'\.bias\s*\(\s*"([^"]+)"\s*\)', add_body):
+                sig["bias"] = m.group(1)
+            if m := re.search(r"\.lse\s*\(\s*(true|false)\s*\)", add_body, re.I):
+                sig["lse"] = parse_bool(m.group(1))
+            if m := re.search(r"\.dropout\s*\(\s*(true|false)\s*\)", add_body, re.I):
+                sig["dropout"] = parse_bool(m.group(1))
+            if m := re.search(r'\.qscale\s*\(\s*"([^"]+)"\s*\)', add_body):
+                sig["qscale"] = m.group(1)
+            if m := re.search(r'\.rope\s*\(\s*"([^"]+)"\s*\)', add_body):
+                sig["rope"] = m.group(1)
+            if m := re.search(r"\.logits\s*\(\s*(true|false)\s*\)", add_body, re.I):
+                sig["logits"] = parse_bool(m.group(1))
+            if m := re.search(r"\.paged_kv\s*\(\s*(true|false)\s*\)", add_body, re.I):
+                sig["paged_kv"] = parse_bool(m.group(1))
+            if m := re.search(
+                r"\.fp8_static_quant\s*\(\s*(true|false)\s*\)", add_body, re.I
+            ):
+                sig["fp8_static_quant"] = parse_bool(m.group(1))
+            if m := re.search(r"\.skip\s*\(\s*(true|false)\s*\)", add_body, re.I):
+                sig["skip_min_seqlen_q"] = parse_bool(m.group(1))
+            if m := re.search(r"\.sink\s*\(\s*(true|false)\s*\)", add_body, re.I):
+                sig["sink"] = parse_bool(m.group(1))
+            if m := re.search(r"\.dbias\s*\(\s*(true|false)\s*\)", add_body, re.I):
+                sig["dbias"] = parse_bool(m.group(1))
+            if m := re.search(
+                r"\.store_randval\s*\(\s*(true|false)\s*\)", add_body, re.I
+            ):
+                sig["store_randval"] = parse_bool(m.group(1))
+            if m := re.search(
+                r"\.deterministic\s*\(\s*(true|false)\s*\)", add_body, re.I
+            ):
+                sig["deterministic"] = parse_bool(m.group(1))
+            if m := re.search(
+                r'\.kv_cache\s*\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*(?:,\s*(\d+)\s*)?\)',
+                add_body,
+            ):
+                sig["kv_memory_layout"] = m.group(1)
+                sig["kv_lookup_table"] = m.group(2)
+                sig["page_size"] = int(m.group(3)) if m.group(3) else 1
+            if m := re.search(r'\.profile\s*\(\s*"([^"]+)"\s*\)', add_body):
+                profile = m.group(1)
+            if m := re.search(r"\.receipt\s*\(\s*(\d+)\s*\)", add_body):
+                receipt = int(m.group(1))
+
+            # Tile: bulk .tile(m0,n0,k0,n1,k1,k0max) or named .tile_m0(v)...
+            if m := re.search(
+                r"\.tile\s*\(\s*([0-9,\s]+)\)",
+                add_body,
+            ):
+                values = parse_int_list(m.group(1))
+                if len(values) == 6:
+                    alg["tile"] = values
+            for field_idx, field_name in enumerate(
+                ["tile_m0", "tile_n0", "tile_k0", "tile_n1", "tile_k1", "tile_k0max"]
+            ):
+                if m := re.search(rf"\.{field_name}\s*\(\s*(\d+)\s*\)", add_body):
+                    alg["tile"][field_idx] = int(m.group(1))
+
+            # Wave: bulk .wave(m0,n0,k0,...) or named .wave_m0(v)...
+            if m := re.search(r"\.wave\s*\(\s*([0-9,\s]+)\)", add_body):
+                values = parse_int_list(m.group(1))
+                if len(values) == 3:
+                    values += [2, 2, 1, 1, 1, 1]
+                elif len(values) == 6:
+                    values += [1, 1, 1]
+                if len(values) == 9:
+                    alg["wave"] = values
+            for field_idx, field_name in enumerate(
+                [
+                    "wave_m0",
+                    "wave_n0",
+                    "wave_k0",
+                    "wave_m1",
+                    "wave_n1",
+                    "wave_k1",
+                    "wave_m2",
+                    "wave_n2",
+                    "wave_k2",
+                ]
+            ):
+                if m := re.search(rf"\.{field_name}\s*\(\s*(\d+)\s*\)", add_body):
+                    alg["wave"][field_idx] = int(m.group(1))
+
+            # Warp: bulk .warp(m0,n0,k0,...) or named .warp_m0(v)...
+            if m := re.search(r"\.warp\s*\(\s*([0-9,\s]+)\)", add_body):
+                values = parse_int_list(m.group(1))
+                if len(values) == 3:
+                    values += [32, 32, 16, 16, 16, 16]
+                elif len(values) == 6:
+                    values += [16, 16, 16]
+                if len(values) == 9:
+                    alg["warp"] = values
+            for field_idx, field_name in enumerate(
+                [
+                    "warp_m0",
+                    "warp_n0",
+                    "warp_k0",
+                    "warp_m1",
+                    "warp_n1",
+                    "warp_k1",
+                    "warp_m2",
+                    "warp_n2",
+                    "warp_k2",
+                ]
+            ):
+                if m := re.search(rf"\.{field_name}\s*\(\s*(\d+)\s*\)", add_body):
+                    alg["warp"][field_idx] = int(m.group(1))
+            if m := re.search(r'\.pipeline\s*\(\s*"([^"]+)"\s*\)', add_body):
+                alg["pipeline"] = m.group(1)
+            if m := re.search(
+                r"\.padding\s*\(\s*(true|false)\s*,\s*(true|false)\s*,\s*(true|false)\s*,\s*(true|false)\s*\)",
+                add_body,
+                re.I,
+            ):
+                alg["padding"] = [parse_bool(m.group(i)) for i in range(1, 5)]
+            if m := re.search(r"\.trload\s*\(\s*(true|false)\s*\)", add_body, re.I):
+                alg["use_trload"] = parse_bool(m.group(1))
+            if m := re.search(r"\.alignments\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)", add_body):
+                alg["hdim_q_alignment"] = int(m.group(1))
+                alg["hdim_v_alignment"] = int(m.group(2))
+            if m := re.search(r"\.block_per_cu\s*\(\s*(\d+)\s*\)", add_body):
+                alg["block_per_cu"] = int(m.group(1))
+            if m := re.search(r"\.num_wave_groups\s*\(\s*(\d+)\s*\)", add_body):
+                alg["num_wave_groups"] = int(m.group(1))
+            if m := re.search(r"\.max_splits_log2\s*\(\s*(\d+)\s*\)", add_body):
+                alg["max_splits_log2"] = int(m.group(1))
+            if m := re.search(r"\.max_seq_len_q\s*\(\s*(\d+)\s*\)", add_body):
+                alg["max_seq_len_q"] = int(m.group(1))
+            if m := re.search(r"\.selection_rank\s*\(\s*(\d+)\s*\)", add_body):
+                alg["selection_rank"] = int(m.group(1))
+            if m := re.search(r'\.constraint\s*\(\s*"([^"]+)"\s*\)', add_body):
+                alg["constraint_tag"] = m.group(1)
+
+            arch = "gfx942"
+            if m := re.search(r'"(gfx\d+)"', add_body):
+                arch = m.group(1)
+
+            entry = {"arch": arch, "signature": sig, "algorithm": alg}
+            if profile is not None:
+                entry["profile"] = profile
+            if receipt is not None:
+                entry["receipt"] = receipt
+            kernels.append(entry)
 
     return kernels
 
@@ -619,7 +844,12 @@ def strip_cpp_strings_and_comments(content: str) -> str:
     n = len(content)
 
     # Patterns that indicate a string is problematic and should be stripped
-    problematic_patterns = ["DECL_KERNEL_SET", "DECL_GROUPED_CONV_KERNEL_SET", ".add("]
+    problematic_patterns = [
+        "DECL_KERNEL_SET",
+        "DECL_GROUPED_CONV_KERNEL_SET",
+        "DECL_FMHA_KERNEL_SET",
+        ".add(",
+    ]
 
     while i < n:
         # Check for raw string literal: R"delimiter(...)delimiter"
@@ -697,7 +927,9 @@ def detect_and_parse(source_path: Path) -> Tuple[str, List[Dict]]:
     content = source_path.read_text()
     content = strip_cpp_strings_and_comments(content)
 
-    if "DECL_GROUPED_CONV_KERNEL_SET" in content:
+    if "DECL_FMHA_KERNEL_SET" in content:
+        return "fmha", parse_fmha_declarations(content)
+    elif "DECL_GROUPED_CONV_KERNEL_SET" in content:
         return "conv", parse_conv_declarations(content)
     elif "DECL_KERNEL_SET" in content:
         return "gemm", parse_gemm_declarations(content)
@@ -1084,6 +1316,21 @@ def generate_conv_registration(
     return "\n".join(lines)
 
 
+def generate_fmha_registration(wrapper_headers: List[Path], source_stem: str) -> str:
+    """Generate FMHA registration code using dispatcher wrapper factories."""
+    if not wrapper_headers:
+        return "    // No FMHA kernels to register"
+
+    lines = ["    (void)arch;", ""]
+    for header in sorted(wrapper_headers):
+        stem = header.stem.replace("dispatcher_wrapper_", "")
+        lines.append(f"    // Register FMHA kernel: {stem}")
+        lines.append(
+            f"    registry.register_kernel(ck_tile::dispatcher::generated::make_{stem}(arch));"
+        )
+    return "\n".join(lines)
+
+
 def _build_conv_codegen_cmd(
     idx: int, k: Dict, codegen_dir: Path, output_dir: Path
 ) -> Tuple[int, List[str], str]:
@@ -1159,6 +1406,87 @@ def _run_conv_codegen(args: Tuple) -> Tuple[int, bool, str]:
     if result.returncode != 0:
         return (idx, False, result.stderr[:300])
     return (idx, True, "")
+
+
+def _build_fmha_codegen_cmd(
+    idx: int, k: Dict, codegen_dir: Path, output_dir: Path, gpu_target: str
+) -> Tuple[int, List[str], str]:
+    payload = {
+        "arch": k.get("arch", gpu_target),
+        "signature": k["signature"],
+        "algorithm": k["algorithm"],
+    }
+    if k.get("profile") is not None:
+        payload["profile"] = k["profile"]
+    if k.get("receipt") is not None:
+        payload["receipt"] = k["receipt"]
+
+    config_json = json.dumps(payload)
+    cmd = [
+        sys.executable,
+        str(codegen_dir / "fmha" / "codegen.py"),
+        "--output-dir",
+        str(output_dir),
+        "--gpu-target",
+        gpu_target,
+        "--config-json",
+        config_json,
+    ]
+    return (idx, cmd, str(codegen_dir))
+
+
+def _run_fmha_codegen(args: Tuple) -> Tuple[int, bool, str]:
+    idx, cmd, cwd = args
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
+    if result.returncode != 0:
+        return (idx, False, result.stderr[:400] or result.stdout[:400])
+    return (idx, True, "")
+
+
+def generate_fmha_kernels(
+    kernels: List[Dict], output_dir: Path, codegen_dir: Path, gpu_target: str
+) -> bool:
+    """Generate FMHA kernels for all declarations using unified FMHA codegen."""
+    if not kernels:
+        return False
+
+    # FMHA generator revisions can change emitted names or wrapper content.
+    # Clear previously generated FMHA files for this example directory so we
+    # only compile the current declaration set.
+    for pattern in ("fmha_*.hpp", "fmha_*.cpp", "fmha_*.o"):
+        for path in output_dir.glob(pattern):
+            path.unlink(missing_ok=True)
+    wrapper_dir = output_dir / "dispatcher_wrappers"
+    if wrapper_dir.exists():
+        for path in wrapper_dir.glob("dispatcher_wrapper_fmha_*.hpp"):
+            path.unlink(missing_ok=True)
+
+    unique_kernels = []
+    seen = set()
+    for k in kernels:
+        key = json.dumps(k, sort_keys=True)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_kernels.append(k)
+
+    work_items = [
+        _build_fmha_codegen_cmd(idx, k, codegen_dir, output_dir, gpu_target)
+        for idx, k in enumerate(unique_kernels)
+    ]
+
+    success_count = 0
+    max_workers = min(len(work_items), os.cpu_count() or 4)
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_run_fmha_codegen, w): w[0] for w in work_items}
+        for future in as_completed(futures):
+            idx, ok, err = future.result()
+            if ok:
+                success_count += 1
+            else:
+                print(f"  FMHA codegen error for kernel {idx + 1}: {err}")
+
+    return success_count > 0
 
 
 def generate_conv_kernels(
@@ -1290,19 +1618,10 @@ def compile_kernel(args: Tuple) -> Tuple[str, bool, str]:
 
     obj_file = output_dir / f"{kernel_name}.o"
 
-    cmd = [
-        hipcc,
-        "-c",
-        "-fPIC",
-        "-std=c++17",
-        "-O3",
-        f"--offload-arch={gpu_target}",
-        "-mllvm",
-        "-enable-noalias-to-md-conversion=0",
-        "-Wno-undefined-func-template",
-        "-Wno-float-equal",
-        "--offload-compress",
-    ]
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "python"))
+    from fmha_utils import fmha_compile_flags  # noqa: E402
+
+    cmd = fmha_compile_flags(gpu_target, hipcc, family="bwd")
 
     for inc_dir in include_dirs:
         cmd.extend(["-I", str(inc_dir)])
@@ -1343,6 +1662,14 @@ def main():
         print(
             f"[{target_name}] Conv {k.get('dtype', 'fp16')} {variant} {k.get('ndim', 2)}D ({len(kernels)} declarations)"
         )
+    elif example_type == "fmha":
+        k = kernels[0] if kernels else {}
+        sig = k.get("signature", {})
+        print(
+            f"[{target_name}] FMHA {sig.get('family', 'fwd')} {sig.get('data_type', 'fp16')} "
+            f"{sig.get('mode', 'batch')} hq={sig.get('hdim_q', 128)} hv={sig.get('hdim_v', 128)} "
+            f"({len(kernels)} declarations)"
+        )
     elif example_type == "gemm":
         k = kernels[0] if kernels else {}
         print(
@@ -1360,6 +1687,10 @@ def main():
     print(f"[{target_name}] Generating kernels...")
     if example_type == "conv":
         success = generate_conv_kernels(kernels, args.output_dir, codegen_dir)
+    elif example_type == "fmha":
+        success = generate_fmha_kernels(
+            kernels, args.output_dir, codegen_dir, args.gpu_target
+        )
     else:
         success = generate_gemm_kernels(kernels, args.output_dir, codegen_dir)
 
@@ -1370,6 +1701,22 @@ def main():
     # Find generated headers
     if example_type == "gemm":
         kernel_headers = list(args.output_dir.glob("gemm_*.hpp"))
+        wrapper_headers = list(
+            (args.output_dir / "dispatcher_wrappers").glob(
+                "dispatcher_wrapper_gemm_*.hpp"
+            )
+        )
+    elif example_type == "fmha":
+        kernel_headers = [
+            h
+            for h in args.output_dir.glob("fmha_*.hpp")
+            if not h.name.startswith("dispatcher_wrapper_")
+        ]
+        wrapper_headers = list(
+            (args.output_dir / "dispatcher_wrappers").glob(
+                "dispatcher_wrapper_fmha_*.hpp"
+            )
+        )
     else:
         prefix_map = {
             "forward": "grouped_conv_fwd",
@@ -1554,7 +1901,32 @@ inline void {func_name}(ck_tile::dispatcher::GroupedConvRegistry& registry, cons
 // Generic registration - avoids hardcoding the example name in user code
 // Safe for single-example executables (typical use case)
 #ifndef REGISTER_GENERATED_KERNELS
-#define REGISTER_GENERATED_KERNELS(registry, arch) generated::{func_name}(registry, arch)
+#define REGISTER_GENERATED_KERNELS(registry, arch) ::generated::{func_name}(registry, arch)
+#endif
+"""
+    elif example_type == "fmha":
+        wrapper_includes = "\n".join(
+            f'#include "dispatcher_wrappers/{h.name}"' for h in sorted(wrapper_headers)
+        )
+        register_body = generate_fmha_registration(wrapper_headers, source_stem)
+        header_content = f"""// Auto-generated for {target_name}
+#pragma once
+
+{wrapper_includes}
+
+#include "ck_tile/dispatcher/fmha_registry.hpp"
+#include "ck_tile/dispatcher/fmha_dispatcher.hpp"
+
+namespace generated {{
+
+inline void {func_name}(ck_tile::dispatcher::FmhaRegistry& registry, const std::string& arch) {{
+{register_body}
+}}
+
+}} // namespace generated
+
+#ifndef REGISTER_GENERATED_KERNELS
+#define REGISTER_GENERATED_KERNELS(registry, arch) ::generated::{func_name}(registry, arch)
 #endif
 """
     else:
@@ -1584,13 +1956,13 @@ inline void {func_name}(ck_tile::dispatcher::Registry& registry, const std::stri
 // Generic registration - avoids hardcoding the example name in user code
 // Safe for single-example executables (typical use case)
 #ifndef REGISTER_GENERATED_KERNELS
-#define REGISTER_GENERATED_KERNELS(registry, arch) generated::{func_name}(registry, arch)
+#define REGISTER_GENERATED_KERNELS(registry, arch) ::generated::{func_name}(registry, arch)
 #endif
 
 // Register a specific kernel set by name (for multi-registry patterns)
 // Usage: REGISTER_KERNEL_SET("compute_bound_set", registry, arch)
 #ifndef REGISTER_KERNEL_SET
-#define REGISTER_KERNEL_SET(set_name, registry, arch) generated::register_kernel_set(set_name, registry, arch)
+#define REGISTER_KERNEL_SET(set_name, registry, arch) ::generated::register_kernel_set(set_name, registry, arch)
 #endif
 """
     header_path.write_text(header_content)

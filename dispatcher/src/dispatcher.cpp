@@ -65,6 +65,7 @@ float Dispatcher::run_fused(const void* a_ptr,
         throw NoKernelFound(oss.str());
     }
 
+    kernel->set_benchmarking(benchmarking_);
     return kernel->run(a_ptr, b_ptr, c_ptr, d_ptrs, problem, stream);
 }
 
@@ -90,6 +91,7 @@ float Dispatcher::run_explicit(const std::string& kernel_id,
         throw UnsupportedProblem(oss.str());
     }
 
+    kernel->set_benchmarking(benchmarking_);
     return kernel->run(a_ptr, b_ptr, c_ptr, d_ptrs, problem, stream);
 }
 

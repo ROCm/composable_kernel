@@ -32,7 +32,11 @@ def find_hipcc():
 
 def compile_kernel(args):
     """Compile a single kernel."""
-    kernel_hpp, output_dir, include_dirs, hipcc = args
+    if len(args) == 5:
+        kernel_hpp, output_dir, include_dirs, hipcc, arch = args
+    else:
+        kernel_hpp, output_dir, include_dirs, hipcc = args
+        arch = "gfx942"
     kernel_name = kernel_hpp.stem
 
     # Create wrapper .cpp
@@ -45,19 +49,11 @@ namespace {{ volatile bool _k = true; }}
     # Compile to object
     obj_file = output_dir / f"{kernel_name}.o"
 
-    cmd = [
-        hipcc,
-        "-c",
-        "-fPIC",
-        "-std=c++17",
-        "-O3",
-        "--offload-arch=gfx942",
-        "-mllvm",
-        "-enable-noalias-to-md-conversion=0",
-        "-Wno-undefined-func-template",
-        "-Wno-float-equal",
-        "--offload-compress",
-    ]
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "python"))
+    from fmha_utils import fmha_compile_flags  # noqa: E402
+
+    # arch is extracted from work tuple above
+    cmd = fmha_compile_flags(arch, hipcc, family="bwd")
 
     for inc_dir in include_dirs:
         cmd.extend(["-I", str(inc_dir)])
@@ -78,6 +74,12 @@ def main():
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--include-dirs", type=str, required=True)
     parser.add_argument("--jobs", type=int, default=os.cpu_count())
+    parser.add_argument(
+        "--arch",
+        type=str,
+        default="gfx942",
+        help="GPU architecture target (default: gfx942)",
+    )
     args = parser.parse_args()
 
     # Find kernel headers
@@ -97,7 +99,9 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     # Prepare work items
-    work = [(h, args.output_dir, include_dirs, hipcc) for h in kernel_headers]
+    work = [
+        (h, args.output_dir, include_dirs, hipcc, args.arch) for h in kernel_headers
+    ]
 
     # Compile in parallel
     obj_files = []

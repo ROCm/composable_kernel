@@ -16,7 +16,7 @@
 | GEMM | grouped_gemm_quant | | ❌ | | ❌ | | | | ❌ | | | | ❌ | ❌ | ❌ | ❌ |
 | Reduce | multi_reduce2d [8]<br>engine: reduce/<br>example: 05_reduce/ | ✅ | | ❌ | | | | | | | | | ❌ | ✅ | ✅ | ❌ |
 | Reduce | reduce2d<br>example: 05_reduce/ | ❌ | | ❌ | | | | | | | | | ❌ | ❌ | ❌ | ❌ |
-| Attention | fmha<br>example: 01_fmha/ | ❌ | ❌ | ❌ | ❌ | | | | | | | | ❌ | ❌ | ❌ | ❌ |
+| Attention | fmha<br>engine: fmha/<br>example: 01_fmha/ | ✅ | ✅ | ✅ | ❌ | | | | | | | | ✅ | ✅ | ✅ | ❌ |
 | Attention | sparse_attn<br>example: 50_sparse_attn/ | ❌ | | ❌ | | | | | | | | | ❌ | ❌ | ❌ | ❌ |
 | Activation | softmax | ❌ | | ❌ | | | | | | | | | ❌ | ❌ | ❌ | ❌ |
 | Activation | topk_softmax<br>example: 09_topk_softmax/ | ❌ | | ❌ | | | | | | | | | ❌ | ❌ | ❌ | ❌ |

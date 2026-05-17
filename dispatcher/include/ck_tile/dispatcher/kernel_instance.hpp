@@ -59,6 +59,15 @@ class KernelInstance
                                         const void** d_ptrs,
                                         const Problem& problem,
                                         float tolerance = 1e-3f) const = 0;
+
+    /// Enable or disable GPU benchmarking (timing) for this kernel.
+    /// When disabled, the kernel executes once with no timing overhead
+    /// (one-shot mode for production use).
+    void set_benchmarking(bool enable) { benchmarking_ = enable; }
+    [[nodiscard]] bool benchmarking() const { return benchmarking_; }
+
+    protected:
+    bool benchmarking_ = true;
 };
 
 /// Shared pointer type for kernel instances

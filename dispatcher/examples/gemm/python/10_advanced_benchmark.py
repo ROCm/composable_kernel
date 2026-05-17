@@ -95,8 +95,6 @@ def initialize_matrix(shape, method, dtype):
 def main():
     args = parse_args()
 
-    reset_for_example()
-
     print("=" * 70)
     print("Example 10: Advanced GEMM Benchmarking")
     print("=" * 70)
