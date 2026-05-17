@@ -1,0 +1,6 @@
+{
+  "variant": "bwd",
+  "trait_config": {
+    "data_type": {"values": ["fp16", "bf16"]}
+  }
+}

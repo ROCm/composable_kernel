@@ -42,7 +42,6 @@ from ctypes_utils import (  # noqa: E402
     KernelConfig as DispatcherKernelConfig,
     setup_gemm_dispatcher,
     cleanup_gemm,
-    reset_for_example,
     validate_kernel_config,
     detect_gpu_arch,
 )
@@ -145,8 +144,6 @@ Examples:
         help="Target GPU architecture (auto-detected from rocminfo, override with --arch gfxNNN)",
     )
     args = parser.parse_args()
-
-    reset_for_example()
 
     print_section("Example 11: JSON Kernel Configuration Import")
 

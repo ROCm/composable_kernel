@@ -101,14 +101,14 @@ class GeneratedTileKernelInstance : public KernelInstance
                                    problem.N        // stride_E/C (row-major C: stride = N)
         );
 
-        // Create stream config for timing
+        const bool bench = this->benchmarking_;
         ck_tile::stream_config stream_cfg;
         stream_cfg.stream_id_      = reinterpret_cast<hipStream_t>(stream);
-        stream_cfg.time_kernel_    = true;
-        stream_cfg.log_level_      = 0;  // No logging for performance
-        stream_cfg.cold_niters_    = 5;  // Warmup iterations
-        stream_cfg.nrepeat_        = 10; // Measurement iterations
-        stream_cfg.is_gpu_timer_   = true;
+        stream_cfg.time_kernel_    = bench;
+        stream_cfg.log_level_      = 0;
+        stream_cfg.cold_niters_    = bench ? 5 : 0;
+        stream_cfg.nrepeat_        = bench ? 10 : 1;
+        stream_cfg.is_gpu_timer_   = bench;
         stream_cfg.flush_cache_    = false;
         stream_cfg.rotating_count_ = 1;
 

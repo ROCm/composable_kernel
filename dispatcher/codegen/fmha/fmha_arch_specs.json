@@ -1,0 +1,175 @@
+{
+  "_comment": "FMHA-specific architecture specs. Edit this file to add new GPU/dtype/pipeline support for FMHA.",
+  "_note": "Common GPU hardware data (element_sizes, warp_size, warp_configs, lds_capacity_kb) lives in ../arch_specs.json. This file holds FMHA-specific capabilities, tile tables, and validation rules.",
+
+  "architectures": {
+    "gfx90a": {
+      "family": "cdna2",
+      "arch_tag": "ck_tile::gfx9_t",
+      "supported_dtypes": ["fp16", "bf16", "fp32"],
+      "supported_pipelines": ["qr", "qr_async", "qs", "qr_pagedkv", "qr_nwarp_sshuffle", "appendkv", "bwd"],
+      "supports_trload": false,
+      "supports_v3": false
+    },
+    "gfx942": {
+      "family": "cdna3",
+      "arch_tag": "ck_tile::gfx9_t",
+      "supported_dtypes": ["fp16", "bf16", "fp32", "fp8", "fp8fp16", "fp8bf16", "fp8fp32", "bf8"],
+      "supported_pipelines": ["qr", "qr_async", "qs", "qr_pagedkv", "qr_nwarp_sshuffle", "appendkv", "bwd"],
+      "supports_trload": false,
+      "supports_v3": false
+    },
+    "gfx950": {
+      "family": "cdna4",
+      "arch_tag": "ck_tile::gfx9_t",
+      "supported_dtypes": ["fp16", "bf16", "fp32", "fp8", "fp8fp16", "fp8bf16", "fp8fp32", "bf8"],
+      "supported_pipelines": ["qr", "qr_async", "qs", "qr_async_trload", "qr_async_trload_v3", "v3", "qr_pagedkv", "qr_nwarp_sshuffle", "appendkv", "bwd"],
+      "supports_trload": true,
+      "supports_v3": true
+    },
+    "gfx1100": {
+      "family": "rdna3",
+      "arch_tag": "ck_tile::gfx11_t",
+      "supported_dtypes": ["fp16", "bf16"],
+      "supported_pipelines": ["qr", "qr_pagedkv", "qr_nwarp_sshuffle", "appendkv", "bwd"],
+      "supports_trload": false,
+      "supports_v3": false
+    },
+    "gfx1201": {
+      "family": "rdna4",
+      "arch_tag": "ck_tile::gfx12_t",
+      "supported_dtypes": ["fp16", "bf16", "fp8", "fp8bf16"],
+      "supported_pipelines": ["qr", "qr_pagedkv", "qr_nwarp_sshuffle", "appendkv", "bwd"],
+      "supports_trload": false,
+      "supports_v3": false
+    }
+  },
+
+  "supported_hdims": {
+    "_comment": "hdim_q must satisfy ceil_to_qualified_tile_length() in tile_fmha_shape.hpp. Each entry is [hdim_q, hdim_v].",
+    "fp16":    [[32,32], [64,64], [80,96], [96,128], [128,128], [160,160], [192,128], [192,192], [256,256]],
+    "bf16":    [[32,32], [64,64], [80,96], [96,128], [128,128], [160,160], [192,128], [192,192], [256,256]],
+    "fp32":    [[32,32], [48,48], [64,64], [96,128], [128,128], [192,192], [256,256]],
+    "fp8":     [[64,64], [128,128], [192,128], [256,256]],
+    "fp8bf16": [[64,64], [128,128], [192,128], [256,256]],
+    "fp8fp32": [[128,128]],
+    "bf8":     [[64,64], [128,128], [192,128], [256,256]],
+    "mxfp8":   [[128,128], [256,256]],
+    "mxfp4":   [[128,128], [256,256]]
+  },
+
+  "fmha_warp_tiles": {
+    "_comment": "FMHA warp tile sizes [wm0, wn0, wk0] per FMHA dtype. Subset of MFMA/WMMA instructions relevant to attention.",
+    "fp16":    [[32,32,16], [16,16,32]],
+    "bf16":    [[32,32,16], [16,16,32]],
+    "fp32":    [[16,16,16]],
+    "fp8":     [[32,32,32]],
+    "fp8bf16": [[32,32,32]],
+    "fp8fp32": [[32,32,32]],
+    "bf8":     [[32,32,32]],
+    "mxfp8":   [[32,32,64]],
+    "mxfp4":   [[16,16,128]]
+  },
+
+  "fmha_element_sizes": {
+    "_comment": "FMHA-specific element sizes for composite dtypes not in parent arch_specs.json. Common dtypes (fp16, bf16, fp32, fp8, bf8) use ../arch_specs.json element_sizes.",
+    "fp8bf16": 1,
+    "fp8fp32": 1,
+    "mxfp8":   1,
+    "mxfp4":   1
+  },
+
+  "tile_sweep_ranges": {
+    "_comment": "Block tile dimensions to sweep. Must be multiples of warp tile sizes.",
+    "valid_bm0": [16, 32, 64, 128, 192, 256],
+    "valid_bn0": [16, 32, 64, 96, 128, 192, 256, 384],
+    "valid_bk0": [16, 32, 64, 96, 128, 256]
+  },
+
+  "k0max_map": {
+    "_comment": "Maps hdim_q -> padded K-tile length. Source: tile_fmha_shape.hpp ceil_to_qualified_tile_length().",
+    "32": 32, "48": 48, "64": 64, "80": 96, "96": 128,
+    "128": 128, "160": 256, "192": 192, "256": 256
+  },
+
+  "lds_limits": {
+    "_comment": "LDS budget in bytes per non-async FMHA pipeline. Async pipelines compute LDS dynamically.",
+    "qr": 65536,
+    "qs": 65536
+  },
+
+  "global_rules": {
+    "hdim_192_128_no_bias_dropout": true,
+    "logits_requires_no_bias": true,
+    "group_mode_requires_padding": true,
+    "hdim_divisible_by": 8
+  },
+
+  "defaults": {
+    "tile":  [128, 64, 32, 128, 32, 128],
+    "wave":  [2, 2, 1, 2, 2, 1, 1, 1, 1],
+    "warp":  [32, 32, 16, 32, 32, 16, 16, 16, 16],
+    "padding": [true, true, true, true],
+    "block_per_cu": 1,
+    "num_wave_groups": 1,
+    "selection_rank": 0
+  },
+
+  "splitkv_combine": {
+    "combine_bn1": 32,
+    "hdims_fp16": [32, 64, 96, 128, 256],
+    "hdims_fp8":  [64, 128, 256]
+  },
+
+  "batch_prefill": {
+    "supported_page_sizes": [1, 16, 1024],
+    "supported_kv_memory_layouts": ["vectorized", "linear"],
+    "supported_kv_lookup_tables": ["vllm", "sglang"]
+  },
+
+  "bwd_tiles": {
+    "_comment": "BWD dq_dk_dv tile tables. Format: [bm0, bn0, bk0, bn1, bk1, bk0max, tile6, tile7, tile8].",
+    "dq_dk_dv_fp16": {
+      "32_32":   [32, 128, 32,  32,  32,  32, 64,  32,  32],
+      "64_64":   [32, 128, 64,  32,  64,  32, 32,  64,  64],
+      "96_128":  [32, 128, 96,  32,  96,  32, 32,  96,  96],
+      "128_128": [16, 128, 128, 16, 128,  16, 32, 128, 128],
+      "256_256": [16,  64, 256, 16, 256,  16, 32, 256, 256]
+    },
+    "dq_dk_dv_extra": {
+      "64_64": [
+        {"tile": [32, 128, 64, 32, 64, 32, 32, 64, 64], "tag": "trload", "batch_only": false},
+        {"tile": [32, 16, 64, 32, 64, 32, 16, 64, 64], "tag": "small", "batch_only": true}
+      ],
+      "128_128": [
+        {"tile": [16, 16, 128, 16, 128, 16, 16, 128, 128], "tag": "small", "batch_only": true},
+        {"tile": [16, 192, 128, 16, 128, 16, 32, 128, 128], "tag": "bn192", "batch_only": false},
+        {"tile": [32, 128, 128, 32, 128, 32, 32, 128, 128], "tag": "trload", "batch_only": false}
+      ]
+    },
+    "dot_do_o_hdims": [32, 64, 96, 128, 256],
+    "convert_dq_hdims": [32, 64, 96, 128, 256],
+    "convert_dq_tile_groups": {"32": 1, "64": 1, "96": 1, "128": 1, "256": 1},
+    "pad_combos": [["f","f"], ["f","t"], ["f","8"], ["t","f"], ["t","t"], ["t","8"], ["8","8"]],
+    "extra_pad_combos": [["f","f"], ["8","8"]],
+    "dropouts": ["no", "dropout_wg16", "dropout_wg16_storerandval"],
+    "small_dropouts": ["no"]
+  },
+
+  "bwd_wave_warp": {
+    "_comment": "BWD wave/warp lookup. Key: 'bm0_bn0_bk0_trload'. Value: {wave: 9-tuple, warp_k1: int}.",
+    "16_16_128_t":   {"wave": [1,1,1,1,1,1,1,1,1], "warp_k1": 16},
+    "16_64_256_f":   {"wave": [1,4,1,4,1,1,1,4,1], "warp_k1": 16},
+    "16_128_128_f":  {"wave": [1,4,1,4,1,1,1,4,1], "warp_k1": 16},
+    "16_192_128_t":  {"wave": [1,4,1,4,1,1,1,4,1], "warp_k1": 16},
+    "32_16_64_t":    {"wave": [1,1,1,1,1,1,1,1,1], "warp_k1": 16},
+    "32_128_32_f":   {"wave": [1,4,1,4,1,1,2,2,1], "warp_k1": 16},
+    "32_128_64_f":   {"wave": [1,4,1,4,1,1,1,4,1], "warp_k1": 16},
+    "32_128_64_t":   {"wave": [1,4,1,4,1,1,1,4,1], "warp_k1": 32},
+    "32_128_96_f":   {"wave": [1,4,1,4,1,1,2,2,1], "warp_k1": 16},
+    "32_128_128_t":  {"wave": [1,4,1,4,1,1,1,4,1], "warp_k1": 32},
+    "64_128_32_f":   {"wave": [2,4,1,4,1,1,2,4,1], "warp_k1": 16},
+    "64_128_64_f":   {"wave": [2,4,1,4,1,1,2,4,1], "warp_k1": 16},
+    "64_128_128_f":  {"wave": [2,4,1,4,1,1,2,4,1], "warp_k1": 16}
+  }
+}

@@ -3,11 +3,12 @@
 
 #pragma once
 
+#include <iomanip>
 #include <iostream>
-#include <string>
-#include <vector>
 #include <map>
 #include <sstream>
+#include <string>
+#include <vector>
 #include <algorithm>
 
 namespace ck_tile {

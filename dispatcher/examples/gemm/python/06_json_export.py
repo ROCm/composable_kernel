@@ -60,8 +60,6 @@ Examples:
     )
     args = parser.parse_args()
 
-    reset_for_example()
-
     print("=" * 60)
     print("Example 06: JSON Export")
     print("=" * 60)

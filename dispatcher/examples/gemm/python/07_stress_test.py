@@ -40,7 +40,6 @@ from ctypes_utils import (
     KernelConfig,
     setup_gemm_dispatcher,
     cleanup_gemm,
-    reset_for_example,
     Validator,
     detect_gpu_arch,
 )
@@ -417,8 +416,6 @@ Examples:
         help="Target architecture (auto-detected from rocminfo, override with --arch gfxNNN)",
     )
     args = parser.parse_args()
-
-    reset_for_example()
 
     print("=" * 80)
     print("Example 07: GEMM Stress Test - Multiple Kernels")

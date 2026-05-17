@@ -566,8 +566,6 @@ Examples:
     )
     args = parser.parse_args()
 
-    reset_for_example()
-
     print("=" * 75)
     print("Example 08: Custom Heuristics")
     print("=" * 75)
