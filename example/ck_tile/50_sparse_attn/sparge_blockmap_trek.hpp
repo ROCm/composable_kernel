@@ -48,14 +48,23 @@ struct sparge_blockmap_args
     void* lut_ptr;
     void* valid_block_num_ptr;
 
-    // R21A Phase 4 + R21B fix: optional per-head superparams. nullptr => use scalar.
-    // Buffer sizes match SpargeAttn upstream contract (utils.py:324-328: all sized
-    // by Headnum=q.size(1)=nhead_q). K-side kernel still indexes [hk] into the
-    // first nhead_k entries — for MHA equivalent to old [nhead_k] sizing, for
-    // MQA/GQA aligns to upstream tuned ckpt layout.
-    const float* simthreshd1_per_head_ptr = nullptr; // size = nhead_q floats (kernel reads [0..nhead_k-1])
-    const float* cdfthreshd_per_head_ptr  = nullptr; // size = nhead_q floats
-    const float* topk_per_head_ptr        = nullptr; // size = nhead_q floats
+    // Caller-owned K-stats workspace; size from sparge_blockmap_get_workspace_size.
+    // Internal layout (pooled_k then sim_k) given by sparge_blockmap_workspace_layout.
+    void* workspace_ptr = nullptr;
+
+    // size = nhead_q to match SpargeAttn upstream hyperparameter_check
+    const float* simthreshd1_per_head_ptr = nullptr;
+    const float* cdfthreshd_per_head_ptr  = nullptr;
+    const float* topk_per_head_ptr        = nullptr;
+};
+
+struct sparge_blockmap_workspace_layout
+{
+    size_t pooled_k_offset; // bytes from workspace_ptr
+    size_t pooled_k_bytes;
+    size_t sim_k_offset; // bytes from workspace_ptr
+    size_t sim_k_bytes;
+    size_t total_bytes;
 };
 
 struct sparge_blockmap_traits
@@ -127,19 +136,36 @@ auto sparge_kstats_create_kargs_and_grids(sparge_blockmap_args args,
 // ============================================================================
 // Hand-written template instantiation dispatch
 // ============================================================================
-float sparge_blockmap_fwd(sparge_blockmap_traits traits,
-                          sparge_blockmap_args args,
-                          const ck_tile::stream_config& stream_config);
 
-void sparge_blockmap_fwd_oneshot(sparge_blockmap_traits traits,
-                                 sparge_blockmap_args args,
-                                 const ck_tile::stream_config& stream_config);
+// Workspace sizing helpers (host, no template instantiation needed).
+sparge_blockmap_workspace_layout
+sparge_blockmap_compute_workspace_layout(sparge_blockmap_traits traits, sparge_blockmap_args args);
 
-// Combined functions: blockmap + attention with unified timing
-float sparge_jenga_fwd(sparge_blockmap_traits, sparge_blockmap_args,
-                       fmha_jenga_fwd_traits, fmha_jenga_fwd_args,
+inline size_t sparge_blockmap_get_workspace_size(sparge_blockmap_traits traits,
+                                                 sparge_blockmap_args args)
+{
+    return sparge_blockmap_compute_workspace_layout(traits, args).total_bytes;
+}
+
+// Stage 1: K-stats only. Writes pooled_k + sim_k into args.workspace_ptr.
+void sparge_kstats_fwd_oneshot(sparge_blockmap_traits traits,
+                               sparge_blockmap_args args,
+                               const ck_tile::stream_config& stream_config);
+
+// Stage 2: block_map only. Reads pooled_k + sim_k from args.workspace_ptr.
+void sparge_blockmap_only_fwd_oneshot(sparge_blockmap_traits traits,
+                                      sparge_blockmap_args args,
+                                      const ck_tile::stream_config& stream_config);
+
+// Combined functions: kstats + blockmap + attention with unified timing.
+float sparge_jenga_fwd(sparge_blockmap_traits,
+                       sparge_blockmap_args,
+                       fmha_jenga_fwd_traits,
+                       fmha_jenga_fwd_args,
                        const ck_tile::stream_config&);
 
-float sparge_vsa_fwd_combined(sparge_blockmap_traits, sparge_blockmap_args,
-                              fmha_vsa_fwd_traits, fmha_vsa_fwd_args,
+float sparge_vsa_fwd_combined(sparge_blockmap_traits,
+                              sparge_blockmap_args,
+                              fmha_vsa_fwd_traits,
+                              fmha_vsa_fwd_args,
                               const ck_tile::stream_config&);

@@ -8,6 +8,7 @@
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
 
+#include <cassert>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -133,34 +134,41 @@ struct FmhaFwdJengaKernel
     };
 
     // std::variant<> can't take in a list initializer, overload for backward compatibility
-    CK_TILE_HOST static constexpr Kargs MakeKargs(const void* q_ptr,
-                                                  const void* k_ptr,
-                                                  const void* v_ptr,
-                                                  const void* block_relation_onehot_ptr,
-                                                  void* o_ptr,
-                                                  ck_tile::index_t seqlen_q,
-                                                  ck_tile::index_t seqlen_k,
-                                                  ck_tile::index_t hdim_q,
-                                                  ck_tile::index_t hdim_v,
-                                                  ck_tile::index_t num_head_q,
-                                                  ck_tile::index_t nhead_ratio_qk,
-                                                  float scale_s,
-                                                  ck_tile::index_t stride_q,
-                                                  ck_tile::index_t stride_k,
-                                                  ck_tile::index_t stride_v,
-                                                  ck_tile::index_t stride_o,
-                                                  ck_tile::index_t nhead_stride_q,
-                                                  ck_tile::index_t nhead_stride_k,
-                                                  ck_tile::index_t nhead_stride_v,
-                                                  ck_tile::index_t nhead_stride_o,
-                                                  ck_tile::index_t batch_stride_q,
-                                                  ck_tile::index_t batch_stride_k,
-                                                  ck_tile::index_t batch_stride_v,
-                                                  ck_tile::index_t batch_stride_o,
-                                                  ck_tile::index_t window_size_left,
-                                                  ck_tile::index_t window_size_right,
-                                                  ck_tile::index_t mask_type)
+    // 256-bool LDS staging caps N_k <= 256 (for kN0=64 -> seqlen_k <= 16384).
+    // Not constexpr because the assert needs runtime evaluation.
+    CK_TILE_HOST static Kargs MakeKargs(const void* q_ptr,
+                                        const void* k_ptr,
+                                        const void* v_ptr,
+                                        const void* block_relation_onehot_ptr,
+                                        void* o_ptr,
+                                        ck_tile::index_t seqlen_q,
+                                        ck_tile::index_t seqlen_k,
+                                        ck_tile::index_t hdim_q,
+                                        ck_tile::index_t hdim_v,
+                                        ck_tile::index_t num_head_q,
+                                        ck_tile::index_t nhead_ratio_qk,
+                                        float scale_s,
+                                        ck_tile::index_t stride_q,
+                                        ck_tile::index_t stride_k,
+                                        ck_tile::index_t stride_v,
+                                        ck_tile::index_t stride_o,
+                                        ck_tile::index_t nhead_stride_q,
+                                        ck_tile::index_t nhead_stride_k,
+                                        ck_tile::index_t nhead_stride_v,
+                                        ck_tile::index_t nhead_stride_o,
+                                        ck_tile::index_t batch_stride_q,
+                                        ck_tile::index_t batch_stride_k,
+                                        ck_tile::index_t batch_stride_v,
+                                        ck_tile::index_t batch_stride_o,
+                                        ck_tile::index_t window_size_left,
+                                        ck_tile::index_t window_size_right,
+                                        ck_tile::index_t mask_type)
     {
+        // 256-bool LDS staging caps N_k <= 256 per Q-tile.
+        // For kN0=64 this means seqlen_k <= 16384.
+        assert(ck_tile::integer_divide_ceil(seqlen_k, FmhaPipeline::kN0) <= 256 &&
+               "256-bool LDS staging caps N_k <= 256 (for kN0=64: seqlen_k <= 16384)");
+
         Kargs kargs{{q_ptr,
                      k_ptr,
                      v_ptr,
@@ -248,7 +256,11 @@ struct FmhaFwdJengaKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         // allocate LDS
-        // Extra LDS for staging block_relation_onehot (256 bools); keep 4B alignment for LDS loads.
+        // Extra LDS stages 256 bools (4B-aligned for LDS loads) — caps N_k <= 256 per Q-tile,
+        // i.e. seqlen_k <= 256 * kN0 (for kN0=64 -> seqlen_k <= 16384). MakeKargs asserts this.
+        // The extra 1024B is jenga-specific: pipeline (block_fmha_pipeline_qr_ks_vs_async_jenga
+        // .hpp:261) stages block_relation_onehot here. Do NOT copy this `+ 256*sizeof(int)` to
+        // other sparse kernels (e.g. VSA) without first wiring a real reader.
         __shared__ char smem_ptr[GetSmemSize() + 256 * sizeof(int)];
 
         // if (threadIdx.x==0 && blockIdx.x==0 && blockIdx.z ==0) printf("smem size: %d",

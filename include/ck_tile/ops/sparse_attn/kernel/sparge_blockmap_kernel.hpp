@@ -22,7 +22,7 @@ struct SpargeBlockMapKernel
     static constexpr index_t kN0 = Pipeline::kN0;
     static constexpr index_t D   = Pipeline::D;
 
-    static constexpr index_t kAlignment = 16 / sizeof(QDataType);
+    static constexpr index_t kAlignment = 16 / sizeof(QDataType); // 16B = dwordx4 load width
 
     struct Kargs
     {
@@ -52,19 +52,18 @@ struct SpargeBlockMapKernel
         void* lut_ptr;
         void* valid_block_num_ptr;
 
-        // R20 K-stat workspace from Kernel A
-        const void* pooled_k_ws_ptr; // [batch, nhead_k, N_k, D] fp32
-        const void* sim_k_ws_ptr;    // [batch, nhead_k, N_k] uint8
+        // K-block stats workspace produced by SpargeKStatsKernel
+        const void*
+            pooled_k_ws_ptr;      // [batch, nhead_k, N_k, D] KDataType (fp16/bf16, matches K dtype)
+        const void* sim_k_ws_ptr; // [batch, nhead_k, N_k] uint8
 
         index_t N_k;
 
-        // R21A Phase 4: optional per-head topk (size = nhead_q floats).
-        // nullptr => use scalar `topk` for all heads.
+        // Per-head topk (size = nhead_q floats). Required (non-null).
         const float* topk_per_head;
 
-        // R21B: optional per-head cdfthreshd (size = nhead_q floats).
-        // nullptr => use scalar `cdfthreshd` for all heads.
-        // Only consulted on topk<=0 path; bench currently always uses topk path.
+        // Per-head cdfthreshd (size = nhead_q floats). Required (non-null);
+        // only consulted on topk<=0 path.
         const float* cdfthreshd_per_head;
     };
 
@@ -90,8 +89,8 @@ struct SpargeBlockMapKernel
                                                  void* valid_block_num_ptr,
                                                  const void* pooled_k_ws_ptr,
                                                  const void* sim_k_ws_ptr,
-                                                 const float* topk_per_head       = nullptr,
-                                                 const float* cdfthreshd_per_head = nullptr)
+                                                 const float* topk_per_head,
+                                                 const float* cdfthreshd_per_head)
     {
         const index_t N_k = integer_divide_ceil(seqlen_k, kN0);
         return Kargs{q_ptr,
@@ -195,20 +194,15 @@ struct SpargeBlockMapKernel
         // Shared memory
         __shared__ char smem[Pipeline::GetSmemSize()];
 
-        // R20 K-stat workspace: pre-offset for this (b, hk).
-        const index_t nhead_k = kargs.nhead_q / kargs.nhead_ratio_qk;
+        // K-stat workspace: pre-offset for this (b, hk).
+        const index_t nhead_k   = kargs.nhead_q / kargs.nhead_ratio_qk;
         const index_t khead_off = (b * nhead_k + hk) * N_k;
         const auto* pooled_k_ws =
-            reinterpret_cast<const float*>(kargs.pooled_k_ws_ptr) + khead_off * D;
-        const auto* sim_k_ws =
-            reinterpret_cast<const uint8_t*>(kargs.sim_k_ws_ptr) + khead_off;
+            reinterpret_cast<const KDataType*>(kargs.pooled_k_ws_ptr) + khead_off * D;
+        const auto* sim_k_ws = reinterpret_cast<const uint8_t*>(kargs.sim_k_ws_ptr) + khead_off;
 
-        // R21A Phase 4: per-head topk if provided, else scalar broadcast.
-        const float topk_eff =
-            (kargs.topk_per_head != nullptr) ? kargs.topk_per_head[hq] : kargs.topk;
-        // R21B: per-head cdfthreshd if provided, else scalar broadcast.
-        const float cdfthreshd_eff =
-            (kargs.cdfthreshd_per_head != nullptr) ? kargs.cdfthreshd_per_head[hq] : kargs.cdfthreshd;
+        const float topk_eff       = kargs.topk_per_head[hq];
+        const float cdfthreshd_eff = kargs.cdfthreshd_per_head[hq];
 
         Pipeline{}(q_window,
                    k_window,

@@ -251,8 +251,7 @@ struct FmhaFwdVSAKernel
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
         // allocate LDS
-        // Extra LDS for staging block_relation_onehot (256 bools); keep 4B alignment for LDS loads.
-        __shared__ char smem_ptr[GetSmemSize() + 256 * sizeof(int)];
+        __shared__ char smem_ptr[GetSmemSize()];
 
         // divide problem
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);

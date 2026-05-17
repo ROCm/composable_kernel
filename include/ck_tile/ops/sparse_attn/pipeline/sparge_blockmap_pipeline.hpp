@@ -262,7 +262,7 @@ struct SpargeBlockMapPipeline
                                    uint8_t* block_map_ptr,
                                    int32_t* lut_ptr,
                                    int32_t* valid_block_num_ptr,
-                                   const float* __restrict__ pooled_k_ws_ptr,
+                                   const KDataType* __restrict__ pooled_k_ws_ptr,
                                    const uint8_t* __restrict__ sim_k_ws_ptr,
                                    void* smem_ptr) const
     {
@@ -356,10 +356,10 @@ struct SpargeBlockMapPipeline
 
         for(index_t kb = 0; kb < N_k; ++kb)
         {
-            const float* p_kb = pooled_k_ws_ptr + kb * D + k_idx_kb * KPerThread;
+            const KDataType* p_kb = pooled_k_ws_ptr + kb * D + k_idx_kb * KPerThread;
             float pooled_k_mean[KPerThread];
             for(index_t k = 0; k < KPerThread; ++k)
-                pooled_k_mean[k] = p_kb[k];
+                pooled_k_mean[k] = type_convert<float>(p_kb[k]);
 
             float dot = 0.f;
             for(index_t k = 0; k < KPerThread; ++k)
@@ -417,8 +417,7 @@ struct SpargeBlockMapPipeline
         // cdfthreshd path (topk <= 0) still requires normalised scores so the
         // accumulator `cumulative_prob` matches probabilities.
         const bool topk_active = (topk > 0.f);
-        const float inv_sum =
-            (!topk_active && sum_exp > 0.f) ? (1.0f / sum_exp) : 0.f;
+        const float inv_sum    = (!topk_active && sum_exp > 0.f) ? (1.0f / sum_exp) : 0.f;
         if(!topk_active)
         {
             for(index_t i = tid; i < N_k; i += kBlockSize)

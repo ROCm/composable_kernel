@@ -40,15 +40,13 @@ struct SpargeKStatsKernel
 
         float simthreshd1;
 
-        void* pooled_k_ptr; // [batch, nhead_k, N_k, D] fp32
+        void* pooled_k_ptr; // [batch, nhead_k, N_k, D] KDataType (fp16/bf16, matches K dtype)
         void* sim_k_ptr;    // [batch, nhead_k, N_k] uint8
 
         index_t N_k;
 
-        // R21A Phase 4 + R21B fix: optional per-head simthreshd1.
-        // Buffer is sized [nhead_q] floats to match SpargeAttn upstream contract
-        // (utils.py:324, Headnum=q.size(1)). Kernel only indexes the first
-        // nhead_k entries via [hk]. nullptr => use scalar `simthreshd1`.
+        // Per-head simthreshd1 pointer (size = nhead_q floats; kernel indexes [hk] only).
+        // Required (non-null); matches SpargeAttn upstream contract.
         const float* simthreshd1_per_head;
     };
 
@@ -62,7 +60,7 @@ struct SpargeKStatsKernel
                                                  float simthreshd1,
                                                  void* pooled_k_ptr,
                                                  void* sim_k_ptr,
-                                                 const float* simthreshd1_per_head = nullptr)
+                                                 const float* simthreshd1_per_head)
     {
         const index_t N_k = integer_divide_ceil(seqlen_k, kN0);
         return Kargs{k_ptr,
@@ -111,17 +109,15 @@ struct SpargeKStatsKernel
                                          {0, 0},
                                          Pipeline::MakeKBlockDistribution());
 
-        const index_t N_k         = kargs.N_k;
-        const index_t khead_off   = (b * kargs.nhead_k + hk) * N_k;
-        auto* pooled_k_out = reinterpret_cast<float*>(kargs.pooled_k_ptr) + (khead_off + kb) * D;
-        auto* sim_k_out    = reinterpret_cast<uint8_t*>(kargs.sim_k_ptr) + (khead_off + kb);
+        const index_t N_k       = kargs.N_k;
+        const index_t khead_off = (b * kargs.nhead_k + hk) * N_k;
+        auto* pooled_k_out =
+            reinterpret_cast<KDataType*>(kargs.pooled_k_ptr) + (khead_off + kb) * D;
+        auto* sim_k_out = reinterpret_cast<uint8_t*>(kargs.sim_k_ptr) + (khead_off + kb);
 
         __shared__ char smem[Pipeline::GetSmemSize()];
 
-        // R21A Phase 4: per-head simthreshd1 if provided, else scalar broadcast.
-        const float simthreshd1_eff = (kargs.simthreshd1_per_head != nullptr)
-                                          ? kargs.simthreshd1_per_head[hk]
-                                          : kargs.simthreshd1;
+        const float simthreshd1_eff = kargs.simthreshd1_per_head[hk];
 
         Pipeline{}(k_window,
                    kargs.seqlen_k,

@@ -25,8 +25,11 @@
 // ============================================================================
 
 template <typename T>
-ck_tile::HostTensor<T>
-make_qkv_tensor(ck_tile::index_t batch, ck_tile::index_t nhead, ck_tile::index_t seqlen, ck_tile::index_t hdim, bool i_perm)
+ck_tile::HostTensor<T> make_qkv_tensor(ck_tile::index_t batch,
+                                       ck_tile::index_t nhead,
+                                       ck_tile::index_t seqlen,
+                                       ck_tile::index_t hdim,
+                                       bool i_perm)
 {
     if(i_perm)
         return ck_tile::HostTensor<T>({batch, nhead, seqlen, hdim});
@@ -86,8 +89,7 @@ float to_float_for_compare<ck_tile::bf16_t>(ck_tile::bf16_t value)
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser
-        .insert("v", "1", "0:no validation, 1:cpu validation")
+    arg_parser.insert("v", "1", "0:no validation, 1:cpu validation")
         .insert("pipeline", "jenga", "attention pipeline: jenga / vsa")
         .insert("b", "1", "batch size")
         .insert("h", "4", "num of head for q")
@@ -105,10 +107,7 @@ auto create_args(int argc, char* argv[])
         .insert("seed", "42", "random seed")
         .insert("warmup", "5", "warmup iterations")
         .insert("repeat", "20", "benchmark iterations")
-        .insert("kname", "0", "print kernel name")
-        .insert("perhead", "0",
-                "R21A Phase 4: 0=scalar (default), 1=per-head [H] superparam test "
-                "(varies topk[h] = topk * (1 + 0.5*(h - H/2)/H), simthreshd1 unchanged)");
+        .insert("kname", "0", "print kernel name");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -120,29 +119,31 @@ auto create_args(int argc, char* argv[])
 template <typename T>
 bool run_test(const ck_tile::ArgParser& arg_parser)
 {
-    int do_validation           = arg_parser.get_int("v");
-    std::string pipeline        = arg_parser.get_str("pipeline");
-    ck_tile::index_t batch      = arg_parser.get_int("b");
-    ck_tile::index_t nhead      = arg_parser.get_int("h");
-    ck_tile::index_t nhead_k    = arg_parser.get_int("h_k");
-    ck_tile::index_t seqlen_q   = arg_parser.get_int("s");
-    ck_tile::index_t seqlen_k   = arg_parser.get_int("s_k");
-    ck_tile::index_t hdim_q     = arg_parser.get_int("d");
-    ck_tile::index_t hdim_v     = arg_parser.get_int("d_v");
-    float topk                  = arg_parser.get_float("topk");
-    float cdfthreshd            = arg_parser.get_float("cdfthreshd");
-    float simthreshd1           = arg_parser.get_float("simthreshd1");
-    bool i_perm                 = arg_parser.get_bool("iperm");
-    bool o_perm                 = arg_parser.get_bool("operm");
-    uint32_t seed               = arg_parser.get_uint32("seed");
-    int warmup                  = arg_parser.get_int("warmup");
-    int repeat                  = arg_parser.get_int("repeat");
-    int kname                   = arg_parser.get_int("kname");
-    int perhead                 = arg_parser.get_int("perhead");
+    int do_validation         = arg_parser.get_int("v");
+    std::string pipeline      = arg_parser.get_str("pipeline");
+    ck_tile::index_t batch    = arg_parser.get_int("b");
+    ck_tile::index_t nhead    = arg_parser.get_int("h");
+    ck_tile::index_t nhead_k  = arg_parser.get_int("h_k");
+    ck_tile::index_t seqlen_q = arg_parser.get_int("s");
+    ck_tile::index_t seqlen_k = arg_parser.get_int("s_k");
+    ck_tile::index_t hdim_q   = arg_parser.get_int("d");
+    ck_tile::index_t hdim_v   = arg_parser.get_int("d_v");
+    float topk                = arg_parser.get_float("topk");
+    float cdfthreshd          = arg_parser.get_float("cdfthreshd");
+    float simthreshd1         = arg_parser.get_float("simthreshd1");
+    bool i_perm               = arg_parser.get_bool("iperm");
+    bool o_perm               = arg_parser.get_bool("operm");
+    uint32_t seed             = arg_parser.get_uint32("seed");
+    int warmup                = arg_parser.get_int("warmup");
+    int repeat                = arg_parser.get_int("repeat");
+    int kname                 = arg_parser.get_int("kname");
 
-    if(nhead_k < 0) nhead_k = nhead;
-    if(seqlen_k < 0) seqlen_k = seqlen_q;
-    if(hdim_v < 0) hdim_v = hdim_q;
+    if(nhead_k < 0)
+        nhead_k = nhead;
+    if(seqlen_k < 0)
+        seqlen_k = seqlen_q;
+    if(hdim_v < 0)
+        hdim_v = hdim_q;
 
     // If cdfthreshd >= 0, use CDF mode; otherwise use topk mode
     if(cdfthreshd >= 0.0f)
@@ -162,15 +163,14 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t num_k_blocks = (seqlen_k + BLKK - 1) / BLKK;
 
     std::string prec_str = std::is_same_v<T, ck_tile::half_t> ? "fp16" : "bf16";
-    std::cout << "[" << pipeline << "|" << prec_str
-              << "] b=" << batch << " h=" << nhead << " s=" << seqlen_q
-              << " d=" << hdim_q << " topk=" << topk
-              << " sim1=" << simthreshd1 << std::flush;
+    std::cout << "[" << pipeline << "|" << prec_str << "] b=" << batch << " h=" << nhead
+              << " s=" << seqlen_q << " d=" << hdim_q << " topk=" << topk << " sim1=" << simthreshd1
+              << std::flush;
 
     // ---- allocate host tensors ----
-    auto q_host = make_qkv_tensor<T>(batch, nhead, seqlen_q, hdim_q, i_perm);
-    auto k_host = make_qkv_tensor<T>(batch, nhead_k, seqlen_k, hdim_q, i_perm);
-    auto v_host = make_qkv_tensor<T>(batch, nhead_k, seqlen_k, hdim_v, i_perm);
+    auto q_host      = make_qkv_tensor<T>(batch, nhead, seqlen_q, hdim_q, i_perm);
+    auto k_host      = make_qkv_tensor<T>(batch, nhead_k, seqlen_k, hdim_q, i_perm);
+    auto v_host      = make_qkv_tensor<T>(batch, nhead_k, seqlen_k, hdim_v, i_perm);
     auto output_host = o_perm ? ck_tile::HostTensor<T>({batch, nhead, seqlen_q, hdim_v})
                               : ck_tile::HostTensor<T>({batch, seqlen_q, nhead, hdim_v});
 
@@ -213,62 +213,61 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     bmap_traits.hdim_q    = hdim_q;
 
     sparge_blockmap_args bmap_args;
-    bmap_args.q_ptr              = q_dev.GetDeviceBuffer();
-    bmap_args.k_ptr              = k_dev.GetDeviceBuffer();
-    bmap_args.batch              = batch;
-    bmap_args.seqlen_q           = seqlen_q;
-    bmap_args.seqlen_k           = seqlen_k;
-    bmap_args.hdim_q             = hdim_q;
-    bmap_args.nhead_q            = nhead;
-    bmap_args.nhead_k            = nhead_k;
-    bmap_args.stride_q           = q_strides[i_perm ? 2 : 1];
-    bmap_args.stride_k           = k_strides[i_perm ? 2 : 1];
-    bmap_args.nhead_stride_q     = q_strides[i_perm ? 1 : 2];
-    bmap_args.nhead_stride_k     = k_strides[i_perm ? 1 : 2];
-    bmap_args.batch_stride_q     = q_strides[0];
-    bmap_args.batch_stride_k     = k_strides[0];
-    bmap_args.simthreshd1        = simthreshd1;
-    bmap_args.cdfthreshd         = (topk < 0.0f) ? cdfthreshd : -1.0f;
-    bmap_args.topk               = topk;
-    bmap_args.scale              = scale_s;
-    bmap_args.block_map_ptr      = block_map_dev.GetDeviceBuffer();
-    bmap_args.lut_ptr            = (pipeline == "vsa") ? lut_dev.GetDeviceBuffer() : nullptr;
+    bmap_args.q_ptr               = q_dev.GetDeviceBuffer();
+    bmap_args.k_ptr               = k_dev.GetDeviceBuffer();
+    bmap_args.batch               = batch;
+    bmap_args.seqlen_q            = seqlen_q;
+    bmap_args.seqlen_k            = seqlen_k;
+    bmap_args.hdim_q              = hdim_q;
+    bmap_args.nhead_q             = nhead;
+    bmap_args.nhead_k             = nhead_k;
+    bmap_args.stride_q            = q_strides[i_perm ? 2 : 1];
+    bmap_args.stride_k            = k_strides[i_perm ? 2 : 1];
+    bmap_args.nhead_stride_q      = q_strides[i_perm ? 1 : 2];
+    bmap_args.nhead_stride_k      = k_strides[i_perm ? 1 : 2];
+    bmap_args.batch_stride_q      = q_strides[0];
+    bmap_args.batch_stride_k      = k_strides[0];
+    bmap_args.simthreshd1         = simthreshd1;
+    bmap_args.cdfthreshd          = (topk < 0.0f) ? cdfthreshd : -1.0f;
+    bmap_args.topk                = topk;
+    bmap_args.scale               = scale_s;
+    bmap_args.block_map_ptr       = block_map_dev.GetDeviceBuffer();
+    bmap_args.lut_ptr             = (pipeline == "vsa") ? lut_dev.GetDeviceBuffer() : nullptr;
     bmap_args.valid_block_num_ptr = (pipeline == "vsa") ? valid_bn_dev.GetDeviceBuffer() : nullptr;
 
-    // R21A Phase 4 + R21B fix: per-head superparam buffers, all sized [nhead_q]
-    // to match SpargeAttn upstream contract (utils.py:324-328, Headnum=q.size(1)).
+    // K-stats workspace: caller-owned, sized via host helper, allocated once outside any timing.
+    const size_t ws_bytes = sparge_blockmap_get_workspace_size(bmap_traits, bmap_args);
+    ck_tile::DeviceMem kstats_ws_dev(ws_bytes);
+    bmap_args.workspace_ptr = kstats_ws_dev.GetDeviceBuffer();
+
+    // Per-head superparam buffers, all sized [nhead_q] to match SpargeAttn upstream contract.
     // K-side kernel reads only the first nhead_k entries via [hk].
+    // Filled with scalar broadcast; per-head index correctness verified by separate unit test.
     ck_tile::DeviceMem topk_per_head_dev(static_cast<size_t>(nhead) * sizeof(float));
     ck_tile::DeviceMem sim1_per_head_dev(static_cast<size_t>(nhead) * sizeof(float));
-    ck_tile::DeviceMem cdf_per_head_dev (static_cast<size_t>(nhead) * sizeof(float));
-    if(perhead != 0)
+    ck_tile::DeviceMem cdf_per_head_dev(static_cast<size_t>(nhead) * sizeof(float));
     {
-        std::vector<float> topk_h(nhead);
-        std::vector<float> sim1_h(nhead);
-        std::vector<float> cdf_h (nhead);
-        for(int h = 0; h < nhead; ++h)
-        {
-            // small per-head jitter around scalar topk so sparsity differs by head
-            const float jitter = 0.5f * (static_cast<float>(h - nhead / 2) / nhead);
-            topk_h[h]          = topk * (1.0f + jitter);
-            sim1_h[h]          = simthreshd1; // bit-identical to scalar (kernel reads [0..nhead_k-1])
-            cdf_h[h]           = cdfthreshd;
-        }
+        std::vector<float> topk_h(nhead, topk);
+        std::vector<float> sim1_h(nhead, simthreshd1);
+        std::vector<float> cdf_h(nhead, cdfthreshd);
         topk_per_head_dev.ToDevice(topk_h.data());
         sim1_per_head_dev.ToDevice(sim1_h.data());
-        cdf_per_head_dev .ToDevice(cdf_h.data());
-        bmap_args.topk_per_head_ptr        = static_cast<const float*>(topk_per_head_dev.GetDeviceBuffer());
-        bmap_args.simthreshd1_per_head_ptr = static_cast<const float*>(sim1_per_head_dev.GetDeviceBuffer());
-        bmap_args.cdfthreshd_per_head_ptr  = static_cast<const float*>(cdf_per_head_dev.GetDeviceBuffer());
+        cdf_per_head_dev.ToDevice(cdf_h.data());
+        bmap_args.topk_per_head_ptr =
+            static_cast<const float*>(topk_per_head_dev.GetDeviceBuffer());
+        bmap_args.simthreshd1_per_head_ptr =
+            static_cast<const float*>(sim1_per_head_dev.GetDeviceBuffer());
+        bmap_args.cdfthreshd_per_head_ptr =
+            static_cast<const float*>(cdf_per_head_dev.GetDeviceBuffer());
     }
 
     // ---- build attention args ----
     ck_tile::stream_config stream_cfg;
-    stream_cfg.stream_id_  = nullptr;
+    stream_cfg.stream_id_   = nullptr;
     stream_cfg.time_kernel_ = true;
-    stream_cfg.log_level_  = kname;
+    stream_cfg.log_level_   = kname;
     stream_cfg.cold_niters_ = warmup;
-    stream_cfg.nrepeat_    = repeat;
+    stream_cfg.nrepeat_     = repeat;
 
     float avg_ms = -1.0f;
 
@@ -283,35 +282,35 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         attn_traits.bm0           = BLKQ;
 
         fmha_jenga_fwd_args attn_args;
-        attn_args.q_ptr                    = q_dev.GetDeviceBuffer();
-        attn_args.k_ptr                    = k_dev.GetDeviceBuffer();
-        attn_args.v_ptr                    = v_dev.GetDeviceBuffer();
+        attn_args.q_ptr                     = q_dev.GetDeviceBuffer();
+        attn_args.k_ptr                     = k_dev.GetDeviceBuffer();
+        attn_args.v_ptr                     = v_dev.GetDeviceBuffer();
         attn_args.block_relation_onehot_ptr = block_map_dev.GetDeviceBuffer();
-        attn_args.o_ptr                    = o_dev.GetDeviceBuffer();
-        attn_args.seqlen_q     = seqlen_q;
-        attn_args.seqlen_k     = seqlen_k;
-        attn_args.batch        = batch;
-        attn_args.max_seqlen_q = seqlen_q;
-        attn_args.hdim_q       = hdim_q;
-        attn_args.hdim_v       = hdim_v;
-        attn_args.nhead_q      = nhead;
-        attn_args.nhead_k      = nhead_k;
-        attn_args.scale_s      = scale_s;
-        attn_args.stride_q       = q_strides[i_perm ? 2 : 1];
-        attn_args.stride_k       = k_strides[i_perm ? 2 : 1];
-        attn_args.stride_v       = v_strides[i_perm ? 2 : 1];
-        attn_args.stride_o       = o_strides[o_perm ? 2 : 1];
-        attn_args.nhead_stride_q = q_strides[i_perm ? 1 : 2];
-        attn_args.nhead_stride_k = k_strides[i_perm ? 1 : 2];
-        attn_args.nhead_stride_v = v_strides[i_perm ? 1 : 2];
-        attn_args.nhead_stride_o = o_strides[o_perm ? 1 : 2];
-        attn_args.batch_stride_q = q_strides[0];
-        attn_args.batch_stride_k = k_strides[0];
-        attn_args.batch_stride_v = v_strides[0];
-        attn_args.batch_stride_o = o_strides[0];
-        attn_args.window_size_left  = -1;
-        attn_args.window_size_right = -1;
-        attn_args.mask_type         = 0;
+        attn_args.o_ptr                     = o_dev.GetDeviceBuffer();
+        attn_args.seqlen_q                  = seqlen_q;
+        attn_args.seqlen_k                  = seqlen_k;
+        attn_args.batch                     = batch;
+        attn_args.max_seqlen_q              = seqlen_q;
+        attn_args.hdim_q                    = hdim_q;
+        attn_args.hdim_v                    = hdim_v;
+        attn_args.nhead_q                   = nhead;
+        attn_args.nhead_k                   = nhead_k;
+        attn_args.scale_s                   = scale_s;
+        attn_args.stride_q                  = q_strides[i_perm ? 2 : 1];
+        attn_args.stride_k                  = k_strides[i_perm ? 2 : 1];
+        attn_args.stride_v                  = v_strides[i_perm ? 2 : 1];
+        attn_args.stride_o                  = o_strides[o_perm ? 2 : 1];
+        attn_args.nhead_stride_q            = q_strides[i_perm ? 1 : 2];
+        attn_args.nhead_stride_k            = k_strides[i_perm ? 1 : 2];
+        attn_args.nhead_stride_v            = v_strides[i_perm ? 1 : 2];
+        attn_args.nhead_stride_o            = o_strides[o_perm ? 1 : 2];
+        attn_args.batch_stride_q            = q_strides[0];
+        attn_args.batch_stride_k            = k_strides[0];
+        attn_args.batch_stride_v            = v_strides[0];
+        attn_args.batch_stride_o            = o_strides[0];
+        attn_args.window_size_left          = -1;
+        attn_args.window_size_right         = -1;
+        attn_args.mask_type                 = 0;
 
         avg_ms = sparge_jenga_fwd(bmap_traits, bmap_args, attn_traits, attn_args, stream_cfg);
     }
@@ -326,38 +325,39 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         attn_traits.bm0           = BLKQ;
 
         fmha_vsa_fwd_args attn_args;
-        attn_args.q_ptr              = q_dev.GetDeviceBuffer();
-        attn_args.k_ptr              = k_dev.GetDeviceBuffer();
-        attn_args.v_ptr              = v_dev.GetDeviceBuffer();
-        attn_args.lut_ptr            = lut_dev.GetDeviceBuffer();
+        attn_args.q_ptr               = q_dev.GetDeviceBuffer();
+        attn_args.k_ptr               = k_dev.GetDeviceBuffer();
+        attn_args.v_ptr               = v_dev.GetDeviceBuffer();
+        attn_args.lut_ptr             = lut_dev.GetDeviceBuffer();
         attn_args.valid_block_num_ptr = valid_bn_dev.GetDeviceBuffer();
-        attn_args.o_ptr              = o_dev.GetDeviceBuffer();
-        attn_args.seqlen_q     = seqlen_q;
-        attn_args.seqlen_k     = seqlen_k;
-        attn_args.batch        = batch;
-        attn_args.max_seqlen_q = seqlen_q;
-        attn_args.hdim_q       = hdim_q;
-        attn_args.hdim_v       = hdim_v;
-        attn_args.nhead_q      = nhead;
-        attn_args.nhead_k      = nhead_k;
-        attn_args.scale_s      = scale_s;
-        attn_args.stride_q       = q_strides[i_perm ? 2 : 1];
-        attn_args.stride_k       = k_strides[i_perm ? 2 : 1];
-        attn_args.stride_v       = v_strides[i_perm ? 2 : 1];
-        attn_args.stride_o       = o_strides[o_perm ? 2 : 1];
-        attn_args.nhead_stride_q = q_strides[i_perm ? 1 : 2];
-        attn_args.nhead_stride_k = k_strides[i_perm ? 1 : 2];
-        attn_args.nhead_stride_v = v_strides[i_perm ? 1 : 2];
-        attn_args.nhead_stride_o = o_strides[o_perm ? 1 : 2];
-        attn_args.batch_stride_q = q_strides[0];
-        attn_args.batch_stride_k = k_strides[0];
-        attn_args.batch_stride_v = v_strides[0];
-        attn_args.batch_stride_o = o_strides[0];
-        attn_args.window_size_left  = -1;
-        attn_args.window_size_right = -1;
-        attn_args.mask_type         = 0;
+        attn_args.o_ptr               = o_dev.GetDeviceBuffer();
+        attn_args.seqlen_q            = seqlen_q;
+        attn_args.seqlen_k            = seqlen_k;
+        attn_args.batch               = batch;
+        attn_args.max_seqlen_q        = seqlen_q;
+        attn_args.hdim_q              = hdim_q;
+        attn_args.hdim_v              = hdim_v;
+        attn_args.nhead_q             = nhead;
+        attn_args.nhead_k             = nhead_k;
+        attn_args.scale_s             = scale_s;
+        attn_args.stride_q            = q_strides[i_perm ? 2 : 1];
+        attn_args.stride_k            = k_strides[i_perm ? 2 : 1];
+        attn_args.stride_v            = v_strides[i_perm ? 2 : 1];
+        attn_args.stride_o            = o_strides[o_perm ? 2 : 1];
+        attn_args.nhead_stride_q      = q_strides[i_perm ? 1 : 2];
+        attn_args.nhead_stride_k      = k_strides[i_perm ? 1 : 2];
+        attn_args.nhead_stride_v      = v_strides[i_perm ? 1 : 2];
+        attn_args.nhead_stride_o      = o_strides[o_perm ? 1 : 2];
+        attn_args.batch_stride_q      = q_strides[0];
+        attn_args.batch_stride_k      = k_strides[0];
+        attn_args.batch_stride_v      = v_strides[0];
+        attn_args.batch_stride_o      = o_strides[0];
+        attn_args.window_size_left    = -1;
+        attn_args.window_size_right   = -1;
+        attn_args.mask_type           = 0;
 
-        avg_ms = sparge_vsa_fwd_combined(bmap_traits, bmap_args, attn_traits, attn_args, stream_cfg);
+        avg_ms =
+            sparge_vsa_fwd_combined(bmap_traits, bmap_args, attn_traits, attn_args, stream_cfg);
     }
     else
     {
@@ -367,8 +367,8 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
 
     // ---- TFLOPS calculation (dense FMHA formula, so sparsity gains show as higher TFLOPS) ----
     std::size_t flop = static_cast<std::size_t>(batch) * nhead *
-        (static_cast<std::size_t>(2) * seqlen_q * seqlen_k * hdim_q +
-         static_cast<std::size_t>(2) * seqlen_q * seqlen_k * hdim_v);
+                       (static_cast<std::size_t>(2) * seqlen_q * seqlen_k * hdim_q +
+                        static_cast<std::size_t>(2) * seqlen_q * seqlen_k * hdim_v);
     float tflops = (avg_ms > 0.f) ? static_cast<float>(flop) / 1.E9f / avg_ms : 0.f;
 
     if(avg_ms > 0.f)
@@ -382,14 +382,15 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     block_map_dev.FromDevice(block_map_host.data());
 
     // ---- count active blocks ----
-    ck_tile::index_t total_blocks = batch * nhead * num_q_blocks * num_k_blocks;
+    ck_tile::index_t total_blocks  = batch * nhead * num_q_blocks * num_k_blocks;
     ck_tile::index_t active_blocks = 0;
     for(size_t i = 0; i < block_map_host.mData.size(); ++i)
         if(block_map_host.mData[i])
             active_blocks++;
-    float actual_sparsity = 1.0f - static_cast<float>(active_blocks) / static_cast<float>(total_blocks);
-    std::cout << ", sparsity=" << std::setprecision(2) << actual_sparsity
-              << "(" << active_blocks << "/" << total_blocks << ")" << std::flush;
+    float actual_sparsity =
+        1.0f - static_cast<float>(active_blocks) / static_cast<float>(total_blocks);
+    std::cout << ", sparsity=" << std::setprecision(2) << actual_sparsity << "(" << active_blocks
+              << "/" << total_blocks << ")" << std::flush;
 
     // ---- validation ----
     bool pass = true;
@@ -405,8 +406,8 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
 
         auto [rtol, atol] = get_error_tolerance<T>();
 
-        float max_diff     = 0.0f;
-        size_t num_errors  = 0;
+        float max_diff    = 0.0f;
+        size_t num_errors = 0;
 
         auto output_host_bhsd = to_bhsd(output_host, o_perm);
         for(size_t i = 0; i < output_host_bhsd.mData.size(); ++i)
@@ -423,9 +424,8 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         }
 
         pass = (num_errors == 0);
-        std::cout << ", " << (pass ? "PASS" : "FAIL")
-                  << "(err=" << num_errors << "/" << output_host_bhsd.mData.size()
-                  << " maxdiff=" << max_diff << ")";
+        std::cout << ", " << (pass ? "PASS" : "FAIL") << "(err=" << num_errors << "/"
+                  << output_host_bhsd.mData.size() << " maxdiff=" << max_diff << ")";
     }
 
     std::cout << std::endl;

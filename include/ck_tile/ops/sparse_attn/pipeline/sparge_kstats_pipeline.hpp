@@ -49,8 +49,8 @@ struct SpargeKStatsPipeline
                                    index_t seqlen_k,
                                    index_t kb,
                                    float simthreshd1,
-                                   float* __restrict__ pooled_k_out, // D floats
-                                   uint8_t* __restrict__ sim_k_out,  // 1 byte
+                                   KDataType* __restrict__ pooled_k_out, // D KDataType (fp16/bf16)
+                                   uint8_t* __restrict__ sim_k_out,      // 1 byte
                                    void* smem_ptr) const
     {
         const index_t tid = static_cast<index_t>(threadIdx.x);
@@ -70,19 +70,19 @@ struct SpargeKStatsPipeline
         const index_t m_idx   = lane_id / KThreads;
 
         // pooled_k_mean: column sum then cross-warp reduce.
-        // R21A: drop trailing sync (next cross_warp_reduce has its own leading sync).
+        // Drop trailing sync (next cross_warp_reduce has its own leading sync).
         float pooled_k_mean[KPerThread];
         Base::template column_reduce_thread_and_warp<NPerThread>(k_data, pooled_k_mean);
         Base::template column_reduce_cross_warp<false>(pooled_k_mean, smem_reduce);
         for(index_t k = 0; k < KPerThread; ++k)
             pooled_k_mean[k] *= inv_bs_k;
 
-        // R21A: write pooled_k_mean to global early so its register liveness ends here,
+        // Write pooled_k_mean to global early so its register liveness ends here,
         // freeing VGPR before k_sum_hat becomes live.
         if(warp_id == 0 && m_idx == 0)
         {
             for(index_t k = 0; k < KPerThread; ++k)
-                pooled_k_out[k_idx * KPerThread + k] = pooled_k_mean[k];
+                pooled_k_out[k_idx * KPerThread + k] = type_convert<KDataType>(pooled_k_mean[k]);
         }
 
         // K row L2 norms + normalised column sum (k_sum_hat)
@@ -91,7 +91,7 @@ struct SpargeKStatsPipeline
 
         float k_sum_hat[KPerThread];
         Base::template column_reduce_normalised<NPerThread>(k_data, k_psq, k_sum_hat, bs_k);
-        // R21A: drop trailing sync (no further smem read; only intra-warp shuffle + global write).
+        // Drop trailing sync (no further smem read; only intra-warp shuffle + global write).
         Base::template column_reduce_cross_warp<false>(k_sum_hat, smem_reduce);
 
         // sim_k = (||k_sum_hat||^2 / bs_k^2) > simthreshd1
