@@ -430,6 +430,12 @@ struct BlockFmhaPipelineQRKSVSAsyncJenga
                 s.get_tile_distribution()); // Pcompute{j}
 
             __builtin_amdgcn_sched_barrier(0x7F);
+            // Ensure gemm_0's LDS reads (K tile) from all threads are completed before V store
+            // Only needed when K tail and V use the same LDS buffer
+            if constexpr(LdsSeq.at(number<k0_loops - 1>{}) == LdsSeq.at(number<k0_loops>{}))
+            {
+                __builtin_amdgcn_s_barrier();
+            }
             // store & prefetch next v, after the max reduction
             auto v_shuffle_tmp = make_static_distributed_tensor<VDataType>(
                 Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
