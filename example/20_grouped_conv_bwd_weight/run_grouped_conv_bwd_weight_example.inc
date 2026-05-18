@@ -141,11 +141,15 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         double atol = ck::utils::get_absolute_threshold<InDataType, WeiDataType, AccDataType>(
             max_accumulated_value / num_accums_split_k, num_accums / num_accums_split_k);
 
-        return ck::utils::check_err(wei_device_result.mData,
-                                    wei_host_result.mData,
-                                    "Error: Incorrect results!",
-                                    rtol,
-                                    atol);
+        bool pass = ck::utils::check_err(wei_device_result.mData,
+                                         wei_host_result.mData,
+                                         "Error: Incorrect results!",
+                                         rtol,
+                                         atol);
+
+        std::cout << "CPU verification: " << (pass ? "PASS" : "FAIL") << std::endl;
+
+        return pass;
     }
     else if(config.do_verification == 2)
     {

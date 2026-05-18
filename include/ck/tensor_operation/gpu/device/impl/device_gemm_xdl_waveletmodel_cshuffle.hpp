@@ -139,7 +139,10 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle : public DeviceGemm<ALayout,
                                                                 BElementwiseOperation,
                                                                 CDEElementwiseOperation>
 {
-    static constexpr auto BlockSize = math::max(TileLoadThreadGroupSize, TileMathThreadGroupSize);
+    // BlockSize = TileMathThreadGroupSize for MFMA wave-tile assignment.
+    // The wavelet model splits waves into load (VALU/VMEM) and math (LDS/MFMA) roles;
+    // only math threads participate in MFMA, so wave counts must be derived from TileMath.
+    static constexpr auto BlockSize        = TileMathThreadGroupSize;
     static constexpr auto WarpTileConfig64 = GetWarpTileConfig<BlockSize,
                                                                MPerBlock,
                                                                NPerBlock,

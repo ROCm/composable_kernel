@@ -52,11 +52,17 @@ struct GridwiseGemmLoadWave<TileLoadThreadGroup, 1>
                                                const BBlockTransferStep& b_block_copy_step,
                                                index_t num_loop)
     {
-        // global read 0
-        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+        // sched_group_barrier hints force VMEM reads (0x20) to issue before
+        // address-advance VALU (0x02), so loads are in-flight during computation.
 
-        // move to 1
+        // global read 0: issue VMEM loads, then VALU for address advance
+        a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+        __builtin_amdgcn_sched_group_barrier(0x20, 4, 0); // prioritize VMEM reads
+        b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+        __builtin_amdgcn_sched_group_barrier(0x20, 4, 0); // prioritize VMEM reads
+
+        // move to 1 (pure VALU)
+        __builtin_amdgcn_sched_group_barrier(0x02, 8, 0); // batch VALU
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 
@@ -72,11 +78,15 @@ struct GridwiseGemmLoadWave<TileLoadThreadGroup, 1>
             {
                 // sync for Load threads()
                 block_sync_lds();
-                // global read i + 1
-                a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
-                b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
 
-                // move to i + 2
+                // global read i + 1: front-load VMEM reads
+                a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
+                __builtin_amdgcn_sched_group_barrier(0x20, 4, 0); // VMEM reads
+                b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
+                __builtin_amdgcn_sched_group_barrier(0x20, 4, 0); // VMEM reads
+
+                // move to i + 2 (pure VALU, overlaps with VMEM latency)
+                __builtin_amdgcn_sched_group_barrier(0x02, 8, 0); // batch VALU
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
 

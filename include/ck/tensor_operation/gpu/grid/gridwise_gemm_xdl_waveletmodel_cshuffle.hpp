@@ -169,7 +169,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
     static constexpr auto BK1         = Base::AK1Number;
     static constexpr auto AK0PerBlock = Base::AK0Number;
     static constexpr auto BK0PerBlock = Base::BK0Number;
-    static constexpr auto BlockSize   = math::max(TileLoadThreadGroupSize, TileMathThreadGroupSize);
+    static constexpr auto BlockSize   = TileMathThreadGroupSize;
 
     struct TileLoadThreadGroup
     {
