@@ -13,6 +13,11 @@
 #include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_calculator.hpp"
 #include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_register_mapper.hpp"
 #include "ck_tile/core/arch/mma/wmma/wmma.hpp"
+#include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/float8.hpp"
+#include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/core/numeric/int8.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 #include "ck_tile/host/device_memory.hpp"
@@ -20,9 +25,6 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/host/stream_config.hpp"
 
-#include <cstdint>
-#include <utility>
-#include <vector>
 #include <cmath>
 #include <cstdint>
 #include <vector>
@@ -195,6 +197,9 @@ template <typename MmaOp> // TODO: C++20 concept for MmaOp
 void run_mma_layout_test()
 {
     EXPECT_TRUE(MmaOpTraits<MmaOp>::IsSupported) << "Unsupported MmaOp! Bad MmaOp in list!\n";
+
+    // Compile-time check that print is instantiable for the given MmaOp
+    (void)static_cast<void (*)(MmaOpTraits<MmaOp> const&)>(print);
 
     int device_count = 0;
     hipDevice_t device{};

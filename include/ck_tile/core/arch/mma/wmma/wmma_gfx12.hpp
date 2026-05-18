@@ -5,9 +5,15 @@
 
 #include "wmma_traits.hpp"
 
-#include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
+#include "ck_tile/core/arch/mma/mma_op_family.hpp"
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/float8.hpp"
+#include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/core/numeric/int8.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 
@@ -32,10 +38,13 @@ namespace ck_tile::core::arch::mma {
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
 //               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
-struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
+struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx12_t<CompilerTarget>>
 : amdgcn_mma_base<fp16_t, fp16_t, fp32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
 {
+    static constexpr const char* instruction_name =
+        "__builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12";
+
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
@@ -55,10 +64,13 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarg
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
 //               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
-struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
+struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx12_t<CompilerTarget>>
 : amdgcn_mma_base<bf16_t, bf16_t, fp32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
 {
+    static constexpr const char* instruction_name =
+        "__builtin_amdgcn_wmma_f32_16x16x16_bf16_w32_gfx12";
+
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
@@ -78,10 +90,13 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarg
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
 //               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
-struct amdgcn_mma<fp16_t, fp16_t, fp16_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
+struct amdgcn_mma<fp16_t, fp16_t, fp16_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx12_t<CompilerTarget>>
 : amdgcn_mma_base<fp16_t, fp16_t, fp16_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
 {
+    static constexpr const char* instruction_name =
+        "__builtin_amdgcn_wmma_f16_16x16x16_f16_w32_gfx12";
+
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
@@ -101,10 +116,13 @@ struct amdgcn_mma<fp16_t, fp16_t, fp16_t, 16u, 16u, 16u, CtrlFlags, CompilerTarg
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
 //               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
-struct amdgcn_mma<bf16_t, bf16_t, bf16_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
+struct amdgcn_mma<bf16_t, bf16_t, bf16_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx12_t<CompilerTarget>>
 : amdgcn_mma_base<bf16_t, bf16_t, bf16_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
 {
+    static constexpr const char* instruction_name =
+        "__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32_gfx12";
+
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
@@ -124,10 +142,13 @@ struct amdgcn_mma<bf16_t, bf16_t, bf16_t, 16u, 16u, 16u, CtrlFlags, CompilerTarg
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
 //               | A B C DataTypes       | MNK + WaveSize    |AParams |BPar |CPar |
-struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
+struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx12_t<CompilerTarget>>
 : amdgcn_mma_base<int8_t, int8_t, int32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
 {
+    static constexpr const char* instruction_name =
+        "__builtin_amdgcn_wmma_i32_16x16x16_iu8_w32_gfx12";
+
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
@@ -152,10 +173,13 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 16u, CtrlFlags, CompilerTar
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
 //               | A B C DataTypes    | MNK + WaveSize    |AParams |BPar |CPar |
-struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
+struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx12_t<CompilerTarget>>
 : amdgcn_mma_base<fp8_t, fp8_t, fp32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
 {
+    static constexpr const char* instruction_name =
+        "__builtin_amdgcn_wmma_f32_16x16x16_fp8_fp8_w32_gfx12";
+
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
@@ -176,10 +200,13 @@ struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
 //               | A B C DataTypes    | MNK + WaveSize    |AParams |BPar |CPar |
-struct amdgcn_mma<fp8_t, bf8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
+struct amdgcn_mma<fp8_t, bf8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx12_t<CompilerTarget>>
 : amdgcn_mma_base<fp8_t, bf8_t, fp32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
 {
+    static constexpr const char* instruction_name =
+        "__builtin_amdgcn_wmma_f32_16x16x16_fp8_bf8_w32_gfx12";
+
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
@@ -200,10 +227,13 @@ struct amdgcn_mma<fp8_t, bf8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
 //               | A B C DataTypes    | MNK + WaveSize    |AParams |BPar |CPar |
-struct amdgcn_mma<bf8_t, fp8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
+struct amdgcn_mma<bf8_t, fp8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx12_t<CompilerTarget>>
 : amdgcn_mma_base<bf8_t, fp8_t, fp32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
 {
+    static constexpr const char* instruction_name =
+        "__builtin_amdgcn_wmma_f32_16x16x16_bf8_fp8_w32_gfx12";
+
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
@@ -224,10 +254,13 @@ struct amdgcn_mma<bf8_t, fp8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
 //               | A B C DataTypes    | MNK + WaveSize    |AParams |BPar |CPar |
-struct amdgcn_mma<bf8_t, bf8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, std::enable_if_t<is_target_family_gfx12<CompilerTarget>()>>
+struct amdgcn_mma<bf8_t, bf8_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx12_t<CompilerTarget>>
 : amdgcn_mma_base<bf8_t, bf8_t, fp32_t, 16u, 16u, 16u, 32u, 8, 1, 1, 1, 1, 8, 1, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
 {
+    static constexpr const char* instruction_name =
+        "__builtin_amdgcn_wmma_f32_16x16x16_bf8_bf8_w32_gfx12";
+
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {

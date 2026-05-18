@@ -4,12 +4,24 @@
 #pragma once
 
 #include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/core/arch/mma/wmma/wmma_traits.hpp"
 #include "ck_tile/core/arch/mma/mfma/mfma_traits.hpp"
 #include "ck_tile/core/arch/mma/mma_op_family.hpp"
+#include "ck_tile/core/arch/mma/wmma/wmma_traits.hpp"
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/ext_vector_base.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
+#include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/ops/common/utils.hpp"
+
+#include <cstdint>
+#include <stdio.h>
+#include <type_traits>
+#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
+#include <concepts>
+#include <utility>
+#endif
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wno-unknown-warning-option"
@@ -141,6 +153,8 @@ template <typename ADataType_,
           MmaOpFamily OpFamily_>
 struct amdgcn_mma_base
 {
+    static constexpr const char* instruction_name = "Unknown";
+
     using OpType                          = OpType_;
     static constexpr MmaOpFamily OpFamily = OpFamily_;
 
@@ -200,11 +214,14 @@ struct amdgcn_mma_base
  * @struct Unsupported
  * @brief  Meta-tag to indicate unsupported amdgcn_mma instance.
  */
-struct Unsupported;
+struct Unsupported
+{
+};
+
+CK_TILE_HOST_DEVICE constexpr const char* to_string(Unsupported) { return "Unsupported"; }
 
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
-#include <concepts>
 /**
  * @concept HasExecSignature
  * @brief  Helper concept for exec signature check.
@@ -299,6 +316,64 @@ struct amdgcn_mma : amdgcn_mma_base<fp32_t, fp32_t, fp32_t, 1u, 1u, 1u, 1u, 1, 1
         return regsC; // No-op, just return C
     }
 };
+
+template <typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          std::uint32_t FragM,
+          std::uint32_t FragN,
+          std::uint32_t FragK,
+          typename CtrlFlags,
+          typename CompilerTarget,
+          MmaOpFamily OpFamily_,
+          typename Enabler = void>
+CK_TILE_HOST_DEVICE void print(amdgcn_mma<ADataType,
+                                          BDataType,
+                                          CDataType,
+                                          FragM,
+                                          FragN,
+                                          FragK,
+                                          CtrlFlags,
+                                          CompilerTarget,
+                                          OpFamily_,
+                                          Enabler> const& mmaObj)
+{
+    using ObjType = remove_cvref_t<decltype(mmaObj)>;
+
+    printf("DataTypes      A / B / C                : %s / %s / %s\n",
+           DataTypeTraits<ADataType>::name,
+           DataTypeTraits<BDataType>::name,
+           DataTypeTraits<CDataType>::name);
+    printf("Shape          M / N / K                : %d / %d / %d\n",
+           mmaObj.kM,
+           mmaObj.kN,
+           mmaObj.kK);
+    printf("               WaveSize                 : %d\n", mmaObj.WaveSize);
+    printf("AccessPattern  kABKPerLane              : %d\n", mmaObj.kABKPerLane);
+    printf("               kAKNumAccess             : %d\n", mmaObj.kAKNumAccess);
+    printf("               kARepeat                 : %d\n", mmaObj.kARepeat);
+    printf("               kBKNumAccess             : %d\n", mmaObj.kBKNumAccess);
+    printf("               kBRepeat                 : %d\n", mmaObj.kBRepeat);
+    printf("               kCMPerLane               : %d\n", mmaObj.kCMPerLane);
+    printf("               kCMNumAccess             : %d\n", mmaObj.kCMNumAccess);
+    printf("Op             Type / Family            : %s / %s\n",
+           to_string(typename ObjType::OpType{}),
+           to_string(mmaObj.OpFamily));
+    printf("ExtVectorSize  A / B / C                : %d / %d / %d\n",
+           vector_traits<typename ObjType::AVecType>::vector_size,
+           vector_traits<typename ObjType::BVecType>::vector_size,
+           vector_traits<typename ObjType::CVecType>::vector_size);
+    printf("OtherDerived   kCompressionRatio        : %d\n", mmaObj.kCompressionRatio);
+    printf("               kCMBlocks                : %d\n", mmaObj.kCMBlocks);
+    printf("               kCNBlocks                : %d\n", mmaObj.kCNBlocks);
+    printf("               CBlockDimInVecDim        : %d\n", mmaObj.CBlockDimInVecDim);
+    printf("Instruction    name                     : %s\n", ObjType::instruction_name);
+    if constexpr(!std::is_same_v<CtrlFlags, void>)
+    {
+        print_flags(CtrlFlags{});
+    }
+    print(CompilerTarget{});
+}
 
 } // namespace ck_tile::core::arch::mma
 #pragma clang diagnostic pop

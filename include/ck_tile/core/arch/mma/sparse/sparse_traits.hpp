@@ -3,6 +3,13 @@
 
 #pragma once
 
+#include "ck_tile/core/config.hpp"
+
+#include <stdio.h>
+#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
+#include <concepts>
+#endif
+
 namespace ck_tile::core::arch::mma {
 
 /**
@@ -18,6 +25,19 @@ enum struct SparseCompressionIndex : int
     THIRD  = 2, // Uses bits [23:16]
     FOURTH = 3, // Uses bits [31:24]
 };
+
+// to_string methods for enum classes
+CK_TILE_HOST_DEVICE constexpr const char* to_string(SparseCompressionIndex compressionIndex)
+{
+    switch(compressionIndex)
+    {
+    case SparseCompressionIndex::FIRST: return "FIRST";
+    case SparseCompressionIndex::SECOND: return "SECOND";
+    case SparseCompressionIndex::THIRD: return "THIRD";
+    case SparseCompressionIndex::FOURTH: return "FOURTH";
+    }
+    __builtin_unreachable();
+}
 
 namespace sparse::detail {
 
@@ -66,8 +86,12 @@ struct DefaultSparseMfmaCtrlFlags
     static constexpr SparseCompressionIndex CompressionIndex = SparseCompressionIndex::FIRST;
 };
 
+CK_TILE_HOST_DEVICE void print_flags(DefaultSparseMfmaCtrlFlags const& ctrlFlags)
+{
+    printf("CtrlFlags      CompressionIndex         : %s\n", to_string(ctrlFlags.CompressionIndex));
+}
+
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-#include <concepts>
 /**
  * @concept SparseMfmaCtrlFlags
  * @brief Expresses the interface of required members for each CtrlFlags type

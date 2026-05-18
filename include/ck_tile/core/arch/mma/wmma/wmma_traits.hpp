@@ -3,6 +3,11 @@
 
 #pragma once
 
+#include "ck_tile/core/config.hpp"
+
+#include <stdio.h>
+#include <type_traits>
+
 namespace ck_tile::core::arch::mma {
 
 /**
@@ -10,7 +15,11 @@ namespace ck_tile::core::arch::mma {
  * @brief Meta-tag for the WMMA operation. This will be used in the MmaOp struct to
  * identify the operation as an WMMA operation.
  */
-struct WmmaOp;
+struct WmmaOp
+{
+};
+
+CK_TILE_HOST_DEVICE constexpr const char* to_string(WmmaOp) { return "WmmaOp"; }
 
 /**
  * @class is_mma_op_wmma
@@ -54,5 +63,12 @@ struct DefaultWmmaCtrlFlags
     // false = low bits [15:0], true = high bits [31:16]
     constexpr static bool UseHighAccumBits = true;
 };
+
+CK_TILE_HOST_DEVICE void print_flags(DefaultWmmaCtrlFlags const& ctrlFlags)
+{
+    printf("CtrlFlags      Clamp / UseHighAccumBits : %d / %d\n",
+           ctrlFlags.Clamp,
+           ctrlFlags.UseHighAccumBits);
+}
 
 } // namespace ck_tile::core::arch::mma

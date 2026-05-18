@@ -3,10 +3,17 @@
 
 #pragma once
 
-#include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
+#include "ck_tile/core/arch/mma/mfma/mfma_traits.hpp"
+#include "ck_tile/core/arch/mma/mma_op_family.hpp"
 #include "ck_tile/core/arch/mma/sparse/sparse_traits.hpp"
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/core/utility/type_traits.hpp"
+
+#include <type_traits>
 
 namespace ck_tile::core::arch::mma {
 
@@ -29,6 +36,8 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 16u, 32u, CtrlFlags, CompilerTarg
 : amdgcn_mma_base<fp16_t, fp16_t, fp32_t, 16u, 16u, 32u, 64u, 8, 1, 1, 1, 1, 4, 1, MfmaOp, MmaOpFamily::SPARSE>
 // clang-format on
 {
+    static constexpr const char* instruction_name = "__builtin_amdgcn_smfmac_f32_16x16x32_f16";
+
     CK_TILE_DEVICE static auto
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx) -> CVecType
     {

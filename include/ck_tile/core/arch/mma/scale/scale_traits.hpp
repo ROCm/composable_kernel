@@ -4,11 +4,13 @@
 #pragma once
 
 #include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/pk_fp4.hpp"
 // #include "ck_tile/core/numeric/pk_fp6.hpp"
 
 #include <cstdint>
+#include <stdio.h>
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 #include <concepts>
 #endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
@@ -74,6 +76,13 @@ struct DefaultScaleMfmaCtrlFlags
     static constexpr std::int32_t OPSEL_A = 0;
     static constexpr std::int32_t OPSEL_B = 0;
 };
+
+CK_TILE_HOST_DEVICE void print_flags(DefaultScaleMfmaCtrlFlags const& ctrlFlags)
+{
+    printf("CtrlFlags      OPSEL_A / OPSEL_B        : %d / %d\n",
+           ctrlFlags.OPSEL_A,
+           ctrlFlags.OPSEL_B);
+}
 
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 

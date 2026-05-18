@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
+#include "ck_tile/core/config.hpp"
+
+#include <type_traits>
+
 namespace ck_tile::core::arch::mma {
 
 /**
@@ -44,5 +48,18 @@ struct is_mma_op_of_family<Family, MmaOp, std::enable_if_t<Family == MmaOp::OpFa
  */
 template <MmaOpFamily Family, typename MmaOp>
 static constexpr bool is_mma_op_of_family_v = is_mma_op_of_family<Family, MmaOp>::value;
+
+// to_string methods for enum classes
+CK_TILE_HOST_DEVICE constexpr const char* to_string(MmaOpFamily opFamily)
+{
+    switch(opFamily)
+    {
+    case MmaOpFamily::UNDEFINED: return "UNDEFINED";
+    case MmaOpFamily::DENSE: return "DENSE";
+    case MmaOpFamily::SPARSE: return "SPARSE";
+    case MmaOpFamily::SCALE: return "SCALE";
+    }
+    __builtin_unreachable();
+}
 
 } // namespace ck_tile::core::arch::mma
