@@ -83,6 +83,7 @@ message(DEBUG "adding example ${EXAMPLE_JENGA_SPARSE_ATTN}")
 add_executable(${EXAMPLE_JENGA_SPARSE_ATTN} EXCLUDE_FROM_ALL test_jenga_sparse_attn.cpp)
 target_link_libraries(${EXAMPLE_JENGA_SPARSE_ATTN} ${SPARSE_ATTN_JENGA_INSTANCES})
 target_include_directories(${EXAMPLE_JENGA_SPARSE_ATTN} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+set_property(TARGET ${EXAMPLE_JENGA_SPARSE_ATTN} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 target_compile_options(${EXAMPLE_JENGA_SPARSE_ATTN} PRIVATE
   -Wno-undefined-func-template
   -Wno-float-equal
@@ -148,7 +149,60 @@ message(DEBUG "adding example ${EXAMPLE_VSA_SPARSE_ATTN}")
 add_executable(${EXAMPLE_VSA_SPARSE_ATTN} EXCLUDE_FROM_ALL test_vsa_sparse_attn.cpp)
 target_link_libraries(${EXAMPLE_VSA_SPARSE_ATTN} ${SPARSE_ATTN_VSA_INSTANCES})
 target_include_directories(${EXAMPLE_VSA_SPARSE_ATTN} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+set_property(TARGET ${EXAMPLE_VSA_SPARSE_ATTN} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 target_compile_options(${EXAMPLE_VSA_SPARSE_ATTN} PRIVATE
+  -Wno-undefined-func-template
+  -Wno-float-equal
+)
+
+# ============================================================================
+# Sparge Sparse Attention (PV-skip enabled, derived from VSA)
+# ============================================================================
+set(SPARSE_ATTN_SPARGE_CODE_GEN_ARGS
+  ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  --api fwd_sparge
+  --receipt 600
+)
+
+# Generate list of Sparge kernels (at configure time, only list)
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} ${SPARSE_ATTN_SPARGE_CODE_GEN_ARGS}
+  --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/sparge_blob_list.txt
+  RESULT_VARIABLE ret
+)
+if(ret AND NOT ret EQUAL 0)
+  message(FATAL_ERROR "Failed to generate Sparge kernel list")
+endif()
+
+file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/sparge_blob_list.txt SPARSE_ATTN_SPARGE_GEN_BLOBS)
+
+# Generate Sparge kernel source files at build time
+add_custom_command(
+  OUTPUT ${SPARSE_ATTN_SPARGE_GEN_BLOBS}
+  COMMAND ${Python3_EXECUTABLE} ${SPARSE_ATTN_SPARGE_CODE_GEN_ARGS}
+  --output_dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${CODE_GEN_SCRIPTS}
+  COMMENT "Generate CK Tile Sparge Sparse Attention kernels"
+)
+
+message(STATUS "Sparge kernel files to be generated: ${SPARSE_ATTN_SPARGE_GEN_BLOBS}")
+
+# Sparge Instances
+set(SPARSE_ATTN_SPARGE_INSTANCES "tile_sparse_attn_sparge_instances")
+
+add_library(${SPARSE_ATTN_SPARGE_INSTANCES} OBJECT EXCLUDE_FROM_ALL
+  ${SPARSE_ATTN_SPARGE_GEN_BLOBS}
+)
+target_include_directories(${SPARSE_ATTN_SPARGE_INSTANCES} PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}
+  ${PROJECT_SOURCE_DIR}/include/ck_tile/ops/sparse_attn
+)
+set_source_files_properties(${SPARSE_ATTN_SPARGE_GEN_BLOBS} PROPERTIES LANGUAGE HIP)
+set_property(TARGET ${SPARSE_ATTN_SPARGE_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
+
+target_compile_options(${SPARSE_ATTN_SPARGE_INSTANCES} PRIVATE
+  -DCK_TILE_USE_BUFFER_ADDRESSING_BUILTIN
+  -DCK_TILE_FMHA_FWD_FAST_EXP2
   -Wno-undefined-func-template
   -Wno-float-equal
 )
@@ -188,9 +242,11 @@ add_executable(${EXAMPLE_SPARGE} EXCLUDE_FROM_ALL test_sparge.cpp)
 target_link_libraries(${EXAMPLE_SPARGE}
   ${SPARSE_ATTN_JENGA_INSTANCES}
   ${SPARSE_ATTN_VSA_INSTANCES}
+  ${SPARSE_ATTN_SPARGE_INSTANCES}
   ${SPARGE_BLOCKMAP_INSTANCES}
 )
 target_include_directories(${EXAMPLE_SPARGE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+set_property(TARGET ${EXAMPLE_SPARGE} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 target_compile_options(${EXAMPLE_SPARGE} PRIVATE
   -Wno-undefined-func-template
   -Wno-float-equal

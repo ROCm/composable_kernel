@@ -169,3 +169,9 @@ float sparge_vsa_fwd_combined(sparge_blockmap_traits,
                               fmha_vsa_fwd_traits,
                               fmha_vsa_fwd_args,
                               const ck_tile::stream_config&);
+
+float sparge_sparge_fwd_combined(sparge_blockmap_traits,
+                                 sparge_blockmap_args,
+                                 fmha_sparge_fwd_traits,
+                                 fmha_sparge_fwd_args,
+                                 const ck_tile::stream_config&);

@@ -264,3 +264,24 @@ float sparge_vsa_fwd_combined(sparge_blockmap_traits bmap_t,
         },
         [=](const ck_tile::stream_config& s_) { fmha_vsa_fwd_oneshot(attn_t, attn_a, s_); });
 }
+
+float sparge_sparge_fwd_combined(sparge_blockmap_traits bmap_t,
+                                 sparge_blockmap_args bmap_a,
+                                 fmha_sparge_fwd_traits attn_t,
+                                 fmha_sparge_fwd_args attn_a,
+                                 const ck_tile::stream_config& s)
+{
+    if(s.log_level_ > 0)
+        std::cout << ", sparge_kstats_" << bmap_t.data_type << "_d" << bmap_t.hdim_q
+                  << ", sparge_blockmap_" << bmap_t.data_type << "_d" << bmap_t.hdim_q
+                  << ", fmha_sparge_fwd_" << attn_t.data_type << "_d" << attn_t.hdim_q
+                  << std::flush;
+
+    return ck_tile::launch_kernel(
+        s,
+        [=](const ck_tile::stream_config& s_) { sparge_kstats_fwd_oneshot(bmap_t, bmap_a, s_); },
+        [=](const ck_tile::stream_config& s_) {
+            sparge_blockmap_only_fwd_oneshot(bmap_t, bmap_a, s_);
+        },
+        [=](const ck_tile::stream_config& s_) { fmha_sparge_fwd_oneshot(attn_t, attn_a, s_); });
+}

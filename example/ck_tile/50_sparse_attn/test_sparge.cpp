@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <random>
@@ -100,7 +102,19 @@ auto create_args(int argc, char* argv[])
         .insert("seed", "42", "random seed")
         .insert("warmup", "5", "warmup iterations")
         .insert("repeat", "20", "benchmark iterations")
-        .insert("kname", "0", "print kernel name");
+        .insert("kname", "0", "print kernel name")
+        .insert("dump_o",
+                "",
+                "if non-empty, dump raw output buffer bytes to this path (for bit-identical "
+                "baseline comparison)")
+        .insert("pv_threshold",
+                "1e30",
+                "SpargeAttn PV-skip per-Q-tile threshold; default +1e30 disables skip")
+        .insert("pv_skip_compile",
+                "1",
+                "R25 V0: 1=use kEnablePVSkip=true template instance (existing path); 0=use "
+                "kEnablePVSkip=false instance (PV-skip AST removed at compile time, equivalent to "
+                "VSA baseline)");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -130,6 +144,9 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     int warmup                = arg_parser.get_int("warmup");
     int repeat                = arg_parser.get_int("repeat");
     int kname                 = arg_parser.get_int("kname");
+    std::string dump_o_path   = arg_parser.get_str("dump_o");
+    float pv_threshold        = arg_parser.get_float("pv_threshold");
+    int pv_skip_compile       = arg_parser.get_int("pv_skip_compile");
 
     if(nhead_k < 0)
         nhead_k = nhead;
@@ -309,7 +326,9 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     }
     else if(pipeline == "vsa")
     {
-        fmha_vsa_fwd_traits attn_traits;
+        // R25: -pipeline=vsa now dispatches to the sparge pipeline family that adds
+        // SpargeAttn §4.4 PV-skip; pass pv_threshold (+1e30 disables skip, matches old vsa).
+        fmha_sparge_fwd_traits attn_traits;
         attn_traits.hdim_q        = hdim_q;
         attn_traits.hdim_v        = hdim_v;
         attn_traits.data_type     = std::is_same_v<T, ck_tile::half_t> ? "fp16" : "bf16";
@@ -317,7 +336,7 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         attn_traits.mask_type     = mask_enum::no_mask;
         attn_traits.bm0           = BLKQ;
 
-        fmha_vsa_fwd_args attn_args;
+        fmha_sparge_fwd_args attn_args;
         attn_args.q_ptr               = q_dev.GetDeviceBuffer();
         attn_args.k_ptr               = k_dev.GetDeviceBuffer();
         attn_args.v_ptr               = v_dev.GetDeviceBuffer();
@@ -333,6 +352,8 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         attn_args.nhead_q             = nhead;
         attn_args.nhead_k             = nhead_k;
         attn_args.scale_s             = scale_s;
+        attn_args.pv_threshold        = pv_threshold;
+        attn_args.pv_skip_compile     = (pv_skip_compile != 0);
         attn_args.stride_q            = q_strides[i_perm ? 2 : 1];
         attn_args.stride_k            = k_strides[i_perm ? 2 : 1];
         attn_args.stride_v            = v_strides[i_perm ? 2 : 1];
@@ -350,7 +371,7 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         attn_args.mask_type           = 0;
 
         avg_ms =
-            sparge_vsa_fwd_combined(bmap_traits, bmap_args, attn_traits, attn_args, stream_cfg);
+            sparge_sparge_fwd_combined(bmap_traits, bmap_args, attn_traits, attn_args, stream_cfg);
     }
     else
     {
@@ -373,6 +394,23 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     // ---- copy results back ----
     o_dev.FromDevice(output_host.data());
     block_map_dev.FromDevice(block_map_host.data());
+
+    // ---- optional raw output dump (for bit-identical baseline comparison) ----
+    if(!dump_o_path.empty())
+    {
+        std::ofstream ofs(dump_o_path, std::ios::binary | std::ios::trunc);
+        if(!ofs)
+        {
+            std::cerr << "\n  [dump_o] failed to open " << dump_o_path << std::endl;
+        }
+        else
+        {
+            ofs.write(reinterpret_cast<const char*>(output_host.data()),
+                      static_cast<std::streamsize>(output_host.get_element_space_size_in_bytes()));
+            std::cout << "\n  [dump_o] wrote " << output_host.get_element_space_size_in_bytes()
+                      << " bytes to " << dump_o_path;
+        }
+    }
 
     // ---- count active blocks ----
     ck_tile::index_t total_blocks  = batch * nhead * num_q_blocks * num_k_blocks;
