@@ -28,16 +28,26 @@ COMMON_ARGS='-v=1 -warmup=0 -repeat=1'
 
 TEST_SPLITKV=0
 TEST_APPENDKV=0
+TEST_STREAM_SINK=0
+TEST_GPTOSS_SINK=0
 # options:
 #    -s: run splitkv tests
 #    -a: run appendkv tests
-while getopts ":sa" opt; do
+#    -m: run StreamLLM sink mask tests (requires sink=true kernels)
+#    -g: run GPT-OSS sink init tests (requires sink=true kernels)
+while getopts ":samg" opt; do
     case "${opt}" in
         s)
             TEST_SPLITKV=1
             ;;
         a)
             TEST_APPENDKV=1
+            ;;
+        m)
+            TEST_STREAM_SINK=1
+            ;;
+        g)
+            TEST_GPTOSS_SINK=1
             ;;
         *)
             ;;
@@ -300,8 +310,13 @@ run_padding_smoke_tests
 run_padding_basic_boundary_tests
 run_fp8bf16_tests
 run_fp8fp32_tests
-run_sink_mask_tests
-run_sink_init_tests
+if [ $TEST_STREAM_SINK -eq 1 ] ; then
+    run_sink_mask_tests
+fi
+
+if [ $TEST_GPTOSS_SINK -eq 1 ] ; then
+    run_sink_init_tests
+fi
 
 if [ $TEST_APPENDKV -eq 1 ] ; then
     run_fp16_appendkv_tests
