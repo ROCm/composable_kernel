@@ -719,6 +719,170 @@ struct tile_scatter_gather
         });
     }
 
+    // ------------------------------------------------------------------
+    // Variant of async_load_raw that lazily re-anchors the wave-uniform SRD
+    // base pointer so per-lane voffsets stay within int32 range even when
+    // the total cache pool exceeds 4 GB. For every load issue:
+    //
+    //   1. read the per-lane absolute page offset (long_index_t, in
+    //      elements of DataType);
+    //   2. take lane-0's value as a wave-uniform anchor candidate via
+    //      amd_wave_read_first_lane();
+    //   3. if (wave_anchor - cur_anchor_) is outside [0, kRebaseThreshold)
+    //      shift the SRD base pointer to p_data_orig_ + wave_anchor and
+    //      reinit the buffer resource; update cur_anchor_ accordingly;
+    //   4. issue the buffer_load with voffset = (lane_page_offset -
+    //      cur_anchor_), which is guaranteed to fit in int32 (after the
+    //      *sizeof(T) byte scaling inside amd_async_buffer_load_with_oob_raw).
+    //
+    // Correctness precondition: within a single issue every lane of the
+    // wave must map to the same physical page block, i.e.
+    //   WaveSpanInN <= runtime page_size
+    // Under this precondition the per-lane spread relative to the
+    // wave-uniform anchor is bounded by page_size * row_stride * sizeof(T),
+    // which fits comfortably in the half-INT32 element-window we leave
+    // (kRebaseThreshold below). When the precondition does not hold use
+    // async_load_raw_long instead.
+    //
+    // Fast path (no overflow this issue): one wave-read, one 64-bit
+    // subtract, one compare-branch. Branch is wave-uniform; rebase rate is
+    // low so the branch is well predicted by the SIMD scheduler.
+    //
+    // This method is non-const because it mutates bottom_tensor_view_
+    // (rebase) and cur_anchor_ (anchor tracking). Use after
+    // init_raw_lazy_rebase().
+    template <typename LdsTileWindow_,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true,
+              bool pre_nop                = false>
+    CK_TILE_DEVICE auto async_load_raw_lazy_rebase(
+        LdsTileWindow_&& lds_tile,
+        number<i_access_unsupport_>          = {},
+        bool_constant<oob_conditional_check> = {},
+        bool_constant<pre_nop>               = {})
+    {
+        using LdsTileWindow = remove_cvref_t<LdsTileWindow_>;
+        using LdsDataType   = typename LdsTileWindow::DataType;
+
+        // issues * warps * lanes
+        static_assert(LdsTileWindow::get_num_of_dimension() == 3); // TODO: hard coded
+
+        const index_t size_per_buf =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<0>{}, number<0>{}, number<0>{})) *
+            sizeof(LdsDataType);
+
+        const index_t size_per_wave =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<0>{}, number<1>{}, number<0>{})) *
+                sizeof(LdsDataType) -
+            size_per_buf;
+
+        const index_t size_per_issue =
+            lds_tile.get_bottom_tensor_view().get_tensor_descriptor().calculate_offset(
+                make_tuple(number<1>{}, number<0>{}, number<0>{})) *
+                sizeof(LdsDataType) -
+            size_per_buf;
+
+        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
+        m0_set_with_memory(amd_wave_read_first_lane(m0_init_value));
+
+        using Traits   = load_store_traits;
+        using vector_t = typename Traits::vector_t;
+        using SFC_Ys   = typename Traits::SFC_Ys;
+
+        LdsDataType* smem = lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_;
+
+        // The buffer-load builtin scales the element offset by sizeof(DataType)
+        // and feeds the result to a 32-bit voffset. To keep the byte offset
+        // within INT32_MAX *for any active lane in the wave*, leave a margin
+        // of half the element window for per-lane spread relative to lane-0.
+        constexpr long_index_t kInt32ElemWindow =
+            static_cast<long_index_t>(INT32_MAX) / static_cast<long_index_t>(sizeof(DataType));
+        constexpr long_index_t kRebaseThreshold = kInt32ElemWindow / 2;
+
+        static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+            auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
+            auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
+
+            static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
+                constexpr auto iAccess  = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
+                constexpr auto pre_nop_ = [&]() {
+                    if constexpr(pre_nop && iCoord == 0 && iCoordAccess == 0)
+                        return bool_constant<true>{};
+                    else
+                        return bool_constant<false>{};
+                }();
+
+                constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
+                constexpr auto idx_gather   = get_gather_index(idx_ys_start);
+
+                // Per-lane absolute page offset (in elements of DataType).
+                const long_index_t lane_page_offset =
+                    static_cast<long_index_t>(page_idx_[idx_gather]);
+
+                // Wave-uniform anchor candidate: lane-0's value (or first
+                // active lane). Promoted to SGPRs by the readfirstlane.
+                const long_index_t wave_anchor = amd_wave_read_first_lane(lane_page_offset);
+
+                // Lazy rebase: only when the wave-uniform anchor has drifted
+                // outside the current int32 voffset window around cur_anchor_.
+                const long_index_t rel = wave_anchor - cur_anchor_;
+                if(rel < 0 || rel >= kRebaseThreshold)
+                {
+                    cur_anchor_                      = wave_anchor;
+                    bottom_tensor_view_.buf_.p_data_ = p_data_orig_ + cur_anchor_;
+                    using BufSizeT =
+                        remove_cvref_t<decltype(bottom_tensor_view_.buf_.buffer_size_)>;
+                    bottom_tensor_view_.buf_.buffer_size_ =
+                        static_cast<BufSizeT>(buffer_size_orig_ - cur_anchor_);
+                    bottom_tensor_view_.init_raw();
+                }
+
+                // Per-lane voffset relative to (possibly new) cur_anchor_.
+                // Fits in int32 by construction (kRebaseThreshold + spread).
+                const index_t lane_voffset =
+                    static_cast<index_t>(lane_page_offset - cur_anchor_);
+
+                // read from bottom tensor
+                if constexpr(std::is_same_v<ValidArray, std::nullptr_t>)
+                {
+                    get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
+                        smem, bottom_tensor_thread_coord, lane_voffset, 0, pre_nop_);
+                }
+                else
+                {
+                    get_bottom_tensor_view().template async_get_vectorized_elements_raw<vector_t>(
+                        smem,
+                        bottom_tensor_thread_coord,
+                        lane_voffset,
+                        valids_[idx_gather],
+                        0,
+                        pre_nop_);
+                }
+
+                // move thread coordinate
+                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+                {
+                    constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
+
+                    constexpr auto forward_step_scatter = generate_tuple(
+                        [&](auto i) { return is_gather_dim(i) ? 0 : idx_diff_ys[i]; },
+                        number<NDimY>{});
+
+                    constexpr auto idx_diff_ps_ys = container_concat(
+                        generate_tuple([&](auto) { return number<0>{}; }, number<NDimP>{}),
+                        forward_step_scatter);
+
+                    move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                        window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+
+                    m0_inc_with_memory(size_per_issue);
+                }
+            });
+        });
+    }
+
     // TODO: fix with swizzle
     template <typename LdsTileWindow_,
               index_t i_access_unsupport_ = -1,
@@ -1275,6 +1439,21 @@ struct tile_scatter_gather
 
     CK_TILE_HOST_DEVICE void init_raw() { bottom_tensor_view_.init_raw(); }
 
+    // Companion to init_raw(): capture the original SRD base / size so that
+    // async_load_raw_lazy_rebase() can shift the wave-uniform base pointer
+    // on demand and later recompute the buffer resource (init_raw) without
+    // losing the underlying pool layout. Reset the anchor to 0 (no shift).
+    // Call this once per window instead of init_raw() when the per-issue
+    // page offsets may exceed INT32_MAX (i.e. when the cache pool size in
+    // bytes can overflow int32 voffsets).
+    CK_TILE_HOST_DEVICE void init_raw_lazy_rebase()
+    {
+        p_data_orig_      = bottom_tensor_view_.buf_.p_data_;
+        buffer_size_orig_ = static_cast<long_index_t>(bottom_tensor_view_.buf_.buffer_size_);
+        cur_anchor_       = 0;
+        bottom_tensor_view_.init_raw();
+    }
+
     // this is the bottom tensor view
     // [x0', x1', ...] ==> [offset]
     BottomTensorView bottom_tensor_view_;
@@ -1302,6 +1481,20 @@ struct tile_scatter_gather
                        array<tuple<WindowAdaptorCoord, BottomTensorCoord>, NumCoord>,
                        std::byte>
         pre_computed_warp_coords_;
+
+    // State used by async_load_raw_lazy_rebase(). Populated by
+    // init_raw_lazy_rebase(); ignored by all other load paths.
+    //   p_data_orig_      : original SRD base pointer (never mutated post-init)
+    //   buffer_size_orig_ : original SRD size in elements of DataType
+    //   cur_anchor_       : current wave-uniform SRD shift (in elements,
+    //                       relative to p_data_orig_); kept in SGPRs as the
+    //                       value is only ever assigned from
+    //                       amd_wave_read_first_lane(...). When non-zero,
+    //                       bottom_tensor_view_.buf_.p_data_ ==
+    //                       p_data_orig_ + cur_anchor_.
+    typename BottomTensorView::buffer_view::type* p_data_orig_ = nullptr;
+    long_index_t buffer_size_orig_                             = 0;
+    long_index_t cur_anchor_                                   = 0;
 };
 
 // TODO: use strategy

@@ -214,6 +214,34 @@ CK_TILE_DEVICE void async_load_tile_raw_long(LdsTileWindow_&& lds_tile,
                                     bool_constant<pre_nop>{});
 }
 
+// Variant of async_load_tile_raw that dispatches to
+// async_load_raw_lazy_rebase: the fast buffer_load_dword_lds path, but with
+// a wave-uniform SRD base pointer that is lazily re-anchored whenever the
+// per-issue page offset would otherwise overflow int32 voffsets. Lifts the
+// 4 GB cache-pool limit of the regular async_load_tile_raw without paying
+// the per-lane 64-bit base cost of async_load_tile_raw_long. Requires the
+// tile_window to have been set up with init_raw_lazy_rebase() and the
+// WaveSpanInN <= runtime page_size precondition documented on
+// async_load_raw_lazy_rebase. The tile_window is passed by non-const
+// reference because the rebase mutates its SRD state.
+template <typename LdsTileWindow_,
+          typename TileWindow_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          bool pre_nop               = false>
+CK_TILE_DEVICE void async_load_tile_raw_lazy_rebase(
+    LdsTileWindow_&& lds_tile,
+    TileWindow_& tile_window,
+    number<i_access>                     = {},
+    bool_constant<oob_conditional_check> = {},
+    bool_constant<pre_nop>               = {})
+{
+    tile_window.async_load_raw_lazy_rebase(lds_tile,
+                                           number<i_access>{},
+                                           bool_constant<oob_conditional_check>{},
+                                           bool_constant<pre_nop>{});
+}
+
 CK_TILE_DEVICE void async_load_fence(index_t cnt = 0)
 {
     asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");

@@ -829,7 +829,15 @@ struct UnifiedAttentionPipeline
                                      {0, 0},
                                      k_dist,
                                      k_page_offsets);
-        k_dram_window.init_raw();
+        // Use the lazy-rebase-aware init when overflow is possible so the
+        // rebase path has the original SRD base/size captured. The fast
+        // path is unaffected: init_raw_lazy_rebase() ends by calling
+        // init_raw() so the short load path is still valid until the
+        // first rebase fires.
+        if(cache_ptr_int32_overflow_possible)
+            k_dram_window.init_raw_lazy_rebase();
+        else
+            k_dram_window.init_raw();
 
         auto v_dram_window =
             make_tile_scatter_gather(v_view,
@@ -837,7 +845,10 @@ struct UnifiedAttentionPipeline
                                      {0, 0},
                                      v_dist,
                                      v_page_offsets);
-        v_dram_window.init_raw();
+        if(cache_ptr_int32_overflow_possible)
+            v_dram_window.init_raw_lazy_rebase();
+        else
+            v_dram_window.init_raw();
 
         // prefetch K tile
         constexpr index_t k0_loops = 1;
@@ -940,27 +951,29 @@ struct UnifiedAttentionPipeline
         //
         // Two load paths, dispatched on the runtime overflow flag:
         //   - false: `async_load_tile_raw` → `buffer_load_dword_lds` with a
-        //     wave-uniform 4 GB-capped SRD. Faster, but per-lane voffsets
-        //     are int32 so the path is only correct while
+        //     wave-uniform 4 GB-capped SRD. Fastest path; only correct when
         //     `num_blocks * page_size * row_stride * sizeof(T) ≤ INT32_MAX`.
-        //   - true: `async_load_tile_raw_long` → `global_load_lds_dwordx*`
-        //     with per-lane 64-bit base pointers, lifting the 4 GB limit
-        //     at the cost of lower throughput.
+        //   - true:  `async_load_tile_raw_lazy_rebase` → still
+        //     `buffer_load_dword_lds`, but with a wave-uniform SRD base
+        //     pointer that is lazily re-anchored at each issue whenever
+        //     the per-lane page offset would otherwise overflow the int32
+        //     voffset. Lifts the 4 GB cache-pool limit without paying the
+        //     per-lane 64-bit base cost of `async_load_tile_raw_long`.
+        //     Precondition: WaveSpanInN ≤ runtime page_size (so within a
+        //     single issue every lane of the wave maps to the same physical
+        //     page block and the per-lane spread relative to the
+        //     wave-uniform anchor stays inside a half-INT32 element window).
+        //     If the precondition fails, swap this back to
+        //     `async_load_tile_raw_long` (per-lane 64-bit `global_load_lds`).
         // The branch is on a wave-uniform value, so no execution divergence.
         //
-        // We tried a third "per-issue SRD rebase" path
-        // (`async_load_tile_raw_rebased`: buffer_load_dword_lds with a
-        // per-issue SRD whose 48-bit base absorbs the wave-uniform page
-        // offset, valid when WaveSpanInN ≤ runtime page_size). It was
-        // correct on every big-cache decode shape tested but came out at
-        // best tied with the long path and at worst ~6% slower (e.g.
-        // b=1 sk=1M d=64: 2.46 ms vs 2.32 ms; b=8 sk=200k d=128: 2.12 ms
-        // vs 2.02 ms — see git log for the full table). These workloads
-        // are compute / softmax bound, not K/V-load bandwidth bound, so
-        // the buffer_load vs global_load_lds throughput edge never
-        // materialises, while per-issue SRD construction adds real SGPR
-        // pressure. The rebased helper has been removed to keep the
-        // dispatch (and emitted kernel size) minimal.
+        // History: an earlier "per-issue SRD rebase" path (rebase on every
+        // issue regardless of whether overflow was imminent) was tested and
+        // came out at best tied with the long path and at worst ~6% slower
+        // because per-issue SRD construction adds real SGPR pressure on
+        // compute/softmax-bound shapes. The current `_lazy_rebase` only
+        // rebases when the wave anchor drifts outside the current int32
+        // voffset window, keeping the fast path register-cheap.
         constexpr index_t KWaveSpanInN =
             (KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<1>{}] - 1) *
                 KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<2>{}] +
@@ -969,7 +982,8 @@ struct UnifiedAttentionPipeline
 
         auto K_mem_load = [&](auto k_lds_write_idx) {
             if(cache_ptr_int32_overflow_possible)
-                async_load_tile_raw_long(k_lds_window_store(k_lds_write_idx), k_dram_window);
+                async_load_tile_raw_lazy_rebase(k_lds_window_store(k_lds_write_idx),
+                                                k_dram_window);
             else
                 async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
             k_block_idx++;
@@ -979,7 +993,8 @@ struct UnifiedAttentionPipeline
 
         auto V_mem_load = [&](auto v_lds_write_idx) {
             if(cache_ptr_int32_overflow_possible)
-                async_load_tile_raw_long(v_lds_window_store(v_lds_write_idx), v_dram_window);
+                async_load_tile_raw_lazy_rebase(v_lds_window_store(v_lds_write_idx),
+                                                v_dram_window);
             else
                 async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
             v_block_idx++;
