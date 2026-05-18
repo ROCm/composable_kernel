@@ -67,6 +67,7 @@ namespace ckp = ck_tile::builder::profiling;
 template <auto SIGNATURE>
 int call_profiler(const ckt::Args<SIGNATURE>& args,
                   const std::string& split_k,
+                  bool do_verification,
                   bool time_kernel,
                   ck_tile::index_t instance_index)
 {
@@ -90,7 +91,8 @@ int call_profiler(const ckt::Args<SIGNATURE>& args,
                                    5 /*cold_iters*/,
                                    50 /*nrepeat_*/,
                                    true /*is_gpu_timer_*/,
-                                   time_kernel /*flush_cache*/});
+                                   time_kernel /*flush_cache*/},
+            do_verification);
     if(time_kernel)
     {
         std::cout << "\nBest configuration parameters:" << "\n\tname: " << op_name << " (instance "
@@ -120,10 +122,11 @@ int profile_grouped_conv_bwd_data_tile(int argc, char* argv[])
         return 1;
     }
 
-    const auto data_type      = static_cast<ConvDataType>(std::stoi(argv[2]));
-    const auto layout         = static_cast<ConvLayout>(std::stoi(argv[3]));
-    const bool time_kernel    = std::stoi(argv[7]);
-    const int num_dim_spatial = std::stoi(argv[8]);
+    const auto data_type       = static_cast<ConvDataType>(std::stoi(argv[2]));
+    const auto layout          = static_cast<ConvLayout>(std::stoi(argv[3]));
+    const bool do_verification = std::stoi(argv[4]);
+    const bool time_kernel     = std::stoi(argv[7]);
+    const int num_dim_spatial  = std::stoi(argv[8]);
 
     // 8 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial, 1 for split-K
     if(positional_argc != 8 + 1 + 4 + 6 * num_dim_spatial + 1)
@@ -157,6 +160,7 @@ int profile_grouped_conv_bwd_data_tile(int argc, char* argv[])
                 return call_profiler<SIGNATURE>(
                     ckp::parse_conv_args<SIGNATURE>(conv_params_start_idx, argv),
                     split_k,
+                    do_verification,
                     time_kernel,
                     instance_index);
             }
@@ -166,6 +170,7 @@ int profile_grouped_conv_bwd_data_tile(int argc, char* argv[])
                 return call_profiler<SIGNATURE>(
                     ckp::parse_conv_args<SIGNATURE>(conv_params_start_idx, argv),
                     split_k,
+                    do_verification,
                     time_kernel,
                     instance_index);
             }
@@ -175,6 +180,7 @@ int profile_grouped_conv_bwd_data_tile(int argc, char* argv[])
                 return call_profiler<SIGNATURE>(
                     ckp::parse_conv_args<SIGNATURE>(conv_params_start_idx, argv),
                     split_k,
+                    do_verification,
                     time_kernel,
                     instance_index);
             }
@@ -187,6 +193,7 @@ int profile_grouped_conv_bwd_data_tile(int argc, char* argv[])
                 return call_profiler<SIGNATURE>(
                     ckp::parse_conv_args<SIGNATURE>(conv_params_start_idx, argv),
                     split_k,
+                    do_verification,
                     time_kernel,
                     instance_index);
             }
@@ -196,6 +203,7 @@ int profile_grouped_conv_bwd_data_tile(int argc, char* argv[])
                 return call_profiler<SIGNATURE>(
                     ckp::parse_conv_args<SIGNATURE>(conv_params_start_idx, argv),
                     split_k,
+                    do_verification,
                     time_kernel,
                     instance_index);
             }
@@ -205,6 +213,7 @@ int profile_grouped_conv_bwd_data_tile(int argc, char* argv[])
                 return call_profiler<SIGNATURE>(
                     ckp::parse_conv_args<SIGNATURE>(conv_params_start_idx, argv),
                     split_k,
+                    do_verification,
                     time_kernel,
                     instance_index);
             }

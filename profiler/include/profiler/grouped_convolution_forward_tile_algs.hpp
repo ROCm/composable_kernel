@@ -66,7 +66,8 @@ std::tuple<bool, float, std::string>
 run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
                                    const ckt::Inputs<SIGNATURE>& inputs,
                                    const ckt::Outputs<SIGNATURE>& outputs,
-                                   const ck_tile::stream_config& s_conf)
+                                   const ck_tile::stream_config& s_conf,
+                                   bool do_verification = true)
 {
     // Run first instance as dummy to get proper time from the first instance
     bool dummy_run_executed = false;
@@ -84,11 +85,14 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
                                               ck_tile::bfloat16_t>>;
 
     auto reference = ckt::alloc_outputs(args);
-    using ReferenceInstance =
-        typename ckb::ConvBuilder<SIGNATURE, ckt::ConvAlgorithm_Reference{}>::Instance;
-    auto ref_conv   = ReferenceInstance{};
-    auto ref_result = ckt::run(ref_conv, args, inputs, reference.get());
-    auto run_alg    = [&](auto&& run_alg_func) {
+    if(do_verification)
+    {
+        using ReferenceInstance =
+            typename ckb::ConvBuilder<SIGNATURE, ckt::ConvAlgorithm_Reference{}>::Instance;
+        auto ref_conv                    = ReferenceInstance{};
+        [[maybe_unused]] auto ref_result = ckt::run(ref_conv, args, inputs, reference.get());
+    }
+    auto run_alg = [&](auto&& run_alg_func) {
         std::tie(is_supported, avg_time, op_name) = run_alg_func(args, inputs, outputs, s_conf);
         if(is_supported)
         {
@@ -104,26 +108,30 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
             std::cout << "Perf: " << std::setw(10) << avg_time << " ms," << " " << op_name
                       << std::endl;
 
-            ckt::ValidationReport report;
-            ckt::Outputs<SIGNATURE>::reflect(
-                args,
-                [&](std::string_view name, const auto& desc, void* ckt::Outputs<SIGNATURE>::*ptr) {
-                    report.check(name,
-                                 desc,
-                                 outputs.*ptr,
-                                 reference.get().*ptr,
-                                 ck::profiler::get_rtol<DataType>(),
-                                 ck::profiler::get_atol<DataType>());
-                });
-
-            for(const auto& error : report.get_errors())
+            if(do_verification)
             {
-                valid = false;
-                std::cout << "Number of incorrect values: " << error.wrong_elements
-                          << " Is all zero:" << error.is_all_zero()
-                          << " max err: " << error.max_error << std::endl;
-                // Check with cpu verification to get a values
-                run_cpu_validation<SIGNATURE>(args, outputs, reference.get());
+                ckt::ValidationReport report;
+                ckt::Outputs<SIGNATURE>::reflect(args,
+                                                 [&](std::string_view name,
+                                                     const auto& desc,
+                                                     void* ckt::Outputs<SIGNATURE>::*ptr) {
+                                                     report.check(
+                                                         name,
+                                                         desc,
+                                                         outputs.*ptr,
+                                                         reference.get().*ptr,
+                                                         ck::profiler::get_rtol<DataType>(),
+                                                         ck::profiler::get_atol<DataType>());
+                                                 });
+
+                for(const auto& error : report.get_errors())
+                {
+                    valid = false;
+                    std::cout << "Number of incorrect values: " << error.wrong_elements
+                              << " Is all zero:" << error.is_all_zero()
+                              << " max err: " << error.max_error << std::endl;
+                    run_cpu_validation<SIGNATURE>(args, outputs, reference.get());
+                }
             }
         }
         else
