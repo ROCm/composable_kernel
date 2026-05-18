@@ -17,7 +17,20 @@
 #define ASM_MARKER(marker)
 #endif
 
-#define ADD_SBARRIER_FOR_PHASE0 1
+// ADD_SBARRIER_FOR_PHASE0
+//   0 (default): omit the s_barrier at the start of every (cl_p) half of every
+//     KV iteration. The remaining 3 barriers (phase1 K-load, phase2 P-LDS,
+//     phase3 V-load) provide all the cross-warp ordering required: phase1's
+//     vmcnt-waitcnt-then-barrier guards the K-LDS write before any warp's
+//     K-LDS read; phase2's lgkmcnt-waitcnt-then-barrier guards the softmax
+//     P-LDS write before gemm1's P-LDS read; phase3's vmcnt-waitcnt-then-
+//     barrier guards the V-LDS write before the next iter's V-LDS read.
+//   1: re-instate the extra phase-0 barrier (defensive — was the historical
+//     default). Costs ~3% on prefill_d128 FP8 (8 warps × 4 phases) since
+//     8-wave block barriers dominate the kernel time on long-seq KV loops.
+// Verified correctness on fp16/bf16/fp8 across the b/sq/sk shape ladder
+// (test_single_shape.py --test) before flipping the default.
+#define ADD_SBARRIER_FOR_PHASE0 0
 #if !defined(CK_TILE_DISABLE_PACKED_FP32)
 #define CK_TILE_DISABLE_PACKED_FP32 0
 #endif
