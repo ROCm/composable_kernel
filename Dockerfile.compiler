@@ -1,0 +1,78 @@
+ARG BASE_DOCKER="rocm/composable_kernel:ck_ub24.04_rocm7.1.1"
+FROM $BASE_DOCKER
+ARG compiler_version=""
+ARG compiler_commit=""
+
+# Add alternative compilers, if necessary
+ENV compiler_version=$compiler_version
+ENV compiler_commit=$compiler_commit
+RUN sh -c "echo compiler version = '$compiler_version'" && \
+    sh -c "echo compiler commit = '$compiler_commit'"
+
+RUN if ( [ "$compiler_version" = "develop" ] || [ "$compiler_version" = "amd-staging" ] ) && [ "$compiler_commit" = "" ]; then \
+        git clone -b "$compiler_version" https://github.com/ROCm/llvm-project.git && \
+        cd llvm-project && git log -1 && mkdir build && cd build && \
+        cmake -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DLLVM_ENABLE_PROJECTS="clang;lld;clang-tools-extra;flang;mlir" \
+        -DLLVM_LIT_ARGS="-vv --show-unsupported --show-xfail -j 32" \
+        -DPACKAGE_VENDOR="AMD" \
+        -DCMAKE_INSTALL_PREFIX=/home/$USER/rocm/pure_llvm_1.0 \
+        -DLLVM_ENABLE_ASSERTIONS=ON \
+        -DLLVM_BUILD_DOCS=ON \
+        -DLLVM_TARGETS_TO_BUILD=all \
+        -DLIBOMPTARGET_ENABLE_DEBUG=ON \
+        -DOFFLOAD_ENABLE_EMISSARY_APIS=OFF \
+        -DCLANG_DEFAULT_LINKER=lld \
+        -DCLANG_DEFAULT_PIE_ON_LINUX=0 \
+        -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;openmp;compiler-rt;libunwind;flang-rt" \
+        -DLIBCXX_ENABLE_SHARED=OFF \
+        -DLIBCXX_ENABLE_STATIC=ON \
+        -DLIBCXX_INSTALL_LIBRARY=OFF \
+        -DLIBCXX_INSTALL_HEADERS=OFF \
+        -DLIBCXXABI_ENABLE_SHARED=OFF \
+        -DLIBCXXABI_ENABLE_STATIC=ON \
+        -DLIBCXXABI_INSTALL_STATIC_LIBRARY=OFF \
+        -DLLVM_ENABLE_ASSERTIONS=1 \
+        -DLLVM_ENABLE_Z3_SOLVER=OFF \
+        -DLLVM_ENABLE_ZLIB=ON \
+        -DLLVM_LINK_LLVM_DYLIB=OFF \
+        -DCLANG_LINK_CLANG_DYLIB=OFF \
+        ../llvm && \
+        ninja -j16 ; \
+    else echo "using the release compiler"; \
+    fi
+
+RUN if ( [ "$compiler_version" = "develop" ] || [ "$compiler_version" = "amd-staging" ] ) && [ "$compiler_commit" != "" ]; then \
+        git clone -b "$compiler_version" https://github.com/ROCm/llvm-project.git && \
+        cd llvm-project && git checkout "$compiler_commit" && echo "checking out commit $compiler_commit" && mkdir build && cd build && \
+        cmake -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DLLVM_ENABLE_PROJECTS="clang;lld;clang-tools-extra;flang;mlir" \
+        -DLLVM_LIT_ARGS="-vv --show-unsupported --show-xfail -j 32" \
+        -DPACKAGE_VENDOR="AMD" \
+        -DCMAKE_INSTALL_PREFIX=/home/$USER/rocm/pure_llvm_1.0 \
+        -DLLVM_ENABLE_ASSERTIONS=ON \
+        -DLLVM_BUILD_DOCS=ON \
+        -DLLVM_TARGETS_TO_BUILD=all \
+        -DLIBOMPTARGET_ENABLE_DEBUG=ON \
+        -DOFFLOAD_ENABLE_EMISSARY_APIS=OFF \
+        -DCLANG_DEFAULT_LINKER=lld \
+        -DCLANG_DEFAULT_PIE_ON_LINUX=0 \
+        -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;openmp;compiler-rt;libunwind;flang-rt" \
+        -DLIBCXX_ENABLE_SHARED=OFF \
+        -DLIBCXX_ENABLE_STATIC=ON \
+        -DLIBCXX_INSTALL_LIBRARY=OFF \
+        -DLIBCXX_INSTALL_HEADERS=OFF \
+        -DLIBCXXABI_ENABLE_SHARED=OFF \
+        -DLIBCXXABI_ENABLE_STATIC=ON \
+        -DLIBCXXABI_INSTALL_STATIC_LIBRARY=OFF \
+        -DLLVM_ENABLE_ASSERTIONS=1 \
+        -DLLVM_ENABLE_Z3_SOLVER=OFF \
+        -DLLVM_ENABLE_ZLIB=ON \
+        -DLLVM_LINK_LLVM_DYLIB=OFF \
+        -DCLANG_LINK_CLANG_DYLIB=OFF \
+        ../llvm && \
+        ninja -j16 ; \
+    else echo "using the release compiler"; \
+    fi

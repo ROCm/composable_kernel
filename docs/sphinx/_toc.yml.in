@@ -1,0 +1,49 @@
+defaults:
+  numbered: False
+root: index
+subtrees:
+
+- caption: Install
+  entries:
+  - file: install/Composable-Kernel-install.rst
+    title: Install Composable Kernel
+  - file: install/Composable-Kernel-build.rst
+    title: Build from source
+  - file: install/Composable-Kernel-Docker.rst
+    title: Docker images
+
+- caption: Conceptual
+  entries:
+  - file: conceptual/Composable-Kernel-structure.rst
+    title: Structure
+  - file: conceptual/Composable-Kernel-math.rst
+    title: Mathematical basis
+  - file: conceptual/CK-Tile-intra-inter-wave.rst
+    title: Intrawave and interwave scheduling  
+  - file: conceptual/ck_tile/CK-tile-index.rst
+    title: CK Tile conceptual documentation
+
+- caption: Tutorial
+  entries:
+  - file: tutorial/Composable-Kernel-examples.rst
+    title: Examples
+
+- caption: Reference
+  entries:
+  - file: reference/Composable_Kernel_supported_scalar_types.rst
+    title: Scalar types
+  - file: reference/Composable_Kernel_custom_types.rst
+    title: Custom types
+  - file: reference/Composable_Kernel_vector_utilities.rst
+    title: Vector utilities
+  - file: reference/Composable-Kernel-wrapper.rst
+    title: Wrapper
+  - file: reference/Composable-Kernel-Glossary.rst
+    title: Glossary
+
+- caption: About
+  entries:
+  - file: Contributors_Guide.rst
+    title: Contributing to Composable Kernel
+  - file: license.rst
+    title: License

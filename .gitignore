@@ -1,0 +1,141 @@
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+*.ipch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# vim tags
+tags
+.tags
+.*.swp
+
+# Editors
+.vscode
+
+# CMake formatting configuration (local)
+.cmake-format.yaml
+
+# Cline
+.cline*
+
+# build-in-source directory (see exceptions below)
+build*
+
+# emacs temporary/backup files
+.\#*
+\#*\#
+*~
+
+# GDB temporary files
+.gdb_history
+install.dir*
+
+# documentation artifacts
+_build/
+_images/
+_static/
+_templates/
+_toc.yml
+_doxygen/
+docs/doxygen/html
+docs/doxygen/xml
+
+# JetBrains IDE (see build* exceptions below)
+.idea/
+cmake-build*/
+build*/
+
+# LSP configuration
+.clangd
+
+# User-defined CMake presets
+CMakeUserPresets.json
+
+# Python virtualenv
+.venv/
+
+# Python cache
+__pycache__/
+
+# Cache directories
+.cache/
+.ck_tile_cache/
+ck_tile_cache/
+**/kernel_cache/
+**/.kernel_cache/
+
+# Dispatcher kernel cache (user-generated, can be large)
+dispatcher/**/kernel_cache/
+dispatcher/**/.kernel_cache/
+dispatcher/**/cached_kernels/
+dispatcher/**/*.hsaco
+dispatcher/**/*.co
+
+# Dispatcher generated JSON exports
+dispatcher/**/*_kernels.json
+dispatcher/**/dispatcher_kernels.json
+
+# Generated test data
+test_data/*
+!test_data/*.py
+!test_data/*.sh
+!test_data/requirements.txt
+
+# Exceptions to build* patterns above
+# The experimental/builder directory should be tracked despite matching build*
+!experimental/builder
+!experimental/builder/**
+experimental/grouped_convolution_tile_instances/instances/*
+!experimental/grouped_convolution_tile_instances/instances/*.in
+!experimental/grouped_convolution_tile_instances/instances/*.inc
+!experimental/grouped_convolution_tile_instances/instances/*.hpp
+experimental/grouped_convolution_tile_instances/*.inc
+# Heuristics: benchmark data (never in git)
+dispatcher/heuristics/data/
+
+# Heuristics: experimental/training artifacts (exclude from git)
+dispatcher/heuristics/models/**/oof_predictions.parquet
+dispatcher/heuristics/models/**/cv_metrics_*.json
+dispatcher/heuristics/models/**/eval_report.json
+dispatcher/heuristics/models/**/feature_importances_*.json
+dispatcher/heuristics/models/**/model_tflops_ihem.lgbm
+dispatcher/heuristics/models/**/model_tflops_log.lgbm
+dispatcher/heuristics/models/**/model_tflops_log_big.lgbm
+
+# Heuristics: keep in git (production model files):
+#   models/{op}_{dtype}_{arch}/model_tflops.lgbm
+#   models/{op}_{dtype}_{arch}/model_latency.lgbm
+#   models/{op}_{dtype}_{arch}/model_bandwidth.lgbm
+#   models/{op}_{dtype}_{arch}/feature_spec.json
+#   models/{op}_{dtype}_{arch}/train_manifest.json
+
+# Heuristics: logs and caches
+dispatcher/heuristics/*.log
+dispatcher/heuristics/__pycache__/
+dispatcher/heuristics/tests/__pycache__/
+dispatcher/heuristics/.pytest_cache/
+
