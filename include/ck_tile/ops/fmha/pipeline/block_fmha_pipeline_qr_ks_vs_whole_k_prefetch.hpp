@@ -685,7 +685,17 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
-            auto p = cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, pcomp_tile));
+            auto p_cast =
+                cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, pcomp_tile));
+#if defined(__gfx11__)
+            // gfx11 WMMA uses different lane layouts for GEMM C and GEMM A tiles, so remap
+            // softmax P from GEMM0's C layout into GEMM1's A layout before the PV GEMM.
+            auto p = make_static_distributed_tensor<PDataType>(
+                decltype(gemm_1)::template MakeABlockTileDistribution<kM0, kN0>());
+            PermuteWarpGemmCToA(p, p_cast);
+#else
+            const auto p = p_cast;
+#endif
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
