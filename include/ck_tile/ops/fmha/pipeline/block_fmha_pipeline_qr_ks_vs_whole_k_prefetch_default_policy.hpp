@@ -145,10 +145,16 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
     {
+#if defined(__gfx11__)
+        // gfx11 WMMA V loads expect the LDS K-pack to match the warp GEMM K-per-thread;
+        // clamping to 8 under-reserves LDS padding for K-per-thread 16 variants.
+        return GetKVWarpGemmKPerThreadSize<Problem>();
+#else
         if constexpr(GetKVWarpGemmKPerThreadSize<Problem>() >= 8)
             return 8;
         else
             return 4;
+#endif
     }
 
     template <typename Problem>
