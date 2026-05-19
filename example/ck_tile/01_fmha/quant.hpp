@@ -14,11 +14,12 @@
 // keep sync with BlockAttentionQuantScaleEnum
 enum class quant_scale_enum
 {
-    no_scale      = 0,
-    pertensor     = 1,
-    blockscale    = 2,
-    kv_blockscale = 3, // Q per-tensor, K/V per-page block scale
-    mx            = 4, // Microscaling (MX)
+    no_scale       = 0,
+    pertensor      = 1,
+    blockscale     = 2,
+    kv_blockscale  = 3, // Q per-tensor, K/V per-page block scale
+    mx             = 4, // Microscaling (MX)
+    per_token_head = 5, // Q/K per-token per-head, V per-head (FP8 fine-grained)
 };
 
 struct quant_scale_info
@@ -37,6 +38,8 @@ struct quant_scale_info
             os << "kvbs";
         else if(type == quant_scale_enum::mx)
             os << "mx";
+        else if(type == quant_scale_enum::per_token_head)
+            os << "pth";
     }
 
     static quant_scale_info decode(std::string str)
@@ -61,6 +64,10 @@ struct quant_scale_info
         else if(str == "mx" || str == "4")
         {
             info.type = quant_scale_enum::mx;
+        }
+        else if(str == "pth" || str == "5")
+        {
+            info.type = quant_scale_enum::per_token_head;
         }
         else
         {

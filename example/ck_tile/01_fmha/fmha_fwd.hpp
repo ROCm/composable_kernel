@@ -671,6 +671,19 @@ struct fmha_batch_prefill_args
     // v_descale_ptr: [num_block, num_kv_head] - points to v block descale
     ck_tile::index_t nblock_stride_kv_block_descale = 0; // Stride along num_block dimension
     ck_tile::index_t nhead_stride_kv_block_descale  = 0; // Stride along num_kv_head dimension
+
+    // PER_TOKEN_HEAD: Q/K per-token per-head, V per-head (FP8 fine-grained).
+    // q_descale_ptr/k_descale_ptr/v_descale_ptr are reused; layout:
+    //   q_descale: [total_q_tokens, nhead_q]                       fp32
+    //   k_descale: [num_total_pages, page_block_size, nhead_k]     fp32
+    //              (aligned with paged K cache so we can reuse k_physical_pages[])
+    //   v_descale: [nhead_k]                                       fp32
+    ck_tile::index_t stride_q_descale_token       = 0; // Q descale: row stride (per-token)
+    ck_tile::index_t nhead_stride_q_descale       = 0; // Q descale: head stride
+    ck_tile::index_t nblock_stride_k_descale_page = 0; // K descale: page stride
+    ck_tile::index_t stride_k_descale_token       = 0; // K descale: within-page token stride
+    ck_tile::index_t nhead_stride_k_descale       = 0; // K descale: head stride
+    ck_tile::index_t nhead_stride_v_descale       = 0; // V descale: head stride (per-head only)
 };
 
 // Selects the KV-cache load mode for a batch-prefill dispatch arm.
@@ -1340,7 +1353,13 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.drop_seed_offset,
                                          args.sink_ptr,
                                          args.nblock_stride_kv_block_descale,
-                                         args.nhead_stride_kv_block_descale);
+                                         args.nhead_stride_kv_block_descale,
+                                         args.stride_q_descale_token,
+                                         args.nhead_stride_q_descale,
+                                         args.nblock_stride_k_descale_page,
+                                         args.stride_k_descale_token,
+                                         args.nhead_stride_k_descale,
+                                         args.nhead_stride_v_descale);
         }
         else
         { // create batch mode kernel arguments
@@ -1395,7 +1414,13 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.drop_seed_offset,
                                          args.sink_ptr,
                                          args.nblock_stride_kv_block_descale,
-                                         args.nhead_stride_kv_block_descale);
+                                         args.nhead_stride_kv_block_descale,
+                                         args.stride_q_descale_token,
+                                         args.nhead_stride_q_descale,
+                                         args.nblock_stride_k_descale_page,
+                                         args.stride_k_descale_token,
+                                         args.nhead_stride_k_descale,
+                                         args.nhead_stride_v_descale);
         }
     }();
 
