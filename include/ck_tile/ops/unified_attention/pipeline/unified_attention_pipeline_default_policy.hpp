@@ -33,37 +33,71 @@ struct UnifiedAttentionPipelineDefaultPolicy
         return min(MaxVectorSize, WG::kK / WG::WarpGemmAttribute::Impl::kABKLane);
     }
 
+    // K/V async-load width selection (returns elements/lane, not bytes).
+    //
+    // On gfx950 the LDS-targeted async-load instructions (buffer_load_dword_lds
+    // / global_load_lds) support exactly three widths: dword (4 B/lane),
+    // dwordx3 (12 B/lane), and dwordx4 (16 B/lane). 8 B/lane fails the
+    // static_assert in amd_buffer_addressing_builtins. dwordx3 needs the
+    // head dim to be a multiple of 12 which never holds for d ∈ {64, 128},
+    // so the practical choices are 16 B/lane and 4 B/lane.
+    //
+    // We pick the widest width such that NumIssues >= 1 on the actual tile:
+    //
+    //   NumIssues = (kPageBlockSize * kHeadDim) / (kBlockSize * KVector_elems)
+    //
+    // For BF16/FP16 the historical blanket 16 B/lane always satisfies this
+    // for every variant we compile, so the BF16/FP16 path is unchanged.
+    //
+    // For FP8/BF8 the blanket 4 B/lane was set defensively because the
+    // 8-warp prefill variants (kBlockSize = 512) push NumIssues to 0.5 at
+    // 16 B/lane. But the 1/2/4-warp decode variants all tile cleanly at
+    // 16 B/lane — verified at compile-time for decode_d{64,128}_m{16,32,
+    // 64,128} (5 of 7 decode tiers can use dwordx4). Forcing 4 B/lane
+    // for those decode tiers doubles the async-load issue count for the
+    // same byte volume and is the dominant cause of the
+    // FP8-slower-than-BF16 regression observed on long-context decode
+    // (e.g. b=128 sq=1 sk=128000 d=64: FP8 SQ_INSTS_VMEM 131M vs
+    // BF16 65M, GRBM_GUI_ACTIVE 144M vs 116M; see ua-test-scripts/
+    // rocprof_analysis/BOTTLENECK_ANALYSIS.md for the full PMC table).
+    //
+    // The selector below picks dwordx4 whenever it tiles cleanly and falls
+    // back to dword (matches the historical FP8 path) on the prefill tier.
+    template <typename Problem, index_t ElementSizeInBytes>
+    CK_TILE_DEVICE static constexpr index_t GetKVAlignmentBytes()
+    {
+#if defined(__gfx950__)
+        // dwordx4 = 16 B/lane; tile must yield NumIssues >= 1, integer.
+        constexpr index_t tile_elems =
+            Problem::UnifiedAttentionShape::kPageBlockSize *
+            Problem::UnifiedAttentionShape::kHeadDim;
+        constexpr index_t block_size = Problem::kBlockSize;
+        // KVector_elems for 16 B/lane = 16 / ElementSizeInBytes.
+        // NumIssues * KVector_bytes * kBlockSize == tile_bytes,
+        // so the divisibility check is tile_elems * ElementSizeInBytes
+        // == multiple of (kBlockSize * 16). Equivalent (since both sides
+        // share an ElementSizeInBytes factor when KVector_elems is a power
+        // of two) to checking tile_elems is a multiple of (kBlockSize *
+        // 16 / ElementSizeInBytes), and tile_elems * elem_bytes >=
+        // kBlockSize * 16. Just check the byte form directly:
+        constexpr index_t tile_bytes  = tile_elems * ElementSizeInBytes;
+        constexpr index_t wide_bytes  = block_size * 16;  // dwordx4 needs this much
+        if constexpr (tile_bytes >= wide_bytes && (tile_bytes % wide_bytes) == 0)
+            return 16;  // dwordx4
+        else
+            return 4;   // dword (fallback; matches the historical FP8 path)
+#else
+        return 4;
+#endif
+    }
+
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto GetAlignmentK()
     {
         using namespace ck_tile;
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
-#if defined(__gfx950__)
-        // FP8 caveat on gfx950:
-        //   - The natural 16 B/lane async load (KVector = 16 elements/lane)
-        //     leaves NumIssues = 0 for the prefill / decode kPageBlockSize x
-        //     NumWarps tuples we compile FP8 instances for (kBlockSize *
-        //     KVector exceeds kNPerBlock * kKPerBlock).
-        //   - Dropping to 8 B/lane brings NumIssues back to >=1, but on
-        //     gfx950 the LDS-targeted `global_load_lds` instruction only
-        //     supports dword / dwordx3 / dwordx4 (4 / 12 / 16 B per lane);
-        //     8 B fails the static_assert in amd_buffer_addressing_builtins.
-        //   - 4 B / lane (one dword) works on every targeted tile and is
-        //     the same as the gfx942 fallback below. Lower per-instruction
-        //     bytes than BF16/FP16's 16 B path, but the FP8 K/V is half the
-        //     size in bytes so the *element* count moved per cycle stays
-        //     reasonable. Verified compile-time on prefill_d{64,128},
-        //     decode_d{64,128}_m128.
-        // BF16 / FP16 keep the full 16 B/lane read so existing perf is
-        // unchanged.
         constexpr index_t MaxReadSizeInBytes =
-            (std::is_same_v<KDataType, ck_tile::fp8_t> ||
-             std::is_same_v<KDataType, ck_tile::bf8_t>)
-                ? 4
-                : 16;
-#else
-        constexpr index_t MaxReadSizeInBytes = 4;
-#endif
+            GetKVAlignmentBytes<Problem, sizeof(KDataType)>();
         return MaxReadSizeInBytes / sizeof(KDataType);
     }
 
@@ -72,17 +106,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
     {
         using namespace ck_tile;
         using VDataType = remove_cvref_t<typename Problem::VDataType>;
-#if defined(__gfx950__)
-        // See the FP8 caveat on GetAlignmentK above — symmetric reasoning
-        // for V.
         constexpr index_t MaxReadSizeInBytes =
-            (std::is_same_v<VDataType, ck_tile::fp8_t> ||
-             std::is_same_v<VDataType, ck_tile::bf8_t>)
-                ? 4
-                : 16;
-#else
-        constexpr index_t MaxReadSizeInBytes = 4;
-#endif
+            GetKVAlignmentBytes<Problem, sizeof(VDataType)>();
         return MaxReadSizeInBytes / sizeof(VDataType);
     }
 
