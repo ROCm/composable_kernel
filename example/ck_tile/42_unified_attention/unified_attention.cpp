@@ -109,6 +109,64 @@ KernelConfig select_config(const unified_attention_args& args)
 // -----------------------------------------------------------------------------
 namespace {
 
+// ---------------------------------------------------------------------------
+// dispatch_one — call into a single compiled instance.
+// ---------------------------------------------------------------------------
+template <KernelVariant V,
+          unified_attention_args::data_type_enum DType,
+          bool IsMask,
+          index_t PageSize>
+std::pair<bool, float> dispatch_one(const unified_attention_args& args,
+                                    const stream_config& config)
+{
+    return unified_attention_kernel_dispatch<
+        unified_attention_kernel_traits<V, DType, IsMask, PageSize>>(args, config);
+}
+
+// ---------------------------------------------------------------------------
+// dispatch_page_size — pick the constexpr `kPageSize` instance.
+//
+// For prefill variants (prefill_d128 / prefill_d64) we compile a small
+// menu of constexpr-page-size instances for the values vLLM/SGLang actually
+// configure ({16, 32, 64}). The runtime switch on args.page_blk_size routes
+// to the matching one; anything else (or any non-prefill variant) goes to
+// the PageSize=0 catch-all that keeps the legacy runtime-page-size code.
+//
+// The fast-path payoff is two-fold:
+//   1. Compile-time `page_size` lets the compiler strength-reduce every
+//      `/ page_size`, `* page_size`, and `% page_size` inside the per-tile
+//      address chain. div-by-32 collapses to `shr 5`, etc.
+//   2. The Tier-0 / Tier-2 gate uses the *real* `KY0_step_N <= kPageSize`
+//      precondition instead of the conservative `<= 16` hedge, so
+//      prefill_d128 bf16/fp16, prefill_d64 bf16/fp16/fp8 also enter the
+//      scalar-promote + LDS-cache fast path at their natural page sizes.
+// ---------------------------------------------------------------------------
+template <KernelVariant V,
+          unified_attention_args::data_type_enum DType,
+          bool IsMask>
+std::pair<bool, float> dispatch_page_size(const unified_attention_args& args,
+                                          const stream_config& config)
+{
+    if constexpr(V == KernelVariant::prefill_d128 ||
+                 V == KernelVariant::prefill_d64)
+    {
+        switch(args.page_blk_size)
+        {
+            case 16: return dispatch_one<V, DType, IsMask, 16>(args, config);
+            case 32: return dispatch_one<V, DType, IsMask, 32>(args, config);
+            case 64: return dispatch_one<V, DType, IsMask, 64>(args, config);
+            default: return dispatch_one<V, DType, IsMask, 0>(args, config);
+        }
+    }
+    else
+    {
+        // Decode variants stay on the runtime-page-size path — they don't
+        // benefit from the Tier-0/Tier-2 gate (too few warps for the scalar-
+        // promote payoff) and the binary-size cost isn't justified.
+        return dispatch_one<V, DType, IsMask, 0>(args, config);
+    }
+}
+
 template <KernelVariant V>
 std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
                                         const stream_config& config)
@@ -118,19 +176,13 @@ std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
 
     if(args.data_type == DT::fp16)
     {
-        if(is_mask)
-            return unified_attention_kernel_dispatch<
-                unified_attention_kernel_traits<V, DT::fp16, true>>(args, config);
-        return unified_attention_kernel_dispatch<
-            unified_attention_kernel_traits<V, DT::fp16, false>>(args, config);
+        if(is_mask)  return dispatch_page_size<V, DT::fp16, true >(args, config);
+        return            dispatch_page_size<V, DT::fp16, false>(args, config);
     }
     if(args.data_type == DT::bf16)
     {
-        if(is_mask)
-            return unified_attention_kernel_dispatch<
-                unified_attention_kernel_traits<V, DT::bf16, true>>(args, config);
-        return unified_attention_kernel_dispatch<
-            unified_attention_kernel_traits<V, DT::bf16, false>>(args, config);
+        if(is_mask)  return dispatch_page_size<V, DT::bf16, true >(args, config);
+        return            dispatch_page_size<V, DT::bf16, false>(args, config);
     }
     if(args.data_type == DT::fp8)
     {
@@ -152,11 +204,8 @@ std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
                      V == KernelVariant::decode_d64_m64 ||
                      V == KernelVariant::decode_d64_m16)
         {
-            if(is_mask)
-                return unified_attention_kernel_dispatch<
-                    unified_attention_kernel_traits<V, DT::fp8, true>>(args, config);
-            return unified_attention_kernel_dispatch<
-                unified_attention_kernel_traits<V, DT::fp8, false>>(args, config);
+            if(is_mask)  return dispatch_page_size<V, DT::fp8, true >(args, config);
+            return            dispatch_page_size<V, DT::fp8, false>(args, config);
         }
         return {false, -1.f};
     }

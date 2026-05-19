@@ -114,6 +114,11 @@ struct unified_attention_problem_traits<unified_attention_args::data_type_enum::
 template <KernelVariant V>
 struct variant_config;
 
+// Each variant_config exposes `Pipeline<Problem, PageSize>` so the traits
+// can pin the page size at compile time. PageSize=0 means "runtime page
+// size" (legacy behaviour); the host dispatcher selects a non-zero value
+// when it can prove the runtime `args.page_blk_size` matches one of the
+// instances we compiled.
 template <>
 struct variant_config<KernelVariant::prefill_d128>
 {
@@ -122,8 +127,9 @@ struct variant_config<KernelVariant::prefill_d128>
     static constexpr index_t BlockSize = 32;
     using BlockWarps                   = sequence<8, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
-    template <typename Problem>
-    using Pipeline                       = UnifiedAttentionPipeline<Problem>;
+    template <typename Problem, index_t PageSize = 0>
+    using Pipeline =
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDefaultPolicy, PageSize>;
     static constexpr bool kUseDecodeGrid = false;
 };
 
@@ -135,8 +141,9 @@ struct variant_config<KernelVariant::decode_d128_m128>
     static constexpr index_t BlockSize = 32;
     using BlockWarps                   = sequence<4, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
-    template <typename Problem>
-    using Pipeline                       = UnifiedAttentionPipeline<Problem>;
+    template <typename Problem, index_t PageSize = 0>
+    using Pipeline =
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDefaultPolicy, PageSize>;
     static constexpr bool kUseDecodeGrid = false;
 };
 
@@ -148,8 +155,9 @@ struct variant_config<KernelVariant::decode_d128_m32>
     static constexpr index_t BlockSize = 32;
     using BlockWarps                   = sequence<1, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
-    template <typename Problem>
-    using Pipeline = UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy>;
+    template <typename Problem, index_t PageSize = 0>
+    using Pipeline =
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy, PageSize>;
     static constexpr bool kUseDecodeGrid = true;
 };
 
@@ -161,8 +169,9 @@ struct variant_config<KernelVariant::decode_d128_m16>
     static constexpr index_t BlockSize = 32;
     using BlockWarps                   = sequence<1, 1, 1>;
     using WarpGemmShape                = sequence<16, 16, 32>;
-    template <typename Problem>
-    using Pipeline = UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy>;
+    template <typename Problem, index_t PageSize = 0>
+    using Pipeline =
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy, PageSize>;
     static constexpr bool kUseDecodeGrid = true;
 };
 
@@ -174,8 +183,9 @@ struct variant_config<KernelVariant::prefill_d64>
     static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<8, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
-    template <typename Problem>
-    using Pipeline                       = UnifiedAttentionPipeline<Problem>;
+    template <typename Problem, index_t PageSize = 0>
+    using Pipeline =
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDefaultPolicy, PageSize>;
     static constexpr bool kUseDecodeGrid = false;
 };
 
@@ -187,8 +197,9 @@ struct variant_config<KernelVariant::decode_d64_m128>
     static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<4, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
-    template <typename Problem>
-    using Pipeline                       = UnifiedAttentionPipeline<Problem>;
+    template <typename Problem, index_t PageSize = 0>
+    using Pipeline =
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDefaultPolicy, PageSize>;
     static constexpr bool kUseDecodeGrid = false;
 };
 
@@ -200,8 +211,9 @@ struct variant_config<KernelVariant::decode_d64_m64>
     static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<2, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
-    template <typename Problem>
-    using Pipeline = UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDecodePolicy>;
+    template <typename Problem, index_t PageSize = 0>
+    using Pipeline =
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDecodePolicy, PageSize>;
     static constexpr bool kUseDecodeGrid = true;
 };
 
@@ -213,8 +225,9 @@ struct variant_config<KernelVariant::decode_d64_m16>
     static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<1, 1, 1>;
     using WarpGemmShape                = sequence<16, 16, 32>;
-    template <typename Problem>
-    using Pipeline = UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy>;
+    template <typename Problem, index_t PageSize = 0>
+    using Pipeline =
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy, PageSize>;
     static constexpr bool kUseDecodeGrid = true;
 };
 
@@ -224,17 +237,25 @@ struct variant_config<KernelVariant::decode_d64_m16>
 // Single templated trait. Pulls per-variant knobs from variant_config<V> and
 // per-dtype element types from unified_attention_problem_traits<DataType>.
 // =============================================================================
+// kPageSize: optional compile-time pin of the runtime `page_size`. Default
+// 0 keeps the legacy runtime-page-size behaviour; a non-zero value lets the
+// pipeline strength-reduce the per-tile arithmetic *and* widen the Tier 0 /
+// Tier 2 gate from the conservative `KY0_step_N <= 16` hedge to the real
+// `KY0_step_N <= kPageSize` condition. The host dispatcher (dispatch_variant
+// in unified_attention.cpp) picks the matching instance at launch time.
 template <KernelVariant V,
           unified_attention_args::data_type_enum DataType,
-          bool IsMasking>
+          bool IsMasking,
+          ck_tile::index_t kPageSize_ = 0>
 struct unified_attention_kernel_traits
 {
     using cfg = variant_config<V>;
     using dt  = unified_attention_problem_traits<DataType>;
 
-    static constexpr auto          date_type  = DataType;
-    static constexpr bool          is_masking = IsMasking;
-    static constexpr KernelVariant variant    = V;
+    static constexpr auto             date_type  = DataType;
+    static constexpr bool             is_masking = IsMasking;
+    static constexpr KernelVariant    variant    = V;
+    static constexpr ck_tile::index_t kPageSize  = kPageSize_;
 
     static constexpr index_t HEAD_SIZE      = cfg::HeadSize;
     static constexpr index_t kBlockM        = cfg::BlockM;
@@ -280,7 +301,7 @@ struct unified_attention_kernel_traits
                                         unified_attention_traits>;
 
     using unified_attention_pipeline =
-        typename cfg::template Pipeline<unified_attention_pipeline_problem>;
+        typename cfg::template Pipeline<unified_attention_pipeline_problem, kPageSize_>;
 
     using epilogue =
         Default2DEpilogue<Default2DEpilogueProblem<typename dt::acc_dtype,
@@ -381,21 +402,31 @@ std::pair<bool, float> unified_attention_kernel_dispatch(const unified_attention
 
 } // namespace ck_tile
 
-// One-line instantiation per (V, DataType, IsMasking) combination. Each
-// instance .cpp consists of exactly one of these calls.
-#define INST_UNIFIED_ATTENTION_DISPATCH(VARIANT_, DTYPE_, IS_MASK_)                          \
+// One-line instantiation per (V, DataType, IsMasking, PageSize) combination.
+// Each instance .cpp consists of exactly one of these calls. PAGE_SIZE_ = 0
+// is the legacy runtime-page-size instance (catch-all fallback). Non-zero
+// values pin the runtime `page_size` argument to that literal — see the
+// dispatch_variant<V> switch in unified_attention.cpp for routing.
+#define INST_UNIFIED_ATTENTION_DISPATCH_PS(VARIANT_, DTYPE_, IS_MASK_, PAGE_SIZE_)            \
     template <>                                                                              \
     std::pair<bool, float> unified_attention_kernel_dispatch<                                \
         unified_attention_kernel_traits<KernelVariant::VARIANT_,                             \
                                         unified_attention_args::data_type_enum::DTYPE_,      \
-                                        IS_MASK_>>(const unified_attention_args& args,       \
-                                                   const stream_config& config)              \
+                                        IS_MASK_,                                            \
+                                        PAGE_SIZE_>>(const unified_attention_args& args,     \
+                                                     const stream_config& config)            \
     {                                                                                        \
         using Traits = unified_attention_kernel_traits<                                      \
             KernelVariant::VARIANT_,                                                         \
             unified_attention_args::data_type_enum::DTYPE_,                                  \
-            IS_MASK_>;                                                                       \
+            IS_MASK_,                                                                        \
+            PAGE_SIZE_>;                                                                     \
         return std::make_pair(true,                                                          \
             unified_attention_kernel_launch<typename Traits::kernel,                         \
                                             Traits::kUseDecodeGrid>(args, config));          \
     }
+
+// Backward-compat shorthand for the existing one-liners — the default
+// `PageSize = 0` instance is the catch-all runtime-page-size kernel.
+#define INST_UNIFIED_ATTENTION_DISPATCH(VARIANT_, DTYPE_, IS_MASK_)                          \
+    INST_UNIFIED_ATTENTION_DISPATCH_PS(VARIANT_, DTYPE_, IS_MASK_, 0)

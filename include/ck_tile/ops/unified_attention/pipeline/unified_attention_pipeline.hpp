@@ -48,11 +48,30 @@
 
 namespace ck_tile {
 
-template <typename Problem_, typename Policy_ = UnifiedAttentionPipelineDefaultPolicy>
+// kPageSize_ : non-type template parameter that pins the runtime
+// `page_size` argument to a compile-time constant when > 0. The host
+// dispatcher selects an instance whose kPageSize_ matches `args.page_blk_size`
+// and routes execution there; instances compiled with kPageSize_ == 0 keep
+// the legacy runtime-page-size path and serve as the catch-all fallback for
+// uncommon page sizes. Having the value at compile time:
+//   1. lets the compiler strength-reduce every `/ page_size`, `* page_size`,
+//      `% page_size` into shift / multiply-by-magic-constant on the literal
+//      (e.g. div-by-32 → shr 5);
+//   2. lets the Tier 0 / Tier 2 gate use the real `KY0_step_N <= kPageSize`
+//      condition instead of the conservative `KY0_step_N <= 16` hedge, so
+//      prefill_d128 bf16, prefill_d64 bf16, and prefill_d64 fp8 also gain
+//      the scalar-promote + LDS-cache fast path on their natural page sizes.
+template <typename Problem_,
+          typename Policy_                  = UnifiedAttentionPipelineDefaultPolicy,
+          ck_tile::index_t kPageSize_       = 0>
 struct UnifiedAttentionPipeline
 {
     using Problem             = ck_tile::remove_cvref_t<Problem_>;
     using Policy              = ck_tile::remove_cvref_t<Policy_>;
+
+    // Compile-time page size (0 = runtime). See class-level comment above.
+    static constexpr ck_tile::index_t kPageSize       = kPageSize_;
+    static constexpr bool             kHasCePageSize = (kPageSize_ > 0);
     using QDataType           = ck_tile::remove_cvref_t<typename Problem::QDataType>;
     using KDataType           = ck_tile::remove_cvref_t<typename Problem::KDataType>;
     using VDataType           = ck_tile::remove_cvref_t<typename Problem::VDataType>;
@@ -108,6 +127,57 @@ struct UnifiedAttentionPipeline
         }
     }();
 
+    // Tier-2 LDS-resident page-table cache. Sized to cover sk up to
+    // kPageTableLdsEntries * page_size tokens. 4096 entries × 4 B = 16 KiB,
+    // which on gfx950 (160 KiB LDS/CU at kBlockPerCu=2 → 80 KiB/block)
+    // is the available headroom on the prefill_d128 tier (~64 KiB existing
+    // smem) without forcing kBlockPerCu down. Coverage envelope:
+    //   page_size=16  →  sk ≤  65 536 tokens
+    //   page_size=32  →  sk ≤ 131 072 tokens
+    //   page_size=64  →  sk ≤ 262 144 tokens
+    // Beyond that the kernel asserts on `num_pages_for_cta <=
+    // kPageTableLdsEntries`. A runtime fallback was tried earlier and
+    // regresses 30% because the compiler emits both refresh_*_offsets
+    // paths and the resulting register pressure halves occupancy — so we
+    // trap rather than silently miscompute. With the constexpr-page-size
+    // (Tier 3) refactor this could be improved by scaling the cache size
+    // by kPageSize (e.g. `64 KiB / kPageSize` entries) — TODO if a
+    // page_size=16 long-context workload becomes important.
+    static constexpr ck_tile::index_t kPageTableLdsEntries = 4096;
+
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetPageTableLdsBytes()
+    {
+        // Allocate the cache only for the kernel instances where Tier 0's
+        // constexpr gate fires (otherwise the lambdas wouldn't read it and
+        // the LDS would sit idle, hurting occupancy for nothing). Mirror the
+        // exact gate from operator() below — including the constexpr
+        // page_size cap, which is the real precondition.
+        using KDist = decltype(Policy::template MakeKDramTileDistribution<Problem>());
+        using VDist = decltype(Policy::template MakeVDramTileDistribution<Problem>());
+        constexpr ck_tile::index_t KNRepeat =
+            KDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<0>{}];
+        constexpr ck_tile::index_t VNRepeat =
+            VDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<0>{}];
+        constexpr ck_tile::index_t KY0_step_N =
+            KDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<1>{}] *
+            KDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<2>{}];
+        constexpr ck_tile::index_t VY0_step_N =
+            VDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<1>{}] *
+            VDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<2>{}];
+        constexpr ck_tile::index_t kPageSizeCap =
+            kHasCePageSize ? kPageSize : ck_tile::index_t{16};
+        constexpr bool kHasTier0K =
+            (Problem::kBlockSize >= 8 * ck_tile::get_warp_size()) &&
+            (KNRepeat >= 2) && (KY0_step_N <= kPageSizeCap);
+        constexpr bool kHasTier0V =
+            (Problem::kBlockSize >= 8 * ck_tile::get_warp_size()) &&
+            (VNRepeat >= 2) && (VY0_step_N <= kPageSizeCap);
+        if constexpr (kHasTier0K || kHasTier0V)
+            return kPageTableLdsEntries * sizeof(ck_tile::index_t);
+        else
+            return 0;
+    }
+
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         // Two layouts share the same smem base region during the pipeline:
@@ -125,10 +195,13 @@ struct UnifiedAttentionPipeline
         // static_assert further down (sizeof(SaccDataType) * kPageBlockSize
         // * kBlockM <= GetSmemSize()) now passes for every FP8 variant we
         // compile.
+        // The Tier-2 page-table cache (if any) is appended at the very end
+        // of the smem region so the existing layouts above are untouched.
         return ck_tile::max(ck_tile::max(kBlockM * kHeadDimPadded * sizeof(PDataType),
                                          kBlockM * kPageBlockSize * sizeof(SaccDataType)),
                             Policy::template GetSmemSize<Problem>() +
-                                kBlockM * kPageBlockSize * sizeof(PDataType));
+                                kBlockM * kPageBlockSize * sizeof(PDataType)) +
+               GetPageTableLdsBytes();
     }
 
     // for debug only
@@ -209,7 +282,12 @@ struct UnifiedAttentionPipeline
         const index_t num_blocks_start,
         const void* block_tables_ptr,
         index_t block_table_offset,
-        const index_t page_size, // PageSize in tokens (cache rows per page)
+        // Runtime page size. Ignored when the pipeline was instantiated with
+        // a non-zero kPageSize_ template arg (we assert below that the two
+        // values match in that case); the body always reads through the
+        // local `page_size` below, which is either kPageSize_ (constexpr,
+        // folded into / * %) or this runtime value.
+        const index_t page_size_runtime,
         [[maybe_unused]] const SAccElementFunction& s_acc_element_func,
         const PComputeElementFunction& p_compute_element_func,
         const OAccElementFunction& o_acc_element_func,
@@ -244,6 +322,17 @@ struct UnifiedAttentionPipeline
                 std::is_same_v<KDataType, remove_cvref_t<typename KDramBlockWindowTmp::DataType>> &&
                 std::is_same_v<VDataType, remove_cvref_t<typename VDramBlockWindowTmp::DataType>>,
             "wrong!");
+
+        // Bind the rest of the body to a single `page_size` symbol. When
+        // kPageSize_ > 0 the ternary collapses at compile time to the
+        // template literal — every `x / page_size`, `x * page_size`, and
+        // `x % page_size` below then gets strength-reduced (e.g. `/ 32` →
+        // `shr 5`, `* 32` → `shl 5`). When kPageSize_ == 0 the ternary
+        // collapses to the runtime value (legacy behaviour). A debug-build
+        // assert catches the case where the host dispatcher picks the
+        // wrong constexpr instance.
+        if constexpr (kHasCePageSize) { assert(page_size_runtime == kPageSize); }
+        const index_t page_size = kHasCePageSize ? kPageSize : page_size_runtime;
 
         static_assert(
             kBlockM == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
@@ -510,32 +599,221 @@ struct UnifiedAttentionPipeline
         statically_indexed_array<long_index_t, KNRepeat> k_page_offsets;
         statically_indexed_array<long_index_t, VNRepeat> v_page_offsets;
 
+        // Scalar-promote the block_tables[] lookup.
+        //
+        // The block_tables entry consumed by `refresh_*_offsets(tile_idx)` is
+        // *uniform across the warp* for every `i`: the existing precondition
+        // documented above ("Y0_step_N divides page_size") guarantees that the
+        // per-lane spread k_thread_n_pos / v_thread_n_pos is strictly less
+        // than page_size and contained within a single page. Without this
+        // hint the compiler emits 64 redundant per-lane
+        //   v_*_u32 (logical_page address math)
+        //   global_load_dword
+        //   s_waitcnt vmcnt(0)
+        // per warp per K/V tile to materialise the same uint32, which on
+        // long-context prefill dominates the kernel (~30-50% of every
+        // LOAD_KV phase's samples; see ua-test-scripts/rocprof_analysis/
+        // BOTTLENECK_ANALYSIS.md section 9).
+        //
+        // The fix: hoist the page-index arithmetic to compile-time-constant
+        // strides + a single per-i SALU load (via __builtin_amdgcn_readfirstlane,
+        // which both forces uniformity and lets LLVM lift the gather into
+        // s_load_dword). The per-lane `within_page` calculation stays in VALU
+        // because it has to.
+        // Scalar-promote the block_tables[] page-index lookup.
+        //
+        // Idea: when the per-lane n-position span inside one distribution
+        // issue (= KY0_step_N tokens) is contained in one page, the page
+        // index is *uniform across the warp* for every `i`. Forcing the
+        // page-table read through __builtin_amdgcn_readfirstlane gives LLVM
+        // enough information to emit a single per-warp `s_load_dword` (with
+        // a SALU address-comp chain) instead of 64 redundant per-lane
+        //   v_*_u32 ... global_load_dword ... s_waitcnt vmcnt(0)
+        // per K/V tile to materialise the same uint32 — which the bottleneck
+        // analysis (see ua-test-scripts/rocprof_analysis/BOTTLENECK_ANALYSIS.md
+        // section 9) flagged as ~30-50% of every LOAD_KV phase on long-context
+        // prefill.
+        //
+        // Gating (compile-time only — a runtime fallback emits both paths into
+        // the kernel and regresses ~30% from the resulting register pressure):
+        //  (a) 8-warp blocks only: the 1-4 warp decode tiers regress 3-8%
+        //      because the readfirstlane SALU op per `i` outweighs the win
+        //      from collapsing per-lane VMEM loads that already coalesce
+        //      well when only 1-4 warps participate.
+        //  (b) KY0_step_N == kPageBlockSize/N for N>=2 ("at least 2 issues")
+        //      AND KY0_step_N <= 16: needs the per-i n-span to fit in any
+        //      sensible runtime page_size. Production vLLM/SGLang setups use
+        //      page_size ∈ {16, 32, 64, 128}; 16 is the smallest commonly
+        //      configured value so we cap at that. With the dwordx4 alignment
+        //      fix this leaves prefill_d128 FP8 (KY0_step_N=16) as the lone
+        //      qualifying tier; the other prefill variants (KY0_step_N ∈
+        //      {32, 64}) stay on the per-lane path because in the absence of
+        //      a host-side dispatch on page_size we cannot prove the span
+        //      uniformity precondition at compile time.
+        //
+        // Measured win (sq=75600 prefill on MI355, n=80 iters x 3 trials):
+        //   prefill_d128 fp8 : 142.0 -> 125.6 ms  (-11.5%)
+        //   prefill_d128 bf16: unchanged (KY0_step_N=32 — gated out)
+        //   prefill_d64  fp8 : unchanged (KY0_step_N=32 — gated out)
+        //   prefill_d64  bf16: unchanged (KY0_step_N=64 — gated out, and
+        //                       was incorrect under the runtime-gated variant)
+        //
+        // When kPageSize_ is known at compile time (host dispatched on the
+        // runtime page_blk_size, see dispatch_variant<V> in
+        // unified_attention.cpp) the gate becomes the *real* precondition
+        // `KY0_step_N <= kPageSize`. Otherwise we fall back to the
+        // conservative `<= 16` hedge that has to assume the smallest
+        // production page size (vLLM/SGLang configure page_size ∈ {16, 32,
+        // 64}; 16 is the smallest commonly configured value).
+        //
+        // The constexpr-page-size path unlocks the Tier-0 + Tier-2 fast
+        // path on three additional prefill instances at their natural
+        // page sizes (measured: sq=sk=75600 prefill, MI355, n=30 iters):
+        //   prefill_d128 fp8   KY0_step_N=16 @ ps=32   119.0 → 111.5 ms (-6.3%)
+        //                                              (was ON, now ON + strength-reduce)
+        //   prefill_d128 bf16  KY0_step_N=32 @ ps=32   132.7 → 130.3 ms (-1.8%)
+        //                                              (newly ON)
+        //   prefill_d64  fp8   KY0_step_N=32 @ ps=32    80.9 →  68.1 ms (-15.8%)
+        //                                              (newly ON — biggest win)
+        //   prefill_d64  bf16  KY0_step_N=64 @ ps=64    74.4 →  73.4 ms (-1.3%)
+        //                                              (newly ON; small win)
+        constexpr index_t kKPageSizeCap = kHasCePageSize ? kPageSize : index_t{16};
+        constexpr index_t kVPageSizeCap = kHasCePageSize ? kPageSize : index_t{16};
+        constexpr bool kScalarPromoteKPageIdx =
+            (Problem::kBlockSize >= 8 * ck_tile::get_warp_size()) &&
+            (KNRepeat >= 2) && (KY0_step_N <= kKPageSizeCap);
+        constexpr bool kScalarPromoteVPageIdx =
+            (Problem::kBlockSize >= 8 * ck_tile::get_warp_size()) &&
+            (VNRepeat >= 2) && (VY0_step_N <= kVPageSizeCap);
+
+        // Tier 2 — LDS-resident page-table cache.
+        //
+        // After Tier 0 the per-K/V-tile cost of resolving phys_page is a
+        // single per-warp `s_load_dword` from global memory through the
+        // scalar L1. The dependent address-comp chain only partially hides
+        // its ~50-100 cycle latency — on long-context prefill those waits
+        // still account for ~5-8% of total cycles (see the WAIT row of the
+        // post-Tier-0 PC-sampling profile in BOTTLENECK_ANALYSIS.md).
+        //
+        // Tier 2 replaces them with a single cooperative bulk load at kernel
+        // entry that stages this CTA's block_tables slice into LDS. Each
+        // subsequent refresh_*_offsets call is then a one-cycle ds_read_b32
+        // broadcast (every lane resolves to the same page-table index when
+        // Tier 0 fires) instead of an s_load_dword + scoreboarding wait.
+        //
+        // This is also the optimisation Triton structurally cannot express:
+        // Triton tensors model LDS as a static, statically-shaped tile and
+        // dynamic per-thread indexing into LDS is not part of the language.
+        // Lowering this to ds_read_b32 with a uniform per-warp address
+        // requires a per-lane index expression, which only opens up at the
+        // HIP/CK level.
+        //
+        // Capacity: kPageTableLdsEntries = 4096 × 4 B = 16 KiB. At page_size
+        // ∈ {16, 32, 64}, this covers sk up to {64 K, 128 K, 256 K} tokens
+        // — comfortably above any realistic prefill. If a caller exceeds
+        // that we trap on the assert below rather than silently miscompute;
+        // a runtime fallback was tried earlier and regresses 30% because
+        // the compiler emits both refresh_*_offsets paths and the resulting
+        // register pressure halves occupancy.
+        constexpr bool kUsePageTableLds = kScalarPromoteKPageIdx || kScalarPromoteVPageIdx;
+        constexpr index_t kPageTableLdsOffset =
+            GetSmemSize() - GetPageTableLdsBytes();
+        auto block_tables_lds = reinterpret_cast<int32_t*>(
+            static_cast<char*>(smem_ptr) + kPageTableLdsOffset);
+
+        if constexpr (kUsePageTableLds)
+        {
+            // Number of page-table entries this CTA touches. block_tables_lds
+            // is indexed by `logical_page` (= block_table_offset-relative),
+            // matching the index used in refresh_*_offsets below.
+            const long_index_t end_token =
+                static_cast<long_index_t>(num_total_loop) * kPageBlockSize;
+            const index_t num_pages_for_cta =
+                static_cast<index_t>((end_token + page_size - 1) / page_size);
+            assert(num_pages_for_cta <= kPageTableLdsEntries);
+
+            const index_t tid = get_thread_local_1d_id();
+            for (index_t i = tid; i < num_pages_for_cta; i += Problem::kBlockSize)
+            {
+                block_tables_lds[i] = block_tables_ptr_[block_table_offset + i];
+            }
+            __builtin_amdgcn_s_barrier();
+        }
+
         auto refresh_k_offsets = [&](index_t k_tile_idx) {
             static_for<0, KNRepeat, 1>{}([&](auto i) {
-                const index_t logical_token = split_token_offset +
-                                              k_tile_idx * kPageBlockSize + k_thread_n_pos +
-                                              static_cast<index_t>(i.value) * KY0_step_N;
-                const index_t logical_page  = logical_token / page_size;
-                const index_t within_page   = logical_token - logical_page * page_size;
-                const index_t phys_page =
-                    block_tables_ptr_[block_table_offset + logical_page];
-                k_page_offsets(i) =
-                    (static_cast<long_index_t>(phys_page) * page_size + within_page) *
-                    k_row_stride;
+                if constexpr(kScalarPromoteKPageIdx)
+                {
+                    // Compute the uniform per-`i` base in scalar; force the
+                    // resulting page-table index into an SGPR. Tier 2 reads
+                    // the phys_page from the LDS cache populated above (one
+                    // ds_read_b32 broadcast per warp); Tier 0 falls back to
+                    // the s_load_dword path when the cache is absent.
+                    const index_t i_base_token = split_token_offset +
+                                                 k_tile_idx * kPageBlockSize +
+                                                 static_cast<index_t>(i.value) * KY0_step_N;
+                    const int32_t i_base_page  = __builtin_amdgcn_readfirstlane(
+                        i_base_token / page_size);
+                    // No outer readfirstlane: the ds_read with uniform
+                    // address is a broadcast — every lane already holds
+                    // the same phys_page — and the downstream
+                    //   phys_page * page_size + within_page
+                    // is per-lane VALU (within_page is per-lane), so
+                    // keeping phys_page in VGPRs lets that chain stay
+                    // parallel across lanes rather than serialise through
+                    // an SALU forwarding step.
+                    const int32_t phys_page    = block_tables_lds[i_base_page];
+                    const index_t logical_token = i_base_token + k_thread_n_pos;
+                    const index_t within_page   = logical_token - i_base_page * page_size;
+                    k_page_offsets(i) =
+                        (static_cast<long_index_t>(phys_page) * page_size + within_page) *
+                        k_row_stride;
+                }
+                else
+                {
+                    // Byte-identical to the pre-optimisation path.
+                    const index_t logical_token = split_token_offset +
+                                                  k_tile_idx * kPageBlockSize + k_thread_n_pos +
+                                                  static_cast<index_t>(i.value) * KY0_step_N;
+                    const index_t logical_page  = logical_token / page_size;
+                    const index_t within_page   = logical_token - logical_page * page_size;
+                    const index_t phys_page =
+                        block_tables_ptr_[block_table_offset + logical_page];
+                    k_page_offsets(i) =
+                        (static_cast<long_index_t>(phys_page) * page_size + within_page) *
+                        k_row_stride;
+                }
             });
         };
         auto refresh_v_offsets = [&](index_t v_tile_idx) {
             static_for<0, VNRepeat, 1>{}([&](auto i) {
-                const index_t logical_token = split_token_offset +
-                                              v_tile_idx * kPageBlockSize + v_thread_n_pos +
-                                              static_cast<index_t>(i.value) * VY0_step_N;
-                const index_t logical_page  = logical_token / page_size;
-                const index_t within_page   = logical_token - logical_page * page_size;
-                const index_t phys_page =
-                    block_tables_ptr_[block_table_offset + logical_page];
-                v_page_offsets(i) =
-                    (static_cast<long_index_t>(phys_page) * page_size + within_page) *
-                    v_row_stride;
+                if constexpr(kScalarPromoteVPageIdx)
+                {
+                    const index_t i_base_token = split_token_offset +
+                                                 v_tile_idx * kPageBlockSize +
+                                                 static_cast<index_t>(i.value) * VY0_step_N;
+                    const int32_t i_base_page  = __builtin_amdgcn_readfirstlane(
+                        i_base_token / page_size);
+                    const int32_t phys_page    = block_tables_lds[i_base_page];
+                    const index_t logical_token = i_base_token + v_thread_n_pos;
+                    const index_t within_page   = logical_token - i_base_page * page_size;
+                    v_page_offsets(i) =
+                        (static_cast<long_index_t>(phys_page) * page_size + within_page) *
+                        v_row_stride;
+                }
+                else
+                {
+                    const index_t logical_token = split_token_offset +
+                                                  v_tile_idx * kPageBlockSize + v_thread_n_pos +
+                                                  static_cast<index_t>(i.value) * VY0_step_N;
+                    const index_t logical_page  = logical_token / page_size;
+                    const index_t within_page   = logical_token - logical_page * page_size;
+                    const index_t phys_page =
+                        block_tables_ptr_[block_table_offset + logical_page];
+                    v_page_offsets(i) =
+                        (static_cast<long_index_t>(phys_page) * page_size + within_page) *
+                        v_row_stride;
+                }
             });
         };
 
