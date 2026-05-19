@@ -48,22 +48,38 @@
 
 namespace ck_tile {
 
-// kPageSize_ : non-type template parameter that pins the runtime
-// `page_size` argument to a compile-time constant when > 0. The host
-// dispatcher selects an instance whose kPageSize_ matches `args.page_blk_size`
-// and routes execution there; instances compiled with kPageSize_ == 0 keep
-// the legacy runtime-page-size path and serve as the catch-all fallback for
-// uncommon page sizes. Having the value at compile time:
-//   1. lets the compiler strength-reduce every `/ page_size`, `* page_size`,
-//      `% page_size` into shift / multiply-by-magic-constant on the literal
-//      (e.g. div-by-32 → shr 5);
-//   2. lets the Tier 0 / Tier 2 gate use the real `KY0_step_N <= kPageSize`
-//      condition instead of the conservative `KY0_step_N <= 16` hedge, so
-//      prefill_d128 bf16, prefill_d64 bf16, and prefill_d64 fp8 also gain
-//      the scalar-promote + LDS-cache fast path on their natural page sizes.
+// kPageSize_     : non-type template parameter that pins the runtime
+//                  `page_size` argument to a compile-time constant when > 0.
+//                  The host dispatcher selects an instance whose kPageSize_
+//                  matches `args.page_blk_size` and routes execution there;
+//                  instances compiled with kPageSize_ == 0 keep the legacy
+//                  runtime-page-size path and serve as the catch-all
+//                  fallback for uncommon page sizes. Having the value at
+//                  compile time:
+//                    1. lets the compiler strength-reduce every / * %
+//                       page_size into shift / multiply-by-magic;
+//                    2. lets the Tier 0 / Tier 2 gate use the real
+//                       `KY0_step_N <= kPageSize` condition instead of
+//                       the conservative `<= 16` hedge.
+//                  Only meaningful when kEnablePaging_ == true; ignored
+//                  (and conventionally set to 0) when paging is disabled.
+// kEnablePaging_ : true (default) is the paged-KV-cache layout used by
+//                  vLLM/SGLang inference servers — K/V are stored as
+//                  [num_blocks, page_size, num_heads, head_dim] and a
+//                  `block_tables` index resolves logical → physical pages.
+//                  false is the contiguous "THD" layout used by
+//                  pretraining / flash-attention-style callers —
+//                  K/V are stored as [num_kv_tokens, num_heads, head_dim]
+//                  and `refresh_*_offsets` just multiplies the logical
+//                  token by the row stride. The contiguous path skips
+//                  the entire block_tables fetch, the per-tile / %
+//                  page_size arithmetic, and the Tier 0 / Tier 2
+//                  LDS-cache machinery — `block_tables_ptr` and
+//                  `page_size_runtime` are ignored in that mode.
 template <typename Problem_,
           typename Policy_                  = UnifiedAttentionPipelineDefaultPolicy,
-          ck_tile::index_t kPageSize_       = 0>
+          ck_tile::index_t kPageSize_       = 0,
+          bool             kEnablePaging_   = true>
 struct UnifiedAttentionPipeline
 {
     using Problem             = ck_tile::remove_cvref_t<Problem_>;
@@ -72,6 +88,8 @@ struct UnifiedAttentionPipeline
     // Compile-time page size (0 = runtime). See class-level comment above.
     static constexpr ck_tile::index_t kPageSize       = kPageSize_;
     static constexpr bool             kHasCePageSize = (kPageSize_ > 0);
+    // Paged KV cache vs contiguous THD layout. See class-level comment above.
+    static constexpr bool             kEnablePaging   = kEnablePaging_;
     using QDataType           = ck_tile::remove_cvref_t<typename Problem::QDataType>;
     using KDataType           = ck_tile::remove_cvref_t<typename Problem::KDataType>;
     using VDataType           = ck_tile::remove_cvref_t<typename Problem::VDataType>;
@@ -147,6 +165,10 @@ struct UnifiedAttentionPipeline
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetPageTableLdsBytes()
     {
+        // Contiguous (THD) layout doesn't go through block_tables at all,
+        // so the LDS cache is dead — skip the allocation entirely.
+        if constexpr(!kEnablePaging) return 0;
+
         // Allocate the cache only for the kernel instances where Tier 0's
         // constexpr gate fires (otherwise the lambdas wouldn't read it and
         // the LDS would sit idle, hurting occupancy for nothing). Mirror the
@@ -677,12 +699,16 @@ struct UnifiedAttentionPipeline
         //                                              (newly ON — biggest win)
         //   prefill_d64  bf16  KY0_step_N=64 @ ps=64    74.4 →  73.4 ms (-1.3%)
         //                                              (newly ON; small win)
+        // Tier 0 + Tier 2 only make sense on the paged path — the
+        // contiguous (THD) layout has no block_tables to scalar-promote.
         constexpr index_t kKPageSizeCap = kHasCePageSize ? kPageSize : index_t{16};
         constexpr index_t kVPageSizeCap = kHasCePageSize ? kPageSize : index_t{16};
         constexpr bool kScalarPromoteKPageIdx =
+            kEnablePaging &&
             (Problem::kBlockSize >= 8 * ck_tile::get_warp_size()) &&
             (KNRepeat >= 2) && (KY0_step_N <= kKPageSizeCap);
         constexpr bool kScalarPromoteVPageIdx =
+            kEnablePaging &&
             (Problem::kBlockSize >= 8 * ck_tile::get_warp_size()) &&
             (VNRepeat >= 2) && (VY0_step_N <= kVPageSizeCap);
 
@@ -742,7 +768,22 @@ struct UnifiedAttentionPipeline
 
         auto refresh_k_offsets = [&](index_t k_tile_idx) {
             static_for<0, KNRepeat, 1>{}([&](auto i) {
-                if constexpr(kScalarPromoteKPageIdx)
+                if constexpr(!kEnablePaging)
+                {
+                    // Contiguous (THD) layout: K is one flat
+                    // [num_kv_tokens, head_dim] tensor for the current
+                    // kv-head, so the offset is just `token * row_stride`.
+                    // No block_tables fetch, no / % page_size — the entire
+                    // per-tile address-comp chain collapses to a single
+                    // imad on a per-lane token index. Frees up the cycles
+                    // Tier 0/2 were spending paying down the indirection.
+                    const index_t logical_token = split_token_offset +
+                                                  k_tile_idx * kPageBlockSize + k_thread_n_pos +
+                                                  static_cast<index_t>(i.value) * KY0_step_N;
+                    k_page_offsets(i) =
+                        static_cast<long_index_t>(logical_token) * k_row_stride;
+                }
+                else if constexpr(kScalarPromoteKPageIdx)
                 {
                     // Compute the uniform per-`i` base in scalar; force the
                     // resulting page-table index into an SGPR. Tier 2 reads
@@ -787,7 +828,16 @@ struct UnifiedAttentionPipeline
         };
         auto refresh_v_offsets = [&](index_t v_tile_idx) {
             static_for<0, VNRepeat, 1>{}([&](auto i) {
-                if constexpr(kScalarPromoteVPageIdx)
+                if constexpr(!kEnablePaging)
+                {
+                    // Contiguous (THD) layout: see refresh_k_offsets above.
+                    const index_t logical_token = split_token_offset +
+                                                  v_tile_idx * kPageBlockSize + v_thread_n_pos +
+                                                  static_cast<index_t>(i.value) * VY0_step_N;
+                    v_page_offsets(i) =
+                        static_cast<long_index_t>(logical_token) * v_row_stride;
+                }
+                else if constexpr(kScalarPromoteVPageIdx)
                 {
                     const index_t i_base_token = split_token_offset +
                                                  v_tile_idx * kPageBlockSize +

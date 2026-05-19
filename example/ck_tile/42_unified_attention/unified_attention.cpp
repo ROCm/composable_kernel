@@ -115,12 +115,13 @@ namespace {
 template <KernelVariant V,
           unified_attention_args::data_type_enum DType,
           bool IsMask,
-          index_t PageSize>
+          index_t PageSize,
+          bool EnablePaging = true>
 std::pair<bool, float> dispatch_one(const unified_attention_args& args,
                                     const stream_config& config)
 {
     return unified_attention_kernel_dispatch<
-        unified_attention_kernel_traits<V, DType, IsMask, PageSize>>(args, config);
+        unified_attention_kernel_traits<V, DType, IsMask, PageSize, EnablePaging>>(args, config);
 }
 
 // ---------------------------------------------------------------------------
@@ -132,7 +133,13 @@ std::pair<bool, float> dispatch_one(const unified_attention_args& args,
 // to the matching one; anything else (or any non-prefill variant) goes to
 // the PageSize=0 catch-all that keeps the legacy runtime-page-size code.
 //
-// The fast-path payoff is two-fold:
+// When args.kv_contiguous is set, we instead route to the contiguous-K/V
+// (THD-layout) instance — a third compile-time variant per (prefill,
+// dtype, mask) triple that skips the block_tables fetch entirely. Decode
+// variants don't have a contiguous instance (callers with no KV cache
+// don't have decode workloads); they fall back to the paged catch-all.
+//
+// The paged fast-path payoff is two-fold:
 //   1. Compile-time `page_size` lets the compiler strength-reduce every
 //      `/ page_size`, `* page_size`, and `% page_size` inside the per-tile
 //      address chain. div-by-32 collapses to `shr 5`, etc.
@@ -150,6 +157,11 @@ std::pair<bool, float> dispatch_page_size(const unified_attention_args& args,
     if constexpr(V == KernelVariant::prefill_d128 ||
                  V == KernelVariant::prefill_d64)
     {
+        if(args.kv_contiguous)
+        {
+            // Contiguous (THD) instance — PageSize is irrelevant, EnablePaging=false.
+            return dispatch_one<V, DType, IsMask, 0, /*EnablePaging=*/false>(args, config);
+        }
         switch(args.page_blk_size)
         {
             case 16: return dispatch_one<V, DType, IsMask, 16>(args, config);

@@ -81,6 +81,26 @@ struct unified_attention_args
     index_t num_seqs; // number of batches for q
     index_t max_seqlen_q = 0; // max query length across all batches (0 = unknown)
 
+    // Layout selector for K/V:
+    //   false (default) : paged KV cache — K/V are
+    //                     [num_blks, page_blk_size, num_kv_heads, head_size]
+    //                     and `block_tables_ptr` resolves logical → physical
+    //                     page. Used by vLLM / SGLang inference servers.
+    //   true            : contiguous (THD) — K/V are
+    //                     [num_kv_tokens, num_kv_heads, head_size] for the
+    //                     current request and `block_tables_ptr` is ignored.
+    //                     The kernel skips the per-tile page-table fetch and
+    //                     the / % page_size arithmetic entirely. Used by
+    //                     pretraining / flash-attention-style callers that
+    //                     don't have a shared KV cache. When this is true,
+    //                     `page_blk_size` is ignored; treat `num_blks` as a
+    //                     virtual page count: the K/V tensor view still has
+    //                     shape (num_blks * page_blk_size, head_dim), so the
+    //                     caller can either set num_blks=num_kv_tokens with
+    //                     page_blk_size=1 or any equivalent factorisation
+    //                     that yields the right `num_kv_tokens` total.
+    bool kv_contiguous = false;
+
     // Set to true when the K/V cache is large enough that an int32 byte
     // offset into it can overflow (i.e. when
     //   num_blocks * page_size * num_kv_heads * head_dim * sizeof(T) > INT32_MAX
