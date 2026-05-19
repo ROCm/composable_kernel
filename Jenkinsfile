@@ -1220,8 +1220,11 @@ def run_downstream_tests(Map conf=[:]){
 
 def getPytorchTestsCmds() {
     return [
-        "python3 /tmp/pytorch/tools/amd_build/build_amd.py",
-        "USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python /tmp/pytorch/setup.py develop"
+        "mkdir pytorch",
+        "cp -r /var/jenkins/workspace/pytorch/* pytorch/",
+        "ls -ltr pytorch",
+        "python3 pytorch/tools/amd_build/build_amd.py",
+        "cd pytorch && USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python3 setup.py develop"
     ]
 }
 def getAiterTestsCmds() {
