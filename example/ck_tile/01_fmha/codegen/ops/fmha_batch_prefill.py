@@ -48,7 +48,7 @@ DTYPE_BYTES = {k: v // 8 for k, v in DTYPE_BITS.items()}
 
 K0_MAX_SUBMAX_MAP = {32: 32, 64: 64, 96: 128, 128: 128, 256: 256}
 
-SUPPORTED_PAGE_SIZE = [1, 16, 1024]
+SUPPORTED_PAGE_SIZE = [1, 16, 64, 1024]
 SUPPORTED_KV_MEMORY_LAYOUT = ["vectorized", "linear"]
 SUPPORTED_KV_LOOKUP_TABLE = ["vllm", "sglang"]
 KV_MEMORY_LAYOUT_ENUM_MAP = {
@@ -733,7 +733,7 @@ class KernelComponentFactory:
                 kv_lookup_table,
             ) in itertools.product(
                 ["t", "f"],
-                ["pertensor", "kv_blockscale"],
+                ["pertensor", "kv_blockscale", "per_token_head"],
                 get_mask_map(mask_impl).keys(),
                 ["no"],
                 ["t", "f"],
@@ -819,9 +819,11 @@ def get_fwd_blobs(
                 for page_size in SUPPORTED_PAGE_SIZE:
                     if page_size == 1 and pipeline.F_kv_memory_layout != "linear":
                         continue
-                    # kv_blockscale requires page_size >= kN0 (tile.F_bn0)
-                    # This ensures all tokens in a main loop iteration belong to the same page
-                    if pipeline.F_qscale == "kv_blockscale" and page_size < tile.F_bn0:
+                    # kv_blockscale only supports page_size >= kN0; per_token_head can cross pages.
+                    if (
+                        pipeline.F_qscale == "kv_blockscale"
+                        and page_size < tile.F_bn0
+                    ):
                         continue
                     k = FmhaFwdKernel(
                         F_idx=0,

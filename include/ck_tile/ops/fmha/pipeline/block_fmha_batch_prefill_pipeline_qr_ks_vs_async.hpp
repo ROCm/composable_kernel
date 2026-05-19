@@ -436,7 +436,20 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                const float* k_descale_ptr             = nullptr,
                const float* v_descale_ptr             = nullptr,
                index_t nblock_stride_kv_block_descale = 0,
-               index_t nhead_stride_kv_block_descale  = 0) const
+               index_t nhead_stride_kv_block_descale  = 0,
+               // PER_TOKEN_HEAD parameters (only used when QScaleEnum == PER_TOKEN_HEAD)
+               // Reuses k_descale_ptr / v_descale_ptr above; q_descale provided here.
+               // Layouts:
+               //   q_descale_per_token_ptr: [total_q, nhead_q]
+               //   k_descale_ptr (when PER_TOKEN_HEAD): [num_total_pages, page_block_size, nhead_k]
+               //   v_descale_ptr (when PER_TOKEN_HEAD): [nhead_k]
+               const float* q_descale_per_token_ptr   = nullptr,
+               index_t stride_q_descale_token         = 0,
+               index_t nhead_stride_q_descale         = 0,
+               index_t nblock_stride_k_descale_page   = 0,
+               index_t stride_k_descale_token         = 0,
+               index_t nhead_stride_k_descale         = 0,
+               index_t nhead_stride_v_descale         = 0) const
     {
         // KV_BLOCKSCALE requires page_block_size >= kN0 to ensure
         // all tokens in a main loop iteration belong to the same page
@@ -444,6 +457,10 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         {
             static_assert(kPageBlockSize >= kN0, "KV_BLOCKSCALE requires kPageBlockSize >= kN0");
         }
+        // PER_TOKEN_HEAD supports both kPageBlockSize >= kN0 (single page per
+        // tile) and kPageBlockSize < kN0 (cross-page tile). The dequant loop
+        // below precomputes per-(kPageBlockSize)-wide-slice physical page IDs
+        // and applies them per column.
 
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -646,6 +663,13 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         }
         k_dram_window.init_raw();
 
+        // Track the K/V SRD's current physical page so consecutive same-page rebases
+        // (the common case when kPageBlockSize >> kN0, e.g. page_size=1024 / kN0=128
+        // gives 8 same-page tiles in a row) collapse to a no-op. -1 is a never-valid
+        // sentinel that forces the first rebase to run.
+        index_t last_k_page = static_cast<index_t>(-1);
+        index_t last_v_page = static_cast<index_t>(-1);
+
         // SRD rebasing for K: only for page_size >= kN0 (all threads on same page).
         // For page_size < kN0: either flat loads (kUseGlobalLoad) or full offsets handle
         // addressing.
@@ -654,7 +678,15 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             {
                 // readfirstlane: make physical_page provably wave-uniform so the
                 // resulting SRD lands in SGPRs (required by buffer load instructions).
-                physical_page        = __builtin_amdgcn_readfirstlane(physical_page);
+                physical_page = __builtin_amdgcn_readfirstlane(physical_page);
+                // Skip the SRD reset (data ptr + num_records + init_raw) when the
+                // target page is the same as the one currently encoded in the SRD.
+                // last_k_page is also wave-uniform (initialized to -1 and only ever
+                // assigned from readfirstlane'd values), so the branch is wave-uniform
+                // and the compiler can keep last_k_page in SGPRs.
+                if(physical_page == last_k_page)
+                    return;
+                last_k_page = physical_page;
                 const auto* base_ptr = k_dram_block_window.get_bottom_tensor_view().buf_.p_data_;
                 const auto* page_ptr =
                     base_ptr + static_cast<long_index_t>(physical_page) * page_stride_k;
@@ -678,6 +710,13 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 // readfirstlane: make physical_page provably wave-uniform so the
                 // resulting SRD lands in SGPRs (required by buffer load instructions).
                 physical_page = __builtin_amdgcn_readfirstlane(physical_page);
+                // Same same-page-skip trick as rebase_k_window above. The V SRD is
+                // rebased multiple times per K-loop iter (initial setup, post-GEMM0,
+                // sink boundary, next-iter prep); for large page_size all of those
+                // typically stay on the same page.
+                if(physical_page == last_v_page)
+                    return;
+                last_v_page = physical_page;
                 const auto* base_ptr =
                     v_dram_block_window_tmp.get_bottom_tensor_view().buf_.p_data_;
                 const auto* page_ptr =
@@ -1027,6 +1066,13 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 k_descale = k_descale_ptr[scale_offset];
                 v_descale = v_descale_ptr[scale_offset];
             }
+            else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+            {
+                // V scale is per-head only; load scalar from v_descale_ptr[kv_head_idx].
+                // K scale is per-token-per-head and is applied as a vector after GEMM0
+                // (see PER_TOKEN_HEAD branch below).
+                v_descale = v_descale_ptr[block_indices.kv_head_idx * nhead_stride_v_descale];
+            }
 
             // Prefetch V physical pages early - overlaps with GEMM0 computation
             save_and_prefetch_v_pages(number<kK1>{});
@@ -1086,6 +1132,119 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
             {
                 tile_elementwise_inout([&k_descale](auto& x) { x *= k_descale; }, s_acc);
+            }
+            // PER_TOKEN_HEAD: dequantize QK result with per-row Q descale and per-column K descale.
+            // s_acc[i,j] *= q_descale[q_origin+i, qo_head] * k_descale[k_page(j), k_slot(j), kv_head]
+            //
+            // Implementation notes:
+            //   The naive form (one global load of qd + kd inside the per-element
+            //   s_acc sweep) has two problems on gfx9 qr_async: (a) it inflates
+            //   the inner-loop instruction footprint with multi-component address
+            //   arithmetic that the compiler must keep alive per element, and (b)
+            //   it puts the K SRD under SGPR pressure (same class of issue we hit
+            //   in fmha_fwd qr_async). To dodge both we stage Q-row and K-col
+            //   descales through LDS once per K-loop iteration; the per-element
+            //   sweep then collapses to a pure LDS read + FP multiply, identical
+            //   to the fmha_fwd qr_async PER_TOKEN_HEAD path
+            //   (block_fmha_pipeline_qr_ks_vs_async.hpp).
+            //
+            //   Supports cross-page tiles (kPageBlockSize < kN0): each LDS-load
+            //   thread resolves its page index from `tile_k_pages` (1 entry on
+            //   the fast path, kN0/kPageBlockSize entries on the cross-page path).
+            else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+            {
+                const index_t qo_head    = block_indices.qo_head_idx;
+                const index_t kv_head    = block_indices.kv_head_idx;
+                const index_t q_row_base = q_origin.at(number<0>{});
+
+                // Number of distinct pages this tile spans.
+                //   page_size >= kN0 -> 1 (fast path: single page covers the tile)
+                //   page_size <  kN0 -> kN0 / page_size  (cross-page tile)
+                constexpr index_t kPagesPerTile =
+                    (kPageBlockSize >= kN0) ? 1 : (kN0 / kPageBlockSize);
+                constexpr index_t kLog2PageBlockSize = []{
+                    index_t shift = 0;
+                    index_t val   = kPageBlockSize;
+                    while(val > 1) { val >>= 1; ++shift; }
+                    return shift;
+                }();
+                constexpr index_t kPageSlotMask = kPageBlockSize - 1;
+
+                // Physical pages for each kPageBlockSize-wide column slice of the tile.
+                // Tiny array (1 or kN0/kPageBlockSize entries); compiler keeps in registers.
+                index_t tile_k_pages[kPagesPerTile];
+                if constexpr(kPagesPerTile == 1)
+                {
+                    // Single-page tile: reuse the page already resolved for K-gemm.
+                    tile_k_pages[0] = k_physical_pages[number<0>{}];
+                }
+                else
+                {
+                    // Only read k_dram_block_window origin in the cross-page case
+                    // where we actually need it (kPagesPerTile == 1 already has the
+                    // page via k_physical_pages, and avoiding the window-origin read
+                    // here keeps the K SRD off VGPRs on the fast path -- the same
+                    // discipline the fmha_fwd qr_async PER_TOKEN_HEAD branch uses).
+                    const index_t k_origin_n =
+                        k_dram_block_window.get_window_origin().at(number<0>{});
+                    static_for<0, kPagesPerTile, 1>{}([&](auto p) {
+                        const index_t gp = (k_origin_n + p.value * kPageBlockSize)
+                                           >> kLog2PageBlockSize;
+                        tile_k_pages[p.value] =
+                            page_idx[ck_tile::min(gp, max_page_table_idx)];
+                    });
+                }
+
+                // LDS staging tiles. Per-block allocations sized to the descale
+                // working set (kM0 + kN0 fp32 = 1024 B for the d128 tile).
+                __shared__ float lds_q_descale[kM0];
+                __shared__ float lds_k_descale[kN0];
+
+                const index_t tid_in_block =
+                    static_cast<index_t>(threadIdx.x + threadIdx.y * blockDim.x +
+                                         threadIdx.z * blockDim.x * blockDim.y);
+                const index_t threads_per_block =
+                    static_cast<index_t>(blockDim.x * blockDim.y * blockDim.z);
+
+                __builtin_amdgcn_sched_barrier(0);
+
+                // Q-row descales (kM0 entries).
+                for(index_t off = tid_in_block; off < kM0; off += threads_per_block)
+                {
+                    lds_q_descale[off] = q_descale_per_token_ptr[
+                        (q_row_base + off) * stride_q_descale_token +
+                        qo_head * nhead_stride_q_descale];
+                }
+
+                // K-col descales (kN0 entries).
+                // Fast path (kPagesPerTile == 1): k_page folds to tile_k_pages[0]
+                //   so the inner address is a single stride product over k_slot.
+                // Cross-page path: k_page switches every kPageBlockSize columns.
+                for(index_t off = tid_in_block; off < kN0; off += threads_per_block)
+                {
+                    const index_t k_page = tile_k_pages[
+                        (kPagesPerTile == 1) ? index_t{0}
+                                             : (off >> kLog2PageBlockSize)];
+                    const index_t k_slot = off & kPageSlotMask;
+                    lds_k_descale[off] = k_descale_ptr[
+                        k_page * nblock_stride_k_descale_page +
+                        kv_head * nhead_stride_k_descale +
+                        k_slot * stride_k_descale_token];
+                }
+                __builtin_amdgcn_s_barrier();
+
+                constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
+                sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
+                        const auto tile_idx = get_x_indices_from_distributed_indices(
+                            s_acc.get_tile_distribution(), make_tuple(idx0, idx1));
+                        const index_t i = tile_idx.at(number<0>{});
+                        const index_t j = tile_idx.at(number<1>{});
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        s_acc(i_j_idx) *= lds_q_descale[i] * lds_k_descale[j];
+                    });
+                });
+                __builtin_amdgcn_sched_barrier(0);
             }
 
             const auto p = [&]() {
@@ -1309,7 +1468,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     // This scales P by 2^shift (≈448 for fp8_e4m3) without explicit multiply
                     auto validated_m = get_validated_m(m[i_idx]);
                     auto row_max     = scale_s * validated_m;
-                    if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
+                    if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE ||
+                                 QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
                     {
 #if CK_TILE_USE_OCP_FP8
                         validated_m -= OCP_FP8_SHIFT; // for Bias/Alibi/SoftCap
@@ -1427,7 +1587,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             // STAGE 3, KV gemm
             // KV_BLOCKSCALE: accumulate P*V into temporary tile before applying v_descale
             auto o_acc_unscaled = decltype(o_acc){};
-            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE ||
+                         QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
             {
                 clear_tile(o_acc_unscaled);
             }
@@ -1435,7 +1596,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             // Select GEMM1 target: o_acc_unscaled for KV_BLOCKSCALE (needs v_descale), o_acc
             // otherwise
             auto& gemm1_acc = [&]() -> auto& {
-                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE ||
+                             QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
                     return o_acc_unscaled;
                 else
                     return o_acc;
@@ -1586,7 +1748,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             // 1. P was scaled by 2^shift through exp2 shift trick
             // 2. rowsum l was also scaled by 2^shift
             // 3. Final O = sum(P*V) / l, so the 2^shift cancels out
-            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE ||
+                         QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
             {
                 tile_elementwise_inout(
                     [&v_descale](auto& o, auto& o_unscaled) { o += o_unscaled * v_descale; },
@@ -1786,6 +1949,90 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                           v_descale_ptr,
                           nblock_stride_kv_block_descale,
                           nhead_stride_kv_block_descale);
+    }
+
+    // Overload for PER_TOKEN_HEAD: Q/K per-token-per-head, V per-head
+    template <typename QDramBlockWindowTmp,
+              typename KDramBlockWindowTmp,
+              typename VDramBlockWindowTmp,
+              typename BiasDramBlockWindowTmp,
+              typename RandValDramBlockWindowTmp,
+              typename LSEDramBlockWindowTmp,
+              typename PositionEncoding,
+              typename AttentionVariantParams,
+              typename BlockIndices>
+    CK_TILE_HOST_DEVICE auto
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
+               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
+               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
+               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
+               RandValDramBlockWindowTmp& randval_dram_block_window_tmp, // M0*N0 tile
+               LSEDramBlockWindowTmp& lse_dram_block_window_tmp,         // M0*1 tile
+               FmhaMask mask,
+               PositionEncoding position_encoding,
+               float scale_s,
+               const AttentionVariant& variant,
+               const AttentionVariantParams& variant_params,
+               const BlockIndices& block_indices,
+               void* smem_ptr,
+               const index_t* page_idx,
+               const index_t stride_k,
+               const index_t stride_v,
+               const index_t page_stride_k,
+               const index_t page_stride_v,
+               DropoutType& dropout,
+               float sink_v,
+               const index_t max_page_table_idx,
+               const float* q_descale_per_token_ptr,
+               const float* k_descale_per_token_ptr,
+               const float* v_descale_per_head_ptr,
+               index_t stride_q_descale_token,
+               index_t nhead_stride_q_descale,
+               index_t nblock_stride_k_descale_page,
+               index_t stride_k_descale_token,
+               index_t nhead_stride_k_descale,
+               index_t nhead_stride_v_descale) const
+    {
+        return operator()(q_dram_block_window_tmp,
+                          identity{},
+                          k_dram_block_window_tmp,
+                          identity{},
+                          v_dram_block_window_tmp,
+                          identity{},
+                          bias_dram_block_window_tmp,
+                          identity{},
+                          randval_dram_block_window_tmp,
+                          lse_dram_block_window_tmp,
+                          identity{},
+                          identity{},
+                          identity{},
+                          identity{},
+                          mask,
+                          position_encoding,
+                          scale_s,
+                          variant,
+                          variant_params,
+                          block_indices,
+                          smem_ptr,
+                          page_idx,
+                          stride_k,
+                          stride_v,
+                          page_stride_k,
+                          page_stride_v,
+                          dropout,
+                          sink_v,
+                          max_page_table_idx,
+                          k_descale_per_token_ptr, // reused: k_descale_ptr slot
+                          v_descale_per_head_ptr,  // reused: v_descale_ptr slot
+                          /*nblock_stride_kv_block_descale*/ 0,
+                          /*nhead_stride_kv_block_descale*/ 0,
+                          q_descale_per_token_ptr,
+                          stride_q_descale_token,
+                          nhead_stride_q_descale,
+                          nblock_stride_k_descale_page,
+                          stride_k_descale_token,
+                          nhead_stride_k_descale,
+                          nhead_stride_v_descale);
     }
 };
 

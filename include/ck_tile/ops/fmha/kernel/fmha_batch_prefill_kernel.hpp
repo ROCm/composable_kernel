@@ -205,6 +205,23 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         ck_tile::index_t nhead_stride_kv_block_descale  = 0; // Stride along num_kv_head dimension
     };
 
+    // PER_TOKEN_HEAD: Q per-token-per-head, K per-token-per-head (paged-aligned), V per-head
+    //   q_descale: [total_q, nhead_q]
+    //   k_descale: [num_total_pages, page_block_size, nhead_k]
+    //   v_descale: [nhead_k]
+    struct FmhaFwdPerTokenHeadKargs
+    {
+        const void* q_descale_ptr                  = nullptr;
+        const void* k_descale_ptr                  = nullptr;
+        const void* v_descale_ptr                  = nullptr;
+        ck_tile::index_t stride_q_descale_token    = 0;
+        ck_tile::index_t nhead_stride_q_descale    = 0;
+        ck_tile::index_t nblock_stride_k_descale_page = 0;
+        ck_tile::index_t stride_k_descale_token    = 0;
+        ck_tile::index_t nhead_stride_k_descale    = 0;
+        ck_tile::index_t nhead_stride_v_descale    = 0;
+    };
+
     // Helper template to select QScale Kargs type based on QScaleEnum
     // EmptyType: type to use when QScaleEnum is NO_SCALE (e.g., FmhaFwdEmptyKargs<3>)
     template <BlockAttentionQuantScaleEnum QScale, typename EmptyType>
@@ -223,6 +240,12 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
     struct GetQScaleKargs<BlockAttentionQuantScaleEnum::KV_BLOCKSCALE, EmptyType>
     {
         using type = FmhaFwdKVBlockScaleKargs;
+    };
+
+    template <typename EmptyType>
+    struct GetQScaleKargs<BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD, EmptyType>
+    {
+        using type = FmhaFwdPerTokenHeadKargs;
     };
 
     struct FmhaFwdDropoutSeedOffset
@@ -379,7 +402,14 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                   drop_seed_offset,
               const void* sink_ptr                            = nullptr,
               ck_tile::index_t nblock_stride_kv_block_descale = 0,
-              ck_tile::index_t nhead_stride_kv_block_descale  = 0)
+              ck_tile::index_t nhead_stride_kv_block_descale  = 0,
+              // PER_TOKEN_HEAD strides (only used when QScaleEnum == PER_TOKEN_HEAD)
+              ck_tile::index_t stride_q_descale_token       = 0,
+              ck_tile::index_t nhead_stride_q_descale       = 0,
+              ck_tile::index_t nblock_stride_k_descale_page = 0,
+              ck_tile::index_t stride_k_descale_token       = 0,
+              ck_tile::index_t nhead_stride_k_descale       = 0,
+              ck_tile::index_t nhead_stride_v_descale       = 0)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -457,6 +487,18 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             kargs.v_descale_ptr                  = v_descale_ptr;
             kargs.nblock_stride_kv_block_descale = nblock_stride_kv_block_descale;
             kargs.nhead_stride_kv_block_descale  = nhead_stride_kv_block_descale;
+        }
+        else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+        {
+            kargs.q_descale_ptr                = q_descale_ptr;
+            kargs.k_descale_ptr                = k_descale_ptr;
+            kargs.v_descale_ptr                = v_descale_ptr;
+            kargs.stride_q_descale_token       = stride_q_descale_token;
+            kargs.nhead_stride_q_descale       = nhead_stride_q_descale;
+            kargs.nblock_stride_k_descale_page = nblock_stride_k_descale_page;
+            kargs.stride_k_descale_token       = stride_k_descale_token;
+            kargs.nhead_stride_k_descale       = nhead_stride_k_descale;
+            kargs.nhead_stride_v_descale       = nhead_stride_v_descale;
         }
         if constexpr(kHasDropout)
         {
@@ -536,7 +578,14 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                   drop_seed_offset,
               const void* sink_ptr                            = nullptr,
               ck_tile::index_t nblock_stride_kv_block_descale = 0,
-              ck_tile::index_t nhead_stride_kv_block_descale  = 0)
+              ck_tile::index_t nhead_stride_kv_block_descale  = 0,
+              // PER_TOKEN_HEAD strides (only used when QScaleEnum == PER_TOKEN_HEAD)
+              ck_tile::index_t stride_q_descale_token       = 0,
+              ck_tile::index_t nhead_stride_q_descale       = 0,
+              ck_tile::index_t nblock_stride_k_descale_page = 0,
+              ck_tile::index_t stride_k_descale_token       = 0,
+              ck_tile::index_t nhead_stride_k_descale       = 0,
+              ck_tile::index_t nhead_stride_v_descale       = 0)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -611,6 +660,18 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             kargs.v_descale_ptr                  = v_descale_ptr;
             kargs.nblock_stride_kv_block_descale = nblock_stride_kv_block_descale;
             kargs.nhead_stride_kv_block_descale  = nhead_stride_kv_block_descale;
+        }
+        else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+        {
+            kargs.q_descale_ptr                = q_descale_ptr;
+            kargs.k_descale_ptr                = k_descale_ptr;
+            kargs.v_descale_ptr                = v_descale_ptr;
+            kargs.stride_q_descale_token       = stride_q_descale_token;
+            kargs.nhead_stride_q_descale       = nhead_stride_q_descale;
+            kargs.nblock_stride_k_descale_page = nblock_stride_k_descale_page;
+            kargs.stride_k_descale_token       = stride_k_descale_token;
+            kargs.nhead_stride_k_descale       = nhead_stride_k_descale;
+            kargs.nhead_stride_v_descale       = nhead_stride_v_descale;
         }
         if constexpr(kHasDropout)
         {
@@ -1222,6 +1283,12 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                     float q_descale = *(reinterpret_cast<const float*>(kargs.q_descale_ptr));
                     return kargs.scale_s * q_descale;
                 }
+                else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+                {
+                    // Q/K descales are per-token-per-head, applied as outer product in pipeline.
+                    // Here we only forward the softmax scale (1/sqrt(d)).
+                    return kargs.scale_s;
+                }
                 else
                 {
                     return kargs.scale_s;
@@ -1338,6 +1405,47 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       v_descale_ptr,
                                       kargs.nblock_stride_kv_block_descale,
                                       kargs.nhead_stride_kv_block_descale);
+            }
+            else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+            {
+                // PER_TOKEN_HEAD: Q/K descales are per-token-per-head, V is per-head.
+                assert(kargs.q_descale_ptr != nullptr);
+                assert(kargs.k_descale_ptr != nullptr);
+                assert(kargs.v_descale_ptr != nullptr);
+                const float* q_descale_ptr = reinterpret_cast<const float*>(kargs.q_descale_ptr);
+                const float* k_descale_ptr = reinterpret_cast<const float*>(kargs.k_descale_ptr);
+                const float* v_descale_ptr = reinterpret_cast<const float*>(kargs.v_descale_ptr);
+
+                return FmhaPipeline{}(q_dram_window,
+                                      k_dram_window,
+                                      v_dram_window,
+                                      bias_dram_window,
+                                      randval_dram_window,
+                                      lse_dram_window,
+                                      mask,
+                                      position_encoding,
+                                      variant_params.sm_scale,
+                                      variant,
+                                      variant_params,
+                                      block_indices,
+                                      smem_ptr,
+                                      page_idx,
+                                      stride_k_for_pipeline,
+                                      stride_v_for_pipeline,
+                                      kargs.batch_stride_k,
+                                      kargs.batch_stride_v,
+                                      dropout,
+                                      sink_value,
+                                      max_page_table_idx,
+                                      q_descale_ptr,
+                                      k_descale_ptr,
+                                      v_descale_ptr,
+                                      kargs.stride_q_descale_token,
+                                      kargs.nhead_stride_q_descale,
+                                      kargs.nblock_stride_k_descale_page,
+                                      kargs.stride_k_descale_token,
+                                      kargs.nhead_stride_k_descale,
+                                      kargs.nhead_stride_v_descale);
             }
             else
             {
