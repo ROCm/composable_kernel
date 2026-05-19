@@ -144,6 +144,7 @@ CK_TILE_HOST_DEVICE constexpr const char* to_string(amdgcn_target_id target_id)
     case amdgcn_target_id::GFX1200: return "GFX1200";
     case amdgcn_target_id::GFX1201: return "GFX1201";
     case amdgcn_target_id::GFX12_GENERIC: return "GFX12_GENERIC";
+    case amdgcn_target_id::GFX1250: return "GFX1250";
     case amdgcn_target_id::HOST: return "HOST";
     }
     __builtin_unreachable();
