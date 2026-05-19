@@ -102,9 +102,9 @@ float invoke_mx_gemm(ck_tile::DeviceMem& a_dev_buf,
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "4096", "m dimension")
-        .insert("n", "4096", "n dimension")
-        .insert("k", "4096", "k dimension")
+    arg_parser.insert("m", "1024", "m dimension")
+        .insert("n", "1024", "n dimension")
+        .insert("k", "2048", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Row by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
@@ -125,4 +125,4 @@ auto create_args(int argc, char* argv[])
 
 #include "run_mx_gemm.inc"
 
-int main(int argc, char* argv[]) { return run_mx_gemm_example(argc, argv); }
+int main(int argc, char* argv[]) { return run_mx_gemm_example<MX_GemmConfig16>(argc, argv); }

@@ -30,15 +30,17 @@ auto calculate_rtol_atol_mx(ck_tile::index_t K, float max_accumulated_value)
     return ck_tile::make_tuple(rtol, atol);
 }
 
-template <typename ADataType,
-          typename BDataType,
-          typename GemmConfig,
-          typename ALayout,
-          typename BLayout,
-          typename CLayout>
+template <typename Tuple>
 class TestMxGemmUtil : public ::testing::Test
 {
     protected:
+    using ADataType  = std::tuple_element_t<0, Tuple>;
+    using BDataType  = std::tuple_element_t<1, Tuple>;
+    using GemmConfig = std::tuple_element_t<2, Tuple>;
+    using ALayout    = std::tuple_element_t<3, Tuple>;
+    using BLayout    = std::tuple_element_t<4, Tuple>;
+    using CLayout    = std::tuple_element_t<5, Tuple>;
+
     using AccDataType = float;
     using CDataType   = ck_tile::fp16_t;
     using ScaleType   = ck_tile::e8m0_t;
@@ -94,7 +96,7 @@ class TestMxGemmUtil : public ::testing::Test
         return packed;
     }
 
-    void Run(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K, int seed = 1234)
+    void Run(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
     {
         const ck_tile::index_t scale_k_size = K / 32;
         const ck_tile::index_t stride_A =
@@ -119,10 +121,23 @@ class TestMxGemmUtil : public ::testing::Test
         ck_tile::HostTensor<ScaleType> scale_b_host(ck_tile::host_tensor_descriptor(
             scale_k_size, N, stride_scale_b, is_row_major(BLayout{})));
 
-        ck_tile::FillUniformDistribution<ADataType>{-2.f, 2.f, seed++}(a_host);
-        ck_tile::FillUniformDistribution<BDataType>{-2.f, 2.f, seed++}(b_host);
-        ck_tile::FillUniformDistribution<ScaleType>{0.001f, 10.f, seed++}(scale_a_host);
-        ck_tile::FillUniformDistribution<ScaleType>{0.001f, 10.f, seed++}(scale_b_host);
+        std::mt19937 gen(42);
+        std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
+
+        auto gen_scales = [&](auto& scales, float range_min, float range_max) {
+            // e8m0_t is basically an exponent of float32
+            ck_tile::HostTensor<float> pow2(scales.get_lengths());
+            ck_tile::FillUniformDistributionIntegerValue<float>{
+                range_min, range_max, fill_seed(gen)}(pow2);
+            scales.ForEach([&](auto& self, const auto& i) {
+                self(i) = static_cast<ScaleType>(std::exp2(pow2(i)));
+            });
+        };
+
+        ck_tile::FillUniformDistribution<ADataType>{-2.f, 2.f, fill_seed(gen)}(a_host);
+        ck_tile::FillUniformDistribution<BDataType>{-2.f, 2.f, fill_seed(gen)}(b_host);
+        gen_scales(scale_a_host, -2, 2);
+        gen_scales(scale_b_host, -2, 2);
 
         // Compute effective XdlPack sizes based on GemmConfig tile dimensions
         constexpr ck_tile::index_t MPerXdl = GemmConfig::M_Warp_Tile;

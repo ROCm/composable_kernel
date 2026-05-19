@@ -332,8 +332,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
                                          const std::array<const BDataType*, NumBTensor>& bs_ptr,
                                          const std::array<const void*, NumDTensor>& ds_ptr,
                                          EDataType* e_ptr,
-                                         void* smem_ptr_ping,
-                                         void* smem_ptr_pong,
+                                         void* smem_ptr,
                                          const KernelArgs<ScaleM, ScaleN>& kargs,
                                          const SplitKBatchOffset& splitk_batch_offset,
                                          const index_t i_m,
@@ -363,22 +362,16 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
                                                     scale_a_block_window,
                                                     scale_b_block_window,
                                                     num_loop,
-                                                    smem_ptr_ping,
-                                                    smem_ptr_pong);
+                                                    smem_ptr);
 
         // Run Epilogue Pipeline - create C block window directly
         auto c_block_window = MakeCBlockWindows(e_ptr, kargs, i_m, i_n);
-        EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_ping);
+        EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr);
     }
 
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPingSize()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         return max(MXGemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
-    }
-
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPongSize()
-    {
-        return MXGemmPipeline::GetSmemSize();
     }
 
     template <class ScaleM, class ScaleN>
@@ -389,8 +382,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
             amd_wave_read_first_lane(TilePartitioner::GridSize(kargs.M, kargs.N));
 
         // Allocate shared memory for ping pong buffers
-        __shared__ char smem_ptr_ping[GetSmemPingSize()];
-        __shared__ char smem_ptr_pong[GetSmemPongSize()];
+        __shared__ char smem_ptr[GetSmemSize()];
 
         // Support both persistent and non-persistent modes
         do
@@ -423,8 +415,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
                                       bs_ptr,
                                       kargs.ds_ptr,
                                       e_ptr,
-                                      smem_ptr_ping,
-                                      smem_ptr_pong,
+                                      smem_ptr,
                                       kargs,
                                       splitk_batch_offset,
                                       i_m,

@@ -80,16 +80,22 @@ struct MxGemmConfig
     static constexpr bool TiledMMAPermuteN = false;
 };
 
-struct MXfp4_GemmConfig16 : MxGemmConfig
+struct MX_GemmConfig16 : MxGemmConfig
 {
     static constexpr ck_tile::index_t M_Tile = 64;
-    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 256;
 };
 
-struct MXfp8_GemmConfig16 : MxGemmConfig
+struct MX_GemmConfigEightWaves : MxGemmConfig
 {
-    static constexpr ck_tile::index_t M_Tile = 64;
-    static constexpr ck_tile::index_t N_Tile = 64;
-    static constexpr ck_tile::index_t K_Tile = 256;
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 2; // NWarps == 2 for ping-pong!
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128 * N_Warp;
+    static constexpr ck_tile::index_t K_Tile = 128 * K_Warp;
+
+    static constexpr int kBlockPerCu = 2;
 };

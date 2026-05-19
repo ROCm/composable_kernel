@@ -61,7 +61,7 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     static constexpr index_t NIterPerWarp = NWarpTiles / NWarps;
     static constexpr index_t KPerWarp     = KPerBlock / KWarps;
     static constexpr index_t NPerWarp     = NPerBlock / NWarps;
-    static_assert(NWarps == 2, "KWarps == 2 for ping-pong!");
+    static_assert(NWarps == 2, "NWarps == 2 for ping-pong!");
     static_assert(KWarpTiles == KWarps, "Wrong!");
 
     static constexpr index_t KPerWarpAQ  = KPerWarp / Problem::AQuantGroupSize::kK;
@@ -86,6 +86,11 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeBQ() { return 1; }
     CK_TILE_HOST_DEVICE static constexpr auto GetKStepAQ() { return KPerBlockAQ; }
     CK_TILE_HOST_DEVICE static constexpr auto GetKStepBQ() { return KPerBlockBQ; }
+
+    // TODO: generalize instruction count calculation
+    CK_TILE_HOST_DEVICE static constexpr auto GetInstCountAQ() { return MIterPerWarp; }
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetInstCountBQ() { return 1; }
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeAQBlockDistribution()
     {
@@ -156,6 +161,8 @@ struct GemmABQuantPipelineAgBgCrAsyncPolicy : public GemmPipelineAgBgCrCompAsync
     FORWARD_METHOD_(GetBlockGemm);
     FORWARD_METHOD_(GetKStepAQ);
     FORWARD_METHOD_(GetKStepBQ);
+    FORWARD_METHOD_(GetInstCountAQ);
+    FORWARD_METHOD_(GetInstCountBQ);
 
 #undef FORWARD_METHOD_
 };

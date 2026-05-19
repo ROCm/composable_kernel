@@ -8,6 +8,7 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
+#include "ck_tile/ops/gemm_mx/block/block_mx_gemm_areg_breg_creg_v1.hpp"
 #include <type_traits>
 
 namespace ck_tile {
@@ -128,7 +129,7 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
                                                                     BlockWarps,
                                                                     WarpGemm>;
 
-        return BlockGemmARegBRegCRegV1<Problem, BlockGemmPolicy>{};
+        return BlockMXGemmARegBRegCRegV1<Problem, BlockGemmPolicy>{};
     }
 
     // XdlPack: how many e8m0_t scale values are packed into one int32_t per dimension
@@ -170,12 +171,12 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<NWarp>,
-                                       tuple<sequence<MIterPerWarp_packed, MWarp, MPerXdl>,
+                                       tuple<sequence<MWarp, MIterPerWarp_packed, MPerXdl>,
                                              sequence<KIterPerWarp_packed, K_Lane, KPerLane>>,
                                        tuple<sequence<0, 1>, sequence<2, 1>>,
-                                       tuple<sequence<0, 1>, sequence<1, 2>>,
+                                       tuple<sequence<0, 0>, sequence<1, 2>>,
                                        sequence<2, 1, 2>,
-                                       sequence<0, 0, 2>>{});
+                                       sequence<0, 1, 2>>{});
     }
 
     template <typename Problem>
@@ -208,12 +209,12 @@ struct MXGemmPipelineAgBgCrCompAsyncDefaultPolicy
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<MWarp>,
-                                       tuple<sequence<NIterPerWarp_packed, NWarp, NPerXdl>,
+                                       tuple<sequence<NWarp, NIterPerWarp_packed, NPerXdl>,
                                              sequence<KIterPerWarp_packed, K_Lane, KPerLane>>,
                                        tuple<sequence<0, 1>, sequence<2, 1>>,
-                                       tuple<sequence<0, 1>, sequence<1, 2>>,
+                                       tuple<sequence<0, 0>, sequence<1, 2>>,
                                        sequence<2, 1, 2>,
-                                       sequence<0, 0, 2>>{});
+                                       sequence<0, 1, 2>>{});
     }
 };
 } // namespace ck_tile

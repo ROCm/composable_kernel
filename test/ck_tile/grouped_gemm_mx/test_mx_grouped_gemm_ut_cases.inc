@@ -20,4 +20,3 @@ TYPED_TEST(TestCkTileMxGroupedGemm, Basic)
 
     this->Run(Ms, Ns, Ks, kbatch, group_count);
 }
-

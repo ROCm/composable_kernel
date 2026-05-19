@@ -6,7 +6,7 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_eight_waves_base.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v3.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_async_eight_waves_policy.hpp"
+#include "ck_tile/ops/gemm_mx/pipeline/gemm_pipeline_ag_bg_cr_comp_async_eight_waves_policy.hpp"
 
 namespace ck_tile {
 
@@ -16,8 +16,8 @@ namespace ck_tile {
  * This pipeline introduces asynchronous load from global memory to LDS,
  * skipping the intermediate loading into pipeline registers.
  */
-template <typename Problem, typename Policy = GemmPipelineAgBgCrCompAsyncEightWavesPolicy>
-struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrCompV3<Problem>
+template <typename Problem, typename Policy = MXGemmPipelineAgBgCrCompAsyncEightWavesPolicy>
+struct MXGemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrCompV3<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrEightWavesImplBase<Problem, Policy>;
@@ -123,6 +123,11 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
 
     static constexpr index_t MFMA_INST = MIterPerWarp * NIterPerWarp * KIterPerWarp;
 
+    // Scales are packed so odd numbers of iterations greater than 1 are not supported
+    static_assert((MIterPerWarp == 1) || (MIterPerWarp % 2 == 0));
+    static_assert((NIterPerWarp == 1) || (NIterPerWarp % 2 == 0));
+    static_assert((KIterPerWarp == 1) || (KIterPerWarp % 2 == 0));
+
     template <GemmPipelineScheduler Scheduler>
     struct PipelineImpl : public PipelineImplBase
     {
@@ -139,6 +144,8 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
                   typename BsDramBlockWindowTmp,
                   typename AElementFunction,
                   typename BElementFunction,
+                  typename ScaleADramBlockWindowTmp,
+                  typename ScaleBDramBlockWindowTmp,
                   typename std::enable_if_t<!is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
                                                 !is_detected<is_tuple, BsDramBlockWindowTmp>::value,
                                             bool>* = nullptr>
@@ -146,6 +153,8 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
                                        const AElementFunction& a_element_func,
                                        const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
+                                       const ScaleADramBlockWindowTmp& scale_a_window,
+                                       const ScaleBDramBlockWindowTmp& scale_b_window,
                                        index_t num_loop,
                                        void* __restrict__ p_smem) const
         {
@@ -181,12 +190,10 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
             // Hot loop scheduler
             // ------------------
             auto hot_loop_scheduler = [&]() {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x008, MIterPerWarp, 0); // MFMA
                 s_waitcnt_lgkm<4>();
                 __builtin_amdgcn_sched_group_barrier(0x004, 1, 0); // lgkmcnt / SALU
-                static_for<0, MFMA_INST - 3, 1>{}([&](auto) {
+                static_for<0, MFMA_INST - MIterPerWarp, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_barrier(0);
@@ -199,6 +206,8 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
                                                             num_loop,
                                                             a_dram_block_window_tmp,
                                                             b_dram_block_window_tmp,
+                                                            scale_a_window,
+                                                            scale_b_window,
                                                             hot_loop_scheduler);
         }
     };
@@ -207,28 +216,61 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
               typename BsDramBlockWindowTmp,
               typename AElementFunction,
               typename BElementFunction,
-              typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
-                                            is_detected<is_tuple, BsDramBlockWindowTmp>::value,
+              typename ScaleADramBlockWindowTmp,
+              typename ScaleBDramBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BsDramBlockWindowTmp>::value,
                                         bool>* = nullptr>
     CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                    const AElementFunction& a_element_func,
                                    const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const BElementFunction& b_element_func,
+                                   const ScaleADramBlockWindowTmp& scale_a_window,
+                                   const ScaleBDramBlockWindowTmp& scale_b_window,
                                    index_t num_loop,
                                    void* p_smem) const
     {
-        // TODO: A/B windows are tuple of windows, but the implementation doesn't take that into
-        // account yet and just the first element is passed
-        static_assert(AsDramBlockWindowTmp::size() == 1);
-        static_assert(BsDramBlockWindowTmp::size() == 1);
         const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
         const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
         const auto RunPipeline  = [&](auto hot_loop_, auto tail_num_) {
             return PipelineImpl<Scheduler>{}.template operator()<hot_loop_.value, tail_num_.value>(
-                a_dram_block_window_tmp[I0],
+                a_dram_block_window_tmp,
                 a_element_func,
-                b_dram_block_window_tmp[I0],
+                b_dram_block_window_tmp,
                 b_element_func,
+                scale_a_window,
+                scale_b_window,
+                num_loop,
+                p_smem);
+        };
+
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
+    }
+
+    template <typename AsDramBlockWindowTmp,
+              typename BsDramBlockWindowTmp,
+              typename ScaleADramBlockWindowTmp,
+              typename ScaleBDramBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BsDramBlockWindowTmp>::value,
+                                        bool>* = nullptr>
+    CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BsDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const ScaleADramBlockWindowTmp& scale_a_window,
+                                   const ScaleBDramBlockWindowTmp& scale_b_window,
+                                   index_t num_loop,
+                                   void* p_smem) const
+    {
+        const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
+        const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
+        const auto RunPipeline  = [&](auto hot_loop_, auto tail_num_) {
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop_.value, tail_num_.value>(
+                a_dram_block_window_tmp,
+                identity{},
+                b_dram_block_window_tmp,
+                identity{},
+                scale_a_window,
+                scale_b_window,
                 num_loop,
                 p_smem);
         };

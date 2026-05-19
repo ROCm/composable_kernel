@@ -57,7 +57,12 @@ float mx_gemm_calc(const MXGemmHostArgs<ScaleM, ScaleN>& args, const ck_tile::st
                                                                     GemmConfig::Scheduler>;
 
     // Use the new MX comp_async pipeline with MX scaling support
-    using MXGemmPipeline = ck_tile::MXGemmPipelineAgBgCrCompAsync<MXPipelineProblem>;
+    constexpr bool IsEightWave =
+        (GemmConfig::M_Warp * GemmConfig::N_Warp * GemmConfig::K_Warp) == 8;
+    using MXGemmPipeline =
+        std::conditional_t<IsEightWave,
+                           ck_tile::MXGemmPipelineAgBgCrCompAsyncEightWaves<MXPipelineProblem>,
+                           ck_tile::MXGemmPipelineAgBgCrCompAsync<MXPipelineProblem>>;
 
     using TilePartitioner =
         ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
@@ -80,7 +85,15 @@ float mx_gemm_calc(const MXGemmHostArgs<ScaleM, ScaleN>& args, const ck_tile::st
                                          GemmConfig::M_Warp_Tile,
                                          GemmConfig::N_Warp_Tile,
                                          GemmConfig::K_Warp_Tile,
-                                         MXPipelineProblem::TransposeC>>;
+                                         MXPipelineProblem::TransposeC,
+                                         1,               // kNumWaveGroups_ (Default)
+                                         false,           // FixedVectorSize_ (Default)
+                                         1,               // VectorSizeC_ (Default)
+                                         1,               // BlockedXDLN_PerWarp_ (Default)
+                                         false,           // DoubleSmemBuffer_ (Default)
+                                         ComputeDataType, // AComputeDataType
+                                         ComputeDataType, // BComputeDataType
+                                         true>>;          // TilesPacked_ (because of packed scales)
 
     using Kernel = ck_tile::MXGemmKernel<TilePartitioner, MXGemmPipeline, GemmEpilogue>;
 

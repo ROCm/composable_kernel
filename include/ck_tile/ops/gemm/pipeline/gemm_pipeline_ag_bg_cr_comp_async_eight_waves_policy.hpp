@@ -17,10 +17,9 @@ namespace detail {
 template <typename Problem>
 struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
 {
-    static constexpr auto I0             = number<0>{};
-    static constexpr auto I1             = number<1>{};
-    static constexpr auto I2             = number<2>{};
-    static constexpr auto WGAccessDouble = WGAttrNumAccessEnum::Double;
+    static constexpr auto I0 = number<0>{};
+    static constexpr auto I1 = number<1>{};
+    static constexpr auto I2 = number<2>{};
 
     using ALayout          = remove_cvref_t<typename Problem::ALayout>;
     using BLayout          = remove_cvref_t<typename Problem::BLayout>;
@@ -29,13 +28,20 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     using CDataType        = remove_cvref_t<typename Problem::CDataType>;
     using AComputeDataType = remove_cvref_t<typename Problem::AComputeDataType>;
     using BComputeDataType = remove_cvref_t<typename Problem::BComputeDataType>;
-    static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>, "Wrong!");
-    static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>, "Wrong!");
-    static_assert(std::is_same_v<AComputeDataType, fp8_t> ||
-                  std::is_same_v<AComputeDataType, bf8_t>);
-    static_assert(std::is_same_v<BComputeDataType, fp8_t> ||
-                  std::is_same_v<BComputeDataType, bf8_t>);
+    using ComputeDataType  = AComputeDataType;
+    static_assert(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>,
+                  "ALayout must be RowMajor!");
+    static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>,
+                  "BLayout must be ColumnMajor!");
+    static_assert(is_any_of<AComputeDataType, fp8_t, bf8_t, pk_fp4_t>::value);
+    static_assert(is_any_of<BComputeDataType, fp8_t, bf8_t, pk_fp4_t>::value);
+    static_assert(std::is_same_v<AComputeDataType, BComputeDataType>);
     static_assert(std::is_same_v<CDataType, float>);
+
+    static constexpr auto WGAccess   = std::is_same_v<ComputeDataType, fp8_t>
+                                           ? WGAttrNumAccessEnum::Double
+                                           : WGAttrNumAccessEnum::Single;
+    static constexpr auto PackedSize = numeric_traits<ComputeDataType>::PackedSize;
 
     using BlockGemmShape = typename Problem::BlockGemmShape;
     using BlockWarps     = typename BlockGemmShape::BlockWarps;
@@ -88,7 +94,7 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     static constexpr index_t NIterPerWarp = NWarpTiles / NWarps;
     static constexpr index_t KPerWarp     = KPerBlock / KWarps;
     static constexpr index_t NPerWarp     = NPerBlock / NWarps;
-    static_assert(NWarps == 2, "KWarps == 2 for ping-pong!");
+    static_assert(NWarps == 2, "NWarps == 2 for ping-pong!");
     static_assert(KWarpTiles == KWarps, "Wrong!");
 
     static constexpr index_t warp_size = get_warp_size();
@@ -98,8 +104,8 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
 
     static_assert(sizeof(ADataType) == sizeof(BDataType), "Wrong!");
     static constexpr index_t ElementSize = sizeof(ADataType);
-    static constexpr index_t K2          = Problem::VectorLoadSize / ElementSize; // 16
-    static constexpr index_t K1          = WarpTile::at(I2) / K2;                 // 8
+    static constexpr index_t K2          = Problem::VectorLoadSize / ElementSize * PackedSize; // 16
+    static constexpr index_t K1          = WarpTile::at(I2) / K2;                              // 8
     static constexpr index_t K0          = KPerWarp / (K1 * K2);
     static_assert(K0 * K1 * K2 == KPerWarp, "Wrong!");
     static_assert(K0 == 1, "Wrong!");
@@ -176,7 +182,7 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
         const index_t k_tiles = cols / (KWarps * K1 * K2);
         const auto col_lens   = make_tuple(k_tiles, number<KWarps>{}, number<K1>{}, number<K2>{});
 
-        constexpr index_t M1 = warp_size / static_cast<index_t>(WGAccessDouble) / K1; // 4
+        constexpr index_t M1 = warp_size / static_cast<index_t>(WGAccess) / K1; // 4
         const index_t M0     = integer_divide_ceil(rows, M1);
         const auto row_lens  = make_tuple(M0, number<M1>{});
 
@@ -227,9 +233,9 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     template <index_t MNPerBlock, index_t warp_groups_>
     CK_TILE_DEVICE static constexpr auto MakeABLdsBlockDescriptor_()
     {
-        constexpr index_t M4 = warp_size / static_cast<index_t>(WGAccessDouble) / K1; // 4
-        constexpr index_t M3 = static_cast<index_t>(WGAccessDouble);                  // 2
-        constexpr index_t M2 = WarpTileM / M4 / M3;                                   // 2
+        constexpr index_t M4 = warp_size / static_cast<index_t>(WGAccess) / K1; // 4
+        constexpr index_t M3 = static_cast<index_t>(WGAccess);                  // 2
+        constexpr index_t M2 = WarpTileM / M4 / M3;                             // 2
         constexpr index_t M1 = (warp_num / warp_groups_) / M2;
         constexpr index_t M0 = MNPerBlock / M1 / M2 / M3 / M4;
 
@@ -337,12 +343,14 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     CK_TILE_DEVICE static constexpr index_t GetSmemSizeA()
     {
         constexpr index_t desc_size = MakeALdsBlockDescriptor().get_element_space_size();
-        return integer_least_multiple(sizeof(typename Problem::ADataType) * desc_size, 16);
+        return integer_least_multiple(sizeof(typename Problem::ADataType) * desc_size / PackedSize,
+                                      16);
     }
     CK_TILE_DEVICE static constexpr index_t GetSmemSizeB()
     {
         constexpr index_t desc_size = MakeBLdsBlockDescriptor().get_element_space_size();
-        return integer_least_multiple(sizeof(typename Problem::BDataType) * desc_size, 16);
+        return integer_least_multiple(sizeof(typename Problem::BDataType) * desc_size / PackedSize,
+                                      16);
     }
 
     CK_TILE_DEVICE static constexpr index_t GetSmemSize()
@@ -361,7 +369,7 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
         // TODO: Fix for transpose
-        constexpr auto wg_attr_num_access = WGAttrNumAccessEnum::Double;
+        constexpr auto wg_attr_num_access = WGAccess;
 
         using WarpGemm = WarpGemmDispatcher<typename Problem::ADataType,
                                             typename Problem::BDataType,

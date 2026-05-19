@@ -181,7 +181,8 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return Policy::template GetSmemSize<Problem>();
+        constexpr index_t smem_size = Policy::template GetSmemSize<Problem>();
+        return 2 * smem_size;
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto IsTransposeC()
@@ -688,9 +689,11 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                                    const ScaleADramBlockWindowTmp& scale_a_window,
                                    const ScaleBDramBlockWindowTmp& scale_b_window,
                                    index_t num_loop,
-                                   void* __restrict__ p_smem_0,
-                                   void* __restrict__ p_smem_1) const
+                                   void* __restrict__ p_smem) const
     {
+        constexpr index_t smem_size = Policy::template GetSmemSize<Problem>();
+        const auto smem             = reinterpret_cast<uint8_t*>(p_smem);
+
         const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
         const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
 
@@ -703,8 +706,8 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 scale_a_window,
                 scale_b_window,
                 num_loop,
-                p_smem_0,
-                p_smem_1);
+                smem,
+                smem + smem_size);
         };
 
         return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
@@ -720,9 +723,11 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                                    const ScaleADramBlockWindowTmp& scale_a_window,
                                    const ScaleBDramBlockWindowTmp& scale_b_window,
                                    const index_t num_loop,
-                                   void* __restrict__ p_smem_0,
-                                   void* __restrict__ p_smem_1) const
+                                   void* __restrict__ p_smem) const
     {
+        constexpr index_t smem_size = Policy::template GetSmemSize<Problem>();
+        const auto smem             = reinterpret_cast<uint8_t*>(p_smem);
+
         const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
         const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
 
@@ -735,8 +740,8 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 scale_a_window,
                 scale_b_window,
                 num_loop,
-                p_smem_0,
-                p_smem_1);
+                smem,
+                smem + smem_size);
         };
 
         return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);

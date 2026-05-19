@@ -2793,13 +2793,15 @@ template <typename T,
 CK_TILE_DEVICE void amd_async_buffer_load_with_oob(CK_TILE_LDS_ADDR T* smem,
                                                    const __amdgpu_buffer_rsrc_t rsrc,
                                                    index_t src_thread_element_offset,
-                                                   index_t src_wave_addr_offset,
+                                                   index_t src_wave_element_offset,
                                                    linear_offset_t,
                                                    bool is_valid_element,
                                                    bool_constant<oob_conditional_check> = {})
 {
     index_t src_thread_addr_offset           = src_thread_element_offset * sizeof(T);
     constexpr index_t src_linear_addr_offset = static_cast<index_t>(linear_offset_t{}) * sizeof(T);
+    constexpr index_t PackedSize             = numeric_traits<T>::PackedSize;
+    index_t src_wave_addr_offset             = src_wave_element_offset * sizeof(T) / PackedSize;
 
     amd_async_buffer_load<T, N, coherence>(smem,
                                            rsrc,

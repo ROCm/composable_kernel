@@ -9,6 +9,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/gemm_mx.hpp"
 #include "ck_tile/ops/gemm_mx/kernel/scale_pointer.hpp"
 
 template <typename ScaleM, typename ScaleN>
@@ -83,17 +84,23 @@ struct MxGemmConfig
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN = false;
 };
-struct MXfp4_GemmConfig16 : MxGemmConfig
+
+struct MX_GemmConfigEightWaves : MxGemmConfig
 {
-    static constexpr ck_tile::index_t M_Tile = 64;
-    static constexpr ck_tile::index_t N_Tile = 64;
-    static constexpr ck_tile::index_t K_Tile = 256;
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 2; // NWarps == 2 for ping-pong!
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128 * N_Warp;
+    static constexpr ck_tile::index_t K_Tile = 128 * K_Warp;
+
+    static constexpr int kBlockPerCu = 2;
 };
 
-// GEMM config with 16x16 warp tile
-struct MXfp8_GemmConfig16 : MxGemmConfig
+struct MX_GemmConfig16 : MxGemmConfig
 {
     static constexpr ck_tile::index_t M_Tile = 64;
-    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 256;
 };

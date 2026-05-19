@@ -134,12 +134,7 @@ struct ABQuantGemmPipelineAgBgCrEightWaves : public BaseGemmPipelineAgBgCrCompV3
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        // We are not storing the original packed type in LDS, so we need to multiply the smem size
-        // by the packed size.
-        constexpr index_t smem_size_a = Policy::template GetSmemSizeA<Problem>() * APackedSize;
-        constexpr index_t smem_size_b = Policy::template GetSmemSizeB<Problem>() * BPackedSize;
-
-        return 2 * (smem_size_a + smem_size_b);
+        return Policy::template GetSmemSize<Problem>();
     }
 
     CK_TILE_HOST static std::string Print() { return "ABQuantGemmPipelineAgBgCrEightWaves\n"; }
