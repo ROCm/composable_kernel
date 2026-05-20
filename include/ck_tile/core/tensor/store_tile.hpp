@@ -16,6 +16,10 @@
 
 namespace ck_tile {
 
+// Reconstructs tile_window_with_static_distribution on every call, pre-computing XOR
+// address coordinates before storing. For one-shot stores this is fine. For repeated
+// stores in a hot loop, prefer constructing the distributed window once via
+// make_tile_window(view, lengths, origin, dstr), then calling .store() directly.
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
@@ -39,6 +43,10 @@ store_tile(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& t
     tile_window.store(dstr_tensor);
 }
 
+// Same as above, but the caller supplies the partition index explicitly instead of
+// deriving it from the hardware thread ID. Use this when a kernel manages multiple
+// logical partitions per physical thread (e.g. double-buffer ping-pong) or when
+// the default hardware-derived index is wrong for the current scheduling scheme.
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
@@ -64,6 +72,7 @@ store_tile(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_>& t
     tile_window.store(dstr_tensor);
 }
 
+// Raw variant — same reconstruction cost as store_tile above.
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
@@ -87,6 +96,10 @@ store_tile_raw(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_
     tile_window.store_raw(dstr_tensor);
 }
 
+// Same as above, but the caller supplies the partition index explicitly instead of
+// deriving it from the hardware thread ID. Use this when a kernel manages multiple
+// logical partitions per physical thread (e.g. double-buffer ping-pong) or when
+// the default hardware-derived index is wrong for the current scheduling scheme.
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
@@ -112,6 +125,8 @@ store_tile_raw(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_
     tile_window.store_raw(dstr_tensor);
 }
 
+// Uses pre-computed coordinates from the distributed window's construction.
+// No coordinate reconstruction — direct buffer stores via pre_computed_coords_.
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
@@ -127,6 +142,7 @@ store_tile(tile_window_with_static_distribution<BottomTensorView_,
     tile_window.store(dstr_tensor, number<-1>{});
 }
 
+// Raw variant — same fast path as above.
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
