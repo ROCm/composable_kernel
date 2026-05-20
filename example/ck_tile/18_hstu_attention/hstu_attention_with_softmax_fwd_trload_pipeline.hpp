@@ -62,6 +62,10 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
     static constexpr index_t kAlignmentV =
         Traits::kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem, true /*kUseTrLoad*/>();
 
+    // since dim num_splits is the fastest dim and each workgroup accesses only one value in this
+    // dim
+    static constexpr index_t kAlignmentLSEacc = 1;
+
     static constexpr index_t kAlignmentO =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem, true /*kUseTrLoad*/>();
     static constexpr index_t kAlignmentBias =
@@ -115,8 +119,10 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
+              typename LSEaccDramBlockWindowTmp,
               typename QElementFunction,
               typename BiasElementFunction,
+              typename LSEaccElementFunction,
               typename SAccElementFunction,
               typename PComputeElementFunction,
               typename OAccElementFunction,
@@ -128,6 +134,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
+               LSEaccDramBlockWindowTmp& lse_acc_dram_block_window_tmp, // M0 tile
+               const LSEaccElementFunction& lse_acc_element_func,
                const SAccElementFunction& s_acc_element_func,
                const PComputeElementFunction& p_compute_element_func,
                const OAccElementFunction& o_acc_element_func,
@@ -191,6 +199,25 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
         using OaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
         OaccBlockTileType o_acc;
+
+        if(seqlen_k_end <= seqlen_k_start)
+        {
+            clear_tile(o_acc);
+            o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
+
+            if constexpr(!is_null_tile_window_v<LSEaccDramBlockWindowTmp>)
+            {
+                auto lse_acc =
+                    make_static_distributed_tensor<CompDataType>(m.get_tile_distribution());
+
+                set_tile(lse_acc, -numeric<CompDataType>::infinity());
+
+                store_tile(lse_acc_dram_block_window_tmp,
+                           tile_elementwise_in(lse_acc_element_func, lse_acc));
+            }
+
+            return o_acc;
+        };
 
         auto q_dram_window = make_tile_window(q_dram_block_window_tmp.get_bottom_tensor_view(),
                                               make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
@@ -575,6 +602,21 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
             };
         } while(seqlen_k_curr < seqlen_k_end);
 
+        if constexpr(!is_null_tile_window_v<LSEaccDramBlockWindowTmp>)
+        {
+            // store lse acc
+            auto lse_acc = make_static_distributed_tensor<CompDataType>(m.get_tile_distribution());
+
+            constexpr auto lse_acc_spans = decltype(lse_acc)::get_distributed_spans();
+            sweep_tile_span(lse_acc_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                lse_acc(i_idx)       = m_[i_idx] + log(l_[i_idx]);
+            });
+
+            store_tile(lse_acc_dram_block_window_tmp,
+                       tile_elementwise_in(lse_acc_element_func, lse_acc));
+        }
+
         constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
 
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
@@ -600,12 +642,15 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
+              typename LSEaccDramBlockWindowTmp,
               typename HstuMask>
     CK_TILE_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*kQKHeaddim tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*KQKHeaddim tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
+               LSEaccDramBlockWindowTmp&
+                   lse_acc_dram_block_window_tmp, // M0 tile					 //
                index_t seqlen_k_start,
                index_t seqlen_k_end,
                HstuMask mask,
@@ -619,6 +664,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                           k_dram_block_window_tmp,
                           v_dram_block_window_tmp,
                           bias_dram_block_window_tmp,
+                          identity{},
+                          lse_acc_dram_block_window_tmp,
                           identity{},
                           identity{},
                           identity{},
