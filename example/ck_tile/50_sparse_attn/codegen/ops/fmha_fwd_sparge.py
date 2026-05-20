@@ -114,48 +114,55 @@ using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaPipelineProblem<
     {F_trload},
     fmha_trait_{F_idx}>;
 
-// R25 V0: instantiate the Sparge pipeline with kEnablePVSkip = true (existing path)
-// AND kEnablePVSkip = false (PV-skip AST removed at compile time, source-equivalent
-// to the frozen VSA reference). Both kernels live in the same TU; the host dispatch
-// in fmha_sparge_fwd_api.cpp picks one based on fmha_sparge_fwd_args::pv_skip_compile.
-using fmha_pipeline_{F_idx}_pvst = ck_tile::BlockFmhaPipelineQRKSVSAsyncSparge<
-    fmha_pipeline_problem_{F_idx},
-    ck_tile::BlockFmhaPipelineQRKSVSAsyncDefaultPolicy,
-    true>;
+// R30: emit 3 pipeline / kernel instances per traits combo — kNone (PV-skip
+// AST removed; source-equivalent to VSA), kPerWave (R25 A1 shipped path),
+// kPerBlock (R30 added: block-wide AND vote gates gemm_1). The host dispatch
+// in fmha_sparge_fwd_api.cpp picks one based on
+// fmha_sparge_fwd_args::pv_mode_compile (0/1/2).
+// R26 split-launch: fmha_fwd_create_kargs_and_grids<k_>(a) forwards the new
+// fmha_sparge_fwd_args fields (pv_threshold_per_head_ptr, head_remap_ptr,
+// nhead_in_launch) to MakeKargs. When head_remap_ptr is non-null the wrapper
+// also shrinks grids.y to nhead_in_launch so each bucket fires its own kernel.
+// Suffixes:
+//   _pvsf = PV-Skip OFF      (kNone)
+//   _pvst = PV-Skip per-WAVE (kPerWave; preserved R25 A1 binary name)
+//   _pvsb = PV-Skip per-BLOCK (kPerBlock; R30 new)
 using fmha_pipeline_{F_idx}_pvsf = ck_tile::BlockFmhaPipelineQRKSVSAsyncSparge<
     fmha_pipeline_problem_{F_idx},
     ck_tile::BlockFmhaPipelineQRKSVSAsyncDefaultPolicy,
-    false>;
+    ck_tile::PVSkipMode::kNone>;
+using fmha_pipeline_{F_idx}_pvst = ck_tile::BlockFmhaPipelineQRKSVSAsyncSparge<
+    fmha_pipeline_problem_{F_idx},
+    ck_tile::BlockFmhaPipelineQRKSVSAsyncDefaultPolicy,
+    ck_tile::PVSkipMode::kPerWave>;
+using fmha_pipeline_{F_idx}_pvsb = ck_tile::BlockFmhaPipelineQRKSVSAsyncSparge<
+    fmha_pipeline_problem_{F_idx},
+    ck_tile::BlockFmhaPipelineQRKSVSAsyncDefaultPolicy,
+    ck_tile::PVSkipMode::kPerBlock>;
 
 using fmha_epilogue_{F_idx} =
     ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaSparseFwdTypeConfig<{F_dtype}>::OaccDataType,
                                            typename FmhaSparseFwdTypeConfig<{F_dtype}>::ODataType,
                                            {F_spad}, {F_dvpad}>>;
 
-using fmha_kernel_{F_idx}_pvst =
-    ck_tile::FmhaFwdSpargeKernel<fmha_pipeline_{F_idx}_pvst, fmha_epilogue_{F_idx}, true>;
 using fmha_kernel_{F_idx}_pvsf =
-    ck_tile::FmhaFwdSpargeKernel<fmha_pipeline_{F_idx}_pvsf, fmha_epilogue_{F_idx}, false>;
+    ck_tile::FmhaFwdSpargeKernel<fmha_pipeline_{F_idx}_pvsf, fmha_epilogue_{F_idx}, ck_tile::PVSkipMode::kNone>;
+using fmha_kernel_{F_idx}_pvst =
+    ck_tile::FmhaFwdSpargeKernel<fmha_pipeline_{F_idx}_pvst, fmha_epilogue_{F_idx}, ck_tile::PVSkipMode::kPerWave>;
+using fmha_kernel_{F_idx}_pvsb =
+    ck_tile::FmhaFwdSpargeKernel<fmha_pipeline_{F_idx}_pvsb, fmha_epilogue_{F_idx}, ck_tile::PVSkipMode::kPerBlock>;
 
 using trait_{F_idx} = fmha_sparge_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
                         {F_pipeline_enum}, false/*logits*/, fmha_mask_{F_idx}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
 
 #include <iostream>
 
+// R30: 3 specializations per traits combo — int kPVMode values:
+//   0 = kNone      (pvsf binary)
+//   1 = kPerWave   (pvst binary; R25 A1 path)
+//   2 = kPerBlock  (pvsb binary; R30 new)
 template<>
-float fmha_sparge_fwd_<trait_{F_idx}, true>(const ck_tile::stream_config& s, fmha_sparge_fwd_args a)
-{{
-    using k_ = fmha_kernel_{F_idx}_pvst;
-    if(s.log_level_ > 0)
-        std::cout << ", " << "{F_kernel_name}_pvst" << std::flush;
-    auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
-    const dim3 blocks                      = k_::BlockSize();
-    constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs));
-}}
-
-template<>
-float fmha_sparge_fwd_<trait_{F_idx}, false>(const ck_tile::stream_config& s, fmha_sparge_fwd_args a)
+float fmha_sparge_fwd_<trait_{F_idx}, 0>(const ck_tile::stream_config& s, fmha_sparge_fwd_args a)
 {{
     using k_ = fmha_kernel_{F_idx}_pvsf;
     if(s.log_level_ > 0)
@@ -167,7 +174,42 @@ float fmha_sparge_fwd_<trait_{F_idx}, false>(const ck_tile::stream_config& s, fm
 }}
 
 template<>
-void fmha_sparge_fwd_oneshot_<trait_{F_idx}, true>(const ck_tile::stream_config& s, fmha_sparge_fwd_args a)
+float fmha_sparge_fwd_<trait_{F_idx}, 1>(const ck_tile::stream_config& s, fmha_sparge_fwd_args a)
+{{
+    using k_ = fmha_kernel_{F_idx}_pvst;
+    if(s.log_level_ > 0)
+        std::cout << ", " << "{F_kernel_name}_pvst" << std::flush;
+    auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
+    const dim3 blocks                      = k_::BlockSize();
+    constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
+    return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs));
+}}
+
+template<>
+float fmha_sparge_fwd_<trait_{F_idx}, 2>(const ck_tile::stream_config& s, fmha_sparge_fwd_args a)
+{{
+    using k_ = fmha_kernel_{F_idx}_pvsb;
+    if(s.log_level_ > 0)
+        std::cout << ", " << "{F_kernel_name}_pvsb" << std::flush;
+    auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
+    const dim3 blocks                      = k_::BlockSize();
+    constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
+    return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs));
+}}
+
+template<>
+void fmha_sparge_fwd_oneshot_<trait_{F_idx}, 0>(const ck_tile::stream_config& s, fmha_sparge_fwd_args a)
+{{
+    using k_ = fmha_kernel_{F_idx}_pvsf;
+    auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
+    const dim3 blocks                      = k_::BlockSize();
+    constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
+    ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(
+        ck_tile::stream_config{{s.stream_id_}});
+}}
+
+template<>
+void fmha_sparge_fwd_oneshot_<trait_{F_idx}, 1>(const ck_tile::stream_config& s, fmha_sparge_fwd_args a)
 {{
     using k_ = fmha_kernel_{F_idx}_pvst;
     auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
@@ -178,9 +220,9 @@ void fmha_sparge_fwd_oneshot_<trait_{F_idx}, true>(const ck_tile::stream_config&
 }}
 
 template<>
-void fmha_sparge_fwd_oneshot_<trait_{F_idx}, false>(const ck_tile::stream_config& s, fmha_sparge_fwd_args a)
+void fmha_sparge_fwd_oneshot_<trait_{F_idx}, 2>(const ck_tile::stream_config& s, fmha_sparge_fwd_args a)
 {{
-    using k_ = fmha_kernel_{F_idx}_pvsf;
+    using k_ = fmha_kernel_{F_idx}_pvsb;
     auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
@@ -261,10 +303,13 @@ FMHA_FWD_API_PER_HDIM_CASE = """        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v
 FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) &&
                         ({F_scheck}) && ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
                 using trait_ = fmha_sparge_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, false/*logits*/, {F_mask}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
-                if(a.pv_skip_compile)
-                    return fmha_sparge_fwd_<trait_, true>(s, a);
-                else
-                    return fmha_sparge_fwd_<trait_, false>(s, a);
+                // R30: pv_mode_compile selects 0=kNone / 1=kPerWave / 2=kPerBlock.
+                switch(a.pv_mode_compile) {{
+                    case 0:  return fmha_sparge_fwd_<trait_, 0>(s, a);
+                    case 1:  return fmha_sparge_fwd_<trait_, 1>(s, a);
+                    case 2:  return fmha_sparge_fwd_<trait_, 2>(s, a);
+                    default: return fmha_sparge_fwd_<trait_, 1>(s, a);  // legacy default = per-wave
+                }}
             }}
 """
 
@@ -302,11 +347,13 @@ FMHA_FWD_ONESHOT_API_PER_HDIM_CASE = """        {F_if} (t.hdim_q <= {F_hdim} && 
 FMHA_FWD_ONESHOT_API_INNER_DISPATCH = """            {F_if}((t.is_v_rowmajor == {F_vlayout}) && ({F_mask_check}) &&
                         ({F_scheck}) && ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
                 using trait_ = fmha_sparge_fwd_traits_<{F_hdim}, {F_dtype}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, false/*logits*/, {F_mask}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}>;
-                if(a.pv_skip_compile)
-                    fmha_sparge_fwd_oneshot_<trait_, true>(s, a);
-                else
-                    fmha_sparge_fwd_oneshot_<trait_, false>(s, a);
-                return;
+                // R30: pv_mode_compile selects 0=kNone / 1=kPerWave / 2=kPerBlock.
+                switch(a.pv_mode_compile) {{
+                    case 0:  fmha_sparge_fwd_oneshot_<trait_, 0>(s, a); return;
+                    case 1:  fmha_sparge_fwd_oneshot_<trait_, 1>(s, a); return;
+                    case 2:  fmha_sparge_fwd_oneshot_<trait_, 2>(s, a); return;
+                    default: fmha_sparge_fwd_oneshot_<trait_, 1>(s, a); return;
+                }}
             }}
 """
 

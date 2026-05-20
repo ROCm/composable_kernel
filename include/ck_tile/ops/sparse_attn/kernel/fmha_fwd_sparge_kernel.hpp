@@ -7,6 +7,9 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
+// PVSkipMode enum lives in the sparge pipeline header; pull it in so the
+// kernel template arg can name it (R30: promote bool kEnablePVSkip_ to 3-way enum).
+#include "ck_tile/ops/sparse_attn/pipeline/block_fmha_pipeline_qr_ks_vs_async_sparge.hpp"
 
 #include <string>
 #include <type_traits>
@@ -21,7 +24,9 @@
 
 namespace ck_tile {
 
-template <typename FmhaPipeline_, typename EpiloguePipeline_, bool kEnablePVSkip_ = true>
+template <typename FmhaPipeline_,
+          typename EpiloguePipeline_,
+          PVSkipMode kPVSkipMode_ = PVSkipMode::kPerWave>
 struct FmhaFwdSpargeKernel
 {
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
@@ -30,7 +35,9 @@ struct FmhaFwdSpargeKernel
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
-    static constexpr bool kEnablePVSkip                = kEnablePVSkip_;
+    static constexpr PVSkipMode kPVSkipMode            = kPVSkipMode_;
+    // Legacy alias preserved: any non-kNone mode is "PV-skip enabled".
+    static constexpr bool kEnablePVSkip = (kPVSkipMode_ != PVSkipMode::kNone);
 
     using QDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::QDataType>;
     using KDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
@@ -99,6 +106,15 @@ struct FmhaFwdSpargeKernel
         ck_tile::index_t nhead_ratio_qk;
         float scale_s;
         float pv_threshold;
+        // R26 split-launch: when non-null, indexed by remapped i_nhead (post head_remap),
+        // overrides scalar pv_threshold. Buffer length = num_head_q.
+        const float* pv_threshold_per_head;
+        // R26 split-launch: when non-null, i_nhead = head_remap_ptr[blockIdx.y].
+        // Buffer length = nhead_in_launch. Null = identity (blockIdx.y directly).
+        const int* head_remap_ptr;
+        // R26 split-launch: gridDim.y when head_remap_ptr is active (== bucket size).
+        // Kept for future host-side asserts / debug; kernel reads via blockIdx.y.
+        ck_tile::index_t nhead_in_launch;
 
         ck_tile::index_t stride_q;
         ck_tile::index_t stride_k;
@@ -165,7 +181,12 @@ struct FmhaFwdSpargeKernel
                                                   ck_tile::index_t batch_stride_o,
                                                   ck_tile::index_t window_size_left,
                                                   ck_tile::index_t window_size_right,
-                                                  ck_tile::index_t mask_type)
+                                                  ck_tile::index_t mask_type,
+                                                  // R26 split-launch (default-null preserves
+                                                  // backward compat = scalar mode).
+                                                  const float* pv_threshold_per_head = nullptr,
+                                                  const int* head_remap_ptr          = nullptr,
+                                                  ck_tile::index_t nhead_in_launch   = 0)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -185,6 +206,9 @@ struct FmhaFwdSpargeKernel
                      scale_s,
 #endif
                      pv_threshold,
+                     pv_threshold_per_head,
+                     head_remap_ptr,
+                     nhead_in_launch,
                      stride_q,
                      stride_k,
                      stride_v,
@@ -224,7 +248,18 @@ struct FmhaFwdSpargeKernel
         const index_t num_tile_n1 = ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
 
         const index_t i_block = blockIdx.x;
-        const index_t i_nhead = blockIdx.y;
+        // R26 split-launch: if head_remap_ptr is set, translate the launch-local
+        // head index to the original num_head_q-space index. Null pointer ->
+        // identity (single-launch backward compat). The remap LUT load is uniform
+        // across the wavefront (same blockIdx.y for all lanes), but the compiler
+        // can't infer scalar-uniformity through a global ptr indirection, so we
+        // broadcast via readfirstlane. Without this, dependent offset/buffer-
+        // descriptor computations spill to VGPRs and buffer_load_dwordx4 inline
+        // asm rejects the VGPR operand.
+        const index_t i_nhead =
+            (kargs.head_remap_ptr != nullptr)
+                ? __builtin_amdgcn_readfirstlane(kargs.head_remap_ptr[blockIdx.y])
+                : static_cast<index_t>(blockIdx.y);
         const index_t i_batch = blockIdx.z;
 
         const auto f = [](index_t dividend, index_t divisor) {
@@ -402,6 +437,23 @@ struct FmhaFwdSpargeKernel
 
         BlockIndices block_indices{i_batch, i_nhead, i_nhead / kargs.nhead_ratio_qk};
 
+        // R26 split-launch: per-head pv_threshold override (null = scalar mode).
+        // i_nhead is already scalar-broadcast in GetTileIndex; the load is uniform
+        // and the resulting float lands in SGPRs naturally. We additionally route
+        // via readfirstlane on the int representation as a defensive hint to keep
+        // it scalar even when the compiler is conservative about float traffic.
+        float pv_threshold_resolved;
+        if(kargs.pv_threshold_per_head != nullptr)
+        {
+            const int raw = __builtin_amdgcn_readfirstlane(
+                __builtin_bit_cast(int, kargs.pv_threshold_per_head[i_nhead]));
+            pv_threshold_resolved = __builtin_bit_cast(float, raw);
+        }
+        else
+        {
+            pv_threshold_resolved = kargs.pv_threshold;
+        }
+
         auto o_acc_tile = FmhaPipeline{}(q_dram_window,
                                          k_dram_window,
                                          v_dram_window,
@@ -409,7 +461,7 @@ struct FmhaFwdSpargeKernel
                                          valid_block_num_value,
                                          mask,
                                          kargs.scale_s,
-                                         kargs.pv_threshold,
+                                         pv_threshold_resolved,
                                          variant,
                                          variant_params,
                                          block_indices,

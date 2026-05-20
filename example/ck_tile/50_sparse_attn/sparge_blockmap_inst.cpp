@@ -4,11 +4,14 @@
 
 #include "sparge_blockmap_trek.hpp"
 #include "ck_tile/ops/fmha/block/variants.hpp"
+#include "ck_tile/host/device_memory.hpp"
 
 #include <hip/hip_runtime.h>
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <vector>
 
 // ============================================================================
 // Type configuration for block map kernel (reuses FmhaSparseFwdTypeConfig)
@@ -265,6 +268,21 @@ float sparge_vsa_fwd_combined(sparge_blockmap_traits bmap_t,
         [=](const ck_tile::stream_config& s_) { fmha_vsa_fwd_oneshot(attn_t, attn_a, s_); });
 }
 
+// R26 split-launch: partition heads into two buckets by per-head pv_threshold
+// (sentinel >= 1e29f vs finite), materialise device-side remap LUTs, then issue
+// one fmha launch per non-empty bucket. Bucket selection happens entirely on
+// the host; the kernel just reads head_remap_ptr[blockIdx.y] to recover the
+// original head index.
+//
+// R30: the "finite" bucket binary is selected by attn_a.pv_mode_compile (1 =
+// per-wave (R25 A1 default); 2 = per-block (R30)). The "sentinel" bucket is
+// always kNone (mode 0) — sentinel heads requested PV-skip OFF so the per-head
+// per-mode choice is degenerate. Per-head per-mode bucket (3+ buckets) is a
+// future R31 extension; this commit keeps the 2-bucket scheme and routes the
+// active mode through attn_true.pv_mode_compile.
+//
+// Backward compat: if pv_threshold_per_head_ptr is null, fall back to the
+// original single-launch path using attn_a.pv_threshold scalar.
 float sparge_sparge_fwd_combined(sparge_blockmap_traits bmap_t,
                                  sparge_blockmap_args bmap_a,
                                  fmha_sparge_fwd_traits attn_t,
@@ -277,11 +295,115 @@ float sparge_sparge_fwd_combined(sparge_blockmap_traits bmap_t,
                   << ", fmha_sparge_fwd_" << attn_t.data_type << "_d" << attn_t.hdim_q
                   << std::flush;
 
-    return ck_tile::launch_kernel(
-        s,
-        [=](const ck_tile::stream_config& s_) { sparge_kstats_fwd_oneshot(bmap_t, bmap_a, s_); },
-        [=](const ck_tile::stream_config& s_) {
-            sparge_blockmap_only_fwd_oneshot(bmap_t, bmap_a, s_);
-        },
-        [=](const ck_tile::stream_config& s_) { fmha_sparge_fwd_oneshot(attn_t, attn_a, s_); });
+    // Decide bucket plan. Pull per-head thresholds from device buffer when set,
+    // else broadcast the scalar across all heads to a single bucket.
+    const int nhead_q = attn_a.nhead_q;
+    std::vector<int> false_heads; // pv_threshold >= 1e29f -> kNone binary (mode 0)
+    std::vector<int> true_heads;  // finite               -> kPerWave or kPerBlock binary
+    false_heads.reserve(nhead_q);
+    true_heads.reserve(nhead_q);
+
+    if(attn_a.pv_threshold_per_head_ptr != nullptr)
+    {
+        std::vector<float> pv_host(nhead_q);
+        auto err = hipMemcpy(pv_host.data(),
+                             attn_a.pv_threshold_per_head_ptr,
+                             static_cast<size_t>(nhead_q) * sizeof(float),
+                             hipMemcpyDeviceToHost);
+        if(err != hipSuccess)
+        {
+            std::cerr << "sparge_sparge_fwd_combined: hipMemcpy pv_threshold_per_head failed: "
+                      << hipGetErrorString(err) << std::endl;
+            return -1.f;
+        }
+        for(int h = 0; h < nhead_q; ++h)
+        {
+            if(pv_host[h] >= 1e29f)
+                false_heads.push_back(h);
+            else
+                true_heads.push_back(h);
+        }
+    }
+    else
+    {
+        // Scalar mode: identity remap, single binary picked by pv_mode_compile
+        // (R30) or the legacy pv_skip_compile bool (R25 A1). When the scalar
+        // pv_threshold is the sentinel, force the kNone binary regardless of
+        // mode_compile — the mode is then irrelevant because no skip happens.
+        if(attn_a.pv_threshold >= 1e29f)
+            for(int h = 0; h < nhead_q; ++h)
+                false_heads.push_back(h);
+        else
+            for(int h = 0; h < nhead_q; ++h)
+                true_heads.push_back(h);
+    }
+
+    // R26-R3 gate: skip empty buckets so we never schedule a zero-grid launch.
+    const bool need_false = !false_heads.empty();
+    const bool need_true  = !true_heads.empty();
+
+    // Materialise per-bucket head-remap device buffers (one int32 each, freed at
+    // end of this function -- before that we keep them alive across the launch).
+    ck_tile::DeviceMem false_remap_dev(std::max<size_t>(1, false_heads.size() * sizeof(int32_t)));
+    ck_tile::DeviceMem true_remap_dev(std::max<size_t>(1, true_heads.size() * sizeof(int32_t)));
+    if(need_false)
+        false_remap_dev.ToDevice(false_heads.data());
+    if(need_true)
+        true_remap_dev.ToDevice(true_heads.data());
+
+    // Build per-bucket attn args. Scalar pv_threshold field is left as-is so the
+    // device fallback (when pv_threshold_per_head is null and remap is null)
+    // remains correct; per-head buffer takes priority when remap is active.
+    fmha_sparge_fwd_args attn_false = attn_a;
+    fmha_sparge_fwd_args attn_true  = attn_a;
+    // R30: derive the effective per-bucket mode. The "true" (finite-threshold)
+    // bucket inherits attn_a.pv_mode_compile so the CLI --pv_mode picks per-wave
+    // (1) or per-block (2). The "false" (sentinel) bucket is always mode 0
+    // (kNone). If a caller still sets only the legacy pv_skip_compile bool
+    // (R25-A1-era) and leaves pv_mode_compile at its default 1, the behaviour
+    // is unchanged.
+    if(need_false)
+    {
+        attn_false.head_remap_ptr  = static_cast<const int*>(false_remap_dev.GetDeviceBuffer());
+        attn_false.nhead_in_launch = static_cast<int>(false_heads.size());
+        attn_false.pv_skip_compile = false; // legacy bool — kept consistent
+        attn_false.pv_mode_compile = 0;     // route to kNone binary (R30)
+    }
+    if(need_true)
+    {
+        attn_true.head_remap_ptr  = static_cast<const int*>(true_remap_dev.GetDeviceBuffer());
+        attn_true.nhead_in_launch = static_cast<int>(true_heads.size());
+        attn_true.pv_skip_compile = true; // legacy bool — kept consistent
+        // R30: pv_mode_compile carries through unchanged from attn_a (CLI choice).
+        // attn_true is a copy of attn_a, so attn_true.pv_mode_compile already
+        // holds the user's selection (0 = kNone, 1 = per-wave, 2 = per-block).
+        // We deliberately do NOT override mode 0 here: if the user passes
+        // --pv_mode=none together with a finite pv_threshold, that is an
+        // explicit "build the bucket but don't skip" request (useful as a
+        // control measurement). Routing it to kNone keeps the CLI honest.
+    }
+
+    // Chain callables: kstats -> blockmap -> [fmha_false?] -> [fmha_true?].
+    // Empty buckets are skipped by emitting an empty lambda; the wrapped path
+    // never issues a kernel launch in that branch.
+    auto cb_kstats = [=](const ck_tile::stream_config& s_) {
+        sparge_kstats_fwd_oneshot(bmap_t, bmap_a, s_);
+    };
+    auto cb_bmap = [=](const ck_tile::stream_config& s_) {
+        sparge_blockmap_only_fwd_oneshot(bmap_t, bmap_a, s_);
+    };
+    auto cb_fmha_false = [=](const ck_tile::stream_config& s_) {
+        if(need_false)
+            fmha_sparge_fwd_oneshot(attn_t, attn_false, s_);
+    };
+    auto cb_fmha_true = [=](const ck_tile::stream_config& s_) {
+        if(need_true)
+            fmha_sparge_fwd_oneshot(attn_t, attn_true, s_);
+    };
+
+    // launch_kernel returns elapsed ms for the whole chain when timing is on.
+    // We always pass 4 callables and gate execution inside the lambda; this
+    // keeps the timing contract stable, while a no-op lambda has negligible
+    // (~ns) cost compared to the saved 5-15us host launch.
+    return ck_tile::launch_kernel(s, cb_kstats, cb_bmap, cb_fmha_false, cb_fmha_true);
 }

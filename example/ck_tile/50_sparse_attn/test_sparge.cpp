@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <iostream>
 #include <random>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -110,11 +111,22 @@ auto create_args(int argc, char* argv[])
         .insert("pv_threshold",
                 "1e30",
                 "SpargeAttn PV-skip per-Q-tile threshold; default +1e30 disables skip")
+        .insert("pv_threshold_per_head",
+                "",
+                "R26 split-launch: comma-separated per-head pv_threshold list "
+                "(length must == h). Empty = scalar mode using -pv_threshold.")
         .insert("pv_skip_compile",
                 "1",
                 "R25 V0: 1=use kEnablePVSkip=true template instance (existing path); 0=use "
                 "kEnablePVSkip=false instance (PV-skip AST removed at compile time, equivalent to "
-                "VSA baseline)");
+                "VSA baseline). Deprecated by -pv_mode; kept for back-compat scripts.")
+        .insert("pv_mode",
+                "warp",
+                "R30: PV-skip mode select. one of {none, warp, block}. "
+                "none = no skip (kNone binary; matches VSA baseline). "
+                "warp = per-wavefront butterfly vote (R25 A1; default). "
+                "block = per-block AND vote via 1 LDS slot + block_sync_lds (R30). "
+                "Overrides -pv_skip_compile when set explicitly.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -147,6 +159,31 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     std::string dump_o_path   = arg_parser.get_str("dump_o");
     float pv_threshold        = arg_parser.get_float("pv_threshold");
     int pv_skip_compile       = arg_parser.get_int("pv_skip_compile");
+    std::string pv_per_head_s = arg_parser.get_str("pv_threshold_per_head");
+    std::string pv_mode_str   = arg_parser.get_str("pv_mode");
+
+    // R30: --pv_mode maps to the int dispatched at host.
+    //   none  -> 0 (kNone),  warp -> 1 (kPerWave),  block -> 2 (kPerBlock).
+    // Back-compat: if the user explicitly passed -pv_skip_compile=0 but left
+    // -pv_mode at default ("warp"), honour the legacy intent (mode=0). The CLI
+    // doesn't expose "was this passed explicitly", so we mirror the rule used
+    // pre-R30: bool 0 => kNone, bool 1 => kPerWave.
+    int pv_mode_compile;
+    if(pv_mode_str == "none")
+        pv_mode_compile = 0;
+    else if(pv_mode_str == "warp")
+        pv_mode_compile = 1;
+    else if(pv_mode_str == "block")
+        pv_mode_compile = 2;
+    else
+    {
+        std::cerr << "Unknown -pv_mode value: '" << pv_mode_str
+                  << "' (expected one of: none, warp, block)" << std::endl;
+        return false;
+    }
+    // Legacy bool wins iff user explicitly disabled and pv_mode stayed warp.
+    if(pv_skip_compile == 0 && pv_mode_str == "warp")
+        pv_mode_compile = 0;
 
     if(nhead_k < 0)
         nhead_k = nhead;
@@ -271,6 +308,31 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
             static_cast<const float*>(cdf_per_head_dev.GetDeviceBuffer());
     }
 
+    // R26 split-launch: optional per-head pv_threshold buffer. Parse the CLI
+    // comma list (length must match nhead); empty list -> scalar broadcast
+    // (legacy path, single launch via host).
+    ck_tile::DeviceMem pv_per_head_dev(static_cast<size_t>(nhead) * sizeof(float));
+    std::vector<float> pv_per_head_host;
+    bool use_pv_per_head = false;
+    if(!pv_per_head_s.empty())
+    {
+        std::stringstream ss(pv_per_head_s);
+        std::string item;
+        while(std::getline(ss, item, ','))
+        {
+            if(!item.empty())
+                pv_per_head_host.push_back(std::stof(item));
+        }
+        if(static_cast<ck_tile::index_t>(pv_per_head_host.size()) != nhead)
+        {
+            std::cerr << "\n[pv_threshold_per_head] length " << pv_per_head_host.size()
+                      << " != h=" << nhead << std::endl;
+            return false;
+        }
+        pv_per_head_dev.ToDevice(pv_per_head_host.data());
+        use_pv_per_head = true;
+    }
+
     // ---- build attention args ----
     ck_tile::stream_config stream_cfg;
     stream_cfg.stream_id_   = nullptr;
@@ -354,21 +416,28 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         attn_args.scale_s             = scale_s;
         attn_args.pv_threshold        = pv_threshold;
         attn_args.pv_skip_compile     = (pv_skip_compile != 0);
-        attn_args.stride_q            = q_strides[i_perm ? 2 : 1];
-        attn_args.stride_k            = k_strides[i_perm ? 2 : 1];
-        attn_args.stride_v            = v_strides[i_perm ? 2 : 1];
-        attn_args.stride_o            = o_strides[o_perm ? 2 : 1];
-        attn_args.nhead_stride_q      = q_strides[i_perm ? 1 : 2];
-        attn_args.nhead_stride_k      = k_strides[i_perm ? 1 : 2];
-        attn_args.nhead_stride_v      = v_strides[i_perm ? 1 : 2];
-        attn_args.nhead_stride_o      = o_strides[o_perm ? 1 : 2];
-        attn_args.batch_stride_q      = q_strides[0];
-        attn_args.batch_stride_k      = k_strides[0];
-        attn_args.batch_stride_v      = v_strides[0];
-        attn_args.batch_stride_o      = o_strides[0];
-        attn_args.window_size_left    = -1;
-        attn_args.window_size_right   = -1;
-        attn_args.mask_type           = 0;
+        attn_args.pv_mode_compile     = pv_mode_compile; // R30: 0=none,1=warp,2=block
+        // R26 split-launch: when CLI provided per-head list, hand the device
+        // buffer to the combined wrapper; host code there will partition heads
+        // into 2 buckets and issue per-bucket launches.
+        attn_args.pv_threshold_per_head_ptr =
+            use_pv_per_head ? static_cast<const float*>(pv_per_head_dev.GetDeviceBuffer())
+                            : nullptr;
+        attn_args.stride_q          = q_strides[i_perm ? 2 : 1];
+        attn_args.stride_k          = k_strides[i_perm ? 2 : 1];
+        attn_args.stride_v          = v_strides[i_perm ? 2 : 1];
+        attn_args.stride_o          = o_strides[o_perm ? 2 : 1];
+        attn_args.nhead_stride_q    = q_strides[i_perm ? 1 : 2];
+        attn_args.nhead_stride_k    = k_strides[i_perm ? 1 : 2];
+        attn_args.nhead_stride_v    = v_strides[i_perm ? 1 : 2];
+        attn_args.nhead_stride_o    = o_strides[o_perm ? 1 : 2];
+        attn_args.batch_stride_q    = q_strides[0];
+        attn_args.batch_stride_k    = k_strides[0];
+        attn_args.batch_stride_v    = v_strides[0];
+        attn_args.batch_stride_o    = o_strides[0];
+        attn_args.window_size_left  = -1;
+        attn_args.window_size_right = -1;
+        attn_args.mask_type         = 0;
 
         avg_ms =
             sparge_sparge_fwd_combined(bmap_traits, bmap_args, attn_traits, attn_args, stream_cfg);

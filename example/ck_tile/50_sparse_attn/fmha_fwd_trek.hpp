@@ -355,7 +355,15 @@ struct fmha_sparge_fwd_args
     ck_tile::index_t nhead_k;
 
     float scale_s;
-    float pv_threshold; // SpargeAttn §4.4 PV-skip per-Q-tile threshold
+    float pv_threshold; // SpargeAttn §4.4 PV-skip per-Q-tile threshold (scalar mode)
+
+    // R26 split-launch: when non-null, per-head pv_threshold buffer (length nhead_q)
+    // is read on device instead of the scalar. Combined with head_remap_ptr the
+    // host can issue two launches (finite-threshold bucket + sentinel bucket) at
+    // different binaries.
+    const float* pv_threshold_per_head_ptr = nullptr;
+    const int* head_remap_ptr              = nullptr;
+    int nhead_in_launch                    = 0; // 0 = identity (full nhead_q grid)
 
     ck_tile::index_t stride_q;
     ck_tile::index_t stride_k;
@@ -379,7 +387,18 @@ struct fmha_sparge_fwd_args
     // shipped pre-R25-V0 only had the true instance). Profiler can flip this to
     // false to measure the source-equivalent-to-VSA baseline (`if constexpr`
     // removes the entire PV-skip AST).
+    //
+    // R30: superseded by pv_mode_compile (int 0/1/2). Kept for source compat —
+    // when callers only set pv_skip_compile, the split-launch wrapper derives
+    // pv_mode_compile = (pv_skip_compile ? 1 : 0).
     bool pv_skip_compile = true;
+
+    // R30: 3-mode PV-skip select.
+    //   0 = kNone     (no PV-skip; AST removed; equivalent to VSA baseline)
+    //   1 = kPerWave  (R25 A1 shipped path; per-wavefront butterfly vote)
+    //   2 = kPerBlock (R30 added; block-wide AND vote through 1 LDS slot)
+    // Default 1 preserves R25 A1 behaviour for any caller that doesn't set it.
+    int pv_mode_compile = 1;
 };
 
 template <typename FmhaKernel>
@@ -414,9 +433,17 @@ auto fmha_fwd_create_kargs_and_grids(fmha_sparge_fwd_args args)
                                        args.batch_stride_o,
                                        args.window_size_left,
                                        args.window_size_right,
-                                       args.mask_type);
+                                       args.mask_type,
+                                       // R26 split-launch extras
+                                       args.pv_threshold_per_head_ptr,
+                                       args.head_remap_ptr,
+                                       args.nhead_in_launch);
 
-    dim3 grids = FmhaKernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v);
+    // R26 split-launch: when head_remap is active, gridDim.y shrinks to bucket size.
+    const ck_tile::index_t grid_nhead = (args.head_remap_ptr != nullptr && args.nhead_in_launch > 0)
+                                            ? args.nhead_in_launch
+                                            : args.nhead_q;
+    dim3 grids = FmhaKernel::GridSize(args.batch, grid_nhead, args.max_seqlen_q, args.hdim_v);
     return ck_tile::make_tuple(kargs, grids);
 }
 
@@ -459,14 +486,15 @@ using fmha_sparge_fwd_traits = fmha_jenga_fwd_traits;
 
 float fmha_sparge_fwd(fmha_sparge_fwd_traits, fmha_sparge_fwd_args, const ck_tile::stream_config&);
 
-// R25 V0: kEnablePVSkip is now a template non-type param so the codegen can
-// emit both true / false instantiations from the same source tree. The host
-// dispatch (fmha_sparge_fwd_api.cpp) selects the right specialization based
-// on fmha_sparge_fwd_args::pv_skip_compile at runtime.
-template <typename Traits_, bool kEnablePVSkip>
+// R25 V0 / R30: PV-skip mode is a template non-type param so codegen can emit
+// all 3 instantiations from the same source tree. The host dispatch
+// (fmha_sparge_fwd_api.cpp) selects the right specialization based on
+// fmha_sparge_fwd_args::pv_mode_compile at runtime.
+//   0 = kNone, 1 = kPerWave, 2 = kPerBlock  (matches ck_tile::PVSkipMode).
+template <typename Traits_, int kPVMode>
 float fmha_sparge_fwd_(const ck_tile::stream_config&, fmha_sparge_fwd_args);
 
-template <typename Traits_, bool kEnablePVSkip>
+template <typename Traits_, int kPVMode>
 void fmha_sparge_fwd_oneshot_(const ck_tile::stream_config&, fmha_sparge_fwd_args);
 
 void fmha_sparge_fwd_oneshot(fmha_sparge_fwd_traits,
