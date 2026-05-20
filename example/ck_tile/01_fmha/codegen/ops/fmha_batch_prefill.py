@@ -48,7 +48,7 @@ DTYPE_BYTES = {k: v // 8 for k, v in DTYPE_BITS.items()}
 
 K0_MAX_SUBMAX_MAP = {32: 32, 64: 64, 96: 128, 128: 128, 256: 256}
 
-SUPPORTED_PAGE_SIZE = [1, 16, 1024]
+SUPPORTED_PAGE_SIZE = [1, 16, 64, 1024]
 SUPPORTED_KV_MEMORY_LAYOUT = ["vectorized", "linear"]
 SUPPORTED_KV_LOOKUP_TABLE = ["vllm", "sglang"]
 KV_MEMORY_LAYOUT_ENUM_MAP = {
@@ -819,10 +819,11 @@ def get_fwd_blobs(
                 for page_size in SUPPORTED_PAGE_SIZE:
                     if page_size == 1 and pipeline.F_kv_memory_layout != "linear":
                         continue
-                    # kv_blockscale / per_token_head require page_size >= kN0 (tile.F_bn0)
-                    # This ensures all tokens in a main loop iteration belong to the same page
+                    # kv_blockscale requires page_size >= kN0 (tile.F_bn0): its dequant
+                    # loop only loads a single page per tile.  per_token_head supports
+                    # cross-page tiles (per-column page lookup in the pipeline).
                     if (
-                        pipeline.F_qscale in ("kv_blockscale", "per_token_head")
+                        pipeline.F_qscale == "kv_blockscale"
                         and page_size < tile.F_bn0
                     ):
                         continue
