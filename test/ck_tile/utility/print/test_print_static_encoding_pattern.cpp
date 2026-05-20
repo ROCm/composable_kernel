@@ -19,11 +19,11 @@ class PrintStaticEncodingPatternTest : public PrintTest
         expected << "<Y0, Y1, Y2>: <" << Y0 << ", " << Y1 << ", " << Y2 << ">";
         EXPECT_TRUE(output.find(expected.str()) != std::string::npos);
     }
-    template <typename T0, typename T1>
-    void TestX0X1(const std::string& output, T0 X0, T1 X1)
+    template <typename T0, typename T1, typename T2>
+    void TestX0X1X2(const std::string& output, T0 X0, T1 X1, T2 X2)
     {
         std::stringstream expected;
-        expected << "<X0, X1>: <" << X0 << ", " << X1 << ">";
+        expected << "<X0, X1, X2>: <" << X0 << ", " << X1 << ", " << X2 << ">";
         EXPECT_TRUE(output.find(expected.str()) != std::string::npos);
     }
 };
@@ -49,7 +49,7 @@ TEST_F(PrintStaticEncodingPatternTest, PrintThreadRakedPattern)
     EXPECT_TRUE(output.find("VecSize:4") != std::string::npos);
     EXPECT_TRUE(output.find("thread_raked") != std::string::npos);
     TestY0Y1Y2(output, PatternType::Y0, PatternType::Y1, PatternType::Y2);
-    TestX0X1(output, PatternType::X0, PatternType::X1);
+    TestX0X1X2(output, PatternType::X0, PatternType::X1, PatternType::X2);
 }
 
 TEST_F(PrintStaticEncodingPatternTest, PrintWarpRakedPattern)
@@ -73,7 +73,7 @@ TEST_F(PrintStaticEncodingPatternTest, PrintWarpRakedPattern)
     EXPECT_TRUE(output.find("VecSize:8") != std::string::npos);
     EXPECT_TRUE(output.find("warp_raked") != std::string::npos);
     TestY0Y1Y2(output, PatternType::Y0, PatternType::Y1, PatternType::Y2);
-    TestX0X1(output, PatternType::X0, PatternType::X1);
+    TestX0X1X2(output, PatternType::X0, PatternType::X1, PatternType::X2);
 }
 
 TEST_F(PrintStaticEncodingPatternTest, PrintBlockRakedPattern)
@@ -97,7 +97,64 @@ TEST_F(PrintStaticEncodingPatternTest, PrintBlockRakedPattern)
     EXPECT_TRUE(output.find("VecSize:16") != std::string::npos);
     EXPECT_TRUE(output.find("block_raked") != std::string::npos);
     TestY0Y1Y2(output, PatternType::Y0, PatternType::Y1, PatternType::Y2);
-    TestX0X1(output, PatternType::X0, PatternType::X1);
+    TestX0X1X2(output, PatternType::X0, PatternType::X1, PatternType::X2);
+}
+
+// X2 > 1 exercises the per-thread X-iteration dim introduced for
+// XPerTile > X0 * X1. With warp_size=64 (host default), the config below
+// gives X1=1, X0=64, X2=2 for all three raked patterns.
+TEST_F(PrintStaticEncodingPatternTest, PrintThreadRakedPatternMultiVec)
+{
+    using PatternType =
+        tile_distribution_encoding_pattern_2d<256,
+                                              128,
+                                              128,
+                                              1,
+                                              tile_distribution_pattern::thread_raked>;
+    PatternType pattern;
+
+    std::string output = CapturePrintOutput(pattern);
+
+    EXPECT_EQ(PatternType::X0 * PatternType::X1 * PatternType::X2, 128);
+    EXPECT_GT(PatternType::X2, 1);
+    TestY0Y1Y2(output, PatternType::Y0, PatternType::Y1, PatternType::Y2);
+    TestX0X1X2(output, PatternType::X0, PatternType::X1, PatternType::X2);
+}
+
+TEST_F(PrintStaticEncodingPatternTest, PrintWarpRakedPatternMultiVec)
+{
+    using PatternType =
+        tile_distribution_encoding_pattern_2d<256,
+                                              128,
+                                              128,
+                                              1,
+                                              tile_distribution_pattern::warp_raked>;
+    PatternType pattern;
+
+    std::string output = CapturePrintOutput(pattern);
+
+    EXPECT_EQ(PatternType::X0 * PatternType::X1 * PatternType::X2, 128);
+    EXPECT_GT(PatternType::X2, 1);
+    TestY0Y1Y2(output, PatternType::Y0, PatternType::Y1, PatternType::Y2);
+    TestX0X1X2(output, PatternType::X0, PatternType::X1, PatternType::X2);
+}
+
+TEST_F(PrintStaticEncodingPatternTest, PrintBlockRakedPatternMultiVec)
+{
+    using PatternType =
+        tile_distribution_encoding_pattern_2d<256,
+                                              128,
+                                              128,
+                                              1,
+                                              tile_distribution_pattern::block_raked>;
+    PatternType pattern;
+
+    std::string output = CapturePrintOutput(pattern);
+
+    EXPECT_EQ(PatternType::X0 * PatternType::X1 * PatternType::X2, 128);
+    EXPECT_GT(PatternType::X2, 1);
+    TestY0Y1Y2(output, PatternType::Y0, PatternType::Y1, PatternType::Y2);
+    TestX0X1X2(output, PatternType::X0, PatternType::X1, PatternType::X2);
 }
 
 } // namespace ck_tile

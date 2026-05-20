@@ -670,13 +670,6 @@ def parse_bwd_weight_instances(instances, problem_name):
                 f"Skipping instance {instance_id} with V6 since it's not supported yet."
             )
             continue
-        if m_per_block > (warp_size * a_scalar_per_vector) or n_per_block > (
-            warp_size * b_scalar_per_vector
-        ):
-            print(
-                f"Skipping instance {instance_id} with multiple warps per continous tile dim since it's not supported yet."
-            )
-            continue
 
         if is_explicit_gemm:
             if dtype != "float" and c_scalar_per_vector % 2 != 0:
@@ -806,9 +799,6 @@ def parse_bwd_data_instances(instances, problem_name):
             continue
         if pipeline_version == "V6":
             print(f"Skipping instance {instance_id} with V6 since it's not supported yet.")
-            continue
-        if k_per_block > (warp_size * a_scalar_per_vector) or n_per_block > (warp_size * b_scalar_per_vector):
-            print(f"Skipping instance {instance_id} with multiple warps per continous tile dim since it's not supported yet.")
             continue
         if a_scalar_per_vector > (m_per_block * k_per_block) // block_size or  b_scalar_per_vector > (n_per_block * k_per_block) // block_size:
             print(f"Skipping instance {instance_id} because current scalar per vector exceedes tile size")
