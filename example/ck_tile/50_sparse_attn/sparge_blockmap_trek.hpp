@@ -56,6 +56,11 @@ struct sparge_blockmap_args
     const float* simthreshd1_per_head_ptr = nullptr;
     const float* cdfthreshd_per_head_ptr  = nullptr;
     const float* topk_per_head_ptr        = nullptr;
+
+    // R32 Items 2+3. Pipeline only honours mask_enum::mask_top_left; CLI warns
+    // on other types. Defaults preserve back-compat for callers not yet setting.
+    mask_enum mask_type = mask_enum::no_mask;
+    bool attention_sink = false;
 };
 
 struct sparge_blockmap_workspace_layout
@@ -105,7 +110,9 @@ auto sparge_blockmap_create_kargs_and_grids(sparge_blockmap_args args,
                                            pooled_k_ws_ptr,
                                            sim_k_ws_ptr,
                                            args.topk_per_head_ptr,
-                                           args.cdfthreshd_per_head_ptr);
+                                           args.cdfthreshd_per_head_ptr,
+                                           static_cast<ck_tile::index_t>(args.mask_type),
+                                           args.attention_sink);
 
     dim3 grids = BlockMapKernel::GridSize(args.batch, args.nhead_q, args.seqlen_q);
     return ck_tile::make_tuple(kargs, grids);

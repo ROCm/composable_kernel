@@ -19,6 +19,7 @@
 #include "ck_tile/host/reference/reference_blocked_attention.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 
+#include "01_fmha/mask.hpp" // R32: mask_info::decode, mask_enum
 #include "fmha_fwd_trek.hpp"
 #include "sparge_blockmap_trek.hpp"
 #include "sparge_tool.hpp"
@@ -126,7 +127,23 @@ auto create_args(int argc, char* argv[])
                 "none = no skip (kNone binary; matches VSA baseline). "
                 "warp = per-wavefront butterfly vote (R25 A1; default). "
                 "block = per-block AND vote via 1 LDS slot + block_sync_lds (R30). "
-                "Overrides -pv_skip_compile when set explicitly.");
+                "Overrides -pv_skip_compile when set explicitly.")
+        .insert("mask",
+                "0",
+                "0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b')\n"
+                "'t', top-left causal mask, 'b', bottom-r causal mask\n"
+                "'t:l,r', top-left sliding window attn(swa) with FA style left right size\n"
+                "'b:l,r', bottom-r sliding window attn(swa) with FA style left right size\n"
+                "'xt:window_size', xformer style masking from top-left, "
+                "window_size negative is causal, positive is swa\n"
+                "'xb:window_size', xformer style masking from bottom-r, "
+                "window_size negative is causal, positive is swa\n"
+                "'g:y,x', generic attention mask coordinate with y/x size "
+                "(only debug purpose for now)")
+        .insert("attention_sink",
+                "0",
+                "SpargeAttn: force block-map column 0 ON (kb=0 always selected). "
+                "0=off, 1=on. Block-map level only; independent of -mask sink prefix.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -161,6 +178,8 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     int pv_skip_compile       = arg_parser.get_int("pv_skip_compile");
     std::string pv_per_head_s = arg_parser.get_str("pv_threshold_per_head");
     std::string pv_mode_str   = arg_parser.get_str("pv_mode");
+    std::string mask_str      = arg_parser.get_str("mask");
+    bool attention_sink       = arg_parser.get_bool("attention_sink");
 
     // R30: --pv_mode maps to the int dispatched at host.
     //   none  -> 0 (kNone),  warp -> 1 (kPerWave),  block -> 2 (kPerBlock).
@@ -191,6 +210,15 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         seqlen_k = seqlen_q;
     if(hdim_v < 0)
         hdim_v = hdim_q;
+
+    mask_info mask = mask_info::decode(mask_str, seqlen_q, seqlen_k);
+    if(mask.type != mask_enum::no_mask && mask.type != mask_enum::mask_top_left)
+        std::fprintf(stderr,
+                     "[test_sparge] WARN: -mask='%s' (type=%d) - block-map only "
+                     "filters mask_top_left; selection will not prune past-diagonal "
+                     "blocks. attention kernel still applies the mask.\n",
+                     mask_str.c_str(),
+                     static_cast<int>(mask.type));
 
     // If cdfthreshd >= 0, use CDF mode; otherwise use topk mode
     if(cdfthreshd >= 0.0f)
@@ -281,6 +309,8 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
     bmap_args.block_map_ptr       = block_map_dev.GetDeviceBuffer();
     bmap_args.lut_ptr             = (pipeline == "vsa") ? lut_dev.GetDeviceBuffer() : nullptr;
     bmap_args.valid_block_num_ptr = (pipeline == "vsa") ? valid_bn_dev.GetDeviceBuffer() : nullptr;
+    bmap_args.mask_type           = mask.type;      // R32 Item 2
+    bmap_args.attention_sink      = attention_sink; // R32 Item 3
 
     // K-stats workspace: caller-owned, sized via host helper, allocated once outside any timing.
     const size_t ws_bytes = sparge_blockmap_get_workspace_size(bmap_traits, bmap_args);
@@ -350,7 +380,7 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         attn_traits.hdim_v        = hdim_v;
         attn_traits.data_type     = std::is_same_v<T, ck_tile::half_t> ? "fp16" : "bf16";
         attn_traits.is_v_rowmajor = true;
-        attn_traits.mask_type     = mask_enum::no_mask;
+        attn_traits.mask_type     = mask.type;
         attn_traits.bm0           = BLKQ;
 
         fmha_jenga_fwd_args attn_args;
@@ -380,9 +410,9 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         attn_args.batch_stride_k            = k_strides[0];
         attn_args.batch_stride_v            = v_strides[0];
         attn_args.batch_stride_o            = o_strides[0];
-        attn_args.window_size_left          = -1;
-        attn_args.window_size_right         = -1;
-        attn_args.mask_type                 = 0;
+        attn_args.window_size_left          = mask.left;
+        attn_args.window_size_right         = mask.right;
+        attn_args.mask_type                 = static_cast<ck_tile::index_t>(mask.type);
 
         avg_ms = sparge_jenga_fwd(bmap_traits, bmap_args, attn_traits, attn_args, stream_cfg);
     }
@@ -395,7 +425,7 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         attn_traits.hdim_v        = hdim_v;
         attn_traits.data_type     = std::is_same_v<T, ck_tile::half_t> ? "fp16" : "bf16";
         attn_traits.is_v_rowmajor = true;
-        attn_traits.mask_type     = mask_enum::no_mask;
+        attn_traits.mask_type     = mask.type;
         attn_traits.bm0           = BLKQ;
 
         fmha_sparge_fwd_args attn_args;
@@ -435,9 +465,9 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         attn_args.batch_stride_k    = k_strides[0];
         attn_args.batch_stride_v    = v_strides[0];
         attn_args.batch_stride_o    = o_strides[0];
-        attn_args.window_size_left  = -1;
-        attn_args.window_size_right = -1;
-        attn_args.mask_type         = 0;
+        attn_args.window_size_left  = mask.left;
+        attn_args.window_size_right = mask.right;
+        attn_args.mask_type         = static_cast<ck_tile::index_t>(mask.type);
 
         avg_ms =
             sparge_sparge_fwd_combined(bmap_traits, bmap_args, attn_traits, attn_args, stream_cfg);
@@ -500,96 +530,111 @@ bool run_test(const ck_tile::ArgParser& arg_parser)
         auto k_ref = to_bhsd(k_host, i_perm);
         auto v_ref = to_bhsd(v_host, i_perm);
 
-        sparge::SpargeParams sp;
-        sp.BLKQ        = BLKQ;
-        sp.BLKK        = BLKK;
-        sp.simthreshd1 = simthreshd1;
-        sp.cdfthreshd  = cdfthreshd;
-        sp.topk        = topk;
-        sp.i_perm      = i_perm;
+        // R32: CPU reference lacks causal mask + attention_sink; skip block_map
+        // cross-check + VSA LUT self-consistency when either is in effect. The
+        // attention-output check below still runs (consumes GPU bmap).
+        const bool skip_cpu_bm_check = (mask.type != mask_enum::no_mask) || attention_sink;
 
-        auto block_map_cpu = sparge::build_block_map_meansim<T>(q_host, k_host, sp);
-
-        size_t bm_total          = block_map_host.mData.size();
-        size_t bm_mismatch       = 0;
-        size_t shown             = 0;
-        constexpr size_t MAXSHOW = 10;
-        std::cout << "\n  [block_map cross-check] total=" << bm_total;
-        for(size_t i = 0; i < bm_total; ++i)
+        bool bm_pass  = true;
+        bool lut_pass = true;
+        if(!skip_cpu_bm_check)
         {
-            uint8_t g = block_map_host.mData[i];
-            uint8_t c = block_map_cpu.mData[i];
-            if(g != c)
-            {
-                if(shown < MAXSHOW)
-                {
-                    size_t k_idx = i % num_k_blocks;
-                    size_t q_idx = (i / num_k_blocks) % num_q_blocks;
-                    size_t h_idx = (i / (num_k_blocks * num_q_blocks)) % nhead;
-                    size_t b_idx = i / (num_k_blocks * num_q_blocks * nhead);
-                    std::cout << "\n    miss[" << shown << "] (b=" << b_idx << ",h=" << h_idx
-                              << ",qb=" << q_idx << ",kb=" << k_idx << ") gpu=" << int(g)
-                              << " cpu=" << int(c);
-                    ++shown;
-                }
-                ++bm_mismatch;
-            }
-        }
-        bool bm_pass   = (bm_mismatch == 0);
-        float bm_ratio = bm_total ? 100.0f * float(bm_mismatch) / float(bm_total) : 0.0f;
-        std::cout << "\n  [block_map cross-check] mismatch=" << bm_mismatch << "/" << bm_total
-                  << " (" << std::setprecision(4) << bm_ratio << "%) "
-                  << (bm_pass ? "PASS" : "FAIL");
 
-        auto cpu_lut     = sparge::block_map_to_vsa_lut_delta<uint8_t>(block_map_cpu);
-        bool lut_pass    = true;
-        size_t lut_fails = 0;
-        for(ck_tile::index_t b = 0; b < batch && lut_fails < MAXSHOW; ++b)
-        {
-            for(ck_tile::index_t h = 0; h < nhead && lut_fails < MAXSHOW; ++h)
+            sparge::SpargeParams sp;
+            sp.BLKQ        = BLKQ;
+            sp.BLKK        = BLKK;
+            sp.simthreshd1 = simthreshd1;
+            sp.cdfthreshd  = cdfthreshd;
+            sp.topk        = topk;
+            sp.i_perm      = i_perm;
+
+            auto block_map_cpu = sparge::build_block_map_meansim<T>(q_host, k_host, sp);
+
+            size_t bm_total          = block_map_host.mData.size();
+            size_t bm_mismatch       = 0;
+            size_t shown             = 0;
+            constexpr size_t MAXSHOW = 10;
+            std::cout << "\n  [block_map cross-check] total=" << bm_total;
+            for(size_t i = 0; i < bm_total; ++i)
             {
-                for(ck_tile::index_t qb = 0; qb < num_q_blocks && lut_fails < MAXSHOW; ++qb)
+                uint8_t g = block_map_host.mData[i];
+                uint8_t c = block_map_cpu.mData[i];
+                if(g != c)
                 {
-                    int32_t valid        = cpu_lut.valid_block_num(b, h, qb);
-                    int32_t active_count = 0;
-                    for(ck_tile::index_t kb = 0; kb < num_k_blocks; ++kb)
-                        if(block_map_cpu(b, h, qb, kb))
-                            ++active_count;
-                    int32_t recon_kb = 0;
-                    bool delta_ok    = true;
-                    for(int32_t i = 0; i < valid; ++i)
+                    if(shown < MAXSHOW)
                     {
-                        int32_t d = cpu_lut.lut(b, h, qb, i);
-                        if(d < 0)
-                        {
-                            delta_ok = false;
-                            break;
-                        }
-                        recon_kb += d;
-                        if(recon_kb >= num_k_blocks)
-                        {
-                            delta_ok = false;
-                            break;
-                        }
-                        if(!block_map_cpu(b, h, qb, recon_kb))
-                        {
-                            delta_ok = false;
-                            break;
-                        }
+                        size_t k_idx = i % num_k_blocks;
+                        size_t q_idx = (i / num_k_blocks) % num_q_blocks;
+                        size_t h_idx = (i / (num_k_blocks * num_q_blocks)) % nhead;
+                        size_t b_idx = i / (num_k_blocks * num_q_blocks * nhead);
+                        std::cout << "\n    miss[" << shown << "] (b=" << b_idx << ",h=" << h_idx
+                                  << ",qb=" << q_idx << ",kb=" << k_idx << ") gpu=" << int(g)
+                                  << " cpu=" << int(c);
+                        ++shown;
                     }
-                    if(valid != active_count || !delta_ok)
-                    {
-                        lut_pass = false;
-                        if(lut_fails < MAXSHOW)
-                            std::cout << "\n    lut_fail (b=" << b << ",h=" << h << ",qb=" << qb
-                                      << ") valid=" << valid << " active=" << active_count
-                                      << " delta_ok=" << delta_ok;
-                        ++lut_fails;
-                    }
+                    ++bm_mismatch;
                 }
             }
+            bm_pass        = (bm_mismatch == 0);
+            float bm_ratio = bm_total ? 100.0f * float(bm_mismatch) / float(bm_total) : 0.0f;
+            std::cout << "\n  [block_map cross-check] mismatch=" << bm_mismatch << "/" << bm_total
+                      << " (" << std::setprecision(4) << bm_ratio << "%) "
+                      << (bm_pass ? "PASS" : "FAIL");
+
+            auto cpu_lut     = sparge::block_map_to_vsa_lut_delta<uint8_t>(block_map_cpu);
+            size_t lut_fails = 0;
+            for(ck_tile::index_t b = 0; b < batch && lut_fails < MAXSHOW; ++b)
+            {
+                for(ck_tile::index_t h = 0; h < nhead && lut_fails < MAXSHOW; ++h)
+                {
+                    for(ck_tile::index_t qb = 0; qb < num_q_blocks && lut_fails < MAXSHOW; ++qb)
+                    {
+                        int32_t valid        = cpu_lut.valid_block_num(b, h, qb);
+                        int32_t active_count = 0;
+                        for(ck_tile::index_t kb = 0; kb < num_k_blocks; ++kb)
+                            if(block_map_cpu(b, h, qb, kb))
+                                ++active_count;
+                        int32_t recon_kb = 0;
+                        bool delta_ok    = true;
+                        for(int32_t i = 0; i < valid; ++i)
+                        {
+                            int32_t d = cpu_lut.lut(b, h, qb, i);
+                            if(d < 0)
+                            {
+                                delta_ok = false;
+                                break;
+                            }
+                            recon_kb += d;
+                            if(recon_kb >= num_k_blocks)
+                            {
+                                delta_ok = false;
+                                break;
+                            }
+                            if(!block_map_cpu(b, h, qb, recon_kb))
+                            {
+                                delta_ok = false;
+                                break;
+                            }
+                        }
+                        if(valid != active_count || !delta_ok)
+                        {
+                            lut_pass = false;
+                            if(lut_fails < MAXSHOW)
+                                std::cout << "\n    lut_fail (b=" << b << ",h=" << h << ",qb=" << qb
+                                          << ") valid=" << valid << " active=" << active_count
+                                          << " delta_ok=" << delta_ok;
+                            ++lut_fails;
+                        }
+                    }
+                }
+            }
+            std::cout << "\n  [VSA LUT self-consistency] " << (lut_pass ? "PASS" : "FAIL");
+        } // end if(!skip_cpu_bm_check)
+        else
+        {
+            std::cout << "\n  [block_map cross-check] SKIPPED (mask/sink active; CPU ref lacks)";
+            std::cout << "\n  [VSA LUT self-consistency] SKIPPED";
         }
-        std::cout << "\n  [VSA LUT self-consistency] " << (lut_pass ? "PASS" : "FAIL");
 
         ck_tile::HostTensor<T> output_ref({batch, nhead, seqlen_q, hdim_v});
         ck_tile::reference_blocked_attention<T, uint8_t>(

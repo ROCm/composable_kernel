@@ -65,6 +65,12 @@ struct SpargeBlockMapKernel
         // Per-head cdfthreshd (size = nhead_q floats). Required (non-null);
         // only consulted on topk<=0 path.
         const float* cdfthreshd_per_head;
+
+        // R32 Items 2+3. mask_type stored as index_t (not mask_enum) to keep this
+        // include-tree header independent of example/01_fmha/mask.hpp. Magic
+        // constant 1 == mask_enum::mask_top_left (01_fmha/mask.hpp:13-19).
+        index_t mask_type;
+        bool attention_sink;
     };
 
     CK_TILE_HOST static constexpr auto MakeKargs(const void* q_ptr,
@@ -90,7 +96,9 @@ struct SpargeBlockMapKernel
                                                  const void* pooled_k_ws_ptr,
                                                  const void* sim_k_ws_ptr,
                                                  const float* topk_per_head,
-                                                 const float* cdfthreshd_per_head)
+                                                 const float* cdfthreshd_per_head,
+                                                 index_t mask_type,
+                                                 bool attention_sink)
     {
         const index_t N_k = integer_divide_ceil(seqlen_k, kN0);
         return Kargs{q_ptr,
@@ -117,7 +125,9 @@ struct SpargeBlockMapKernel
                      sim_k_ws_ptr,
                      N_k,
                      topk_per_head,
-                     cdfthreshd_per_head};
+                     cdfthreshd_per_head,
+                     mask_type,
+                     attention_sink};
     }
 
     CK_TILE_HOST static constexpr auto GridSize(index_t batch, index_t nhead_q, index_t seqlen_q)
@@ -220,7 +230,9 @@ struct SpargeBlockMapKernel
                    valid_out,
                    pooled_k_ws,
                    sim_k_ws,
-                   static_cast<void*>(smem));
+                   static_cast<void*>(smem),
+                   kargs.mask_type,
+                   kargs.attention_sink);
     }
 };
 
