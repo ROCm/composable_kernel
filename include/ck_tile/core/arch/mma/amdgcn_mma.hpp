@@ -127,6 +127,17 @@ namespace ck_tile::core::arch::mma {
  * register mappings since we can not perform arbitrary M permutations without messing up the A
  * layout. This does not count a potential increased M dimension size from block hiding. In this
  * case, we have M = kCMBlock * M2 * M1 * M0 instead.
+ *
+ * ------------------------------------------
+ *  Compression and packed data types
+ * ------------------------------------------
+ * For sparse intrisics we have 4:2 compression of the A matrix, meaning one element of the packed
+ * (compressed) A matrix represents two elements of the original (uncompressed) A matrix
+ * (kCompressionRatio = 2). In a similar vein, for packed datatypes (pk_fp4_t, pk_int4_t,
+ * pk_fp6x16_t), each datatype element represents multiple logical / mathematical elements of the
+ * original A / B matrix. In these cases, we follow the convention that the layout parameters always
+ * describe logical / mathematical uncompressed matrix elements, while the registers and tile
+ * distribution encodings always describe compressed / packed *Datatype* elements.
  */
 
 /**
@@ -159,9 +170,11 @@ struct amdgcn_mma_base
     static constexpr MmaOpFamily OpFamily = OpFamily_;
 
     // Data types
-    using ADataType = ADataType_;
-    using BDataType = BDataType_;
-    using CDataType = CDataType_;
+    using ADataType                      = ADataType_;
+    using BDataType                      = BDataType_;
+    using CDataType                      = CDataType_;
+    static constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
+    static constexpr index_t BPackedSize = numeric_traits<BDataType>::PackedSize;
 
     // Fragment (MmaTile) sizes, check description above.
     static constexpr index_t kM = FragM; // M = M2 * M1 * M0 (* kCMBlocks when block-hiding)
@@ -182,18 +195,19 @@ struct amdgcn_mma_base
 
     // Layout checks
     static_assert(kK % kABKPerLane == 0);
-    static_assert(kABKPerLane % kAKNumAccess == 0);
-    static_assert(kABKPerLane % kBKNumAccess == 0);
+    static_assert(kABKPerLane % (kAKNumAccess * kCompressionRatio * APackedSize) == 0);
+    static_assert(kABKPerLane % (kBKNumAccess * BPackedSize) == 0);
     static_assert(kCMPerLane % kCMNumAccess == 0);
 
     // Register types (derived)
     static constexpr index_t WaveSize = WaveSize_;
-    static_assert((kM * kK * kARepeat) % (WaveSize * kCompressionRatio) == 0);
-    static_assert((kN * kK * kBRepeat) % WaveSize == 0);
+    static_assert((kM * kK * kARepeat) % (WaveSize * kCompressionRatio * APackedSize) == 0);
+    static_assert((kN * kK * kBRepeat) % (WaveSize * BPackedSize) == 0);
     static_assert((kM * kN) % WaveSize == 0);
 
-    using AVecType = ext_vector_t<ADataType, kM * kK * kARepeat / WaveSize / kCompressionRatio>;
-    using BVecType = ext_vector_t<BDataType, kN * kK * kBRepeat / WaveSize>;
+    using AVecType =
+        ext_vector_t<ADataType, kM * kK * kARepeat / WaveSize / kCompressionRatio / APackedSize>;
+    using BVecType = ext_vector_t<BDataType, kN * kK * kBRepeat / WaveSize / BPackedSize>;
     using CVecType = ext_vector_t<CDataType, kM * kN / WaveSize>;
 
     // Block-hiding / repeat related traits (derived)

@@ -92,11 +92,6 @@ struct int32x3_tt
     int32_t data[3];
 };
 
-struct int32x6_tt
-{
-    int32_t data[6];
-};
-
 template <>
 struct impl::ext_vector<int8_t, 12>
 {

@@ -8,6 +8,10 @@
  * functions for mapping matrix fragment coordinates to register coordinates (lane, vector item) and
  * vice versa. This is only meant for tile distributions encodings that describe register mappings.
  *
+ * Note that in case of compression or packed data types, the matrix minor dimension is effectively
+ * shrunk by that factor. This is because tile distribution encodings always describe compressed /
+ * packed *Datatype* elements, not logical / mathematical uncompressed *value* elements.
+ *
  * A repeat dimension is allowed in which case multiple (lane, vector item) pairs are mapped to the
  * same matrix coordinates. The inverse map takes a "repeat index" to distinguish between them.
  *

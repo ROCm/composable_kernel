@@ -5,6 +5,7 @@
 
 #include "wmma_traits.hpp"
 
+#include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
 #include "ck_tile/core/arch/mma/mma_op_family.hpp"
@@ -116,6 +117,36 @@ struct amdgcn_mma<int8_t, int8_t, int32_t, 16u, 16u, 16u, CtrlFlags, CompilerTar
                                                            bit_cast<int32x4_t>(aVec),
                                                            true, // B signedness
                                                            bit_cast<int32x4_t>(bVec),
+                                                           cVec,
+                                                           CtrlFlags::Clamp)};
+    }
+};
+
+/**
+ * @struct amdgcn_mma
+ * @brief Specialization of amdgcn_mma for pk_int4_t, pk_int4_t, int32_t MMA operation on GFX11
+ * architecture.
+ * @tparam CtrlFlags Control flags for the WMMA operation
+ * @tparam CompilerTarget Current compiler target
+ */
+// TODO: c++20 template <CtrlFlagsGfx11I CtrlFlags, amdgcn_target CompilerTarget>
+// TODO: c++20 requires
+template <typename CtrlFlags, typename CompilerTarget>
+// clang-format off
+//               | A B C DataTypes             | MNK + WaveSize    |AParams  |BPar |CPar |
+struct amdgcn_mma<pk_int4_t, pk_int4_t, int32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx11_t<CompilerTarget>>
+: amdgcn_mma_base<pk_int4_t, pk_int4_t, int32_t, 16u, 16u, 16u, 32u, 16, 1, 2, 1, 2, 8, 8, WmmaOp, MmaOpFamily::DENSE>
+// clang-format on
+{
+    static constexpr const char* instruction_name = "__builtin_amdgcn_wmma_i32_16x16x16_iu4_w32";
+
+    CK_TILE_DEVICE static CVecType
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
+    {
+        return {__builtin_amdgcn_wmma_i32_16x16x16_iu4_w32(true, // A signedness
+                                                           bit_cast<int32x2_t>(aVec),
+                                                           true, // B signedness
+                                                           bit_cast<int32x2_t>(bVec),
                                                            cVec,
                                                            CtrlFlags::Clamp)};
     }

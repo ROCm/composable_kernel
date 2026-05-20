@@ -25,6 +25,9 @@ struct pk_int4_t
     CK_TILE_HOST_DEVICE constexpr pk_int4_t() : data{type{}} {}
     CK_TILE_HOST_DEVICE constexpr pk_int4_t(type init) : data{init} {}
 
+    // Conversion to underlying required to assign pk_int4_t values to ext_vector of pk_int4_t.
+    CK_TILE_HOST_DEVICE constexpr operator type() const { return data; }
+
     // NOTE: added for interface compatibility with pk_fp4_t
     // Other data types could be added for greater similarity
     CK_TILE_HOST_DEVICE constexpr fp32x2_t to_fp32x2() const;

@@ -14,7 +14,7 @@
 #include <unordered_set>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/core/numeric/pk_fp6.hpp"
+#include "ck_tile/core/numeric/pk_f6.hpp"
 #include "ck_tile/host/joinable_thread.hpp"
 
 namespace ck_tile {

@@ -6,7 +6,7 @@
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/core/numeric/pk_fp6.hpp"
+#include "ck_tile/core/numeric/pk_f6.hpp"
 #include "ck_tile/host.hpp"
 
 using ck_tile::bf16_t;

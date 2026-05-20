@@ -13,6 +13,8 @@
 using namespace ck_tile;
 using namespace ck_tile::core::arch;
 using namespace mma;
+using I4        = pk_int4_t;
+using I32       = int32_t;
 using F16       = fp16_t;
 using F32       = fp32_t;
 using Target908 = decltype(make_amdgcn_gfx9_target<amdgcn_target_id::GFX908>());
@@ -78,7 +80,10 @@ using Intrinsics = ck_tile::tuple<
     amdgcn_mma<F16, F16, F32, 4u,  64u, 4u,  DefaultMfmaCtrlFlags,                Target908, MmaOpFamily::DENSE>, // mfma_f32_4x4x4f16
     amdgcn_mma<F16, F16, F32, 16u, 16u, 32u, DefaultMfmaCtrlFlags,                Target950, MmaOpFamily::DENSE>, // mfma_f32_16x16x32_f16
     amdgcn_mma<F16, F16, F32, 16u, 16u, 16u, DefaultWmmaCtrlFlags,                Target11,  MmaOpFamily::DENSE>, // wmma_f32_16x16x16_f16_w32
-    amdgcn_mma<F16, F16, F32, 16u, 16u, 16u, DefaultWmmaCtrlFlags,                Target12,  MmaOpFamily::DENSE>  // wmma_f32_16x16x16_f16_w32_gfx12
+    amdgcn_mma<I4,  I4,  I32, 16u, 16u, 16u, DefaultWmmaCtrlFlags,                Target11,  MmaOpFamily::DENSE>, // wmma_i32_16x16x16_iu4_w32
+    amdgcn_mma<F16, F16, F32, 16u, 16u, 16u, DefaultWmmaCtrlFlags,                Target12,  MmaOpFamily::DENSE>, // wmma_f32_16x16x16_f16_w32_gfx12
+    amdgcn_mma<I4,  I4,  I32, 16u, 16u, 16u, DefaultWmmaCtrlFlags,                Target12,  MmaOpFamily::DENSE>, // wmma_i32_16x16x16_iu4_w32_gfx12
+    amdgcn_mma<I4,  I4,  I32, 16u, 16u, 32u, DefaultWmmaCtrlFlags,                Target12,  MmaOpFamily::DENSE>  // wmma_i32_16x16x32_iu4_w32_gfx12
 >;
 // clang-format on
 
@@ -89,5 +94,7 @@ int main()
         using MmaOp = std::tuple_element_t<i.value, Intrinsics>;
         err |= check_tile_distr_enc<MmaOp>();
     });
+    if(err)
+        printf("\033[031mError in tile distribution enc calculator!\033[0m\n");
     return err;
 }
