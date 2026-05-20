@@ -197,20 +197,16 @@ void run_jagged_forward_causal_softmax_bias_dropout_dispatch(HstuAttentionNoGrou
             return static_cast<bool>(atoi(env_p));
         }();
 
-        // ToDo: enable splitkv when kUseSoftmax is true
-        if(!disable_fwd_splitkv && !kUseSoftmax &&
+        if(!disable_fwd_splitkv &&
            shall_use_splitkv(param.num_batch, param.num_head, param.max_seqlen_q))
         {
-            if constexpr(!kUseSoftmax)
-            {
-                jagged_forward_splitkv_causal_softmax_bias_dropout_dispatch<InOutDataType,
-                                                                            kUseCausal,
-                                                                            kUseSoftmax,
-                                                                            kHasBias,
-                                                                            kHasDropout,
-                                                                            MaxK,
-                                                                            64>::Run(param, stream);
-            };
+            jagged_forward_splitkv_causal_softmax_bias_dropout_dispatch<InOutDataType,
+                                                                        kUseCausal,
+                                                                        kUseSoftmax,
+                                                                        kHasBias,
+                                                                        kHasDropout,
+                                                                        MaxK,
+                                                                        64>::Run(param, stream);
         }
         else
             jagged_forward_causal_softmax_bias_dropout_dispatch<InOutDataType,

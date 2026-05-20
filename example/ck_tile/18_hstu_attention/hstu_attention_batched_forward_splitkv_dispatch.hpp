@@ -15,6 +15,7 @@
 #include "hstu_attention_fwd_splitkv_combine_setting.hpp"
 #include "hstu_attention_params.hpp"
 #include "hstu_attention_hdim_switch.hpp"
+#include "hstu_attention_max_splits_switch.hpp"
 #include "hstu_attention_pipeline_problem.hpp"
 #include "hstu_attention_traits.hpp"
 #include "hstu_attention_with_softmax_fwd_pipeline.hpp"
@@ -22,6 +23,7 @@
 #include "hstu_attention_with_softmax_fwd_trload_pipeline.hpp"
 #include "hstu_attention_no_softmax_fwd_trload_pipeline.hpp"
 #include "hstu_attention_no_softmax_fwd_splitkv_combine_pipeline.hpp"
+#include "hstu_attention_with_softmax_fwd_splitkv_combine_pipeline.hpp"
 #include "hstu_attention_fwd_splitkv_kernel.hpp"
 #include "hstu_attention_fwd_splitkv_combine_kernel.hpp"
 
@@ -34,7 +36,6 @@ template <typename InOutDataType,
           ck_tile::index_t MTile>
 struct batched_forward_splitkv_causal_softmax_bias_dropout_dispatch
 {
-    static_assert(kUseSoftmax == false, "Softmax support is not enabled yet!");
     static_assert(MTile == 64, "MTile must be 64 to get to fwd splitkv path!");
 
     using HstuAttentionFwdTileSetting =
@@ -66,6 +67,17 @@ struct batched_forward_splitkv_causal_softmax_bias_dropout_dispatch
 
     using OaccDataType = HstuAttentionFwdTypeConfig<InOutDataType>::OaccDataType;
     using ODataType    = HstuAttentionFwdTypeConfig<InOutDataType>::ODataType;
+    using LSEDataType  = HstuAttentionFwdTypeConfig<InOutDataType>::CompDataType;
+
+    template <ck_tile::index_t kMaxSplits>
+    using HstuCombinePipelineProblemTemp =
+        ck_tile::HstuAttentionFwdSplitKVCombinePipelineProblem<OaccDataType,
+                                                               LSEDataType,
+                                                               ODataType,
+                                                               false /* kIsJagged */,
+                                                               kUseSoftmax,
+                                                               HstuAttentionCombineTileSetting,
+                                                               kMaxSplits>;
 
     static void Run(HstuAttentionNoGroupFwdParams& param, hipStream_t stream)
     {
@@ -141,14 +153,14 @@ struct batched_forward_splitkv_causal_softmax_bias_dropout_dispatch
                     });
                 });
         };
+
+        if constexpr(kUseSoftmax)
         {
-            using HstuCombinePipelineProblem =
-                ck_tile::HstuAttentionFwdSplitKVCombinePipelineProblem<
-                    OaccDataType,
-                    ODataType,
-                    false /* kIsJagged */,
-                    kUseSoftmax,
-                    HstuAttentionCombineTileSetting>;
+            static constexpr auto kM = HstuAttentionCombineTileSetting::kM;
+            // ToDo: be carefule to use get_warp_size() on host-layer on Wave32
+            static constexpr auto kBlockSize =
+                HstuAttentionCombineTileSetting::NumWarps * ck_tile::get_warp_size();
+
             const bool pad_headdim_o =
                 !(param.hdim_v % HstuAttentionCombineTileSetting::kOHeaddim == 0);
 
@@ -156,9 +168,61 @@ struct batched_forward_splitkv_causal_softmax_bias_dropout_dispatch
             // buffer_load_dwordxx/buffer_store_dwordxx can handle oob access
             constexpr bool kPadSeqLenQ = false;
 
+            MAX_SPLITS_SWITCH(param.num_splits, TMP_MAX_SPLITS, [&] {
+                constexpr ck_tile::index_t kMaxSplits = [&]() {
+                    if constexpr(kM * TMP_MAX_SPLITS >= kBlockSize)
+                        return TMP_MAX_SPLITS;
+                    else if constexpr(kM * 2 * TMP_MAX_SPLITS >= kBlockSize)
+                        return 2 * TMP_MAX_SPLITS;
+                    else
+                        return 4 * TMP_MAX_SPLITS;
+                }();
+
+                const bool pad_num_splits = (param.num_splits < kMaxSplits);
+
+                using HstuCombinePipelineProblem = HstuCombinePipelineProblemTemp<kMaxSplits>;
+
+                BOOL_SWITCH_2(pad_headdim_o, kPadHeadDimO, pad_num_splits, kPadNumSplits, [&] {
+                    using HstuTraits = ck_tile::HstuAttentionFwdSplitKVCombineTraits<kPadSeqLenQ,
+                                                                                     kPadHeadDimO,
+                                                                                     kPadNumSplits,
+                                                                                     occupancy>;
+
+                    using HstuEpilogue =
+                        ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<OaccDataType,
+                                                                                     ODataType,
+                                                                                     kPadSeqLenQ,
+                                                                                     kPadHeadDimO,
+                                                                                     false>>;
+
+                    using HstuPipeline = ck_tile::HstuAttentionWithSoftmaxFwdSplitKVCombinePipeline<
+                        HstuCombinePipelineProblem,
+                        HstuTraits>;
+
+                    using HstuKernel =
+                        ck_tile::HstuAttentionFwdSplitKVCombineKernel<HstuPipeline, HstuEpilogue>;
+
+                    RunWithFwdSplitKVCombineKernel<HstuKernel>(param, stream);
+                });
+            });
+        }
+        else
+        {
+            const bool pad_headdim_o =
+                !(param.hdim_v % HstuAttentionCombineTileSetting::kOHeaddim == 0);
+
+            // no need to check seqlen_q since it is not used as fastest dim,
+            // buffer_load_dwordxx/buffer_store_dwordxx can handle oob access
+            constexpr bool kPadSeqLenQ = false;
+
+            using HstuCombinePipelineProblem = HstuCombinePipelineProblemTemp<0>;
+
             BOOL_SWITCH(pad_headdim_o, kPadHeadDimO, [&] {
-                using HstuTraits = ck_tile::
-                    HstuAttentionFwdSplitKVCombineTraits<kPadSeqLenQ, kPadHeadDimO, occupancy>;
+                using HstuTraits =
+                    ck_tile::HstuAttentionFwdSplitKVCombineTraits<kPadSeqLenQ,
+                                                                  kPadHeadDimO,
+                                                                  false /*kPadNumSplits*/,
+                                                                  occupancy>;
 
                 using HstuEpilogue =
                     ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<OaccDataType,
@@ -176,7 +240,7 @@ struct batched_forward_splitkv_causal_softmax_bias_dropout_dispatch
 
                 RunWithFwdSplitKVCombineKernel<HstuKernel>(param, stream);
             });
-        };
+        }
     };
 
     template <typename HstuKernel>
@@ -193,12 +257,21 @@ struct batched_forward_splitkv_causal_softmax_bias_dropout_dispatch
 
         HIP_CHECK_ERROR(hipMallocAsync(&param.o_acc_ptr, workspace_bytes, stream));
 
+        if constexpr(kUseSoftmax)
+        {
+            workspace_bytes = static_cast<size_t>(param.num_batch) * param.seqlen_q *
+                              param.num_head * param.num_splits * sizeof(LSEDataType);
+
+            HIP_CHECK_ERROR(hipMallocAsync(&param.lse_acc_ptr, workspace_bytes, stream));
+        }
+
         const auto kargs = [&] {
             return HstuKernel::MakeKargs(param.q_ptr,
                                          param.k_ptr,
                                          param.v_ptr,
                                          param.bias_ptr,
                                          param.o_acc_ptr,
+                                         param.lse_acc_ptr,
                                          param.num_splits,
                                          param.seqlen_q,
                                          param.is_cross_attention ? param.seqlen_kv
@@ -250,6 +323,7 @@ struct batched_forward_splitkv_causal_softmax_bias_dropout_dispatch
     {
         const auto kargs = [&] {
             return HstuKernel::MakeKargs(param.o_acc_ptr,
+                                         param.lse_acc_ptr,
                                          param.o_ptr,
                                          param.batch_stride_o,
                                          param.seq_stride_o,
@@ -269,5 +343,9 @@ struct batched_forward_splitkv_causal_softmax_bias_dropout_dispatch
             ck_tile::make_kernel<kBlockPerCu>(HstuKernel{}, kGridSize, kBlockSize, 0, kargs));
 
         HIP_CHECK_ERROR(hipFreeAsync(param.o_acc_ptr, stream));
+        if constexpr(kUseSoftmax)
+        {
+            HIP_CHECK_ERROR(hipFreeAsync(param.lse_acc_ptr, stream));
+        }
     };
 };

@@ -515,5 +515,6 @@ static int get_suggested_num_splits(int num_batches, int num_heads, int max_seql
     while(get_estimated_cu_coverage_ratio(num_batches, num_heads, max_seqlen_q) * i < threshold)
         i++;
 
-    return i;
+    // the num_splits shall not be bigger than 64
+    return ck_tile::min(i, 64);
 };

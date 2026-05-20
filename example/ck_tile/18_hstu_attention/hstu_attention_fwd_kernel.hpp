@@ -46,6 +46,7 @@ struct HstuAttentionFwdKernel
     static constexpr auto kHasBias          = HstuAttentionPipeline::Problem::kHasBias;
     static constexpr bool kHasDropout       = HstuAttentionPipeline::Problem::kHasDropout;
     static constexpr bool kHasCausalMask    = HstuAttentionPipeline::Problem::kHasCausal;
+    static constexpr bool kUseSoftmax       = HstuAttentionPipeline::Problem::kUseSoftmax;
 
     static constexpr bool kPadSeqLenQ   = HstuAttentionPipeline::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK   = HstuAttentionPipeline::kPadSeqLenK;
@@ -905,17 +906,37 @@ struct HstuAttentionFwdKernel
                                             number<HstuAttentionPipeline::kM0>{},
                                             number<HstuAttentionPipeline::kN0>{});
 
-                return HstuAttentionPipeline{}(q_dram_window,
-                                               k_dram_window,
-                                               v_dram_window,
-                                               bias_dram_window,
-                                               seqlen_k_start,
-                                               seqlen_k_end,
-                                               mask,
-                                               kargs.scale_s,
-                                               kargs.scale_p,
-                                               smem_ptr,
-                                               dropout);
+                if constexpr(!kUseSoftmax)
+                {
+                    return HstuAttentionPipeline{}(q_dram_window,
+                                                   k_dram_window,
+                                                   v_dram_window,
+                                                   bias_dram_window,
+                                                   seqlen_k_start,
+                                                   seqlen_k_end,
+                                                   mask,
+                                                   kargs.scale_s,
+                                                   kargs.scale_p,
+                                                   smem_ptr,
+                                                   dropout);
+                }
+                else
+                {
+                    auto null_tile_window = ck_tile::make_null_tile_window(ck_tile::make_tuple());
+
+                    return HstuAttentionPipeline{}(q_dram_window,
+                                                   k_dram_window,
+                                                   v_dram_window,
+                                                   bias_dram_window,
+                                                   null_tile_window,
+                                                   seqlen_k_start,
+                                                   seqlen_k_end,
+                                                   mask,
+                                                   kargs.scale_s,
+                                                   kargs.scale_p,
+                                                   smem_ptr,
+                                                   dropout);
+                }
             }
             else
             {
@@ -940,17 +961,36 @@ struct HstuAttentionFwdKernel
                                             number<HstuAttentionPipeline::kM0>{},
                                             number<HstuAttentionPipeline::kN0>{});
 
-                return HstuAttentionPipeline{}(q_dram_window,
-                                               k_dram_window,
-                                               v_dram_window,
-                                               bias_dram_window,
-                                               seqlen_k_start,
-                                               seqlen_k_end,
-                                               mask,
-                                               kargs.scale_s,
-                                               kargs.scale_p,
-                                               smem_ptr,
-                                               dropout);
+                if constexpr(!kUseSoftmax)
+                {
+                    return HstuAttentionPipeline{}(q_dram_window,
+                                                   k_dram_window,
+                                                   v_dram_window,
+                                                   bias_dram_window,
+                                                   seqlen_k_start,
+                                                   seqlen_k_end,
+                                                   mask,
+                                                   kargs.scale_s,
+                                                   kargs.scale_p,
+                                                   smem_ptr,
+                                                   dropout);
+                }
+                else
+                {
+                    auto null_tile_window = ck_tile::make_null_tile_window(ck_tile::make_tuple());
+                    return HstuAttentionPipeline{}(q_dram_window,
+                                                   k_dram_window,
+                                                   v_dram_window,
+                                                   bias_dram_window,
+                                                   null_tile_window,
+                                                   seqlen_k_start,
+                                                   seqlen_k_end,
+                                                   mask,
+                                                   kargs.scale_s,
+                                                   kargs.scale_p,
+                                                   smem_ptr,
+                                                   dropout);
+                }
             }
         }();
 

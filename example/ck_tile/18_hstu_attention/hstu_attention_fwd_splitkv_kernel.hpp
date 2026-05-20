@@ -42,6 +42,8 @@ struct HstuAttentionFwdSplitKVKernel
         ck_tile::remove_cvref_t<typename HstuAttentionPipeline::Problem::BiasDataType>;
     using OaccDataType =
         ck_tile::remove_cvref_t<typename HstuAttentionPipeline::Problem::OaccDataType>;
+    using CompDataType =
+        ck_tile::remove_cvref_t<typename HstuAttentionPipeline::Problem::CompDataType>;
 
     static constexpr bool kIsCrossAttention = HstuAttentionPipeline::Problem::kIsCrossAttention;
     static constexpr bool kUseGroup         = HstuAttentionPipeline::Problem::kUseGroup;
@@ -49,6 +51,7 @@ struct HstuAttentionFwdSplitKVKernel
     static constexpr auto kHasBias          = HstuAttentionPipeline::Problem::kHasBias;
     static constexpr bool kHasDropout       = HstuAttentionPipeline::Problem::kHasDropout;
     static constexpr bool kHasCausalMask    = HstuAttentionPipeline::Problem::kHasCausal;
+    static constexpr bool kUseSoftmax       = HstuAttentionPipeline::Problem::kUseSoftmax;
 
     static constexpr bool kPadSeqLenQ   = HstuAttentionPipeline::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK   = HstuAttentionPipeline::kPadSeqLenK;
@@ -200,6 +203,11 @@ struct HstuAttentionFwdSplitKVKernel
         uint64_t drop_offset;
     };
 
+    struct HstuAttentionFwdSoftmaxKargs
+    {
+        void* lse_acc_ptr;
+    };
+
     struct HstuAttentionFwdCommonDropoutKargs : HstuAttentionFwdDropoutSeedOffset
     {
         void init_dropout(float p_drop, uint64_t seed, uint64_t offset)
@@ -224,7 +232,10 @@ struct HstuAttentionFwdSplitKVKernel
                              HstuAttentionFwdEmptyKargs<1>>,
           std::conditional_t<kHasDropout,
                              HstuAttentionFwdCommonDropoutKargs,
-                             HstuAttentionFwdEmptyKargs<2>>
+                             HstuAttentionFwdEmptyKargs<2>>,
+          std::conditional_t<kUseSoftmax,
+                             HstuAttentionFwdSoftmaxKargs,
+                             HstuAttentionFwdEmptyKargs<3>>
     {
     };
 
@@ -235,7 +246,10 @@ struct HstuAttentionFwdSplitKVKernel
                              HstuAttentionFwdEmptyKargs<1>>,
           std::conditional_t<kHasDropout,
                              HstuAttentionFwdCommonDropoutKargs,
-                             HstuAttentionFwdEmptyKargs<2>>
+                             HstuAttentionFwdEmptyKargs<2>>,
+          std::conditional_t<kUseSoftmax,
+                             HstuAttentionFwdSoftmaxKargs,
+                             HstuAttentionFwdEmptyKargs<3>>
     {
     };
 
@@ -245,7 +259,10 @@ struct HstuAttentionFwdSplitKVKernel
                                                            HstuAttentionFwdEmptyKargs<1>>,
                                         std::conditional_t<kHasDropout,
                                                            HstuAttentionFwdCommonDropoutKargs,
-                                                           HstuAttentionFwdEmptyKargs<2>>
+                                                           HstuAttentionFwdEmptyKargs<2>>,
+                                        std::conditional_t<kUseSoftmax,
+                                                           HstuAttentionFwdSoftmaxKargs,
+                                                           HstuAttentionFwdEmptyKargs<3>>
     {
     };
 
@@ -265,6 +282,7 @@ struct HstuAttentionFwdSplitKVKernel
               const void* v_ptr,
               const void* bias_ptr,
               void* o_acc_ptr,             // workspace for accumulation of o
+              void* lse_acc_ptr,           // workspace for accumulation of lse
               ck_tile::index_t num_splits, // number of splitted seqlen_kv
               ck_tile::index_t seqlen_q,
               ck_tile::index_t seqlen_kv,
@@ -334,6 +352,10 @@ struct HstuAttentionFwdSplitKVKernel
         {
             kargs.init_dropout(p_drop, philox_seed, philox_offset);
         }
+        if constexpr(kUseSoftmax)
+        {
+            kargs.lse_acc_ptr = lse_acc_ptr;
+        }
 
         return kargs;
     }
@@ -345,6 +367,7 @@ struct HstuAttentionFwdSplitKVKernel
               const void* v_ptr,
               const void* bias_ptr,
               void* o_acc_ptr,             // workspace for accumulation of o
+              void* lse_acc_ptr,           // workspace for accumulation of lse
               ck_tile::index_t num_splits, // number of splitted seqlen_kv
               const void* seq_q_offsets_ptr,
               const void* seq_kv_offsets_ptr,
@@ -409,6 +432,10 @@ struct HstuAttentionFwdSplitKVKernel
         {
             kargs.init_dropout(p_drop, philox_seed, philox_offset);
         }
+        if constexpr(kUseSoftmax)
+        {
+            kargs.lse_acc_ptr = lse_acc_ptr;
+        }
 
         return kargs;
     }
@@ -420,6 +447,7 @@ struct HstuAttentionFwdSplitKVKernel
               const void* v_ptr,
               const void* bias_ptr,
               void* o_acc_ptr,             // workspace for accumulation of o
+              void* lse_acc_ptr,           // workspace for accumulation of lse
               ck_tile::index_t num_splits, // number of splitted seqlen_kv
               ck_tile::index_t num_batch_per_group,
               const void* seq_q_offsets_ptr,
@@ -490,6 +518,10 @@ struct HstuAttentionFwdSplitKVKernel
         if constexpr(kHasDropout)
         {
             kargs.init_dropout(p_drop, philox_seed, philox_offset);
+        }
+        if constexpr(kUseSoftmax)
+        {
+            kargs.lse_acc_ptr = lse_acc_ptr;
         }
 
         return kargs;
@@ -649,11 +681,12 @@ struct HstuAttentionFwdSplitKVKernel
 
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch, i_split] = GetTileIndex(kargs);
 
-        long_index_t batch_offset_q     = 0;
-        long_index_t batch_offset_k     = 0;
-        long_index_t batch_offset_v     = 0;
-        long_index_t batch_offset_bias  = 0;
-        long_index_t batch_offset_o_acc = 0;
+        long_index_t batch_offset_q       = 0;
+        long_index_t batch_offset_k       = 0;
+        long_index_t batch_offset_v       = 0;
+        long_index_t batch_offset_bias    = 0;
+        long_index_t batch_offset_o_acc   = 0;
+        long_index_t batch_offset_lse_acc = 0;
 
         if constexpr(kIsJagged)
         {
@@ -670,9 +703,15 @@ struct HstuAttentionFwdSplitKVKernel
                 batch_offset_bias = query_start * kargs.seq_stride_bias;
             }
 
-            // assume o_acc is in compact shape of [batch_size, max_seqlen, num_head, num_splits,
+            // assume o_acc is in compact shape of [batch_size, max_seqlen_q, num_head, num_splits,
             // hdim]
             batch_offset_o_acc = query_start * kargs.num_head * kargs.num_splits * kargs.hdim_v;
+
+            // assume l_acc is in compact shape of [batch_size, max_seqlen_q, num_head, num_splits]
+            if constexpr(kUseSoftmax)
+            {
+                batch_offset_lse_acc = query_start * kargs.num_head * kargs.num_splits;
+            }
 
             kargs.seqlen_q =
                 kargs.seq_q_offsets_ptr[i_batch + 1] - kargs.seq_q_offsets_ptr[i_batch];
@@ -706,6 +745,13 @@ struct HstuAttentionFwdSplitKVKernel
             // hdim]
             batch_offset_o_acc = static_cast<long_index_t>(i_batch) * kargs.seqlen_q *
                                  kargs.num_head * kargs.num_splits * kargs.hdim_v;
+
+            // assume l_acc is in compact shape of [batch_size, seqlen_q, num_head, num_splits]
+            if constexpr(kUseSoftmax)
+            {
+                batch_offset_lse_acc = static_cast<long_index_t>(i_batch) * kargs.seqlen_q *
+                                       kargs.num_head * kargs.num_splits;
+            }
         }
 
         int num_target = (kargs.num_targets_ptr == nullptr) ? 0 : kargs.num_targets_ptr[i_batch];
@@ -845,6 +891,7 @@ struct HstuAttentionFwdSplitKVKernel
             v_dram,
             make_tuple(number<HstuAttentionPipeline::kN1>{}, number<HstuAttentionPipeline::kK1>{}),
             {i_n1, 0});
+
         /// FIXME: Before C++20, capturing structured binding variables are not supported. Remove
         /// following copy capture of the 'i_nhead' if in C++20
         const auto bias_dram_window = [&, i_nhead_ = i_nhead]() {
@@ -874,6 +921,39 @@ struct HstuAttentionFwdSplitKVKernel
             else
             {
                 return make_null_tile_window(bias_dram_window_lengths);
+            }
+        }();
+
+        auto lse_acc_dram_window = [&, i_nhead_ = i_nhead]() {
+            constexpr auto lse_acc_dram_window_lengths =
+                make_tuple(number<HstuAttentionPipeline::kM0>{});
+
+            if constexpr(kUseSoftmax)
+            {
+                // assume l_acc is in compact shape of [batch_size, seqlen_q, num_head, num_splits]
+                CompDataType* lse_acc_ptr = reinterpret_cast<CompDataType*>(kargs.lse_acc_ptr) +
+                                            static_cast<long_index_t>(i_nhead) * kargs.num_splits +
+                                            batch_offset_lse_acc + i_split;
+
+                // LSEacc DRAM and LSEacc DRAM window
+                auto seq_stride_lse_acc       = kargs.num_head * kargs.num_splits;
+                const auto lse_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                    lse_acc_ptr,
+                    make_tuple(seqlen_q_in_ctrl),
+                    make_tuple(seq_stride_lse_acc),
+                    number<HstuAttentionPipeline::kAlignmentLSEacc>{},
+                    number<1>{});
+
+                const auto lse_acc_dram =
+                    pad_tensor_view(lse_acc_dram_naive,
+                                    make_tuple(number<HstuAttentionPipeline::kM0>{}),
+                                    sequence<false>{});
+
+                return make_tile_window(lse_acc_dram, lse_acc_dram_window_lengths, {i_m0});
+            }
+            else
+            {
+                return make_null_tile_window(lse_acc_dram_window_lengths);
             }
         }();
 
@@ -933,17 +1013,35 @@ struct HstuAttentionFwdSplitKVKernel
                 const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
                     global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);
 
-                return HstuAttentionPipeline{}(q_dram_window,
-                                               k_dram_window,
-                                               v_dram_window,
-                                               bias_dram_window,
-                                               seqlen_k_start,
-                                               seqlen_k_end,
-                                               mask,
-                                               kargs.scale_s,
-                                               kargs.scale_p,
-                                               smem_ptr,
-                                               dropout);
+                if constexpr(!kUseSoftmax)
+                {
+                    return HstuAttentionPipeline{}(q_dram_window,
+                                                   k_dram_window,
+                                                   v_dram_window,
+                                                   bias_dram_window,
+                                                   seqlen_k_start,
+                                                   seqlen_k_end,
+                                                   mask,
+                                                   kargs.scale_s,
+                                                   kargs.scale_p,
+                                                   smem_ptr,
+                                                   dropout);
+                }
+                else
+                {
+                    return HstuAttentionPipeline{}(q_dram_window,
+                                                   k_dram_window,
+                                                   v_dram_window,
+                                                   bias_dram_window,
+                                                   lse_acc_dram_window,
+                                                   seqlen_k_start,
+                                                   seqlen_k_end,
+                                                   mask,
+                                                   kargs.scale_s,
+                                                   kargs.scale_p,
+                                                   smem_ptr,
+                                                   dropout);
+                }
             }
             else
             {
@@ -971,17 +1069,35 @@ struct HstuAttentionFwdSplitKVKernel
                 const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
                     global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);
 
-                return HstuAttentionPipeline{}(q_dram_window,
-                                               k_dram_window,
-                                               v_dram_window,
-                                               bias_dram_window,
-                                               seqlen_k_start,
-                                               seqlen_k_end,
-                                               mask,
-                                               kargs.scale_s,
-                                               kargs.scale_p,
-                                               smem_ptr,
-                                               dropout);
+                if constexpr(!kUseSoftmax)
+                {
+                    return HstuAttentionPipeline{}(q_dram_window,
+                                                   k_dram_window,
+                                                   v_dram_window,
+                                                   bias_dram_window,
+                                                   seqlen_k_start,
+                                                   seqlen_k_end,
+                                                   mask,
+                                                   kargs.scale_s,
+                                                   kargs.scale_p,
+                                                   smem_ptr,
+                                                   dropout);
+                }
+                else
+                {
+                    return HstuAttentionPipeline{}(q_dram_window,
+                                                   k_dram_window,
+                                                   v_dram_window,
+                                                   bias_dram_window,
+                                                   lse_acc_dram_window,
+                                                   seqlen_k_start,
+                                                   seqlen_k_end,
+                                                   mask,
+                                                   kargs.scale_s,
+                                                   kargs.scale_p,
+                                                   smem_ptr,
+                                                   dropout);
+                }
             }
         }();
 

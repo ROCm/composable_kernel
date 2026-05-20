@@ -38,11 +38,15 @@ struct HstuAttentionFwdSplitKVCombineKernel
     using OaccDataType =
         ck_tile::remove_cvref_t<typename HstuAttentionPipeline::Problem::OaccDataType>;
     using ODataType = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::Problem::ODataType>;
+    using LSEDataType =
+        ck_tile::remove_cvref_t<typename HstuAttentionPipeline::Problem::LSEDataType>;
 
-    static constexpr bool kIsJagged = HstuAttentionPipeline::Problem::kIsJagged;
+    static constexpr bool kIsJagged   = HstuAttentionPipeline::Problem::kIsJagged;
+    static constexpr bool kUseSoftmax = HstuAttentionPipeline::Problem::kUseSoftmax;
 
-    static constexpr bool kPadSeqLenQ  = HstuAttentionPipeline::kPadSeqLenQ;
-    static constexpr bool kPadHeadDimO = HstuAttentionPipeline::kPadHeadDimO;
+    static constexpr bool kPadSeqLenQ   = HstuAttentionPipeline::kPadSeqLenQ;
+    static constexpr bool kPadHeadDimO  = HstuAttentionPipeline::kPadHeadDimO;
+    static constexpr bool kPadNumSplits = HstuAttentionPipeline::kPadNumSplits;
 
     template <ck_tile::index_t I> // to avoid duplicated base class problem, introduce an template
                                   // arg
@@ -84,11 +88,22 @@ struct HstuAttentionFwdSplitKVCombineKernel
         ck_tile::index_t seqlen_q;
     };
 
-    struct HstuAttentionBatchedCombineKargs : HstuAttentionBatchedCombineBaseKargs
+    struct HstuAttentionCombineSoftmaxKargs
+    {
+        const void* lse_acc_ptr = nullptr;
+    };
+
+    struct HstuAttentionBatchedCombineKargs : HstuAttentionBatchedCombineBaseKargs,
+                                              std::conditional_t<kUseSoftmax,
+                                                                 HstuAttentionCombineSoftmaxKargs,
+                                                                 HstuAttentionCombineEmptyKargs<1>>
     {
     };
 
-    struct HstuAttentionJaggedCombineKargs : HstuAttentionJaggedCombineBaseKargs
+    struct HstuAttentionJaggedCombineKargs : HstuAttentionJaggedCombineBaseKargs,
+                                             std::conditional_t<kUseSoftmax,
+                                                                HstuAttentionCombineSoftmaxKargs,
+                                                                HstuAttentionCombineEmptyKargs<1>>
     {
     };
 
@@ -97,7 +112,8 @@ struct HstuAttentionFwdSplitKVCombineKernel
 
     template <bool Cond = !kIsJagged>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* o_acc_ptr, // workspace for accumulation of o
+    MakeKargs(const void* o_acc_ptr,   // workspace for accumulation of o
+              const void* lse_acc_ptr, // workspace for accummulation of lse
               void* o_ptr,
               ck_tile::index_t batch_stride_o,
               ck_tile::index_t seq_stride_o,
@@ -107,22 +123,29 @@ struct HstuAttentionFwdSplitKVCombineKernel
               ck_tile::index_t num_splits, // number of splitted seqlen_kv
               ck_tile::index_t hdim_v)
     {
-        Kargs kargs{o_acc_ptr,
-                    o_ptr,
-                    batch_stride_o,
-                    seq_stride_o,
-                    nhead_stride_o,
-                    seqlen_q,
-                    num_head,
-                    num_splits,
-                    hdim_v};
+        Kargs kargs{{o_acc_ptr,
+                     o_ptr,
+                     batch_stride_o,
+                     seq_stride_o,
+                     nhead_stride_o,
+                     seqlen_q,
+                     num_head,
+                     num_splits,
+                     hdim_v},
+                    {} /* place holder for softmax */};
+
+        if constexpr(kUseSoftmax)
+        {
+            kargs.lse_acc_ptr = lse_acc_ptr;
+        }
 
         return kargs;
     }
 
     template <bool Cond = kIsJagged>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* o_acc_ptr, // workspace for accumulation of o
+    MakeKargs(const void* o_acc_ptr,   // workspace for accumulation of o
+              const void* lse_acc_ptr, // workspace for accummulation of lse
               void* o_ptr,
               ck_tile::index_t seq_stride_o,
               ck_tile::index_t nhead_stride_o,
@@ -131,15 +154,23 @@ struct HstuAttentionFwdSplitKVCombineKernel
               ck_tile::index_t num_splits, // number of splitted seqlen_kv
               ck_tile::index_t hdim_v)
     {
-        Kargs kargs{o_acc_ptr,
-                    o_ptr,
-                    seq_stride_o,
-                    nhead_stride_o,
-                    reinterpret_cast<const int32_t*>(seq_q_offsets_ptr),
-                    num_head,
-                    num_splits,
-                    hdim_v,
-                    0 /* seqlen_q will be updated later */};
+        Kargs kargs{
+            {o_acc_ptr,
+             o_ptr,
+             seq_stride_o,
+             nhead_stride_o,
+             reinterpret_cast<const int32_t*>(seq_q_offsets_ptr),
+             num_head,
+             num_splits,
+             hdim_v,
+             0 /* seqlen_q will be updated later*/},
+            {} /* place holder for softmax */
+        };
+
+        if constexpr(kUseSoftmax)
+        {
+            kargs.lse_acc_ptr = lse_acc_ptr;
+        }
 
         return kargs;
     }
@@ -175,7 +206,17 @@ struct HstuAttentionFwdSplitKVCombineKernel
         return ck_tile::make_tuple(i_tile_m, i_nhead, i_batch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        if(is_wave32())
+        {
+            // it looks get_warp_size() always return 64 when called from host, so
+            // halfing is needed to get actual BlockSize
+            return dim3(kBlockSize / get_warp_size() * 32);
+        }
+        else
+            return dim3(kBlockSize);
+    }
 
     CK_TILE_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -184,22 +225,32 @@ struct HstuAttentionFwdSplitKVCombineKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
+        // allocate LDS
+        __shared__ char smem_ptr[GetSmemSize()];
+
         const auto [i_tile_m, i_nhead, i_batch] = GetTileIndex(kargs);
 
-        long_index_t batch_offset_o_acc = 0;
-        long_index_t batch_offset_o     = 0;
+        long_index_t batch_offset_o_acc   = 0;
+        long_index_t batch_offset_o       = 0;
+        long_index_t batch_offset_lse_acc = 0;
 
         if constexpr(kIsJagged)
         {
             // get starting offset for each batch
             const long_index_t query_start = kargs.seq_q_offsets_ptr[i_batch];
 
-            // assume o_acc is in compact shape of [batch_size, max_seqlen, num_head, num_splits,
+            // assume o_acc is in compact shape of [batch_size, max_seqlen_q, num_head, num_splits,
             // hdim]
             batch_offset_o_acc = query_start * kargs.num_head * kargs.num_splits * kargs.hdim_v;
 
             batch_offset_o = query_start * kargs.seq_stride_o;
 
+            // assume lse_acc is in compact shape of [batch_size, max_seqlen_q, num_head,
+            // num_splits]
+            if constexpr(kUseSoftmax)
+            {
+                batch_offset_lse_acc = query_start * kargs.num_head * kargs.num_splits;
+            }
             kargs.seqlen_q =
                 kargs.seq_q_offsets_ptr[i_batch + 1] - kargs.seq_q_offsets_ptr[i_batch];
         }
@@ -211,6 +262,13 @@ struct HstuAttentionFwdSplitKVCombineKernel
                                  kargs.num_head * kargs.num_splits * kargs.hdim_v;
 
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
+
+            // assume l_acc is in compact shape of [batch_size, seqlen_q, num_head, num_splits]
+            if constexpr(kUseSoftmax)
+            {
+                batch_offset_lse_acc = static_cast<long_index_t>(i_batch) * kargs.seqlen_q *
+                                       kargs.num_head * kargs.num_splits;
+            }
         }
 
         index_t i_m0;
@@ -251,7 +309,44 @@ struct HstuAttentionFwdSplitKVCombineKernel
                              {i_m0, 0});
 
         auto o_acc_tile = [&]() {
-            return HstuAttentionPipeline{}(o_acc_dram_window, kargs.hdim_v, kargs.num_splits);
+            if constexpr(kUseSoftmax)
+            {
+                // assume l_acc is in compact shape of [batch_size, seqlen_q, num_head, num_splits]
+                const LSEDataType* lse_acc_ptr =
+                    reinterpret_cast<const LSEDataType*>(kargs.lse_acc_ptr) +
+                    static_cast<long_index_t>(i_nhead) * kargs.num_splits + batch_offset_lse_acc;
+
+                // LSEacc DRAM and LSEacc DRAM window
+                auto seq_stride_lse_acc       = kargs.num_head * kargs.num_splits;
+                const auto lse_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                    lse_acc_ptr,
+                    make_tuple(kargs.seqlen_q, kargs.num_splits),
+                    make_tuple(seq_stride_lse_acc, 1),
+                    number<HstuAttentionPipeline::kAlignmentLSEacc>{},
+                    number<1>{});
+
+                const auto lse_acc_dram =
+                    pad_tensor_view(lse_acc_dram_naive,
+                                    make_tuple(number<HstuAttentionPipeline::kM>{},
+                                               number<HstuAttentionPipeline::kMaxSplits>{}),
+                                    sequence<false, kPadNumSplits>{});
+
+                auto lse_acc_dram_window =
+                    make_tile_window(lse_acc_dram,
+                                     make_tuple(number<HstuAttentionPipeline::kM>{},
+                                                number<HstuAttentionPipeline::kMaxSplits>{}),
+                                     {i_m0, 0});
+
+                return HstuAttentionPipeline{}(lse_acc_dram_window,
+                                               o_acc_dram_window,
+                                               kargs.hdim_v,
+                                               kargs.num_splits,
+                                               smem_ptr);
+            }
+            else
+            {
+                return HstuAttentionPipeline{}(o_acc_dram_window, kargs.hdim_v, kargs.num_splits);
+            }
         }();
 
         // O DRAM and O DRAM window

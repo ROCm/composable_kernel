@@ -23,12 +23,14 @@ struct HstuAttentionFwdTraits
 };
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
-          bool kPadHeadDimO_ /* paddding for hdim_o */,
+          bool kPadHeadDimO_ /* padding for hdim_o */,
+          bool kPadNumSplits_  = false, /* padding for num_splits */
           index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
 struct HstuAttentionFwdSplitKVCombineTraits
 {
-    static constexpr bool kPadSeqLenQ  = kPadSeqLenQ_;
-    static constexpr bool kPadHeadDimO = kPadHeadDimO_;
+    static constexpr bool kPadSeqLenQ   = kPadSeqLenQ_;
+    static constexpr bool kPadHeadDimO  = kPadHeadDimO_;
+    static constexpr bool kPadNumSplits = kPadNumSplits_;
 
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
