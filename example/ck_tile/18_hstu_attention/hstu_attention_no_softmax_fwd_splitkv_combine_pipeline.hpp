@@ -50,13 +50,16 @@ struct HstuAttentionNoSoftmaxFwdSplitKVCombinePipeline
 
     static constexpr const char* name = "hstu_no_softmax_fwd_splitkv_combine";
 
-    CK_TILE_DEVICE static constexpr ck_tile::index_t GetSmemSize() { return 0; }
+    CK_TILE_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    {
+        return Policy::template GetSmemSize<Problem>();
+    }
 
     template <typename OAccDramBlockWindowTmp, typename OAccElementFunction>
     CK_TILE_DEVICE auto
     operator()(const OAccDramBlockWindowTmp& o_acc_dram_block_window_tmp, // M0*kOHeaddim tile
                const OAccElementFunction& o_acc_element_func,
-               ck_tile::index_t split_stride,
+               ck_tile::index_t o_acc_split_stride,
                ck_tile::index_t num_splits) const
     {
         static_assert(
@@ -79,7 +82,7 @@ struct HstuAttentionNoSoftmaxFwdSplitKVCombinePipeline
 
         for(int i = 1; i < num_splits; i++)
         {
-            o_acc_dram_window.set_bottom_tensor_view_data_ptr(o_acc_ptr + split_stride * i);
+            o_acc_dram_window.set_bottom_tensor_view_data_ptr(o_acc_ptr + o_acc_split_stride * i);
             auto o_acc_tile = load_tile(o_acc_dram_window);
 
             tile_elementwise_inout([](auto& x, const auto& y) { x = x + y; }, o_acc, o_acc_tile);
@@ -93,10 +96,10 @@ struct HstuAttentionNoSoftmaxFwdSplitKVCombinePipeline
     template <typename OAccDramBlockWindowTmp>
     CK_TILE_DEVICE auto
     operator()(const OAccDramBlockWindowTmp& o_acc_dram_block_window_tmp, // kM*kOHeaddim tile
-               ck_tile::index_t split_stride,
+               ck_tile::index_t o_acc_split_stride,
                ck_tile::index_t num_splits) const
     {
-        return operator()(o_acc_dram_block_window_tmp, identity{}, split_stride, num_splits);
+        return operator()(o_acc_dram_block_window_tmp, identity{}, o_acc_split_stride, num_splits);
     };
 };
 

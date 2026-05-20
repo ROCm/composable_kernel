@@ -130,14 +130,17 @@ struct HstuAttentionFwdPipelineProblem
 };
 
 template <typename OaccDataType_,
+          typename LSEDataType_,
           typename ODataType_,
           bool kIsJagged_,
           bool kUseSoftmax_,
-          typename CombineTileSetting_>
+          typename CombineTileSetting_,
+          index_t kMaxSplits_ = 0>
 struct HstuAttentionFwdSplitKVCombinePipelineProblem
 {
     using OaccDataType = remove_cvref_t<OaccDataType_>;
     using ODataType    = remove_cvref_t<ODataType_>;
+    using LSEDataType  = remove_cvref_t<LSEDataType_>;
 
     static constexpr bool kIsJagged   = kIsJagged_;
     static constexpr bool kUseSoftmax = kUseSoftmax_;
@@ -147,6 +150,7 @@ struct HstuAttentionFwdSplitKVCombinePipelineProblem
     static constexpr index_t kOHeaddim    = CombineTileSetting_::kOHeaddim;
     static constexpr index_t kSubOHeaddim = CombineTileSetting_::kSubOHeaddim;
     static constexpr index_t kBlockSize   = CombineTileSetting_::NumWarps * get_warp_size();
+    static constexpr index_t kMaxSplits   = kMaxSplits_;
 
     CK_TILE_HOST_DEVICE static constexpr auto GetOaccDramTileAccessMaxVectorSize()
     {
@@ -164,6 +168,15 @@ struct HstuAttentionFwdSplitKVCombinePipelineProblem
 
         return detail::
             GetDramTileAccessMaxVectorSize<ODataType, kBlockSize, kMPerBlock, kKPerBlock>();
+    };
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetLSEaccDramTileAccessMaxVectorSize()
+    {
+        constexpr index_t kMPerBlock = kM;
+        constexpr index_t kKPerBlock = kMaxSplits;
+
+        return detail::
+            GetDramTileAccessMaxVectorSize<LSEDataType, kBlockSize, kMPerBlock, kKPerBlock>();
     };
 };
 

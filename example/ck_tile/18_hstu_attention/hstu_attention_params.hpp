@@ -72,6 +72,7 @@ struct HstuAttentionNoGroupFwdParams
     // pointer of device memory allocated before calling fwd_splitkv kernel and released after
     // calling combine kernel
     void* o_acc_ptr;
+    void* lse_acc_ptr;
 };
 
 struct HstuAttentionGroupFwdParams
@@ -139,4 +140,5 @@ struct HstuAttentionGroupFwdParams
     // pointer of device memory allocated before calling fwd_splitkv kernel and released after
     // calling combine kernel
     void* o_acc_ptr;
+    void* lse_acc_ptr;
 };
