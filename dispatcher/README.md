@@ -394,6 +394,12 @@ python3 examples/grouped_conv/python/03_bwd_data.py            # Backward data +
 python3 examples/grouped_conv/python/04_bwd_weight.py          # Backward weight + CPU ref
 python3 examples/grouped_conv/python/05_benchmark.py           # Multi-problem benchmark
 python3 examples/grouped_conv/python/06_registry_json.py       # Heuristic selection + JSON
+
+# FMHA Examples (JIT-compiled on the fly)
+python3 examples/fmha/python/01_basic_fmha.py      # Basic forward attention
+python3 examples/fmha/python/12_masks_fmha.py       # Causal masks
+python3 examples/fmha/python/18_backward_fmha.py    # Backward pass
+python3 examples/fmha/python/16_splitkv_fmha.py     # Split-KV for long sequences
 ```
 
 ### Example Output
@@ -716,7 +722,7 @@ This matrix shows all CK Tile operations with per-data-type, per-layout, and per
 | GEMM | streamk_gemm<br>example: `40_streamk_gemm/` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Reduce | multi_reduce2d<br>example: `05_reduce/` | ❌ |  | ❌ |  |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
 | Reduce | reduce2d<br>example: `05_reduce/` | ❌ |  | ❌ |  |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
-| Attention | fmha<br>example: `01_fmha/` | ❌ | ❌ | ❌ | ❌ | ❌ |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
+| Attention | fmha<br>example: `01_fmha/` | ✅ | ✅ | ✅ | ✅ | ❌ |  |  |  |  |  |  | ✅ | ✅ | ✅ | ❌ |
 | Attention | sparse_attn<br>example: `50_sparse_attn/` | ❌ |  | ❌ |  | ❌ |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
 | Activation | softmax | ❌ |  | ❌ |  |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
 | Activation | topk_softmax<br>example: `09_topk_softmax/` | ❌ | ❌ | ❌ |  |  |  |  |  |  |  |  | ❌ | ❌ | ❌ | ❌ |
@@ -871,7 +877,14 @@ dispatcher/
 |   |---- grouped_conv_problem.hpp # Grouped conv problem (with builder)
 |   |---- grouped_conv_kernel_decl.hpp  # Grouped conv kernel declarations
 |   |---- grouped_conv_registry.hpp     # Grouped conv registry (thread-safe)
-|   +---- grouped_conv_utils.hpp        # Grouped conv utilities
+|   |---- grouped_conv_utils.hpp        # Grouped conv utilities
+|   |---- fmha_types.hpp           # FMHA fwd/bwd args and traits structs
+|   |---- fmha_problem.hpp         # FmhaProblem, FmhaProblemBuilder
+|   |---- fmha_kernel_key.hpp      # FmhaKernelKey (Signature + Algorithm)
+|   |---- fmha_kernel_instance.hpp # FmhaKernelInstance virtual interface
+|   |---- fmha_kernel_decl.hpp     # Declarative FmhaSignature/FmhaAlgorithm
+|   |---- fmha_registry.hpp        # FmhaRegistry (thread-safe)
+|   +---- fmha_dispatcher.hpp      # FmhaDispatcher (plan, select, run)
 |
 |---- src/                        # C++ implementation
 |
@@ -879,12 +892,17 @@ dispatcher/
 |   |---- codegen_common.py       # Shared: TileConfig, TraitConfigBase, type mappings
 |   |---- unified_gemm_codegen.py # GEMM kernel generator
 |   |---- unified_grouped_conv_codegen.py  # Grouped conv kernel generator
+|   |---- unified_fmha_codegen.py # FMHA kernel generator
+|   |---- fmha_arch_specs.json    # FMHA per-arch tile/pipeline specs
+|   |---- fmha_rules.py           # FMHA validation rules
+|   |---- fmha_profiles.py        # FMHA named profiles/receipts
 |   +---- arch_specs.json         # GPU specifications
 |
 |---- python/                     # Python utilities
 |   |---- dispatcher_common.py    # Shared: paths, validation, Colors, phased output
 |   |---- ctypes_utils.py         # GEMM ctypes utilities
-|   +---- grouped_conv_utils.py   # Grouped conv utilities
+|   |---- grouped_conv_utils.py   # Grouped conv utilities
+|   +---- fmha_utils.py           # FMHA: JIT compile, FmhaRunner, FmhaKernelConfig
 |
 |---- scripts/                    # Build scripts
 |   |---- compile_gemm_examples.py           # GEMM build script
@@ -892,15 +910,19 @@ dispatcher/
 |
 |---- bindings/ctypes/            # Python ctypes interface
 |   |---- gemm_ctypes_lib.cpp     # GEMM Python library
-|   +---- conv_ctypes_lib.cpp     # Grouped conv Python library
+|   |---- conv_ctypes_lib.cpp     # Grouped conv Python library
+|   +---- fmha_ctypes_lib.cpp     # FMHA Python library
 |
 |---- examples/                   # Examples
 |   |---- gemm/
 |   |   |---- cpp/                # C++ GEMM examples (01-07)
 |   |   +---- python/             # Python GEMM examples (01-11)
-|   +---- grouped_conv/
-|       |---- cpp/                # C++ Grouped Conv examples (01-07)
-|       +---- python/             # Python Grouped Conv examples (01-06)
+|   |---- grouped_conv/
+|   |   |---- cpp/                # C++ Grouped Conv examples (01-07)
+|   |   +---- python/             # Python Grouped Conv examples (01-06)
+|   +---- fmha/
+|       |---- cpp/                # C++ FMHA examples (01-35)
+|       +---- python/             # Python FMHA examples (01-38)
 |
 +---- tests/                      # Unit tests (C++ and Python)
 ```
@@ -913,6 +935,8 @@ dispatcher/
 |-----------|--------|
 | GEMM C++ | [examples/gemm/cpp/README.md](examples/gemm/cpp/README.md) |
 | GEMM Python | [examples/gemm/python/README.md](examples/gemm/python/README.md) |
+| FMHA C++ | examples/fmha/cpp/ (35 examples covering all FMHA variants) |
+| FMHA Python | examples/fmha/python/ (38 examples with JIT compilation) |
 | Codegen | [codegen/README.md](codegen/README.md) |
 | Python Utils | [python/README.md](python/README.md) |
 | C++ Headers | [include/ck_tile/dispatcher/README.md](include/ck_tile/dispatcher/README.md) |

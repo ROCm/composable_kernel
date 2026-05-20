@@ -24,6 +24,10 @@ CK_TILE_HOST std::vector<std::size_t> get_layout_transpose_gnchw_to_old()
     {
         return {0, 1, 2, 3, 4};
     }
+    else if constexpr(is_any_of<OldLayout, NGCHW, NGKHW>::value)
+    {
+        return {1, 0, 2, 3, 4};
+    }
     else if constexpr(is_any_of<OldLayout, GNCDHW, GKCZYX, GNKDHW>::value)
     {
         return {0, 1, 2, 3, 4, 5};
@@ -88,6 +92,16 @@ make_input_host_tensor_descriptor_g_n_c_wis_packed(const ck_tile::conv::ConvPara
                                                     static_cast<std::size_t>(param.C_)};
 
         physical_lengths.insert(physical_lengths.begin() + 2,
+                                param.input_spatial_lengths_.begin(),
+                                param.input_spatial_lengths_.begin() + param.num_dim_spatial_);
+    }
+    else if constexpr(is_any_of<InLayout, NGCHW>::value)
+    {
+        physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.N_),
+                                                    static_cast<std::size_t>(param.G_),
+                                                    static_cast<std::size_t>(param.C_)};
+
+        physical_lengths.insert(physical_lengths.end(),
                                 param.input_spatial_lengths_.begin(),
                                 param.input_spatial_lengths_.begin() + param.num_dim_spatial_);
     }
@@ -207,6 +221,16 @@ make_output_host_tensor_descriptor_g_n_k_wos_packed(const ck_tile::conv::ConvPar
                                                     static_cast<std::size_t>(param.K_)};
 
         physical_lengths.insert(physical_lengths.begin() + 2,
+                                param.output_spatial_lengths_.begin(),
+                                param.output_spatial_lengths_.begin() + param.num_dim_spatial_);
+    }
+    else if constexpr(is_any_of<OutLayout, NGKHW>::value)
+    {
+        physical_lengths = std::vector<std::size_t>{static_cast<std::size_t>(param.N_),
+                                                    static_cast<std::size_t>(param.G_),
+                                                    static_cast<std::size_t>(param.K_)};
+
+        physical_lengths.insert(physical_lengths.end(),
                                 param.output_spatial_lengths_.begin(),
                                 param.output_spatial_lengths_.begin() + param.num_dim_spatial_);
     }

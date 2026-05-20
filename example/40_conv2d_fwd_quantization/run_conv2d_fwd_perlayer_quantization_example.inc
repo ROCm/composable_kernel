@@ -108,27 +108,31 @@ bool run_grouped_conv_fwd(bool do_verification,
 
     if(do_verification)
     {
+        Tensor<AccDataType> c_host(out_g_n_k_wos_desc);
+
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InDataType,
                                                                      WeiDataType,
-                                                                     OutDataType,
+                                                                     AccDataType,
                                                                      InElementOp,
                                                                      WeiElementOp,
-                                                                     OutElementOp>();
+                                                                     PassThrough>();
 
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in,
                                                   wei,
-                                                  out_host,
+                                                  c_host,
                                                   conv_param.conv_filter_strides_,
                                                   conv_param.conv_filter_dilations_,
                                                   conv_param.input_left_pads_,
                                                   conv_param.input_right_pads_,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  out_element_op);
+                                                  PassThrough{});
 
         ref_invoker.Run(ref_argument);
+
+        out_host.ForEach([&](auto&, auto idx) { out_element_op(out_host(idx), c_host(idx)); });
 
         out_device_buf.FromDevice(out_device.mData.data());
 

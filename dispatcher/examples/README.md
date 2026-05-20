@@ -59,8 +59,16 @@ python3 examples/gemm/python/08_heuristics.py
 ```
 examples/
 |---- gemm/
-|   |---- cpp/           # 6 C++ GEMM examples
+|   |---- cpp/           # 7 C++ GEMM examples
 |   +---- python/        # 11 Python GEMM examples
+|
+|---- grouped_conv/
+|   |---- cpp/           # 7 C++ Grouped Conv examples
+|   +---- python/        # 6 Python Grouped Conv examples
+|
+|---- fmha/
+|   |---- cpp/           # 35 C++ FMHA examples (all variants)
+|   +---- python/        # 38 Python FMHA examples (JIT-compiled)
 |
 +---- README.md
 ```

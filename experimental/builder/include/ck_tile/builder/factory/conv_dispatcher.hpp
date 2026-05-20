@@ -69,6 +69,7 @@
 #include "ck_tile/builder/factory/conv_fwd_large_tensor_factory.hpp"
 #include "ck_tile/builder/factory/reference_factory.hpp"
 #include "ck_tile/builder/factory/conv_tile_factory.hpp"
+#include "ck_tile/builder/factory/conv_depthwise_tile_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_weight_xdl_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_weight_xdl_v3_factory.hpp"
 #include "ck_tile/builder/factory/conv_bwd_weight_two_stage_xdl_factory.hpp"
@@ -114,6 +115,11 @@ constexpr auto make_conv_instance()
     if constexpr(ReferenceAlgorithm<AlgoType>)
     {
         return typename ReferenceFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
+    }
+    // Depthwise tile algorithm — direct spatial pipeline, no GEMM
+    else if constexpr(DepthwiseAlgorithm<AlgoType>)
+    {
+        return typename ConvDepthwiseTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
     // CK Tile supports common factory for each direction
     else if constexpr(TileAlgorithm<AlgoType>)

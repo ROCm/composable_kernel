@@ -1,0 +1,6 @@
+{
+  "variant": "pagedkv",
+  "trait_config": {
+    "data_type": {"values": ["fp16", "bf16", "fp8"]}
+  }
+}

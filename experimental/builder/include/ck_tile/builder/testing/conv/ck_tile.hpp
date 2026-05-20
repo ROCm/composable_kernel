@@ -36,6 +36,20 @@ concept CkTileConvInstance = requires(Conv&) {
     { Conv::BlockSize() };
 };
 
+template <typename Conv>
+concept HasGemmPipelineScheduler = requires {
+    { Conv::GemmPipeline::Scheduler } -> std::convertible_to<ck_tile::GemmPipelineScheduler>;
+};
+
+template <typename Conv>
+consteval ck_tile::index_t get_minimum_occupancy()
+{
+    if constexpr(HasGemmPipelineScheduler<Conv>)
+        return Conv::GemmPipeline::Scheduler == ck_tile::GemmPipelineScheduler::Intrawave ? 1 : 2;
+    else
+        return 1;
+}
+
 template <auto SIGNATURE>
 std::size_t gemm_split_k_output_size(auto kargs)
 {
@@ -118,19 +132,15 @@ template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename Ou
 
         if constexpr(ConvDirectionIsBackwardData<SIGNATURE>)
         {
-            if(kargs.k_batch > 1)
-            {
-                ck_tile::hip_check_error(
-                    hipMemsetAsync(kargs.in_ptr,
-                                   0,
-                                   zeroing_size * sizeof(typename Types::EDataType),
-                                   s_conf.stream_id_));
-            }
+            ck_tile::hip_check_error(
+                hipMemsetAsync(kargs.in_ptr,
+                               0,
+                               zeroing_size * sizeof(typename Types::EDataType),
+                               s_conf.stream_id_));
         }
     };
 
-    constexpr index_t minimum_occupancy =
-        Conv::GemmPipeline::Scheduler == ck_tile::GemmPipelineScheduler::Intrawave ? 1 : 2;
+    constexpr index_t minimum_occupancy = get_minimum_occupancy<Conv>();
 
     if(s_conf.flush_cache_)
     {
@@ -224,8 +234,7 @@ template <auto SIGNATURE, typename InDataType, typename WeiDataType, typename Ou
         }
     };
 
-    constexpr index_t minimum_occupancy =
-        Conv::GemmPipeline::Scheduler == ck_tile::GemmPipelineScheduler::Intrawave ? 1 : 2;
+    constexpr index_t minimum_occupancy = get_minimum_occupancy<Conv>();
 
     if(s_conf.flush_cache_)
     {

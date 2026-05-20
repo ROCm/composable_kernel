@@ -15,7 +15,7 @@ Running the build recipe will produce the executable `tile_example_fmha_fwd`.
 
 The executables reside in `bin` subdirectory of the build directory.
 
-This example provides recipes for `tile_example_fmha_fwd`, `tile_example_fmha_bwd`, `tile_example_fmha_fwd_v3`.
+This example provides recipes for `tile_example_fmha_fwd`, `tile_example_fmha_bwd`.
 
 > [!NOTE]
 > `cmake-ck-dev.sh` is a CMake wrapper.

@@ -36,13 +36,13 @@ class TestComputeGroupKeys:
         df = pd.DataFrame(
             {"m": [16, 16, 32], "n": [1536, 1536, 1536], "k": [7168, 7168, 7168]}
         )
-        keys = compute_group_keys(df)
+        keys = compute_group_keys(df, "gemm_universal")
         assert keys[0] == keys[1]
         assert keys[0] != keys[2]
 
     def test_unique_shapes(self):
         df = pd.DataFrame({"m": [1, 2, 3], "n": [4, 5, 6], "k": [7, 8, 9]})
-        keys = compute_group_keys(df)
+        keys = compute_group_keys(df, "gemm_universal")
         assert len(set(keys)) == 3
 
 
@@ -58,7 +58,7 @@ class TestComputeTflopsEfficiency:
                 "pred_tflops": [50, 300, 100],  # correctly ranks kernel 1 highest
             }
         )
-        eff = compute_tflops_efficiency(df, "pred_tflops")
+        eff = compute_tflops_efficiency(df, "gemm_universal", "pred_tflops")
         assert len(eff) == 1
         assert eff["efficiency"].iloc[0] == pytest.approx(1.0)
 
@@ -73,7 +73,7 @@ class TestComputeTflopsEfficiency:
                 "pred_tflops": [999, 1, 1],  # incorrectly ranks kernel 0 highest
             }
         )
-        eff = compute_tflops_efficiency(df, "pred_tflops")
+        eff = compute_tflops_efficiency(df, "gemm_universal", "pred_tflops")
         assert eff["efficiency"].iloc[0] == pytest.approx(100 / 200)
 
     def test_multiple_shapes(self):
@@ -86,7 +86,7 @@ class TestComputeTflopsEfficiency:
                 "pred_tflops": [5, 25, 150, 190],
             }
         )
-        eff = compute_tflops_efficiency(df, "pred_tflops")
+        eff = compute_tflops_efficiency(df, "gemm_universal", "pred_tflops")
         assert len(eff) == 2
         assert eff.iloc[0]["efficiency"] == pytest.approx(1.0)
         assert eff.iloc[1]["efficiency"] == pytest.approx(1.0)
@@ -101,7 +101,7 @@ class TestComputeTflopsEfficiency:
                 "pred_tflops": [1, 2],
             }
         )
-        eff = compute_tflops_efficiency(df, "pred_tflops")
+        eff = compute_tflops_efficiency(df, "gemm_universal", "pred_tflops")
         assert len(eff) == 0
 
     def test_single_kernel_per_shape(self):
@@ -114,7 +114,7 @@ class TestComputeTflopsEfficiency:
                 "pred_tflops": [100],
             }
         )
-        eff = compute_tflops_efficiency(df, "pred_tflops")
+        eff = compute_tflops_efficiency(df, "gemm_universal", "pred_tflops")
         assert len(eff) == 1
         assert eff["efficiency"].iloc[0] == pytest.approx(1.0)
 
@@ -129,7 +129,7 @@ class TestComputeTflopsEfficiency:
                 "pred_tflops": [50, 50, 50],
             }
         )
-        eff = compute_tflops_efficiency(df, "pred_tflops")
+        eff = compute_tflops_efficiency(df, "gemm_universal", "pred_tflops")
         assert len(eff) == 1
         assert eff["efficiency"].iloc[0] >= 0.5
 
@@ -197,7 +197,7 @@ def _train_and_save_base_model(model_dir, df, fe, target="tflops"):
     params = dict(DEFAULT_PARAMS)
     params["n_estimators"] = 20
     params["n_jobs"] = 1
-    model = train_final_model(df, fe, target, params)
+    model = train_final_model(df, fe, target, params, "gemm_universal")
     model.booster_.save_model(str(model_dir / f"model_{target}.lgbm"))
     _save_feature_spec(model_dir, fe)
     return model
@@ -288,7 +288,7 @@ class TestWarmStartTraining:
         params["n_estimators"] = 15
         params["n_jobs"] = 1
         warm_model = train_final_model(
-            df, fe, "tflops", params, init_model=init_model_path
+            df, fe, "tflops", params, "gemm_universal", init_model=init_model_path
         )
         warm_n_trees = warm_model.booster_.num_trees()
 
@@ -312,7 +312,7 @@ class TestWarmStartTraining:
         params["n_estimators"] = 15
         params["n_jobs"] = 1
         warm_model = train_final_model(
-            df, fe, "tflops", params, init_model=init_model_path
+            df, fe, "tflops", params, "gemm_universal", init_model=init_model_path
         )
         warm_rmse = np.sqrt(np.mean((warm_model.predict(X) - y) ** 2))
 

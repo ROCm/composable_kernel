@@ -13,6 +13,8 @@
 #include "ck/utility/amd_inline_asm.hpp"
 #include "ck/utility/type.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 // Define the common macro for MI300 models
 #if defined(__gfx942__) || defined(__gfx950__)
@@ -2483,3 +2485,4 @@ inline __host__ __device__ void array_convert(Array<Y, NumElems>& y, const Array
 }
 
 } // namespace ck
+#pragma clang diagnostic pop

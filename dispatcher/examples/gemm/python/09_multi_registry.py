@@ -56,8 +56,6 @@ Examples:
     )
     args = parser.parse_args()
 
-    reset_for_example()
-
     print("=" * 60)
     print("Example 09: Multiple Registries")
     print("=" * 60)

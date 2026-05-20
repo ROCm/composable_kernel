@@ -21,6 +21,8 @@ endif()
 add_library(ck_tile_dispatcher
     src/registry.cpp
     src/dispatcher.cpp
+    src/fmha_registry.cpp
+    src/fmha_dispatcher.cpp
 )
 
 # Enable PIC for Python bindings
@@ -34,11 +36,19 @@ target_include_directories(ck_tile_dispatcher
         $<INSTALL_INTERFACE:include>
 )
 
-# Link against CK Tile headers (header-only)
+# CK Tile core headers (ck_tile/core, ck_tile/ops, etc.)
 target_include_directories(ck_tile_dispatcher
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
         $<INSTALL_INTERFACE:include>
+)
+
+# CK project root -- needed only for FMHA generated wrappers that include
+# "example/ck_tile/01_fmha/fmha_fwd.hpp". PRIVATE to avoid exposing the
+# entire project tree to downstream consumers.
+target_include_directories(ck_tile_dispatcher
+    PRIVATE
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
 )
 
 # Link against HIP headers if available

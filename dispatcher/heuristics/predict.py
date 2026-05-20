@@ -67,6 +67,33 @@ class Predictor:
         else:
             self._feature_engine = GemmUniversalFeatureEngine()
 
+        # Build a column index map so models trained with an older (smaller)
+        # feature set still work with a feature engine that has since been
+        # extended. The model's feature_spec.json["feature_names"] is the
+        # ground truth of what columns the booster expects, in order.
+        self._feature_indices: Optional[np.ndarray] = None
+        spec_names = self._spec.get("feature_names")
+        if spec_names:
+            engine_names = self._feature_engine.get_feature_names()
+            if list(spec_names) != list(engine_names):
+                idx_map = {n: i for i, n in enumerate(engine_names)}
+                missing = [n for n in spec_names if n not in idx_map]
+                if missing:
+                    raise ValueError(
+                        f"{self._feature_engine.__class__.__name__} cannot "
+                        f"supply features required by model {self._model_dir.name}: "
+                        f"{missing[:5]}{'...' if len(missing) > 5 else ''}"
+                    )
+                self._feature_indices = np.array(
+                    [idx_map[n] for n in spec_names], dtype=np.intp
+                )
+
+    def _select_features(self, X: np.ndarray) -> np.ndarray:
+        """Subset/reorder engine output to match the loaded model's spec."""
+        if self._feature_indices is None:
+            return X
+        return X[:, self._feature_indices]
+
     def _load_model(self, target: str) -> Optional[lgb.Booster]:
         """Lazy-load a model for the given target.
 
@@ -81,8 +108,8 @@ class Predictor:
 
         # Auto-decompress if needed
         if not path.exists() and gz_path.exists():
-            with gzip.open(gz_path, 'rb') as f_in:
-                with open(path, 'wb') as f_out:
+            with gzip.open(gz_path, "rb") as f_in:
+                with open(path, "wb") as f_out:
                     f_out.write(f_in.read())
 
         if not path.exists():
@@ -97,8 +124,9 @@ class Predictor:
         model = self._load_model(target)
         if model is None:
             raise FileNotFoundError(f"No model_{target}.lgbm in {self._model_dir}")
-        features = self._feature_engine.extract(problem, kernel_config)
-        raw = float(model.predict(features.reshape(1, -1))[0])
+        features = self._feature_engine.extract(problem, kernel_config).reshape(1, -1)
+        features = self._select_features(features)
+        raw = float(model.predict(features)[0])
         if target in self._log_targets:
             return float(np.expm1(raw))
         # Clamp to non-negative even for non-log models
@@ -130,6 +158,7 @@ class Predictor:
         negatives to 0.0, consistent with _predict_single().
         """
         features = self._feature_engine.extract(problem, kernel_config).reshape(1, -1)
+        features = self._select_features(features)
         result = {}
         for target, key in [
             ("tflops", "tflops"),
@@ -177,6 +206,7 @@ class Predictor:
 
         df = pd.DataFrame(rows)
         X = self._feature_engine.extract_batch(df)
+        X = self._select_features(X)
         preds = model.predict(X)
         if "tflops" in self._log_targets:
             preds = np.expm1(preds)

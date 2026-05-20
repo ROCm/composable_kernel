@@ -6,6 +6,7 @@
 #include "ck_tile/ops/grouped_convolution/kernel/grouped_convolution_backward_weight_kernel.hpp"
 #include "ck_tile/ops/grouped_convolution/kernel/grouped_convolution_forward_kernel.hpp"
 #include "ck_tile/ops/grouped_convolution/pipeline/grouped_conv_universal_pipeline_ag_bg_cr_policy.hpp"
+#include "ck_tile/ops/grouped_convolution/pipeline/grouped_convolution_forward_depthwise_pipeline.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/convolution_specialization.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/split_k_utils.hpp"

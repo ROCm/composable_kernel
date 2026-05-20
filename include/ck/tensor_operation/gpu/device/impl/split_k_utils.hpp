@@ -13,6 +13,13 @@ namespace ck {
 namespace tensor_operation {
 namespace device {
 
+/// Ensures GemmKBatch in conv to GEMM transforms is never 0 (would zero the divisor in
+/// integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch)).
+inline constexpr index_t clamp_gemm_k_batch(index_t k_batch) noexcept
+{
+    return k_batch < 1 ? index_t{1} : k_batch;
+}
+
 struct DeviceProperties
 {
     DeviceProperties()
@@ -33,6 +40,10 @@ inline ck::index_t get_best_occupancy_k_batch_value(int max_occupancy, ck::index
     const int max_capacity = max_occupancy * device_properties.num_cu_;
 
     ck::index_t k_batch = 1;
+    if(grid_size <= 0)
+    {
+        return k_batch;
+    }
     const auto optimal_split =
         static_cast<ck::index_t>(std::floor((1.0 * max_capacity) / grid_size));
     if(optimal_split > 1)

@@ -28,8 +28,9 @@ namespace ck {
 
 enum Activation
 {
-    gelu_and_mul = 0,
-    silu_and_mul = 1
+    gelu_and_mul       = 0,
+    silu_and_mul       = 1,
+    swiglustep_and_mul = 2
 };
 
 template <typename ALayout,

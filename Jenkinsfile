@@ -24,6 +24,24 @@
 // Benefits: PR builds 5h → 30min (typical), nightly builds unchanged
 // See: script/dependency-parser/README.md for details
 //
+
+@NonCPS
+String getGitHubCommitHash(def build)
+{
+    def scmAction = build?.actions.find { action ->
+        action instanceof jenkins.scm.api.SCMRevisionAction
+    }
+    if (scmAction?.revision instanceof org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision)
+    {
+        return scmAction.revision.pullHash
+    }
+    else if (scmAction?.revision instanceof jenkins.plugins.git.AbstractGitSCMSource$SCMRevisionImpl)
+    {
+        return scmAction.revision.hash
+    }
+    return null
+}
+
 def rocmnode(name) {
     return '(rocmtest || miopen) && (' + name + ')'
 }
@@ -31,11 +49,36 @@ def rocmnode(name) {
 def show_node_info() {
     sh """
         echo "NODE_NAME = \$NODE_NAME"
+        hostname
         lsb_release -sd
         uname -r
         cat /sys/module/amdgpu/version
         ls /opt/ -la
     """
+}
+
+def setGithubStatus(String context, String state, String description) {
+    def sha = env.GIT_COMMIT
+    def targetUrl = env.RUN_DISPLAY_URL ?: env.BUILD_URL
+    def statusUrl = "https://api.github.com/repos/ROCm/rocm-libraries/statuses/${sha}"
+    withCredentials([usernamePassword(credentialsId: 'github-app-miopen', usernameVariable: 'GITHUB_APP', passwordVariable: 'GITHUB_TOKEN')]) {
+        def code = '0'
+        try {
+            retry(3) {
+                code = sh(returnStdout: true, script: """
+                    curl -s -w "%{http_code}" -o /dev/null -X POST '${statusUrl}' \\
+                        -H "Authorization: token \$GITHUB_TOKEN" \\
+                        -H 'Content-Type: application/json' \\
+                        -d '{"state":"${state}","context":"${context}","description":"${description}","target_url":"${targetUrl}"}'
+                """).trim()
+                if (!code.startsWith('2')) {
+                    error("GitHub status POST returned ${code}")
+                }
+            }
+        } catch (Exception e) {
+            echo "WARNING: GitHub status POST failed after retries (context=${context}, state=${state}, code=${code})"
+        }
+    }
 }
 
 def cloneUpdateRefRepo() {
@@ -78,7 +121,14 @@ def checkoutComposableKernel()
     //update ref repo
     cloneUpdateRefRepo()
     // checkout project
-    checkout scm
+    def scmVars = checkout scm
+    // getGitHubCommitHash reads SCMRevisionAction recorded before any local merge,
+    // giving the true PR branch tip (pullHash) or branch HEAD (hash).
+    // Falls back to ORIG_HEAD (pre-merge HEAD set by git merge) when SCMRevisionAction
+    // is unavailable, then to HEAD for branch builds where no merge occurred.
+    env.GIT_COMMIT = getGitHubCommitHash(currentBuild.rawBuild) ?: sh(returnStdout: true, script: '''
+        git rev-parse ORIG_HEAD 2>/dev/null || git rev-parse HEAD
+    ''').trim()
 }
 
 def generateAndArchiveBuildTraceVisualization(String buildTraceFileName) {
@@ -672,6 +722,9 @@ def cmake_build(Map conf=[:]){
         if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
             setup_args = " -D CK_EXPERIMENTAL_BUILDER=ON "  + setup_args
         }
+        if (params.RUN_ROCM_CK_TESTS) {
+            setup_args = " -D CK_ENABLE_ROCM_CK=ON " + setup_args
+        }
         setup_cmd = conf.get(
             "setup_cmd",
             """${cmake_envs} cmake -G Ninja ${setup_args} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_CXX_FLAGS=" -O3 " .. """
@@ -788,6 +841,9 @@ def cmake_build(Map conf=[:]){
                     if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
                         sh 'ninja check-builder'
                     }
+                    if (params.RUN_ROCM_CK_TESTS) {
+                        sh 'ninja check-rocm-ck'
+                    }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
@@ -827,6 +883,9 @@ def cmake_build(Map conf=[:]){
                     if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
                         sh 'ninja check-builder'
                     }
+                    if (params.RUN_ROCM_CK_TESTS) {
+                        sh 'ninja check-rocm-ck'
+                    }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
@@ -840,8 +899,10 @@ def cmake_build(Map conf=[:]){
 
     if (params.RUN_CK_TILE_FMHA_TESTS){
         try{
-            archiveArtifacts "perf_fmha_*.log"
-            stash includes: "perf_fmha_**.log", name: "perf_fmha_log_${arch_name}"
+            dir("projects/composablekernel"){
+            	archiveArtifacts "perf_fmha_*.log"
+            	stash includes: "perf_fmha_**.log", name: "perf_fmha_log_${arch_name}"
+            }
         }
         catch(Exception err){
             echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
@@ -858,13 +919,19 @@ def buildHipClangJob(Map conf=[:]){
         def retimage
         (retimage, image) = getDockerImage(conf)
 
-        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
+        setGithubStatus("${env.STAGE_NAME}", 'pending', "Starting ${env.STAGE_NAME}")
+        try {
             withDockerContainer(image: image, args: dockerOpts) {
                 timeout(time: 20, unit: 'HOURS')
                 {
                     cmake_build(conf)
                 }
             }
+            setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
+        }
+        catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
+                throw e
         }
         return retimage
 }
@@ -888,7 +955,8 @@ def Build_CK(Map conf=[:]){
         def image
         def retimage
 
-        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
+        setGithubStatus("${env.STAGE_NAME}", 'pending', "Starting ${env.STAGE_NAME}")
+        try {
             try {
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -905,6 +973,7 @@ def Build_CK(Map conf=[:]){
             }
             catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
                 echo "The job was cancelled or aborted"
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
                 throw e
             }
             withDockerContainer(image: image, args: dockerOpts) {
@@ -915,16 +984,10 @@ def Build_CK(Map conf=[:]){
                     cmake_build(conf)
                     if ( params.RUN_INDUCTOR_TESTS && arch == "gfx90a" ){
                             echo "Run inductor codegen tests"
-                            sh """
-                                  python3 -m venv ${env.WORKSPACE}/projects/composablekernel
-                                  . ${env.WORKSPACE}/projects/composablekernel/bin/activate
-                                  python3 -m pip install pytest build setuptools setuptools_scm
-                                  python3 -m pip install .
-                                  python3 -m pytest python/test/test_gen_instances.py
-                            """
+                            sh "projects/composablekernel/script/run_inductor_tests.sh"
                     }
                     // run performance tests, stash the logs, results will be processed on the master node
-					dir("projects/composablekernel/script"){
+		    dir("projects/composablekernel/script"){
                         if (params.RUN_PERFORMANCE_TESTS){
                         if (params.RUN_FULL_QA && (arch == "gfx90a" || arch == "gfx942")){
                             // run full tests on gfx90a or gfx942
@@ -971,6 +1034,11 @@ def Build_CK(Map conf=[:]){
                     }
                 }
             }
+            setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
+        }
+        catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
+                throw e
         }
         return retimage
 }
@@ -991,7 +1059,8 @@ def process_results(Map conf=[:]){
     //use older image that has user jenkins
     def image = "${env.CK_DOCKERHUB}:ck_ub22.04_rocm6.3"
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
+    setGithubStatus("${env.STAGE_NAME}", 'pending', 'Processing results...')
+    try {
         try
         {
             echo "Pulling image: ${image}"
@@ -1004,6 +1073,10 @@ def process_results(Map conf=[:]){
         {
             error "Unable to locate image: ${image}"
         }
+    }
+    catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
+                throw e
     }
 
     withDockerContainer(image: image, args: '--cap-add=SYS_PTRACE --security-opt seccomp=unconfined -v=/var/jenkins/:/var/jenkins') {
@@ -1023,6 +1096,13 @@ def process_results(Map conf=[:]){
                         catch(Exception err){
                             echo "could not locate the FMHA performance logs for gfx90a: ${err.getMessage()}."
                         }
+                        try{
+                            unstash "perf_fmha_log_gfx950"
+                        }
+                        catch(Exception err){
+                            echo "could not locate the FMHA performance logs for gfx950: ${err.getMessage()}."
+                        }
+
                     }
                     if (params.BUILD_INSTANCES_ONLY){
                         // unstash deb packages
@@ -1105,10 +1185,10 @@ def process_results(Map conf=[:]){
                     // process the logs
                     sh "./process_perf_data.sh"
                 }
+                setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
             }
-            catch(e){
-                echo "Throwing error exception while processing performance test results"
-                echo 'Exception occurred: ' + e.toString()
+            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
                 throw e
             }
             finally{
@@ -1123,7 +1203,8 @@ def run_downstream_tests(Map conf=[:]){
     checkoutComposableKernel()
     def dockerOpts = get_docker_options() + ' --group-add irc '
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
+    setGithubStatus("${env.STAGE_NAME}", 'pending', "Starting ${env.STAGE_NAME}")
+    try {
         try
         {
             echo "Pulling image: ${conf.image}"
@@ -1137,6 +1218,10 @@ def run_downstream_tests(Map conf=[:]){
             error "Unable to locate image: ${conf.image}"
         }
     }
+    catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
+                throw e
+    }
 
     withDockerContainer(image: conf.image, args: dockerOpts) {
         timeout(time: conf.get("timeoutHours", 2), unit: 'HOURS'){
@@ -1146,10 +1231,12 @@ def run_downstream_tests(Map conf=[:]){
                 for (cmd in conf.execute_cmds) {
                     sh "${cmd}"
                 }
+                setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
             }
             catch(e){
                 echo "Throwing error exception while running ${env.STAGE_NAME}"
                 echo 'Exception occurred: ' + e.toString()
+                setGithubStatus("${env.STAGE_NAME}", 'error', "Stage ${env.STAGE_NAME} failed")
                 throw e
             }
             finally{
@@ -1161,8 +1248,11 @@ def run_downstream_tests(Map conf=[:]){
 
 def getPytorchTestsCmds() {
     return [
-        "python3 /tmp/pytorch/tools/amd_build/build_amd.py",
-        "USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python /tmp/pytorch/setup.py develop"
+        "mkdir pytorch",
+        "cp -r /var/jenkins/workspace/pytorch/* pytorch/",
+        "ls -ltr pytorch",
+        "python3 pytorch/tools/amd_build/build_amd.py",
+        "cd pytorch && USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python3 setup.py develop"
     ]
 }
 def getAiterTestsCmds() {
@@ -1197,7 +1287,7 @@ CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_
                                               0 13 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
                                               0 11 * * * % RUN_FULL_CONV_TILE_TESTS=true;RUN_AITER_TESTS=true;RUN_FA_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
                                               0 9 * * * % RUN_PYTORCH_TESTS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
-CURRENT_BRANCH_NAME = env.CHANGE_BRANCH ? env.CHANGE_BRANCH : env.BRANCH_NAME
+CURRENT_BRANCH_NAME = env.CHANGE_ID ? "refs/pull/${env.CHANGE_ID}/head" : (env.CHANGE_BRANCH ? env.CHANGE_BRANCH : env.BRANCH_NAME)
 
 POLL_SPEC = BRANCH_NAME == "develop" ? 'H H/6 * * *' : ''
 
@@ -1318,8 +1408,8 @@ pipeline {
             description: "Build CK and run tests on gfx101 (default: OFF)")
         booleanParam(
             name: "BUILD_GFX103",
-            defaultValue: true,
-            description: "Build CK and run tests on gfx103 (default: ON)")
+            defaultValue: false,
+            description: "Build CK and run tests on gfx103 (default: OFF)")
         booleanParam(
             name: "BUILD_GFX11",
             defaultValue: true,
@@ -1338,8 +1428,8 @@ pipeline {
             description: "Generate a detailed time trace (default: OFF)")
         booleanParam(
             name: "RUN_INDUCTOR_TESTS",
-            defaultValue: false,
-            description: "Run inductor codegen tests (default: OFF)")
+            defaultValue: true,
+            description: "Run inductor codegen tests (default: ON)")
         booleanParam(
             name: "RUN_CODEGEN_TESTS",
             defaultValue: true,
@@ -1348,6 +1438,10 @@ pipeline {
             name: "RUN_BUILDER_TESTS",
             defaultValue: false,
             description: "Run CK_BUILDER tests (default: OFF)")
+        booleanParam(
+            name: "RUN_ROCM_CK_TESTS",
+            defaultValue: true,
+            description: "Run rocm_ck tests (default: ON)")
         booleanParam(
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
@@ -1404,9 +1498,9 @@ pipeline {
         dbsshport = "${dbsshport}"
         dbsshuser = "${dbsshuser}"
         dbsshpassword = "${dbsshpassword}"
-        ck_git_creds = "${ck_git_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
+        BUILD_GFX103 = "${env.BRANCH_NAME == 'develop' ? true : false}"
     }
     stages{
         stage("Determine CI Execution") {
@@ -1743,6 +1837,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D BUILD_CK_TILE_ENGINE="ON" \
                                             -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
@@ -1756,7 +1851,7 @@ pipeline {
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -D GEMM_PRESHUFFLE_CONFIG_FILE="default_ci_config.json" .. && \
                                            ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
-                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_universal_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
                     }
@@ -1785,6 +1880,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D BUILD_CK_TILE_ENGINE="ON" \
                                             -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
@@ -1799,7 +1895,7 @@ pipeline {
                                             -D GROUPED_GEMM_DATATYPE="fp8;fp16" \
                                             -D GROUPED_GEMM_LAYOUT="rcr;rrr;crr;ccr" .. && \
                                            ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all benchmark_gemm_streamk_all benchmark_grouped_gemm_all && \
-                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_universal_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm/grouped_gemm/grouped_gemm_benchmark.py . --problem-sizes "1024,1024,1024" --group-counts 8 --warmup 5 --repeat 5 --verbose --json grouped_gemm_results.json """
@@ -1819,6 +1915,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D BUILD_CK_TILE_ENGINE="ON" \
                                             -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx950" \
@@ -1829,7 +1926,7 @@ pipeline {
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" .. && \
                                            ninja -j${nthreads()} benchmark_gemm_universal_all benchmark_gemm_preshuffle_all benchmark_gemm_multi_d_all && \
-                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_universal_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json && \
                                            python3 ../tile_engine/ops/gemm/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
                     }
@@ -1848,13 +1945,14 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D BUILD_CK_TILE_ENGINE="ON" \
                                             -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx1201" \
                                             -D GEMM_UNIVERSAL_DATATYPE="fp16" \
                                             -D GEMM_UNIVERSAL_LAYOUT="rcr;rrr;crr;ccr" .. && \
                                            ninja -j${nthreads()} benchmark_gemm_universal_all && \
-                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
+                                           python3 ../tile_engine/ops/gemm/gemm_universal/gemm_universal_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
@@ -1904,6 +2002,7 @@ pipeline {
                         cleanWs()
                     }
                 }
+                /*
                 stage("Build CK and run Tests on gfx908")
                 {
                     when {
@@ -1920,6 +2019,7 @@ pipeline {
                         cleanWs()
                     }
                 }
+                */
                 stage("Build CK and run Tests on gfx90a")
                 {
                     when {
@@ -2036,8 +2136,9 @@ pipeline {
                 }
                 success {
                     script {
-                        // Report the parent stage build ck and run tests status
-                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${env.STAGE_NAME}", account: 'ROCm', repo: 'rocm-libraries') {
+                        node(rocmnode("nogpu")) {
+                            // Report the parent stage build ck and run tests status
+                            setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
                             echo "Reporting success status for build ck and run tests"
                         }
                     }
@@ -2063,12 +2164,9 @@ pipeline {
             post {
                 success {
                     script {
-                        // Report the skipped parent's stage status
-                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Process Performance Test Results", account: 'ROCm', repo: 'rocm-libraries') {
-                            echo "Process Performance Test Results stage skipped."
-                        }
-                        // Report the skipped stage's status
-                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Process results", account: 'ROCm', repo: 'rocm-libraries') {
+                        node(rocmnode("nogpu")) {
+                            // Report the skipped parent's stage status
+                            setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
                             echo "Process Performance Test Results stage skipped."
                         }
                     }
@@ -2078,20 +2176,22 @@ pipeline {
     }
     post {
         success {
-            githubNotify context: 'Math CI Summary',
-                         status: 'SUCCESS',
-                         description: 'All checks have passed'
+            script {
+                node(rocmnode("nogpu")) {
+                    setGithubStatus('Math CI Summary', 'success', "Math CI passed")
+                }
+            }
         }
         failure {
-            githubNotify context: 'Math CI Summary',
-                         status: 'FAILURE',
-                         description: 'Some checks have failed'
-            node(rocmnode("nogpu")) {
-                script {
-                    checkoutComposableKernel()
-                }
-                withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
-                    sh 'bash projects/composablekernel/script/infra_helper/send_failure_notifications.sh'
+            script {
+                node(rocmnode("nogpu")) {
+                    setGithubStatus('Math CI Summary', 'failure', "Math CI failed")
+                    script {
+                        checkoutComposableKernel()
+                    }
+                    withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+                        sh 'bash projects/composablekernel/script/infra_helper/send_failure_notifications.sh'
+                    }
                 }
             }
         }

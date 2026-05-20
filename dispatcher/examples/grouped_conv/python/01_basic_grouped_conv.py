@@ -92,12 +92,22 @@ def main():
     # =========================================================================
     print("\n--- Step 1: Kernel Configuration Patterns ---")
 
-    # Pattern 1: MINIMAL -- only variant/dtype/arch, everything else auto-filled
+    # Tile constraint (TileGemmShape, see grouped_config_rules.COMMON_TILES):
+    #   tile_m == wave_m * warp_tile_m   AND   LDS fits the pipeline limit
+    #   (compv4 limit = 32768 B, default = 65536 B)
+
+    # Pattern 1: MINIMAL -- only variant/dtype/arch + a valid tile/wave combo
+    # (the auto-filled defaults need a matching tile_m to satisfy the constraint)
     config_minimal = GroupedConvKernelConfig(
         variant=args.variant,
         ndim_spatial=args.ndim,
         arch=args.arch,
         dtype=args.dtype,
+        tile_m=64,
+        tile_n=128,
+        tile_k=64,
+        pipeline="compv4",  # LDS = 64*64*2 + 128*64*2 = 24576 B (fits compv4 32 KiB)
+        double_smem_buffer=True,  # required by compv4 pipeline (C++ static_assert)
     )
     print("\n  Pattern 1: MINIMAL (defaults auto-filled)")
     config_minimal.print_config(indent="    ")
@@ -108,9 +118,9 @@ def main():
         ndim_spatial=args.ndim,
         arch=args.arch,
         dtype=args.dtype,
-        tile_m=1,
+        tile_m=16,  # = wave_m(1) * warp_tile_m(16)
         tile_n=64,
-        tile_k=64,
+        tile_k=128,
         wave_m=1,
         wave_n=4,
         wave_k=1,
@@ -130,9 +140,9 @@ def main():
         ndim_spatial=args.ndim,
         arch=args.arch,
         dtype=args.dtype,
-        tile_m=1,
+        tile_m=64,  # = wave_m(2) * warp_tile_m(32)
         tile_n=128,
-        tile_k=128,
+        tile_k=64,
         wave_m=2,
         wave_n=2,
         wave_k=1,

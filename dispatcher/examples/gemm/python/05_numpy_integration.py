@@ -76,8 +76,6 @@ Examples:
     )
     args = parser.parse_args()
 
-    reset_for_example()
-
     print("=" * 60)
     print("Example 05: NumPy Integration")
     print("=" * 60)

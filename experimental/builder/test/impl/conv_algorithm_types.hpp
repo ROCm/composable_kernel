@@ -382,6 +382,28 @@ struct TileOptimizations
 };
 static_assert(ckb::TileOptimizationsDescriptor<TileOptimizations>);
 
+// Depthwise-specific tile parameters (all as compile-time integers).
+struct DepthwiseConvParams
+{
+    int block_size;
+    int tile_h;
+    int tile_w;
+    int filter_h;
+    int filter_w;
+    int stride_h;
+    int stride_w;
+    int dilation_h;
+    int dilation_w;
+    int pad_h;
+    int pad_w;
+    int nbatch;
+    int subtile_h;
+    int subtile_w;
+    int in_vec;
+    int out_vec;
+};
+static_assert(ckb::DepthwiseConvParamsDescriptor<DepthwiseConvParams>);
+
 struct TileStreamKConfig
 {
     // StreamK reduction strategy (Linear or Tree).
@@ -414,6 +436,11 @@ struct TileBlockGemm_
 struct TileOptimizations_
 {
     TileOptimizations optimizations;
+};
+
+struct TileDepthwiseConvParams_
+{
+    DepthwiseConvParams depthwise_params;
 };
 
 struct TileStreamK_
@@ -637,6 +664,15 @@ struct ConvAlgorithmTemplate : Components...
         result.streamk = sk;
         return result;
     }
+
+    template <typename DW>
+    constexpr auto with_depthwise_params(const DW& dw) const
+    {
+        static_assert(std::is_base_of_v<TileDepthwiseConvParams_, ConvAlgorithmTemplate>);
+        auto result             = *this;
+        result.depthwise_params = dw;
+        return result;
+    }
 };
 
 // Fwd algorithm types
@@ -705,6 +741,10 @@ using ConvAlgorithm_Tile_GroupedConvolutionKernel_StreamK =
                           TileConvSpecialization_,
                           TileOptimizations_,
                           TileStreamK_>;
+
+// CK Tile depthwise convolution algorithm (no GEMM — direct spatial pipeline)
+using ConvAlgorithm_Tile_DepthwiseConvolutionKernel =
+    ConvAlgorithmTemplate<TileDepthwiseConvParams_>;
 
 // Reference algorithm descriptor - for GPU reference validation
 // This is a simple algorithm that requires no complex configuration,

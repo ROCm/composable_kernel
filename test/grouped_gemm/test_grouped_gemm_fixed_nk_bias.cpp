@@ -18,6 +18,8 @@
 #include <type_traits>
 #include <vector>
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
 static ck::index_t param_mask = 0xffffff;
 
 using FP32 = float;
@@ -302,3 +304,4 @@ int main(int argc, char** argv)
     }
     return RUN_ALL_TESTS();
 }
+#pragma clang diagnostic pop

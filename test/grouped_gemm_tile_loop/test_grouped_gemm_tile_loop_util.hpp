@@ -19,6 +19,8 @@
 #include "example/ck_tile/17_grouped_gemm/grouped_gemm_multi_d.hpp"
 #include "profiler/profile_grouped_gemm_tile_loop_generic_impl.hpp"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
 extern ck::index_t param_mask;
 extern ck::index_t instance_index;
 
@@ -171,3 +173,4 @@ class TestGroupedGemmTileLoop : public testing::Test
 
 } // namespace test
 } // namespace ck
+#pragma clang diagnostic pop

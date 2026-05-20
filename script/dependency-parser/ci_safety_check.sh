@@ -18,8 +18,8 @@
 #   CHANGE_TARGET - Base branch for PR builds (set by Jenkins Multibranch Pipeline)
 #
 # Note: CHANGE_ID may not be set even for PR builds if Jenkins job is not
-# configured as Multibranch Pipeline. Script uses two-dot git diff syntax
-# to detect PR changes regardless of CHANGE_ID availability.
+# configured as Multibranch Pipeline. Script uses three-dot git diff syntax
+# to detect only PR-specific changes (excluding merged commits from base branch).
 #
 # Manual override (set by developer/admin if needed):
 #   DISABLE_SMART_BUILD - Set to "true" to force full build
@@ -48,25 +48,21 @@ fi
 
 # 3. Force full build if CMakeLists.txt or cmake/ configuration changed
 # Always compare against base branch (not consecutive commits) to avoid false positives from merge commits
-# Two-dot syntax (..) compares current state against base branch
-# Note: This includes merged changes from develop, which is conservative but safe (catches all potentially affected files)
-CHANGED_FILES=$(git diff --name-only origin/${BASE_BRANCH}..HEAD 2>/dev/null || echo "")
+# Three-dot syntax (...) shows only changes unique to the current branch (excludes merged commits from base)
+# This prevents false positives when the PR branch has merged in commits from develop
+CHANGED_FILES=$(git diff --name-only origin/${BASE_BRANCH}...HEAD 2>/dev/null || echo "")
 
 # Comprehensive pattern for build/infrastructure files that require full build:
-# - CMake: CMakeLists.txt, *.cmake, *.cmake.in, CMakePresets.json
-# - Docker: Dockerfile*, docker-compose*
-# - CI/CD: Jenkinsfile, .github/, .gitlab-ci.yml, .pre-commit-config.yaml, .readthedocs.yaml
-# - Scripts: script/ directory (cmake, dependency-parser, build utilities)
-# - Compiler: .clang-format, .clang-tidy
-# - Python: setup.py, pyproject.toml, requirements*.txt
-BUILD_INFRA_PATTERN="(CMakeLists\.txt"
-BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|\.cmake$|\.cmake\.in$|CMakePresets\.json"
-BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|Dockerfile|docker-compose"
-BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|Jenkinsfile|\.github/|\.gitlab-ci\.yml"
-BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|\.pre-commit-config\.yaml|\.readthedocs\.yaml"
-BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|script/"
-BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|\.clang-format|\.clang-tidy"
-BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|setup\.py|pyproject\.toml|requirements.*\.txt)"
+# Scoped to composablekernel-specific paths only to avoid false positives from other projects
+# - CMake: CMakeLists.txt, *.cmake, *.cmake.in within projects/composablekernel/
+# - Scripts: Only build-critical scripts (dependency-parser, cmake utilities)
+# - Compiler: .clang-format, .clang-tidy within projects/composablekernel/
+# - Python: setup.py, pyproject.toml within projects/composablekernel/
+BUILD_INFRA_PATTERN="(projects/composablekernel/.*CMakeLists\.txt"
+BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|projects/composablekernel/.*\.cmake$|projects/composablekernel/.*\.cmake\.in$"
+BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|projects/composablekernel/script/dependency-parser/"
+BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|projects/composablekernel/script/cmake/"
+BUILD_INFRA_PATTERN="${BUILD_INFRA_PATTERN}|projects/composablekernel/setup\.py|projects/composablekernel/pyproject\.toml)"
 
 if echo "$CHANGED_FILES" | grep -qE "${BUILD_INFRA_PATTERN}"; then
     FORCE_FULL_BUILD=true

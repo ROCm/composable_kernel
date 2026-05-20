@@ -10,6 +10,7 @@
 #include "ck_tile/ops/epilogue/default_2d_and_dynamic_quant_epilogue.hpp"
 #include "ck_tile/ops/epilogue/default_2d_epilogue.hpp"
 #include "ck_tile/ops/epilogue/dynamic_quant_epilogue.hpp"
+#include "ck_tile/ops/epilogue/permuten_epilogue.hpp"
 #include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/load_and_convert_tile.hpp"
 #include "ck_tile/ops/common/streamk_common.hpp"

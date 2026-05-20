@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_bias_enum.hpp"
+#include "ck_tile/ops/fmha/block/block_attention_kv_load_mode_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_kvcache_layout_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_attention_quant_scale_enum.hpp"
 #include "ck_tile/ops/fmha/block/block_rotary_embedding.hpp"
@@ -53,11 +54,14 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           BlockAttentionQuantScaleEnum QScaleEnum_,
           index_t kBlockPerCu_    = -1,    /* overwrite occupancy if not -1 */
           bool kSkipMinSeqlenQ_   = false, /* skip min seqlen q while chunked prefill */
+          bool kHasSink_          = false, /* StreamLLM sink tokens */
           index_t kPageBlockSize_ = 1,
           BlockAttentionKVCacheMemoryLayoutEnum kKVMemoryLayout_ =
               BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT,
           BlockAttentionKVCacheLookupTableEnum kKVLookupTable_ =
-              BlockAttentionKVCacheLookupTableEnum::SGLANG_PAGE_TABLE_1D>
+              BlockAttentionKVCacheLookupTableEnum::SGLANG_PAGE_TABLE_1D,
+          BlockAttentionKVCacheLoadModeEnum kKVLoadMode_ =
+              BlockAttentionKVCacheLoadModeEnum::BUFFER_LOAD>
 struct TileFmhaBatchPrefillTraits : public TileFmhaTraits<kPadSeqLenQ_,
                                                           kPadSeqLenK_,
                                                           kPadHeadDimQ_,
@@ -70,11 +74,12 @@ struct TileFmhaBatchPrefillTraits : public TileFmhaTraits<kPadSeqLenQ_,
                                                           QScaleEnum_,
                                                           kBlockPerCu_,
                                                           kSkipMinSeqlenQ_,
-                                                          false>
+                                                          kHasSink_>
 {
     static constexpr auto kKVMemoryLayout   = kKVMemoryLayout_;
     static constexpr auto kKVLookupTable    = kKVLookupTable_;
     static constexpr index_t kPageBlockSize = kPageBlockSize_;
+    static constexpr auto kKVLoadMode       = kKVLoadMode_;
     static_assert(kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT ||
                       kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT,
                   "Batch prefill only supports vectorized or linear KV cache layout.");

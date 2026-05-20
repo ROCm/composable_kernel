@@ -57,6 +57,22 @@ def get_codegen_dir() -> Path:
     return get_dispatcher_root() / "codegen"
 
 
+def detect_gpu_arch(fallback: str = "gfx942") -> str:
+    """Detect the GPU architecture from rocminfo. Falls back to the given default."""
+    import subprocess
+
+    try:
+        out = subprocess.check_output(
+            ["rocminfo"], text=True, stderr=subprocess.DEVNULL
+        )
+        for line in out.splitlines():
+            if "Name:" in line and "gfx" in line:
+                return line.split()[-1].strip()
+    except Exception:
+        pass
+    return fallback
+
+
 # ============================================================================
 # Architecture Filter Data
 # ============================================================================

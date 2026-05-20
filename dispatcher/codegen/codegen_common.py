@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 
 """
-Shared codegen infrastructure for GEMM and grouped convolution code generators.
+Shared codegen infrastructure for GEMM, grouped convolution, and FMHA code generators.
 
 Extracted from unified_gemm_codegen.py + arch-aware expansion helpers from conv.
 Both unified_gemm_codegen.py and unified_grouped_conv_codegen.py import from here

@@ -408,10 +408,21 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             ? 4 / sizeof(BDataType)
             : BBlockTransferSrcScalarPerVector;
 
+    static constexpr bool ALdsScalarLoadToVgpr =
+        (DirectLoad && BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ? true : false);
+    static constexpr bool BLdsScalarLoadToVgpr =
+        (DirectLoad && BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ? true : false);
+
+    // Note: Direct load use layout to create proper block and mmtile descriptor
+    // TODO: Fix and verify RC layout for not direct load (currently it returns wrong results)
     template <index_t NXdlPerWave_>
     using GridwiseGemmBase = GridwiseGemm_xdl_cshuffle_conv_v3<
-        tensor_layout::gemm::RowMajor,
-        tensor_layout::gemm::ColumnMajor,
+        std::conditional_t<DirectLoad,
+                           tensor_layout::gemm::ColumnMajor,
+                           tensor_layout::gemm::RowMajor>,
+        std::conditional_t<DirectLoad,
+                           tensor_layout::gemm::RowMajor,
+                           tensor_layout::gemm::ColumnMajor>,
         tensor_layout::gemm::RowMajor,
         ADataType,
         BDataType,
@@ -456,7 +467,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB,
-        DirectLoad>;
+        DirectLoad,
+        ALdsScalarLoadToVgpr,
+        BLdsScalarLoadToVgpr>;
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
@@ -625,6 +638,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             {
                 k_batch_ = split_k;
             }
+            k_batch_ = clamp_gemm_k_batch(k_batch_);
 
             // Create descriptors first (with hack flags temporarily set to false)
             // so we can check if element space sizes match product of dimensions
