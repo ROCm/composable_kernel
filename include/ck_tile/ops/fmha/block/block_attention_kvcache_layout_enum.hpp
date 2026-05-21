@@ -14,10 +14,20 @@ namespace ck_tile {
 // - LINEAR_LAYOUT:
 //   K: [NumBlocks, PageSize, NumHeads, HeadDim]
 //   V: [NumBlocks, PageSize, NumHeads, HeadDim]
+// - LINEAR_HEADS_FIRST_LAYOUT (Tencent cross-layer 5D KV cache, non-contiguous view):
+//   K: [NumBlocks, NumHeads, PageSize, HeadDim]
+//   V: [NumBlocks, NumHeads, PageSize, HeadDim]
+//   The view originates from a 6D physical buffer
+//   (NumBlocks, NumHeads, NumLayers, 2, PageSize, HeadDim) sliced per layer; the address
+//   arithmetic is identical to LINEAR_LAYOUT but with `nhead_stride_k`, `batch_stride_k`,
+//   and `stride_k` reflecting the cross-layer permutation. The kernel treats it as
+//   LINEAR_LAYOUT at dispatch time; only the AITER wrapper distinguishes them when
+//   extracting strides from the input tensor.
 enum class BlockAttentionKVCacheMemoryLayoutEnum
 {
-    VECTORIZED_LAYOUT = 0,
-    LINEAR_LAYOUT     = 1,
+    VECTORIZED_LAYOUT         = 0,
+    LINEAR_LAYOUT             = 1,
+    LINEAR_HEADS_FIRST_LAYOUT = 2,
 };
 
 // KV cache lookup table layout selector.
