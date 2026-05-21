@@ -38,7 +38,14 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
         // this should align with MakeQDramTileDistribution()
         constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
         static_assert(0 < ElemPerThread);
+
+#if defined(__gfx950__)
         return min(ElemPerThread, MaxVectorSize);
+#else
+        // For async buffer load on non-gfx950, limit to 4 bytes (2 elements for fp16)
+        constexpr index_t MaxAsyncVectorSize = 4 / sizeof(typename Problem::QDataType);
+        return min(ElemPerThread, min(MaxVectorSize, MaxAsyncVectorSize));
+#endif
     }
 
     template <typename Problem>
@@ -811,8 +818,17 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
     {
         // Alignment on gfx950 is 1280 Bytes
         // Alignment before gfx950 is 512 Bytes.
-        return max(GetSmemSizeQ<Problem>(),
-                   GetSmemSizeK<Problem>() + GetSmemSizeS<Problem>() + GetSmemSizeV<Problem>());
+        constexpr index_t kHeadDim = Problem::BlockFmhaShape::kQKHeaddim;
+        if constexpr(kHeadDim >= 256) // Hdim256
+        {
+            return max(GetSmemSizeQ<Problem>(), GetSmemSizeK<Problem, true>()) +
+                   GetSmemSizeV<Problem>() + GetSmemSizeS<Problem>();
+        }
+        else // Decode
+        {
+            return max(GetSmemSizeQ<Problem>(),
+                       GetSmemSizeK<Problem>() + GetSmemSizeS<Problem>() + GetSmemSizeV<Problem>());
+        }
     }
 };
 
