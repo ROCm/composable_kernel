@@ -19,9 +19,7 @@ namespace ck {
 // the matching arity. `void` means "do not override" — the resolved type
 // falls back to the threadwise default and the generated code is
 // bit-identical to the pre-AIESW-32282 build. Non-void values let callers
-// override the dequant element-op per device-op instantiation (e.g.
-// {DequantPack8Truncate, DequantPack8WithZpTruncate} for bf16 truncate
-// rounding).
+// plug in a custom dequant element-op per device-op instantiation.
 template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t BlockSize,
           typename ADataType,
@@ -171,10 +169,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
     // template parameters are `void` (the defaults), we route to the threadwise
     // transfer's own defaults (DequantPack8 / DequantPack8WithZp) so the
     // generated code matches the pre-AIESW-32282 build bit-for-bit. Non-void
-    // values let the device-op override the bf16 rounding policy (e.g.
-    // {DequantPack8Truncate, DequantPack8WithZpTruncate}). Two slots because
-    // the sym (3-arg) and asym (4-arg) branches both compile in the same
-    // pipeline instantiation — they need element-ops with matching arity.
+    // values let the device-op plug in a custom dequant element-op. Two slots
+    // because the sym (3-arg) and asym (4-arg) branches both compile in the
+    // same pipeline instantiation — they need element-ops with matching arity.
     using BElementOpSymResolved =
         std::conditional_t<std::is_same_v<BElementOpSym, void>,
                            ck::tensor_operation::element_wise::DequantPack8,

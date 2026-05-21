@@ -1484,9 +1484,9 @@ struct ThreadwiseTensorSliceTransfer_v4
     // AIESW-32282: BElementOp (defaulted to ck::tensor_operation::element_wise::DequantPack8)
     // selects which i4 -> {fp16,bf16} dequant element-op the pk_i4 path
     // instantiates per-call. The default preserves the original hardcoded
-    // behavior, so existing callers compile bit-identically. Callers that want
-    // a different rounding policy (e.g. DequantPack8Truncate for bf16) pass it
-    // explicitly via the template parameter on the call site.
+    // behavior, so existing callers compile bit-identically. Callers that
+    // need a different dequant element-op pass it explicitly via the
+    // template parameter on the call site.
     template <typename BElementOp = ck::tensor_operation::element_wise::DequantPack8,
               typename SrcRefToOriginDisplacement,
               typename DstOriginIdx,
@@ -1699,9 +1699,8 @@ struct ThreadwiseTensorSliceTransfer_v4
     //
     // AIESW-32282: BElementOp (defaulted to
     // ck::tensor_operation::element_wise::DequantPack8WithZp) lets callers
-    // override the asymmetric dequant element-op per call (e.g. pass
-    // DequantPack8WithZpTruncate to skip the bf16 round-to-nearest-even
-    // chain). Default preserves prior hardcoded behavior bit-identically.
+    // override the asymmetric dequant element-op per call. Default preserves
+    // prior hardcoded behavior bit-identically.
     template <typename BElementOp = ck::tensor_operation::element_wise::DequantPack8WithZp,
               typename SrcRefToOriginDisplacement,
               typename DstOriginIdx,
