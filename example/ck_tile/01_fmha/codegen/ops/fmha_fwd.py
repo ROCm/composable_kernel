@@ -912,7 +912,8 @@ class CompatibilityRuleFactoryGfx950(CompatibilityRuleFactoryGfx9):
                     and kernel_ctx.tile.F_bn0 == 128
                 )
                 or (
-                    (problem_ctx.hdim, problem_ctx.hdim_v) not in [(64, 64), (128, 128)]
+                    (problem_ctx.hdim, problem_ctx.hdim_v)
+                    not in [(64, 64), (128, 128), (256, 256)]
                 )
             ):
                 return False
@@ -1091,7 +1092,8 @@ class KernelComponentFactoryGfx950(
             # if (128, 128) in result.keys():
             #     result[(128, 128)].append(
             #         FmhaFwdTileSize(256, 32, 128, 128, 32, 128,  8, 1, 1,  8, 1, 1,  32, 32, 16,  32, 32, 16,  -1))  # fmt: skip
-            pass
+            if (256, 256) in result.keys():
+                result[(256, 256)] = [FmhaFwdTileSize(128,  64,  32, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)]  # fmt: skip
         elif dtype in cls._DT_MXFP8:
             return {
                 #                             bm0, bn0, bk0, bn1, bk1,
@@ -1129,7 +1131,7 @@ class KernelComponentFactoryGfx950(
                 ["t", "f"],
             ):
                 if (
-                    (hdim, hdim_v) in [(64, 64), (128, 128)]
+                    (hdim, hdim_v) in [(64, 64), (128, 128), (256, 256)]
                     and logits == "f"
                     and bias == "no"
                     and dropout == "f"

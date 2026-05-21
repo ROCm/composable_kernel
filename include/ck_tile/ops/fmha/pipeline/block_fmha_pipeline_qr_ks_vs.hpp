@@ -491,15 +491,17 @@ struct BlockFmhaPipelineQRKSVS
                                              (kK0 / WarpGemm0K) / (Gemm0MWarp * Gemm0NWarp);
             if constexpr(get_warp_size() == 64 && kQKHeaddim == 256)
             {
-                static_assert(NumMfmaInsts % 8 == 0);
-                static_for<0, NumMfmaInsts / 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(DS_READ, 2, 0); // DS read
-                    __builtin_amdgcn_sched_group_barrier(MFMA, 2, 0);    // MFMA
-                    __builtin_amdgcn_sched_group_barrier(DS_READ, 1, 0); // DS read
-                    __builtin_amdgcn_sched_group_barrier(MFMA, 2, 0);    // MFMA
-                    __builtin_amdgcn_sched_group_barrier(DS_READ, 1, 0); // DS read
-                    __builtin_amdgcn_sched_group_barrier(MFMA, 4, 0);    // MFMA
-                });
+                if constexpr(NumMfmaInsts % 8 == 0)
+                {
+                    static_for<0, NumMfmaInsts / 8, 1>{}([&](auto) {
+                        __builtin_amdgcn_sched_group_barrier(DS_READ, 2, 0); // DS read
+                        __builtin_amdgcn_sched_group_barrier(MFMA, 2, 0);    // MFMA
+                        __builtin_amdgcn_sched_group_barrier(DS_READ, 1, 0); // DS read
+                        __builtin_amdgcn_sched_group_barrier(MFMA, 2, 0);    // MFMA
+                        __builtin_amdgcn_sched_group_barrier(DS_READ, 1, 0); // DS read
+                        __builtin_amdgcn_sched_group_barrier(MFMA, 4, 0);    // MFMA
+                    });
+                }
             }
         };
 
