@@ -2,6 +2,8 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
+from __future__ import annotations
+
 """Two-pass instruction-prefetch offset patcher.
 
 Round 1: build with koffset=0 so the compiler emits s_prefetch_inst_pc_rel
@@ -35,6 +37,7 @@ CMake PRE_LINK usage (round 1 already done by cmake, only patch the .o):
 import argparse
 import multiprocessing
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -174,9 +177,14 @@ def find_asm_file(search_dir: Path, cpp_stem: str, gpu_arch: str = "") -> Path:
 
 
 def find_obj_file(build_dir: Path, target: str) -> Path:
-    """Find the most recent .o for the given CMake target."""
+    """Find the most recent .o for the given CMake target.
+
+    Uses ``**`` under ``{target}.dir/`` so that multi-config generators
+    (e.g. Ninja Multi-Config, Visual Studio) whose object files live in a
+    config subdirectory like ``{target}.dir/Release/`` are also found.
+    """
     candidates = sorted(
-        build_dir.rglob(f"{target}.dir/*.o"),
+        build_dir.rglob(f"{target}.dir/**/*.o"),
         key=lambda p: p.stat().st_mtime, reverse=True,
     )
     if not candidates:
@@ -451,12 +459,11 @@ def _clamp_prefetch_region(
         return (koffset, klength)
 
     # ── Forward direction ────────────────────────────────────────────────
-    koffset = target - pc_next + offset_bytes
+    prefetch_base = target_aligned + offset_bytes
+    koffset = prefetch_base - pc_next
     if koffset < 0:
         print(f"[warn] {name[:60]!r}: negative koffset — target before prefetch, skipping")
         return None
-
-    prefetch_base = target_aligned + offset_bytes
     region_end = prefetch_base + (klength + 1) * CACHELINE_SIZE
     if region_end > func_end:
         needed = max(0, (func_end - prefetch_base + CACHELINE_SIZE - 1) // CACHELINE_SIZE)
@@ -1020,8 +1027,8 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--build-dir",  required=True, type=Path, help="CMake build directory")
     ap.add_argument("--target",     required=True,            help="CMake target to build")
-    ap.add_argument("--objdump-path", default="/opt/rocm/llvm/bin/llvm-objdump",
-                    help="Path to llvm-objdump (default: /opt/rocm/llvm/bin/llvm-objdump)")
+    ap.add_argument("--objdump-path", default=None,
+                    help="Path to llvm-objdump (auto-detected from PATH / /opt/rocm if omitted)")
     ap.add_argument("--objdump-mcpu", default="",
                     help="--mcpu value for llvm-objdump/llvm-mc (auto-detected from .s if omitted)")
     ap.add_argument("--dry-run",    action="store_true",
@@ -1042,6 +1049,23 @@ def main() -> None:
     ap.add_argument("--source", type=Path, default=None, help=argparse.SUPPRESS)
     ap.add_argument("--bundler-path", default="", help=argparse.SUPPRESS)
     args = ap.parse_args()
+
+    # Auto-detect llvm-objdump if not provided.
+    if args.objdump_path is None:
+        _candidates = [
+            shutil.which("llvm-objdump"),
+            "/opt/rocm/llvm/bin/llvm-objdump",
+        ]
+        for _c in _candidates:
+            if _c and Path(_c).is_file():
+                args.objdump_path = _c
+                break
+        if args.objdump_path is None:
+            sys.exit(
+                "Cannot find llvm-objdump. Pass --objdump-path explicitly or "
+                "ensure llvm-objdump is on PATH or installed at /opt/rocm/llvm/bin/."
+            )
+        print(f"[auto] Using llvm-objdump: {args.objdump_path}")
 
     # Log setup.
     log_path: Path | None

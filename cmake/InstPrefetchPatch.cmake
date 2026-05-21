@@ -24,6 +24,10 @@ if(NOT DEFINED CK_INST_PREFETCH_PATCH_DEFINED)
         "Dump intermediate files (merged tables, objdump text) during prefetch patching."
         OFF)
 
+    # Capture at include-time; CMAKE_CURRENT_LIST_DIR inside a function()
+    # resolves to the *caller's* directory, not the defining file's directory.
+    set(_CK_INST_PREFETCH_SCRIPT_DIR "${CMAKE_CURRENT_LIST_DIR}" CACHE INTERNAL "")
+
     function(ck_inst_prefetch_patch TARGET_NAME)
         if(NOT ENABLE_INST_PREFETCH_PATCH)
             return()
@@ -36,17 +40,26 @@ if(NOT DEFINED CK_INST_PREFETCH_PATCH_DEFINED)
         if(INST_PREFETCH_PATCH_DUMP_INTERMEDIATES)
             list(APPEND _extra_args --dump-intermediates)
         endif()
+        # Derive llvm-objdump from the HIP/ROCm compiler's bin directory.
+        get_filename_component(_compiler_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        find_program(_llvm_objdump llvm-objdump
+            HINTS ${_compiler_dir} /opt/rocm/llvm/bin
+            NO_DEFAULT_PATH)
+        if(NOT _llvm_objdump)
+            find_program(_llvm_objdump llvm-objdump)
+        endif()
         add_custom_command(
             TARGET  ${TARGET_NAME}
             PRE_LINK
             COMMAND ${CMAKE_COMMAND} -E echo
                     "[inst-prefetch-patch] Running patch_prefetch_offset.py for ${TARGET_NAME} (log: ${_log_file})"
             COMMAND ${Python3_EXECUTABLE}
-                    ${CMAKE_SOURCE_DIR}/script/patch_prefetch_offset.py
+                    ${_CK_INST_PREFETCH_SCRIPT_DIR}/../script/patch_prefetch_offset.py
                     --build-dir      ${CMAKE_BINARY_DIR}
                     --target         ${TARGET_NAME}
                     --jobs           ${_nproc}
                     --skip-build-round1
+                    --objdump-path   ${_llvm_objdump}
                     ${_extra_args}
             COMMENT "[inst-prefetch-patch] Patching prefetch offsets for ${TARGET_NAME} — log: ${_log_file}"
             VERBATIM
