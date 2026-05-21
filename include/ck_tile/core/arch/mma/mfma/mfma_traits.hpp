@@ -58,6 +58,9 @@ static constexpr bool is_mma_op_mfma_v = is_mma_op_mfma<MmaOp>::value;
 /**
  * @struct DefaultMfmaCtrlFlags
  * @brief Default MFMA flags, no broadcasting or rotation of inputs
+ * @note For f64 MFMA instructions, CBSZ and ABID are ignored and BLGP is repurposed for matrix
+ * negation. BLGP bits [0:2] negate the A, B, and C input matrices respectively (ref. ISA docs for
+ * MI300 Instinct).
  */
 struct DefaultMfmaCtrlFlags
 {
