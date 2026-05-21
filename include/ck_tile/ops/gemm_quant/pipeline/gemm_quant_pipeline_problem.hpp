@@ -33,8 +33,14 @@ struct GemmQuantPipelineProblemBase
           CDataType_,
           BlockGemmShape_,
           Traits_,
-          mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>,
-          mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>
+          mixed_prec_compute_type_from_input_t<
+              ADataType_,
+              BDataType_,
+              mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>,
+          mixed_prec_compute_type_from_input_t<
+              BDataType_,
+              ADataType_,
+              mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>>
 {
     using Base = GemmPipelineProblemBase<
         ADataType_,
@@ -42,8 +48,14 @@ struct GemmQuantPipelineProblemBase
         CDataType_,
         BlockGemmShape_,
         Traits_,
-        mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>,
-        mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>;
+        mixed_prec_compute_type_from_input_t<
+            ADataType_,
+            BDataType_,
+            mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>,
+        mixed_prec_compute_type_from_input_t<
+            BDataType_,
+            ADataType_,
+            mixed_prec_compute_type_t<ComputeDataType_, ADataType_, BDataType_>>>;
 
     using Traits = typename Base::Traits;
 
