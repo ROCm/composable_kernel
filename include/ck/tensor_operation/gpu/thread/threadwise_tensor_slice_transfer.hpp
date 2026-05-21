@@ -1480,7 +1480,15 @@ struct ThreadwiseTensorSliceTransfer_v4
     }
 
     // Fuse scale
-    template <typename SrcRefToOriginDisplacement,
+    //
+    // AIESW-32282: BElementOp (defaulted to ck::tensor_operation::element_wise::DequantPack8)
+    // selects which i4 -> {fp16,bf16} dequant element-op the pk_i4 path
+    // instantiates per-call. The default preserves the original hardcoded
+    // behavior, so existing callers compile bit-identically. Callers that want
+    // a different rounding policy (e.g. DequantPack8Truncate for bf16) pass it
+    // explicitly via the template parameter on the call site.
+    template <typename BElementOp = ck::tensor_operation::element_wise::DequantPack8,
+              typename SrcRefToOriginDisplacement,
               typename DstOriginIdx,
               typename SrcBuffer,
               typename DstBuffer>
@@ -1616,7 +1624,10 @@ struct ThreadwiseTensorSliceTransfer_v4
                 using scale_v_t = typename vector_type_maker_t<DstData, 2>::type;
 
                 static_for<0, SrcScalarPerVector / pack_size, 1>{}([&](auto i) {
-                    ck::tensor_operation::element_wise::DequantPack8{}(
+                    // AIESW-32282: BElementOp defaults to DequantPack8 so the
+                    // default-template-arg path is bit-identical to the prior
+                    // hardcoded call.
+                    BElementOp{}(
                         dst_tmp_vector.template AsType<dst_v_t>()(i),
                         src_tmp_vector.template AsType<src_v_t>()[i],
                         scale_vector.template AsType<scale_v_t>()[Number<0>{}]);
@@ -1685,7 +1696,14 @@ struct ThreadwiseTensorSliceTransfer_v4
     // DequantPack8WithZp on the pk_i4 path so the dequant matches AWQ's
     // (nibble - zp) * scale. All non-pk_i4 SrcData paths fall back to the
     // plain dequant + scale (scaled_zp ignored — only meaningful for pk_i4).
-    template <typename SrcRefToOriginDisplacement,
+    //
+    // AIESW-32282: BElementOp (defaulted to
+    // ck::tensor_operation::element_wise::DequantPack8WithZp) lets callers
+    // override the asymmetric dequant element-op per call (e.g. pass
+    // DequantPack8WithZpTruncate to skip the bf16 round-to-nearest-even
+    // chain). Default preserves prior hardcoded behavior bit-identically.
+    template <typename BElementOp = ck::tensor_operation::element_wise::DequantPack8WithZp,
+              typename SrcRefToOriginDisplacement,
               typename DstOriginIdx,
               typename SrcBuffer,
               typename DstBuffer>
@@ -1792,7 +1810,10 @@ struct ThreadwiseTensorSliceTransfer_v4
                 using scale_v_t = typename vector_type_maker_t<DstData, 2>::type;
 
                 static_for<0, SrcScalarPerVector / pack_size, 1>{}([&](auto i) {
-                    ck::tensor_operation::element_wise::DequantPack8WithZp{}(
+                    // AIESW-32282: BElementOp defaults to DequantPack8WithZp so
+                    // the default-template-arg path is bit-identical to the
+                    // prior hardcoded call.
+                    BElementOp{}(
                         dst_tmp_vector.template AsType<dst_v_t>()(i),
                         src_tmp_vector.template AsType<src_v_t>()[i],
                         scale_vector.template AsType<scale_v_t>()[Number<0>{}],

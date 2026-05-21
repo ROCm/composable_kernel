@@ -293,7 +293,19 @@ template <typename ALayout,
           bool PermuteB,
           bool IsBPreShuffled          = false,
           bool ForceThreadTileTransfer = false, // only needed for convolution (limitation)
-          bool IsFusedKernel           = false>
+          bool IsFusedKernel           = false,
+          // AIESW-32282: explicit dequant element-op carrier for the B path
+          // (pk_i4 -> activation dtype). Threaded down to the WMMA blockwise
+          // pipeline -> threadwise transfer; ignored everywhere else. The
+          // existing BElementwiseOperation slot is also applied at the
+          // global->LDS copy site (ThreadwiseTensorSliceTransfer_v3r1) which
+          // expects a 2-arg operator(), so we route the dequant op through
+          // a dedicated slot rather than overloading BElementwiseOperation.
+          // Default `void` means "use the threadwise transfer's own defaults"
+          // (DequantPack8 / DequantPack8WithZp), bit-identical to pre-
+          // AIESW-32282 behavior. See DequantPolicyFor<> in
+          // unary_element_wise_operation.hpp.
+          typename BDequantOp = void>
 struct GridwiseGemm_wmma_cshuffle_v3_base
 {
 
@@ -895,7 +907,13 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                            KPack,
                                                            KInner,
                                                            false,
-                                                           IsBPreShuffled>())>;
+                                                           IsBPreShuffled,
+                                                           typename ck::tensor_operation::
+                                                               element_wise::DequantPolicyFor<
+                                                                   BDequantOp>::sym_type,
+                                                           typename ck::tensor_operation::
+                                                               element_wise::DequantPolicyFor<
+                                                                   BDequantOp>::asym_type>())>;
 
     // Used to create obj in global function and pass it to Run method
     using EpilogueCShuffle =

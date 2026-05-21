@@ -70,7 +70,10 @@ template <typename ALayout,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
           bool PermuteA                               = false,
-          bool PermuteB                               = false>
+          bool PermuteB                               = false,
+          // AIESW-32282: dedicated dequant element-op slot for the B pk_i4
+          // path. See gridwise_gemm_wmma_cshuffle_v3_common.hpp.
+          typename BDequantOp = void>
 struct DeviceGemm_BScale_Wmma_CShuffleV3 : public DeviceGemmV2BScale<ALayout,
                                                                      BLayout,
                                                                      CLayout,
@@ -141,7 +144,8 @@ struct DeviceGemm_BScale_Wmma_CShuffleV3 : public DeviceGemmV2BScale<ALayout,
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        BDequantOp>;
 
     using Argument = typename GridwiseGemm::Argument;
 

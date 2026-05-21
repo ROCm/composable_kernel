@@ -9,6 +9,19 @@ namespace ck {
 
 // Naive pipeline with lowest resource request per WGP
 
+// AIESW-32282: BElementOpSym / BElementOpAsym (defaulted to void = "use the
+// threadwise transfer's own default DequantPack8 / DequantPack8WithZp") are
+// forwarded to ThreadwiseTensorSliceTransfer_v4::Run<>() at the pk_i4 dequant
+// call sites. Two separate slots because the sym (3-arg) and asym (4-arg)
+// dequant branches both instantiate in the same pipeline (the
+// BZeroPointStruct dispatch is `if constexpr` inside the Run() lambda but
+// both branches must compile), so they need distinct element-op types with
+// the matching arity. `void` means "do not override" — the resolved type
+// falls back to the threadwise default and the generated code is
+// bit-identical to the pre-AIESW-32282 build. Non-void values let callers
+// override the dequant element-op per device-op instantiation (e.g.
+// {DequantPack8Truncate, DequantPack8WithZpTruncate} for bf16 truncate
+// rounding).
 template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t BlockSize,
           typename ADataType,
@@ -29,8 +42,10 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC = false,
-          bool BSkipLDS   = false>
+          bool TransposeC         = false,
+          bool BSkipLDS           = false,
+          typename BElementOpSym  = void,
+          typename BElementOpAsym = void>
 struct BlockwiseGemmWmmaops_pipeline_v1
 {
 };
@@ -54,7 +69,9 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC>
+          bool TransposeC,
+          typename BElementOpSym,
+          typename BElementOpAsym>
 struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                         BlockSize,
                                         ADataType,
@@ -76,7 +93,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                         KPack,
                                         KInner,
                                         TransposeC,
-                                        false>
+                                        false,
+                                        BElementOpSym,
+                                        BElementOpAsym>
     : BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                          ADataType,
                                          BDataType,
@@ -146,6 +165,24 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
     using Base::b_block_desc_k0_n0_n1_n2_k1;
 
     using typename Base::Empty;
+
+    // AIESW-32282: resolved element-op types for the pk_i4 dequant call sites
+    // in this pipeline. When the pipeline's BElementOpSym / BElementOpAsym
+    // template parameters are `void` (the defaults), we route to the threadwise
+    // transfer's own defaults (DequantPack8 / DequantPack8WithZp) so the
+    // generated code matches the pre-AIESW-32282 build bit-for-bit. Non-void
+    // values let the device-op override the bf16 rounding policy (e.g.
+    // {DequantPack8Truncate, DequantPack8WithZpTruncate}). Two slots because
+    // the sym (3-arg) and asym (4-arg) branches both compile in the same
+    // pipeline instantiation — they need element-ops with matching arity.
+    using BElementOpSymResolved =
+        std::conditional_t<std::is_same_v<BElementOpSym, void>,
+                           ck::tensor_operation::element_wise::DequantPack8,
+                           BElementOpSym>;
+    using BElementOpAsymResolved =
+        std::conditional_t<std::is_same_v<BElementOpAsym, void>,
+                           ck::tensor_operation::element_wise::DequantPack8WithZp,
+                           BElementOpAsym>;
 
     static constexpr index_t PrefetchStages  = 1;
     static constexpr index_t PrefillStages   = 1;
@@ -249,7 +286,11 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                     else
                     {
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
-                            b_thread_copy_.Run(
+                            // AIESW-32282: forward the pipeline's resolved
+                            // sym dequant element-op (DequantPack8 by default)
+                            // into the threadwise transfer so the per-call
+                            // element-op is the runtime-selected one.
+                            b_thread_copy_.template Run<BElementOpSymResolved>(
                                 b_block_desc_k0_n0_n1_n2_k1,
                                 make_tuple(I0, n0, k0, I0, I0, I0, I0),
                                 b_block_buf,
@@ -592,7 +633,9 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC>
+          bool TransposeC,
+          typename BElementOpSym,
+          typename BElementOpAsym>
 struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                         BlockSize,
                                         ADataType,
@@ -614,7 +657,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                         KPack,
                                         KInner,
                                         TransposeC,
-                                        false>
+                                        false,
+                                        BElementOpSym,
+                                        BElementOpAsym>
     : BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                          ADataType,
                                          BDataType,
@@ -683,6 +728,17 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
     using Base::b_block_desc_k0_n0_n1_n2_k1;
 
     using typename Base::Empty;
+
+    // AIESW-32282: resolved element-op types — see Intrawave/BSkipLDS=false
+    // specialization for the rationale.
+    using BElementOpSymResolved =
+        std::conditional_t<std::is_same_v<BElementOpSym, void>,
+                           ck::tensor_operation::element_wise::DequantPack8,
+                           BElementOpSym>;
+    using BElementOpAsymResolved =
+        std::conditional_t<std::is_same_v<BElementOpAsym, void>,
+                           ck::tensor_operation::element_wise::DequantPack8WithZp,
+                           BElementOpAsym>;
 
     static constexpr index_t NumKClusters      = CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING_MAC_CLUSTERS;
     static constexpr index_t KRepeatPerCluster = math::max(KRepeat / NumKClusters, 1);
@@ -818,7 +874,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                     else if constexpr(!HasBZp)
                     {
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
-                            b_thread_copy_.Run(
+                            // AIESW-32282: forward the pipeline's resolved sym
+                            // dequant element-op into the threadwise transfer.
+                            b_thread_copy_.template Run<BElementOpSymResolved>(
                                 b_block_desc_k0_n0_n1_n2_k1,
                                 make_tuple(I0, n0, k0_offset + k0_inner, I0, I0, I0, I0),
                                 b_block_buf,
@@ -837,8 +895,12 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                         // [num_scale_k_block, num_scale_krepeat] shape and same
                         // GlobalLoad cadence) — they're built from the same
                         // BScale template type in the gridwise.
+                        //
+                        // AIESW-32282: forward the pipeline's resolved asym
+                        // dequant element-op (DequantPack8WithZp by default)
+                        // into the threadwise transfer.
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
-                            b_thread_copy_.Run(
+                            b_thread_copy_.template Run<BElementOpAsymResolved>(
                                 b_block_desc_k0_n0_n1_n2_k1,
                                 make_tuple(I0, n0, k0_offset + k0_inner, I0, I0, I0, I0),
                                 b_block_buf,
@@ -1058,7 +1120,9 @@ template <index_t BlockSize,
           index_t NRepeat,
           index_t KPack,
           index_t KInner,
-          bool TransposeC>
+          bool TransposeC,
+          typename BElementOpSym,
+          typename BElementOpAsym>
 struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                         BlockSize,
                                         ADataType,
@@ -1080,7 +1144,9 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                         KPack,
                                         KInner,
                                         TransposeC,
-                                        true>
+                                        true,
+                                        BElementOpSym,
+                                        BElementOpAsym>
     : BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                          ADataType,
                                          BDataType,

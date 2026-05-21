@@ -73,6 +73,11 @@ template <typename ALayout,
           typename ComputeTypeB,
           bool PermuteA,
           bool PermuteB,
+          // AIESW-32282: see gridwise_gemm_wmma_cshuffle_v3_common.hpp for
+          // the rationale. Placed before IsBPreShuffled so callers can
+          // override it without also having to spell out IsBPreShuffled /
+          // AScaleLayout / BScaleLayout defaults.
+          typename BDequantOp   = void,
           bool IsBPreShuffled   = false,
           typename AScaleLayout = ALayout,
           typename BScaleLayout = BLayout>
@@ -129,7 +134,9 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
           PermuteA,
           PermuteB,
           IsBPreShuffled,
-          true>
+          true,
+          false,
+          BDequantOp>
 {
     using Base = GridwiseGemm_wmma_cshuffle_v3_base<
         ALayout,
@@ -183,7 +190,9 @@ struct GridwiseGemm_wmma_cshuffle_v3_ab_scale
         PermuteA,
         PermuteB,
         IsBPreShuffled,
-        true>;
+        true,
+        false,
+        BDequantOp>;
 
     using Base::I0;
     using Base::I1;
