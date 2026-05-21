@@ -14,7 +14,7 @@ namespace ck_tile {
 // - LINEAR_LAYOUT:
 //   K: [NumBlocks, PageSize, NumHeads, HeadDim]
 //   V: [NumBlocks, PageSize, NumHeads, HeadDim]
-// - LINEAR_HEADS_FIRST_LAYOUT (Tencent cross-layer 5D KV cache, non-contiguous view):
+// - LINEAR_HEADS_FIRST_LAYOUT (cross-layer 5D KV cache, non-contiguous view):
 //   K: [NumBlocks, NumHeads, PageSize, HeadDim]
 //   V: [NumBlocks, NumHeads, PageSize, HeadDim]
 //   The view originates from a 6D physical buffer
