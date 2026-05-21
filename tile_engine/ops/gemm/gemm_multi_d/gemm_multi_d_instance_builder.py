@@ -37,9 +37,22 @@ class GemmMultiDKernelBuilder(GemmKernelBuilder):
         layout,
         elementwise_function,
         config_json=None,
+        max_instances=None,
+        seed=None,
+        tier=None,
+        manifest_path=None,
     ):
         super().__init__(
-            kernel_name_prefix, working_path, gpu_target, datatype, layout, config_json
+            kernel_name_prefix,
+            working_path,
+            gpu_target,
+            datatype,
+            layout,
+            config_json,
+            max_instances=max_instances,
+            seed=seed,
+            tier=tier,
+            manifest_path=manifest_path,
         )
         self.elementwise_function = elementwise_function
 
@@ -70,6 +83,15 @@ class GemmMultiDKernelBuilder(GemmKernelBuilder):
                         self.config_json,
                     )
                 )
+
+        # Apply RFC-compliant sampling (Sobol + LHS + maximin)
+        if self.max_instances is not None and len(work_items) > self.max_instances:
+            kernel_dicts = [
+                {"tile_config": item[0], "trait_combo": item[1], "_work_item": item}
+                for item in work_items
+            ]
+            sampled = self._apply_sampling(kernel_dicts)
+            work_items = [k["_work_item"] for k in sampled]
 
         print(
             f"Generating {len(work_items)} individual kernel files using {num_workers} workers..."
@@ -223,6 +245,28 @@ def main():
         action="store_true",
         help="List kernel configurations without generating files",
     )
+    parser.add_argument(
+        "--max-instances",
+        type=int,
+        default=None,
+        help="Cap on number of kernel instances per (dtype, layout) combo",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="RNG seed for deterministic sampling; if omitted, derived from today's date",
+    )
+    parser.add_argument(
+        "--tier",
+        default=None,
+        help="Sampling tier (daily/weekly)",
+    )
+    parser.add_argument(
+        "--manifest-path",
+        default=None,
+        help="Directory for chosen_instances.json",
+    )
 
     args = parser.parse_args()
 
@@ -271,6 +315,10 @@ def main():
         args.layout,
         args.elementwise_function,
         args.config_json,
+        max_instances=args.max_instances,
+        seed=args.seed,
+        tier=args.tier,
+        manifest_path=args.manifest_path,
     )
 
     if args.list_kernels:

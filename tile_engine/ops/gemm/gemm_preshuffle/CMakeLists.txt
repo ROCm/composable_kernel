@@ -4,6 +4,7 @@
 set(GEMM_PRESHUFFLE_DATATYPE "fp16;fp8;bf16;bf8" CACHE STRING "List of datatypes for GEMM Preshuffle (semicolon-separated)")
 set(GEMM_PRESHUFFLE_LAYOUT "rcr" CACHE STRING "List of layout for GEMM Preshuffle (semicolon-separated)")
 set(GEMM_PRESHUFFLE_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
+set(GEMM_PRESHUFFLE_MAX_INSTANCES "" CACHE STRING "Max kernel instances per (dtype, layout) combo (empty = no cap)")
 option(ENABLE_CCACHE_GEMM_PRESHUFFLE "Enable ccache for GEMM Preshuffle ops compilation" OFF)
 
 # Store the directory path for use in functions
@@ -163,6 +164,19 @@ function(build_individual_gemm_preshuffle_targets datatype layout)
     # Create working directory first
     file(MAKE_DIRECTORY ${working_path})
     
+    # Build optional args for instance builder
+    set(extra_list_args "")
+    if(NOT "${GEMM_PRESHUFFLE_MAX_INSTANCES}" STREQUAL "")
+        list(APPEND extra_list_args --max-instances ${GEMM_PRESHUFFLE_MAX_INSTANCES})
+    endif()
+    if(NOT "${TILE_ENGINE_SAMPLING_TIER}" STREQUAL "")
+        list(APPEND extra_list_args --tier ${TILE_ENGINE_SAMPLING_TIER})
+        list(APPEND extra_list_args --manifest-path ${working_path})
+    endif()
+    if(NOT "${TILE_ENGINE_SAMPLING_SEED}" STREQUAL "")
+        list(APPEND extra_list_args --seed ${TILE_ENGINE_SAMPLING_SEED})
+    endif()
+
     # First, just list the kernels (fast operation)
     message(VERBOSE "  Listing kernel configurations...")
     message(VERBOSE "  GPU Targets: ${GEMM_PRESHUFFLE_GPU_TARGETS_INDIVIDUAL}")
@@ -174,6 +188,7 @@ function(build_individual_gemm_preshuffle_targets datatype layout)
                 --layout ${layout}
                 --config_json ${json_blob}
                 --list_kernels
+                ${extra_list_args}
         WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
         RESULT_VARIABLE ret
         OUTPUT_VARIABLE list_output
@@ -292,6 +307,20 @@ else()
     foreach(scheduler IN LISTS GEMM_PRESHUFFLE_SCHEDULERS)
         add_custom_target(benchmark_gemm_preshuffle_${scheduler}_scheduler)
     endforeach()
+
+    # Divide MAX_INSTANCES budget across all active (dtype, layout) combos so that
+    # sampling fires per-combo rather than being a single cap larger than any combo's
+    # feasible set (which would make sampling a no-op for most combos).
+    if(NOT "${GEMM_PRESHUFFLE_MAX_INSTANCES}" STREQUAL "")
+        list(LENGTH GEMM_PRESHUFFLE_DATATYPE _gp_n_dt)
+        list(LENGTH GEMM_PRESHUFFLE_LAYOUT _gp_n_lay)
+        math(EXPR _gp_n_combos "${_gp_n_dt} * ${_gp_n_lay}")
+        if(_gp_n_combos GREATER 0)
+            math(EXPR GEMM_PRESHUFFLE_MAX_INSTANCES
+                "${GEMM_PRESHUFFLE_MAX_INSTANCES} / ${_gp_n_combos}")
+            message(STATUS "  gemm_preshuffle: per-combo budget = ${GEMM_PRESHUFFLE_MAX_INSTANCES} (${_gp_n_combos} combos)")
+        endif()
+    endif()
 
     # Build individual targets for each datatype/layout combination
     foreach(dt IN LISTS GEMM_PRESHUFFLE_DATATYPE)

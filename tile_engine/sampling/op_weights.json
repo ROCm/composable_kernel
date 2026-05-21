@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "description": "Op weights for Daily Tier budget allocation (RFC section 3.4)",
+  "weights": {
+    "gemm_universal": 0.35,
+    "gemm_preshuffle": 0.30,
+    "gemm_multi_d": 0.20,
+    "grouped_gemm": 0.15
+  }
+}
