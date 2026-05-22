@@ -91,6 +91,7 @@ rocm_ck/
 └── tests/
     ├── CMakeLists.txt    # Test tiers: ROCM_CK_SMOKE, ROCM_CK_KERNEL
     ├── unit/             # Fast host-only tests (< 1s, no GPU)
+    ├── compile_fail/     # Static assertion tests — verify invalid configs fail at compile time
     └── kernel/           # (planned) GPU kernel tests
 ```
 
