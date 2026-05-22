@@ -20,6 +20,7 @@
 #include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/grid/epilogue_type.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -50,8 +51,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const ComputePtrOffset compute_ptr_offset_of_n)
 {
 #if defined(__gfx11__) || defined(__gfx12__)
-    using Epilogue = typename GridwiseGemm::EpilogueCShuffle;
-    __shared__ char p_shared[GridwiseGemm::template GetSharedMemoryNumberOfByte<Epilogue>()];
+    using SelectedEpilogue = get_epilogue_t<EpilogueType::CShuffle, GridwiseGemm>;
+
+    constexpr index_t LDS_size =
+        GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
+    __shared__ char p_shared[LDS_size];
 
     const index_t block_id_x = __builtin_amdgcn_readfirstlane(blockIdx.x);
     const index_t g_idx      = __builtin_amdgcn_readfirstlane(blockIdx.y);
@@ -147,7 +151,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 
     const index_t num_k_block_per_scale = GridwiseGemm::GetKBlockPerScale();
 
-    auto epilogue_args = Epilogue{};
+    auto epilogue_args = SelectedEpilogue{};
 
     GridwiseGemm::Base::template Run<decltype(as_grid_desc_ak0_m_ak1),
                                      decltype(bs_grid_desc_bk0_n_bk1),
@@ -155,7 +159,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                      decltype(e_grid_desc),
                                      decltype(a_scale_struct),
                                      decltype(b_scale_struct),
-                                     Epilogue,
+                                     SelectedEpilogue,
                                      HasMainKBlockLoop,
                                      EGlobalMemoryDataOperation,
                                      TailNum>(p_as_grid_,

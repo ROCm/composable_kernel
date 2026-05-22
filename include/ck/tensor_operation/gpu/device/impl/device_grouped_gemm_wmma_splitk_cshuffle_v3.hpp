@@ -19,6 +19,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_grouped_gemm_splitk.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/epilogue_type.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -41,12 +42,14 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                     const index_t group_count)
 {
 #if(defined(__gfx11__) || defined(__gfx12__))
-    using EpilogueType = typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
-                                                       GridwiseGemm::UseDirectStore,
-                                                   typename GridwiseGemm::EpilogueDirectStore,
-                                                   typename GridwiseGemm::EpilogueCShuffle>::type;
+    constexpr auto epilogue_type =
+        GridwiseGemm::IsBWaveTransferApplicable && GridwiseGemm::UseDirectStore
+            ? EpilogueType::DirectStore
+            : EpilogueType::CShuffle;
+    using SelectedEpilogue = get_epilogue_t<epilogue_type, GridwiseGemm>;
 
-    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
+    constexpr index_t LDS_size =
+        GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
     __shared__ char p_shared[LDS_size];
 
     const index_t block_id = get_block_1d_id();
@@ -93,13 +96,13 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         auto splitk_batch_offset =
             typename GridwiseGemm::SplitKBatchOffset(karg, tile_index[Number<0>{}]);
-        auto epilogue_args = EpilogueType{};
+        auto epilogue_args = SelectedEpilogue{};
 
         GridwiseGemm::template Run<HasMainKBlockLoop,
                                    CGlobalMemoryDataOperation,
                                    TailNum,
                                    Block2CTileMap,
-                                   EpilogueType,
+                                   SelectedEpilogue,
                                    1, // Block2CTileMap MBlock index
                                    2  // Block2CTileMap NBlock index
                                    >(static_cast<void*>(p_shared),
