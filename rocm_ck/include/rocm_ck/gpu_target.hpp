@@ -19,6 +19,7 @@ enum class GpuTarget : uint8_t
     gfx1102, // RDNA 3
     gfx1150, // RDNA 3.5
     gfx1151, // RDNA 3.5
+    _count   // must be last — new targets go above this line
 };
 
 } // namespace rocm_ck
