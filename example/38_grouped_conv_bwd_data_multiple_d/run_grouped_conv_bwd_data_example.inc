@@ -96,7 +96,7 @@ bool run_conv_bwd_data(const ExecutionConfig& config,
                      "not support this Conv problem - skipping."
                   << std::endl;
 
-        return true;
+        return false;
     }
 
     float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});

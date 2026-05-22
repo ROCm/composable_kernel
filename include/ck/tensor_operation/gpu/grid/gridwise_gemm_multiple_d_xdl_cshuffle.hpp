@@ -704,8 +704,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
               typename BGridDesc_BK0_N_BK1,
               typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
               typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-              typename Block2ETileMap,
-              typename EGridDesc_M_N_Direct = Tuple<>>
+              typename Block2ETileMap>
     __device__ static void Run(const ADataType* __restrict__ p_a_grid,
                                const BDataType* __restrict__ p_b_grid,
                                DsGridPointer p_ds_grid,
@@ -721,9 +720,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
                                    e_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2ETileMap& block_2_etile_map,
-                               const index_t k_batch                              = 1,
-                               const index_t k_idx                                = 0,
-                               const EGridDesc_M_N_Direct& e_grid_desc_m_n_direct = {})
+                               const index_t k_batch = 1,
+                               const index_t k_idx   = 0)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -912,61 +910,18 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                                                c_thread_buf,
                                                                num_k_block_main_loop);
 
-        // Use RunEpilogueNoShuffle from gridwise_common (the base class) for
-        // direct VGPR-to-global output when conditions are met:
-        // (1) no D tensors, (2) scalar-per-vector is 1, (3) PassThrough element-wise op.
-        if constexpr(NumDTensor == 0 && CDEShuffleBlockTransferScalarPerVector_NPerBlock == 1 &&
-                     is_same_v<CDEElementwiseOperation,
-                               tensor_operation::element_wise::PassThrough>)
-        {
-            const auto e_grid_desc_m_n = [&]() {
-                if constexpr(!is_same_v<EGridDesc_M_N_Direct, Tuple<>>)
-                {
-                    return e_grid_desc_m_n_direct;
-                }
-                else
-                {
-                    return transform_tensor_descriptor(
-                        e_grid_desc_mblock_mperblock_nblock_nperblock,
-                        make_tuple(make_merge_transform(make_tuple(
-                                       e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I0),
-                                       Number<MPerBlock>{})),
-                                   make_merge_transform(make_tuple(
-                                       e_grid_desc_mblock_mperblock_nblock_nperblock.GetLength(I2),
-                                       Number<NPerBlock>{}))),
-                        make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}),
-                        make_tuple(Sequence<0>{}, Sequence<1>{}));
-                }
-            }();
-
-            const auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
-                blockwise_gemm.MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(e_grid_desc_m_n);
-
-            Base::template RunEpilogueNoShuffle<EGlobalMemoryDataOperation,
-                                                false,
-                                                Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
-                                                7>(blockwise_gemm,
-                                                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                                   c_thread_buf,
-                                                   block_work_idx[I0],
-                                                   block_work_idx[I1],
-                                                   p_e_grid,
-                                                   cde_element_op);
-        }
-        else
-        {
-            Base::template RunMultiDEpilogue<EGlobalMemoryDataOperation, false, false, true>(
-                blockwise_gemm,
-                ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                e_grid_desc_mblock_mperblock_nblock_nperblock,
-                c_thread_buf,
-                block_work_idx[I0],
-                block_work_idx[I1],
-                p_shared,
-                p_ds_grid,
-                p_e_grid,
-                cde_element_op);
-        }
+        // Shuffle C and write out.
+        Base::template RunMultiDEpilogue<EGlobalMemoryDataOperation, false, false, true>(
+            blockwise_gemm,
+            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+            e_grid_desc_mblock_mperblock_nblock_nperblock,
+            c_thread_buf,
+            block_work_idx[I0],
+            block_work_idx[I1],
+            p_shared,
+            p_ds_grid,
+            p_e_grid,
+            cde_element_op);
     }
 
     template <bool HasMainKBlockLoop,

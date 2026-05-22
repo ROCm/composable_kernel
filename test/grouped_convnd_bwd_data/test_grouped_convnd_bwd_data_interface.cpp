@@ -256,11 +256,6 @@ TYPED_TEST_SUITE(TestGroupedConvndBwdDataFilter1x1Wmma, KernelTypes);
 
 TYPED_TEST(TestGroupedConvndBwdDataFilter1x1Xdl, SpecializationCheckXdl)
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
-    {
-        GTEST_SKIP() << "XDL (MFMA) bwd_data instances are not supported on RDNA (gfx11/gfx12)";
-    }
-
     // Check filter 3,3 instead of 1,1
     this->conv_param  = {2, 2, 4, 192, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
     bool is_supported = this->template Run<2>();
@@ -331,10 +326,6 @@ TYPED_TEST(TestGroupedConvndBwdDataDefaultWmma, VectorLoadCheckWmma)
 
 TYPED_TEST(TestGroupedConvndBwdDataDefaultXdl, SplitK)
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
-    {
-        GTEST_SKIP() << "XDL (MFMA) bwd_data instances are not supported on RDNA (gfx11/gfx12)";
-    }
     if(ck::is_xdl_supported())
     {
         // SplitK = 1
