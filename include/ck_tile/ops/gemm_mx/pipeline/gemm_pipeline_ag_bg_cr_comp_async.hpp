@@ -124,8 +124,10 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
 
     static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
 
-    // Each scale covers 32 K elements
-    static constexpr index_t ScaleBlockSize = 32;
+    static constexpr index_t ScaleGranularityK = Policy::ScaleGranularityK;
+    static constexpr index_t MXdlPack          = Policy::MXdlPack;
+    static constexpr index_t NXdlPack          = Policy::NXdlPack;
+    static constexpr index_t KXdlPack          = Policy::KXdlPack;
 
     static constexpr index_t APackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
@@ -363,7 +365,7 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                     : 1;
 
             // Packed scale dimensions
-            constexpr index_t ScaleKDimPerBlock = KPerBlock / ScaleBlockSize / KXdlPackEff;
+            constexpr index_t ScaleKDimPerBlock = KPerBlock / ScaleGranularityK / KXdlPackEff;
 
             // Scale tensor views and base origins for creating tile windows per iteration
             const auto& scale_a_tensor_view = scale_a_window.get_bottom_tensor_view();

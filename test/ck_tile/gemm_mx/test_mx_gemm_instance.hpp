@@ -40,6 +40,10 @@ float mx_gemm_calc(const MXGemmHostArgs<ScaleM, ScaleN>& args, const ck_tile::st
                                                           GemmConfig::NumWaveGroups,
                                                           GemmConfig::Preshuffle>;
 
+    using ComputeDataType = ADataType;
+    static_assert(sizeof(ComputeDataType) >= sizeof(BDataType),
+                  "mixed_prec_gemm requires ADataType is a wider type than BDataType");
+
     using MXPipelineProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                     BDataType,
                                                                     AccDataType,
@@ -49,15 +53,20 @@ float mx_gemm_calc(const MXGemmHostArgs<ScaleM, ScaleN>& args, const ck_tile::st
 
     constexpr bool IsEightWave =
         (GemmConfig::M_Warp * GemmConfig::N_Warp * GemmConfig::K_Warp) == 8;
-    using MXGemmPipeline =
+    using MXGemmPipeline = std::conditional_t<
+        GemmConfig::Preshuffle,
+        ck_tile::MXGemmPreshufflePipelineAGmemBGmemCRegV1<MXPipelineProblem>,
         std::conditional_t<IsEightWave,
                            ck_tile::MXGemmPipelineAgBgCrCompAsyncEightWaves<MXPipelineProblem>,
-                           ck_tile::MXGemmPipelineAgBgCrCompAsync<MXPipelineProblem>>;
+                           ck_tile::MXGemmPipelineAgBgCrCompAsync<MXPipelineProblem>>>;
 
     using TilePartitioner =
         ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
                                                    GemmConfig::TileParitionerGroupNum,
                                                    GemmConfig::TileParitionerM01>;
+
+    constexpr ck_tile::index_t kBlockedXDLNPerWarp =
+        ck_tile::MXEpilogueTraits<GemmConfig>::BlockedXDLNPerWarp;
 
     using GemmEpilogue = ck_tile::CShuffleEpilogue<
         ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -76,14 +85,14 @@ float mx_gemm_calc(const MXGemmHostArgs<ScaleM, ScaleN>& args, const ck_tile::st
                                          GemmConfig::N_Warp_Tile,
                                          GemmConfig::K_Warp_Tile,
                                          MXPipelineProblem::TransposeC,
-                                         1,         // kNumWaveGroups_ (Default)
-                                         false,     // FixedVectorSize_ (Default)
-                                         1,         // VectorSizeC_ (Default)
-                                         1,         // BlockedXDLN_PerWarp_ (Default)
+                                         GemmConfig::NumWaveGroups,
+                                         false, // FixedVectorSize_ (Default)
+                                         1,     // VectorSizeC_ (Default)
+                                         kBlockedXDLNPerWarp,
                                          false,     // DoubleSmemBuffer_ (Default)
                                          ADataType, // AComputeDataType
                                          BDataType, // BComputeDataType
-                                         true>>;    // TilesPacked_ (because of packed scales)
+                                         !GemmConfig::Preshuffle>>;
 
     using Kernel = ck_tile::MXGemmKernel<TilePartitioner, MXGemmPipeline, GemmEpilogue>;
 

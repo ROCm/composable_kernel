@@ -9,6 +9,7 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/check_err.hpp"
 #include "ck_tile/host/reference/reference_gemm.hpp"
+#include "ck_tile/host/tensor_shuffle_utils.hpp"
 #include "test_mx_gemm_config.hpp"
 #include "test_mx_gemm_instance.hpp"
 
@@ -28,6 +29,56 @@ auto calculate_rtol_atol_mx(ck_tile::index_t K, float max_accumulated_value)
     const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
         max_accumulated_value, K);
     return ck_tile::make_tuple(rtol, atol);
+}
+
+// Pre-shuffle a scale tensor for preshuffle GEMM mode.
+// KLast=true  for A scales (layout [M,    K/32]).
+// KLast=false for B scales (layout [K/32, N]).
+template <typename GemmConfig, bool KLast, typename dtype>
+auto preShuffleScale(ck_tile::HostTensor<dtype>& src)
+{
+    auto src_lengths = src.get_lengths();
+    const auto MN    = KLast ? src_lengths[0] : src_lengths[1];
+    const auto K     = KLast ? src_lengths[1] : src_lengths[0];
+
+    constexpr std::size_t MNXdlPack   = 2;
+    constexpr std::size_t KXdlPack    = 2;
+    constexpr std::size_t XdlMNThread = GemmConfig::N_Warp_Tile;
+    constexpr std::size_t XdlKThread  = ck_tile::get_warp_size() / XdlMNThread;
+
+    const auto MNPadded = ck_tile::integer_least_multiple(MN, XdlMNThread * MNXdlPack);
+    ck_tile::HostTensor<dtype> shuffled(ck_tile::HostTensorDescriptor(
+        {static_cast<std::size_t>(MNPadded * K)}, {static_cast<std::size_t>(1)}));
+
+    const std::size_t K0 = K / KXdlPack / XdlKThread;
+
+    for(std::size_t n = 0; n < static_cast<std::size_t>(MNPadded); ++n)
+    {
+        for(std::size_t k = 0; k < static_cast<std::size_t>(K); ++k)
+        {
+            const auto n0    = n / (XdlMNThread * MNXdlPack);
+            const auto tempn = n % (XdlMNThread * MNXdlPack);
+            const auto n1    = tempn % XdlMNThread;
+            const auto n2    = tempn / XdlMNThread;
+
+            const auto k0    = k / (XdlKThread * KXdlPack);
+            const auto tempk = k % (XdlKThread * KXdlPack);
+            const auto k1    = tempk % XdlKThread;
+            const auto k2    = tempk / XdlKThread;
+
+            const auto outputIndex = n0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread * K0 +
+                                     k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
+                                     k1 * MNXdlPack * KXdlPack * XdlMNThread +
+                                     n1 * MNXdlPack * KXdlPack + k2 * MNXdlPack + n2;
+
+            if constexpr(KLast)
+                shuffled(outputIndex) = n < static_cast<std::size_t>(MN) ? src(n, k) : dtype{};
+            else
+                shuffled(outputIndex) = n < static_cast<std::size_t>(MN) ? src(k, n) : dtype{};
+        }
+    }
+
+    return shuffled;
 }
 
 template <typename Tuple>
@@ -139,72 +190,119 @@ class TestMxGemmUtil : public ::testing::Test
         gen_scales(scale_a_host, -2, 2);
         gen_scales(scale_b_host, -2, 2);
 
-        // Compute effective XdlPack sizes based on GemmConfig tile dimensions
-        constexpr ck_tile::index_t MPerXdl = GemmConfig::M_Warp_Tile;
-        constexpr ck_tile::index_t NPerXdl = GemmConfig::N_Warp_Tile;
-        constexpr ck_tile::index_t KPerXdl = GemmConfig::K_Warp_Tile;
-        constexpr ck_tile::index_t MIterPerWarp =
-            GemmConfig::M_Tile / (GemmConfig::M_Warp * MPerXdl);
-        constexpr ck_tile::index_t NIterPerWarp =
-            GemmConfig::N_Tile / (GemmConfig::N_Warp * NPerXdl);
-        constexpr ck_tile::index_t KIterPerWarp = GemmConfig::K_Tile / KPerXdl;
-
-        constexpr ck_tile::index_t MXdlPackEff =
-            (MIterPerWarp >= 2 && MIterPerWarp % 2 == 0) ? 2 : 1;
-        constexpr ck_tile::index_t NXdlPackEff =
-            (NIterPerWarp >= 2 && NIterPerWarp % 2 == 0) ? 2 : 1;
-        constexpr ck_tile::index_t KXdlPackEff =
-            (KIterPerWarp >= 2 && KIterPerWarp % 2 == 0) ? 2 : 1;
-
-        constexpr ck_tile::index_t XdlMNThread = GemmConfig::M_Warp_Tile;
-        constexpr ck_tile::index_t XdlKThread  = 64 / XdlMNThread;
-
-        // Pack scales into int32_t for GPU consumption
-        auto scale_a_packed =
-            packScalesMNxK<MXdlPackEff, KXdlPackEff, XdlMNThread, XdlKThread>(scale_a_host, true);
-        auto scale_b_packed =
-            packScalesMNxK<NXdlPackEff, KXdlPackEff, XdlMNThread, XdlKThread>(scale_b_host, false);
-
         ck_tile::DeviceMem a_dev_buf(a_host.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem b_dev_buf(b_host.get_element_space_size_in_bytes());
         ck_tile::DeviceMem c_dev_buf(c_host.get_element_space_size_in_bytes());
-        ck_tile::DeviceMem scale_a_dev_buf(scale_a_packed.size() * sizeof(int32_t));
-        ck_tile::DeviceMem scale_b_dev_buf(scale_b_packed.size() * sizeof(int32_t));
-
         a_dev_buf.ToDevice(a_host.data());
-        b_dev_buf.ToDevice(b_host.data());
         c_dev_buf.SetZero();
-        scale_a_dev_buf.ToDevice(scale_a_packed.data());
-        scale_b_dev_buf.ToDevice(scale_b_packed.data());
 
-        ScaleM scale_m(reinterpret_cast<ScaleType*>(scale_a_dev_buf.GetDeviceBuffer()));
-        ScaleN scale_n(reinterpret_cast<ScaleType*>(scale_b_dev_buf.GetDeviceBuffer()));
+        if constexpr(GemmConfig::Preshuffle)
+        {
+            const auto b_shuffled       = ck_tile::shuffle_b<GemmConfig>(b_host);
+            const auto scale_a_shuffled = preShuffleScale<GemmConfig, true>(scale_a_host);
+            const auto scale_b_shuffled = preShuffleScale<GemmConfig, false>(scale_b_host);
 
-        MXGemmHostArgs<ScaleM, ScaleN> args(a_dev_buf.GetDeviceBuffer(),
-                                            b_dev_buf.GetDeviceBuffer(),
-                                            c_dev_buf.GetDeviceBuffer(),
-                                            1,
-                                            M,
-                                            N,
-                                            K,
-                                            stride_A,
-                                            stride_B,
-                                            stride_C,
-                                            scale_m,
-                                            scale_n);
+            ck_tile::DeviceMem b_dev_buf(b_shuffled.get_element_space_size_in_bytes());
+            ck_tile::DeviceMem scale_a_dev_buf(scale_a_shuffled.get_element_space_size_in_bytes());
+            ck_tile::DeviceMem scale_b_dev_buf(scale_b_shuffled.get_element_space_size_in_bytes());
+            b_dev_buf.ToDevice(b_shuffled.data());
+            scale_a_dev_buf.ToDevice(scale_a_shuffled.data());
+            scale_b_dev_buf.ToDevice(scale_b_shuffled.data());
 
-        mx_gemm_calc<GemmConfig,
-                     ADataType,
-                     BDataType,
-                     AccDataType,
-                     CDataType,
-                     ALayout,
-                     BLayout,
-                     CLayout,
-                     ScaleM,
-                     ScaleN,
-                     true,
-                     false>(args, ck_tile::stream_config{nullptr, true, 1, 0, 1, true, true, 50});
+            ScaleM scale_m(reinterpret_cast<ScaleType*>(scale_a_dev_buf.GetDeviceBuffer()));
+            ScaleN scale_n(reinterpret_cast<ScaleType*>(scale_b_dev_buf.GetDeviceBuffer()));
+
+            MXGemmHostArgs<ScaleM, ScaleN> args(a_dev_buf.GetDeviceBuffer(),
+                                                b_dev_buf.GetDeviceBuffer(),
+                                                c_dev_buf.GetDeviceBuffer(),
+                                                1,
+                                                M,
+                                                N,
+                                                K,
+                                                stride_A,
+                                                stride_B,
+                                                stride_C,
+                                                scale_m,
+                                                scale_n);
+
+            mx_gemm_calc<GemmConfig,
+                         ADataType,
+                         BDataType,
+                         AccDataType,
+                         CDataType,
+                         ALayout,
+                         BLayout,
+                         CLayout,
+                         ScaleM,
+                         ScaleN,
+                         true,
+                         false>(args,
+                                ck_tile::stream_config{nullptr, true, 1, 0, 1, true, true, 50});
+        }
+        else
+        {
+            // Compute effective XdlPack sizes based on GemmConfig tile dimensions
+            constexpr ck_tile::index_t MPerXdl = GemmConfig::M_Warp_Tile;
+            constexpr ck_tile::index_t NPerXdl = GemmConfig::N_Warp_Tile;
+            constexpr ck_tile::index_t KPerXdl = GemmConfig::K_Warp_Tile;
+            constexpr ck_tile::index_t MIterPerWarp =
+                GemmConfig::M_Tile / (GemmConfig::M_Warp * MPerXdl);
+            constexpr ck_tile::index_t NIterPerWarp =
+                GemmConfig::N_Tile / (GemmConfig::N_Warp * NPerXdl);
+            constexpr ck_tile::index_t KIterPerWarp = GemmConfig::K_Tile / KPerXdl;
+
+            constexpr ck_tile::index_t MXdlPackEff =
+                (MIterPerWarp >= 2 && MIterPerWarp % 2 == 0) ? 2 : 1;
+            constexpr ck_tile::index_t NXdlPackEff =
+                (NIterPerWarp >= 2 && NIterPerWarp % 2 == 0) ? 2 : 1;
+            constexpr ck_tile::index_t KXdlPackEff =
+                (KIterPerWarp >= 2 && KIterPerWarp % 2 == 0) ? 2 : 1;
+
+            constexpr ck_tile::index_t XdlMNThread = GemmConfig::M_Warp_Tile;
+            constexpr ck_tile::index_t XdlKThread  = 64 / XdlMNThread;
+
+            // Pack scales into int32_t for GPU consumption
+            auto scale_a_packed = packScalesMNxK<MXdlPackEff, KXdlPackEff, XdlMNThread, XdlKThread>(
+                scale_a_host, true);
+            auto scale_b_packed = packScalesMNxK<NXdlPackEff, KXdlPackEff, XdlMNThread, XdlKThread>(
+                scale_b_host, false);
+
+            ck_tile::DeviceMem b_dev_buf(b_host.get_element_space_size_in_bytes());
+            ck_tile::DeviceMem scale_a_dev_buf(scale_a_packed.size() * sizeof(int32_t));
+            ck_tile::DeviceMem scale_b_dev_buf(scale_b_packed.size() * sizeof(int32_t));
+            b_dev_buf.ToDevice(b_host.data());
+            scale_a_dev_buf.ToDevice(scale_a_packed.data());
+            scale_b_dev_buf.ToDevice(scale_b_packed.data());
+
+            ScaleM scale_m(reinterpret_cast<ScaleType*>(scale_a_dev_buf.GetDeviceBuffer()));
+            ScaleN scale_n(reinterpret_cast<ScaleType*>(scale_b_dev_buf.GetDeviceBuffer()));
+
+            MXGemmHostArgs<ScaleM, ScaleN> args(a_dev_buf.GetDeviceBuffer(),
+                                                b_dev_buf.GetDeviceBuffer(),
+                                                c_dev_buf.GetDeviceBuffer(),
+                                                1,
+                                                M,
+                                                N,
+                                                K,
+                                                stride_A,
+                                                stride_B,
+                                                stride_C,
+                                                scale_m,
+                                                scale_n);
+
+            mx_gemm_calc<GemmConfig,
+                         ADataType,
+                         BDataType,
+                         AccDataType,
+                         CDataType,
+                         ALayout,
+                         BLayout,
+                         CLayout,
+                         ScaleM,
+                         ScaleN,
+                         true,
+                         false>(args,
+                                ck_tile::stream_config{nullptr, true, 1, 0, 1, true, true, 50});
+        }
 
         c_dev_buf.FromDevice(c_host.data());
 

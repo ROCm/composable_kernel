@@ -6,6 +6,24 @@
 #include <stdexcept>
 
 namespace ck_tile {
+namespace detail {
+template <typename GemmConfig, typename T, typename = void>
+struct b_contiguous_items_per_access
+{
+    // Default: 16 / sizeof(T)
+    static constexpr int value = 16 / static_cast<int>(sizeof(T));
+};
+
+template <typename GemmConfig, typename T>
+struct b_contiguous_items_per_access<GemmConfig,
+                                     T,
+                                     std::void_t<decltype(GemmConfig::BContiguousItemsPerAccess)>>
+{
+    // PackedSize specified
+    static constexpr int value = GemmConfig::BContiguousItemsPerAccess;
+};
+} // namespace detail
+
 template <typename T>
 auto shuffle_aq(const ck_tile::HostTensor<T>* t, int block_aq_k)
 {
@@ -102,9 +120,10 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmConfig)
     }
     else
     {
-        const int KLane = ck_tile::get_warp_size() / gemmConfig.N_Warp_Tile;
-        const int ItemsPerAccess =
-            std::min(16 / static_cast<int>(sizeof(T)), gemmConfig.K_Warp_Tile / KLane);
+        constexpr int KLane = ck_tile::get_warp_size() / GemmConfig::N_Warp_Tile;
+        constexpr int ItemsPerAccess =
+            std::min(detail::b_contiguous_items_per_access<GemmConfig, T>::value,
+                     GemmConfig::K_Warp_Tile / KLane);
 
         ck_tile::HostTensor<T> t_view({n_ / gemmConfig.N_Warp_Tile,
                                        gemmConfig.N_Warp_Tile,
@@ -166,7 +185,8 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmC
     {
         constexpr int KLane = ck_tile::get_warp_size() / GemmConfig::N_Warp_Tile;
         constexpr int ItemsPerAccess =
-            std::min(16 / static_cast<int>(sizeof(T)), GemmConfig::K_Warp_Tile / KLane);
+            std::min(detail::b_contiguous_items_per_access<GemmConfig, T>::value,
+                     GemmConfig::K_Warp_Tile / KLane);
         ck_tile::HostTensor<T> t_view({n_ / gemmConfig.N_Tile,
                                        gemmConfig.N_Warp,
                                        gemmConfig.N_Warp_Tile,

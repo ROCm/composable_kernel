@@ -185,18 +185,53 @@ int run_mx_gemm_with_layouts(int argc, char* argv[], ALayout, BLayout, CLayout)
     auto scale_b_packed =
         packScalesMNxK<NXdlPackEff, KXdlPackEff, XdlMNThread, XdlKThread>(scale_b_host, false);
 
+    const auto b_host_for_device = [&]() {
+        if constexpr(GemmConfig::Preshuffle)
+            return ck_tile::shuffle_b<GemmConfig>(b_host);
+        else
+            return b_host;
+    }();
+
+    const auto scale_a_host_for_device = [&]() {
+        if constexpr(GemmConfig::Preshuffle)
+            return MXGemmArchTraits<GemmConfig>::template preShuffleScale<true>(scale_a_host);
+        else
+            return scale_a_packed;
+    }();
+
+    const auto scale_b_host_for_device = [&]() {
+        if constexpr(GemmConfig::Preshuffle)
+            return MXGemmArchTraits<GemmConfig>::template preShuffleScale<false>(scale_b_host);
+        else
+            return scale_b_packed;
+    }();
+
+    const auto scale_a_device_bytes = [&]() {
+        if constexpr(GemmConfig::Preshuffle)
+            return scale_a_host_for_device.get_element_space_size_in_bytes();
+        else
+            return scale_a_host_for_device.size() * sizeof(int32_t);
+    }();
+
+    const auto scale_b_device_bytes = [&]() {
+        if constexpr(GemmConfig::Preshuffle)
+            return scale_b_host_for_device.get_element_space_size_in_bytes();
+        else
+            return scale_b_host_for_device.size() * sizeof(int32_t);
+    }();
+
     // Device buffers for A, B, C, and packed scale tensors
     ck_tile::DeviceMem a_dev_buf(a_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem b_dev_buf(b_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem b_dev_buf(b_host_for_device.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_dev_buf(c_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem scale_a_dev_buf(scale_a_packed.size() * sizeof(int32_t));
-    ck_tile::DeviceMem scale_b_dev_buf(scale_b_packed.size() * sizeof(int32_t));
+    ck_tile::DeviceMem scale_a_dev_buf(scale_a_device_bytes);
+    ck_tile::DeviceMem scale_b_dev_buf(scale_b_device_bytes);
 
     a_dev_buf.ToDevice(a_host.data());
-    b_dev_buf.ToDevice(b_host.data());
+    b_dev_buf.ToDevice(b_host_for_device.data());
     c_dev_buf.SetZero();
-    scale_a_dev_buf.ToDevice(scale_a_packed.data());
-    scale_b_dev_buf.ToDevice(scale_b_packed.data());
+    scale_a_dev_buf.ToDevice(scale_a_host_for_device.data());
+    scale_b_dev_buf.ToDevice(scale_b_host_for_device.data());
 
     // Scale pointers - point to packed int32_t data, kernel reinterprets as int32_t*
     using ScaleM = ck_tile::MXScalePointer<ScaleType, 1, 32>;
@@ -274,24 +309,50 @@ int run_mx_gemm_example(int argc, char* argv[])
     std::string mx_prec  = arg_parser.get_str("mx_prec");
     std::string a_layout = arg_parser.get_str("a_layout");
     std::string b_layout = arg_parser.get_str("b_layout");
+    int preshuffle       = arg_parser.get_int("preshuffle");
+
+    if(preshuffle != 0 && preshuffle != 1)
+        throw std::runtime_error("preshuffle must be 0 or 1.");
 
     if(a_layout == "R" && b_layout == "C")
     {
         if(mx_prec == "fp4" || mx_prec == "fp4xfp4")
         {
-            return run_mx_gemm_with_layouts<ck_tile::pk_fp4_t,
-                                            ck_tile::pk_fp4_t,
-                                            float,
-                                            GemmConfig,
-                                            true>(argc, argv, Row{}, Col{}, Row{});
+            if(preshuffle == 1)
+            {
+                return run_mx_gemm_with_layouts<ck_tile::pk_fp4_t,
+                                                ck_tile::pk_fp4_t,
+                                                float,
+                                                MXfp4_GemmConfig16_Preshuffle,
+                                                true>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else
+            {
+                return run_mx_gemm_with_layouts<ck_tile::pk_fp4_t,
+                                                ck_tile::pk_fp4_t,
+                                                float,
+                                                GemmConfig,
+                                                true>(argc, argv, Row{}, Col{}, Row{});
+            }
         }
         else if(mx_prec == "fp8" || mx_prec == "fp8xfp8")
         {
-            return run_mx_gemm_with_layouts<ck_tile::fp8_t,
-                                            ck_tile::fp8_t,
-                                            float,
-                                            GemmConfig,
-                                            true>(argc, argv, Row{}, Col{}, Row{});
+            if(preshuffle == 1)
+            {
+                return run_mx_gemm_with_layouts<ck_tile::fp8_t,
+                                                ck_tile::fp8_t,
+                                                float,
+                                                MXfp8_GemmConfig16_Preshuffle,
+                                                true>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else
+            {
+                return run_mx_gemm_with_layouts<ck_tile::fp8_t,
+                                                ck_tile::fp8_t,
+                                                float,
+                                                GemmConfig,
+                                                true>(argc, argv, Row{}, Col{}, Row{});
+            }
         }
         else
         {

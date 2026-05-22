@@ -15,6 +15,11 @@ using MxTypes = ::testing::Types<std::tuple<F4, F4, MX_GemmConfig16,         Row
                                  std::tuple<F4, F4, MX_GemmConfigEightWaves, Row, Col, Row>,
                                  std::tuple<F8, F8, MX_GemmConfig16,         Row, Col, Row>,
                                  std::tuple<F8, F8, MX_GemmConfigEightWaves, Row, Col, Row>>;
+
+// Preshuffle configs 
+using MxTypesPreshuffle = ::testing::Types<
+    std::tuple<F4, F4, MXfp4_GemmConfig_Preshuffle, Row, Col, Row>,
+    std::tuple<F8, F8, MXfp8_GemmConfig_Preshuffle, Row, Col, Row>>;
 // clang-format on
 
 template <typename TypeParam>
@@ -29,5 +34,20 @@ TYPED_TEST(TestMxGemm, Default)
     // No M/N/K padding so we use 128x256x256 as smallest dimensions
     this->Run(128, 256, 256);
     this->Run(256, 256, 512);
+    this->Run(1024, 1024, 1024);
+}
+
+// Preshuffle tests
+template <typename TypeParam>
+class TestMxGemmPreshuffle : public TestMxGemmUtil<TypeParam>
+{
+};
+
+TYPED_TEST_SUITE(TestMxGemmPreshuffle, MxTypesPreshuffle);
+
+TYPED_TEST(TestMxGemmPreshuffle, Default)
+{
+    this->Run(128, 512, 256);
+    this->Run(256, 512, 512);
     this->Run(1024, 1024, 1024);
 }
