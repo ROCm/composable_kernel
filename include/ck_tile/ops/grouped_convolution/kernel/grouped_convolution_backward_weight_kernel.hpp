@@ -370,7 +370,7 @@ struct GroupedConvBwdWeightKernelArgs
 
     void* workspace_ptr = nullptr;
 
-    // StreamK tile partitioner — stored directly when TilePartitioner_ is a real type,
+    // StreamK tile partitioner - stored directly when TilePartitioner_ is a real type,
     // empty struct when void (Split-K path). Constructed with dummy values here;
     // properly initialized in MakeKernelArgs before device-side use.
     struct EmptyPartitioner
@@ -651,7 +651,7 @@ struct GroupedConvolutionBackwardWeightKernel
                 return false;
             }
         }
-        // Runtime arch check — complements the static_assert in operator().
+        // Runtime arch check - complements the static_assert in operator().
         // Both are needed: this check runs on the host (where get_compiler_target()
         // isn't available since HIP's host pass doesn't define __gfx*__ macros),
         // while the static_assert in operator() catches misuse at device compile time.
@@ -1075,7 +1075,7 @@ struct GroupedConvolutionBackwardWeightKernel
 
     CK_TILE_DEVICE void RunStreamK(GroupedConvBwdWeightKernelArgsSpecialized& kargs) const
     {
-        // Device-side compile-time arch check — complements the runtime check in
+        // Device-side compile-time arch check - complements the runtime check in
         // IsSupportedArgument(). Both are needed: the runtime check runs on the host
         // (where get_compiler_target() isn't available since HIP's host pass doesn't
         // define __gfx*__ macros), while this catches misuse at device compile time.
@@ -1258,7 +1258,7 @@ struct GroupedConvolutionBackwardWeightKernel
                         amd_wave_read_first_lane(partner_start_iter < tile_iter_end);
 
                     // If the partner of the tile-starter is not in this tile,
-                    // then all partials are accumulated — write final result.
+                    // then all partials are accumulated - write final result.
                     if(tile_started && !partner_in_tile)
                     {
                         auto c_block_window_out =

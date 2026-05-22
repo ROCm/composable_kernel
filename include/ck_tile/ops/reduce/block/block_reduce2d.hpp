@@ -177,7 +177,7 @@ struct BlockReduce2d
     }
 
     // uniform_sequence_gen_t<NSize, Value> generates sequence of NSize elements filled with Value
-    // e.g., uniform_sequence_gen_t<2, 1> → {1, 1} and uniform_sequence_gen_t<3, 4> → {4, 4, 4}
+    // e.g., uniform_sequence_gen_t<2, 1> -> {1, 1} and uniform_sequence_gen_t<3, 4> -> {4, 4, 4}
     template <typename XDistributedTensor_,
               typename ReduceFunc,
               typename ReducePacksPerXDim = uniform_sequence_gen_t<2, 1>>

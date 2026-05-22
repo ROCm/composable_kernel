@@ -544,7 +544,7 @@ struct sequence_sort_helper<sequence<Vs...>, Compare, sequence<Idx...>>
     {
         constexpr index_t n = sizeof...(Vs);
         sort_result r{{{Vs...}}, {{Idx...}}};
-        // insertion sort — O(N^2) constexpr steps, O(1) template depth
+        // insertion sort - O(N^2) constexpr steps, O(1) template depth
         for(index_t i = 1; i < n; ++i)
         {
             for(index_t j = i; j > 0 && Compare{}(r.values[j], r.values[j - 1]); --j)

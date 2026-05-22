@@ -31,7 +31,7 @@ namespace reflect {
 
 namespace detail {
 
-// Guards access to TilePartitioner members — primary template is depthwise (void partitioner).
+// Guards access to TilePartitioner members - primary template is depthwise (void partitioner).
 template <typename TilePartitioner, bool IsDepthwise>
 struct TilePartitionerFields
 {
@@ -62,7 +62,7 @@ struct TilePartitionerFields<TilePartitioner, false>
     static constexpr int kKWarpTile = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
 };
 
-// Guards access to GemmPipeline scheduling members — primary template is depthwise.
+// Guards access to GemmPipeline scheduling members - primary template is depthwise.
 template <typename GemmPipeline, bool IsDepthwise>
 struct GemmPipelineFields
 {
@@ -99,7 +99,7 @@ struct InstanceTraits<ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraits
     static constexpr ck_tile::ConvolutionSpecialization ConvSpecialization =
         GroupedConvTraitsType_::ConvSpecialization;
 
-    // Layout types (void for depthwise — access guarded in instance_string())
+    // Layout types (void for depthwise - access guarded in instance_string())
     using InLayout  = typename GroupedConvTraitsType_::InLayout;
     using WeiLayout = typename GroupedConvTraitsType_::WeiLayout;
     using DsLayout  = typename GroupedConvTraitsType_::DsLayout;
@@ -112,7 +112,7 @@ struct InstanceTraits<ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraits
     static constexpr bool kEnableSplitImage = GroupedConvTraitsType_::EnableSplitImage;
     static constexpr int kExplicitGemm      = GroupedConvTraitsType_::ExplicitGemm;
 
-    // TilePartitioner fields — safe for both GEMM and depthwise (void) partitioners
+    // TilePartitioner fields - safe for both GEMM and depthwise (void) partitioners
     using TPF                       = detail::TilePartitionerFields<TilePartitioner_, kIsDepthwise>;
     static constexpr int kMPerBlock = TPF::kMPerBlock;
     static constexpr int kNPerBlock = TPF::kNPerBlock;
@@ -128,7 +128,7 @@ struct InstanceTraits<ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraits
     using ADataType = typename GemmPipeline_::ADataType;
     using BDataType = typename GemmPipeline_::BDataType;
 
-    // GemmPipeline scheduling fields — safe for both paths
+    // GemmPipeline scheduling fields - safe for both paths
     using GPF          = detail::GemmPipelineFields<GemmPipeline_, kIsDepthwise>;
     using GemmPipeline = GemmPipeline_;
     static constexpr ck_tile::GemmPipelineScheduler kPipelineScheduler = GPF::kPipelineScheduler;

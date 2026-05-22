@@ -190,12 +190,12 @@ struct tile_window_with_static_distribution
     /**
      * @brief Load tile with elementwise function
      *
-     * @note Load tile with elementwise — during value loading, an
-     *       elementwise function is executed for each A0, A1, … AN.
-     *       The values A0, A1, … AN are read by the same thread. In this way, we
+     * @note Load tile with elementwise - during value loading, an
+     *       elementwise function is executed for each A0, A1, ... AN.
+     *       The values A0, A1, ... AN are read by the same thread. In this way, we
      *       reduce the amount of information loaded into the registers.
      *       The same thread, during vectorized reading, accesses the same set of
-     *       data from A0, A1, A2, … AN.
+     *       data from A0, A1, A2, ... AN.
      */
     template <typename... TileWindow_,
               typename ElementWise_,

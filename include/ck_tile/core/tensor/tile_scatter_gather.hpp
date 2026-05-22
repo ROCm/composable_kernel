@@ -405,7 +405,7 @@ struct tile_scatter_gather
         // register window to be reused as scratch and scattered the SRD writes
         // across two conditional branches, which gfx950's packed
         // buffer_load_dwordx4 issue window doesn't tolerate (gfx942 absorbs it
-        // via per-tile single-dword loads). __builtin_assume is hint-only —
+        // via per-tile single-dword loads). __builtin_assume is hint-only -
         // no branch, no scratch SGPRs, no codegen impact.
         __builtin_assume(size > 0);
         using BufType                         = remove_cvref_t<decltype(bottom_tensor_view_.buf_)>;

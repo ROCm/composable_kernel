@@ -419,7 +419,7 @@ struct AQuantBlockUniversalGemmAsBsCr
             // Track which KRepeat chunk is currently loaded
             index_t current_k_repeat_loaded = -1;
 
-            // Restructured loop: M → N → QScale → KIterPerQScale
+            // Restructured loop: M -> N -> QScale -> KIterPerQScale
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     // Iterate over quantization groups

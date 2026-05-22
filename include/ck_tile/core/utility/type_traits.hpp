@@ -12,7 +12,7 @@
 
 namespace ck_tile {
 
-// `always_false_v<T...>` — a value-template that is always `false` but whose
+// `always_false_v<T...>` - a value-template that is always `false` but whose
 // evaluation is deferred until template instantiation. The canonical use is
 // inside the `else` arm of an `if constexpr` chain or under an arch-gated
 // `#if` to fire a `static_assert` ONLY when the offending instantiation is

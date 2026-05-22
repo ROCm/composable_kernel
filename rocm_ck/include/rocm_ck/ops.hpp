@@ -1,6 +1,6 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Role: meta — operator structs, Op variant. No runtime, no CK deps.
+// Role: meta - operator structs, Op variant. No runtime, no CK deps.
 //
 // Operators are the edges of a Signature's compute graph. Each operator
 // names its tensor slots as string_view labels (e.g., "A", "bias", "query")
@@ -8,13 +8,13 @@
 // owns the tensor definitions; operators just reference them by name.
 //
 // This separation means operators are reusable across different tensor
-// configurations — a GemmOp doesn't care whether its "lhs" is FP16 or BF16,
+// configurations - a GemmOp doesn't care whether its "lhs" is FP16 or BF16,
 // Row or Col. That's resolved later when the Signature is validated.
 //
 // The Op variant is the closed set of supported operator types. Adding a
 // new operator means adding a struct here and a variant alternative.
-// Fused operations (like FMHA) are single operators — not chains of
-// elementwise + GEMM — because CK Tile implements them as monolithic kernels.
+// Fused operations (like FMHA) are single operators - not chains of
+// elementwise + GEMM - because CK Tile implements them as monolithic kernels.
 
 #pragma once
 
@@ -26,7 +26,7 @@
 namespace rocm_ck {
 
 // Matrix multiplication: out = lhs x rhs.
-// acc_dtype is the accumulation type — defaults to FP32, the universal safe
+// acc_dtype is the accumulation type - defaults to FP32, the universal safe
 // choice across all input types.
 struct GemmOp
 {

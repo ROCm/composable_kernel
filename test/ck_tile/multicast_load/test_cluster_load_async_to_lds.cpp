@@ -1,28 +1,28 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-// Unit test suite for cluster_multicast_load_async_to_lds<T> — the CK Tile wrapper
+// Unit test suite for cluster_multicast_load_async_to_lds<T> - the CK Tile wrapper
 // around CLUSTER_LOAD_ASYNC_TO_LDS_B* (gfx1250 only).
 //
 // Complements test_cluster_load_multicast.cpp (CLUSTER_LOAD_B, VGPR destination)
 // by testing behaviors unique to the async LDS path:
 //
-//   Group 1:  SingleWGP baseline — B32/B64/B128, mask=0x1 and mask=0x0
-//   Group 2:  LDSVisibility — non-requesting waves read LDS after barrier
-//   Group 3:  LDS address layout — per-lane VDST strided addressing
-//   Group 4:  MultiWGP broadcast — async LDS delivery at cluster scale (1D and 2D cluster dims)
-//   Group 5:  ASYNCcnt ordering — CLUSTER and GLOBAL async loads share one counter
-//   Group 6:  PartialBroadcast — non-contiguous mask, mixed instruction types
-//   Group 8:  MultiWGP + LDSVisibility — canonical GEMM tile-load pattern
-//   Group 10: ConcurrentGroups — LDS routing isolation between independent groups
-//   Group 11: BufferViewAsyncGet — cluster_async_get() through buffer_view,
+//   Group 1:  SingleWGP baseline - B32/B64/B128, mask=0x1 and mask=0x0
+//   Group 2:  LDSVisibility - non-requesting waves read LDS after barrier
+//   Group 3:  LDS address layout - per-lane VDST strided addressing
+//   Group 4:  MultiWGP broadcast - async LDS delivery at cluster scale (1D and 2D cluster dims)
+//   Group 5:  ASYNCcnt ordering - CLUSTER and GLOBAL async loads share one counter
+//   Group 6:  PartialBroadcast - non-contiguous mask, mixed instruction types
+//   Group 8:  MultiWGP + LDSVisibility - canonical GEMM tile-load pattern
+//   Group 10: ConcurrentGroups - LDS routing isolation between independent groups
+//   Group 11: BufferViewAsyncGet - cluster_async_get() through buffer_view,
 //             including ISA-specified INST_OFFSET behaviour
 //
 // Synchronization primitives used:
-//   s_wait_asynccnt<0>() — wait for all pending async LDS writes to complete.
+//   s_wait_asynccnt<0>() - wait for all pending async LDS writes to complete.
 //     ASYNCcnt decrements only when the LDS write is committed and visible to
 //     subsequent DS reads on the same wave.
-//   block_sync_lds_direct_load<0>() — s_wait_asynccnt<0> + s_barrier_signal/wait.
+//   block_sync_lds_direct_load<0>() - s_wait_asynccnt<0> + s_barrier_signal/wait.
 //     Used when multiple waves in a WG must synchronize after an async LDS load.
 
 #include "gtest/gtest.h"
@@ -109,7 +109,7 @@ void run_async_lds_test(const std::vector<T>& h_src, int mask, const char* test_
 }
 
 // ---------------------------------------------------------------------------
-// Group 1: SingleWGP — B32, B64, B128, mask=0x1
+// Group 1: SingleWGP - B32, B64, B128, mask=0x1
 // ---------------------------------------------------------------------------
 
 TEST(AsyncLDS, B32_SingleWGP)
@@ -149,7 +149,7 @@ TEST(AsyncLDS, B128_SingleWGP)
 }
 
 // ---------------------------------------------------------------------------
-// Group 2: LDSVisibility — cross-wave LDS sharing after async load
+// Group 2: LDSVisibility - cross-wave LDS sharing after async load
 // ---------------------------------------------------------------------------
 // 4 waves per WG (128 threads). Wave 0 issues the async cluster load into
 // LDS[0..31], then all waves synchronize via block_sync_lds_direct_load
@@ -267,7 +267,7 @@ TEST(LDSVisibility, B128_FourWaves)
 }
 
 // ---------------------------------------------------------------------------
-// Group 3: LDSAddressLayout — per-lane VDST addressing (strided)
+// Group 3: LDSAddressLayout - per-lane VDST addressing (strided)
 // ---------------------------------------------------------------------------
 // CLUSTER_LOAD_ASYNC_TO_LDS_B* supplies the LDS destination address via a
 // per-lane VGPR (VDST). Each lane independently specifies where in LDS its
@@ -276,7 +276,7 @@ TEST(LDSVisibility, B128_FourWaves)
 //
 // Each lane writes to lds_buf[lane_id * kStride], leaving kStride-1 unused
 // slots between lanes. The strided slots are zero-initialized before the
-// async load so that any unwritten slot reads back 0 — which cannot
+// async load so that any unwritten slot reads back 0 - which cannot
 // collide with src[i] = 1000 + i. If the hardware ignores VDST and
 // writes to lds_buf[lane_id] instead, lanes 1..31 read from their strided
 // slots and find zeros, causing a FAIL.
@@ -363,10 +363,10 @@ TEST(LDSAddressLayout, B32_Strided_SingleWGP)
 }
 
 // ---------------------------------------------------------------------------
-// Group 4: MultiWGP Broadcast — async LDS delivery at cluster scale
+// Group 4: MultiWGP Broadcast - async LDS delivery at cluster scale
 // ---------------------------------------------------------------------------
 // All WGPs in a cluster load from the same single source value (true broadcast).
-// Each lane within a WGP loads from shared_src → lds_buf[lane_id] via per-lane
+// Each lane within a WGP loads from shared_src -> lds_buf[lane_id] via per-lane
 // VDST, so every LDS slot in every WGP ends up holding the broadcast value.
 //
 // Wave 0 of each WGP issues the async cluster load; s_wait_asynccnt<0> ensures
@@ -569,11 +569,11 @@ TEST(MultiWGPBroadcast, B32_2x2Cluster)
 }
 
 // ---------------------------------------------------------------------------
-// Group 7: ZeroMask — mask=0x0 degrades to non-multicast async load
+// Group 7: ZeroMask - mask=0x0 degrades to non-multicast async load
 // ---------------------------------------------------------------------------
 // ISA spec: "If M0[15:0] == 0, this is treated as a non-Cluster-multicast load:
 // return only to the requesting WGP (it is not treated as 'do not return to
-// any wave')." Data still lands in the requesting WGP's LDS — no deadlock,
+// any wave')." Data still lands in the requesting WGP's LDS - no deadlock,
 // no lost load.
 
 TEST(AsyncLDS, B32_ZeroMask)
@@ -589,7 +589,7 @@ TEST(AsyncLDS, B32_ZeroMask)
 }
 
 // ---------------------------------------------------------------------------
-// Group 5: ASYNCcnt Ordering — CLUSTER_LOAD_ASYNC_TO_LDS + GLOBAL_LOAD_ASYNC_TO_LDS
+// Group 5: ASYNCcnt Ordering - CLUSTER_LOAD_ASYNC_TO_LDS + GLOBAL_LOAD_ASYNC_TO_LDS
 // ---------------------------------------------------------------------------
 // Both instructions share a single ASYNCcnt on gfx1250, so one
 // s_wait_asynccnt<0>() is sufficient to guarantee both async LDS writes
@@ -598,7 +598,7 @@ TEST(AsyncLDS, B32_ZeroMask)
 // A single wave issues both instructions back-to-back with no wait between:
 //   1. cluster_multicast_load_async_to_lds(src_a + lane) -> lds_a[lane]
 //   2. global_load_async_to_lds_b32(src_b + lane)        -> lds_b[lane]
-//   3. s_wait_asynccnt<0>()   — one wait must drain both
+//   3. s_wait_asynccnt<0>()   - one wait must drain both
 //   4. Read lds_a[lane] -> dst_a[lane], lds_b[lane] -> dst_b[lane]
 //
 // If s_wait_asynccnt only drained one instruction type, the wave would read
@@ -628,7 +628,7 @@ struct ASYNCcntOrderingKernel
         __builtin_amdgcn_global_load_async_to_lds_b32(
             ck_tile::to_global(src_b + lane_id), ck_tile::to_lds(lds_b + lane_id), 0, 0);
 
-        // Step 3: Single wait — must drain both async loads.
+        // Step 3: Single wait - must drain both async loads.
         ck_tile::s_wait_asynccnt<0>();
 
         // Step 4: Read both LDS slots. Correct data in both confirms shared
@@ -705,7 +705,7 @@ TEST(ASYNCcntOrdering, MixedAsyncLoads_B32_SingleWGP)
 }
 
 // ---------------------------------------------------------------------------
-// Group 6: PartialBroadcast — non-contiguous mask, mixed instruction types
+// Group 6: PartialBroadcast - non-contiguous mask, mixed instruction types
 // ---------------------------------------------------------------------------
 // 4 WGPs, mask = 0x5 (binary 0101). WGPs 0 and 2 participate in the cluster
 // multicast; WGPs 1 and 3 do not.
@@ -719,7 +719,7 @@ TEST(ASYNCcntOrdering, MixedAsyncLoads_B32_SingleWGP)
 //   Expected LDS: 5000 + lane in every slot
 //
 // This simultaneously verifies:
-//   1. Multicast data is delivered only to WGPs whose bits are set in M0 —
+//   1. Multicast data is delivered only to WGPs whose bits are set in M0 -
 //      non-participating WGPs do not receive the broadcast value.
 //   2. Both async instruction types coexist in the same cluster on the same
 //      ASYNCcnt without cross-contaminating each other's LDS destinations.
@@ -823,7 +823,7 @@ TEST(PartialBroadcast, B32_4WGP_Mask0x5)
 }
 
 // ---------------------------------------------------------------------------
-// Group 8: MultiWGP + LDSVisibility Combined — the canonical GEMM tile-load
+// Group 8: MultiWGP + LDSVisibility Combined - the canonical GEMM tile-load
 // ---------------------------------------------------------------------------
 // 4 WGPs in a cluster, 4 waves per WG (128 threads). Wave 0 of each WG issues
 // cluster_multicast_load_async_to_lds (true broadcast: all lanes load from the
@@ -966,7 +966,7 @@ TEST(MultiWGPLDSVisibility, B128_4WGP_4Waves)
 }
 
 // ---------------------------------------------------------------------------
-// Group 10: ConcurrentGroups — LDS routing isolation between independent groups
+// Group 10: ConcurrentGroups - LDS routing isolation between independent groups
 // ---------------------------------------------------------------------------
 // 4 WGPs in one cluster, two independent broadcast groups:
 //   WGPs 0/1: mask = 0x3, load val_a into LDS
@@ -977,7 +977,7 @@ TEST(MultiWGPLDSVisibility, B128_4WGP_4Waves)
 //
 // For CLUSTER_LOAD_B (VGPR destination), misdirected data would land in a
 // per-thread VGPR that is private to one wave and physically unreadable by
-// another WG — so VGPR tests cannot detect LDS routing bugs. Here, if the
+// another WG - so VGPR tests cannot detect LDS routing bugs. Here, if the
 // hardware routes val_a to WGPs 2/3's LDS (or vice versa), the host
 // verification catches it. This is the only test that can expose such a bug.
 
@@ -1100,7 +1100,7 @@ TEST(ConcurrentGroupsLDS, B128_4WGP_TwoGroups)
 }
 
 // ---------------------------------------------------------------------------
-// Group 11: BufferViewAsyncGet — cluster_async_get() through buffer_view
+// Group 11: BufferViewAsyncGet - cluster_async_get() through buffer_view
 // ---------------------------------------------------------------------------
 // Tests the buffer_view::cluster_async_get() interface, which wraps
 // cluster_multicast_load_async_to_lds and handles global pointer arithmetic
@@ -1126,7 +1126,7 @@ using TestBufView = ck_tile::buffer_view<ck_tile::address_space_enum::global,
                                          true,
                                          ck_tile::amd_buffer_coherence_enum::coherence_default>;
 
-// Kernel 1: basic load — each lane loads src[lane_id] into lds_buf[lane_id]
+// Kernel 1: basic load - each lane loads src[lane_id] into lds_buf[lane_id]
 // via buffer_view::cluster_async_get.
 struct BufferViewBasicKernel
 {
@@ -1189,9 +1189,9 @@ TEST(BufferViewAsyncGet, B32_BasicLoad)
         EXPECT_EQ(h_dst[i], h_src[i]) << "B32_BasicLoad: mismatch at lane " << i;
 }
 
-// Kernel 2: inst_offset=4 — each lane supplies VDST = &lds_buf[lane*2].
+// Kernel 2: inst_offset=4 - each lane supplies VDST = &lds_buf[lane*2].
 // ISA applies inst_offset to both VADDR and VDST:
-//   LDS[VDST+4] = GLOBAL[VADDR+4]  →  lds_buf[lane*2+1] = src[lane+1]
+//   LDS[VDST+4] = GLOBAL[VADDR+4]  ->  lds_buf[lane*2+1] = src[lane+1]
 // src is allocated with NUM_LANES+1 elements so lane 31 reads src[32] safely.
 struct BufferViewInstOffsetKernel
 {
@@ -1263,7 +1263,7 @@ TEST(BufferViewAsyncGet, B32_InstOffset)
     const int sentinel = 0xDEADBEEF;
     for(int i = 0; i < NUM_LANES; i++)
     {
-        // Even slot (VDST): inst_offset skips this — sentinel must remain.
+        // Even slot (VDST): inst_offset skips this - sentinel must remain.
         EXPECT_EQ(h_dst[i * 2], sentinel)
             << "lane " << i << " even slot: expected sentinel, got " << h_dst[i * 2];
 

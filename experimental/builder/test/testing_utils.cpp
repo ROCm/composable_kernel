@@ -21,7 +21,7 @@ namespace ck_tile::test {
 // Wagner-Fischer Algorithm for Computing Edit Distance and Inline Diff
 //
 // OUTPUT FORMAT: [expected|actual] for differences, plain text for matches
-// Example: "hello world" vs "hello earth" → "hello [world|earth]"
+// Example: "hello world" vs "hello earth" -> "hello [world|earth]"
 //
 // This function implements the Wagner-Fischer algorithm (1974), which is the classic
 // dynamic programming solution for computing the minimum edit distance (Levenshtein distance)

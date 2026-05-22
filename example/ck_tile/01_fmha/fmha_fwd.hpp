@@ -677,7 +677,7 @@ struct fmha_batch_prefill_args
 //   GLOBAL_LOAD_LDS: required when (a) the page is smaller than one K/V tile
 //     so per-page SRD is impossible, AND (b) the total KV-pool byte size
 //     exceeds INT32_MAX so SRD's 32-bit byte offset cannot address it.
-//   BUFFER_LOAD: every other case — the SGPR-resident SRD path is fastest.
+//   BUFFER_LOAD: every other case - the SGPR-resident SRD path is fastest.
 // Inputs are taken as plain integers so the helper has no template parameter
 // and can be called from each codegen-emitted dispatcher arm with the arm's
 // compile-time kN0 / element_bytes substituted as constants.
@@ -691,7 +691,7 @@ fmha_batch_prefill_select_kv_load_mode(ck_tile::index_t page_block_size,
     // Promote every operand to long_index_t so overflow is impossible regardless
     // of multiplication order. A bare `static_cast<long_index_t>(num_total_pages)
     // * batch_stride_k * element_bytes` only works because of left-to-right
-    // associativity — a future reorder of the operands would silently truncate.
+    // associativity - a future reorder of the operands would silently truncate.
     const auto kv_pool_bytes = static_cast<ck_tile::long_index_t>(num_total_pages) *
                                static_cast<ck_tile::long_index_t>(batch_stride_k) *
                                static_cast<ck_tile::long_index_t>(element_bytes);

@@ -30,7 +30,7 @@ using CompilerTargetGfx950 = decltype(make_amdgcn_gfx9_target<amdgcn_target_id::
 
 TEST(SparseMMATrait, SparseMfmaGfx950Specialization)
 {
-    // Test fp16 → fp32 sparse MFMA for GFX950 (16x16x32)
+    // Test fp16 -> fp32 sparse MFMA for GFX950 (16x16x32)
     using TestSparseMfma16x16 = amdgcn_mma<fp16_t,
                                            fp16_t,
                                            fp32_t,
@@ -218,7 +218,7 @@ TEST(SparseMMATrait, MmaSelector_Sparse_F16_F16_F32_16x16x32_Real)
                                  MmaPipelineTest<>::WaveTileK><<<1, waveSize>>>(a, b, c, out);
     };
     // Initialize A with 2:4 structured sparsity pattern: {1, 0, 1, 0, ...}
-    // This ensures the sparse compression transform is actually exercised —
+    // This ensures the sparse compression transform is actually exercised -
     // a no-op or broken compression would pass zeros through, causing incorrect results.
     const std::function<fp16_t(size_t)> sparseAInit = [](size_t i) -> fp16_t {
         return (i % 2 == 0) ? type_convert<fp16_t>(1) : type_convert<fp16_t>(0);
@@ -317,7 +317,7 @@ void sparse_transform_verify(const std::vector<Type>& input,
 }
 
 // Helper: build expected index from a per-group 4-bit pattern, repeated for all groups.
-// Each group of 4 input elements contributes 2 compressed elements → 2 x 2-bit index fields = 4
+// Each group of 4 input elements contributes 2 compressed elements -> 2 x 2-bit index fields = 4
 // bits.
 static int32_t build_repeated_group_idx(int num_groups, int32_t group_bits_4)
 {
@@ -337,8 +337,8 @@ static int32_t build_alternating_group_idx(int num_groups, int32_t even_bits_4, 
 }
 
 // 1. Basic correctness: valid divisible sizes
-// Input pattern: {1, 0, 3, 0, 5, 0, 7, 0, ...} → non-zeros at slots 0,2
-// Group idx pattern: field0=0b00 (slot 0), field1=0b10 (slot 2) → 0b1000
+// Input pattern: {1, 0, 3, 0, 5, 0, 7, 0, ...} -> non-zeros at slots 0,2
+// Group idx pattern: field0=0b00 (slot 0), field1=0b10 (slot 2) -> 0b1000
 template <int NUM, int RATIO, typename Type>
 void sparse_transform_test_case()
 {
@@ -392,7 +392,7 @@ TEST(SparseTransformsTest, AllZeroInput)
 // nonzero_elems initializes to {a_vec[slot2]=0, a_vec[slot3]=V}.
 // Only j=3 triggers: nonzero_elems[0]=V, field0=0b11, pos becomes 1.
 // nonzero_elems[1] keeps its init V. Output: {V, V}.
-// Group idx pattern: field0=0b11, field1=0b10 (default) → 0b1011
+// Group idx pattern: field0=0b11, field1=0b10 (default) -> 0b1011
 template <int NUM>
 void sparse_transform_single_nonzero()
 {
@@ -421,7 +421,7 @@ TEST(SparseTransformsTest, SingleNonZeroPerGroup)
 
 // Non-zeros at slots 1 and 3 in each group.
 // Input: {0, a, 0, b, ...}. Output: {a, b, ...}.
-// Group idx pattern: field0=0b01 (slot 1), field1=0b11 (slot 3) → 0b1101
+// Group idx pattern: field0=0b01 (slot 1), field1=0b11 (slot 3) -> 0b1101
 template <int NUM>
 void sparse_transform_slots_1_and_3()
 {
@@ -452,7 +452,7 @@ TEST(SparseTransformsTest, NonZerosAtSlots1And3)
 
 // Non-zeros at slots 0 and 3 in each group (non-adjacent).
 // Input: {a, 0, 0, b, ...}. Output: {a, b, ...}.
-// Group idx pattern: field0=0b00 (slot 0), field1=0b11 (slot 3) → 0b1100
+// Group idx pattern: field0=0b00 (slot 0), field1=0b11 (slot 3) -> 0b1100
 template <int NUM>
 void sparse_transform_slots_0_and_3()
 {
@@ -482,8 +482,8 @@ TEST(SparseTransformsTest, NonZerosAtSlots0And3)
 }
 
 // Mixed sparsity pattern: even groups have non-zeros at slots 0,2; odd groups at slots 1,3.
-// Even group idx: field0=0b00, field1=0b10 → 0b1000
-// Odd  group idx: field0=0b01, field1=0b11 → 0b1101
+// Even group idx: field0=0b00, field1=0b10 -> 0b1000
+// Odd  group idx: field0=0b01, field1=0b11 -> 0b1101
 template <int NUM>
 void sparse_transform_mixed()
 {

@@ -21,24 +21,24 @@
 // add_device_* function inside ck::tensor_operation::device::instance.
 //
 // Parameters:
-//   INST_TPL     — instance template (e.g. device_contraction_kk_instance,
+//   INST_TPL     - instance template (e.g. device_contraction_kk_instance,
 //                  device_contraction_f64_kk_instance)
-//   OP_NAME      — lowercase operation name for identifier construction
+//   OP_NAME      - lowercase operation name for identifier construction
 //                  (bilinear or scale)
-//   CDE_OP       — C++ element-wise operation type for template argument
+//   CDE_OP       - C++ element-wise operation type for template argument
 //                  (Bilinear or Scale)
-//   NDIM_VAL     — number of dimensions (2 or 6)
-//   NAME_SUFFIX  — data-type and layout suffix for the generated names
+//   NDIM_VAL     - number of dimensions (2 or 6)
+//   NAME_SUFFIX  - data-type and layout suffix for the generated names
 //                  (e.g. f32_f32_f32_f32_kknn, bf16_bf16_bf16_bf16_compute_f32_knnn)
-//   ADATA        — ADataType
-//   BDATA        — BDataType
-//   ACC          — AccDataType
-//   CSHUFFLE     — CShuffleDataType
-//   DS_TUPLE     — DsDataType (e.g. F32_Tuple, Empty_Tuple)
-//   EDATA        — EDataType
-//   COMPUTE      — ComputeDataType
+//   ADATA        - ADataType
+//   BDATA        - BDataType
+//   ACC          - AccDataType
+//   CSHUFFLE     - CShuffleDataType
+//   DS_TUPLE     - DsDataType (e.g. F32_Tuple, Empty_Tuple)
+//   EDATA        - EDataType
+//   COMPUTE      - ComputeDataType
 //
-// Example — bilinear, F32, kk layout, 2D:
+// Example - bilinear, F32, kk layout, 2D:
 //
 //   CK_CONTRACTION_INSTANCE(device_contraction_kk_instance,
 //       bilinear, Bilinear, 2, f32_f32_f32_f32_kknn,

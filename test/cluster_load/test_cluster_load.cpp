@@ -18,7 +18,7 @@ using ::ck::DeviceMem;
 constexpr int kTileSize = 32;
 
 //
-// cluster_load: Global → VGPRs with a WGP participation mask.
+// cluster_load: Global -> VGPRs with a WGP participation mask.
 // Templated kernels covering 4-byte (int), 8-byte (int2), and 16-byte (int4) loads.
 //
 

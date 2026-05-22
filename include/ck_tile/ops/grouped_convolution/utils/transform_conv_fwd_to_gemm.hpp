@@ -131,7 +131,7 @@ struct TransformConvFwdToGemm
 
     // Calculate split-image factors AFTER considering split-N
     // Returns: should_split flag and optimal split factors for D, H, W dimensions
-    // Strategy: Hierarchical splitting with priority order D → H → W
+    // Strategy: Hierarchical splitting with priority order D -> H -> W
     // Dynamically increases split factors until memory fits below threshold
     //
     // NOTE: Layout validation should be done at the invoker level before calling this function
@@ -188,7 +188,7 @@ struct TransformConvFwdToGemm
             return info;
         }
 
-        // Split-image is needed - use hierarchical priority: D → H → W
+        // Split-image is needed - use hierarchical priority: D -> H -> W
         info.should_split = true;
 
         // Hierarchical splitting strategy:
@@ -253,7 +253,7 @@ struct TransformConvFwdToGemm
         // Use maximum allowed split as best effort (capped at 64 total pieces)
         info.num_d_pieces = (D_out < 4) ? D_out : 4; // Cap at 4
         info.num_h_pieces = (H_out < 4) ? H_out : 4; // Cap at 4
-        info.num_w_pieces = (W_out < 4) ? W_out : 4; // Cap at 4 (max 4×4×4=64)
+        info.num_w_pieces = (W_out < 4) ? W_out : 4; // Cap at 4 (max 4x4x4=64)
 
         return info;
     }

@@ -240,7 +240,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                 // Each warp processes multiple scales: WarpGemm::kN / NPerQ scales per warp.
                 //
                 // Example: NPerQ=8, WarpGemm::kN=16, KPerQ=128, BlockGemmShape::kK=256
-                //          → 2 scales per warp in N, 2 K-groups per block
+                //          -> 2 scales per warp in N, 2 K-groups per block
 
                 // N1: Number of K-dimension quantization groups per block,
                 //      Each K-group of KPerQ elements shares the same scale.
@@ -280,7 +280,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                 // Some warps share the same scale (KR > 1 creates warp grouping).
                 //
                 // Example: NPerQ=32, WarpGemm::kN=16, NWarps=4
-                //          → KR=2 (2 warps share same scale), K1=2 (2 unique scale groups)
+                //          -> KR=2 (2 warps share same scale), K1=2 (2 unique scale groups)
 
                 // KR: Number of warps sharing the same scale
                 // K1: Number of distinct warp groups (unique scales)
@@ -318,7 +318,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                 // All warps share the same scale value for their N-tiles.
                 //
                 // Example: NPerQ=128, WarpGemm::kN=16, NWarps=4
-                //          → 128 >= 16*4=64, so all 4 warps use the same scale
+                //          -> 128 >= 16*4=64, so all 4 warps use the same scale
 
                 // N1: K-dimension quantization groups
                 // N0: Minimal (1) since scale is shared across N
@@ -356,18 +356,18 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
             ///    - Each warp processes multiple scales (WarpGemm::kN / NPerQ scales per warp)
             ///    - Distribution includes explicit replication factor (XR = NPerQ) for scale
             ///    broadcast
-            ///    - Example: NPerQ=8, WarpGemm::kN=16, NWarps=4 → 2 scales per warp
+            ///    - Example: NPerQ=8, WarpGemm::kN=16, NWarps=4 -> 2 scales per warp
             ///
             /// 2. Medium-grained quantization (WarpGemm::kN <= NPerQ <= WarpGemm::kN * NWarps):
             ///    - Each warp handles exactly one quantization scale
             ///    - Scales are distributed across warps with replication factor XR = NPerQ /
             ///    WarpGemm::kN
-            ///    - Example: NPerQ=64, WarpGemm::kN=16, NWarps=4 → 1 scale per warp, XR=4
+            ///    - Example: NPerQ=64, WarpGemm::kN=16, NWarps=4 -> 1 scale per warp, XR=4
             ///
             /// 3. Coarse-grained quantization (NPerQ > WarpGemm::kN * NWarps):
             ///    - Quantization group spans multiple warps
             ///    - All warps share the same scale value
-            ///    - Example: NPerQ=128, WarpGemm::kN=16, NWarps=4 → all warps use same scale
+            ///    - Example: NPerQ=128, WarpGemm::kN=16, NWarps=4 -> all warps use same scale
             ///
             /// @return A static tile distribution encoding for the BQ scale tensor
             if constexpr(NPerQ < WarpGemm::kN)

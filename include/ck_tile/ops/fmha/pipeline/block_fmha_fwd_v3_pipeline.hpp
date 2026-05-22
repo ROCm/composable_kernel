@@ -33,7 +33,7 @@ namespace ck_tile {
 //   warp gemm calls = MIterPerWarp * NIterPerWarp * KIterPerWarp
 //   MFMAs per call  = WarpGemm::kK / WarpGemm::WarpGemmAttribute::Impl::kK  (kKIter)
 //
-// For bf16/fp16 kKIter=1; for fp8 kKIter=2 (K=32 warp gemm wraps 2× K=16 MFMA).
+// For bf16/fp16 kKIter=1; for fp8 kKIter=2 (K=32 warp gemm wraps 2x K=16 MFMA).
 // ---------------------------------------------------------------------------
 template <typename BlockGemm>
 static constexpr ck_tile::index_t block_gemm_mfma_count_v =
@@ -65,7 +65,7 @@ struct CoreLoopSchedulerDefaultBase
 {
     using Params = CoreLoopSchedulingParams<PipelineProblem>;
 
-    // Phase helper: GEMM0 compute (QK matmul) — MFMA interleaved with TRANS + VALU
+    // Phase helper: GEMM0 compute (QK matmul) - MFMA interleaved with TRANS + VALU
     CK_TILE_DEVICE static constexpr void schedule_gemm0_compute()
     {
         static_for<0, Params::kMfmaPerWarpGemm0, 1>{}([&](auto) {
@@ -75,7 +75,7 @@ struct CoreLoopSchedulerDefaultBase
         });
     }
 
-    // Phase helper: GEMM1 compute (PV matmul) — optional packed-FP32 preamble + MFMA/VALU
+    // Phase helper: GEMM1 compute (PV matmul) - optional packed-FP32 preamble + MFMA/VALU
     CK_TILE_DEVICE static constexpr void schedule_gemm1_compute()
     {
 #if !CK_TILE_DISABLE_PACKED_FP32
@@ -87,7 +87,7 @@ struct CoreLoopSchedulerDefaultBase
         });
     }
 
-    // Phase helper: load phase (memory/LDS loads) — VALU + SALU
+    // Phase helper: load phase (memory/LDS loads) - VALU + SALU
     CK_TILE_DEVICE static constexpr void schedule_load_phase()
     {
         __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::VALU, 2, 0);
@@ -119,21 +119,21 @@ struct CoreLoopSchedulerDefaultBase
 template <typename PipelineProblem, typename QDataType, typename KDataType, typename VDataType>
 struct CoreLoopSchedulerImpl;
 
-// bf16 — uses default base
+// bf16 - uses default base
 template <typename PipelineProblem>
 struct CoreLoopSchedulerImpl<PipelineProblem, ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t>
     : CoreLoopSchedulerDefaultBase<PipelineProblem>
 {
 };
 
-// fp16 — uses default base
+// fp16 - uses default base
 template <typename PipelineProblem>
 struct CoreLoopSchedulerImpl<PipelineProblem, ck_tile::half_t, ck_tile::half_t, ck_tile::half_t>
     : CoreLoopSchedulerDefaultBase<PipelineProblem>
 {
 };
 
-// fp8 — asymmetric GEMM0 scheduling for 2× K iterations
+// fp8 - asymmetric GEMM0 scheduling for 2x K iterations
 //
 // FP8 GEMM0 has 16 MFMAs (kKIter=2) but the same TRANS work as bf16/fp16 (softmax
 // exp count is dtype-independent).  The uniform (MFMA:1, TRANS:2, VALU:2) pattern
@@ -141,8 +141,8 @@ struct CoreLoopSchedulerImpl<PipelineProblem, ck_tile::half_t, ck_tile::half_t, 
 // with nothing to interleave (7 back-to-back MFMAs).
 //
 // Fix: split into two halves matching the natural K iteration boundary:
-//   K iter 0 (MFMAs 1-8):  TRANS-heavy — softmax exp + add reduction chain
-//   K iter 1 (MFMAs 9-16): VALU-heavy  — P scale + cvt_pk_fp8 + o_acc rescale
+//   K iter 0 (MFMAs 1-8):  TRANS-heavy - softmax exp + add reduction chain
+//   K iter 1 (MFMAs 9-16): VALU-heavy  - P scale + cvt_pk_fp8 + o_acc rescale
 template <typename PipelineProblem>
 struct CoreLoopSchedulerImpl<PipelineProblem, ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::fp8_t>
     : CoreLoopSchedulerDefaultBase<PipelineProblem>
@@ -165,12 +165,12 @@ struct CoreLoopSchedulerImpl<PipelineProblem, ck_tile::fp8_t, ck_tile::fp8_t, ck
         });
     }
 
-    // Phase helper: GEMM1 compute (PV matmul) — asymmetric for fmha_alu0 data dependency
+    // Phase helper: GEMM1 compute (PV matmul) - asymmetric for fmha_alu0 data dependency
     //
     // fmha_alu0 runs during PV GEMM on the OTHER sp buffer:
     //   v_perm (byte packing) + v_max3 (row max) + permlane + v_fma (sp_delta)
     //
-    // The v_fma chain depends on the serial max3→permlane→max→mul chain, creating
+    // The v_fma chain depends on the serial max3->permlane->max->mul chain, creating
     // a data dependency gap around MFMAs 8-11.  Use a looser VALU constraint for the
     // second half to give the scheduler freedom to place v_fma where available.
     CK_TILE_DEVICE static constexpr void schedule_gemm1_compute()
@@ -190,7 +190,7 @@ struct CoreLoopSchedulerImpl<PipelineProblem, ck_tile::fp8_t, ck_tile::fp8_t, ck
         });
     }
 
-    // Must override schedule() — static methods have no virtual dispatch
+    // Must override schedule() - static methods have no virtual dispatch
     template <ck_tile::index_t WaveGroup, ck_tile::index_t Phase>
     CK_TILE_DEVICE static constexpr void schedule(ck_tile::number<WaveGroup>,
                                                   ck_tile::number<Phase>)

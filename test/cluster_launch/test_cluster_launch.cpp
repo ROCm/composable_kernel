@@ -131,7 +131,7 @@ TEST(ClusterLaunch, ClusterBuiltins)
     out_mem.FromDevice(out_host.data());
 
     // cluster_id_x = blockIdx.x / clusterSize
-    // Blocks 0,1 → cluster 0; Blocks 2,3 → cluster 1
+    // Blocks 0,1 -> cluster 0; Blocks 2,3 -> cluster 1
     for(int block = 0; block < numBlocks; ++block)
     {
         int expected_cluster_id = block / clusterSize;

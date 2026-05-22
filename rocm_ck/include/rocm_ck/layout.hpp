@@ -1,6 +1,6 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Role: types — Layout enum, constexpr/consteval helpers. No runtime, no CK deps.
+// Role: types - Layout enum, constexpr/consteval helpers. No runtime, no CK deps.
 
 #pragma once
 
@@ -12,7 +12,7 @@
 
 namespace rocm_ck {
 
-// Auto is a resolve-time placeholder — Signature::resolve() replaces it with
+// Auto is a resolve-time placeholder - Signature::resolve() replaces it with
 // the concrete layout from the operator slot. It never reaches the kernel.
 enum class Layout : uint8_t
 {

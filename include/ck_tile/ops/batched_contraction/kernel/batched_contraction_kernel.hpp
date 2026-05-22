@@ -33,7 +33,7 @@
  * **E[G₀,G₁,...,M₀,M₁,...,N₀,N₁,...] = epilogue_op(C, D₀, D₁, D₂, ...)**
  *
  * Where:
- * **C[G₀,G₁,...,M₀,M₁,...,N₀,N₁,...] = Σ_{K₀,K₁,...} A[G₀,G₁,...,M₀,M₁,...,K₀,K₁,...] ×
+ * **C[G₀,G₁,...,M₀,M₁,...,N₀,N₁,...] = Σ_{K₀,K₁,...} A[G₀,G₁,...,M₀,M₁,...,K₀,K₁,...] x
  * B[G₀,G₁,...,N₀,N₁,...,K₀,K₁,...]**
  *
  * Where:
@@ -50,16 +50,16 @@
  * to the dot product computation in matrix multiplication.
  *
  * **Dimension Flattening Strategy**:
- * - **M dimensions** (from tensor A) → Flattened into matrix rows (M_total)
- * - **N dimensions** (from tensor B) → Flattened into matrix columns (N_total)
- * - **K dimensions** (contraction dims) → Flattened into inner dimension (K_total)
- * - **G dimensions** (batch dims) → Handled through batch processing
+ * - **M dimensions** (from tensor A) -> Flattened into matrix rows (M_total)
+ * - **N dimensions** (from tensor B) -> Flattened into matrix columns (N_total)
+ * - **K dimensions** (contraction dims) -> Flattened into inner dimension (K_total)
+ * - **G dimensions** (batch dims) -> Handled through batch processing
  *
  * **Mathematical Transformation**:
  * ```
- * Original: E[g,m₀,m₁,n₀,n₁] = Σ_{k₀,k₁} A[g,m₀,m₁,k₀,k₁] × B[g,n₀,n₁,k₀,k₁]
- * Flattened: E[g,M,N] = Σ_K A[g,M,K] × B[g,N,K]  (where M=m₀×m₁, N=n₀×n₁, K=k₀×k₁)
- * GEMM Form: E = A × Bᵀ
+ * Original: E[g,m₀,m₁,n₀,n₁] = Σ_{k₀,k₁} A[g,m₀,m₁,k₀,k₁] x B[g,n₀,n₁,k₀,k₁]
+ * Flattened: E[g,M,N] = Σ_K A[g,M,K] x B[g,N,K]  (where M=m₀xm₁, N=n₀xn₁, K=k₀xk₁)
+ * GEMM Form: E = A x Bᵀ
  *
  * **Why This Approach Is Optimal**:
  * Rather than implementing tensor contraction from scratch, this kernel leverages the highly

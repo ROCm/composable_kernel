@@ -33,17 +33,17 @@ struct FmhaBwdWorkspaceManager
     // CPU workspace (prepared by host, read-only for kernels):
 
     // index_t nsplits[batch or 1]
-    //   — per-batch nsplits array (batch element in deterministic group mode)
+    //   - per-batch nsplits array (batch element in deterministic group mode)
 
     // [OPTIONAL, only for deterministic group mode]
     // long_index_t dq_acc_offsets[batch]
-    //   — per-batch offset array
+    //   - per-batch offset array
 
     // GPU WORKSPACE BELOW (read & written by kernels):
 
     // [OPTIONAL, only for !kUseQrQtrDorPipeline]
     // AccDataType dq_acc[total_elements]
-    //   — dq_acc compact buffer (zeroed if necessary)
+    //   - dq_acc compact buffer (zeroed if necessary)
     //   - total_elements = sum_i(nhead * nsplits_i * seqq_i) * hdim_q
     //   - Layout within each batch: [nhead, nsplits_i, seqq_i, hdim_q]
     //   - note: use physical (including padding) length for seqq_i for group mode

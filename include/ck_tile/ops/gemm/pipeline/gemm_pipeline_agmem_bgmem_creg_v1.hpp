@@ -252,22 +252,22 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
 
             // prefetch
             // global read 0
-            // Load tile — during value loading, an elementwise function is executed for each A0,
-            // A1, … AN. The values A0, A1, … AN are read by the same thread.
+            // Load tile - during value loading, an elementwise function is executed for each A0,
+            // A1, ... AN. The values A0, A1, ... AN are read by the same thread.
             auto elementwise_As_res =
                 load_tile_with_elementwise(as_copy_dram_window, a_element_func);
 
-            // Load tile — during value loading, an elementwise function is executed for each B0,
-            // B1, … BN. The values B0, B1, … BN are read by the same thread.
+            // Load tile - during value loading, an elementwise function is executed for each B0,
+            // B1, ... BN. The values B0, B1, ... BN are read by the same thread.
             auto elementwise_Bs_res =
                 load_tile_with_elementwise(bs_copy_dram_window, b_element_func);
 
             {
                 // move to 1
-                // Move each A — the enhanced function move_tile_window is executed, which takes a
+                // Move each A - the enhanced function move_tile_window is executed, which takes a
                 // tuple as input.
                 move_tile_window(as_copy_dram_window, a_dram_tile_window_step);
-                // Move each B — the enhanced function move_tile_window is executed, which takes a
+                // Move each B - the enhanced function move_tile_window is executed, which takes a
                 // tuple as input.
                 move_tile_window(bs_copy_dram_window, b_dram_tile_window_step);
 
@@ -465,22 +465,22 @@ struct GemmPipelineAGmemBGmemCRegV1 : public BaseGemmPipelineAGmemBGmemCRegV1<Pr
 
             // prefetch
             // global read 0
-            // Load tile — during value loading, an elementwise function is executed for each A0,
-            // A1, … AN. The values A0, A1, … AN are read by the same thread.
+            // Load tile - during value loading, an elementwise function is executed for each A0,
+            // A1, ... AN. The values A0, A1, ... AN are read by the same thread.
             auto elementwise_As_res =
                 load_tile_with_elementwise(as_copy_dram_window, a_element_func);
 
-            // Load tile — during value loading, an elementwise function is executed for each B0,
-            // B1, … BN. The values B0, B1, … BN are read by the same thread.
+            // Load tile - during value loading, an elementwise function is executed for each B0,
+            // B1, ... BN. The values B0, B1, ... BN are read by the same thread.
             auto elementwise_Bs_res =
                 load_tile_with_elementwise(bs_copy_dram_window, b_element_func);
 
             {
                 // move to 1
-                // Move each A — the enhanced function move_tile_window is executed, which takes a
+                // Move each A - the enhanced function move_tile_window is executed, which takes a
                 // tuple as input.
                 move_tile_window(as_copy_dram_window, a_dram_tile_window_step);
-                // Move each B — the enhanced function move_tile_window is executed, which takes a
+                // Move each B - the enhanced function move_tile_window is executed, which takes a
                 // tuple as input.
                 move_tile_window(bs_copy_dram_window, b_dram_tile_window_step);
 

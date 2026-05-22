@@ -3,7 +3,7 @@
 
 /*
 Multi-Query Attention
-Shazeer, Noam. “Fast Transformer Decoding: One Write-Head Is All You Need.” arXiv.org, November 6,
+Shazeer, Noam. "Fast Transformer Decoding: One Write-Head Is All You Need." arXiv.org, November 6,
 2019. https://arxiv.org/abs/1911.02150v1.
 
 */

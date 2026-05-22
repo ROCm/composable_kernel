@@ -104,7 +104,7 @@ struct BlockWeightPreshuffleASmemBRegCReg
     {
         constexpr auto a_load_dstr = make_static_tile_distribution(MakeABlockDistributionEncode());
 
-        // create MIterPerWarp × KIterPerWarp window
+        // create MIterPerWarp x KIterPerWarp window
         return generate_tuple(
             [&](auto kIter) {
                 return generate_tuple(

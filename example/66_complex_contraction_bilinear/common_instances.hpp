@@ -197,7 +197,7 @@ using DeviceOpInstanceMN_FP64 = ck::tensor_operation::device::
 
 // Macro to instantiate all four layout variants of DeviceOpInstance.
 //
-// BASE:   Generic (for fp16/bf16/fp32) or FP64 (for fp64 — different tile sizes)
+// BASE:   Generic (for fp16/bf16/fp32) or FP64 (for fp64 - different tile sizes)
 // SUFFIX: NN for bilinear (DsDataType = Tuple<DDataType>),
 //         N  for scale    (DsDataType = Tuple<>)
 //

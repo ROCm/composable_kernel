@@ -116,7 +116,7 @@ constexpr auto make_conv_instance()
     {
         return typename ReferenceFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};
     }
-    // Depthwise tile algorithm — direct spatial pipeline, no GEMM
+    // Depthwise tile algorithm - direct spatial pipeline, no GEMM
     else if constexpr(DepthwiseAlgorithm<AlgoType>)
     {
         return typename ConvDepthwiseTileFactory<SIGNATURE, ALGORITHM, VERSION>::Instance{};

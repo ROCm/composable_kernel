@@ -56,11 +56,11 @@ class TestCkTileMxGemmPipelineWmmaBase : public TestCkTileMxGemmPipeline<Tuple, 
         if constexpr(!b_is_f4 && !b_scale_e8m0)
             return false;
 
-        // Both E8M0 → always valid
+        // Both E8M0 -> always valid
         if constexpr(a_scale_e8m0 && b_scale_e8m0)
             return true;
 
-        // Both non-E8M0 → must match (both are F4 by rule 1)
+        // Both non-E8M0 -> must match (both are F4 by rule 1)
         if constexpr(!a_scale_e8m0 && !b_scale_e8m0)
             return std::is_same_v<AScaleDataType, BScaleDataType>;
 

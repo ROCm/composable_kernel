@@ -12,7 +12,7 @@ using FP6  = ck_tile::pk_fp6x16_t;
 using FP8  = ck_tile::fp8_t;
 using FP16 = ck_tile::fp16_t;
 
-// Concrete test fixture — inherits all logic from TestMXFlatmmBase.
+// Concrete test fixture - inherits all logic from TestMXFlatmmBase.
 // Tuple layout: <ADataType, BDataType, CDataType, MXFlatmmArchTraits>
 template <typename Tuple>
 class TestMXFlatmm : public TestMXFlatmmBase<Tuple>

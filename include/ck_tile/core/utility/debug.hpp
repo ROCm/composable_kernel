@@ -149,7 +149,7 @@ struct CK_PRINTF_WARP0 : public CK_PRINTF<Ts...>
  *   {
  *       [[maybe_unused]] AsmScopeMarker marker;   // Emits CK_ASM_SCOPE_START
  *       // ... code you want to delimit in assembly ...
- *   } // marker goes out of scope → Emits CK_ASM_SCOPE_END
+ *   } // marker goes out of scope -> Emits CK_ASM_SCOPE_END
  *
  */
 struct AsmScopeMarker

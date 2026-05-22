@@ -23,28 +23,28 @@ TYPED_TEST_SUITE(TestCkTileGemmBQuant, BQuantSplitKPrefillTypes);
 // BQuant split-K tests
 TYPED_TEST(TestCkTileGemmBQuant, BQuantGroupedSplitK2Test)
 {
-    // K=1024 for split_k=2: 1024/2=512=4×128 ✓
+    // K=1024 for split_k=2: 1024/2=512=4x128
     // K must be divisible by K_Tile(128)*split_k(2)=256
     this->run_test_with_validation(128, 128, 1024, 2);
 }
 
 TYPED_TEST(TestCkTileGemmBQuant, BQuantGroupedSplitK3Test)
 {
-    // K=3072 for split_k=3: 3072/3=1024=8×128 ✓
+    // K=3072 for split_k=3: 3072/3=1024=8x128
     // K must be divisible by K_Tile(128)*split_k(3)=384
     this->run_test_with_validation(128, 128, 3072, 3);
 }
 
 TYPED_TEST(TestCkTileGemmBQuant, BQuantGroupedSplitK4Test)
 {
-    // K=2048 for split_k=4: 2048/4=512=4×128 ✓
+    // K=2048 for split_k=4: 2048/4=512=4x128
     // K must be divisible by K_Tile(128)*split_k(4)=512
     this->run_test_with_validation(128, 128, 2048, 4);
 }
 
 TYPED_TEST(TestCkTileGemmBQuant, BQuantGroupedSplitK5Test)
 {
-    // K=1920 for split_k=5: 1920/5=384=3×128 ✓
+    // K=1920 for split_k=5: 1920/5=384=3x128
     // K must be divisible by K_Tile(128)*split_k(5)=640
     this->run_test_with_validation(128, 128, 1920, 5);
 }

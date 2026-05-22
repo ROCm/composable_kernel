@@ -13,17 +13,19 @@ namespace ck_tile {
 /// @par Purpose
 ///     Each tag corresponds to a pre-built schedule, these are used to select a schedule
 
-/// Standard epilogue schedule: Slice → CastStore → Load → ApplyD → Store → Move
+/// Standard epilogue schedule: Slice -> CastStore -> Load -> ApplyD -> Store -> Move
 struct DefaultScheduleTag
 {
 };
 
-/// RowCol quantization schedule: Slice → ScaleWindow → CastStore → Load → ApplyD → Store → Move
+/// RowCol quantization schedule: Slice -> ScaleWindow -> CastStore -> Load -> ApplyD -> Store ->
+/// Move
 struct RowColQuantScheduleTag
 {
 };
 
-/// Tensor quantization schedule: Slice → ScaleScalar → CastStore → Load → ApplyD → Store → Move
+/// Tensor quantization schedule: Slice -> ScaleScalar -> CastStore -> Load -> ApplyD -> Store ->
+/// Move
 struct TensorQuantScheduleTag
 {
 };

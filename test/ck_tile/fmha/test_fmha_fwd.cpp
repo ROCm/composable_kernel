@@ -605,7 +605,7 @@ TEST_P(Dropout, DataTypeConfig)
     if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp16>)
     {
         if(hdim_q > 128 && mode == mode_enum::batch)
-            GTEST_SKIP() << "Skipped: fp16 dropout d256 batch — compiler bug (ROCm >= 7.12)";
+            GTEST_SKIP() << "Skipped: fp16 dropout d256 batch - compiler bug (ROCm >= 7.12)";
     }
 #endif
 

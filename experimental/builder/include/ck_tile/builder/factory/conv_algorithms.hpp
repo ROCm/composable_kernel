@@ -63,7 +63,7 @@ concept TileAlgorithm = ConvAlgorithmDescriptor<T> && SpecifiesTileThreadBlock<T
                         SpecifiesTileTransfer<T> && SpecifiesTileConvSpecialization<T> &&
                         SpecifiesTileBlockGemm<T> && SpecifiesTileOptimizations<T>;
 
-// Depthwise tile-based algorithm concept (no GEMM — direct spatial pipeline)
+// Depthwise tile-based algorithm concept (no GEMM - direct spatial pipeline)
 template <typename T>
 concept DepthwiseAlgorithm = ConvAlgorithmDescriptor<T> && SpecifiesDepthwiseConvParams<T>;
 

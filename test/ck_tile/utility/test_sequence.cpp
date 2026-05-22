@@ -178,7 +178,7 @@ TEST(CkTileSequence, UniformSequenceGenLarger)
 }
 
 // ============================================================================
-// sequence_reverse_inclusive_scan tests — runtime value verification
+// sequence_reverse_inclusive_scan tests - runtime value verification
 // ============================================================================
 
 TEST(CkTileSequence, ReverseInclusiveScanProduct)
@@ -217,7 +217,7 @@ TEST(CkTileSequence, ReverseInclusiveScanEmpty)
 }
 
 // ============================================================================
-// sequence_inclusive_scan (forward) tests — runtime value verification
+// sequence_inclusive_scan (forward) tests - runtime value verification
 // ============================================================================
 
 TEST(CkTileSequence, ForwardInclusiveScanSum)
@@ -273,7 +273,7 @@ TEST(CkTileSequence, ForwardInclusiveScanEmpty)
 }
 
 // ============================================================================
-// sequence_map_inverse tests — runtime round-trip verification
+// sequence_map_inverse tests - runtime round-trip verification
 // ============================================================================
 
 TEST(CkTileSequence, MapInverseIdentity)

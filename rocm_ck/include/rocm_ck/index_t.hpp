@@ -1,6 +1,6 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Role: types — index_t, long_index_t. No runtime, no CK deps.
+// Role: types - index_t, long_index_t. No runtime, no CK deps.
 
 #pragma once
 

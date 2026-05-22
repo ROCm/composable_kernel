@@ -252,13 +252,20 @@ def main():
         # Extract basenames for regex (e.g., bin/test_gemm -> test_gemm)
         test_names = [os.path.basename(t) for t in tests]
 
+        # Anchor each name with ^...$ and escape regex metacharacters so that
+        # `ctest -R` does exact-name matching rather than substring matching
+        # (otherwise e.g. 'test_grouped_convnd_bwd_weight' would substring-match
+        # 'test_grouped_convnd_bwd_weight_bilinear' and try to run an
+        # executable that was never built).
+        anchored = [f"^{re.escape(n)}$" for n in test_names]
+
         # Split into chunks
-        for i in range(0, len(test_names), chunk_size):
-            chunk = test_names[i:i + chunk_size]
+        for i in range(0, len(anchored), chunk_size):
+            chunk = anchored[i:i + chunk_size]
             regex_chunks.append("|".join(chunk))
 
         # Keep single regex for backward compatibility (but may be too long)
-        regex = "|".join(test_names)
+        regex = "|".join(anchored)
     else:
         regex = ""
 

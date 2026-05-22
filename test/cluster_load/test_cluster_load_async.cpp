@@ -18,7 +18,7 @@ using ::ck::DeviceMem;
 constexpr int kTileSize = 32;
 
 //
-// cluster_load_async: Global → LDS with a WGP participation mask.
+// cluster_load_async: Global -> LDS with a WGP participation mask.
 // Templated kernels covering 1-byte (char), 4-byte (int), 8-byte (int2),
 // and 16-byte (int4) async loads.
 //
@@ -28,7 +28,7 @@ extern __shared__ char shared_lds[];
 
 // --- Templated kernels ----------------------------------------------------
 
-// Single WGP, async load global → LDS, copy LDS → output. mask = 0x1.
+// Single WGP, async load global -> LDS, copy LDS -> output. mask = 0x1.
 template <typename T>
 __global__ void
 cluster_load_async_single_wgp_kernel(const T* __restrict__ in, T* __restrict__ out, int n)
@@ -131,7 +131,7 @@ __global__ void cluster_load_async_partial_mask_kernel(
     }
 }
 
-// LDS bounds check — sentinel region adjacent to loaded tile remains zero.
+// LDS bounds check - sentinel region adjacent to loaded tile remains zero.
 template <typename T>
 __global__ void
 cluster_load_async_bounds_check_kernel(const T* __restrict__ in, T* __restrict__ out, int n)

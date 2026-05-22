@@ -46,7 +46,7 @@ using ::ck_tile::builder::PipelineVersion;
 // ============================================================================
 // Comprehensive Transformation Tests - Per Device Class Template
 // ============================================================================
-// These tests verify the complete InstanceTraits → ConvTraits transformation
+// These tests verify the complete InstanceTraits -> ConvTraits transformation
 // for each forward convolution Device class template.
 // ============================================================================
 

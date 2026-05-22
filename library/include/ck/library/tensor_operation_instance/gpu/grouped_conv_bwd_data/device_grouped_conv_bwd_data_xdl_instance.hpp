@@ -167,7 +167,7 @@ using device_grouped_conv_bwd_data_xdl_f16_noshuffle_instances =
         // ##############################################|    Spatial|        |        |            |        |  Type|  Type|    Type| DataType|        Type|  Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN| PrefetchStage|  Size| Block| Block| Block|    |    |  XDL|  XDL| PerWave| PerWave|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|      PerWave|      PerWave|  _MBlock_MPerBlock|  ScalarPerVector|
         // ##############################################|           |        |        |            |        |      |      |        |         |            |      |             |             |               |                    |      |      |              |      |      |      |      |    |    |     |     |        |        | Lengths_AK0_M_AK1|   ArrangeOrder|               |               |      PerVector|  PerVector_AK1|          | Lengths_BK0_N_BK1|   ArrangeOrder|               |               |      PerVector|  PerVector_BK1|          |   PerShuffle|   PerShuffle|  _NBlock_NPerBlock|       _NPerBlock|
         // ##############################################|           |        |        |            |        |      |      |        |         |            |      |             |             |               |                    |      |      |              |      |      |      |      |    |    |     |     |        |        |                  |               |               |               |               |               |          |                  |               |               |               |               |               |          |             |             |                   |                 |
-        // f16_f16_f32_f16 — noshuffle epilogue (CDEBlockTransferScalarPerVector_NPerBlock = 1)
+        // f16_f16_f32_f16 - noshuffle epilogue (CDEBlockTransferScalarPerVector_NPerBlock = 1)
         DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16, Empty_Tuple,   F16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,             1,   256,    64,   128,    32,   8,   8,   32,   32,       1,       2,       S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              8,         1,       S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              8,              8,         1,            1,            1,     S<1, 32, 1, 8>,                1>,
 
         DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F16,   F16,     F32,      F16, Empty_Tuple,   F16,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,             1,   256,   128,   256,    32,   8,   8,   32,   32,       2,       4,       S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,       S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         0,            1,            1,     S<1, 32, 1, 8>,                1>,
@@ -333,9 +333,9 @@ using device_grouped_conv_bwd_data_xdl_bf16_instances = std::tuple<
     // clang-format on
     >;
 
-// bf16_bf16_f32_bf16 — noshuffle epilogue (CDEBlockTransferScalarPerVector_NPerBlock = 1)
+// bf16_bf16_f32_bf16 - noshuffle epilogue (CDEBlockTransferScalarPerVector_NPerBlock = 1)
 // Same tile shapes as bf16_instances but with ScalarPerVector=1, enabling the no-shuffle fast path
-// (VGPR → Global direct write, 0 LDS barriers) instead of CShuffle (VGPR → LDS → Global, 8
+// (VGPR -> Global direct write, 0 LDS barriers) instead of CShuffle (VGPR -> LDS -> Global, 8
 // barriers).
 template <index_t NDimSpatial,
           typename ALayout,
@@ -532,7 +532,7 @@ using device_grouped_conv_bwd_data_xdl_f32_noshuffle_instances =
          // ##############################################|    Spatial|        |        |            |        |  Type|  Type|    Type| DataType|        Type|  Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN| PrefetchStage|  Size| Block| Block| Block|    |    |  XDL|  XDL| PerWave| PerWave|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|      PerWave|      PerWave|  _MBlock_MPerBlock|  ScalarPerVector|
          // ##############################################|           |        |        |            |        |      |      |        |         |            |      |             |             |               |                    |      |      |              |      |      |      |      |    |    |     |     |        |        | Lengths_AK0_M_AK1|   ArrangeOrder|               |               |      PerVector|  PerVector_AK1|          | Lengths_BK0_N_BK1|   ArrangeOrder|               |               |      PerVector|  PerVector_BK1|          |   PerShuffle|   PerShuffle|  _NBlock_NPerBlock|       _NPerBlock|
          // ##############################################|           |        |        |            |        |      |      |        |         |            |      |             |             |               |                    |      |      |              |      |      |      |      |    |    |     |     |        |        |                  |               |               |               |               |               |          |                  |               |               |               |               |               |          |             |             |                   |                 |
-        // f32_f32_f32_f32 — noshuffle epilogue (CDEBlockTransferScalarPerVector_NPerBlock = 1)
+        // f32_f32_f32_f32 - noshuffle epilogue (CDEBlockTransferScalarPerVector_NPerBlock = 1)
         DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1< NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F32,   F32,     F32,      F32, Empty_Tuple,   F32,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,             1,   256,    64,   128,    32,   8,   8,   32,   32,       1,       2,       S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              1,              4,         1,       S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         1,            1,            1,     S<1, 32, 1, 8>,                1>,
 
         DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1< NDimSpatial, ALayout, BLayout,    DsLayout, ELayout,   F32,   F32,     F32,      F32, Empty_Tuple,   F32,  PassThrough,  PassThrough,    PassThrough,            ConvSpec,  true,  true,             1,   256,   128,   256,    32,   8,   8,   32,   32,       2,       4,       S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              4,              4,         1,       S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              4,         0,            1,            1,     S<1, 32, 1, 8>,                1>,
@@ -552,7 +552,7 @@ using device_grouped_conv_bwd_data_xdl_f32_noshuffle_instances =
         // clang-format on
         >;
 
-// bf16 — BBlockTransfer parameters matching the non-grouped DeviceConvNdBwdDataNwcKxcNwk_Xdl
+// bf16 - BBlockTransfer parameters matching the non-grouped DeviceConvNdBwdDataNwcKxcNwk_Xdl
 // instances. The key difference from bf16_instances: BBlockTransfer uses S<4, BlockSize/4, 1>
 // thread cluster and S<2, 0, 1> arrange order, which gives full thread utilization for B-matrix
 // loads. These are optimal when opt3 flat descriptor path is active (G=1, 2D convolutions).
@@ -584,7 +584,7 @@ using device_grouped_conv_bwd_data_xdl_bf16_nongrouped_match_instances = std::tu
     // clang-format on
     >;
 
-// f16 — BBlockTransfer parameters matching the non-grouped DeviceConvNdBwdDataNwcKxcNwk_Xdl
+// f16 - BBlockTransfer parameters matching the non-grouped DeviceConvNdBwdDataNwcKxcNwk_Xdl
 // instances.
 template <index_t NDimSpatial,
           typename ALayout,
@@ -610,7 +610,7 @@ using device_grouped_conv_bwd_data_xdl_f16_nongrouped_match_instances = std::tup
     // clang-format on
     >;
 
-// f32 — BBlockTransfer parameters matching the non-grouped DeviceConvNdBwdDataNwcKxcNwk_Xdl
+// f32 - BBlockTransfer parameters matching the non-grouped DeviceConvNdBwdDataNwcKxcNwk_Xdl
 // instances. F32 uses K1=4, KPerBlock=16, and smaller scalar-per-vector values.
 template <index_t NDimSpatial,
           typename ALayout,

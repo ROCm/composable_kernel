@@ -1,8 +1,7 @@
 
 FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
-ARG ROCMVERSION=7.1.1
-ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
+ARG ROCMVERSION=7.13
 
 # TheRock nightly tarball configuration.
 # By default, discovers the latest tarball from the nightlies index.
@@ -26,7 +25,7 @@ ENV HIP_PLATFORM=amd
 
 # Add rocm repository
 RUN set -xe && \
-    apt-get update && apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl
+    apt-get update && apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl cmake git vim nano zip
 
 RUN if [ "$compiler_version" = "therock" ]; then \
         rm -rf /opt/rocm && mkdir /opt/rocm && \
@@ -43,11 +42,12 @@ RUN if [ "$compiler_version" = "therock" ]; then \
         tar -xzf /tmp/rocm.tar.gz -C /opt/rocm --strip-components=1 && \
         rm /tmp/rocm.tar.gz ; \
     else echo "using the release compiler" && \
-        wget https://repo.radeon.com/amdgpu-install/7.1.1/ubuntu/noble/amdgpu-install_7.1.1.70101-1_all.deb && \
-        apt install ./amdgpu-install_7.1.1.70101-1_all.deb -y && \
-        apt update && \
-        apt install python3-setuptools python3-wheel -y && \
-        apt install rocm-dev -y; \
+        wget https://repo.amd.com/rocm/tarball-multi-arch/therock-dist-linux-multiarch-7.13.0.tar.gz && \
+        rm -rf /opt/rocm && mkdir /opt/rocm && \
+        tar -xzf therock-dist-linux-multiarch-7.13.0.tar.gz -C /opt/rocm --strip-components=1 && \
+        rm therock-dist-linux-multiarch-7.13.0.tar.gz && \
+        wget https://repo.radeon.com/amdgpu-install/31.30/ubuntu/noble/amdgpu-install_31.30.313000-1_all.deb && \
+        apt install ./amdgpu-install_31.30.313000-1_all.deb -y; \
     fi
     
 # Install SCCACHE
@@ -58,19 +58,14 @@ RUN set -x && \
     mkdir -p ${SCCACHE_INSTALL_LOCATION} && \
     wget -qO sccache.tar.gz https://github.com/mozilla/sccache/releases/download/v$SCCACHE_VERSION/sccache-v$SCCACHE_VERSION-x86_64-unknown-linux-musl.tar.gz && \
     tar -xzf sccache.tar.gz --strip-components=1 -C ${SCCACHE_INSTALL_LOCATION} && \
-    chmod +x ${SCCACHE_INSTALL_LOCATION}/sccache
-
+    chmod +x ${SCCACHE_INSTALL_LOCATION}/sccache && \
 # Install dependencies
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     build-essential \
-    cmake \
-    git \
-    iputils-ping \
     jq \
     libelf-dev \
     libnuma-dev \
     libpthread-stubs0-dev \
-    mpich \
     net-tools \
     pkg-config \
     python3-full \
@@ -79,17 +74,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     sshpass \
     stunnel \
     software-properties-common \
-    vim \
-    nano \
     zlib1g-dev \
-    zip \
     libzstd-dev \
     openssh-server \
     clang-format-18 \
     kmod && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    rm -rf amdgpu-install* && \
 #Install latest ccache
     git clone https://github.com/ccache/ccache.git && \
     cd ccache && mkdir build && cd build && cmake .. && make install && \

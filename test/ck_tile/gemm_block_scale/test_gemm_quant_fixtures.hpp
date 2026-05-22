@@ -68,28 +68,20 @@ struct GemmConfigPrefillIntrawave : public GemmConfigBase
     static constexpr auto Scheduler          = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
-struct GemmConfigPrefillInterwave : public GemmConfigBase
-{
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128;
-    static constexpr auto Scheduler          = ck_tile::GemmPipelineScheduler::Interwave;
-};
-
 struct GemmConfigDecodeIntrawave : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
     static constexpr ck_tile::index_t K_Tile = 256;
-    static constexpr auto Scheduler          = ck_tile::GemmPipelineScheduler::Intrawave;
-};
-
-struct GemmConfigDecodeInterwave : public GemmConfigBase
-{
-    static constexpr ck_tile::index_t M_Tile = 16;
-    static constexpr ck_tile::index_t N_Tile = 64;
-    static constexpr ck_tile::index_t K_Tile = 256;
-    static constexpr auto Scheduler          = ck_tile::GemmPipelineScheduler::Interwave;
+    // Workaround for ROCm 7.13 compiler codegen regression on gfx1201 (RDNA4).
+    // AQuantGemmPipelineAgBgCrMem always uses the Intrawave pipeline implementation
+    // regardless of this value, but the Scheduler enum changes the Problem type identity,
+    // causing a different template instantiation. The Intrawave instantiation triggers
+    // incorrect ISA generation (wrong global instruction scheduling in the hot loop),
+    // producing ~3% wrong values for FP8/BF8 AQuant GEMM with K > K_Tile.
+    // Setting Interwave creates a different instantiation that gets correct codegen.
+    // Revert to Intrawave once the compiler is fixed.
+    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Interwave;
 };
 
 struct GemmConfigMx : public GemmConfigBase

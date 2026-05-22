@@ -1,4 +1,4 @@
-// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates
 // SPDX-License-Identifier: MIT
 
 #pragma once
@@ -26,7 +26,7 @@ namespace ck {
 //   - Math waves (threads 0..TileMath-1): LDS read + MFMA + CShuffle epilogue
 //
 // The conv-to-GEMM descriptor transforms (which generate heavy VALU ops) execute only on load
-// waves, while math waves see simple LDS layouts — eliminating the VALU/MFMA slot conflict.
+// waves, while math waves see simple LDS layouts - eliminating the VALU/MFMA slot conflict.
 
 template <typename ALayout,
           typename BLayout,
@@ -177,14 +177,14 @@ struct GridwiseGemm_xdl_waveletmodel_cshuffle_conv_v3
     static constexpr auto BlockSize       = TileMathThreadGroupSize;
     static constexpr auto LaunchBlockSize = TileLoadThreadGroupSize + TileMathThreadGroupSize;
 
-    // DirectLoad is not supported — wavelet model requires LDS as the sync boundary
+    // DirectLoad is not supported, wavelet model requires LDS as the sync boundary
     static constexpr bool DirectLoadEnabled = false;
 
     // =========================================================================
     // Wave specialization thread groups
     // =========================================================================
 
-    // Math threads are 0..TileMath-1 (must be first — BlockwiseGemmXdlops_v1 uses
+    // Math threads are 0..TileMath-1 (must be first, BlockwiseGemmXdlops_v1 uses
     // get_thread_local_1d_id() directly for wave index computation)
     struct TileMathThreadGroup
     {
@@ -448,7 +448,7 @@ struct GridwiseGemm_xdl_waveletmodel_cshuffle_conv_v3
         constexpr auto data_lds_bytes = a_block_space_size_aligned * sizeof(ADataType) +
                                         b_block_space_size_aligned * sizeof(BDataType);
 
-        // C shuffle LDS (reuses same memory after GEMM loop — mutually exclusive)
+        // C shuffle LDS (reuses same memory after GEMM loop, mutually exclusive)
         constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
             Base::GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(DeviceArch{});
 
@@ -653,7 +653,7 @@ struct GridwiseGemm_xdl_waveletmodel_cshuffle_conv_v3
                 num_k_block_main_loop);
 
             // Match epilogue LDS syncs: RunEpilogue calls block_sync_lds() twice per
-            // SFC access iteration (once before VGPR→LDS, once before LDS→global).
+            // SFC access iteration (once before VGPR->LDS, once before LDS->global).
             // For !TransposeC && !IsMxGemm, the SFC access count equals
             // (MXdlPerWave / CShuffleMXdlPerWavePerShuffle) * (NXdlPerWave /
             // CShuffleNXdlPerWavePerShuffle) because the M2/M4/N2 SFC dimensions have equal

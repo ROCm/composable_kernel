@@ -125,7 +125,7 @@ TEST(ScalarValue, StoresAndRetrievesUInt32)
 }
 
 // ============================================================================
-// Args field coverage — batch_strides and workspace_ptr
+// Args field coverage - batch_strides and workspace_ptr
 // ============================================================================
 
 TEST(Args, BatchStridesFieldExists)

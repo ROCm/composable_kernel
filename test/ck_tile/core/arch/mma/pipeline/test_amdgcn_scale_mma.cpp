@@ -63,17 +63,17 @@ void ScaleMfmaGfx950Specialization_impl()
 
 TEST(ScaleMMATrait, ScaleMfmaGfx950Specialization)
 {
-    // Test fp8 → fp32 scale MFMA for GFX950 (16x16x128)
+    // Test fp8 -> fp32 scale MFMA for GFX950 (16x16x128)
     ScaleMfmaGfx950Specialization_impl<fp8_t, fp8_t, fp32_t, 16u, 16u, 128u>();
-    // Test bf8 → fp32 scale MFMA for GFX950 (16x16x128)
+    // Test bf8 -> fp32 scale MFMA for GFX950 (16x16x128)
     ScaleMfmaGfx950Specialization_impl<bf8_t, bf8_t, fp32_t, 16u, 16u, 128u>();
-    // Test fp4 → fp32 scale MFMA for GFX950 (16x16x128)
+    // Test fp4 -> fp32 scale MFMA for GFX950 (16x16x128)
     ScaleMfmaGfx950Specialization_impl<pk_fp4_t, pk_fp4_t, fp32_t, 16u, 16u, 128u>();
-    // Test fp8 → fp32 scale MFMA for GFX950 (32x32x64)
+    // Test fp8 -> fp32 scale MFMA for GFX950 (32x32x64)
     ScaleMfmaGfx950Specialization_impl<fp8_t, fp8_t, fp32_t, 32u, 32u, 64u>();
-    // Test bf8 → fp32 scale MFMA for GFX950 (32x32x64)
+    // Test bf8 -> fp32 scale MFMA for GFX950 (32x32x64)
     ScaleMfmaGfx950Specialization_impl<bf8_t, bf8_t, fp32_t, 32u, 32u, 64u>();
-    // Test fp4 → fp32 scale MFMA for GFX950 (32x32x64)
+    // Test fp4 -> fp32 scale MFMA for GFX950 (32x32x64)
     ScaleMfmaGfx950Specialization_impl<pk_fp4_t, pk_fp4_t, fp32_t, 32u, 32u, 64u>();
 
     std::cout << "GFX950 scale MFMA specialization is correct" << std::endl;

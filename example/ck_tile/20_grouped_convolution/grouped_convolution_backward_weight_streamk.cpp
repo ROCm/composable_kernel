@@ -59,7 +59,7 @@ int main(int argc, char* argv[])
         const std::string reduction = arg_parser.get_str("streamk_reduction");
         const bool persistent       = arg_parser.get_int("streamk_persistent") != 0;
 
-        // Dispatch on reduction strategy × persistent DP
+        // Dispatch on reduction strategy x persistent DP
         if(reduction == "linear" && !persistent)
         {
             using Invoker = GroupedConvolutionBackwardWeightInvoker<

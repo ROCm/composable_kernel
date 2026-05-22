@@ -207,7 +207,7 @@ bool run_grouped_conv(bool do_verification,
     if(!conv.IsSupportedArgument(argument))
     {
         std::cout << "The device op with the specified compilation parameters does "
-                     "not support this convolution problem — skipping."
+                     "not support this convolution problem - skipping."
                   << std::endl;
         return true;
     }

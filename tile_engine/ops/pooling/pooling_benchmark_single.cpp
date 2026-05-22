@@ -30,7 +30,7 @@
 // The kernel header is included via compile command line with -include flag.
 
 // --------------------------------------------------------------------------
-// Benchmark implementation — templated on pooling dimension so that only
+// Benchmark implementation - templated on pooling dimension so that only
 // the matching branch is instantiated (2D or 3D).
 // --------------------------------------------------------------------------
 

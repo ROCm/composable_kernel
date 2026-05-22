@@ -496,10 +496,10 @@ struct GemmClusterTilePartitioner
 
 
     EXAMPLE CONFIGURATION:
-    - Cluster dimensions: ClusterM = 2, ClusterN = 2 (2×2 cluster)
-    - Grid dimensions:    GridM = 6, GridN = 4 (6×4 output tiles)
-    - Number of clusters: (6/2) × (4/2) = 3 × 2 = 6 clusters
-    - Blocks per cluster: 2 × 2 = 4 blocks
+    - Cluster dimensions: ClusterM = 2, ClusterN = 2 (2x2 cluster)
+    - Grid dimensions:    GridM = 6, GridN = 4 (6x4 output tiles)
+    - Number of clusters: (6/2) x (4/2) = 3 x 2 = 6 clusters
+    - Blocks per cluster: 2 x 2 = 4 blocks
 
     The tables below show which BLOCK (identified by its flattened cluster_id) processes
     each output TILE position (tile_m, tile_n). Values 0-5 represent the 6
@@ -515,7 +515,7 @@ struct GemmClusterTilePartitioner
 
     TILE ASSIGNMENT (each cell shows which cluster processes that tile):
 
-             N→ 0    1    2    3
+             N-> 0    1    2    3
            ┌────────────────────────┐
       M  0 │ │  0  │  0  │  3  │  3  │
            │ ├────────────────────┤
@@ -548,7 +548,7 @@ struct GemmClusterTilePartitioner
 
     TILE ASSIGNMENT (interleaved along both M and N):
 
-             N→ 0    1    2    3
+             N-> 0    1    2    3
            ┌────────────────────────┐
       M  0 │ │  0  │  3  │  0  │  3  │
            │ ├────────────────────┤
@@ -581,7 +581,7 @@ struct GemmClusterTilePartitioner
 
     TILE ASSIGNMENT (interleaved along M, contiguous along N):
 
-             N→ 0    1    2    3
+             N-> 0    1    2    3
            ┌────────────────────────┐
       M  0 │ │  0  │  0  │  3  │  3  │
            │ ├────────────────────┤

@@ -95,7 +95,7 @@ TYPED_TEST(MXBF6Pk4ScaleTypedTest, DeviceWavewiseBlock32)
     constexpr float Val = 2.0f;
     std::vector<T> out(M * N, -1.0f);
     std::vector<uint32_t> scale(2 * M);
-    // Test scale variations: 16 rows × 128 columns
+    // Test scale variations: 16 rows x 128 columns
     // - Each row has different 8 scale factor (scale[m]-packed 4 and scale[m+16]-packed4)
     // - Within a row, every 16 consecutive columns share the same scale factor
     for(int m = 0; m < M; m++)
@@ -237,7 +237,7 @@ TYPED_TEST(MXBF6Pk4ScaleTypedTest, DeviceWavewiseBlock16)
     constexpr float Val = 2.0f;
     std::vector<T> out(M * N, -1.0f);
     std::vector<uint32_t> scale(2 * M);
-    // Test scale variations: 16 rows × 128 columns
+    // Test scale variations: 16 rows x 128 columns
     // - Each row has different 8 scale factor (scale[m]-packed 4 and scale[m+16]-packed4)
     // - Within a row, every 16 consecutive columns share the same scale factor
     for(int m = 0; m < M; m++)

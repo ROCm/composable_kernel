@@ -32,7 +32,7 @@ CK_TILE_DEVICE __attribute__((address_space(3))) T* to_lds(T* ptr)
 #endif // __gfx1250__
 
 // Struct specializations for CLUSTER_LOAD_B32/B64/B128.
-// Primary template intentionally undefined — compile error for unsupported sizes.
+// Primary template intentionally undefined - compile error for unsupported sizes.
 template <index_t bytes>
 struct cluster_load;
 
@@ -104,7 +104,7 @@ CK_TILE_DEVICE T cluster_multicast_load(const T* addr, int mask)
 }
 
 // ---------------------------------------------------------------------------
-// CLUSTER_LOAD_ASYNC_TO_LDS_B* — async global→LDS multicast (gfx1250 only)
+// CLUSTER_LOAD_ASYNC_TO_LDS_B* - async global->LDS multicast (gfx1250 only)
 // ---------------------------------------------------------------------------
 // Unlike CLUSTER_LOAD_B*, data lands in LDS (not VGPRs) and is tracked by
 // ASYNCcnt. Wait with s_wait_asynccnt(0) on the requesting wave, then use
@@ -120,7 +120,7 @@ CK_TILE_DEVICE T cluster_multicast_load(const T* addr, int mask)
 // by the hardware instruction (default 0).
 
 // Struct specializations for CLUSTER_LOAD_ASYNC_TO_LDS_B32/B64/B128.
-// Primary template intentionally undefined — compile error for unsupported sizes.
+// Primary template intentionally undefined - compile error for unsupported sizes.
 template <index_t bytes, index_t inst_offset = 0>
 struct cluster_load_async_to_lds;
 
@@ -184,10 +184,10 @@ struct cluster_load_async_to_lds<16, inst_offset>
 };
 
 // Generic wrapper: issues CLUSTER_LOAD_ASYNC_TO_LDS_B* sized to T.
-// `src`         — global source pointer (generic address space; cast to global internally)
-// `lds_dst`     — per-lane LDS destination pointer (must be address_space(3))
-// `mask`        — M0[15:0] WGP participation mask; M0[16] sets early-timeout
-// `inst_offset` — compile-time immediate byte offset added to lds_dst by the hardware
+// `src`         - global source pointer (generic address space; cast to global internally)
+// `lds_dst`     - per-lane LDS destination pointer (must be address_space(3))
+// `mask`        - M0[15:0] WGP participation mask; M0[16] sets early-timeout
+// `inst_offset` - compile-time immediate byte offset added to lds_dst by the hardware
 template <typename T, index_t inst_offset = 0>
 CK_TILE_DEVICE void cluster_multicast_load_async_to_lds(const T* src,
                                                         __attribute__((address_space(3)))

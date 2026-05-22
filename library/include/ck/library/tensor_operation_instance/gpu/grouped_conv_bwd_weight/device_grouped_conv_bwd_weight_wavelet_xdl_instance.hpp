@@ -49,11 +49,11 @@ using device_grouped_conv_bwd_weight_wavelet_xdl_c_shuffle_f16_instances = std::
     //                                                                                                                                                                 | Stage  | Thrds  | Thrds  |    |    |   |  | XDL | XDL| /Wv| /Wv| A cluster     |A ArrangeOrd|A SrcAccOrd | AVDim|ASSca|ADSca|AExM| B cluster     |B ArrangeOrd|B SrcAccOrd | BVDim|BSSca|BDSca|BExN|CShM|CShN|  C cluster       |CSca|
     // M=128 N=128: 2x2 waves, 64 AccVGPRs/wave
     DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3<NDimSpatial, ALayout, BLayout, ELayout, F16, F16, F16, F32, PassThrough, PassThrough, PassThrough, ConvSpec,    1,      256,     256,   128, 128,  32, 8,  32,  32,   2,   2, S<4, 32, 2>, S<2, 0, 1>, S<1, 0, 2>,     1,    4,    4, false, S<4, 32, 2>, S<2, 0, 1>, S<1, 0, 2>,     1,    4,    4, false,   1,   1, S<1, 32, 1, 8>,    2>,
-    // M=64 N=64: 2x2 waves, 16 AccVGPRs/wave — smallest tile, targets Group 3 shapes
+    // M=64 N=64: 2x2 waves, 16 AccVGPRs/wave - smallest tile, targets Group 3 shapes
     DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3<NDimSpatial, ALayout, BLayout, ELayout, F16, F16, F16, F32, PassThrough, PassThrough, PassThrough, ConvSpec,    1,      256,     256,    64,  64,  32, 8,  32,  32,   1,   1, S<4, 32, 2>, S<2, 0, 1>, S<1, 0, 2>,     1,    2,    4, false, S<4, 32, 2>, S<2, 0, 1>, S<1, 0, 2>,     1,    2,    4, false,   1,   1, S<1, 32, 1, 8>,    2>,
-    // M=128 N=64: 2x2 waves, 32 AccVGPRs/wave — asymmetric M>N
+    // M=128 N=64: 2x2 waves, 32 AccVGPRs/wave - asymmetric M>N
     DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3<NDimSpatial, ALayout, BLayout, ELayout, F16, F16, F16, F32, PassThrough, PassThrough, PassThrough, ConvSpec,    1,      256,     256,   128,  64,  32, 8,  32,  32,   2,   1, S<4, 32, 2>, S<2, 0, 1>, S<1, 0, 2>,     1,    4,    4, false, S<4, 32, 2>, S<2, 0, 1>, S<1, 0, 2>,     1,    2,    4, false,   1,   1, S<1, 32, 1, 8>,    2>,
-    // M=64 N=128: 2x2 waves, 32 AccVGPRs/wave — asymmetric N>M
+    // M=64 N=128: 2x2 waves, 32 AccVGPRs/wave - asymmetric N>M
     DeviceGroupedConvBwdWeight_Xdl_WaveletModel_CShuffleV3<NDimSpatial, ALayout, BLayout, ELayout, F16, F16, F16, F32, PassThrough, PassThrough, PassThrough, ConvSpec,    1,      256,     256,    64, 128,  32, 8,  32,  32,   1,   2, S<4, 32, 2>, S<2, 0, 1>, S<1, 0, 2>,     1,    2,    4, false, S<4, 32, 2>, S<2, 0, 1>, S<1, 0, 2>,     1,    4,    4, false,   1,   1, S<1, 32, 1, 8>,    2>
     // clang-format on
     >;
@@ -61,7 +61,7 @@ using device_grouped_conv_bwd_weight_wavelet_xdl_c_shuffle_f16_instances = std::
 // 2-way (4,2) wave-specialized instances for F16.
 // TileLoad=256 (4 load waves) + TileMath=128 (2 math waves) = 384 threads (6 waves).
 // Same load cluster as (4,4): S<4, 32, 2>=256.
-// Math waves halved → each wave handles more MXdl/NXdl work → more AccVGPRs.
+// Math waves halved -> each wave handles more MXdl/NXdl work -> more AccVGPRs.
 template <ck::index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
@@ -80,7 +80,7 @@ using device_grouped_conv_bwd_weight_wavelet_4w2_xdl_c_shuffle_f16_instances = s
     // clang-format on
     >;
 
-// BF16 wavelet instances — same tile configs as F16, with BF16 in/out and F32 compute.
+// BF16 wavelet instances - same tile configs as F16, with BF16 in/out and F32 compute.
 template <ck::index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
@@ -101,7 +101,7 @@ using device_grouped_conv_bwd_weight_wavelet_xdl_c_shuffle_bf16_instances = std:
     // clang-format on
     >;
 
-// BF16 (4,2) wavelet instances — same tile configs as F16 (4,2).
+// BF16 (4,2) wavelet instances - same tile configs as F16 (4,2).
 template <ck::index_t NDimSpatial,
           typename ALayout,
           typename BLayout,

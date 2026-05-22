@@ -411,7 +411,7 @@ struct GroupedConvFwdKernelArgs
     long_index_t group_stride_c;
 
     // Split-N support fields - initialize to safe defaults
-    index_t n_splits            = 1; // Number of batch splits (e.g., 2 for 128→64×2)
+    index_t n_splits            = 1; // Number of batch splits (e.g., 2 for 128->64x2)
     index_t n_per_split         = 1; // Batches per split (N_ from transformer)
     index_t original_n          = 1; // Original batch size before splitting
     index_t input_batch_stride  = 0; // Stride to next batch in input tensor

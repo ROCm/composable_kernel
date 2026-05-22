@@ -1449,21 +1449,21 @@ CK_TILE_DEVICE void async_buffer_load_fence(index_t cnt = 0)
 // Bypasses the SRD's 32-bit offset limit; required when the KV cache exceeds
 // INT32_MAX (2GB) byte offset on the SRD voffset path.
 //
-// !!! M0 PRECONDITION — IMPLICIT INPUT NOT VISIBLE IN OPERAND LIST !!!
+// !!! M0 PRECONDITION - IMPLICIT INPUT NOT VISIBLE IN OPERAND LIST !!!
 //
 //   The LDS destination address is taken from M0 (per AMD CDNA3 ISA §10.3:
 //   `LDS_ADDR = LDSbase + LDSoffset(M0[17:2] * 4) + INST.OFFSET + ThreadID*4`).
 //   M0 does NOT appear as an operand of these instructions or of the inline
-//   asm below — the compiler cannot see the dependency. Caller must:
+//   asm below - the compiler cannot see the dependency. Caller must:
 //
 //     1. Initialize M0 once before the load loop:
 //          `m0_set_with_memory(amd_wave_read_first_lane(lds_byte_offset));`
-//        M0 is SALU-only — `m0_set_with_memory` uses an "s" constraint to
+//        M0 is SALU-only - `m0_set_with_memory` uses an "s" constraint to
 //        enforce this. Direct VALU writes to M0 are illegal.
 //
 //     2. Advance M0 between successive issues:
 //          `m0_inc_with_memory(size_per_issue);`
-//        `size_per_issue` MUST be a multiple of 4 — GLOBAL/FLAT LDS path
+//        `size_per_issue` MUST be a multiple of 4 - GLOBAL/FLAT LDS path
 //        only honors M0[17:2]*4 (dword-aligned), so low 2 bits are silently
 //        dropped (NOTE: this differs from MUBUF buffer_load_lds which uses
 //        M0[15:0] as a raw byte offset).
@@ -1479,7 +1479,7 @@ CK_TILE_DEVICE void async_buffer_load_fence(index_t cnt = 0)
 //
 // Verified instruction emission (HIP 6.4 / clang 19, gfx942 + gfx950):
 //   `global_load_lds_dwordx4` is a single instruction (encoding 0xDDF48000
-//   0x007F0000), NOT software-expanded into 4× dword. Same encoding on both
+//   0x007F0000), NOT software-expanded into 4x dword. Same encoding on both
 //   arches. The opcode is undocumented in CDNA3 ISA spec §13.6.2 but
 //   supported by the LLVM AMDGPU backend.
 //
@@ -1501,7 +1501,7 @@ async_global_load_lds_dwordxn(void* smem, const void* global_addr, bool_constant
 
 // Inline asm: only the global address is an explicit operand. The LDS
 // destination is implicit via M0 (see contract above). `"=r"(smem)` is a
-// SSA scheduling anchor only — `smem` is NOT written by this asm; the
+// SSA scheduling anchor only - `smem` is NOT written by this asm; the
 // load goes to LDS at `M0[17:2]*4 + offset:0 + ThreadID*4`.
 #define CK_TILE_GLOBAL_LOAD_LDS_INSTR(instr)                                 \
     if constexpr(pre_nop)                                                    \

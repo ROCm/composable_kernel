@@ -399,7 +399,7 @@ TEST(SequenceSort, SortedMapWithDuplicates)
     using ExpectedSorted = sequence<1, 1, 3, 3>;
     EXPECT_TRUE((std::is_same<Sorted, ExpectedSorted>::value));
     // Verify round-trip: original[map[i]] == sorted[i] for all i
-    // (don't assert specific index order for duplicates — sort stability may vary)
+    // (don't assert specific index order for duplicates - sort stability may vary)
     EXPECT_EQ(Seq::at(Map::at(0)), Sorted::at(0));
     EXPECT_EQ(Seq::at(Map::at(1)), Sorted::at(1));
     EXPECT_EQ(Seq::at(Map::at(2)), Sorted::at(2));

@@ -162,7 +162,7 @@ CK_TILE_HOST_DEVICE void kv_offset_array_transform(const IndexArrayType& physica
     const index_t& thread_coord_start   = coord_vec[kCoordAxis];
     constexpr index_t kInPageOffsetMask = (1 << kLog2PageSize) - 1;
 
-    // Addressing strategy — four cases controlled by (kPageBlockSize vs kN0, kUseGlobalLoad_):
+    // Addressing strategy - four cases controlled by (kPageBlockSize vs kN0, kUseGlobalLoad_):
     //
     //   Case 1: kPageBlockSize >= kN0
     //     SRD is rebased per-tile to the page base (rebase_{k,v}_window in caller).
@@ -733,24 +733,24 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         // The decomposition pattern differs by memory layout:
         //
         // VECTORIZED_LAYOUT (ColumnMajor, custom distribution):
-        //   3D decomposition: K = K2 × K0 × K1
+        //   3D decomposition: K = K2 x K0 x K1
         //   - K2 (V_KIterOuter): Outer iteration count
         //   - K0 (V_KLanes):     Lanes for K dimension (matches GEMM kABKLane)
         //   - K1 (V_KIterInner): Vector load size (matches GEMM kKPerThread)
         //   - hs_lengthss_[I1] = {K2, K0, K1}, size = 3 (or {K0, K1} size = 2 if no outer iter)
         //
         // LINEAR_LAYOUT ColumnMajor (base class distribution):
-        //   2D decomposition: K = K0 × K1
+        //   2D decomposition: K = K0 x K1
         //   - K0: Lanes for K dimension (may not match GEMM kABKLane)
         //   - K1: Vector load size
         //   - hs_lengthss_[I1] = {K0, K1}, size = 2
         //
         // LINEAR_LAYOUT RowMajor (base class distribution):
-        //   4D decomposition: K = K0 × K1 × K2 × K3 (uses shuffle_tile for GEMM alignment)
-        //   3D decomposition: K = K0 × K1 × K2 (fallback case)
+        //   4D decomposition: K = K0 x K1 x K2 x K3 (uses shuffle_tile for GEMM alignment)
+        //   3D decomposition: K = K0 x K1 x K2 (fallback case)
         //   - Page lookup uses Y-space's last dimension only (inner iteration)
         //
-        // V_PageIdxRepeat = total number of page lookups per thread = V_KIterOuter × V_KIterInner
+        // V_PageIdxRepeat = total number of page lookups per thread = V_KIterOuter x V_KIterInner
         constexpr index_t V_KIterInner = VDstrEncode::hs_lengthss_[I1].back();
 
         // Compute V_KIterOuter and V_KLanes based on memory layout and K decomposition
@@ -938,7 +938,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     v_physical_pages, stride_v, page_stride_v, v_coord, v_offsets, current_seq_k);
             }
 
-            // v_offsets semantics — see the four-case addressing-strategy block above
+            // v_offsets semantics - see the four-case addressing-strategy block above
             // kNeedFullOffset in kv_offset_array_transform. Three cases reach this lambda:
             //   Case 1 (kPageBlockSize >= kN0):           within-page offset; page base in SRD.
             //   Case 2 (page_size < kN0, kUseGlobalLoad): within-page offset; page base computed
@@ -970,7 +970,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 
         // Initial V SRD rebase. Single source of truth: rebase_v_window's own
         // `if constexpr(kPageBlockSize >= kN0)` makes this a no-op for case 2/3.
-        // Do not re-add an outer guard here — it would duplicate the inner check
+        // Do not re-add an outer guard here - it would duplicate the inner check
         // and drift if the lambda's gating condition ever changes.
         rebase_v_window(v_dram_window, v_physical_pages[number<0>{}]);
 
@@ -1015,12 +1015,12 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             // To support smaller page sizes (cross-page tiles), need:
             //
             // 1. K descale: Load per-token k_descale_vec[NRepeat] based on k_physical_pages[k0]
-            //    - After GEMM0 (S = Q × K^T), apply column-wise scaling: S[:,j] *= k_descale[j]
+            //    - After GEMM0 (S = Q x K^T), apply column-wise scaling: S[:,j] *= k_descale[j]
             //    - Requires modifying s_acc_element_func to accept column index
             //
             // 2. V descale: Load per-token v_descale_vec[V_PageIdxRepeat] based on
             // v_physical_pages[k0]
-            //    - Before GEMM1 (O = P × V), apply row-wise scaling to P: P[i,j] *= v_descale[j]
+            //    - Before GEMM1 (O = P x V), apply row-wise scaling to P: P[i,j] *= v_descale[j]
             //    - Or pre-scale V in LDS (more complex)
             //
             // 3. K and V may be on different pages for the same token index, so need separate
@@ -1554,7 +1554,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                     k_dram_window.update_physical_pages(k_physical_pages);
                 rebase_k_window(k_dram_window, k_physical_pages[number<0>{}]);
 
-                // After sink→window transition (i_total_loops == num_sink_loop), V window
+                // After sink->window transition (i_total_loops == num_sink_loop), V window
                 // was advanced by kN0 (one normal iter), but current_seq_k jumped by k_advance
                 // = seqlen_k_start - sink_seq_end + kN0 > kN0.  Re-init V to current_seq_k.
                 if constexpr(kHasSink)

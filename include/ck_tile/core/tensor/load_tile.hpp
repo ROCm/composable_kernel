@@ -45,7 +45,7 @@ CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
  *
  * @note This function is a modification of the existing load function.
  *       It has been extended with two additional parameters: it takes a tuple as input
- *       and an elementwise function. For each A = A0, A1… AN, the elementwise function
+ *       and an elementwise function. For each A = A0, A1... AN, the elementwise function
  *       is additionally applied during a single read.
  */
 template <typename... TileWindow_,

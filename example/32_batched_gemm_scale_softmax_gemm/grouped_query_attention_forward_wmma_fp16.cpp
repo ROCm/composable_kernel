@@ -4,7 +4,7 @@
 /*
 Grouped Query Attention,
 Ainslie, Joshua, James Lee-Thorp, Michiel de Jong, Yury Zemlyanskiy, Federico Lebrón, and Sumit
-Sanghai. “GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints.”
+Sanghai. "GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints."
 arXiv, May 22, 2023. https://doi.org/10.48550/arXiv.2305.13245.
 
 Example is GQA-4

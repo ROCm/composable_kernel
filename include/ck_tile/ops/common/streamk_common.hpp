@@ -256,8 +256,8 @@ struct StreamKReductionOps
 ///
 /// @tparam TilePartitioner_ Partitioner type (persistent or non-persistent specialization).
 /// @param tile_partitioner The partitioner instance from kernel args.
-/// @param dp_tile_func     Callable(index_t tile_idx) — processes one full DP tile.
-/// @param sk_func          Callable(index_t sk_cta_idx) — runs the StreamK loop for this CTA.
+/// @param dp_tile_func     Callable(index_t tile_idx) - processes one full DP tile.
+/// @param sk_func          Callable(index_t sk_cta_idx) - runs the StreamK loop for this CTA.
 template <typename TilePartitioner_, typename DPTileFunc, typename SKFunc>
 CK_TILE_DEVICE void
 StreamKDispatch(const TilePartitioner_& tile_partitioner, DPTileFunc dp_tile_func, SKFunc sk_func)

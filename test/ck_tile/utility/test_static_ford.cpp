@@ -10,7 +10,7 @@
 using namespace ck_tile;
 
 // ============================================================================
-// static_ford Tests — Identity Order (default)
+// static_ford Tests - Identity Order (default)
 // ============================================================================
 
 TEST(CkTileStaticFord, Identity2D)
@@ -122,7 +122,7 @@ TEST(CkTileStaticFord, IdentityWithUnitDim)
 }
 
 // ============================================================================
-// static_ford Tests — Non-Identity Order (primary template with decompose_reordered)
+// static_ford Tests - Non-Identity Order (primary template with decompose_reordered)
 // ============================================================================
 
 TEST(CkTileStaticFord, ReversedOrder2D)

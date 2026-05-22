@@ -1,9 +1,9 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Role: types — PhysicalTensor. No runtime, no CK deps.
+// Role: types - PhysicalTensor. No runtime, no CK deps.
 //
 // A PhysicalTensor maps a named tensor from the Signature graph to a slot
-// in the generic Args buffer. Not every tensor in a compute graph is physical —
+// in the generic Args buffer. Not every tensor in a compute graph is physical -
 // intermediate values (e.g., the S matrix in FMHA = Q*K^T) live only in
 // registers and never appear in device memory. The physical tensor table
 // describes exactly what the host needs to pack into Args.

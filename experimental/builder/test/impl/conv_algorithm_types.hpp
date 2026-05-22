@@ -744,7 +744,7 @@ using ConvAlgorithm_Tile_GroupedConvolutionKernel_StreamK =
                           TileOptimizations_,
                           TileStreamK_>;
 
-// CK Tile depthwise convolution algorithm (no GEMM — direct spatial pipeline)
+// CK Tile depthwise convolution algorithm (no GEMM - direct spatial pipeline)
 using ConvAlgorithm_Tile_DepthwiseConvolutionKernel =
     ConvAlgorithmTemplate<TileDepthwiseConvParams_>;
 

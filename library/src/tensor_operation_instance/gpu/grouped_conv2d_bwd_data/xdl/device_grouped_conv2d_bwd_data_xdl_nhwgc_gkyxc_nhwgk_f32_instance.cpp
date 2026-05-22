@@ -41,7 +41,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(
                                                        Empty_Tuple,
                                                        NHWGC,
                                                        ConvBwdDataFilter1x1Stride1Pad0>{});
-    // 3. Default — noshuffle epilogue
+    // 3. Default - noshuffle epilogue
     add_device_operation_instances(
         instances,
         device_grouped_conv_bwd_data_xdl_f32_noshuffle_instances<2,
@@ -50,7 +50,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(
                                                                  Empty_Tuple,
                                                                  NHWGC,
                                                                  ConvBwdDataDefault>{});
-    // 4. Filter1x1Stride1Pad0 — noshuffle epilogue
+    // 4. Filter1x1Stride1Pad0 - noshuffle epilogue
     add_device_operation_instances(instances,
                                    device_grouped_conv_bwd_data_xdl_f32_noshuffle_instances<
                                        2,
@@ -59,7 +59,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(
                                        Empty_Tuple,
                                        NHWGC,
                                        ConvBwdDataFilter1x1Stride1Pad0>{});
-    // 5. Default — nongrouped_match instances
+    // 5. Default - nongrouped_match instances
     add_device_operation_instances(
         instances,
         device_grouped_conv_bwd_data_xdl_f32_nongrouped_match_instances<2,
@@ -68,7 +68,7 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(
                                                                         Empty_Tuple,
                                                                         NHWGC,
                                                                         ConvBwdDataDefault>{});
-    // 6. Filter1x1Stride1Pad0 — nongrouped_match instances
+    // 6. Filter1x1Stride1Pad0 - nongrouped_match instances
     add_device_operation_instances(instances,
                                    device_grouped_conv_bwd_data_xdl_f32_nongrouped_match_instances<
                                        2,

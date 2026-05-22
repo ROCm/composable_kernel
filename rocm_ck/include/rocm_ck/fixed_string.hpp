@@ -1,10 +1,10 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Role: types — FixedString. No runtime, no CK deps.
+// Role: types - FixedString. No runtime, no CK deps.
 //
 // A compile-time string for use in template parameters (NTTPs).
 //
-// C++20 requires template parameters to be "structural types" — loosely, types
+// C++20 requires template parameters to be "structural types" - loosely, types
 // that are trivially comparable and don't contain pointers or references.
 // std::string and std::string_view fail this requirement (internal pointer).
 //
@@ -16,7 +16,7 @@
 // When to use FixedString vs std::string_view:
 //   - FixedString: the type must be structural (template parameters).
 //   - string_view: consteval-only types that never become template parameters
-//     (e.g., ResolvedTensor — see resolved_tensor.hpp).
+//     (e.g., ResolvedTensor - see resolved_tensor.hpp).
 //
 // The capacity is a template parameter so each use site documents its limit:
 //   FixedString<16> name("bias");   // tensor names: 15 chars max

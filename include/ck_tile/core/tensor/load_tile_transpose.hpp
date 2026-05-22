@@ -224,7 +224,7 @@ struct DefaultTranspose
         static constexpr bool suffix_valid_dim1 =
             util::is_sequence_suffix_v<decltype(quad_hs[I1]), decltype(input_hs[I1])>;
 
-        // 3. PS→RHS mapping constraints
+        // 3. PS->RHS mapping constraints
         static constexpr auto input_ps_major = InDstrEncode::ps_to_rhss_major_;
         static constexpr auto input_ps_minor = InDstrEncode::ps_to_rhss_minor_;
 
@@ -249,7 +249,7 @@ struct DefaultTranspose
             util::is_sequence_suffix_v<decltype(shifted_quad_ps_minor0),
                                        decltype(input_ps_minor_last)>;
 
-        // 4. YS→RHS mapping constraints
+        // 4. YS->RHS mapping constraints
         static constexpr auto input_ys_major = InDstrEncode::ys_to_rhs_major_;
         static constexpr auto input_ys_minor = InDstrEncode::ys_to_rhs_minor_;
         static constexpr auto quad_ys_major  = QuadEncoding::ys_to_rhs_major_;
@@ -354,7 +354,7 @@ struct TransposeTileDistributionTraits
         },
         number<InDstrEncode::NDimX>{});
 
-    // for PS→RHS mapping(both major and minor), we need to modify the last element (which is for
+    // for PS->RHS mapping(both major and minor), we need to modify the last element (which is for
     // thread distr) of the major sequence
     static constexpr auto dst_ps_to_rhss_major = generate_tuple(
         // for major because of dst_out_hs_lengthss is reversed, this index also need to be reversed

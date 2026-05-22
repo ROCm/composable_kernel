@@ -175,7 +175,7 @@ int run_mx_gemm_with_layouts(int argc, char* argv[], ALayout, BLayout, CLayout)
     constexpr ck_tile::index_t NXdlPackEff = (NIterPerWarp_ >= 2 && NIterPerWarp_ % 2 == 0) ? 2 : 1;
     constexpr ck_tile::index_t KXdlPackEff = (KIterPerWarp_ >= 2 && KIterPerWarp_ % 2 == 0) ? 2 : 1;
 
-    // Pack scales: [M, K/32] e8m0_t → [M/MXdlPackEff, K/32/KXdlPackEff] int32_t
+    // Pack scales: [M, K/32] e8m0_t -> [M/MXdlPackEff, K/32/KXdlPackEff] int32_t
     // Original unpacked tensors are kept for CPU reference validation
     constexpr ck_tile::index_t XdlMNThread = GemmConfig::M_Warp_Tile;
     constexpr ck_tile::index_t XdlKThread  = 64 / XdlMNThread;

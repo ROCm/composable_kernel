@@ -1,29 +1,29 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Role: abi — shared between host and device. Trivially copyable, no CK deps.
+// Role: abi - shared between host and device. Trivially copyable, no CK deps.
 //
 // Args is a hardware buffer for passing data between CPU and GPU during a
-// kernel call. It carries raw pointers, shapes, strides, and scalar values —
+// kernel call. It carries raw pointers, shapes, strides, and scalar values -
 // nothing more. All semantic meaning (which tensor is "A", which scalar is
 // "alpha", input vs output) lives in the Signature, not here.
 //
 // This is deliberately one type for all operations. Per-operation structs
-// (GemmArgs, FmhaArgs, ...) would make the dispatcher a closed set — adding
+// (GemmArgs, FmhaArgs, ...) would make the dispatcher a closed set - adding
 // an operation means adding a type, updating launch code, and changing the
 // kpack format. A generic buffer keeps the dispatcher open.
 //
 // Capacity limits (kMaxRank=6, kMaxTensors=16, kMaxScalars=16) are sized to
 // the most demanding current operation (FMHA backward: ~12 tensors, ~12
 // scalars, rank-6 for grouped 3D conv). If a future operation exceeds these,
-// bump the constants — the layout is not versioned, and the 4KB HSA kernarg
+// bump the constants - the layout is not versioned, and the 4KB HSA kernarg
 // budget has room. Don't over-provision speculatively.
 //
 // Key constraints:
-//   - Trivially copyable, standard layout — required for HSA kernarg passing.
-//   - Fixed-capacity arrays, no heap — sizeof fits the 4KB kernarg budget.
-//   - const void* for all tensor pointers — the entry kernel casts to the
+//   - Trivially copyable, standard layout - required for HSA kernarg passing.
+//   - Fixed-capacity arrays, no heap - sizeof fits the 4KB kernarg budget.
+//   - const void* for all tensor pointers - the entry kernel casts to the
 //     concrete type. Input vs output semantics live in the Signature.
-//   - No runtime type tags on scalars — the Signature declares types at
+//   - No runtime type tags on scalars - the Signature declares types at
 //     compile time. The entry kernel reads the correct union member.
 //   - Slot ordering is the invariant: tensors[i] maps to Signature::tensors[i].
 
@@ -44,11 +44,11 @@ constexpr int kMaxScalars = 16; // FMHA with masking+dropout needs ~12
 struct TensorArg
 {
     const void* ptr;                            //  8 bytes  (offset 0)
-    std::array<index_t, kMaxRank> lengths;      // 24 bytes  (offset 8)   — int32
-    std::array<long_index_t, kMaxRank> strides; // 48 bytes  (offset 32)  — int64
+    std::array<index_t, kMaxRank> lengths;      // 24 bytes  (offset 8)   - int32
+    std::array<long_index_t, kMaxRank> strides; // 48 bytes  (offset 32)  - int64
 };
 
-// FP16/BF16/FP8 scalars use f32 — scalar precision >= tensor precision.
+// FP16/BF16/FP8 scalars use f32 - scalar precision >= tensor precision.
 union ScalarValue
 {
     float f32;

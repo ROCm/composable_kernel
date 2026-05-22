@@ -458,8 +458,8 @@ TEST(StreamKConvBwdWeight, Tree_EndToEnd_MultiGroup)
         2, 4, 128, 128, 3, 3, 16, 16, 4, 1)));
 }
 
-// Stride > 1 — shrinks Ho/Wo, changing the K/tile ratio and DP/SK split.
-// Hi=16, Wi=16, 3x3 filter, stride=2, pad=1 → Ho=Wo=8, GemmK=N*64
+// Stride > 1 - shrinks Ho/Wo, changing the K/tile ratio and DP/SK split.
+// Hi=16, Wi=16, 3x3 filter, stride=2, pad=1 -> Ho=Wo=8, GemmK=N*64
 TEST(StreamKConvBwdWeight, Linear_EndToEnd_Stride2)
 {
     EXPECT_TRUE((run_streamk_vs_splitk_test<TestKernel<LinearPartitioner>>(1,
@@ -504,8 +504,8 @@ TEST(StreamKConvBwdWeight, Tree_EndToEnd_Stride2)
                                                                          1)));
 }
 
-// Pure DP — num_tiles evenly divides grid, so sk_ctas=0.
-// K=256, C=128, 3x3 → GemmM=256, GemmN=1152 → tiles=2*9=18, grid=3*1=3, 18%3=0
+// Pure DP - num_tiles evenly divides grid, so sk_ctas=0.
+// K=256, C=128, 3x3 -> GemmM=256, GemmN=1152 -> tiles=2*9=18, grid=3*1=3, 18%3=0
 TEST(StreamKConvBwdWeight, Linear_EndToEnd_PureDP)
 {
     EXPECT_TRUE((run_streamk_vs_splitk_test<TestKernel<LinearPartitioner>>(
@@ -518,8 +518,8 @@ TEST(StreamKConvBwdWeight, Tree_EndToEnd_PureDP)
         1, 4, 256, 128, 3, 3, 16, 16, 3, 1)));
 }
 
-// Single output tile — all work is SK, zero DP tiles.
-// K=128, C=128, 1x1 filter, stride=1, pad=0 → GemmM=128, GemmN=128, tiles=1
+// Single output tile - all work is SK, zero DP tiles.
+// K=128, C=128, 1x1 filter, stride=1, pad=0 -> GemmM=128, GemmN=128, tiles=1
 TEST(StreamKConvBwdWeight, Linear_EndToEnd_SingleTile)
 {
     EXPECT_TRUE((run_streamk_vs_splitk_test<TestKernel<LinearPartitioner>>(1,
@@ -564,7 +564,7 @@ TEST(StreamKConvBwdWeight, Tree_EndToEnd_SingleTile)
                                                                          0)));
 }
 
-// Large N — GemmK = 32*16*16 = 8192, many K iterations per tile.
+// Large N - GemmK = 32*16*16 = 8192, many K iterations per tile.
 TEST(StreamKConvBwdWeight, Linear_EndToEnd_LargeN)
 {
     EXPECT_TRUE((run_streamk_vs_splitk_test<TestKernel<LinearPartitioner>>(
@@ -577,7 +577,7 @@ TEST(StreamKConvBwdWeight, Tree_EndToEnd_LargeN)
         1, 32, 128, 128, 3, 3, 16, 16, 4, 1)));
 }
 
-// Higher occupancy — doubles the grid, more SK CTAs share tiles.
+// Higher occupancy - doubles the grid, more SK CTAs share tiles.
 TEST(StreamKConvBwdWeight, Linear_EndToEnd_HigherOccupancy)
 {
     EXPECT_TRUE((run_streamk_vs_splitk_test<TestKernel<LinearPartitioner>>(
@@ -590,7 +590,7 @@ TEST(StreamKConvBwdWeight, Tree_EndToEnd_HigherOccupancy)
         1, 4, 128, 128, 3, 3, 16, 16, 4, 2)));
 }
 
-// Persistent DP — workgroups loop over DP tiles, then do SK work.
+// Persistent DP - workgroups loop over DP tiles, then do SK work.
 TEST(StreamKConvBwdWeight, LinearPersistent_EndToEnd_SmallShape)
 {
     EXPECT_TRUE((run_streamk_vs_splitk_test<TestKernel<LinearPersistentPartitioner>>(
@@ -619,7 +619,7 @@ TEST(StreamKConvBwdWeight, TreePersistent_EndToEnd_MultiGroup)
 // Negative tests: IsSupportedArgument should reject invalid shapes
 // ============================================================================
 
-// C not divisible by VectorSizeB (=8) → rejected
+// C not divisible by VectorSizeB (=8) -> rejected
 TEST(StreamKConvBwdWeight, IsSupportedArgument_RejectsUnalignedC)
 {
     using Kernel = TestKernel<LinearPartitioner>;
@@ -630,7 +630,7 @@ TEST(StreamKConvBwdWeight, IsSupportedArgument_RejectsUnalignedC)
     EXPECT_FALSE(Kernel::IsSupportedArgument(kargs));
 }
 
-// K not divisible by VectorSizeA (=4) → rejected
+// K not divisible by VectorSizeA (=4) -> rejected
 TEST(StreamKConvBwdWeight, IsSupportedArgument_RejectsUnalignedK)
 {
     using Kernel = TestKernel<TreePartitioner>;

@@ -66,10 +66,10 @@ struct InstanceTraits<ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedCon
     static constexpr int kMPerBlock = TilePartitioner_::MPerBlock;
     static constexpr int kNPerBlock = TilePartitioner_::NPerBlock;
     static constexpr int kKPerBlock = TilePartitioner_::KPerBlock;
-    // Partitioner — detect StreamK by checking for PERSISTENT member
+    // Partitioner - detect StreamK by checking for PERSISTENT member
     static constexpr bool kIsStreamK = requires { TilePartitioner_::PERSISTENT; };
 
-    // Warp configuration — sourced from pipeline's BlockGemmShape (works for both
+    // Warp configuration - sourced from pipeline's BlockGemmShape (works for both
     // GemmSpatiallyLocalTilePartitioner and StreamKTilePartitioner).
     using BlockGemmShape_           = typename GemmPipeline_::BlockGemmShape;
     static constexpr int kMWarp     = BlockGemmShape_::BlockWarps::at(number<0>{});

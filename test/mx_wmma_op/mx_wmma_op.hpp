@@ -853,7 +853,7 @@ struct TestMXWMMA
                 std::vector<std::size_t> idx({i, j});
                 if constexpr(is_same_v<DataType, f4x2_pk_t>)
                 {
-                    // f4x2_pk_t packs two f4 values — print both
+                    // f4x2_pk_t packs two f4 values - print both
                     auto pack = mat(idx);
                     std::cout << ck::type_convert<float>(f4_t(pack.template unpack<>(Number<0>{})))
                               << "/" // lo/hi separator within a packed element
@@ -863,7 +863,7 @@ struct TestMXWMMA
                 else if constexpr(is_same_v<DataType, f6x16_pk_t> ||
                                   is_same_v<DataType, f6x32_pk_t>)
                 {
-                    // f6_pk_t packs packed_size f6_t values — print all
+                    // f6_pk_t packs packed_size f6_t values - print all
                     auto pack = mat(idx);
                     for(index_t k = 0; k < DataType::packed_size; ++k)
                     {
@@ -876,7 +876,7 @@ struct TestMXWMMA
                 else if constexpr(is_same_v<DataType, bf6x16_pk_t> ||
                                   is_same_v<DataType, bf6x32_pk_t>)
                 {
-                    // bf6_pk_t packs packed_size bf6_t values — print all
+                    // bf6_pk_t packs packed_size bf6_t values - print all
                     auto pack = mat(idx);
                     for(index_t k = 0; k < DataType::packed_size; ++k)
                     {

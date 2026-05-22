@@ -1,6 +1,6 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Role: types — GpuTarget enum. No runtime, no CK deps.
+// Role: types - GpuTarget enum. No runtime, no CK deps.
 
 #pragma once
 

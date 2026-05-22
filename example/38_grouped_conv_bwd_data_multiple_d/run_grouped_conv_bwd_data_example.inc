@@ -93,7 +93,7 @@ bool run_conv_bwd_data(const ExecutionConfig& config,
     if(!conv.IsSupportedArgument(argument))
     {
         std::cout << "device_conv with the specified compilation parameters does "
-                     "not support this Conv problem — skipping."
+                     "not support this Conv problem - skipping."
                   << std::endl;
 
         return true;
