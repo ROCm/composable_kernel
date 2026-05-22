@@ -14,6 +14,7 @@
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/grid/epilogue_type.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3.hpp"
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
@@ -57,12 +58,14 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     static_for<0, NumDTensor, 1>{}(
         [&](auto i) { p_ds_grid_batch(i) = karg.p_ds_grid_[i] + ds_batch_offset[i]; });
 
-    using EpilogueType = typename std::conditional<GridwiseOp::IsBWaveTransferApplicable &&
-                                                       GridwiseOp::UseDirectStore,
-                                                   typename GridwiseOp::EpilogueDirectStore,
-                                                   typename GridwiseOp::EpilogueCShuffle>::type;
+    constexpr auto epilogue_type =
+        GridwiseOp::IsBWaveTransferApplicable && GridwiseOp::UseDirectStore
+            ? EpilogueType::DirectStore
+            : EpilogueType::CShuffle;
+    using SelectedEpilogue = get_epilogue_t<epilogue_type, GridwiseOp>;
 
-    constexpr index_t LDS_size = GridwiseOp::template GetSharedMemoryNumberOfByte<EpilogueType>();
+    constexpr index_t LDS_size =
+        GridwiseOp::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
     __shared__ char p_shared[LDS_size];
 
     const auto a_grid_desc_ak0_m_ak1 =
@@ -70,7 +73,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     const auto b_grid_desc_bk0_n_bk1 =
         GridwiseOp::MakeBGridDescriptor_BK0_N_BK1(karg.b_grid_desc_n_k_);
 
-    auto epilogue_args = EpilogueType{};
+    auto epilogue_args = SelectedEpilogue{};
     GridwiseOp::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set, TailNum>(
         p_as_grid_batch,
         p_bs_grid_batch,

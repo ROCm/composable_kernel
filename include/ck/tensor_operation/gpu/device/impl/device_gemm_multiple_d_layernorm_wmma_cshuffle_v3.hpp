@@ -13,6 +13,7 @@
 #include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_layernorm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
+#include "ck/tensor_operation/gpu/grid/epilogue_type.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3.hpp"
 #include "ck/tensor_operation/gpu/grid/gemm_layernorm/gridwise_welford_second_half_layernorm2d.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -48,14 +49,15 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     std::is_same_v<e_data_type, ck::bhalf_t>)))
     {
 #endif
-        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-            typename GridwiseGemm::EpilogueWelfordCShuffle>();
+        using SelectedEpilogue = get_epilogue_t<EpilogueType::WelfordCShuffle, GridwiseGemm>;
 
+        constexpr index_t LDS_size =
+            GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
         __shared__ char p_shared[LDS_size];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-        auto epilogue_args = typename GridwiseGemm::EpilogueWelfordCShuffle(
+        auto epilogue_args = SelectedEpilogue(
             p_welford_mean_grid, p_welford_var_grid, p_welford_count_grid, karg.M, karg.N);
 
         GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
@@ -298,14 +300,16 @@ struct DeviceGemmMultipleDLayernorm_Wmma_CShuffleV3
         return PadTensorDescriptor(grid_desc_x, make_tuple(XPerTile), Sequence<true>{});
     }
 
+    using SelectedEpilogue = get_epilogue_t<EpilogueType::WelfordCShuffle, GridwiseGemmWelford>;
+
     using LayernormMeanVarGridDesc_M_NBlock =
-        decltype(GridwiseGemmWelford::EpilogueWelfordCShuffle::template MakeMeanVarDescriptor_M_N<
+        decltype(SelectedEpilogue::template MakeMeanVarDescriptor_M_N<
                  Sequence<true, true>,
                  LayernormBlockTileSize_M_N::At(0),
                  LayernormBlockTileSize_M_N::At(1)>(1, 1));
 
     using LayernormCountGridDesc_M_NBlock =
-        decltype(GridwiseGemmWelford::EpilogueWelfordCShuffle::template MakeCountDescriptor_M_N<
+        decltype(SelectedEpilogue::template MakeCountDescriptor_M_N<
                  Sequence<true, true>,
                  LayernormBlockTileSize_M_N::At(0),
                  LayernormBlockTileSize_M_N::At(1)>(1, 1));
@@ -398,13 +402,13 @@ struct DeviceGemmMultipleDLayernorm_Wmma_CShuffleV3
             static_for<0, NumDTensor, 1>{}([&](auto i) { p_ds_grid_[i] = p_ds_grid[i]; });
 
             layernorm_mean_var_grid_desc_m_nblock_ =
-                GridwiseGemmWelford::EpilogueWelfordCShuffle::template MakeMeanVarDescriptor_M_N<
+                SelectedEpilogue::template MakeMeanVarDescriptor_M_N<
                     Sequence<true, true>,
                     LayernormBlockTileSize_M_N::At(0),
                     LayernormBlockTileSize_M_N::At(1)>(MRaw, gemm_nblock_);
 
             layernorm_count_grid_desc_m_nblock_ =
-                GridwiseGemmWelford::EpilogueWelfordCShuffle::template MakeCountDescriptor_M_N<
+                SelectedEpilogue::template MakeCountDescriptor_M_N<
                     Sequence<true, true>,
                     LayernormBlockTileSize_M_N::At(0),
                     LayernormBlockTileSize_M_N::At(1)>(MRaw, gemm_nblock_);

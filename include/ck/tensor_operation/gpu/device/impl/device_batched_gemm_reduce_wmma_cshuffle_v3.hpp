@@ -12,6 +12,8 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_gemm_reduce.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_reduce_wmma.hpp"
+#include "ck/tensor_operation/gpu/grid/epilogue_type.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -50,9 +52,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     std::is_same_v<e_data_type, ck::bhalf_t>)))
     {
 #endif
-        using EpilogueType = typename GridwiseGemm::template EpilogueReduceCShuffle<ReduceTrait>;
+        using SelectedEpilogue =
+            get_epilogue_t<EpilogueType::ReduceCShuffle, GridwiseGemm, ReduceTrait>;
+
         constexpr index_t LDS_size =
-            GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
+            GridwiseGemm::template GetSharedMemoryNumberOfByte<SelectedEpilogue>();
         __shared__ char p_shared[LDS_size];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
@@ -85,11 +89,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                  splitk_batch_offset.b_k_split_offset[i] + b_batch_offset;
         });
 
-        auto epilogue_args = EpilogueType(reduces_batch,
-                                          reduce_in_element_ops,
-                                          reduce_out_element_ops,
-                                          karg.M,
-                                          tensor_operation::element_wise::PassThrough{});
+        auto epilogue_args = SelectedEpilogue(reduces_batch,
+                                              reduce_in_element_ops,
+                                              reduce_out_element_ops,
+                                              karg.M,
+                                              tensor_operation::element_wise::PassThrough{});
 
         GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
             p_as_grid_shift,

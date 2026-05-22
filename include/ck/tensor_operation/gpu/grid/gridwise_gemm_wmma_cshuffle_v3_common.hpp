@@ -19,10 +19,6 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp"
-#include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_reduce_wmma.hpp"
-#include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_welford_wmma.hpp"
-#include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_wmma.hpp"
-#include "ck/tensor_operation/gpu/grid/epilogue_direct_store.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_thread_tiles.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_thread_tiles_preshuffle.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_ab_transfer_wave_tiles.hpp"
@@ -32,214 +28,6 @@
 #include "ck/utility/env.hpp"
 
 namespace ck {
-
-template <typename GridwiseGemm,
-          bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum EGlobalMemoryDataOperation,
-          index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Full>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
-#endif
-    kernel_gemm_wmma_cshuffle_v3(typename GridwiseGemm::Argument karg)
-{
-#if(defined(__gfx11__) || defined(__gfx12__))
-#if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-    using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
-    if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
-                   (std::is_same_v<e_data_type, ck::half_t> ||
-                    std::is_same_v<e_data_type, ck::bhalf_t>)))
-    {
-#endif
-        using EpilogueType =
-            typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
-                                          GridwiseGemm::UseDirectStore,
-                                      typename GridwiseGemm::EpilogueDirectStore,
-                                      typename GridwiseGemm::EpilogueCShuffle>::type;
-
-        constexpr index_t LDS_size =
-            GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
-        __shared__ char p_shared[LDS_size];
-
-        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
-
-        auto epilogue_args = EpilogueType{};
-
-        GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
-            p_shared, splitk_batch_offset, karg, epilogue_args);
-
-#if defined(__gfx11__)
-    }
-#endif
-#else
-    ignore = karg;
-#endif
-}
-
-template <typename GridwiseGemm,
-          typename ComputePtrOffsetOfStridedBatch,
-          bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum CGlobalMemoryDataOperation,
-          index_t MinimumOccupancy = 1,
-          bool IsBScaled           = false,
-          TailNumber TailNum       = TailNumber::Full>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
-#endif
-    kernel_batched_gemm_wmma_cshuffle_v3(
-        typename GridwiseGemm::Argument karg, // This works for now but it actually receives a
-                                              // DeviceBatchedGemm_Wmma_CShuffleV3::Argument
-                                              // argument through implicit conversion to base class!
-        const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
-{
-#if(defined(__gfx11__) || defined(__gfx12__))
-#if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-    using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
-    if constexpr(!(CGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
-                   (std::is_same_v<c_data_type, ck::half_t> ||
-                    std::is_same_v<c_data_type, ck::bhalf_t>)))
-    {
-#endif
-        // The normal approach to batching would be to increase the grid size by just stretching out
-        // the grid Z dimension (which is the outermost dimension), but this depends on lower level
-        // functions not directly using the Z dimension for other calculations. As it turns out, k
-        // batching does rely directly on blockIdx.Z through SplitKBatchOffset. Therefore, for now
-        // we will use the grid Y dimension for batching. This may be a bit fragile.
-        const index_t g_idx = amd_wave_read_first_lane(blockIdx.y);
-
-        const long_index_t a_batch_offset =
-            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
-        const long_index_t b_batch_offset =
-            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
-        const long_index_t c_batch_offset =
-            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx));
-
-        using EpilogueType =
-            typename std::conditional<GridwiseGemm::IsBWaveTransferApplicable &&
-                                          GridwiseGemm::UseDirectStore,
-                                      typename GridwiseGemm::EpilogueDirectStore,
-                                      typename GridwiseGemm::EpilogueCShuffle>::type;
-
-        constexpr index_t LDS_size =
-            GridwiseGemm::template GetSharedMemoryNumberOfByte<EpilogueType>();
-
-        __shared__ char p_shared[LDS_size];
-
-        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
-
-        // shift A matrices pointer for splitk
-        typename GridwiseGemm::AsGridPointer p_as_grid_shift;
-        static_for<0, GridwiseGemm::NumATensor, 1>{}([&](auto i) {
-            using ADataType_ =
-                remove_cvref_t<tuple_element_t<i.value, typename GridwiseGemm::AsDataType_>>;
-            p_as_grid_shift(i) = static_cast<const ADataType_*>(karg.p_as_grid[i]) +
-                                 splitk_batch_offset.a_k_split_offset[i] + a_batch_offset;
-        });
-
-        // shift B matrices pointer for splitk
-        typename GridwiseGemm::BsGridPointer p_bs_grid_shift;
-        static_for<0, GridwiseGemm::NumBTensor, 1>{}([&](auto i) {
-            using BDataType_ =
-                remove_cvref_t<tuple_element_t<i.value, typename GridwiseGemm::BsDataType_>>;
-            p_bs_grid_shift(i) = static_cast<const BDataType_*>(karg.p_bs_grid[i]) +
-                                 splitk_batch_offset.b_k_split_offset[i] + b_batch_offset;
-        });
-
-        auto epilogue_args = EpilogueType{};
-
-        if constexpr(IsBScaled)
-        {
-            const long_index_t b_scale_batch_offset =
-                amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetScaleBPtrOffset(g_idx));
-
-            GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-                p_as_grid_shift,
-                p_bs_grid_shift,
-                karg.p_ds_grid,
-                karg.p_e_grid + splitk_batch_offset.c_reduce_offset + c_batch_offset,
-                karg.p_a_scale_grid,
-                karg.p_b_scale_grid + b_scale_batch_offset +
-                    splitk_batch_offset.scale_b_k_split_offset,
-                p_shared,
-                karg,
-                karg.a_element_op,
-                karg.b_element_op,
-                karg.cde_element_op,
-                epilogue_args);
-        }
-        else
-        {
-            GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-                p_as_grid_shift,
-                p_bs_grid_shift,
-                karg.p_ds_grid,
-                karg.p_e_grid + splitk_batch_offset.c_reduce_offset + c_batch_offset,
-                p_shared,
-                karg,
-                karg.a_element_op,
-                karg.b_element_op,
-                karg.cde_element_op,
-                epilogue_args);
-        }
-#if defined(__gfx11__)
-    }
-#endif
-#else
-    ignore = karg;
-    ignore = compute_ptr_offset_of_batch;
-#endif
-}
-
-template <typename GridwiseGemm,
-          bool HasMainKBlockLoop,
-          InMemoryDataOperationEnum EGlobalMemoryDataOperation,
-          index_t MinimumOccupancy = 1,
-          TailNumber TailNum       = TailNumber::Full>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
-#endif
-    kernel_gemm_b_preshuffle_wmma_cshuffle_v3(typename GridwiseGemm::Argument karg)
-{
-#if(defined(__gfx11__) || defined(__gfx12__))
-#if defined(__gfx11__)
-    // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
-    using e_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
-    if constexpr(!(EGlobalMemoryDataOperation == InMemoryDataOperationEnum::AtomicAdd &&
-                   (std::is_same_v<e_data_type, ck::half_t> ||
-                    std::is_same_v<e_data_type, ck::bhalf_t>)))
-    {
-#endif
-        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-            typename GridwiseGemm::EpilogueCShuffle>();
-        __shared__ char p_shared[LDS_size];
-
-        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
-
-        const index_t num_k_per_block = math::integer_divide_ceil(karg.K, GridwiseGemm::KPack);
-        const index_t k_id            = blockIdx.z * num_k_per_block;
-
-        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
-
-        GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
-            p_shared,
-            splitk_batch_offset,
-            karg,
-            epilogue_args,
-            0, /* A_k_id == 0 (we shift the pointer for splitk) */
-            k_id);
-
-#if defined(__gfx11__)
-    }
-#endif
-#else
-    ignore = karg;
-#endif
-}
 
 template <typename ALayout,
           typename BLayout,
@@ -903,76 +691,30 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                            false,
                                                            IsBPreShuffled>())>;
 
-    // Used to create obj in global function and pass it to Run method
-    using EpilogueCShuffle =
-        EpilogueCShuffle<DsDataType,
-                         EDataType,
-                         AccDataType,
-                         CShuffleDataType,
-                         MPerBlock,
-                         NPerBlock,
-                         MPerWmma,
-                         NPerWmma,
-                         MRepeat,
-                         NRepeat,
-                         CShuffleMRepeatPerShuffle,
-                         CShuffleNRepeatPerShuffle,
-                         CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                         CDEShuffleBlockTransferScalarPerVectors,
-                         CDEElementwiseOperation,
-                         ThisThreadBlock,
-                         BlockwiseGemmPipe>;
+    struct Traits
+    {
+        using DsDataType_       = DsDataType;
+        using EDataType_        = EDataType;
+        using AccDataType_      = AccDataType;
+        using CShuffleDataType_ = CShuffleDataType;
+        using CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock_ =
+            CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock;
+        using CDEShuffleBlockTransferScalarPerVectors_ = CDEShuffleBlockTransferScalarPerVectors;
+        using CDEElementwiseOperation_                 = CDEElementwiseOperation;
+        using ThisThreadBlock_                         = ThisThreadBlock;
+        using BlockwiseGemmPipe_                       = BlockwiseGemmPipe;
 
-    using EpilogueDirectStore = EpilogueDirectStore<DsDataType,
-                                                    EDataType,
-                                                    AccDataType,
-                                                    MRepeat,
-                                                    NRepeat,
-                                                    CDEElementwiseOperation,
-                                                    BlockwiseGemmPipe>;
-
-    using EpilogueWelfordCShuffle = EpilogueWelfordCShuffle<
-        DsDataType,
-        EDataType,
-        AccDataType,
-        CShuffleDataType,
-        MPerBlock,
-        NPerBlock,
-        MPerWmma,
-        NPerWmma,
-        MRepeat,
-        NRepeat,
-        CShuffleMRepeatPerShuffle,
-        CShuffleNRepeatPerShuffle,
-        CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CDEShuffleBlockTransferScalarPerVectors,
-        CDEElementwiseOperation,
-        ThisThreadBlock,
-        BlockwiseGemmPipe,
-        BlockSize>;
-
-    template <typename ReduceTrait>
-    using EpilogueReduceCShuffle = EpilogueReduceCShuffle<
-        DsDataType,
-        EDataType,
-        AccDataType,
-        CShuffleDataType,
-        MPerBlock,
-        NPerBlock,
-        MPerWmma,
-        NPerWmma,
-        MRepeat,
-        NRepeat,
-        CShuffleMRepeatPerShuffle,
-        CShuffleNRepeatPerShuffle,
-        CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CDEShuffleBlockTransferScalarPerVectors,
-        CDEElementwiseOperation,
-        ThisThreadBlock,
-        BlockwiseGemmPipe,
-        GemmSpec,
-        BlockSize,
-        ReduceTrait>;
+        static constexpr auto MPerBlock_                 = MPerBlock;
+        static constexpr auto NPerBlock_                 = NPerBlock;
+        static constexpr auto MPerWmma_                  = MPerWmma;
+        static constexpr auto NPerWmma_                  = NPerWmma;
+        static constexpr auto MRepeat_                   = MRepeat;
+        static constexpr auto NRepeat_                   = NRepeat;
+        static constexpr auto CShuffleMRepeatPerShuffle_ = CShuffleMRepeatPerShuffle;
+        static constexpr auto CShuffleNRepeatPerShuffle_ = CShuffleNRepeatPerShuffle;
+        static constexpr auto GemmSpec_                  = GemmSpec;
+        static constexpr auto BlockSize_                 = BlockSize;
+    };
 
     template <typename DEGridDesc>
     __host__ __device__ static constexpr auto
@@ -1324,7 +1066,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         return BlockwiseGemmPipe::BlockLoopTailNum(num_loop);
     }
 
-    template <typename EpilogueType>
+    template <typename Epilogue>
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         // LDS allocation for A and B: be careful of alignment
@@ -1346,11 +1088,11 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                max_lds_align)
                 : 0;
 
-        if constexpr(EpilogueType::IsLDSNeeded())
+        if constexpr(Epilogue::IsLDSNeeded())
         {
             // LDS allocation for C shuffle in LDS
             constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
-                EpilogueType::
+                Epilogue::
                     GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat();
 
             constexpr auto c_block_size =
