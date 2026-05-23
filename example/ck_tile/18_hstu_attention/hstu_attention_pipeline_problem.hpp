@@ -152,6 +152,8 @@ struct HstuAttentionFwdSplitKVCombinePipelineProblem
     static constexpr index_t kBlockSize   = CombineTileSetting_::NumWarps * get_warp_size();
     static constexpr index_t kMaxSplits   = kMaxSplits_;
 
+    static_assert((kMaxSplits == 0) || (kM * kMaxSplits >= kBlockSize), "Check failed!");
+
     CK_TILE_HOST_DEVICE static constexpr auto GetOaccDramTileAccessMaxVectorSize()
     {
         constexpr index_t kMPerBlock = kM;
