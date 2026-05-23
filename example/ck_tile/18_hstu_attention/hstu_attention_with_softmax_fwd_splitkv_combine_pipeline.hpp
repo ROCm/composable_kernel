@@ -117,20 +117,6 @@ struct HstuAttentionWithSoftmaxFwdSplitKVCombinePipeline
         // provide partition_index for LDS tile window so that warp_id is in vgpr
         array<index_t, 2> partition_index{get_warp_id<false>(), get_lane_id()};
 
-        // ToDo: use buffer_view interface to enable the tile loading to set -inf for oob elements
-        sweep_tile_span(lse_spans[number<0>{}], [&](auto idx0) {
-            sweep_tile_span(lse_spans[number<1>{}], [&](auto idx1) {
-                constexpr auto i_j_idx = make_tuple(idx0, idx1);
-
-                const auto x_indices = get_x_indices_from_distributed_indices(
-                    lse_acc.get_tile_distribution(), i_j_idx, partition_index);
-
-                const auto col = x_indices.at(number<1>{});
-                if(col >= num_splits)
-                    lse_acc(i_j_idx) = -numeric<LSEDataType>::infinity();
-            });
-        });
-
         // calculate max of lse_acc[] across all splits for all rows in the tile, lse_max is
         // only used for stablizing the exp()
         auto lse_max = block_tile_reduce<LSEDataType>(

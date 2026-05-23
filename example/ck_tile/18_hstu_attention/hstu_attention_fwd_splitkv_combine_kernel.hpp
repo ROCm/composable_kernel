@@ -317,13 +317,22 @@ struct HstuAttentionFwdSplitKVCombineKernel
                     static_cast<long_index_t>(i_nhead) * kargs.num_splits + batch_offset_lse_acc;
 
                 // LSEacc DRAM and LSEacc DRAM window
-                auto seq_stride_lse_acc       = kargs.num_head * kargs.num_splits;
-                const auto lse_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                auto seq_stride_lse_acc = kargs.num_head * kargs.num_splits;
+
+                auto lse_acc_desc =
+                    make_naive_tensor_descriptor(make_tuple(kargs.seqlen_q, kargs.num_splits),
+                                                 make_tuple(seq_stride_lse_acc, 1),
+                                                 number<HstuAttentionPipeline::kAlignmentLSEacc>{},
+                                                 number<1>{});
+
+                auto lse_acc_buf_view = make_buffer_view<address_space_enum::global>(
                     lse_acc_ptr,
-                    make_tuple(kargs.seqlen_q, kargs.num_splits),
-                    make_tuple(seq_stride_lse_acc, 1),
-                    number<HstuAttentionPipeline::kAlignmentLSEacc>{},
-                    number<1>{});
+                    lse_acc_desc.get_element_space_size(),
+                    -numeric<LSEDataType>::infinity());
+
+                auto lse_acc_dram_naive =
+                    tensor_view<decltype(lse_acc_buf_view), decltype(lse_acc_desc)>{
+                        lse_acc_buf_view, lse_acc_desc};
 
                 const auto lse_acc_dram =
                     pad_tensor_view(lse_acc_dram_naive,
