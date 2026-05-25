@@ -1681,7 +1681,7 @@ struct GridwiseMoeGemmMX
                 MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     ds_grid_desc_m_n, problem.MBlock, problem.NBlock);
             Base::
-                template RunMoeEpilogue<CGlobalMemoryDataOperation, false, IsInputGemm, IndexType>(
+                template RunMoeEpilogue<CGlobalMemoryDataOperation, false, IsInputGemm, false, IndexType>(
                     blockwise_gemm_pipeline,
                     c_grid_desc_mblock_mperblock_nblock_nperblock,
                     ds_grid_desc_mblock_mperblock_nblock_nperblock,

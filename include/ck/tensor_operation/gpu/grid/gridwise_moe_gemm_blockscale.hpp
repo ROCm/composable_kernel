@@ -1648,7 +1648,7 @@ struct GridwiseMoeGemmBlockScale
         const auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 ds_grid_desc_m_n, problem.MBlock, problem.NBlock);
-        Base::template RunMoeEpilogue<CGlobalMemoryDataOperation, true, IsInputGemm, IndexType>(
+        Base::template RunMoeEpilogue<CGlobalMemoryDataOperation, true, IsInputGemm, false, IndexType>(
             blockwise_gemm_pipeline,
             c_grid_desc_mblock_mperblock_nblock_nperblock,
             ds_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -2195,7 +2195,7 @@ struct GridwiseMoeGemmBlockScale
         const auto ds_grid_desc_mblock_mperblock_nblock_nperblock =
             MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                 ds_grid_desc_m_n, problem.MBlock, problem.NBlock);
-        Base::template RunMoeEpilogue<CGlobalMemoryDataOperation, true, IsInputGemm, IndexType>(
+        Base::template RunMoeEpilogue<CGlobalMemoryDataOperation, true, IsInputGemm, false, IndexType>(
             blockwise_gemm_pipeline,
             c_grid_desc_mblock_mperblock_nblock_nperblock,
             ds_grid_desc_mblock_mperblock_nblock_nperblock,

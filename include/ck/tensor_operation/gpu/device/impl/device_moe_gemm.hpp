@@ -70,6 +70,7 @@ template <typename ALayout,
           bool IsInputGemm                            = true,
           bool MulRoutedWeight                        = true,
           bool PerTokenQuant                          = true,
+          bool NoCombine                              = false,
           typename IndexType                          = index_t,
           typename ComputeTypeA                       = CDataType,
           typename ComputeTypeB                       = ComputeTypeA,
@@ -144,6 +145,7 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
                         IsInputGemm,
                         MulRoutedWeight,
                         PerTokenQuant,
+                        NoCombine,
                         IndexType,
                         ComputeTypeA,
                         ComputeTypeB,
@@ -277,8 +279,9 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
 
             constexpr index_t minimum_occupancy = (estimated_reg_total >= 256) ? 1 : 2;
 
-            constexpr auto MemoryDataOp =
-                IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
+            constexpr auto MemoryDataOp = (IsInputGemm || NoCombine)
+                                              ? InMemoryDataOperationEnum::Set
+                                              : InMemoryDataOperationEnum::AtomicAdd;
             if(has_main_k_block_loop)
             {
                 // Tail number always full
