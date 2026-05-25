@@ -967,14 +967,39 @@ struct UnifiedAttentionPipeline
             1;
         (void)KWaveSpanInN; // currently informational only
 
+        // The post-load refresh prepares page_offsets for the NEXT K/V tile.
+        // On the last tile of the (split-KV per-split) loop the next load is
+        // never issued, but an unconditional refresh would still read
+        // `block_tables[block_table_offset + (last_relative_tile + 1)]` —
+        // for the *last* split that's one past the last valid logical_page
+        // for this seq, i.e. an OOB read. When block_tables happens to be
+        // the last allocation in a memory page that read faults; the PyTorch
+        // caching allocator hides the bug for small workloads but reproduces
+        // reliably once a workload deep-copies enough small `block_tables`
+        // tensors (>~30 distinct copies on MI300/MI355) to spread allocations
+        // across unmapped page boundaries.
+        //
+        // Gating refresh on the *per-split* iteration count
+        // (num_total_loop - num_blocks_start) leaves the page_offsets table
+        // stale on the final iter (harmless — no subsequent load consumes it)
+        // and avoids the OOB read.
+        //
+        // Note: k_block_idx / v_block_idx are 0-based *relative to this
+        // split*, while num_total_loop is the absolute end index. The
+        // relative iteration count is therefore num_total_loop minus
+        // num_blocks_start.
+        const index_t num_iters_per_split = num_total_loop - num_blocks_start;
         auto K_mem_load = [&](auto k_lds_write_idx) {
             if(cache_ptr_int32_overflow_possible)
                 async_load_tile_raw_long(k_lds_window_store(k_lds_write_idx), k_dram_window);
             else
                 async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
             k_block_idx++;
-            refresh_k_offsets(k_block_idx);
-            k_dram_window.update_page_idx(k_page_offsets);
+            if(k_block_idx < num_iters_per_split)
+            {
+                refresh_k_offsets(k_block_idx);
+                k_dram_window.update_page_idx(k_page_offsets);
+            }
         };
 
         auto V_mem_load = [&](auto v_lds_write_idx) {
@@ -983,8 +1008,11 @@ struct UnifiedAttentionPipeline
             else
                 async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
             v_block_idx++;
-            refresh_v_offsets(v_block_idx);
-            v_dram_window.update_page_idx(v_page_offsets);
+            if(v_block_idx < num_iters_per_split)
+            {
+                refresh_v_offsets(v_block_idx);
+                v_dram_window.update_page_idx(v_page_offsets);
+            }
         };
 
         auto K_lds_load = [&](auto k_lds_read_idx) {
