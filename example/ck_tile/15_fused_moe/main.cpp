@@ -328,16 +328,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
 // leave it here for future debug purpose
 #if 0
-    a_host.loadtxt("../../ater/input_torch.txt");
+    ck_tile::loadtxt(a_host, "../../ater/input_torch.txt");
 
-    topk_ids_host.loadtxt("../../ater/topk_ids_torch.txt", "int");
-    // topk_ids_host.savetxt("topk_ids_2.txt");
-    topk_weight_host.loadtxt("../../ater/topk_weights_torch.txt", "float");
+    ck_tile::loadtxt(topk_ids_host, "../../ater/topk_ids_torch.txt", "int");
+    // ck_tile::savetxt(topk_ids_host, "topk_ids_2.txt");
+    ck_tile::loadtxt(topk_weight_host, "../../ater/topk_weights_torch.txt", "float");
     std::cout << "------- @@@ " << __LINE__ << std::flush << std::endl;
 
-    g_host.loadtxt("../../ater/w1_torch.txt", "float");
+    ck_tile::loadtxt(g_host, "../../ater/w1_torch.txt", "float");
     std::cout << "------- @@@ " << __LINE__ << std::flush << std::endl;
-    d_host.loadtxt("../../ater/w2_torch.txt", "float");
+    ck_tile::loadtxt(d_host, "../../ater/w2_torch.txt", "float");
     std::cout << "------- @@@ " << __LINE__ << std::flush << std::endl;
 
     ck_tile::HostTensor<GDataType> g_perm_host = shuffle_moe_weight(g_host, prec_w, 1);
@@ -511,7 +511,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             }
 
             auto o_dev = o_buf.ToHost<ODataType>();
-            // o_dev.savetxt("gpu-out.txt", "float");
+            // ck_tile::savetxt(o_dev, "gpu-out.txt", "float");
             auto [rtol, atol] = get_elimit<ADataType>();
             pass &= ck_tile::check_err(
                 o_dev, o_host, std::string("OUT Error: Incorrect results!"), rtol, atol);
@@ -639,7 +639,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             }
 
             auto o_dev = o_buf.ToHost<ODataType>();
-            // o_dev.savetxt("gpu-out.txt", "float");
+            // ck_tile::savetxt(o_dev, "gpu-out.txt", "float");
             auto [rtol, atol] = get_elimit<ADataType>();
             pass &= ck_tile::check_err(
                 o_dev, o_host, std::string("OUT Error: Incorrect results!"), rtol, atol);

@@ -14,6 +14,7 @@
 #include "ck_tile/host/high_res_cpu_clock.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
 #include "ck_tile/host/host_tensor.hpp"
+#include "ck_tile/host/host_tensor_io.hpp"
 #include "ck_tile/host/joinable_thread.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
