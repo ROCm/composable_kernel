@@ -246,9 +246,9 @@ struct UnifiedAttentionPipelineDefaultPolicy
             WarpGemmDispatcher<typename Problem::QDataType,
                                typename Problem::KDataType,
                                typename Problem::SaccDataType,
-                               Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
-                               Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
-                               Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
+                               Problem::UnifiedAttentionShape::Gemm0WarpTile::at(number<0>{}),
+                               Problem::UnifiedAttentionShape::Gemm0WarpTile::at(number<1>{}),
+                               Problem::UnifiedAttentionShape::Gemm0WarpTile::at(number<2>{}),
                                true,
                                false,
                                false>;
