@@ -213,6 +213,18 @@ struct StreamKTilePartitionerBase
      */
     CK_TILE_HOST index_t estimate_num_wgs_per_tile() const noexcept;
 
+    /**
+     * @brief XCDs access ids in round robin format, this function remaps the 1D ids to continguous
+     * XCD segments
+     *
+     * @param block_1d_id       grid 1D id
+     * @param total_num_tiles   size of the 1D grid
+     * @param num_xcds          number of XCDs
+     * @return index_t  The id after XCD remap
+     */
+    CK_TILE_HOST_DEVICE static index_t
+    remap_xcd(index_t block_1d_id, index_t total_num_tiles, index_t num_xcds = 8) noexcept;
+
     protected:
     index_t num_tiles_;
     index_t max_active_wgs_;
@@ -281,7 +293,7 @@ struct StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>
      *
      * @return dim_3           The launching grid size for the kernel.
      */
-    CK_TILE_HOST auto grid_size() const noexcept -> dim3;
+    CK_TILE_HOST_DEVICE auto grid_size() const noexcept -> dim3;
 
     /**
      * @brief Returns the total number of DP tiles per workgroup.
@@ -328,7 +340,7 @@ struct StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, false>
      *
      * @return dim_3           The launching grid size for the kernel.
      */
-    CK_TILE_HOST auto grid_size() const noexcept -> dim3;
+    CK_TILE_HOST_DEVICE auto grid_size() const noexcept -> dim3;
 
     /**
      * @brief Returns the total number of DP workgroups.

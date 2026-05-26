@@ -1086,6 +1086,9 @@ struct GroupedConvolutionBackwardWeightKernel
             "Currently supported: gfx90a, gfx942, gfx950.");
 
         __shared__ char smem_ptr[GetSmemSize()];
+
+        // Group offset (blockIdx.y = group batch index)
+        const auto blockIdX       = amd_wave_read_first_lane(blockIdx.x);
         const index_t dp_num_loop = kargs.tile_partitioner.get_iters_per_tile();
 
         StreamKDispatch(
@@ -1128,7 +1131,8 @@ struct GroupedConvolutionBackwardWeightKernel
                                static_cast<const InDataType*>(kargs.in_ptr),
                                static_cast<WeiDataType*>(kargs.wei_ptr),
                                smem_ptr);
-            });
+            },
+            blockIdX);
     }
 
     /// @brief Stream-K loop: iterate over assigned K-iterations, run GEMM pipeline,

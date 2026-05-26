@@ -259,11 +259,11 @@ struct StreamKReductionOps
 /// @param dp_tile_func     Callable(index_t tile_idx) - processes one full DP tile.
 /// @param sk_func          Callable(index_t sk_cta_idx) - runs the StreamK loop for this CTA.
 template <typename TilePartitioner_, typename DPTileFunc, typename SKFunc>
-CK_TILE_DEVICE void
-StreamKDispatch(const TilePartitioner_& tile_partitioner, DPTileFunc dp_tile_func, SKFunc sk_func)
+CK_TILE_DEVICE void StreamKDispatch(const TilePartitioner_& tile_partitioner,
+                                    DPTileFunc dp_tile_func,
+                                    SKFunc sk_func,
+                                    index_t block_idx)
 {
-    const index_t block_idx = get_block_1d_id();
-
     if constexpr(TilePartitioner_::PERSISTENT)
     {
         // Persistent: each workgroup loops over multiple DP tiles, then does SK work

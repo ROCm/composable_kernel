@@ -105,6 +105,23 @@ inline size_t get_num_cus()
     return static_cast<size_t>(props.multiProcessorCount);
 }
 
+inline size_t get_num_xccs()
+{
+    int device   = 0;
+    int num_xccs = 1;
+    auto status  = hipGetDevice(&device);
+    if(status != hipSuccess)
+    {
+        return 0;
+    }
+    status = hipDeviceGetAttribute(&num_xccs, hipDeviceAttributeNumberOfXccs, device);
+    if(status == hipSuccess)
+    {
+        return num_xccs;
+    }
+    return 1;
+}
+
 } // namespace ck_tile
 
 #endif
