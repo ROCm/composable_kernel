@@ -1161,13 +1161,17 @@ struct pk_f6_legacy_t
     static constexpr index_t vector_size = (packed_size * num_bits_elem) / num_bits_vec_elem;
     element_type data_[vector_size]; // packed data
     using type = pk_f6_legacy_t<packed_size, kind>;
-    CK_TILE_HOST_DEVICE constexpr explicit pk_f6_legacy_t(int value = 0)
+
+    CK_TILE_HOST_DEVICE constexpr pk_f6_legacy_t() : data_{element_type{}} {}
+
+    CK_TILE_HOST_DEVICE constexpr explicit pk_f6_legacy_t(int value)
     {
         for(size_t i = 0; i < vector_size; ++i)
         {
             data_[i] = value;
         }
     }
+
     CK_TILE_HOST_DEVICE void pack(const int32_t x, const index_t i)
     {
         int32_t bits         = static_cast<int32_t>(x) & 0x3F;

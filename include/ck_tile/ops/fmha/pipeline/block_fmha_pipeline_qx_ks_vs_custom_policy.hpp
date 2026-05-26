@@ -116,8 +116,8 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                 constexpr auto AttrNumAccess = std::is_same_v<typename Problem::QDataType, pk_fp4_t>
                                                    ? WGAttrNumAccessEnum::Single
                                                    : WGAttrNumAccessEnum::Double;
-                return WarpGemmDispatcher<typename Problem::QDataType,
-                                          typename Problem::KDataType,
+                return WarpGemmDispatcher<typename Problem::KDataType,
+                                          typename Problem::QDataType,
                                           typename Problem::SaccDataType,
                                           Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
                                           Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
@@ -131,12 +131,13 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
             // Ensure that QKBlockGemm's C (S) can be used as KVBlockGemm's A (P)
             constexpr index_t TargetCMPerLane = [] {
                 // Must be consistent with GetKVBlockGemm()
-                constexpr auto AttrNumAccess = std::is_same_v<typename Problem::PDataType, pk_fp4_t>
-                                                   ? WGAttrNumAccessEnum::Single
-                                                   : WGAttrNumAccessEnum::Double;
+                constexpr auto AttrNumAccess =
+                    ck_tile::is_any_of<typename Problem::PDataType, pk_fp4_t, pk_fp6x16_t>::value
+                        ? WGAttrNumAccessEnum::Single
+                        : WGAttrNumAccessEnum::Double;
                 using WarpGemm =
-                    WarpGemmDispatcher<typename Problem::PDataType,
-                                       typename Problem::VDataType,
+                    WarpGemmDispatcher<typename Problem::VDataType,
+                                       typename Problem::PDataType,
                                        typename Problem::OaccDataType,
                                        Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
                                        Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
@@ -181,8 +182,8 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                     constexpr bool SwizzleA =
                         Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 32;
                     return WarpGemmDispatcher<
-                        typename Problem::QDataType,
                         typename Problem::KDataType,
+                        typename Problem::QDataType,
                         typename Problem::SaccDataType,
                         Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
                         Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
@@ -333,8 +334,8 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
             {
                 constexpr bool SwizzleA =
                     Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 32;
-                return WarpGemmDispatcher<typename Problem::QDataType,
-                                          typename Problem::KDataType,
+                return WarpGemmDispatcher<typename Problem::KDataType,
+                                          typename Problem::QDataType,
                                           typename Problem::SaccDataType,
                                           Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
                                           Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
@@ -1109,13 +1110,15 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::MX)
         {
             constexpr auto warp_gemm = []() {
-                static_assert(std::is_same_v<typename Problem::PDataType, pk_fp4_t> ==
-                              std::is_same_v<typename Problem::VDataType, pk_fp4_t>);
-                constexpr auto AttrNumAccess = std::is_same_v<typename Problem::PDataType, pk_fp4_t>
-                                                   ? WGAttrNumAccessEnum::Single
-                                                   : WGAttrNumAccessEnum::Double;
-                return WarpGemmDispatcher<typename Problem::PDataType,
-                                          typename Problem::VDataType,
+                static_assert(
+                    ck_tile::is_any_of<typename Problem::PDataType, pk_fp4_t, pk_fp6x16_t>::value ==
+                    std::is_same_v<typename Problem::VDataType, pk_fp4_t>);
+                constexpr auto AttrNumAccess =
+                    ck_tile::is_any_of<typename Problem::PDataType, pk_fp4_t, pk_fp6x16_t>::value
+                        ? WGAttrNumAccessEnum::Single
+                        : WGAttrNumAccessEnum::Double;
+                return WarpGemmDispatcher<typename Problem::VDataType,
+                                          typename Problem::PDataType,
                                           typename Problem::OaccDataType,
                                           Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
                                           Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
@@ -1151,8 +1154,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                 else
                 {
                     return WarpGemmDispatcher<
-                        typename Problem::PDataType,
                         typename Problem::VDataType,
+                        typename Problem::PDataType,
                         typename Problem::OaccDataType,
                         Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
                         Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),

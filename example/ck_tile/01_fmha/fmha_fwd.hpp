@@ -208,9 +208,11 @@ struct FmhaFwdTypeConfig<FmhaFwdMxFp4>
     using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
     using SaccDataType          = float; // data type for first gemm accumulation
     using SMPLComputeDataType   = float; // data type for reduction, softmax
-    using PDataType             = ck_tile::pk_fp4_t; // data type for A matrix of second gemm
-    using OaccDataType          = float;             // data type for second gemm accumulation
-    using ODataType             = float;
+    using PDataType =
+        ck_tile::pk_fp6x16_t; // data type for A matrix of second gemm (pk_fp4_t or pk_fp6x16_t, use
+                              // pk_fp6x16_t for higher precision for free)
+    using OaccDataType = float; // data type for second gemm accumulation
+    using ODataType    = float;
 
     using QScaleDataType = ck_tile::e8m0_t;
     using KScaleDataType = ck_tile::e8m0_t;
