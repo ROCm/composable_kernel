@@ -3,9 +3,15 @@
 
 #pragma once
 
-#include <algorithm>
-#include "ck_tile/core/tensor/tile_distribution.hpp"
 #include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_register_mapper.hpp"
+#include "ck_tile/core/container/sequence.hpp"
+#include "ck_tile/core/container/tuple.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/core/tensor/tile_distribution_encoding.hpp"
+
+#include <algorithm>
+#include <type_traits>
 
 namespace ck_tile::core::arch::mma {
 /**
@@ -57,8 +63,8 @@ struct TileDistrEncCalc
               sequence<NumAccess,
                        MmaOp::kK / MmaOp::kABKPerLane,
                        MmaOp::kABKPerLane / NumAccess / CompressionRatio / PackedSize>>,
-        tuple<sequence<0, 2, 1>>,
-        tuple<sequence<0, 1, 0>>,
+        tuple<sequence<2, 0, 1>>,
+        tuple<sequence<1, 0, 0>>,
         sequence<2, 2>,
         sequence<0, 2>>;
 
@@ -92,8 +98,8 @@ struct TileDistrEncCalc
         {
             return tile_distribution_encoding<sequence<1>,
                                               MatDims,
-                                              tuple<sequence<MInx, NInx, MInx, NInx>>,
-                                              tuple<sequence<0, 0, 2, 1>>,
+                                              tuple<sequence<MInx, MInx, NInx, NInx>>,
+                                              tuple<sequence<2, 0, 0, 1>>,
                                               sequence<MInx, MInx>,
                                               sequence<1, 3>>{};
         }
