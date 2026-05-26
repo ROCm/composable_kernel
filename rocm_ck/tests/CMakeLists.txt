@@ -25,6 +25,7 @@ function(add_rocm_ck_test test_name)
     add_executable(${test_name} ${ARGN})
     target_link_libraries(${test_name} PRIVATE rocm_ck GTest::gtest_main GTest::gmock)
     target_compile_options(${test_name} PRIVATE
+        -Wall -Werror
         -Wno-global-constructors           # GTest registration macros
         -Wno-undef                         # GTest internal headers
         -Wno-zero-as-null-pointer-constant # C++20 <=> comparisons to 0
@@ -39,11 +40,14 @@ set(ROCM_CK_UNIT_SOURCES
     unit/unit_args.cpp
     unit/unit_datatype.cpp
     unit/unit_fixed_string.cpp
+    unit/unit_gemm_spec.cpp
     unit/unit_index_t.cpp
     unit/unit_layout.cpp
     unit/unit_physical_tensor.cpp
     unit/unit_resolve.cpp
+    unit/unit_schema_compatibility.cpp
     unit/unit_signature.cpp
+    unit/unit_validate.cpp
 )
 set_source_files_properties(${ROCM_CK_UNIT_SOURCES} PROPERTIES LANGUAGE CXX)
 
