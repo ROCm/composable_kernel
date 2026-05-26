@@ -146,6 +146,16 @@ float fmha_bwd_dq_dk_dv_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>(const ck_tile::st
     auto [kargs, grids]                    = fmha_bwd_dq_dk_dv_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
+    if constexpr(k_::kNeedsKernelPrezeroDqAcc)
+    {{
+        using pk_ = typename k_::DqAccPrezeroKernel;
+        return ck_tile::launch_kernel(
+            s,
+            ck_tile::make_kernel<pk_::kBlockPerCu, {F_arch.tag}>(
+                pk_{{}}, pk_::GridSize(), pk_::BlockSize(), 0,
+                k_::MakeDqAccPrezeroKargs(a.workspace_ptr, a.batch)),
+            ck_tile::make_kernel<kBlockPerCu, {F_arch.tag}>(k_{{}}, grids, blocks, 0, kargs));
+    }}
     return ck_tile::launch_kernel(
         s, ck_tile::make_kernel<kBlockPerCu, {F_arch.tag}>(k_{{}}, grids, blocks, 0, kargs));
 }}
@@ -157,6 +167,14 @@ void fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_{F_idx}, {F_arch.tag}>(const ck_t
     auto [kargs, grids]                    = fmha_bwd_dq_dk_dv_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
+    if constexpr(k_::kNeedsKernelPrezeroDqAcc)
+    {{
+        using pk_ = typename k_::DqAccPrezeroKernel;
+        ck_tile::make_kernel<pk_::kBlockPerCu, {F_arch.tag}>(
+            pk_{{}}, pk_::GridSize(), pk_::BlockSize(), 0,
+            k_::MakeDqAccPrezeroKargs(a.workspace_ptr, a.batch))(
+            ck_tile::stream_config{{s.stream_id_}});
+    }}
     ck_tile::make_kernel<kBlockPerCu, {F_arch.tag}>(k_{{}}, grids, blocks, 0, kargs)(
         ck_tile::stream_config{{s.stream_id_}});
 }}

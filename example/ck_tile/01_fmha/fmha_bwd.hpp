@@ -628,9 +628,14 @@ struct fmha_bwd_launcher
 
         // Allocate pinned host staging first: if it throws we haven't issued any
         // stream work yet, leaving the workspace cleanly un-prepared.
+        // 16-align each section: pin_w stores alignas(16) FmhaBwdGroupPersistentCuState
+        // written via x86 SIMD; misaligned destinations fault.
         const size_t seqstart_bytes = traits_.is_group_mode ? sizeof(int) * (traits_.batch + 1) : 0;
-        const size_t total_bytes    = 2 * seqstart_bytes + host_ws_size_;
-        auto pin_base               = pinned_host_alloc(total_bytes);
+        const size_t seqstart_stride =
+            ck_tile::integer_least_multiple(seqstart_bytes, static_cast<size_t>(16));
+        const size_t pin_w_offset = 2 * seqstart_stride;
+        const size_t total_bytes  = pin_w_offset + host_ws_size_;
+        auto pin_base             = pinned_host_alloc(total_bytes);
 
         if(needs_zero_dq_acc_ && workspace_size > host_ws_size_)
             HIP_CHECK_ERROR(hipMemsetAsync(static_cast<char*>(device_ws_ptr) + host_ws_size_,
@@ -640,8 +645,8 @@ struct fmha_bwd_launcher
 
         char* base                   = static_cast<char*>(pin_base.get());
         int* pin_q                   = reinterpret_cast<int*>(base);
-        int* pin_k                   = reinterpret_cast<int*>(base + seqstart_bytes);
-        void* pin_w                  = base + 2 * seqstart_bytes;
+        int* pin_k                   = reinterpret_cast<int*>(base + seqstart_stride);
+        void* pin_w                  = base + pin_w_offset;
         const int* seqstart_q_pinned = traits_.is_group_mode ? pin_q : nullptr;
         const int* seqstart_k_pinned = traits_.is_group_mode ? pin_k : nullptr;
 
