@@ -127,6 +127,25 @@ class GemmKernelBuilder:
             # New format - generate combinations from individual parameter values
             tile_config = self.config["tile_config"]
 
+            if tile_config.get("tile_m").get("values") is None:
+                tile_config.get("tile_m")["values"] = self._generate_values(
+                    tile_config.get("tile_m").get("min"),
+                    tile_config.get("tile_m").get("max"),
+                    tile_config.get("tile_m").get("step"),
+                )
+            if tile_config.get("tile_n").get("values") is None:
+                tile_config.get("tile_n")["values"] = self._generate_values(
+                    tile_config.get("tile_n").get("min"),
+                    tile_config.get("tile_n").get("max"),
+                    tile_config.get("tile_n").get("step"),
+                )
+            if tile_config.get("tile_k").get("values") is None:
+                tile_config.get("tile_k")["values"] = self._generate_values(
+                    tile_config.get("tile_k").get("min"),
+                    tile_config.get("tile_k").get("max"),
+                    tile_config.get("tile_k").get("step"),
+                )
+
             # Get all possible values for each parameter
             tile_m_values = tile_config.get("tile_m", {}).get("values", [256])
             tile_n_values = tile_config.get("tile_n", {}).get("values", [256])
@@ -180,6 +199,15 @@ class GemmKernelBuilder:
             # Fallback to default
             return []
 
+    def _generate_values(self, min_val, max_val, step):
+        """Generate a list of values from min to max with the given step"""
+        values = []
+        val = min_val
+        while val <= max_val:
+            values.append(val)
+            val += step
+        return values
+
     def _validate_tile_config(
         self,
         tile_m,
@@ -191,7 +219,7 @@ class GemmKernelBuilder:
         warp_tile_m,
         warp_tile_n,
         warp_tile_k,
-        pipeline="mem",  # Default pipeline for validation
+        pipeline="compv3",  # Default pipeline for validation
         fast_mode=False,  # Add fast mode option
     ):
         """Validate that tile configuration is reasonable"""
@@ -239,6 +267,7 @@ class GemmKernelBuilder:
                 b_datatype,
                 c_datatype,
                 pipeline,
+                self.layout
             )
 
     def _generate_trait_combinations(self):
