@@ -333,18 +333,26 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                            typename Problem::UnifiedAttentionShape::Gemm1WarpTile>>;
         // `load_tile_transpose` is only valid when the tile distribution's inner
         // packing matches the transpose engine's SubtileMinorDimension =
-        // 64 bits / sizeof(VDataType_in_bits). For BF16 / FP16 SubMinDim=4 and the
-        // PV warp gemm produces kABKPerLane / AttrNumAccess = 8 / 2 = 4 elements
-        // per lane on the K direction — Double access is needed there. For FP8
-        // SubMinDim=8 and kABKPerLane=8, so we must pass `Single` (otherwise
-        // 8/2=4 mismatches the FP8 SubMinDim=8 and the load_tile_transpose
-        // validation static_asserts fire — see DefaultTranspose::Quad in
-        // load_tile_transpose.hpp). The select is purely a compile-time alias.
+        // 64 bits / sizeof(VDataType_in_bits). The PV warp gemm produces
+        // kABKPerLane = WG::K / lanes_in_K elements per lane on the K direction
+        // (lanes_in_K = 4 for 16x16x* MFMA, 2 for 32x32x*), so we must pick
+        // AttrNumAccess such that kABKPerLane / AttrNumAccess == SubMinDim:
+        //   bf16/fp16 16x16x32 -> kABKPerLane=8, SubMinDim=4 -> Double.
+        //   bf16/fp16 16x16x16 -> kABKPerLane=4, SubMinDim=4 -> Single.
+        //   bf16/fp16 32x32x16 -> kABKPerLane=8, SubMinDim=4 -> Double.
+        //   fp8/bf8   16x16x32 -> kABKPerLane=8, SubMinDim=8 -> Single.
+        //   fp8/bf8   32x32x16 -> kABKPerLane=8, SubMinDim=8 -> Single.
+        // The select is a compile-time alias.
+        static constexpr index_t kPVWarpGemmM =
+            Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{});
+        static constexpr index_t kPVWarpGemmK =
+            Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{});
+        static constexpr index_t kPVLanesInK = (kPVWarpGemmM == 16) ? 4 : 2;
+        static constexpr index_t kPVABKPerLane = kPVWarpGemmK / kPVLanesInK;
+        static constexpr index_t kPVSubMinDim = 8 / sizeof(typename Problem::VDataType);
         static constexpr WGAttrNumAccessEnum PVAttrNumAccess =
-            std::is_same_v<remove_cvref_t<typename Problem::VDataType>, ck_tile::fp8_t> ||
-                    std::is_same_v<remove_cvref_t<typename Problem::VDataType>, ck_tile::bf8_t>
-                ? WGAttrNumAccessEnum::Single
-                : WGAttrNumAccessEnum::Double;
+            (kPVABKPerLane == kPVSubMinDim) ? WGAttrNumAccessEnum::Single
+                                            : WGAttrNumAccessEnum::Double;
         using WarpGemm =
             WarpGemmDispatcher<typename Problem::PDataType,
                                typename Problem::VDataType,

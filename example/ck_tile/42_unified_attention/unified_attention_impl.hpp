@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <type_traits>
 #include <utility>
 
 #include "ck_tile/core/numeric/bfloat16.hpp"
@@ -259,8 +260,41 @@ struct unified_attention_kernel_traits
 
     static constexpr index_t HEAD_SIZE      = cfg::HeadSize;
     static constexpr index_t kBlockM        = cfg::BlockM;
-    static constexpr index_t BLOCK_SIZE     = cfg::BlockSize;
     static constexpr bool    kUseDecodeGrid = cfg::kUseDecodeGrid;
+
+    // bf16/fp16 carry a 2-byte element vs fp8's 1 byte, so at the same kBlockN
+    // they double both LDS usage and per-tile VGPR pressure. The decode probe
+    // (ua-test-scripts/probe_decode_d128.sh) showed bf16 saturating VGPR=256
+    // with AGPR overflow (44-106 AGPRs) and ~2x the LDS of fp8 on the m16
+    // tier — the LDS pressure alone caps decode_d128_m16 at 1 CTA/CU. We
+    // halve kBlockN for bf16/fp16 to shed LDS and VGPR pressure, trading a
+    // small per-iter overhead for a big occupancy boost.
+    //
+    // The halved kBlockN must satisfy both gemm constraints:
+    //   QK gemm: kBlockN is the N axis  -> kBlockN >= WarpGemm::N
+    //   PV gemm: kBlockN is the K axis  -> kBlockN >= WarpGemm::K
+    // When `cfg::BlockSize/2 < WarpGemm::K` we additionally swap WarpGemm::K
+    // to the halved kBlockN so the smaller-K MFMA is used. For our variants
+    // this only hits decode_d128_m16 (WG=<16,16,32> -> <16,16,16>); the d=64
+    // tiers already fit the smaller tile under the same 16x16x32 / 32x32x16
+    // MFMA. The 32x32 N-warps (m32/m128/prefill) cannot drop their kBlockN
+    // below 32 (WG::N=32) and stay at the un-halved size.
+    static constexpr index_t WGM_ = cfg::WarpGemmShape::at(number<0>{});
+    static constexpr index_t WGN_ = cfg::WarpGemmShape::at(number<1>{});
+    static constexpr index_t WGK_ = cfg::WarpGemmShape::at(number<2>{});
+    static constexpr bool kBf16HalveBlockN =
+        (DataType != unified_attention_args::data_type_enum::fp8) &&
+        (cfg::BlockSize / 2 >= WGN_);
+    static constexpr index_t BLOCK_SIZE =
+        kBf16HalveBlockN ? cfg::BlockSize / 2 : cfg::BlockSize;
+    // Swap WarpGemm::K down to BLOCK_SIZE when the halved kBlockN dropped
+    // below the original WarpGemm::K. PVAttrNumAccess in GetPVBlockGemm
+    // recomputes from the new WarpGemm shape (lanes_in_K * SubMinDim rule)
+    // so the smaller-K MFMA tiles cleanly.
+    using unified_attention_warp_gemm_shape = std::conditional_t<
+        (kBf16HalveBlockN && BLOCK_SIZE < WGK_),
+        sequence<WGM_, WGN_, BLOCK_SIZE>,
+        typename cfg::WarpGemmShape>;
 
     // The 2nd entry of the BlockTile is the static `kBlockQ` exposed via
     // `UnifiedAttentionShape::kBlockQ`. Now that the kernel always reads
@@ -269,9 +303,8 @@ struct unified_attention_kernel_traits
     // happens in practice). Anchor it at kBlockM so the static "looks like
     // num_qpkv == 1" and any (kBlockM, num_qpkv) such that kBlockM % num_qpkv
     // == 0 works without touching this trait.
-    using unified_attention_block_tile      = sequence<kBlockM, kBlockM, BLOCK_SIZE, HEAD_SIZE>;
-    using unified_attention_warp_gemm_shape = typename cfg::WarpGemmShape;
-    using unified_attention_block_warps     = typename cfg::BlockWarps;
+    using unified_attention_block_tile  = sequence<kBlockM, kBlockM, BLOCK_SIZE, HEAD_SIZE>;
+    using unified_attention_block_warps = typename cfg::BlockWarps;
 
     using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
                                                               unified_attention_block_warps,
