@@ -38,7 +38,7 @@ DECODE_B="-d=64  -h_k=1 -nqpkv=8 -b=4 -s=1 -s_k=512 -query_lens=1,1,1,1 -kv_lens
 
 # Decode + page_blk_size=32 fixtures for d=64 GQA-8. These exercise the NEW
 # decode-tier IsLocal=true instances added in Phase 5:
-#   - DECODE_BS32_Q1 (q=1)            → tiny+bs32 local (kBlockM=32, kBlockQ=4)
+#   - DECODE_BS32_Q1 (q=1)            → tiny+bs32 local (kBlockM=16, kBlockQ=2)
 #   - DECODE_BS32_QM (q in [256,1024]) → medium+bs32 local (kBlockM=128, kBlockQ=16)
 # Use the GPT-OSS-shaped window (left=127, right=0) to mirror the production
 # workload that motivated Phase 5.

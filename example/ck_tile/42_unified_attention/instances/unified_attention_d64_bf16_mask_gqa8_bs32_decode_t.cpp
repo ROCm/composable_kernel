@@ -6,6 +6,7 @@
 
 namespace ck_tile {
 
+// d64 GQA-8 tiny+bs32 decode (kBlockM=16, kBlockQ=2, BlockSize=32), masked causal (non-SWA).
 using kernel_traits =
     unified_attention_decode_tiny_kernel_traits<unified_attention_args::data_type_enum::bf16, true, 64, 16, 8, 32>;
 
