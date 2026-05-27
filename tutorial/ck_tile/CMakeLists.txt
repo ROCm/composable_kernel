@@ -7,3 +7,4 @@ include_directories(AFTER
 
 add_subdirectory(00_copy_kernel)
 add_subdirectory(gemm)
+add_subdirectory(tile_distribution)
