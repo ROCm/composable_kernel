@@ -117,12 +117,23 @@ struct GenericAttentionMask
     CK_TILE_HOST_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
+        return GetTileRangeAlongX(i_y, index_t{YTile}, index_t{XTile});
+    }
+
+    // Runtime overload. The compile-time variant above wraps this one so call
+    // sites that pass `number<>{}` keep working unchanged; callers that need a
+    // runtime tile size (Step D KV-tile clip in the unified-attention kernel
+    // where `kBlockQ` is derived from a runtime `num_queries_per_kv`) can
+    // call this directly.
+    CK_TILE_HOST_DEVICE constexpr auto
+    GetTileRangeAlongX(index_t i_y, index_t tile_h, index_t tile_w) const
+    {
         // Transform the y index according to repeat_idx
         index_t y_eff = i_y / repeat_idx;
 
         if constexpr(!IsMasking)
         {
-            return ck_tile::make_tuple(0, x_total);
+            return ck_tile::make_tuple(index_t{0}, x_total);
         }
         else
         {
@@ -131,19 +142,19 @@ struct GenericAttentionMask
                 if constexpr(IsLocal)
                 {
                     index_t tmp = max(-y + y_eff + 1, 0);
-                    return (tmp / XTile) * XTile; // round to tile aligned
+                    return (tmp / tile_w) * tile_w; // round to tile aligned
                 }
                 else
                 {
-                    return 0;
+                    return index_t{0};
                 }
             }();
 
             // TODO: end could be negative, we ignore clamp here, and let caller to check
             //      ... in which case end-start is negative
             index_t x_end = [&]() {
-                index_t tmp = min(y_eff + YTile - 1 + x, x_total);
-                return ((tmp + XTile - 1) / XTile) * XTile;
+                index_t tmp = min(y_eff + tile_h - 1 + x, x_total);
+                return ((tmp + tile_w - 1) / tile_w) * tile_w;
             }();
 
             return ck_tile::make_tuple(x_start, x_end);

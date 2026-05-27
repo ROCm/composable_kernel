@@ -123,6 +123,35 @@ std::pair<bool, float> dispatch_one(const unified_attention_args& args,
         unified_attention_kernel_traits<V, DType, IsMask, PageSize>>(args, config);
 }
 
+// Per-(V, DType) availability of IsLocal=true (Sliding-Window-Attention)
+// instances. Phase 3 ships the four large-tier prefill instances; everything
+// else returns {false, 0.f} so the host falls back to Triton (or whatever
+// downstream caller handles the negative dispatch result).
+//
+// The Phase 3 SWA instances are all compiled at PageSize=0 (runtime page
+// size) — the page-pinned ps16/ps32/ps64 menu only exists for the IsLocal=
+// false fast path. SWA on Phase-5 (decode tiers) will follow the same rule
+// unless the perf gate proves otherwise.
+template <KernelVariant V, unified_attention_args::data_type_enum DType>
+std::pair<bool, float> dispatch_local(const unified_attention_args& args,
+                                      const stream_config& config)
+{
+    using DT = unified_attention_args::data_type_enum;
+    if constexpr((V == KernelVariant::prefill_d128 ||
+                  V == KernelVariant::prefill_d64) &&
+                 (DType == DT::bf16 || DType == DT::fp16))
+    {
+        return unified_attention_kernel_dispatch<
+            unified_attention_kernel_traits<V, DType, /*IsMasking=*/true,
+                                            /*kPageSize=*/0,
+                                            /*IsLocal=*/true>>(args, config);
+    }
+    else
+    {
+        return {false, 0.f};
+    }
+}
+
 // ---------------------------------------------------------------------------
 // dispatch_page_size — pick the constexpr `kPageSize` instance.
 //
@@ -173,14 +202,23 @@ std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
 {
     using DT           = unified_attention_args::data_type_enum;
     const bool is_mask = (args.mask_type != static_cast<int>(mask_enum::no_mask));
+    // SWA criterion mirrors the FA-style left/right window semantics: the
+    // mask is "local" iff at least one bound is finite. `window_size_left
+    // = -1` means "no left bound" (i.e. full causal), and
+    // `window_size_right = 0` is the default causal anchor. Any other
+    // combination opts into IsLocal=true.
+    const bool is_local =
+        is_mask && (args.window_size_left >= 0 || args.window_size_right > 0);
 
     if(args.data_type == DT::fp16)
     {
+        if(is_local) return dispatch_local<V, DT::fp16>(args, config);
         if(is_mask)  return dispatch_page_size<V, DT::fp16, true >(args, config);
         return            dispatch_page_size<V, DT::fp16, false>(args, config);
     }
     if(args.data_type == DT::bf16)
     {
+        if(is_local) return dispatch_local<V, DT::bf16>(args, config);
         if(is_mask)  return dispatch_page_size<V, DT::bf16, true >(args, config);
         return            dispatch_page_size<V, DT::bf16, false>(args, config);
     }

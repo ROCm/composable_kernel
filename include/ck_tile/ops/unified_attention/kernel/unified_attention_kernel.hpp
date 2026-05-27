@@ -400,8 +400,22 @@ struct UnifiedAttentionKernel
 
         const index_t context_len = amd_wave_read_first_lane(seq_len - cur_batch_query_len);
 
+        // Upper bound on the last KV column this Q-tile can attend to. For
+        // a causal mask the *last row* in the tile attends up to col=row+1
+        // (exclusive), giving `last_row + 1 = ctx + (qbidx+1)*kBlockQ_dyn`.
+        // SWA (`IsLocal=true`) extends this by up to `window_size_right`
+        // tokens past the diagonal, so we add `max(window_size_right, 0)`
+        // to the causal value. The subsequent `min(seq_len)` then clips
+        // SWA windows that would otherwise overshoot the end of the
+        // sequence. Step D (mask.GetTileRangeAlongX) further clips the
+        // KV range from both sides to the actual SWA window — this bound
+        // only has to be a safe *upper* envelope across all rows in the
+        // Q-tile, not the exact per-row range.
+        const index_t swa_right_extra =
+            (FmhaMask::IsLocal && kargs.window_size_right > 0) ? kargs.window_size_right : 0;
         index_t _max_seq_prefix_len = amd_wave_read_first_lane(
-            (context_len + q_block_local_idx * kBlockQ_dyn + (kBlockQ_dyn - 1) + 1));
+            (context_len + q_block_local_idx * kBlockQ_dyn + (kBlockQ_dyn - 1) + 1 +
+             swa_right_extra));
 
         if(seq_len < _max_seq_prefix_len)
         {
@@ -542,9 +556,9 @@ struct UnifiedAttentionKernel
                 // Window args default to (-1, -1, false) on the host side, which
                 // make_generic_attention_mask_from_lr_window collapses to the
                 // previous hard-coded bottom-right causal layout (the `< 0`
-                // branches inside the helper). Once IsLocal=true instances are
-                // wired up in Phase 3 the same call site honours real SWA
-                // bounds.
+                // branches inside the helper). For SWA (Phase 3 IsLocal=true
+                // instances) the real (left, right, is_top_left) flow through
+                // unchanged and the mask honours both window bounds.
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
                     kargs.window_size_left,
                     kargs.window_size_right,
@@ -556,6 +570,49 @@ struct UnifiedAttentionKernel
             else
                 return FmhaMask{cur_batch_query_len, seq_len};
         }();
+
+        // Step D: Sliding-Window-Attention tile-range clip.
+        // The per-pixel mask check inside the pipeline already returns the
+        // correct (zeroed) score for tokens outside the SWA window, so
+        // skipping this block is correctness-preserving. The point of the
+        // clip is to skip entire KV tiles that fall completely outside the
+        // window — for long-context decode that's the difference between
+        // O(seq_k / kPageBlockSize) and O(window / kPageBlockSize)
+        // iterations. The intersection with the current split's
+        // [num_blocks_start, num_blocks) is taken so split-KV stays correct.
+        // Step D: Sliding-Window-Attention KV-tile clip.
+        //
+        // This is REQUIRED for correctness, not just an optimisation. The
+        // online-softmax pipeline interleaves `m` / `l` updates with prefetch
+        // and warp-group barriers; an all-(-inf) tile (one wholly outside the
+        // SWA window) feeds NaN/garbage into the `m` accumulator at the
+        // barrier boundary, corrupting subsequent tiles. Skipping these
+        // tiles entirely keeps every iterated tile either fully-inside the
+        // window or a true edge tile that the per-pixel mask can clean up.
+        //
+        // The intersection with the current split's [num_blocks_start,
+        // num_blocks) is taken so split-KV stays correct.
+        if constexpr(FmhaMask::IsMasking && FmhaMask::IsLocal)
+        {
+            const auto sw_range = mask.GetTileRangeAlongX(
+                query_pos * num_queries_per_kv,
+                kBlockQ_dyn,
+                static_cast<index_t>(kPageBlockSize));
+            const index_t sw_x_start = sw_range.at(number<0>{});
+            const index_t sw_x_end   = sw_range.at(number<1>{});
+
+            // GetTileRangeAlongX returns token offsets already aligned to
+            // kPageBlockSize; the divide here is exact.
+            const index_t sw_block_start = sw_x_start / kPageBlockSize;
+            const index_t sw_block_end =
+                (sw_x_end + kPageBlockSize - 1) / kPageBlockSize;
+
+            num_blocks_start = ck_tile::max(num_blocks_start, sw_block_start);
+            num_blocks       = ck_tile::min(num_blocks, sw_block_end);
+
+            if(num_blocks_start >= num_blocks)
+                return; // this Q-tile has no KV inside the SWA window
+        }
 
         // Pass-2: the pipeline now uses a unified per-(thread, Y0-iter) page
         // offset formula and accepts page_size in tokens directly. The earlier
