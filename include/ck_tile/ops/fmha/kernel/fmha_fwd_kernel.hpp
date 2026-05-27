@@ -305,6 +305,41 @@ struct FmhaFwdKernel
         const int32_t* seqstart_v_scale_ptr;
     };
 
+    // PER_TOKEN_HEAD descale layout (non-paged fmha_fwd):
+    //   q_descale: [B, total_q, nhead_q]  fp32  (batch+token row stride, head col stride)
+    //   k_descale: [B, total_k, nhead_k]  fp32
+    //   v_descale: [nhead_k]              fp32  (per-head only; no batch / token dim)
+    // For varlen (group) mode the batch dim is collapsed into total_q / total_k and the
+    // per-batch offset is derived from cu_seqlens * stride_*_descale instead of
+    // batch_stride_*_descale.
+    struct FmhaFwdCommonPerTokenHeadKargs : FmhaFwdCommonQScaleKargs
+    {
+        // Per-token (row) strides; V is per-head only, so stride_v_descale is unused.
+        ck_tile::index_t stride_q_descale;
+        ck_tile::index_t stride_k_descale;
+
+        ck_tile::index_t nhead_stride_q_descale;
+        ck_tile::index_t nhead_stride_k_descale;
+        ck_tile::index_t nhead_stride_v_descale;
+
+        // Unused under PER_TOKEN_HEAD but the qr_async pipeline takes it positionally;
+        // keep it as a no-op field rather than baking a constant into the call site.
+        ck_tile::index_t block_scale_size_kv = 128;
+    };
+
+    struct FmhaFwdBatchPerTokenHeadKargs : FmhaFwdCommonPerTokenHeadKargs
+    {
+        ck_tile::index_t batch_stride_q_descale;
+        ck_tile::index_t batch_stride_k_descale;
+        ck_tile::index_t batch_stride_v_descale; // callers should set this to 0 (V is per-head)
+    };
+
+    struct FmhaFwdGroupPerTokenHeadKargs : FmhaFwdCommonPerTokenHeadKargs
+    {
+        // group mode resolves per-batch offsets from cu_seqlens * stride_*_descale,
+        // so no dedicated batch_stride_*_descale is needed here.
+    };
+
     struct FmhaFwdCommonLSEKargs
     {
         void* lse_ptr                     = nullptr;
@@ -383,11 +418,16 @@ struct FmhaFwdKernel
           std::conditional_t<
               QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR,
               FmhaFwdCommonQScaleKargs,
-              std::conditional_t<QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE,
-                                 FmhaFwdBatchBlockScaleKargs,
-                                 std::conditional_t<QScaleEnum == BlockAttentionQuantScaleEnum::MX,
-                                                    FmhaFwdBatchMXKargs,
-                                                    FmhaFwdEmptyKargs<3>>>>,
+              std::conditional_t<
+                  QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE,
+                  FmhaFwdBatchBlockScaleKargs,
+                  std::conditional_t<
+                      QScaleEnum == BlockAttentionQuantScaleEnum::MX,
+                      FmhaFwdBatchMXKargs,
+                      std::conditional_t<QScaleEnum ==
+                                             BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD,
+                                         FmhaFwdBatchPerTokenHeadKargs,
+                                         FmhaFwdEmptyKargs<3>>>>>,
           std::conditional_t<kHasDropout, FmhaFwdBatchModeDropoutKargs, FmhaFwdEmptyKargs<4>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
     {
@@ -414,11 +454,16 @@ struct FmhaFwdKernel
           std::conditional_t<
               QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR,
               FmhaFwdCommonQScaleKargs,
-              std::conditional_t<QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE,
-                                 FmhaFwdGroupBlockScaleKargs,
-                                 std::conditional_t<QScaleEnum == BlockAttentionQuantScaleEnum::MX,
-                                                    FmhaFwdGroupMXKargs,
-                                                    FmhaFwdEmptyKargs<3>>>>,
+              std::conditional_t<
+                  QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE,
+                  FmhaFwdGroupBlockScaleKargs,
+                  std::conditional_t<
+                      QScaleEnum == BlockAttentionQuantScaleEnum::MX,
+                      FmhaFwdGroupMXKargs,
+                      std::conditional_t<QScaleEnum ==
+                                             BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD,
+                                         FmhaFwdGroupPerTokenHeadKargs,
+                                         FmhaFwdEmptyKargs<3>>>>>,
           std::conditional_t<kHasDropout, FmhaFwdCommonDropoutKargs, FmhaFwdEmptyKargs<4>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>,
           std::conditional_t<kSkipMinSeqlenQ, FmhaFwdSkipMinSeqlenQKargs, FmhaFwdEmptyKargs<6>>
@@ -603,6 +648,28 @@ struct FmhaFwdKernel
             kargs.stride_q_descale = stride_q_descale;
             kargs.stride_k_descale = stride_k_descale;
             kargs.stride_v_descale = stride_v_descale;
+
+            kargs.nhead_stride_q_descale = nhead_stride_q_descale;
+            kargs.nhead_stride_k_descale = nhead_stride_k_descale;
+            kargs.nhead_stride_v_descale = nhead_stride_v_descale;
+
+            kargs.batch_stride_q_descale = batch_stride_q_descale;
+            kargs.batch_stride_k_descale = batch_stride_k_descale;
+            kargs.batch_stride_v_descale = batch_stride_v_descale;
+        }
+        else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+        {
+            // PER_TOKEN_HEAD (non-paged fmha_fwd) descale layout:
+            //   q_descale: [total_q, nhead_q]    fp32  (per-token, per-head)
+            //   k_descale: [total_k, nhead_k]    fp32  (per-token, per-head)
+            //   v_descale: [nhead_k]             fp32  (per-head only)
+            kargs.q_descale_ptr = q_descale_ptr;
+            kargs.k_descale_ptr = k_descale_ptr;
+            kargs.v_descale_ptr = v_descale_ptr;
+
+            // per-token row strides (V is per-head scalar so stride_v_descale is unused).
+            kargs.stride_q_descale = stride_q_descale;
+            kargs.stride_k_descale = stride_k_descale;
 
             kargs.nhead_stride_q_descale = nhead_stride_q_descale;
             kargs.nhead_stride_k_descale = nhead_stride_k_descale;
@@ -1064,6 +1131,25 @@ struct FmhaFwdKernel
             kargs.nhead_stride_v_descale = nhead_stride_v_descale;
 
             kargs.seqstart_v_scale_ptr = reinterpret_cast<const int32_t*>(seqstart_v_scale_ptr);
+        }
+        else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+        {
+            // PER_TOKEN_HEAD (non-paged fmha_fwd, group mode) descale layout:
+            //   q_descale: [total_q, nhead_q]    fp32  (per-token, per-head)
+            //   k_descale: [total_k, nhead_k]    fp32  (per-token, per-head)
+            //   v_descale: [nhead_k]             fp32  (per-head only)
+            // Per-batch offsets are derived from query_start/key_start in the kernel,
+            // so we don't need batch_stride_*_descale here (group mode).
+            kargs.q_descale_ptr = q_descale_ptr;
+            kargs.k_descale_ptr = k_descale_ptr;
+            kargs.v_descale_ptr = v_descale_ptr;
+
+            kargs.stride_q_descale = stride_q_descale;
+            kargs.stride_k_descale = stride_k_descale;
+
+            kargs.nhead_stride_q_descale = nhead_stride_q_descale;
+            kargs.nhead_stride_k_descale = nhead_stride_k_descale;
+            kargs.nhead_stride_v_descale = nhead_stride_v_descale;
         }
         if constexpr(kHasDropout)
         {
@@ -1574,6 +1660,16 @@ struct FmhaFwdKernel
                     batch_offset_k_descale = key_start * kargs.stride_k_descale;
                     batch_offset_v_descale = kargs.seqstart_v_scale_ptr[i_batch];
                 }
+                else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+                {
+                    // PER_TOKEN_HEAD descales: Q/K per-token-per-head, V per-head only.
+                    //   q_descale: [total_q, nhead_q] -> per-batch offset = query_start * row_stride
+                    //   k_descale: [total_k, nhead_k] -> per-batch offset = key_start   * row_stride
+                    //   v_descale: [nhead_k]          -> no per-batch offset (shared across batches)
+                    batch_offset_q_descale = query_start * kargs.stride_q_descale;
+                    batch_offset_k_descale = key_start * kargs.stride_k_descale;
+                    batch_offset_v_descale = 0;
+                }
                 batch_offset_o = query_start * kargs.stride_o;
 
                 // real logical lengths (exclude PAD)
@@ -1642,8 +1738,12 @@ struct FmhaFwdKernel
                         static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
                 }
                 if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE ||
-                             QScaleEnum == BlockAttentionQuantScaleEnum::MX)
+                             QScaleEnum == BlockAttentionQuantScaleEnum::MX ||
+                             QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
                 {
+                    // For PER_TOKEN_HEAD V is per-head only (no per-batch dimension);
+                    // callers should set kargs.batch_stride_v_descale = 0 in that case
+                    // so this expression evaluates to 0 here.
                     batch_offset_q_descale =
                         static_cast<long_index_t>(i_batch) * kargs.batch_stride_q_descale;
                     batch_offset_k_descale =
@@ -2120,6 +2220,66 @@ struct FmhaFwdKernel
                         make_null_tile_window(make_tuple()),
                         make_null_tile_window(make_tuple()),
                         sink_value);
+                }
+                else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+                {
+                    // PER_TOKEN_HEAD: Q/K per-(token, head), V per-head (FP8 fine-grained).
+                    // Resolve descale base ptrs to (batch, head); the pipeline indexes
+                    // per-token offsets within head using stride_q/k_descale.
+                    //
+                    // Layout convention (non-paged fmha_fwd):
+                    //   q_descale: [total_q, nhead_q]                       fp32
+                    //   k_descale: [total_k, nhead_k]                       fp32
+                    //   v_descale: [nhead_k]                                fp32
+                    const float* q_descale_ptr =
+                        reinterpret_cast<const float*>(kargs.q_descale_ptr) +
+                        static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_q_descale +
+                        batch_offset_q_descale;
+                    const float* k_descale_ptr =
+                        reinterpret_cast<const float*>(kargs.k_descale_ptr) +
+                        static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
+                            kargs.nhead_stride_k_descale +
+                        batch_offset_k_descale;
+                    const float* v_descale_ptr =
+                        reinterpret_cast<const float*>(kargs.v_descale_ptr) +
+                        static_cast<long_index_t>(i_nhead_ / kargs.nhead_ratio_qk) *
+                            kargs.nhead_stride_v_descale +
+                        batch_offset_v_descale;
+
+                    return FmhaPipeline{}(
+                        q_dram_window,
+                        identity{}, // q_element_func
+                        k_dram_window,
+                        identity{}, // k_element_func
+                        v_dram_window,
+                        identity{}, // v_element_func
+                        bias_dram_window,
+                        identity{}, // bias_element_func
+                        randval_dram_window,
+                        lse_dram_window,
+                        identity{}, // lse_element_func
+                        identity{}, // s_acc_element_func - PER_TOKEN_HEAD applies its own per-(row,col) scale
+                        identity{}, // p_compute_element_func
+                        identity{}, // o_acc_element_func - V descale is folded in via 'o_acc += o_acc0 * v_descale'
+                        mask,
+                        position_encoding,
+                        kargs.scale_s,
+                        variant,
+                        variant_params,
+                        block_indices,
+                        smem_ptr,
+                        dropout,
+                        k_descale_ptr,
+                        v_descale_ptr,
+                        kargs.block_scale_size_kv, // unused for PER_TOKEN_HEAD
+                        make_null_tile_window(make_tuple()),
+                        make_null_tile_window(make_tuple()),
+                        make_null_tile_window(make_tuple()),
+                        sink_value,
+                        // PER_TOKEN_HEAD-only:
+                        q_descale_ptr,
+                        kargs.stride_q_descale,
+                        kargs.stride_k_descale);
                 }
                 else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::MX)
                 {

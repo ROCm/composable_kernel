@@ -204,7 +204,16 @@ struct BlockFmhaPipelineQRKSVSAsync
                const QScaleDramBlockWindowTmp&, // M0*(K0/kQKScaleGranularity) tile
                const KScaleDramBlockWindowTmp&, // N0*(K0/kQKScaleGranularity) tile
                const VScaleDramBlockWindowTmp&, // N1*(K1/kVScaleGranularity) tile
-               const float sink_v) const
+               const float sink_v,
+               // PER_TOKEN_HEAD: per-(token, head) Q/K descales; V is per-head scalar.
+               // q_descale_ptr / k_descale_ptr / v_descale_ptr are already
+               // (batch, head)-resolved by the kernel; pipeline indexes
+               //   q_descale_ptr[(q_origin + i) * stride_q_descale_token]
+               //   k_descale_ptr[(k_origin + j) * stride_k_descale_token]
+               //   v_descale     = *v_descale_ptr (loaded once per loop iter)
+               const float* q_descale_ptr           = nullptr,
+               const index_t stride_q_descale_token = 0,
+               const index_t stride_k_descale_token = 0) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -463,6 +472,87 @@ struct BlockFmhaPipelineQRKSVSAsync
                                    sequence<(LdsSeq.at(number<k0_loops - 1>{}) + 1) * kN0, kK0>{}));
             }
             __builtin_amdgcn_sched_barrier(1);
+
+            // PER_TOKEN_HEAD: dequantize QK with per-row Q descale and per-col K descale.
+            //   s_acc[i,j] *= q_descale[(q_origin + i) * stride_q_descale_token]
+            //               * k_descale[(k_origin + j) * stride_k_descale_token]
+            // q_descale_ptr / k_descale_ptr are already (batch, head)-resolved by the kernel.
+            //
+            // qr_async (no trload) on gfx9 is very tight on SGPRs; folding both row + col
+            // global loads into a single 2-D sweep over s_acc made the compiler spill the
+            // K/V buffer-SRDs to VGPRs and produce invalid asm. We instead split the
+            // dequant into two 1-D sweeps so each pass keeps a single descale pointer
+            // live and reuses the existing tile-distribution machinery without inflating
+            // SGPR pressure inside the K/V async-load region.
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+            {
+                // PER_TOKEN_HEAD dequant: s_acc[i,j] *= q_descale[i] * k_descale[j].
+                //
+                // qr_async on gfx9 is extremely tight on SGPRs (the K/V buffer-SRDs
+                // must stay live across iterations of the main K-loop). When threads
+                // issue scalar global loads from k_descale_ptr inside the per-tile
+                // 2-D sweep, the compiler runs out of SGPR budget and spills the K
+                // SRD into VGPRs, producing invalid `buffer_load_dword v_dst, v[..]
+                // ... lds` asm on gfx942.
+                //
+                // To break that dependency we stage both Q-row and K-col descales
+                // through LDS first (one warp-strided load per descale tile), then
+                // the per-element sweep is a pure LDS read + FP multiply. This keeps
+                // the K SRD live-range contained inside the QK gemm, where the
+                // existing schedule already accounts for it.
+                constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
+
+                const index_t q_row_base = q_origin.at(number<0>{});
+
+                // Mirror the V / randval path's sink-aware col-base derivation so we
+                // never touch k_dram_block_window.get_window_origin() inside this
+                // SGPR-tight region (that read leaks the K window state and was
+                // independently observed to push the SRD into VGPRs).
+                const bool in_sink_phase = (num_sink_loop > i_total_loops);
+                const index_t k_col_base =
+                    in_sink_phase
+                        ? (kv_load_start + i_total_loops * kN0)
+                        : (seqlen_k_start + (i_total_loops - num_sink_loop) * kN0);
+
+                __builtin_amdgcn_sched_barrier(0);
+
+                // LDS staging tiles. Allocated per-block; kept small (kM0 + kN0 fp32).
+                __shared__ float lds_q_descale[kM0];
+                __shared__ float lds_k_descale[kN0];
+
+                const index_t tid_in_block =
+                    static_cast<index_t>(threadIdx.x + threadIdx.y * blockDim.x +
+                                         threadIdx.z * blockDim.x * blockDim.y);
+                const index_t threads_per_block =
+                    static_cast<index_t>(blockDim.x * blockDim.y * blockDim.z);
+
+                // Q-row descales (kM0 entries).
+                for(index_t off = tid_in_block; off < kM0; off += threads_per_block)
+                {
+                    lds_q_descale[off] =
+                        q_descale_ptr[(q_row_base + off) * stride_q_descale_token];
+                }
+                // K-col descales (kN0 entries).
+                for(index_t off = tid_in_block; off < kN0; off += threads_per_block)
+                {
+                    lds_k_descale[off] =
+                        k_descale_ptr[(k_col_base + off) * stride_k_descale_token];
+                }
+                __builtin_amdgcn_s_barrier();
+
+                sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(s_spans[number<1>{}], [&](auto idx1) {
+                        const auto tile_idx = get_x_indices_from_distributed_indices(
+                            s_acc.get_tile_distribution(), make_tuple(idx0, idx1));
+                        const index_t i = tile_idx.at(number<0>{});
+                        const index_t j = tile_idx.at(number<1>{});
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        s_acc(i_j_idx) *= lds_q_descale[i] * lds_k_descale[j];
+                    });
+                });
+                __builtin_amdgcn_sched_barrier(0);
+            }
+
             // dequant
             auto s_acc_element_func_ = [&s_acc_element_func, k_descale]() {
                 if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
@@ -785,12 +875,19 @@ struct BlockFmhaPipelineQRKSVSAsync
                 const index_t kv_idx = (kv_load_start + i_total_loops * kN0) / block_scale_size_kv;
                 v_descale            = v_descale_ptr[kv_idx];
             }
+            else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+            {
+                // PER_TOKEN_HEAD: V scale is per-head only; v_descale_ptr is already
+                // (batch, head)-resolved by the kernel, so load the single scalar.
+                v_descale = *v_descale_ptr;
+            }
             // STAGE 3, KV gemm
             auto o_acc0 = decltype(o_acc){};
             clear_tile(o_acc0);
 
             auto& o_acc_ = [&o_acc0, &o_acc]() -> auto& {
-                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE ||
+                             QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
                 {
                     return o_acc0;
                 }
@@ -879,7 +976,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                         sequence<(LdsSeq.at(number<k0_loops + k1_loops - 1>{}) + 1) * kN1, kK1>{}));
             }
 
-            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE ||
+                         QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
             {
                 tile_elementwise_inout(
                     [&v_descale](auto& o, auto& o0) { o += o0 * v_descale; }, o_acc, o_acc0);

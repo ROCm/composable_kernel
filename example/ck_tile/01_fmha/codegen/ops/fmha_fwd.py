@@ -1062,6 +1062,20 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                 else:
                     pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
                     pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
+
+            # PER_TOKEN_HEAD: FP8 fine-grained Q/K per-token-per-head + V per-head.
+            # Currently only wired for fp8bf16 + qr_async + hdim=128 on gfx9 (MI300/MI308).
+            # The non-paged fmha_fwd qr_async pipeline gained PER_TOKEN_HEAD support in
+            # block_fmha_pipeline_qr_ks_vs_async.hpp; keep this scope tight until we
+            # also extend qr / qr_async_trload / V3 pipelines.
+            if dtype in cls._DT_FP8BF16 and hdim == 128:
+                for logits, mask, sink in itertools.product(
+                    ["t", "f"],
+                    get_mask_map(mask_impl).keys(),
+                    ["f", "t"],
+                ):
+                    pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, "no", "f", "f", "per_token_head", mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, "no", "f", "f", "per_token_head", mask, "f", "f", sink))  # fmt: skip
         return pipelines
 
 
