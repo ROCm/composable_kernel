@@ -180,45 +180,6 @@ struct GenericAttentionMask
         }
     }
 
-    template <index_t TileHeight, index_t TileWidth>
-    CK_TILE_HOST_DEVICE constexpr auto GetTileRangeAlongX(index_t i_y,
-                                                          number<TileHeight> height,
-                                                          number<TileWidth> width,
-                                                          index_t num_splits,
-                                                          index_t i_split) const
-    {
-        auto [origin_start, origin_end] = GetTileRangeAlongX(i_y, height, width);
-
-        const index_t x_per_split = ck_tile::max(1, integer_divide_ceil(x_total, num_splits));
-        const index_t split_start = x_per_split * i_split;
-        const index_t split_end   = ck_tile::min(x_total, split_start + x_per_split);
-
-        return ck_tile::make_tuple(ck_tile::max(origin_start, split_start),
-                                   ck_tile::min(origin_end, split_end));
-    }
-
-    template <index_t TileHeight, index_t TileWidth>
-    CK_TILE_HOST_DEVICE constexpr auto GetSinkTileRangeAlongX(index_t i_y,
-                                                              number<TileHeight> height,
-                                                              number<TileWidth> width,
-                                                              index_t num_splits,
-                                                              index_t i_split) const
-    {
-        auto [origin_start, origin_end] = GetTileRangeAlongX(i_y, height, width);
-        const index_t x_per_split       = ck_tile::max(1, integer_divide_ceil(x_total, num_splits));
-        const index_t split_start       = x_per_split * i_split;
-        const index_t split_end         = ck_tile::min(x_total, split_start + x_per_split);
-        const index_t sink_seq_end      = sink > 0 ? ((sink + width - 1) / width) * width : 0;
-        const index_t start             = ck_tile::max(origin_start, split_start);
-        const index_t end               = ck_tile::min(origin_end, split_end);
-        const bool is_first_intersecting_split =
-            (split_start <= sink_seq_end) && (split_end > 0) && (sink > 0);
-        if(is_first_intersecting_split)
-            return ck_tile::make_tuple(0, 0, end);
-        else
-            return ck_tile::make_tuple(sink_seq_end, start, end);
-    }
-
     // to get the loop length along Y axis, return index:[start, end), end-start=length
     // use this if need loop over Y axis tile by tile (like q-seqlen loopover)
     // TODO: y_end still could be negative, so end-start could be negative(need check)

@@ -1509,7 +1509,7 @@ struct FmhaFwdKernel
 
                 if constexpr(kSkipMinSeqlenQ)
                 {
-                    if(kargs.seqlen_q < kargs.min_seqlen_q)
+                    if(kargs.seqlen_q <= kargs.min_seqlen_q)
                     {
                         return;
                     }
