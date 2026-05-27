@@ -207,6 +207,15 @@ struct GenericAttentionMask
         }
     }
 
+    // Attention-sink aware variant. The unified-attention kernel does not yet
+    // implement sink tokens, so for now this is an alias for IsOutOfBound.
+    // Host reference code (reference_batched_masking) calls this; keeping the
+    // alias decouples that call site from future sink support.
+    CK_TILE_HOST_DEVICE constexpr auto IsOutOfSinkBound(index_t i_y, index_t i_x) const
+    {
+        return IsOutOfBound(i_y, i_x);
+    }
+
     // if current tile is at the edge, means need per-pixel mask check.
     // otherwise no need to check per-pixel
     // Attention! assume the index passed in this function is within range of GetTileRangeAlongX/Y()
