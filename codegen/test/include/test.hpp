@@ -843,9 +843,8 @@ inline void run(int argc, const char* argv[])
     TEST_CASE_REGISTER(__VA_ARGS__) \
     void __VA_ARGS__()
 
-#ifdef __clang__
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wglobal-constructors"
 #endif
 

@@ -20,10 +20,10 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_wmma_cshuffle_v3_common.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck {
 
 /// @brief \"Universal\" GEMM kernel with SplitK support.
@@ -1189,4 +1189,6 @@ struct GridwiseGemm_wmma_cshuffle_v3
 };
 
 } // namespace ck
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

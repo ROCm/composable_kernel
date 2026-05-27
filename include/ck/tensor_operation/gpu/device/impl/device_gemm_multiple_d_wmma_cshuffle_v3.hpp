@@ -18,9 +18,10 @@
 #include "ck/host_utility/flush_cache.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma_cshuffle_v3_common.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -411,4 +412,6 @@ struct DeviceGemmMultipleD_Wmma_CShuffleV3
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

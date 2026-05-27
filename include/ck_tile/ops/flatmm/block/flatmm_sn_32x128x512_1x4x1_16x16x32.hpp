@@ -169,9 +169,10 @@ struct FlatmmSn_32x128x512_1x4x1_16x16x32_BF16 : public FlatmmSn_32x128x512_1x4x
 
         // B nr->kr
         // clang-format off
+#ifdef __clang__
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Winline-asm"
+#endif
         asm volatile(
 #define CK_TILE_FLATMM_UK_MFMA CK_TILE_FLATMM_UK_MFMA_BF16
 #include "uk/flatmm_sn_uk_gfx9_32x128x512_1x4x1_16x16x16.inc"
@@ -310,7 +311,9 @@ struct FlatmmSn_32x128x512_1x4x1_16x16x32_BF16 : public FlatmmSn_32x128x512_1x4x
           "v244", "v245", "v246", "v247", "v248", "v249", "v250", "v251",
           "v252", "v253", "v254", "v255"
         );
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
         // clang-format on
     }
 };
@@ -414,9 +417,10 @@ struct FlatmmSn_32x128x512_1x4x1_16x16x32_FP16 : public FlatmmSn_32x128x512_1x4x
 
         // B nr->kr
         // clang-format off
+#ifdef __clang__
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Winline-asm"
+#endif
         asm volatile(
 #define CK_TILE_FLATMM_UK_MFMA CK_TILE_FLATMM_UK_MFMA_FP16
 #include "uk/flatmm_sn_uk_gfx9_32x128x512_1x4x1_16x16x16.inc"
@@ -555,7 +559,9 @@ struct FlatmmSn_32x128x512_1x4x1_16x16x32_FP16 : public FlatmmSn_32x128x512_1x4x
           "v244", "v245", "v246", "v247", "v248", "v249", "v250", "v251",
           "v252", "v253", "v254", "v255"
         );
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
         // clang-format on
     }
 };

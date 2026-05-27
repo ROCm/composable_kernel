@@ -53,7 +53,7 @@ RAPIDJSON_DIAG_PUSH
 RAPIDJSON_DIAG_OFF(effc++)
 #endif
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_OFF(weak - vtables)
 RAPIDJSON_DIAG_OFF(exit - time - destructors)
 RAPIDJSON_DIAG_OFF(c++ 98 - compat - pedantic)

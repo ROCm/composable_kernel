@@ -119,12 +119,15 @@ template <
     typename std::enable_if<std::is_pointer_v<PY> && std::is_pointer_v<PX>, bool>::type = false>
 CK_TILE_HOST_DEVICE PY c_style_pointer_cast([[clang::lifetimebound]] PX p_x)
 {
+#ifdef __clang__
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wold-style-cast"
 #pragma clang diagnostic ignored "-Wcast-align"
+#endif
     return (PY)p_x; // NOLINT(old-style-cast, cast-align)
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 }
 
 // Template ternary: if Cond == Match, use TrueType, else FalseType

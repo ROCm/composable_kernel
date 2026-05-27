@@ -15,9 +15,10 @@
 #include "ck_tile/host.hpp"
 #include "grouped_gemm_common.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 // Data types and Layouts are defined by the generated kernel headers
 // No hardcoded type definitions here to avoid conflicts
 
@@ -264,4 +265,6 @@ void gemm_host_reference_grouped(int verify,
         }
     }
 }
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

@@ -13,9 +13,10 @@
 #include "ck/utility/amd_inline_asm.hpp"
 #include "ck/utility/type.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 // Define the common macro for MI300 models
 #if defined(__gfx942__) || defined(__gfx950__)
@@ -2948,4 +2949,6 @@ inline __host__ __device__ void array_convert(Array<Y, NumElems>& y, const Array
 }
 
 } // namespace ck
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

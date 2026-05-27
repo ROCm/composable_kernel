@@ -56,9 +56,10 @@ cast_tile_mx(DstTensor& dst_tensor, DstScaleTensor& dst_scale_tensor, const SrcT
                 // These builtins require the old value, and will generate a v_mov_b32
                 // vxxx [old] before cvt, which result in unwanted ISA so we prepare an
                 // uninitialized variable x purposely, and turn off the warning
+#ifdef __clang__
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wuninitialized"
+#endif
                 vec_t x;
                 x = __builtin_amdgcn_cvt_scalef32_pk_fp4_f32(
                     x,
@@ -86,7 +87,9 @@ cast_tile_mx(DstTensor& dst_tensor, DstScaleTensor& dst_scale_tensor, const SrcT
                     3); // byte 3
                 dst_tensor.get_thread_buffer().template set_as<vec_t>(
                     number<i*(values_per_lane / values_per_vec) + j>{}, x);
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
             });
 
             // Save scale for the corresponding lane
@@ -184,9 +187,10 @@ cast_tile_mx(DstTensor& dst_tensor, DstScaleTensor& dst_scale_tensor, const SrcT
                 // These builtins require the old value, and will generate a v_mov_b32
                 // vxxx [old] before cvt, which result in unwanted ISA so we prepare an
                 // uninitialized variable x purposely, and turn off the warning
+#ifdef __clang__
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wuninitialized"
+#endif
                 vec_t x;
                 if constexpr(std::is_same_v<DstDataType, fp8_t>)
                 {
@@ -220,7 +224,9 @@ cast_tile_mx(DstTensor& dst_tensor, DstScaleTensor& dst_scale_tensor, const SrcT
                 }
                 dst_tensor.get_thread_buffer().template set_as<vec_t>(
                     number<i*(values_per_lane / values_per_vec) + j>{}, x);
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
             });
 
             // Save scale for the corresponding lane

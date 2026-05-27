@@ -12,10 +12,10 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace host {
@@ -204,4 +204,6 @@ struct ReferenceLayernormBwd : public device::BaseOperator
 } // namespace tensor_operation
 } // namespace ck
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

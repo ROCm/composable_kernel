@@ -20,10 +20,10 @@
 #define CK_TILE_ATTENTION_USE_SOFTSIGN_ASM 0
 #endif
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck_tile {
 namespace internal {
 __device__ inline float
@@ -339,4 +339,6 @@ struct ComposedAttention
 
 } // namespace ck_tile
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

@@ -19,11 +19,11 @@
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 #pragma clang diagnostic ignored "-Wlifetime-safety-lifetimebound-violation"
-
+#endif
 namespace ck_tile {
 
 // T may be scalar or vector
@@ -1588,4 +1588,6 @@ CK_TILE_HOST_DEVICE void print(const buffer_view<BufferAddressSpace,
 
 } // namespace ck_tile
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

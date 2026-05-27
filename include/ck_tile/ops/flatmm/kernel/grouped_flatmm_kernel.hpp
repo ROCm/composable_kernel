@@ -10,10 +10,10 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/flatmm/kernel/flatmm_kernel.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck_tile {
 
 template <class ScaleM       = FlatmmScalePointer<-1>,
@@ -473,4 +473,6 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
 
 } // namespace ck_tile
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

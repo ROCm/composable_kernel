@@ -19,7 +19,7 @@
 #include "../stream.h"
 #include "stack.h"
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_PUSH
 RAPIDJSON_DIAG_OFF(padded)
 RAPIDJSON_DIAG_OFF(switch - enum)

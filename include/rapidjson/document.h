@@ -29,7 +29,7 @@
 #endif
 
 RAPIDJSON_DIAG_PUSH
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_OFF(padded)
 RAPIDJSON_DIAG_OFF(switch - enum)
 RAPIDJSON_DIAG_OFF(c++ 98 - compat)

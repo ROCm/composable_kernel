@@ -18,7 +18,7 @@
 #include "stream.h"
 #include <cstdio>
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_PUSH
 RAPIDJSON_DIAG_OFF(unreachable - code)
 #endif
@@ -128,7 +128,7 @@ inline void PutN(FileWriteStream& stream, char c, size_t n)
 
 RAPIDJSON_NAMESPACE_END
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_POP
 #endif
 

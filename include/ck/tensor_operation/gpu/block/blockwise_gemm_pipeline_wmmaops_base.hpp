@@ -10,9 +10,10 @@
 #include "ck/tensor_operation/gpu/warp/wmma_gemm.hpp"
 #include "ck/tensor_description/tensor_adaptor.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 
 template <index_t BlockSize,
@@ -488,4 +489,6 @@ struct BlockwiseGemmWmmaops_pipeline_base
 };
 
 } // namespace ck
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

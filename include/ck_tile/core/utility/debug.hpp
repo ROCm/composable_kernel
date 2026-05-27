@@ -90,15 +90,18 @@ struct CK_PRINTF<ConvertTo,
         constexpr auto fmt_v      = FMT1::template duplicate_n<N>(make_str_literal(" "));
         constexpr auto fmt_wrap_v = get_prefix() + fmt_v + get_suffix();
 
+#ifdef __clang__
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
         printf(fmt_wrap_v.data,
                get_thread_id(),
                N,
                args...,
                bit_cast<default_type_t<Y>>(type_convert<Y>(buf[Is]))...);
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
     }
 
     template <typename T, index_t N, typename... Args>

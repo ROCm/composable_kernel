@@ -9,10 +9,10 @@
 #include <string_view>
 #include <utility>
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 class ProfilerOperationRegistry final
 {
     ProfilerOperationRegistry()  = default;
@@ -87,4 +87,6 @@ class ProfilerOperationRegistry final
             ::ProfilerOperationRegistry::GetInstance().Add(name, description, operation)      \
                 _Pragma("clang diagnostic pop")
 // clang-format on
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

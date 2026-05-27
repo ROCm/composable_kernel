@@ -19,7 +19,7 @@
 #include <iosfwd>
 #include <ios>
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_PUSH
 RAPIDJSON_DIAG_OFF(padded)
 #elif defined(_MSC_VER)

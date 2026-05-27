@@ -18,7 +18,7 @@
 #include "stream.h"
 #include <cstdio>
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_PUSH
 RAPIDJSON_DIAG_OFF(padded)
 RAPIDJSON_DIAG_OFF(unreachable - code)
@@ -116,7 +116,7 @@ class FileReadStream
 
 RAPIDJSON_NAMESPACE_END
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_POP
 #endif
 

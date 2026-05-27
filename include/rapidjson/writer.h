@@ -37,7 +37,7 @@
 #include <arm_neon.h>
 #endif
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_PUSH
 RAPIDJSON_DIAG_OFF(padded)
 RAPIDJSON_DIAG_OFF(unreachable - code)

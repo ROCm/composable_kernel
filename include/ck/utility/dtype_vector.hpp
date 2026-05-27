@@ -5,9 +5,10 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/math.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 
 __device__ int static err = 0;
@@ -855,4 +856,6 @@ using pk_i4x4_t = typename vector_type<pk_i4_t, 4>::type;
 using pk_i4x8_t = typename vector_type<pk_i4_t, 8>::type;
 
 } // namespace ck
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

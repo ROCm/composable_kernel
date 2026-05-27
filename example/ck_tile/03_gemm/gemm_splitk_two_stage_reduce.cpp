@@ -16,10 +16,10 @@
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 /**
  * @brief Tile partitioner with output offset support.
  *
@@ -979,4 +979,6 @@ int main(int argc, char* argv[])
     return EXIT_SUCCESS;
 }
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

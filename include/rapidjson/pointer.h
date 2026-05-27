@@ -20,7 +20,7 @@
 #include "internal/itoa.h"
 #include "error/error.h" // PointerParseErrorCode
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_PUSH
 RAPIDJSON_DIAG_OFF(switch - enum)
 #elif defined(_MSC_VER)

@@ -17,10 +17,10 @@
 
 #define DEBUG_LOG 0
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck {
 
 // Currently we do not have a elegant way to put single lds buffer & double lds buffer pipe in same
@@ -1288,4 +1288,6 @@ struct GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3
 };
 
 } // namespace ck
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

@@ -15,9 +15,10 @@ using namespace ck::tensor_layout::convolution; // Import tensor layout names (G
 static ck::index_t param_mask     = 0xffff;
 static ck::index_t instance_index = -1;
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
+#endif
 // Load CSV data for 2D tests
 static std::vector<ck::utils::conv::ConvParam> Get2DTestCases()
 {
@@ -343,4 +344,6 @@ int main(int argc, char** argv)
     }
     return RUN_ALL_TESTS();
 }
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

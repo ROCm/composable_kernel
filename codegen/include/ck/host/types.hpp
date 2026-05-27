@@ -90,12 +90,15 @@ std::string SequenceStr(const std::vector<int>& v);
 
 std::string MakeTuple(const std::vector<std::string>& v);
 
+#ifdef __clang__
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif
 template <int... xs>
 const std::string S = SequenceStr({xs...});
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 
 constexpr const char* PassThrough = "ck::tensor_operation::element_wise::PassThrough";
 constexpr const char* Bilinear    = "ck::tensor_operation::element_wise::Bilinear";

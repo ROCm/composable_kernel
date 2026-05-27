@@ -18,10 +18,10 @@
 #include "ck/utility/scheduler_enum.hpp"
 #include "ck/utility/integral_constant.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -705,16 +705,15 @@ struct DeviceGemmGemm_Wmma_CShuffleV3_Common_Invoker_Arg
         auto print          = [&curFunc](const char* format, ...) -> void {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
-#if defined(__clang__)
+#ifdef __clang__
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
 #endif
                 va_list args;
                 va_start(args, format);
                 std::vfprintf(stdout, format, args);
                 va_end(args);
-#if defined(__clang__)
+#ifdef __clang__
 #pragma clang diagnostic pop
 #endif
                 std::cout << "In file: " << __FILE__ << ", function: " << curFunc << "\n";
@@ -905,4 +904,6 @@ struct DeviceGemmGemm_Wmma_CShuffleV3_Common_Invoker_Arg
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

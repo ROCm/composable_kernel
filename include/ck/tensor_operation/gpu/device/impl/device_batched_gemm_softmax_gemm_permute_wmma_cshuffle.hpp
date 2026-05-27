@@ -22,10 +22,10 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -1599,4 +1599,6 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Wmma_CShuffle
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

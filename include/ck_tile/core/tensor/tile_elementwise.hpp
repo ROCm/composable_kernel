@@ -193,9 +193,10 @@ CK_TILE_DEVICE auto cast_tile_pk_fp8_fp32(const InTensor& in_dstr_tensors)
     constexpr index_t thread_buffer_size_pk = thread_buffer_size / 4;
 
     auto out_dstr_tensor = make_static_distributed_tensor<OutDataType>(in_tile_dstr);
+#ifdef __clang__
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wuninitialized"
+#endif
     // __builtin_amdgcn_cvt_pk_fp8_f32() this builtin requires the old value, and
     // will generate a v_mov_b32 vxxx [old] before cvt, which result in unwanted ISA
     // so we prepare an uninitialized variable purposely, and turn off the warning
@@ -218,7 +219,9 @@ CK_TILE_DEVICE auto cast_tile_pk_fp8_fp32(const InTensor& in_dstr_tensors)
         vec_t d = bit_cast<vec_t>(y);
         out_dstr_tensor.get_thread_buffer().template set_as<vec_t>(number<i>{}, d);
     });
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 
     return out_dstr_tensor;
 #else

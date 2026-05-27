@@ -40,7 +40,7 @@ RAPIDJSON_DIAG_PUSH
 RAPIDJSON_DIAG_OFF(effc++)
 #endif
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_PUSH
 RAPIDJSON_DIAG_OFF(padded)
 #endif
@@ -264,7 +264,7 @@ inline DiyFp GetCachedPower10(int exp, int* outExp)
 RAPIDJSON_DIAG_POP
 #endif
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_POP
 RAPIDJSON_DIAG_OFF(padded)
 #endif

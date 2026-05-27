@@ -7,11 +7,14 @@
 namespace ck {
 namespace host {
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wglobal-constructors"
+#endif
 const std::string config_header = "";
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif
 
 std::unordered_map<std::string_view, std::string_view> GetHeaders()
 {

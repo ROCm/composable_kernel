@@ -10,10 +10,10 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck_tile {
 struct FlatmmProblem
 {
@@ -982,4 +982,6 @@ struct FlatmmKernel
 
 } // namespace ck_tile
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

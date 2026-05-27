@@ -13,11 +13,11 @@
 #include <utility>
 #include <initializer_list>
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 #pragma clang diagnostic ignored "-Wlifetime-safety-lifetimebound-violation"
-
+#endif
 #ifndef CK_TILE_TUPLE_IMPL
 #define CK_TILE_TUPLE_IMPL 1
 #endif
@@ -861,4 +861,6 @@ struct tuple_element<I, const ck_tile::tuple<Ts...>>
         }                                                                                \
     }()
 #endif
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

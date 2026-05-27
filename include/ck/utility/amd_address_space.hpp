@@ -25,11 +25,14 @@ __device__ T* cast_pointer_to_generic_address_space(T CK_CONSTANT_ADDRESS_SPACE*
 {
     // cast a pointer in "Constant" address space (4) to "Generic" address space (0)
     // only c-style pointer cast seems be able to be compiled
+#ifdef __clang__
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wold-style-cast"
+#endif
     return (T*)p; // NOLINT(old-style-cast)
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 }
 
 template <typename T>
@@ -37,11 +40,14 @@ __host__ __device__ T CK_CONSTANT_ADDRESS_SPACE* cast_pointer_to_constant_addres
 {
     // cast a pointer in "Generic" address space (0) to "Constant" address space (4)
     // only c-style pointer cast seems be able to be compiled
+#ifdef __clang__
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wold-style-cast"
+#endif
     return (T CK_CONSTANT_ADDRESS_SPACE*)p; // NOLINT(old-style-cast)
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 }
 
 } // namespace ck

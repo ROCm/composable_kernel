@@ -15,10 +15,10 @@
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck_tile {
 
 template <typename Distribution>
@@ -708,4 +708,6 @@ CK_TILE_HOST_DEVICE void print(const tile_distribution<PsYs2XsAdaptor_,
 }
 
 } // namespace ck_tile
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

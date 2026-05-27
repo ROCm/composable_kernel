@@ -6,10 +6,10 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/mxfp_convert.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck_tile {
 
 /**
@@ -104,4 +104,6 @@ CK_TILE_HOST_DEVICE constexpr e8m0_bexp_t::operator float() const
 }
 
 } // namespace ck_tile
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

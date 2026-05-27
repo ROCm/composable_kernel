@@ -135,6 +135,11 @@ add_compile_options(-Wno-bit-int-extension)
 add_compile_options(-Wno-pass-failed)
 add_compile_options(-Wno-switch-default)
 add_compile_options(-Wno-unique-object-duplication)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options(-Wno-unknown-warning-option)
+else()
+    add_compile_options(-Wno-unknown-pragmas)
+endif()
 
 # Increase the number of max elements in fold expressions
 add_compile_options(-fbracket-depth=1024)

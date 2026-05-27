@@ -18,7 +18,7 @@
 #include "stream.h"
 #include <iosfwd>
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_PUSH
 RAPIDJSON_DIAG_OFF(padded)
 #endif
@@ -89,7 +89,7 @@ class BasicOStreamWrapper
 typedef BasicOStreamWrapper<std::ostream> OStreamWrapper;
 typedef BasicOStreamWrapper<std::wostream> WOStreamWrapper;
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_POP
 #endif
 

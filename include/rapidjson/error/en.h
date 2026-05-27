@@ -17,7 +17,7 @@
 
 #include "error.h"
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_PUSH
 RAPIDJSON_DIAG_OFF(switch - enum)
 RAPIDJSON_DIAG_OFF(covered - switch - default)
@@ -266,7 +266,7 @@ GetPointerParseError_En(PointerParseErrorCode pointerParseErrorCode)
 
 RAPIDJSON_NAMESPACE_END
 
-#ifdef __clang__
+#if defined(__clang__)
 RAPIDJSON_DIAG_POP
 #endif
 

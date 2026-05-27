@@ -18,10 +18,10 @@
 #include "profiler/profile_grouped_gemm_impl.hpp"
 #include "profiler/profile_grouped_gemm_fixed_nk_impl.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
-
+#endif
 static ck::index_t param_mask     = 0xffffff;
 static ck::index_t instance_index = -1;
 
@@ -346,4 +346,6 @@ int main(int argc, char** argv)
     }
     return RUN_ALL_TESTS();
 }
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

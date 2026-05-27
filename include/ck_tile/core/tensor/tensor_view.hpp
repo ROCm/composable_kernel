@@ -14,10 +14,10 @@
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck_tile {
 
 // placeholder type if we want to opt-out a tensor view parameter
@@ -704,4 +704,6 @@ pad_tensor_view(const TensorView& tensor_view, const TileLengths& tile_lengths, 
 }
 
 } // namespace ck_tile
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

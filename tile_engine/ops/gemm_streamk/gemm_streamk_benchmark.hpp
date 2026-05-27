@@ -17,10 +17,10 @@
 // Data types and Layouts are defined by the generated kernel headers
 // No hardcoded type definitions here to avoid conflicts
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 enum class Metric
 {
     LATENCY   = 0,
@@ -203,4 +203,6 @@ void gemm_host_reference(int verify,
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_host_result.data());
     }
 }
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

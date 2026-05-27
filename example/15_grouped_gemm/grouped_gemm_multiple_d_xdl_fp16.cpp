@@ -23,10 +23,10 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm_multiple_d.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 using ::ck::DeviceMem;
 using ::ck::hip_check_error;
 using ::ck::HostTensorDescriptor;
@@ -79,4 +79,6 @@ using DeviceGemmInstance =
 
 int main(int argc, char* argv[]) { return !run_grouped_gemm_example(argc, argv); }
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

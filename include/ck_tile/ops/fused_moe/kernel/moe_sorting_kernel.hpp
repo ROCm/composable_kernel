@@ -10,10 +10,10 @@
 #include <string>
 #include <type_traits>
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 #if !defined(CK_TILE_HAS_ROW_NEWBCAST)
 // row_newbcast (DPP modifier 0x157) support by architecture:
 // - Not supported: gfx908 (MI100) and older
@@ -3130,4 +3130,6 @@ struct MoeSortingMultiPhaseKernel_P23
 
 } // namespace ck_tile
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

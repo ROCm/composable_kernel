@@ -36,9 +36,10 @@
 #endif
 #include "ck/tensor_operation/gpu/device/tensor_size_check.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 namespace tensor_operation {
 namespace device {
@@ -2410,4 +2411,6 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
 #ifdef CK_EXPERIMENTAL_BUILDER
 #include "ck_tile/builder/reflect/reflect_device_grouped_conv_fwd_multiple_abd_wmma_cshuffle_v3.inc"
 #endif
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

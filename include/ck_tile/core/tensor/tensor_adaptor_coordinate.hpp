@@ -14,10 +14,10 @@
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/print.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck_tile {
 
 template <index_t NDimHidden, typename BottomDimensionHiddenIds, typename TopDimensionHiddenIds>
@@ -348,11 +348,14 @@ struct CK_PRINT_X_<str_literal<PREFIXChars...>, str_literal<SUFFIXChars...>>
                                   Args&&... args) const
     {
         constexpr auto fmt_wrap_v = get_prefix() + str_literal<FMTChars...>{} + get_suffix();
+#ifdef __clang__
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
         printf(fmt_wrap_v.data, get_thread_id(), args..., targs.at(number<Is>())...);
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
     }
     template <typename T, typename... Args>
     CK_TILE_HOST_DEVICE void operator()(T&& x, Args&&... args) const
@@ -372,4 +375,6 @@ CK_TILE_HOST_DEVICE void print(const tensor_adaptor_coordinate<N, B, T>& coord)
     detail::CK_PRINT_X_<>{}(coord);
 }
 } // namespace ck_tile
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif

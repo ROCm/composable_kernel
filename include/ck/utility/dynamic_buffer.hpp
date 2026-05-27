@@ -16,10 +16,10 @@
 #include "generic_memory_space_atomic.hpp"
 #include "data_cache_prefetch.hpp"
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wno-unknown-warning-option"
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-
+#endif
 namespace ck {
 
 // T may be scalar or vector
@@ -542,4 +542,6 @@ make_dynamic_buffer(T* p, ElementSpaceSize element_space_size, X invalid_element
 
 } // namespace ck
 
+#if __clang_major__ >= 23
 #pragma clang diagnostic pop
+#endif
