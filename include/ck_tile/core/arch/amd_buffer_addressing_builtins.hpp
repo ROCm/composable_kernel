@@ -2705,7 +2705,27 @@ CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
 //     is valid (in our pipeline use, the page_table lookup guarantees this).
 //   - gfx9.4+ / gfx950 only — uses `__builtin_amdgcn_global_load_lds`. Older
 //     arches would need a `global_load + ds_write` fallback.
+//
+// Toolchain note (`CK_TILE_HAS_GLOBAL_LOAD_LDS_DWORDX4_BUILTIN`):
+//   The size=12/size=16 ImmArg overloads of `__builtin_amdgcn_global_load_lds`
+//   for gfx950 only landed in AMD clang ~21+ (verified absent in ROCm 7.1.1
+//   / clang 20, present in ROCm 7.11.0 / clang 22). On older toolchains the
+//   front-end rejects the size literal at parse time — no flag fixes this.
+//   The macro below gates on `__clang_major__ >= 21`; when 0 we fall back to
+//   emitting `global_load_lds_dwordx{1,3,4}` via inline asm, which bypasses
+//   the ImmArg check entirely and produces the exact same HW instruction
+//   (verified zero perf delta vs. the builtin path across the decode
+//   regression suite). Override the heuristic manually with
+//   `-DCK_TILE_HAS_GLOBAL_LOAD_LDS_DWORDX4_BUILTIN=0/1`.
 // =============================================================================
+#ifndef CK_TILE_HAS_GLOBAL_LOAD_LDS_DWORDX4_BUILTIN
+#if __clang_major__ >= 21
+#define CK_TILE_HAS_GLOBAL_LOAD_LDS_DWORDX4_BUILTIN 1
+#else
+#define CK_TILE_HAS_GLOBAL_LOAD_LDS_DWORDX4_BUILTIN 0
+#endif
+#endif
+
 template <typename T,
           index_t N,
           index_t byte_offset_imm             = 0, // 13-bit signed
@@ -2739,12 +2759,66 @@ CK_TILE_DEVICE void amd_async_global_load_lds_raw(T* smem,
     // literals. A switch on the constexpr `bytes` value lets each branch
     // pass the literal directly.
     constexpr int kCoherence = static_cast<int>(coherence);
+#if CK_TILE_HAS_GLOBAL_LOAD_LDS_DWORDX4_BUILTIN
     if constexpr(bytes == 16)
         __builtin_amdgcn_global_load_lds(gptr, lptr, 16, byte_offset_imm, kCoherence);
     else if constexpr(bytes == 12)
         __builtin_amdgcn_global_load_lds(gptr, lptr, 12, byte_offset_imm, kCoherence);
     else /* bytes == 4 */
         __builtin_amdgcn_global_load_lds(gptr, lptr, 4, byte_offset_imm, kCoherence);
+#else
+    // Old-toolchain fallback (ROCm ≤ 7.1.1 / AMD clang ≤ 20).
+    //
+    // The size=12/16 ImmArg overloads of `__builtin_amdgcn_global_load_lds`
+    // are rejected during semantic analysis on these compilers, so we emit
+    // the dwordx{1,3,4} instruction via inline asm instead — the assembler
+    // happily accepts the mnemonic and stamps an identical HW instruction
+    // to the one the newer builtin would lower to. (Decomposing into N×
+    // size=4 builtin calls *looks* equivalent but isn't: the in-LDS layout
+    // of a native `dwordx4` doesn't reduce to any combination of dword
+    // INST.OFFSET steps we could find that survives all decode shapes —
+    // observed FAIL on b=128 / sk=16384 / d=128 / bf16. Easier to just
+    // ask the assembler for the real instruction.)
+    //
+    // Operand contract:
+    //   - M0 (LDS dest base): set explicitly by us via `s_mov_b32`. The
+    //     addrspace(3) `lptr` narrows to a 32-bit LDS byte offset on cast.
+    //     `readfirstlane` guarantees the value lands in an SGPR even if
+    //     LLVM lost sight of its wave-uniformity. The "s" constraints
+    //     enforce SALU placement; `m0_dep` plumbs an SSA edge between the
+    //     m0 setter and the load asm so LLVM cannot reorder the two.
+    //   - `gptr` (per-lane 64-bit base): VGPR pair via "v".
+    //   - `byte_offset_imm` (compile-time INST.OFFSET literal): "n".
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+    const uint32_t lds_byte_offset = (uint32_t)((uintptr_t)lptr);
+#pragma clang diagnostic pop
+    // Wave-uniform readfirstlane keeps `m0` an SGPR even if optimizer didn't
+    // see the wave-uniformity (our caller does pass a wave-uniform value).
+    const uint32_t lds_byte_offset_u =
+        __builtin_amdgcn_readfirstlane(lds_byte_offset);
+    uint32_t m0_dep;
+    asm volatile("s_mov_b32 m0, %1"
+                 : "=s"(m0_dep) // SSA tie-back into the load asm's input
+                 : "s"(lds_byte_offset_u)
+                 : "memory");
+
+    if constexpr(bytes == 16)
+        asm volatile("global_load_lds_dwordx4 %0, off offset:%c1"
+                     :
+                     : "v"(gptr), "n"(byte_offset_imm), "s"(m0_dep)
+                     : "memory");
+    else if constexpr(bytes == 12)
+        asm volatile("global_load_lds_dwordx3 %0, off offset:%c1"
+                     :
+                     : "v"(gptr), "n"(byte_offset_imm), "s"(m0_dep)
+                     : "memory");
+    else /* bytes == 4 */
+        asm volatile("global_load_lds_dword %0, off offset:%c1"
+                     :
+                     : "v"(gptr), "n"(byte_offset_imm), "s"(m0_dep)
+                     : "memory");
+#endif
 }
 
 // This version support buffer resource as input arg

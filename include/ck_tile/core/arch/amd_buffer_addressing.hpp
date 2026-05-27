@@ -2864,14 +2864,11 @@ CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
 // =============================================================================
 // global_load_lds path — direct DRAM->LDS load via per-lane 64-bit base pointer.
 //
-// Equivalent of `amd_async_buffer_load_with_oob_raw` but bypasses the SRD
-// (`int32x4_t` resource descriptor) entirely:
-//   - SRD's `size` field is uint32_t (max ~4 GB pool). Caches above that wrap.
-//   - `buffer_load_*` voffset is 32-bit. Per-lane offsets above 4 GB wrap.
-// Replacing the underlying HW instruction with `global_load_lds` (per-lane
-// 64-bit VGPR-pair base + 13-bit signed immediate offset) lifts both limits.
-// Required for paged-KV caches whose `num_blocks * page_size * row_stride *
-// sizeof(T)` exceeds INT32_MAX (e.g. very-long-context decode pools).
+// See amd_buffer_addressing_builtins.hpp for the full rationale (this file
+// is the dormant copy used only when `CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN`
+// is forced to 0; clang ≥ 20 routes to the _builtins.hpp variant). Kept in
+// lockstep so toggling that macro doesn't reintroduce the >4 GB-cache path
+// or the size=12/16 ImmArg compile failure on older toolchains.
 //
 // Caveats:
 //   - Loses the SRD's free OOB clamp. Caller must ensure the per-lane pointer
@@ -2879,6 +2876,14 @@ CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
 //   - gfx9.4+ / gfx950 only — uses `__builtin_amdgcn_global_load_lds`.
 //     Older arches would need a `global_load + ds_write` fallback.
 // =============================================================================
+#ifndef CK_TILE_HAS_GLOBAL_LOAD_LDS_DWORDX4_BUILTIN
+#if __clang_major__ >= 21
+#define CK_TILE_HAS_GLOBAL_LOAD_LDS_DWORDX4_BUILTIN 1
+#else
+#define CK_TILE_HAS_GLOBAL_LOAD_LDS_DWORDX4_BUILTIN 0
+#endif
+#endif
+
 template <typename T,
           index_t N,
           index_t byte_offset_imm             = 0, // 13-bit signed
@@ -2912,12 +2917,46 @@ CK_TILE_DEVICE void amd_async_global_load_lds_raw(T* smem,
     // literals. A switch on the constexpr `bytes` value lets each branch
     // pass the literal directly.
     constexpr int kCoherence = static_cast<int>(coherence);
+#if CK_TILE_HAS_GLOBAL_LOAD_LDS_DWORDX4_BUILTIN
     if constexpr(bytes == 16)
         __builtin_amdgcn_global_load_lds(gptr, lptr, 16, byte_offset_imm, kCoherence);
     else if constexpr(bytes == 12)
         __builtin_amdgcn_global_load_lds(gptr, lptr, 12, byte_offset_imm, kCoherence);
     else /* bytes == 4 */
         __builtin_amdgcn_global_load_lds(gptr, lptr, 4, byte_offset_imm, kCoherence);
+#else
+    // Old-toolchain fallback — see amd_buffer_addressing_builtins.hpp for
+    // the full rationale. Emits the dwordx{1,3,4} instruction via inline
+    // asm so the ImmArg size literal check is never performed; M0 is set
+    // explicitly from `lptr` (the 32-bit LDS byte offset).
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+    const uint32_t lds_byte_offset = (uint32_t)((uintptr_t)lptr);
+#pragma clang diagnostic pop
+    const uint32_t lds_byte_offset_u =
+        __builtin_amdgcn_readfirstlane(lds_byte_offset);
+    uint32_t m0_dep;
+    asm volatile("s_mov_b32 m0, %1"
+                 : "=s"(m0_dep)
+                 : "s"(lds_byte_offset_u)
+                 : "memory");
+
+    if constexpr(bytes == 16)
+        asm volatile("global_load_lds_dwordx4 %0, off offset:%c1"
+                     :
+                     : "v"(gptr), "n"(byte_offset_imm), "s"(m0_dep)
+                     : "memory");
+    else if constexpr(bytes == 12)
+        asm volatile("global_load_lds_dwordx3 %0, off offset:%c1"
+                     :
+                     : "v"(gptr), "n"(byte_offset_imm), "s"(m0_dep)
+                     : "memory");
+    else /* bytes == 4 */
+        asm volatile("global_load_lds_dword %0, off offset:%c1"
+                     :
+                     : "v"(gptr), "n"(byte_offset_imm), "s"(m0_dep)
+                     : "memory");
+#endif
 }
 
 // This version support buffer resource as input arg
