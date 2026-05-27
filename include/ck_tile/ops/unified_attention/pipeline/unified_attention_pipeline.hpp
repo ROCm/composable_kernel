@@ -717,13 +717,17 @@ struct UnifiedAttentionPipeline
         // requires a per-lane index expression, which only opens up at the
         // HIP/CK level.
         //
-        // Capacity: kPageTableLdsEntries = 4096 × 4 B = 16 KiB. At page_size
-        // ∈ {16, 32, 64}, this covers sk up to {64 K, 128 K, 256 K} tokens
-        // — comfortably above any realistic prefill. If a caller exceeds
-        // that we trap on the assert below rather than silently miscompute;
-        // a runtime fallback was tried earlier and regresses 30% because
-        // the compiler emits both refresh_*_offsets paths and the resulting
-        // register pressure halves occupancy.
+        // Capacity: kPageTableLdsEntries = 4096 × 4 B = 16 KiB. With the
+        // per-split window load above, this bounds the *per-split* page
+        // count rather than the absolute total. At page_size ∈ {16, 32, 64}
+        // this covers sk_per_split up to {64 K, 128 K, 256 K} tokens —
+        // since the wrapper splits to ~4× CU count, total sk supported is
+        // roughly num_splits × that. (E.g. b=64 sk=128K page=16 → 4 splits
+        // → 2000 pages/split, comfortably under 4096.) If a caller still
+        // exceeds the cap we trap on the assert below rather than silently
+        // miscompute; a runtime fallback was tried earlier and regresses
+        // 30% because the compiler emits both refresh_*_offsets paths and
+        // the resulting register pressure halves occupancy.
         constexpr bool kUsePageTableLds = kScalarPromoteKPageIdx || kScalarPromoteVPageIdx;
         constexpr index_t kPageTableLdsOffset =
             GetSmemSize() - GetPageTableLdsBytes();
@@ -733,25 +737,39 @@ struct UnifiedAttentionPipeline
         // Split-KV correction: refresh_*_offsets indexes block_tables_lds by
         // i_base_page = (split_token_offset + …) / page_size, which is the
         // *absolute* page index within the batch (NOT relative to this split).
-        // For prefill split_token_offset == 0 so the absolute and relative
-        // indices coincide; for split-KV decode (i_total_loops starts at
-        // num_blocks_start > 0 on splits 1+), they diverge and the original
-        // load that only touched pages [0, num_pages_for_split) read OOB.
-        // We bulk-load pages [block_table_offset, block_table_offset +
-        // split_end_page) so every absolute page index this CTA can produce
-        // is covered, at the cost of a tiny (one-shot, kernel-entry) bulk
-        // load for the early portion of the batch we skip past on splits 1+.
+        // For prefill split_token_offset == 0 so absolute and relative indices
+        // coincide; for split-KV decode (i_total_loops starts at
+        // num_blocks_start > 0 on splits 1+), they diverge.
+        //
+        // Per-split window: each CTA only ever references pages in the
+        // half-open range
+        //     [split_start_page, split_end_page)
+        //         = [⌊num_blocks_start · kPageBlockSize / page_size⌋,
+        //            ⌈num_blocks       · kPageBlockSize / page_size⌉)
+        //
+        // We bulk-load just that window (a "split_window_pages" entry slice)
+        // and shift refresh_*_offsets' lookup by split_start_page so the LDS
+        // index stays in [0, split_window_pages). On the prefill path
+        // (num_blocks_start == 0) split_start_page == 0 and this collapses to
+        // the original absolute-indexed load. On split-KV (num_blocks_start >
+        // 0) it both saves the bulk-load bytes for pages we skip past *and*
+        // lets long-context decode (sk·kPageBlockSize/page_size > 4096) fit
+        // under the cap, since the per-CTA window is bounded by
+        // (total_kv_pages / num_splits) instead of the absolute total.
+        const index_t split_start_page = static_cast<index_t>(
+            (static_cast<long_index_t>(num_blocks_start) * kPageBlockSize) / page_size);
         const index_t split_end_page = static_cast<index_t>(
             (static_cast<long_index_t>(num_total_loop) * kPageBlockSize + page_size - 1) /
             page_size);
+        const index_t split_window_pages = split_end_page - split_start_page;
         if constexpr (kUsePageTableLds)
         {
-            assert(split_end_page <= kPageTableLdsEntries);
+            assert(split_window_pages <= kPageTableLdsEntries);
 
             const index_t tid = get_thread_local_1d_id();
-            for (index_t i = tid; i < split_end_page; i += Problem::kBlockSize)
+            for (index_t i = tid; i < split_window_pages; i += Problem::kBlockSize)
             {
-                block_tables_lds[i] = block_tables_ptr_[block_table_offset + i];
+                block_tables_lds[i] = block_tables_ptr_[block_table_offset + split_start_page + i];
             }
             // Each thread writes a strided subset of block_tables_lds[] and
             // subsequent refresh_*_offsets reads at i_base_page may be served
@@ -789,7 +807,11 @@ struct UnifiedAttentionPipeline
                     // keeping phys_page in VGPRs lets that chain stay
                     // parallel across lanes rather than serialise through
                     // an SALU forwarding step.
-                    const int32_t phys_page    = block_tables_lds[i_base_page];
+                    // Shift by split_start_page to convert absolute → window
+                    // index (see "Per-split window" comment above the cache
+                    // load). split_start_page is a kernel-entry constant so
+                    // the subtract folds into the s_load_dword's offset.
+                    const int32_t phys_page    = block_tables_lds[i_base_page - split_start_page];
                     const index_t logical_token = i_base_token + k_thread_n_pos;
                     const index_t within_page   = logical_token - i_base_page * page_size;
                     k_page_offsets(i) =
@@ -821,7 +843,8 @@ struct UnifiedAttentionPipeline
                                                  static_cast<index_t>(i.value) * VY0_step_N;
                     const int32_t i_base_page  = __builtin_amdgcn_readfirstlane(
                         i_base_token / page_size);
-                    const int32_t phys_page    = block_tables_lds[i_base_page];
+                    // Window-relative index; see K-path comment for rationale.
+                    const int32_t phys_page    = block_tables_lds[i_base_page - split_start_page];
                     const index_t logical_token = i_base_token + v_thread_n_pos;
                     const index_t within_page   = logical_token - i_base_page * page_size;
                     v_page_offsets(i) =
