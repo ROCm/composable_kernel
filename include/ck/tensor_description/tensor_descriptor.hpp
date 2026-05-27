@@ -12,7 +12,7 @@
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 namespace ck {
 
-template <index_t NDimHidden, typename VisibleDimensionIds>
+template <index_t NDimHidden, typename VisibleDimensionIds, typename IndexType = index_t>
 struct TensorCoordinate;
 
 template <index_t NTransform, index_t NDimVisible, typename UpdateLowerIndexHack>
@@ -235,13 +235,13 @@ struct TensorDescriptor
     ElementSpaceSize element_space_size_;
 };
 
-template <index_t NDimHidden, typename VisibleDimensionIds>
+template <index_t NDimHidden, typename VisibleDimensionIds, typename IndexType>
 struct TensorCoordinate
 {
     // TODO make these private
     static constexpr index_t ndim_visible_ = VisibleDimensionIds::Size();
 
-    using HiddenIndex  = MultiIndex<NDimHidden>;
+    using HiddenIndex  = MultiIndex<NDimHidden, IndexType>;
     using VisibleIndex = MultiIndex<ndim_visible_>;
 
     public:
@@ -254,7 +254,7 @@ struct TensorCoordinate
 
     __host__ __device__ constexpr auto GetIndex() const { return GetVisibleIndex(); }
 
-    __host__ __device__ constexpr index_t GetOffset() const { return idx_hidden_[Number<0>{}]; }
+    __host__ __device__ constexpr IndexType GetOffset() const { return idx_hidden_[Number<0>{}]; }
 
     // TODO make these private
     __host__ __device__ constexpr const auto& GetHiddenIndex() const [[clang::lifetimebound]]
@@ -432,7 +432,7 @@ transform_tensor_descriptor(const OldTensorDescriptor& old_tensor_desc,
                                                                        element_space_size};
 }
 
-template <typename TensorDesc, typename VisibleIndex>
+template <typename IndexType = index_t, typename TensorDesc, typename VisibleIndex>
 __host__ __device__ constexpr auto make_tensor_coordinate(const TensorDesc& tensor_desc,
                                                           const VisibleIndex& idx_visible)
 {
@@ -443,7 +443,7 @@ __host__ __device__ constexpr auto make_tensor_coordinate(const TensorDesc& tens
     constexpr index_t ndim_hidden  = TensorDesc::GetNumOfHiddenDimension();
     constexpr auto visible_dim_ids = TensorDesc::GetVisibleDimensionIds();
 
-    MultiIndex<ndim_hidden> idx_hidden;
+    MultiIndex<ndim_hidden, IndexType> idx_hidden;
 
     // initialize visible index
     set_container_subset(idx_hidden, visible_dim_ids, idx_visible);
@@ -457,14 +457,14 @@ __host__ __device__ constexpr auto make_tensor_coordinate(const TensorDesc& tens
 
         const auto idx_up = get_container_subset(idx_hidden, dims_up);
 
-        MultiIndex<dims_low.Size()> idx_low;
+        MultiIndex<dims_low.Size(), IndexType> idx_low;
 
         tran.CalculateLowerIndex(idx_low, idx_up);
 
         set_container_subset(idx_hidden, dims_low, idx_low);
     });
 
-    return TensorCoordinate<ndim_hidden, decltype(visible_dim_ids)>{idx_hidden};
+    return TensorCoordinate<ndim_hidden, decltype(visible_dim_ids), IndexType>{idx_hidden};
 }
 
 // UpdateLowerIndexHack: Sequence<...>
@@ -633,8 +633,8 @@ __host__ __device__ constexpr bool coordinate_has_valid_offset(const TensorDesc&
            coordinate_has_valid_offset_assuming_visible_index_is_valid(tensor_desc, coord);
 }
 
-template <typename TensorDesc>
-using TensorCoordinate_t = decltype(make_tensor_coordinate(
+template <typename TensorDesc, typename IndexType = index_t>
+using TensorCoordinate_t = decltype(make_tensor_coordinate<IndexType>(
     TensorDesc{}, MultiIndex<remove_cvref_t<TensorDesc>::GetNumOfDimension()>{}));
 
 template <typename TensorDesc>

@@ -114,11 +114,14 @@ struct BlockToCTileMap_M00_N0_M01
 
 // Rows of column-vectors
 // This C-tile map dynamically adjusts M01 when C-tile index is out of range
-template <index_t MPerBlock, index_t NPerBlock, typename CGridDesc_M_N = void>
+template <index_t MPerBlock,
+          index_t NPerBlock,
+          typename CGridDesc_M_N = void,
+          typename IndexType     = index_t>
 struct BlockToCTileMap_M00_N0_M01Adapt;
 
-template <index_t MPerBlock, index_t NPerBlock>
-struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
+template <index_t MPerBlock, index_t NPerBlock, typename IndexType>
+struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void, IndexType>
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
@@ -134,8 +137,9 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt&
     operator=(BlockToCTileMap_M00_N0_M01Adapt&&) = default;
 
-    __host__
-        __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(index_t M, index_t N, index_t M01 = 8)
+    __host__ __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(IndexType M,
+                                                                  IndexType N,
+                                                                  IndexType M01 = 8)
         : M_(M), N_(N), M01_(M01)
     {
 #if 0
@@ -148,13 +152,13 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     template <typename CGridDesc_M_N>
     __host__
         __device__ constexpr BlockToCTileMap_M00_N0_M01Adapt(const CGridDesc_M_N& c_grid_desc_m_n,
-                                                             index_t M01 = 8)
+                                                             IndexType M01 = 8)
         : BlockToCTileMap_M00_N0_M01Adapt(
               c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1), M01)
     {
     }
 
-    __host__ __device__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
+    __host__ __device__ static constexpr IndexType CalculateGridSize(IndexType M, IndexType N)
     {
         const auto M0 = math::integer_divide_ceil(M, MPerBlock);
         const auto N0 = math::integer_divide_ceil(N, NPerBlock);
@@ -163,7 +167,7 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     }
 
     template <typename CGridDesc_M_N>
-    __host__ static constexpr index_t CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n)
+    __host__ static constexpr IndexType CalculateGridSize(const CGridDesc_M_N& c_grid_desc_m_n)
     {
         return CalculateGridSize(c_grid_desc_m_n.GetLength(I0), c_grid_desc_m_n.GetLength(I1));
     }
@@ -185,14 +189,14 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
 
         block_1d_id = block_1d_id % (M0 * N0); // swallow batch index
 
-        index_t idx_N0 = block_1d_id % N0;
-        index_t idx_M0 = block_1d_id / N0;
+        IndexType idx_N0 = block_1d_id % N0;
+        IndexType idx_M0 = block_1d_id / N0;
 
         const auto M01_adapt = (idx_M0 < M0 - M0 % M01_) ? M01_ : M0 % M01_;
 
-        index_t idx_M00          = idx_M0 / M01_;
-        index_t idx_M01          = idx_M0 % M01_;
-        index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
+        IndexType idx_M00          = idx_M0 / M01_;
+        IndexType idx_M01          = idx_M0 % M01_;
+        IndexType idx_N0_M01_local = idx_N0 + idx_M01 * N0;
 
         /**
          *                        idxN0
@@ -250,14 +254,15 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     }
 
     private:
-    index_t M_;
-    index_t N_;
-    index_t M01_;
+    IndexType M_;
+    IndexType N_;
+    IndexType M01_;
 };
 
 // keep the redundant type argument for backward compatibility
-template <index_t MPerBlock, index_t NPerBlock, typename CGridDesc_M_N>
-struct BlockToCTileMap_M00_N0_M01Adapt : BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
+template <index_t MPerBlock, index_t NPerBlock, typename CGridDesc_M_N, typename IndexType>
+struct BlockToCTileMap_M00_N0_M01Adapt
+    : BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void, IndexType>
 {
     using BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>::
         BlockToCTileMap_M00_N0_M01Adapt;

@@ -41,7 +41,8 @@ template <typename ThreadGroup,
           index_t DstScalarStrideInVector,
           bool ThreadTransferSrcResetCoordinateAfterRun,
           bool ThreadTransferDstResetCoordinateAfterRun,
-          index_t NumThreadScratch = 1>
+          index_t NumThreadScratch = 1,
+          typename IndexType       = index_t>
 struct ThreadGroupTensorSliceTransfer_v4r1
 {
     static constexpr index_t nDim = remove_reference_t<SrcDesc>::GetNumOfDimension();
@@ -204,7 +205,8 @@ struct ThreadGroupTensorSliceTransfer_v4r1
                                            DstScalarStrideInVector,
                                            ThreadTransferSrcResetCoordinateAfterRun,
                                            ThreadTransferDstResetCoordinateAfterRun,
-                                           NumThreadScratch>;
+                                           NumThreadScratch,
+                                           IndexType>;
 
     ThreadwiseTransfer threadwise_transfer_;
 };

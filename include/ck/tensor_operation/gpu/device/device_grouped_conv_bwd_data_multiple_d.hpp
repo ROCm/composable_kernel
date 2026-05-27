@@ -6,6 +6,7 @@
 #include <array>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -61,6 +62,30 @@ struct DeviceGroupedConvBwdDataMultipleD : public BaseOperator
         const BElementwiseOperation& b_element_op,
         const CDEElementwiseOperation& cde_element_op,
         const ck::index_t split_k = 1) = 0;
+
+    virtual std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_a,
+                        const void* p_b,
+                        const std::array<const void*, NumDTensor>& p_ds,
+                        void* p_e,
+                        const std::array<long_index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths,
+                        const std::array<long_index_t, NDimSpatial + 3>& a_g_n_k_wos_strides,
+                        const std::array<long_index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                        const std::array<long_index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                        const std::array<std::array<long_index_t, NDimSpatial + 3>, NumDTensor>&
+                            ds_g_n_k_wos_lengths,
+                        const std::array<std::array<long_index_t, NDimSpatial + 3>, NumDTensor>&
+                            ds_g_n_k_wos_strides,
+                        const std::array<long_index_t, NDimSpatial + 3>& e_g_n_c_wis_lengths,
+                        const std::array<long_index_t, NDimSpatial + 3>& e_g_n_c_wis_strides,
+                        const std::array<long_index_t, NDimSpatial>& conv_filter_strides,
+                        const std::array<long_index_t, NDimSpatial>& conv_filter_dilations,
+                        const std::array<long_index_t, NDimSpatial>& input_left_pads,
+                        const std::array<long_index_t, NDimSpatial>& input_right_pads,
+                        const AElementwiseOperation& a_element_op,
+                        const BElementwiseOperation& b_element_op,
+                        const CDEElementwiseOperation& cde_element_op,
+                        const ck::index_t split_k = 1) = 0;
 
     virtual std::unique_ptr<BaseInvoker> MakeInvokerPointer() = 0;
 };

@@ -61,33 +61,33 @@ inline ck::index_t get_best_occupancy_k_batch_value(int max_occupancy, ck::index
     return k_batch;
 }
 
-template <ck::index_t NDimSpatial>
+template <ck::index_t NDimSpatial, typename IndexType = index_t>
 inline auto
-get_bwd_weight_gemm_sizes(const std::array<index_t, NDimSpatial + 3>& a_g_n_k_wos_lengths,
-                          const std::array<index_t, NDimSpatial + 3>& e_g_k_c_xs_lengths)
+get_bwd_weight_gemm_sizes(const std::array<IndexType, NDimSpatial + 3>& a_g_n_k_wos_lengths,
+                          const std::array<IndexType, NDimSpatial + 3>& e_g_k_c_xs_lengths)
 {
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
     // The input array has elements in the order: G, N, K, Do, Ho, Wo
     // GemmK = N * Do * Ho * Wo for the BWD weight pass.
-    constexpr index_t spatial_offset = 3;
-    const index_t DoHoWo             = std::accumulate(begin(a_g_n_k_wos_lengths) + spatial_offset,
-                                           end(a_g_n_k_wos_lengths),
-                                           index_t{1},
-                                           std::multiplies<>{});
-    const auto gemmK                 = a_g_n_k_wos_lengths[I1] * DoHoWo;
+    constexpr IndexType spatial_offset = 3;
+    const IndexType DoHoWo = std::accumulate(begin(a_g_n_k_wos_lengths) + spatial_offset,
+                                             end(a_g_n_k_wos_lengths),
+                                             IndexType{1},
+                                             std::multiplies<>{});
+    const auto gemmK       = a_g_n_k_wos_lengths[I1] * DoHoWo;
 
     // The GEMM M dimension is the number of output channels.
     const auto gemmM = e_g_k_c_xs_lengths[I1];
 
     // The output array has elements in the order: G, K, C, X, Y, Z
     // GemmN = C * X * Y * Z for the BWD weight pass.
-    const index_t XYZ = std::accumulate(begin(e_g_k_c_xs_lengths) + spatial_offset,
-                                        end(e_g_k_c_xs_lengths),
-                                        index_t{1},
-                                        std::multiplies<>{});
-    const auto gemmN  = e_g_k_c_xs_lengths[I2] * XYZ;
+    const IndexType XYZ = std::accumulate(begin(e_g_k_c_xs_lengths) + spatial_offset,
+                                          end(e_g_k_c_xs_lengths),
+                                          IndexType{1},
+                                          std::multiplies<>{});
+    const auto gemmN    = e_g_k_c_xs_lengths[I2] * XYZ;
     return std::make_tuple(gemmM, gemmN, gemmK);
 }
 

@@ -688,12 +688,18 @@ struct TransformConvBwdDataToGemm_v1
         else
         {
             // only work on HTilde and WTilde that contribute to non-padding area of input tensor
-            const auto IDTildeSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadD_ - ConvDilationD_ * (ZTilde_ - I1)), ConvStrideD_);
-            const auto IHTildeSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadH_ - ConvDilationH_ * (YTilde_ - I1)), ConvStrideH_);
-            const auto IWTildeSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadW_ - ConvDilationW_ * (XTilde_ - I1)), ConvStrideW_);
+            const auto IDTildeSliceBegin =
+                math::integer_divide_floor(math::max(static_cast<IndexType>(I0),
+                                                     InLeftPadD_ - ConvDilationD_ * (ZTilde_ - I1)),
+                                           ConvStrideD_);
+            const auto IHTildeSliceBegin =
+                math::integer_divide_floor(math::max(static_cast<IndexType>(I0),
+                                                     InLeftPadH_ - ConvDilationH_ * (YTilde_ - I1)),
+                                           ConvStrideH_);
+            const auto IWTildeSliceBegin =
+                math::integer_divide_floor(math::max(static_cast<IndexType>(I0),
+                                                     InLeftPadW_ - ConvDilationW_ * (XTilde_ - I1)),
+                                           ConvStrideW_);
 
             const auto IDTildeSliceEnd = math::min(
                 DTilde_, math::integer_divide_ceil(InLeftPadD_ + Di_ - I1, ConvStrideD_) + I1);
@@ -1240,12 +1246,18 @@ struct TransformConvBwdDataToGemm_v1
         {
             // only work on DTilde, HTilde and WTilde that contribute to
             // non-padding area of input tensor
-            const auto IDTildeSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadD_ - ConvDilationD_ * (ZTilde_ - I1)), ConvStrideD_);
-            const auto IHTildeSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadH_ - ConvDilationH_ * (YTilde_ - I1)), ConvStrideH_);
-            const auto IWTildeSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadW_ - ConvDilationW_ * (XTilde_ - I1)), ConvStrideW_);
+            const auto IDTildeSliceBegin =
+                math::integer_divide_floor(math::max(static_cast<IndexType>(I0),
+                                                     InLeftPadD_ - ConvDilationD_ * (ZTilde_ - I1)),
+                                           ConvStrideD_);
+            const auto IHTildeSliceBegin =
+                math::integer_divide_floor(math::max(static_cast<IndexType>(I0),
+                                                     InLeftPadH_ - ConvDilationH_ * (YTilde_ - I1)),
+                                           ConvStrideH_);
+            const auto IWTildeSliceBegin =
+                math::integer_divide_floor(math::max(static_cast<IndexType>(I0),
+                                                     InLeftPadW_ - ConvDilationW_ * (XTilde_ - I1)),
+                                           ConvStrideW_);
 
             const auto IDTildeSliceEnd = math::min(
                 DTilde_, math::integer_divide_ceil(InLeftPadD_ + Di_ - I1, ConvStrideD_) + I1);
@@ -1479,10 +1491,14 @@ struct TransformConvBwdDataToGemm_v1
             static_assert(CTranspose == false);
             // only work on HTilde and WTilde that contribute to non-padding area of input
             // tensor
-            const auto IHTildeSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadH_ - ConvDilationH_ * (YTilde_ - I1)), ConvStrideH_);
-            const auto IWTildeSliceBegin = math::integer_divide_floor(
-                math::max(I0, InLeftPadW_ - ConvDilationW_ * (XTilde_ - I1)), ConvStrideW_);
+            const auto IHTildeSliceBegin =
+                math::integer_divide_floor(math::max(static_cast<IndexType>(I0),
+                                                     InLeftPadH_ - ConvDilationH_ * (YTilde_ - I1)),
+                                           ConvStrideH_);
+            const auto IWTildeSliceBegin =
+                math::integer_divide_floor(math::max(static_cast<IndexType>(I0),
+                                                     InLeftPadW_ - ConvDilationW_ * (XTilde_ - I1)),
+                                           ConvStrideW_);
 
             const auto IHTildeSliceEnd = math::min(
                 HTilde_, math::integer_divide_ceil(InLeftPadH_ + Hi_ - I1, ConvStrideH_) + I1);

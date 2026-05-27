@@ -18,7 +18,8 @@ template <index_t NDimSpatial,
           index_t NPerBlock,
           index_t GemmK1Number,
           index_t K0PerBlock,
-          device::ConvolutionBackwardWeightSpecialization ConvBackwardWeightSpecialization>
+          device::ConvolutionBackwardWeightSpecialization ConvBackwardWeightSpecialization,
+          typename IndexType = index_t>
 struct TransformConvBwdWeightToGemm
 {
     // Same contract as TransformConvBwdWeightToGemmV2 (non-zero K tile factors).
@@ -30,30 +31,30 @@ struct TransformConvBwdWeightToGemm
 
     template <index_t NDim, typename enable_if<NDim == 2, bool>::type = false>
     constexpr static auto
-    make_out_grid_desc(const index_t N,
-                       const index_t Ho,
-                       const index_t Wo,
-                       const index_t K,
-                       const std::array<index_t, NDimSpatial + 3>& output_strides)
+    make_out_grid_desc(const IndexType N,
+                       const IndexType Ho,
+                       const IndexType Wo,
+                       const IndexType K,
+                       const std::array<IndexType, NDimSpatial + 3>& output_strides)
     {
-        const index_t WoStride = output_strides[4];
-        const auto KStride     = Number<1>{};
+        const IndexType WoStride = output_strides[4];
+        const auto KStride       = Number<1>{};
         return make_naive_tensor_descriptor(make_tuple(N * Ho * Wo, K),
                                             make_tuple(WoStride, KStride));
     }
 
     template <index_t NDim, typename enable_if<NDim == 2, bool>::type = false>
     constexpr static auto
-    make_in_grid_desc(const index_t N,
-                      const index_t Hi,
-                      const index_t Wi,
-                      const index_t C,
-                      const std::array<index_t, NDimSpatial + 3>& input_strides)
+    make_in_grid_desc(const IndexType N,
+                      const IndexType Hi,
+                      const IndexType Wi,
+                      const IndexType C,
+                      const std::array<IndexType, NDimSpatial + 3>& input_strides)
     {
-        const index_t NStride  = input_strides[1];
-        const index_t HiStride = input_strides[3];
-        const index_t WiStride = input_strides[4];
-        const auto CStride     = input_strides[2];
+        const IndexType NStride  = input_strides[1];
+        const IndexType HiStride = input_strides[3];
+        const IndexType WiStride = input_strides[4];
+        const auto CStride       = input_strides[2];
         if constexpr(ConvBackwardWeightSpecialization ==
                      device::ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
         {
@@ -69,11 +70,11 @@ struct TransformConvBwdWeightToGemm
 
     template <index_t NDim, typename enable_if<NDim == 2, bool>::type = false>
     constexpr static auto
-    make_wei_grid_desc(const index_t K,
-                       const index_t Y,
-                       const index_t X,
-                       const index_t C,
-                       const std::array<index_t, NDimSpatial + 3>& weights_strides)
+    make_wei_grid_desc(const IndexType K,
+                       const IndexType Y,
+                       const IndexType X,
+                       const IndexType C,
+                       const std::array<IndexType, NDimSpatial + 3>& weights_strides)
     {
         const auto CStride = Number<1>{};
         const auto KStride = weights_strides[1];
@@ -82,33 +83,33 @@ struct TransformConvBwdWeightToGemm
 
     template <index_t NDim, typename enable_if<NDim == 3, bool>::type = false>
     constexpr static auto
-    make_out_grid_desc(const index_t N,
-                       const index_t Do,
-                       const index_t Ho,
-                       const index_t Wo,
-                       const index_t K,
-                       const std::array<index_t, NDimSpatial + 3>& output_strides)
+    make_out_grid_desc(const IndexType N,
+                       const IndexType Do,
+                       const IndexType Ho,
+                       const IndexType Wo,
+                       const IndexType K,
+                       const std::array<IndexType, NDimSpatial + 3>& output_strides)
     {
-        const index_t WoStride = output_strides[5];
-        const auto KStride     = Number<1>{};
+        const IndexType WoStride = output_strides[5];
+        const auto KStride       = Number<1>{};
         return make_naive_tensor_descriptor(make_tuple(N * Do * Ho * Wo, K),
                                             make_tuple(WoStride, KStride));
     }
 
     template <index_t NDim, typename enable_if<NDim == 3, bool>::type = false>
     constexpr static auto
-    make_in_grid_desc(const index_t N,
-                      const index_t Di,
-                      const index_t Hi,
-                      const index_t Wi,
-                      const index_t C,
-                      const std::array<index_t, NDimSpatial + 3>& input_strides)
+    make_in_grid_desc(const IndexType N,
+                      const IndexType Di,
+                      const IndexType Hi,
+                      const IndexType Wi,
+                      const IndexType C,
+                      const std::array<IndexType, NDimSpatial + 3>& input_strides)
     {
-        const index_t NStride  = input_strides[1];
-        const index_t DiStride = input_strides[3];
-        const index_t HiStride = input_strides[4];
-        const index_t WiStride = input_strides[5];
-        const auto CStride     = input_strides[2];
+        const IndexType NStride  = input_strides[1];
+        const IndexType DiStride = input_strides[3];
+        const IndexType HiStride = input_strides[4];
+        const IndexType WiStride = input_strides[5];
+        const auto CStride       = input_strides[2];
         if constexpr(ConvBackwardWeightSpecialization ==
                      device::ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
         {
@@ -125,12 +126,12 @@ struct TransformConvBwdWeightToGemm
 
     template <index_t NDim, typename enable_if<NDim == 3, bool>::type = false>
     constexpr static auto
-    make_wei_grid_desc(const index_t K,
-                       const index_t Z,
-                       const index_t Y,
-                       const index_t X,
-                       const index_t C,
-                       const std::array<index_t, NDimSpatial + 3>& weights_strides)
+    make_wei_grid_desc(const IndexType K,
+                       const IndexType Z,
+                       const IndexType Y,
+                       const IndexType X,
+                       const IndexType C,
+                       const std::array<IndexType, NDimSpatial + 3>& weights_strides)
     {
         const auto CStride = Number<1>{};
         const auto KStride = weights_strides[1];
@@ -140,45 +141,45 @@ struct TransformConvBwdWeightToGemm
 
     template <index_t NDim, typename enable_if<NDim == 1, bool>::type = false>
     static auto MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
-        const index_t N,
-        const index_t K,
-        const index_t C,
-        const std::array<index_t, NDimSpatial>& input_spatial_lengths,
-        const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
-        const std::array<index_t, NDimSpatial>& output_spatial_lengths,
-        const std::array<index_t, NDimSpatial + 3>& /* input_strides */,
-        const std::array<index_t, NDimSpatial + 3>& /* weights_strides */,
-        const std::array<index_t, NDimSpatial + 3>& /* output_strides */,
-        const std::array<index_t, NDimSpatial>& conv_filter_strides,
-        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-        const std::array<index_t, NDimSpatial>& input_left_pads,
-        const std::array<index_t, NDimSpatial>& input_right_pads,
+        const IndexType N,
+        const IndexType K,
+        const IndexType C,
+        const std::array<IndexType, NDimSpatial>& input_spatial_lengths,
+        const std::array<IndexType, NDimSpatial>& filter_spatial_lengths,
+        const std::array<IndexType, NDimSpatial>& output_spatial_lengths,
+        const std::array<IndexType, NDimSpatial + 3>& /* input_strides */,
+        const std::array<IndexType, NDimSpatial + 3>& /* weights_strides */,
+        const std::array<IndexType, NDimSpatial + 3>& /* output_strides */,
+        const std::array<IndexType, NDimSpatial>& conv_filter_strides,
+        const std::array<IndexType, NDimSpatial>& conv_filter_dilations,
+        const std::array<IndexType, NDimSpatial>& input_left_pads,
+        const std::array<IndexType, NDimSpatial>& input_right_pads,
         const index_t batch_k,
         const bool split_k_offset_hack = false) // Deprecated parameter for backward compatibility
     {
         using namespace ck;
 
-        const index_t Wi            = input_spatial_lengths[0];
-        const index_t Wo            = output_spatial_lengths[0];
-        const index_t X             = filter_spatial_lengths[0];
-        const index_t ConvStrideW   = conv_filter_strides[0];
-        const index_t ConvDilationW = conv_filter_dilations[0];
-        const index_t InLeftPadW    = input_left_pads[0];
-        const index_t InRightPadW   = input_right_pads[0];
+        const IndexType Wi            = input_spatial_lengths[0];
+        const IndexType Wo            = output_spatial_lengths[0];
+        const IndexType X             = filter_spatial_lengths[0];
+        const IndexType ConvStrideW   = conv_filter_strides[0];
+        const IndexType ConvDilationW = conv_filter_dilations[0];
+        const IndexType InLeftPadW    = input_left_pads[0];
+        const IndexType InRightPadW   = input_right_pads[0];
 
-        const index_t GemmKTotal = N * Wo;
-        const index_t GemmM      = K;
-        const index_t GemmN      = C * X;
+        const IndexType GemmKTotal = N * Wo;
+        const IndexType GemmM      = K;
+        const IndexType GemmN      = C * X;
 
         const auto PadGemmM = GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
         const auto PadGemmN = GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
-        const index_t GemmKBatch = batch_k;
-        const index_t GemmK0 =
+        const IndexType GemmKBatch = batch_k;
+        const IndexType GemmK0 =
             math::integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) *
             K0PerBlock;
-        const index_t KBatchDim = split_k_offset_hack ? 1 : GemmKBatch;
-        const index_t GemmKPad  = KBatchDim * GemmK0 * GemmK1Number;
+        const IndexType KBatchDim = split_k_offset_hack ? 1 : GemmKBatch;
+        const IndexType GemmKPad  = KBatchDim * GemmK0 * GemmK1Number;
 
         if constexpr(ConvBackwardWeightSpecialization ==
                      device::ConvolutionBackwardWeightSpecialization::Filter1x1Stride1Pad0)
@@ -316,58 +317,58 @@ struct TransformConvBwdWeightToGemm
 
     template <index_t NDim, typename enable_if<NDim == 2, bool>::type = false>
     static auto MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
-        const index_t N,
-        const index_t K,
-        const index_t C,
-        const std::array<index_t, NDimSpatial>& input_spatial_lengths,
-        const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
-        const std::array<index_t, NDimSpatial>& output_spatial_lengths,
-        const std::array<index_t, NDimSpatial + 3>& input_strides,
-        const std::array<index_t, NDimSpatial + 3>& weights_strides,
-        const std::array<index_t, NDimSpatial + 3>& output_strides,
-        const std::array<index_t, NDimSpatial>& conv_filter_strides,
-        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-        const std::array<index_t, NDimSpatial>& input_left_pads,
-        const std::array<index_t, NDimSpatial>& input_right_pads,
+        const IndexType N,
+        const IndexType K,
+        const IndexType C,
+        const std::array<IndexType, NDimSpatial>& input_spatial_lengths,
+        const std::array<IndexType, NDimSpatial>& filter_spatial_lengths,
+        const std::array<IndexType, NDimSpatial>& output_spatial_lengths,
+        const std::array<IndexType, NDimSpatial + 3>& input_strides,
+        const std::array<IndexType, NDimSpatial + 3>& weights_strides,
+        const std::array<IndexType, NDimSpatial + 3>& output_strides,
+        const std::array<IndexType, NDimSpatial>& conv_filter_strides,
+        const std::array<IndexType, NDimSpatial>& conv_filter_dilations,
+        const std::array<IndexType, NDimSpatial>& input_left_pads,
+        const std::array<IndexType, NDimSpatial>& input_right_pads,
         const index_t batch_k,
         const bool split_k_offset_hack = false)
     {
         using namespace ck;
 
-        const index_t Hi = input_spatial_lengths[0];
-        const index_t Wi = input_spatial_lengths[1];
+        const IndexType Hi = input_spatial_lengths[0];
+        const IndexType Wi = input_spatial_lengths[1];
 
-        const index_t Ho = output_spatial_lengths[0];
-        const index_t Wo = output_spatial_lengths[1];
+        const IndexType Ho = output_spatial_lengths[0];
+        const IndexType Wo = output_spatial_lengths[1];
 
-        const index_t Y = filter_spatial_lengths[0];
-        const index_t X = filter_spatial_lengths[1];
+        const IndexType Y = filter_spatial_lengths[0];
+        const IndexType X = filter_spatial_lengths[1];
 
-        const index_t ConvStrideH = conv_filter_strides[0];
-        const index_t ConvStrideW = conv_filter_strides[1];
+        const IndexType ConvStrideH = conv_filter_strides[0];
+        const IndexType ConvStrideW = conv_filter_strides[1];
 
-        const index_t ConvDilationH = conv_filter_dilations[0];
-        const index_t ConvDilationW = conv_filter_dilations[1];
+        const IndexType ConvDilationH = conv_filter_dilations[0];
+        const IndexType ConvDilationW = conv_filter_dilations[1];
 
-        const index_t InLeftPadH = input_left_pads[0];
-        const index_t InLeftPadW = input_left_pads[1];
+        const IndexType InLeftPadH = input_left_pads[0];
+        const IndexType InLeftPadW = input_left_pads[1];
 
-        const index_t InRightPadH = input_right_pads[0];
-        const index_t InRightPadW = input_right_pads[1];
+        const IndexType InRightPadH = input_right_pads[0];
+        const IndexType InRightPadW = input_right_pads[1];
 
-        const index_t GemmKTotal = N * Ho * Wo;
-        const index_t GemmM      = K;
-        const index_t GemmN      = C * X * Y;
+        const IndexType GemmKTotal = N * Ho * Wo;
+        const IndexType GemmM      = K;
+        const IndexType GemmN      = C * X * Y;
 
         const auto PadGemmM = GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
         const auto PadGemmN = GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
-        const index_t GemmKBatch = batch_k;
-        const index_t GemmK0 =
+        const IndexType GemmKBatch = batch_k;
+        const IndexType GemmK0 =
             math::integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) *
             K0PerBlock;
-        const index_t KBatchDim = split_k_offset_hack ? 1 : GemmKBatch;
-        const index_t GemmKPad  = KBatchDim * GemmK0 * GemmK1Number;
+        const IndexType KBatchDim = split_k_offset_hack ? 1 : GemmKBatch;
+        const IndexType GemmKPad  = KBatchDim * GemmK0 * GemmK1Number;
 
         const auto out_grid_desc = make_out_grid_desc<NDim>(N, Ho, Wo, K, output_strides);
         const auto in_grid_desc  = make_in_grid_desc<NDim>(N, Hi, Wi, C, input_strides);
@@ -492,65 +493,65 @@ struct TransformConvBwdWeightToGemm
 
     template <index_t NDim, typename enable_if<NDim == 3, bool>::type = false>
     static auto MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(
-        const index_t N,
-        const index_t K,
-        const index_t C,
-        const std::array<index_t, NDimSpatial>& input_spatial_lengths,
-        const std::array<index_t, NDimSpatial>& filter_spatial_lengths,
-        const std::array<index_t, NDimSpatial>& output_spatial_lengths,
-        const std::array<index_t, NDimSpatial + 3>& input_strides,
-        const std::array<index_t, NDimSpatial + 3>& weights_strides,
-        const std::array<index_t, NDimSpatial + 3>& output_strides,
-        const std::array<index_t, NDimSpatial>& conv_filter_strides,
-        const std::array<index_t, NDimSpatial>& conv_filter_dilations,
-        const std::array<index_t, NDimSpatial>& input_left_pads,
-        const std::array<index_t, NDimSpatial>& input_right_pads,
+        const IndexType N,
+        const IndexType K,
+        const IndexType C,
+        const std::array<IndexType, NDimSpatial>& input_spatial_lengths,
+        const std::array<IndexType, NDimSpatial>& filter_spatial_lengths,
+        const std::array<IndexType, NDimSpatial>& output_spatial_lengths,
+        const std::array<IndexType, NDimSpatial + 3>& input_strides,
+        const std::array<IndexType, NDimSpatial + 3>& weights_strides,
+        const std::array<IndexType, NDimSpatial + 3>& output_strides,
+        const std::array<IndexType, NDimSpatial>& conv_filter_strides,
+        const std::array<IndexType, NDimSpatial>& conv_filter_dilations,
+        const std::array<IndexType, NDimSpatial>& input_left_pads,
+        const std::array<IndexType, NDimSpatial>& input_right_pads,
         const index_t batch_k,
         const bool split_k_offset_hack = false)
     {
         using namespace ck;
 
-        const index_t Di = input_spatial_lengths[0];
-        const index_t Hi = input_spatial_lengths[1];
-        const index_t Wi = input_spatial_lengths[2];
+        const IndexType Di = input_spatial_lengths[0];
+        const IndexType Hi = input_spatial_lengths[1];
+        const IndexType Wi = input_spatial_lengths[2];
 
-        const index_t Do = output_spatial_lengths[0];
-        const index_t Ho = output_spatial_lengths[1];
-        const index_t Wo = output_spatial_lengths[2];
+        const IndexType Do = output_spatial_lengths[0];
+        const IndexType Ho = output_spatial_lengths[1];
+        const IndexType Wo = output_spatial_lengths[2];
 
-        const index_t Z = filter_spatial_lengths[0];
-        const index_t Y = filter_spatial_lengths[1];
-        const index_t X = filter_spatial_lengths[2];
+        const IndexType Z = filter_spatial_lengths[0];
+        const IndexType Y = filter_spatial_lengths[1];
+        const IndexType X = filter_spatial_lengths[2];
 
-        const index_t ConvStrideD = conv_filter_strides[0];
-        const index_t ConvStrideH = conv_filter_strides[1];
-        const index_t ConvStrideW = conv_filter_strides[2];
+        const IndexType ConvStrideD = conv_filter_strides[0];
+        const IndexType ConvStrideH = conv_filter_strides[1];
+        const IndexType ConvStrideW = conv_filter_strides[2];
 
-        const index_t ConvDilationD = conv_filter_dilations[0];
-        const index_t ConvDilationH = conv_filter_dilations[1];
-        const index_t ConvDilationW = conv_filter_dilations[2];
+        const IndexType ConvDilationD = conv_filter_dilations[0];
+        const IndexType ConvDilationH = conv_filter_dilations[1];
+        const IndexType ConvDilationW = conv_filter_dilations[2];
 
-        const index_t InLeftPadD = input_left_pads[0];
-        const index_t InLeftPadH = input_left_pads[1];
-        const index_t InLeftPadW = input_left_pads[2];
+        const IndexType InLeftPadD = input_left_pads[0];
+        const IndexType InLeftPadH = input_left_pads[1];
+        const IndexType InLeftPadW = input_left_pads[2];
 
-        const index_t InRightPadD = input_right_pads[0];
-        const index_t InRightPadH = input_right_pads[1];
-        const index_t InRightPadW = input_right_pads[2];
+        const IndexType InRightPadD = input_right_pads[0];
+        const IndexType InRightPadH = input_right_pads[1];
+        const IndexType InRightPadW = input_right_pads[2];
 
-        const index_t GemmKTotal = N * Do * Ho * Wo;
-        const index_t GemmM      = K;
-        const index_t GemmN      = C * Z * X * Y;
+        const IndexType GemmKTotal = N * Do * Ho * Wo;
+        const IndexType GemmM      = K;
+        const IndexType GemmN      = C * Z * X * Y;
 
         const auto PadGemmM = GemmM % MPerBlock == 0 ? 0 : MPerBlock - GemmM % MPerBlock;
         const auto PadGemmN = GemmN % NPerBlock == 0 ? 0 : NPerBlock - GemmN % NPerBlock;
 
-        const index_t GemmKBatch = batch_k;
-        const index_t GemmK0 =
+        const IndexType GemmKBatch = batch_k;
+        const IndexType GemmK0 =
             math::integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) *
             K0PerBlock;
-        const index_t KBatchDim = split_k_offset_hack ? 1 : GemmKBatch;
-        const index_t GemmKPad  = KBatchDim * GemmK0 * GemmK1Number;
+        const IndexType KBatchDim = split_k_offset_hack ? 1 : GemmKBatch;
+        const IndexType GemmKPad  = KBatchDim * GemmK0 * GemmK1Number;
 
         const auto out_grid_desc = make_out_grid_desc<NDim>(N, Do, Ho, Wo, K, output_strides);
         const auto in_grid_desc  = make_in_grid_desc<NDim>(N, Di, Hi, Wi, C, input_strides);

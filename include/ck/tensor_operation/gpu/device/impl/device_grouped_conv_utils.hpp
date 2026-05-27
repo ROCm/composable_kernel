@@ -314,6 +314,27 @@ constexpr static auto UnpackDataType()
     }
 }
 
+// Check if a tensor occupies a contiguous memory region, regardless of dimension order.
+// Sorts dimensions by stride and verifies each stride equals the previous stride * its length.
+template <typename IndexT, std::size_t N>
+bool IsPackedTensor(const std::array<IndexT, N>& lengths, const std::array<IndexT, N>& strides)
+{
+    std::array<std::pair<IndexT, IndexT>, N> dim; // (stride, length)
+    for(std::size_t i = 0; i < N; ++i)
+        dim[i] = {strides[i], lengths[i]};
+    std::sort(dim.begin(), dim.end());
+    IndexT expected_stride = 1;
+    for(std::size_t i = 0; i < N; ++i)
+    {
+        if(dim[i].second == 1)
+            continue;
+        if(dim[i].first != expected_stride)
+            return false;
+        expected_stride *= dim[i].second;
+    }
+    return true;
+}
+
 } // namespace device
 } // namespace tensor_operation
 } // namespace ck

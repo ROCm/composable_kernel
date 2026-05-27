@@ -55,7 +55,8 @@ template <ck::index_t NDimSpatial,
           typename ComputeTypeA,
           typename ComputeTypeB,
           bool DirectLoad,
-          index_t NumGroupsToMerge>
+          index_t NumGroupsToMerge,
+          bool LargeTensors>
 struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3;
 
 } // namespace ck::tensor_operation::device
@@ -113,7 +114,8 @@ template <ck::index_t NDimSpatial,
           typename ComputeTypeA_,
           typename ComputeTypeB_,
           bool DirectLoad,
-          index_t NumGroupsToMerge>
+          index_t NumGroupsToMerge,
+          bool LargeTensors>
 struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_Xdl_CShuffleV3<
     NDimSpatial,
     InLayout_,
@@ -159,7 +161,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
     ComputeTypeA_,
     ComputeTypeB_,
     DirectLoad,
-    NumGroupsToMerge>>
+    NumGroupsToMerge,
+    LargeTensors>>
 {
 
     /// @brief Tag type identifying this device kernel variant
@@ -249,6 +252,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
 
     static constexpr bool kDirectLoad          = DirectLoad;
     static constexpr index_t kNumGroupsToMerge = NumGroupsToMerge;
+    static constexpr bool kLargeTensors        = LargeTensors;
 
     // Static member function to generate instance string
     static std::string instance_string()
@@ -311,8 +315,9 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeight_X
         oss << "," << detail::pipeline_version_name(kBlkGemmPipelineVer);             // 41.
         oss << "," << detail::type_name<ComputeTypeA>();                              // 42.
         oss << "," << detail::type_name<ComputeTypeB>();                              // 43.
-        oss << "," << kDirectLoad;                                                    // 44.
+        oss << "," << (kDirectLoad ? "true" : "false");                               // 44.
         oss << "," << kNumGroupsToMerge;                                              // 45.
+        oss << "," << (kLargeTensors ? "true" : "false");                             // 46.
         oss << ">";
 
         return oss.str();

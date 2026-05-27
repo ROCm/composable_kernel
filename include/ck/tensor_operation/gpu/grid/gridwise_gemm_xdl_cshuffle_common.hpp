@@ -77,8 +77,9 @@ template <typename ALayout,
           typename ComputeTypeA,
           typename ComputeTypeB,
           bool ForceNaiveLdsLayout,
-          bool DirectLoad = false,
-          bool IsMxGemm   = false>
+          bool DirectLoad   = false,
+          bool IsMxGemm     = false,
+          bool LargeTensors = false>
 struct GridwiseGemm_xdl_cshuffle_base
 {
     static constexpr auto I0 = Number<0>{};
@@ -91,6 +92,8 @@ struct GridwiseGemm_xdl_cshuffle_base
     static constexpr auto I7 = Number<7>{};
     static constexpr auto I8 = Number<8>{};
     static constexpr auto I9 = Number<9>{};
+
+    using IndexType = conditional_t<LargeTensors, long_index_t, index_t>;
 
     // K1 should be Number<...>
     static constexpr auto AKPerBlock = KPerBlock;
@@ -1808,7 +1811,9 @@ struct GridwiseGemm_xdl_cshuffle_base
     {
         static_assert(IsMxGemm == false);
 
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global,
+                                              AmdBufferCoherenceEnum::DefaultCoherence,
+                                              IndexType>(
             p_c_grid, c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2.GetElementSpaceSize());
         static_assert(TransposeC == false);
         const index_t m_block_data_idx_on_grid =
@@ -1912,7 +1917,9 @@ struct GridwiseGemm_xdl_cshuffle_base
                           NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
                       "wrong!");
 
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global,
+                                              AmdBufferCoherenceEnum::DefaultCoherence,
+                                              IndexType>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
@@ -1980,8 +1987,9 @@ struct GridwiseGemm_xdl_cshuffle_base
             Sequence<0, 1, 2, 3>,                           // typename DimAccessOrder,
             3,                                              // index_t VectorDim,
             CShuffleBlockTransferScalarPerVector_NPerBlock, // index_t ScalarPerVector,
-            true,  // bool ThreadTransferSrcResetCoordinateAfterRun,
-            false> // bool ThreadTransferDstResetCoordinateAfterRun>
+            true,      // bool ThreadTransferSrcResetCoordinateAfterRun,
+            false,     // bool ThreadTransferDstResetCoordinateAfterRun,
+            IndexType> // IndexType
             {c_shuffle_block_desc_mblock_mperblock_nblock_nperblock,
              make_multi_index(0, 0, 0, 0),
              c_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -2089,7 +2097,9 @@ struct GridwiseGemm_xdl_cshuffle_base
             }
         };
 
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global,
+                                              AmdBufferCoherenceEnum::DefaultCoherence,
+                                              IndexType>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
@@ -2118,7 +2128,9 @@ struct GridwiseGemm_xdl_cshuffle_base
 
         const auto ds_grid_buf = generate_tuple(
             [&](auto i) {
-                return make_dynamic_buffer<AddressSpaceEnum::Global>(
+                return make_dynamic_buffer<AddressSpaceEnum::Global,
+                                           AmdBufferCoherenceEnum::DefaultCoherence,
+                                           IndexType>(
                     p_ds_grid[i],
                     ds_grid_desc_mblock_mperblock_nblock_nperblock[i].GetElementSpaceSize());
             },
@@ -2370,7 +2382,9 @@ struct GridwiseGemm_xdl_cshuffle_base
                 const DDataType* ptr_ = p_ds_grid[i];
                 // hack logic here to support different kind of strides. todo fix it.
                 // ascale t, 1; bscale E, N, 1, move ptr to E
-                return make_dynamic_buffer<AddressSpaceEnum::Global>(
+                return make_dynamic_buffer<AddressSpaceEnum::Global,
+                                           AmdBufferCoherenceEnum::DefaultCoherence,
+                                           IndexType>(
                     ptr_, ds_grid_desc_mblock_mperblock_nblock_nperblock[i].GetElementSpaceSize());
             },
             Number<NumDTensor>{});
@@ -2444,7 +2458,9 @@ struct GridwiseGemm_xdl_cshuffle_base
               make_tuple(make_multi_index(0, 0, block_n_id, 0)),
               cde_element_op};
 
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global,
+                                              AmdBufferCoherenceEnum::DefaultCoherence,
+                                              IndexType>(
             p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
         // space filling curve for threadwise C in VGPR
         constexpr auto sfc_c_vgpr =

@@ -41,7 +41,8 @@ template <typename SliceLengths,
           bool DstResetCoordinateAfterRun, // control whether to move back dst coordinate after each
                                            // RunWrite(),  will be fused with MoveDstSliceWindow to
                                            // save addr computation
-          index_t NumThreadScratch = 1>
+          index_t NumThreadScratch = 1,
+          typename IndexType       = index_t>
 struct ThreadwiseTensorSliceTransfer_v3r1
 {
     // =====================================================================
@@ -53,7 +54,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
     static constexpr index_t nDim = SliceLengths::Size();
     using Index                   = MultiIndex<nDim>;
 
-    using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
+    using SrcCoord = decltype(make_tensor_coordinate<IndexType>(SrcDesc{}, Index{}));
     using DstCoord = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
 
     static constexpr auto I0  = Number<0>{};
@@ -159,13 +160,22 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             auto op_r = src_thread_scratch_tuple_(thread_scratch_id)
                             .template GetAsType<vector_t>(src_data_idx_seq);
 
-            const bool is_src_valid = src_oob_thread_scratch_tuple_(thread_scratch_id)
-                                          .template GetAsType<bool>(src_data_idx_seq);
+            if constexpr(std::is_same_v<IndexType, long_index_t>)
+            {
+                // Is source valid has been verified during load
+                src_thread_scratch_tuple_(thread_scratch_id)
+                    .template SetAsType<vector_t>(src_data_idx_seq, op_r);
+            }
+            else
+            {
+                const bool is_src_valid = src_oob_thread_scratch_tuple_(thread_scratch_id)
+                                              .template GetAsType<bool>(src_data_idx_seq);
 
-            auto op_r_v = is_src_valid ? op_r : vector_t(0);
+                auto op_r_v = is_src_valid ? op_r : vector_t(0);
 
-            src_thread_scratch_tuple_(thread_scratch_id)
-                .template SetAsType<vector_t>(src_data_idx_seq, op_r_v);
+                src_thread_scratch_tuple_(thread_scratch_id)
+                    .template SetAsType<vector_t>(src_data_idx_seq, op_r_v);
+            }
         });
 
         // sub-dword transpose between src_thread_scratch_ and dst_thread_scratch_
@@ -265,7 +275,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
         const DstDesc& dst_desc,
         const Index& dst_slice_origin,
         const DstElementwiseOperation& dst_element_op)
-        : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin)),
+        : src_coord_(make_tensor_coordinate<IndexType>(src_desc, src_slice_origin)),
           dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin)),
           src_element_op_(src_element_op),
           dst_element_op_(dst_element_op)
@@ -286,7 +296,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
     __device__ void SetSrcSliceOrigin(const SrcDesc& src_desc, const Index& src_slice_origin_idx)
     {
-        src_coord_ = make_tensor_coordinate(src_desc, src_slice_origin_idx);
+        src_coord_ = make_tensor_coordinate<IndexType>(src_desc, src_slice_origin_idx);
     }
 
     __device__ void SetDstSliceOrigin(const DstDesc& dst_desc, const Index& dst_slice_origin_idx)
@@ -590,9 +600,19 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 using src_vector_container   = vector_type_maker_t<SrcData, VectorLoadSize>;
                 using src_vector_container_t = typename src_vector_container::type;
 
-                src_vector_container src_vector =
-                    src_vector_container{src_buf.template Get<src_vector_container_t>(
-                        src_coord_.GetOffset() / PackedSize + LoadOffset, true)};
+                // Leave it as a true for buffer load
+                bool is_offset_valid = true;
+                if constexpr(std::is_same_v<IndexType, long_index_t>)
+                {
+                    is_offset_valid = is_src_valid;
+                }
+                else
+                {
+                    static_assert(std::is_same_v<IndexType, index_t>);
+                }
+                const IndexType ld_offset       = src_coord_.GetOffset() / PackedSize + LoadOffset;
+                src_vector_container src_vector = src_vector_container{
+                    src_buf.template Get<src_vector_container_t>(ld_offset, is_offset_valid)};
 
                 static_for<0, VectorLoadSize / elem_op_vec_len, 1>{}([&](auto idx) {
                     // apply the src elementwise op and convert to DstData under the hood if

@@ -54,11 +54,21 @@ __host__ __device__ constexpr auto make_embed_transform(const UpLengths& up_leng
 template <typename LowLengths>
 __host__ __device__ constexpr auto make_merge_transform(const LowLengths& low_lengths)
 {
+    // Magic Division is not supported yet for int64_t
+    using IndexType = decltype(low_lengths.At(Number<0>{}));
+    if constexpr(std::is_same_v<IndexType, long_index_t>)
+    {
+        return make_merge_transform_v1_carry_check(low_lengths);
+    }
+    else
+    {
+
 #if CK_EXPERIMENTAL_MERGE_USE_MAGIC_DIVISION
-    return make_merge_transform_v2_magic_division(low_lengths);
+        return make_merge_transform_v2_magic_division(low_lengths);
 #else
-    return make_merge_transform_v1_carry_check(low_lengths);
+        return make_merge_transform_v1_carry_check(low_lengths);
 #endif
+    }
 }
 
 template <typename LowLengths>

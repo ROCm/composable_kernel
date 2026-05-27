@@ -275,16 +275,16 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     bool all_pass           = true;
     bool dummy_run_executed = false;
 
-    std::array<ck::index_t, NDimSpatial + 3> input_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> filter_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> output_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> input_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> weights_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> output_strides{};
-    std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
-    std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
-    std::array<ck::index_t, NDimSpatial> input_left_pads{};
-    std::array<ck::index_t, NDimSpatial> input_right_pads{};
+    std::array<ck::long_index_t, NDimSpatial + 3> input_lengths{};
+    std::array<ck::long_index_t, NDimSpatial + 3> filter_lengths{};
+    std::array<ck::long_index_t, NDimSpatial + 3> output_lengths{};
+    std::array<ck::long_index_t, NDimSpatial + 3> input_strides{};
+    std::array<ck::long_index_t, NDimSpatial + 3> weights_strides{};
+    std::array<ck::long_index_t, NDimSpatial + 3> output_strides{};
+    std::array<ck::long_index_t, NDimSpatial> conv_filter_strides{};
+    std::array<ck::long_index_t, NDimSpatial> conv_filter_dilations{};
+    std::array<ck::long_index_t, NDimSpatial> input_left_pads{};
+    std::array<ck::long_index_t, NDimSpatial> input_right_pads{};
 
     auto range_copy = [](const auto& from, auto to) { std::copy(begin(from), end(from), to); };
 

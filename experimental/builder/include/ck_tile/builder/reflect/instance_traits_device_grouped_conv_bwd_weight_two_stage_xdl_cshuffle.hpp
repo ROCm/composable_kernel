@@ -55,7 +55,8 @@ template <ck::index_t NDimSpatial,
           typename ComputeTypeA,
           typename ComputeTypeB,
           ck::index_t TransposeTransferSrcScalarPerVector,
-          ck::index_t TransposeTransferDstScalarPerVector>
+          ck::index_t TransposeTransferDstScalarPerVector,
+          bool LargeTensors>
 struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle;
 
 } // namespace ck::tensor_operation::device
@@ -114,7 +115,8 @@ template <ck::index_t NDimSpatial,
           typename ComputeTypeA_,
           typename ComputeTypeB_,
           ck::index_t TransposeTransferSrcScalarPerVector,
-          ck::index_t TransposeTransferDstScalarPerVector>
+          ck::index_t TransposeTransferDstScalarPerVector,
+          bool LargeTensors>
 struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle<
     NDimSpatial,
     InLayout_,
@@ -161,7 +163,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeightTw
     ComputeTypeA_,
     ComputeTypeB_,
     TransposeTransferSrcScalarPerVector,
-    TransposeTransferDstScalarPerVector>>
+    TransposeTransferDstScalarPerVector,
+    LargeTensors>>
 {
     static constexpr auto kTensorOpName = "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle";
 
@@ -202,6 +205,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeightTw
         TransposeTransferSrcScalarPerVector;
     static constexpr ck::index_t kTransposeTransferDstScalarPerVector =
         TransposeTransferDstScalarPerVector;
+    static constexpr bool kLargeTensors = LargeTensors;
 
     using ABlockTransferThreadClusterLengths_K0_M_K1 = ABlockTransferThreadClusterLengths_K0_M_K1_;
     using ABlockTransferThreadClusterArrangeOrder    = ABlockTransferThreadClusterArrangeOrder_;
@@ -315,6 +319,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvBwdWeightTw
         oss << "," << detail::type_name<ComputeTypeB>();                              // 44.
         oss << "," << kTransposeTransferSrcScalarPerVector;                           // 45.
         oss << "," << kTransposeTransferDstScalarPerVector;                           // 46.
+        oss << "," << (kLargeTensors ? "true" : "false");                             // 47.
         oss << ">";
 
         return oss.str();
