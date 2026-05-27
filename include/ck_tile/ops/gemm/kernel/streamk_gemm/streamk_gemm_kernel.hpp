@@ -515,7 +515,7 @@ struct StreamKKernel
             }
             else
             {
-                static_assert(
+                static_assert(false,
                     "An implementation does not exist for the chosen reduction strategy.");
             }
 
