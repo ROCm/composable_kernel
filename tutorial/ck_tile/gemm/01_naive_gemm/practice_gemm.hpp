@@ -8,8 +8,8 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 
-#include "block_level/block_gemm_pipeline_agmem_bgmem_creg.hpp"
-#include "host_level/grid_gemm.hpp"
+#include "block_gemm_pipeline_agmem_bgmem_creg.hpp"
+#include "grid_gemm.hpp"
 
 namespace ck_tile {
 

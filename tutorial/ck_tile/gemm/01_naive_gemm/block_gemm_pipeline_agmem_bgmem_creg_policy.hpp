@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "../warp_level/block_gemm_asmem_bsmem_creg.hpp"
+#include "block_gemm_asmem_bsmem_creg.hpp"
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
