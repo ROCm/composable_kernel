@@ -111,6 +111,16 @@ struct UnifiedAttentionKernel
         ck_tile::index_t stride_v_cache_3;
         ck_tile::index_t output_stride_0;
         ck_tile::index_t output_stride_1;
+
+        // Sliding-window attention parameters (FA-style left/right window).
+        // Defaults match the non-SWA identity: `(-1, -1, false)` reproduces
+        // the previous hard-coded `(-1, 0, false)` causal mask once the
+        // kernel consumes them (Phase 2 / 3). Until then these are pure
+        // payload — the operator() still passes literal `(-1, 0, false)` to
+        // make_generic_attention_mask_from_lr_window.
+        ck_tile::index_t window_size_left  = -1;
+        ck_tile::index_t window_size_right = -1;
+        bool             is_top_left       = false;
     };
 
     struct UnifiedAttentionVarlenKargs : UnifiedAttentionCommonKargs
@@ -182,7 +192,10 @@ struct UnifiedAttentionKernel
                                                   ck_tile::index_t split_stride_o_acc     = 0,
                                                   ck_tile::index_t nhead_stride_lse_acc   = 0,
                                                   ck_tile::index_t nhead_stride_o_acc     = 0,
-                                                  bool cache_ptr_int32_overflow_possible  = false)
+                                                  bool cache_ptr_int32_overflow_possible  = false,
+                                                  ck_tile::index_t window_size_left       = -1,
+                                                  ck_tile::index_t window_size_right      = -1,
+                                                  bool is_top_left                        = false)
     {
         // Fuse the Q/K FP8 descales into `scale_s` so the softmax sees a
         // single combined scalar — matches the Triton FP8 reference
@@ -220,7 +233,10 @@ struct UnifiedAttentionKernel
                      stride_v_cache_2,
                      stride_v_cache_3,
                      output_stride_0,
-                     output_stride_1},
+                     output_stride_1,
+                     window_size_left,
+                     window_size_right,
+                     is_top_left},
                     block_tables_ptr,
                     block_table_stride,
                     seq_lens_ptr,

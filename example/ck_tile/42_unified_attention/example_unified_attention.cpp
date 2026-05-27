@@ -373,6 +373,14 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.mask_type          = static_cast<int>(problem.mask.type);
     args.hdim               = problem.hdim;
 
+    // SWA window parameters from the parsed mask_info. The kernel still uses
+    // the hard-coded `(-1, 0, false)` mask in Phase 1 (pure refactor); these
+    // fields land in kargs but are not yet consumed. Phase 2 / 3 will read
+    // them inside the kernel.
+    args.window_size_left  = problem.mask.left;
+    args.window_size_right = problem.mask.right;
+    args.is_top_left       = (problem.mask.type == mask_enum::mask_top_left);
+
     args.num_blks = problem.num_blks;
 
     args.q_ptr          = q_buf.GetDeviceBuffer();

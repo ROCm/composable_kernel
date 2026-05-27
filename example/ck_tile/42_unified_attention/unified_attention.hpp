@@ -34,7 +34,23 @@ struct unified_attention_args
     // index_t BLOCK_SIZE;
 
     index_t hdim;
-    // TODO window
+
+    // Sliding-window attention parameters. Defaults are the "non-SWA" identity
+    // values: `window_size_left = -1` means "no left bound", `window_size_right
+    // = -1` means "no right bound", and `is_top_left = false` keeps the FA-style
+    // bottom-right anchoring used by causal masks. These are consumed downstream
+    // by `make_generic_attention_mask_from_lr_window<FmhaMask>(left, right, ...,
+    // is_top_left)` — so passing `(-1, 0, false)` reproduces the previous
+    // hard-coded causal mask exactly.
+    //
+    // Currently only the host side / kargs plumbing reads them. The kernel still
+    // constructs its mask with the hard-coded causal values; honouring these
+    // happens in Phase 2 (trait knob) and Phase 3 (Step D + IsLocal=true
+    // instances).
+    index_t window_size_left  = -1;
+    index_t window_size_right = -1;
+    bool    is_top_left       = false;
+
     float scale_s; // softmax scale (1/sqrt(d) by convention); pre-multiplied with log2(e)
                    // inside MakeKargs so the device-side softmax can use exp2.
     // Per-tensor FP8 descales (a.k.a. "scales" in the Triton kernel naming). All three
