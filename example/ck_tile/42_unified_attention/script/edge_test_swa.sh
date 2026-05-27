@@ -83,6 +83,49 @@ TESTS=(
     # firing on the trailing partial page.
     "d64  odd s_k=480 (xb:64)      |-d=64  -h_k=1 -nqpkv=8 -b=2 -s=480 -s_k=480 -query_lens=480,480 -kv_lens=480,480 -mask=xb:64"
     "d128 odd s_k=480 (xb:64)      |-d=128 -h_k=8 -nqpkv=1 -b=2 -s=480 -s_k=480 -query_lens=257,480 -kv_lens=257,480 -mask=xb:64"
+
+    # --- Phase 5: GPT-OSS shapes (page_blk_size=32) -----------------------
+    # The primary motivator for SWA in unified attention. GPT-OSS uses
+    # d=64 with GQA-8, page_blk_size=32, and three operating regimes:
+    #   * q=1 decode      (single-token generation, routes to decode_d64_m16)
+    #   * q≈128 medium    (short prefill / continuation, decode_d64_m128)
+    #   * q∈[256,1024]    (full prefill, prefill_d64)
+    # Each is tested with both window styles GPT-OSS configures.
+    "DECODE_BS32_Q1   xb:128       |-d=64 -h_k=1 -nqpkv=8 -b=4 -s=512 -s_k=512 -query_lens=1,1,1,1 -kv_lens=512,512,512,512 -page_blk_size=32 -mask=xb:128"
+    "DECODE_BS32_Q1   b:127,0      |-d=64 -h_k=1 -nqpkv=8 -b=4 -s=512 -s_k=512 -query_lens=1,1,1,1 -kv_lens=512,512,512,512 -page_blk_size=32 -mask=b:127,0"
+    "DECODE_BS32_Q128 xb:128       |-d=64 -h_k=1 -nqpkv=8 -b=4 -s=1024 -s_k=1024 -query_lens=128,128,128,128 -kv_lens=1024,1024,1024,1024 -page_blk_size=32 -mask=xb:128"
+    "DECODE_BS32_Q128 b:127,0      |-d=64 -h_k=1 -nqpkv=8 -b=4 -s=1024 -s_k=1024 -query_lens=128,128,128,128 -kv_lens=1024,1024,1024,1024 -page_blk_size=32 -mask=b:127,0"
+    "DECODE_BS32_QM   xb:128       |-d=64 -h_k=1 -nqpkv=8 -b=4 -s=1024 -s_k=1024 -query_lens=512,1024,512,1024 -kv_lens=1024,1024,1024,1024 -page_blk_size=32 -mask=xb:128"
+    "DECODE_BS32_QM   b:127,0      |-d=64 -h_k=1 -nqpkv=8 -b=4 -s=1024 -s_k=1024 -query_lens=512,1024,512,1024 -kv_lens=1024,1024,1024,1024 -page_blk_size=32 -mask=b:127,0"
+
+    # --- Phase 5.4: non-page-aligned stress -------------------------------
+    # For prefill_d64 bf16, kPageBlockSize=32 (kernel tile in tokens). The
+    # *runtime* page_size is set by -page_blk_size. When page_size >
+    # kPageBlockSize, each cache page holds multiple kernel tiles, and Step
+    # D's `num_blocks_start` (in kernel-tile units) can land *mid-page*:
+    #     (num_blocks_start * kPageBlockSize) % page_size != 0
+    # That triggers the `logical_token / page_size` math path inside
+    # refresh_*_offsets to resolve both the right page AND the right
+    # within-page row. The shapes below pick window + Q-tile combos that
+    # force `num_blocks_start` to an odd multiple of kPageBlockSize:
+    #
+    #   * page_size=64  (2 tiles/page), -mask=xb:64
+    #     Q-tile 1 (rows 256..511) → num_blocks_start = 7 → 7*32 = 224 =
+    #     3.5 pages → mid-page start.
+    #   * page_size=128 (4 tiles/page), -mask=xb:64
+    #     Q-tile 1 → num_blocks_start = 7 = 1.75 pages → mid-page start.
+    #     (This is the same case the Phase 3 smoke test already hits,
+    #      kept here for explicitness.)
+    #   * page_size=64, -mask=b:48,0 (window 48, asymmetric)
+    #     Q-tile 1 → num_blocks_start = 6 (page-aligned) but the per-Q-tile
+    #     start *boundary* varies across the batch — keeps both alignment
+    #     paths covered in a single run.
+    "non-align ps=64  xb:64        |-d=64 -h_k=1 -nqpkv=8 -b=2 -s=512 -s_k=512 -query_lens=512,512 -kv_lens=512,512 -page_blk_size=64  -mask=xb:64"
+    "non-align ps=128 xb:64        |-d=64 -h_k=1 -nqpkv=8 -b=2 -s=512 -s_k=512 -query_lens=512,512 -kv_lens=512,512 -page_blk_size=128 -mask=xb:64"
+    "non-align ps=64  b:48,0       |-d=64 -h_k=1 -nqpkv=8 -b=2 -s=512 -s_k=512 -query_lens=512,512 -kv_lens=512,512 -page_blk_size=64  -mask=b:48,0"
+    # And on prefill_d128 (kPageBlockSize=16): page_size=128 = 8 tiles/page,
+    # so virtually every Step D clip will be mid-page.
+    "non-align d128 ps=128 xb:64   |-d=128 -h_k=8 -nqpkv=1 -b=2 -s=512 -s_k=512 -query_lens=257,512 -kv_lens=257,512 -page_blk_size=128 -mask=xb:64"
 )
 
 n_pass=0

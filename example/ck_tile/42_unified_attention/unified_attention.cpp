@@ -137,9 +137,18 @@ std::pair<bool, float> dispatch_local(const unified_attention_args& args,
                                       const stream_config& config)
 {
     using DT = unified_attention_args::data_type_enum;
-    if constexpr((V == KernelVariant::prefill_d128 ||
-                  V == KernelVariant::prefill_d64) &&
-                 (DType == DT::bf16 || DType == DT::fp16))
+    // SWA availability matrix as of Phase 5:
+    //   prefill_d128 / prefill_d64                — large-tier prefill (Phase 3)
+    //   decode_d64_m128 / decode_d64_m16          — GPT-OSS shapes  (Phase 5)
+    // For all of them we only compile {bf16, fp16}; fp8 SWA is a future
+    // phase. Anything else (decode_d128_*, decode_d64_m64, …) still falls
+    // back to {false, 0.f} so the aiter wrapper picks Triton.
+    constexpr bool is_supported_variant =
+        (V == KernelVariant::prefill_d128 ||
+         V == KernelVariant::prefill_d64 ||
+         V == KernelVariant::decode_d64_m128 ||
+         V == KernelVariant::decode_d64_m16);
+    if constexpr(is_supported_variant && (DType == DT::bf16 || DType == DT::fp16))
     {
         return unified_attention_kernel_dispatch<
             unified_attention_kernel_traits<V, DType, /*IsMasking=*/true,

@@ -41,21 +41,30 @@ fi
 echo "Using EXE=$EXE"
 echo "Using HIP_VISIBLE_DEVICES=$HIP_VISIBLE_DEVICES"
 
-# Speedup threshold: 5× headroom on the observed ~10–21× ratios. Below
+# Speedup threshold: 5× headroom on the observed ~10–40× ratios. Below
 # this means Step D was disabled or the SWA envelope blew open.
 RATIO_MIN="${RATIO_MIN:-5.0}"
 
 # Bench-only config — verify off, ample warmup, 30 timed repeats so the
 # faster runs are dominated by the kernel and not the launch overhead.
-COMMON="-prec=bf16 -seed=17 -verify=0 -warmup=10 -repeat=30 -varlen=0 \
-  -nb=128 -page_blk_size=128 -b=1 -s=8192 -s_k=8192 \
-  -query_lens=8192 -kv_lens=8192"
+COMMON="-prec=bf16 -seed=17 -verify=0 -warmup=10 -repeat=30 -varlen=0 -nb=512"
 
 # Each row is "NAME|EXTRA_ARGS". Both -mask=b and -mask=xb:128 are appended
-# per run by the loop; we never time the kernel with verify on.
+# per run by the loop; we never time the kernel with verify on. The shapes
+# cover all four SWA-capable instances landed so far:
+#
+#   prefill_d128 / prefill_d64   (Phase 3 — long prefill)
+#   decode_d64_m128              (Phase 5 — short prefill, q≈128)
+#   decode_d64_m16               (Phase 5 — q=1 generation step, GPT-OSS)
+#
+# Phase 5 rows use -page_blk_size=32 to mirror GPT-OSS's KV cache page
+# layout (vs the 128 used for the prefill rows where ps is irrelevant to
+# the Step D math).
 SHAPES=(
-    "d128 MHA  prefill q=kv=8192 win=128 |-d=128 -h_k=8 -nqpkv=1"
-    "d64  GQA-8 prefill q=kv=8192 win=128|-d=64  -h_k=1 -nqpkv=8"
+    "prefill_d128 MHA   q=kv=8192 win=128 |-page_blk_size=128 -d=128 -h_k=8 -nqpkv=1 -b=1 -s=8192 -s_k=8192 -query_lens=8192 -kv_lens=8192"
+    "prefill_d64  GQA-8 q=kv=8192 win=128 |-page_blk_size=128 -d=64  -h_k=1 -nqpkv=8 -b=1 -s=8192 -s_k=8192 -query_lens=8192 -kv_lens=8192"
+    "decode_m128  GQA-8 q=128 kv=8192     |-page_blk_size=32  -d=64  -h_k=1 -nqpkv=8 -b=1 -s=8192 -s_k=8192 -query_lens=128  -kv_lens=8192"
+    "decode_m16   GQA-8 q=1   kv=8192     |-page_blk_size=32  -d=64  -h_k=1 -nqpkv=8 -b=1 -s=8192 -s_k=8192 -query_lens=1    -kv_lens=8192"
 )
 
 # Extract the "X.XXX ms" from a single benchmark line such as
