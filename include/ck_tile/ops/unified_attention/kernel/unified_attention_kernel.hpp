@@ -539,14 +539,20 @@ struct UnifiedAttentionKernel
 
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
+                // Window args default to (-1, -1, false) on the host side, which
+                // make_generic_attention_mask_from_lr_window collapses to the
+                // previous hard-coded bottom-right causal layout (the `< 0`
+                // branches inside the helper). Once IsLocal=true instances are
+                // wired up in Phase 3 the same call site honours real SWA
+                // bounds.
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
-                    -1,
-                    0,
+                    kargs.window_size_left,
+                    kargs.window_size_right,
                     cur_batch_query_len, // y_total
                     seq_len,             // x_total
                     num_queries_per_kv,  // the same sequence index is repeated num_queries_per_kv
                                          // times along x dim of the tile
-                    false);
+                    kargs.is_top_left);
             else
                 return FmhaMask{cur_batch_query_len, seq_len};
         }();
