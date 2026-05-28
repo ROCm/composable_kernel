@@ -106,6 +106,14 @@ struct UnifiedAttentionPipeline
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDim;
     // static constexpr bool kStoreLSE    = Problem::kStoreLSE;
 
+    // Learnable per-Q-head attention sink (GPT-OSS / vLLM convention).
+    // When true, the init branch below seeds the online softmax with
+    // `m = sink_raw / sm_scale`, `l = 1`, `o_acc = 0` and the kernel
+    // hands us a pre-offset `sink_ptr_pre_offset` (advanced by
+    // `kv_head_idx * num_queries_per_kv` on the host side). Default
+    // `false` reproduces the classic no-sink softmax bit-for-bit.
+    static constexpr bool kHasSink = Problem::kHasSink;
+
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
     static constexpr ck_tile::index_t kAlignmentQ =
@@ -317,7 +325,15 @@ struct UnifiedAttentionPipeline
         // approximation). For split-KV (num_splits > 1) each partial gets
         // v_descale baked in; the combine step's affine weighting passes it
         // through unchanged so the final O is correct.
-        const float v_descale = 1.0f) const
+        const float v_descale = 1.0f,
+        // Per-Q-head sink scalars (GPT-OSS / vLLM convention), pre-offset
+        // by the kernel so the pipeline only needs `[r % num_queries_per_kv]`
+        // to recover the per-row scalar. Read only when `kHasSink == true`;
+        // for no-sink instances the value is ignored. Passing `nullptr` is
+        // safe under `kHasSink=false` (and is the documented contract); when
+        // `kHasSink=true` it must point at `float[num_queries_per_kv]`
+        // promoted to fp32 host-side.
+        const float* sink_ptr_pre_offset = nullptr) const
     {
         using namespace ck_tile;
         static_assert(
@@ -504,8 +520,43 @@ struct UnifiedAttentionPipeline
         }
 
         clear_tile(o_acc);
-        set_tile(m, bit_cast<float>(0xff7fffff)); // a bit larger than -infinity
-        clear_tile(l);
+        if constexpr(kHasSink)
+        {
+            // Per-Q-head sink init (GPT-OSS / vLLM convention). CK keeps `m`
+            // in pre-scale (raw S) space — see `docs/sinks_derivation.md`
+            // for the equivalence proof with Triton's log2-space init. The
+            // formula `m_ck[r] = sink_raw[r] * log2e / scale_s` (equivalently
+            // `sink_raw[r] / sm_scale`) makes the pipeline's downstream
+            // `exp2(scale_s * (S_raw - m_ck))` reproduce Triton's
+            // `exp2(qk_scale * S_raw - sink * log2e)` bit-for-bit (up to fp32
+            // ordering).
+            //
+            // We factor the row sweep through `scale_s_natlog = scale_s /
+            // log2e = sm_scale` so the same constant powers both the m-init
+            // (`m = sink / sm_scale`) and the early-exit LSE write
+            // (`lse = sink * sm_scale`) further down. Row index `r` maps to
+            // Q-head-in-group via `r % num_queries_per_kv` because the kernel
+            // merges (q_tokens, num_qpkv) with the head index as the
+            // fastest-changing dim.
+            const float scale_s_natlog =
+                scale_s / static_cast<float>(ck_tile::log2e_v<>);
+            constexpr auto m_spans = decltype(m)::get_distributed_spans();
+            sweep_tile_span(m_spans[number<0>{}], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                const auto x_indices = get_x_indices_from_distributed_indices(
+                    m.get_tile_distribution(), i_idx);
+                const auto row = x_indices.at(number<0>{});
+                const float sink_raw =
+                    sink_ptr_pre_offset[row % num_queries_per_kv];
+                m(i_idx) = sink_raw / scale_s_natlog; // == sink_raw / sm_scale
+                l(i_idx) = SMPLComputeDataType{1.0f};
+            });
+        }
+        else
+        {
+            set_tile(m, bit_cast<float>(0xff7fffff)); // a bit larger than -infinity
+            clear_tile(l);
+        }
 
         const auto q_origin = q_dram_window.get_window_origin();
 
@@ -519,12 +570,39 @@ struct UnifiedAttentionPipeline
             if(num_total_loop - num_blocks_start <= 0)
             {
                 // Note: o_acc is already cleared above. q loaded but no fence
-                // (ignored). lse must be -infinity so the split-KV combine
-                // weighs this empty partial as zero (exp(-inf) == 0); for
-                // single-split callers the value is harmless (ignored).
+                // (ignored). For no-sink instances lse must be -infinity so
+                // the split-KV combine weighs this empty partial as zero
+                // (exp(-inf) == 0); for single-split callers the value is
+                // harmless (ignored). For sink instances the row still has
+                // one virtual key contributing mass `exp(sm_scale * sink_raw)`
+                // to the denominator and zero to the numerator (V row is
+                // all-zero), so LSE = sm_scale * sink_raw — the split-KV
+                // combine then re-weights this partial correctly. Matches
+                // FMHA's `set_tile(lse, sink_v * scale_s)` pattern in
+                // `block_fmha_pipeline_qr_ks_vs.hpp::338`.
                 auto lse_early =
                     make_static_distributed_tensor<SMPLComputeDataType>(m.get_tile_distribution());
-                set_tile(lse_early, -ck_tile::numeric<SMPLComputeDataType>::infinity());
+                if constexpr(kHasSink)
+                {
+                    const float scale_s_natlog =
+                        scale_s / static_cast<float>(ck_tile::log2e_v<>);
+                    constexpr auto lse_spans =
+                        decltype(lse_early)::get_distributed_spans();
+                    sweep_tile_span(lse_spans[number<0>{}], [&](auto idx0) {
+                        constexpr auto i_idx = make_tuple(idx0);
+                        const auto x_indices = get_x_indices_from_distributed_indices(
+                            lse_early.get_tile_distribution(), i_idx);
+                        const auto row = x_indices.at(number<0>{});
+                        const float sink_raw =
+                            sink_ptr_pre_offset[row % num_queries_per_kv];
+                        // sm_scale * sink_raw, in natural-log domain.
+                        lse_early(i_idx) = sink_raw * scale_s_natlog;
+                    });
+                }
+                else
+                {
+                    set_tile(lse_early, -ck_tile::numeric<SMPLComputeDataType>::infinity());
+                }
                 return ck_tile::make_tuple(o_acc, lse_early);
             }
         }
@@ -1994,7 +2072,11 @@ struct UnifiedAttentionPipeline
         const bool cache_ptr_int32_overflow_possible = false,
         // See the doc on the full-args operator(). Defaults to 1.0f so
         // non-FP8 callers see no behavior change.
-        const float v_descale = 1.0f) const
+        const float v_descale = 1.0f,
+        // See the doc on the full-args operator(). nullptr (default)
+        // means "no sink" — safe for `kHasSink=false` instances; required
+        // to point at `float[num_queries_per_kv]` for `kHasSink=true`.
+        const float* sink_ptr_pre_offset = nullptr) const
     {
         using namespace ck_tile;
 
@@ -2019,7 +2101,8 @@ struct UnifiedAttentionPipeline
                           v_row_stride,
                           num_queries_per_kv,
                           cache_ptr_int32_overflow_possible,
-                          v_descale);
+                          v_descale,
+                          sink_ptr_pre_offset);
     }
 };
 

@@ -8,13 +8,30 @@
 #          sink branch (`kHasSink` in the kernel) has landed and the
 #          test should be moved to GREEN.
 #
-# Current baseline — the kernel still ignores sinks; only the host
-# reference applies them. The test mix exercises both halves:
-#   - 4 GREEN baselines: causal-only with no sink, and the "sink ≈ -inf"
-#     case which collapses the reference to no-sink (so kernel & ref agree).
-#   - 8 RED cases: active sink values (const:0, const:1.0, random, CSV) —
-#     the host reference applies them, the kernel doesn't, so verification
-#     diverges by design until the kernel-side sink path is wired up.
+# Current baseline — the kernel-side sink path is wired in the *prefill*
+# tier only (prefill_d128 + prefill_d64, bf16/fp16). Decode tiers still
+# fall through to the no-sink kernel, and `dispatch_variant` fast-fails
+# (returns {false, -1.f}) whenever `args.sink_ptr != nullptr` AND the
+# selected variant has no sink instance compiled yet — the same SWA-Phase-
+# 8-trap-style prophylaxis that keeps users from silently getting the
+# wrong output. As a side effect, *every* `is_sink=true` call on a
+# decode tier currently fails the dispatcher, which matches the host
+# reference (with sinks applied) for `const:0/1.0/random/CSV` (still
+# RED — kernel never ran) and *no longer* matches it for `const:-1e4`
+# (formerly GREEN under the no-op CLI; now RED because the dispatcher
+# refuses the call). The decode-tier rows below are RED until the
+# decode sink instances ship in a later phase.
+#
+# Test mix:
+#   - 3 GREEN no-sink baselines (causal-only on baseA + baseB, plus
+#     `sink≈-inf` on baseB which dispatches to prefill_d64's sink
+#     instance and produces ≈ the no-sink output).
+#   - 4 GREEN sink-prefill cases (baseB × {const:0, const:1.0, random,
+#     CSV} — each hits prefill_d64's sink instance and matches the
+#     host reference within bf16 tolerance).
+#   - 5 RED decode-tier cases (baseA × {sink≈-inf, const:0, const:1.0,
+#     random, CSV} — every baseA dispatches to decode_d128_m128, which
+#     has no sink instance yet; dispatcher fast-fails for all 5).
 #
 # Run with HIP_VISIBLE_DEVICES set to your assigned GPU. Defaults to 6 on
 # the shared dev node. Example:
@@ -52,44 +69,58 @@ BASELINE_A="-d=128 -h_k=8 -nqpkv=1 -b=4 -s=512 -s_k=512 -query_lens=128,128,128,
 BASELINE_B="-d=64  -h_k=1 -nqpkv=8 -b=4 -s=512 -s_k=512 -query_lens=400,256,512,128 -kv_lens=400,256,512,128"
 
 TESTS=(
-    # --- GREEN baselines ---
+    # --- GREEN no-sink baselines ---
     # Plain causal, no sink flag. These guard the harness-only commit
     # against accidentally breaking the existing causal verification.
     "GREEN|baseA causal           |$BASELINE_A -mask=b"
     "GREEN|baseB causal           |$BASELINE_B -mask=b"
 
-    # `-sink=const:-1e4` collapses the reference's sink contribution to
-    # ~exp(-1e4 - m) ≈ 0, so the sink-aware host reference equals the
-    # no-sink output — which is also what the (sink-blind) kernel
-    # produces. Useful as a regression guard for "the sink CLI didn't
-    # accidentally turn into a no-op vs. enabling something dangerous".
-    "GREEN|baseA sink=-inf-ish    |$BASELINE_A -mask=b -sink=const:-1e4"
+    # `-sink=const:-1e4` collapses the kernel's sink contribution to
+    # ~exp(-1e4 - m) ≈ 0. With Phase 4's prefill sink instance in place,
+    # baseB dispatches to prefill_d64's sink kernel and produces ≈ the
+    # no-sink output — matching the host reference within bf16 noise.
+    # baseA hits decode_d128_m128 (no sink instance yet), so its sink≈-inf
+    # case is RED below and will flip GREEN once decode sink instances
+    # ship.
     "GREEN|baseB sink=-inf-ish    |$BASELINE_B -mask=b -sink=const:-1e4"
 
-    # --- RED (kernel ignores sink; reference applies it; comparison
-    #     fails until the kHasSink kernel branch ships). ---
+    # --- GREEN sink-aware (prefill tier, Phase 4): baseB dispatches to
+    #     prefill_d64's sink instance which seeds the online softmax with
+    #     m = sink_raw / sm_scale, l = 1, o_acc = 0 — matching the host
+    #     reference within bf16 tolerance for every sink magnitude. ---
 
-    # Zero sink: still adds one virtual key of weight exp(0 - m_max),
-    # which is a non-trivial fraction of the existing softmax mass,
-    # so the no-sink kernel output differs from the reference.
-    "RED  |baseA sink=0           |$BASELINE_A -mask=b -sink=const:0.0"
-    "RED  |baseB sink=0           |$BASELINE_B -mask=b -sink=const:0.0"
+    # Zero sink: one virtual key with weight exp(0 - m_max). The kernel's
+    # sink-aware softmax produces the same result as the host reference's
+    # sink-aware softmax. Bit-equivalent to "kernel and reference both
+    # apply the same sink correctly".
+    "GREEN|baseB sink=0           |$BASELINE_B -mask=b -sink=const:0.0"
 
-    # Small positive sink: same idea, heavier mass absorbed.
-    "RED  |baseA sink=1.0         |$BASELINE_A -mask=b -sink=const:1.0"
-    "RED  |baseB sink=1.0         |$BASELINE_B -mask=b -sink=const:1.0"
+    # Small positive sink: heavier mass absorbed by the sink. Still
+    # bit-equivalent.
+    "GREEN|baseB sink=1.0         |$BASELINE_B -mask=b -sink=const:1.0"
 
     # Per-head random sinks via the 'random:N' draw. Exercises the
-    # per-Q-head indexing in the reference (each head sees a distinct
-    # logit) without depending on a CSV length matching nhead_q.
-    "RED  |baseA sink=random:17   |$BASELINE_A -mask=b -sink=random:17"
-    "RED  |baseB sink=random:17   |$BASELINE_B -mask=b -sink=random:17"
+    # per-Q-head indexing in both the kernel and the reference (each head
+    # sees a distinct logit) without depending on a CSV length matching
+    # nhead_q.
+    "GREEN|baseB sink=random:17   |$BASELINE_B -mask=b -sink=random:17"
 
-    # Explicit per-head CSV — proves the CSV parser path (baseA has
-    # h_k*nqpkv = 8*1 = 8 heads; baseB has 1*8 = 8). Length must match
-    # nhead_q exactly.
+    # Explicit per-head CSV — proves the CSV parser path (baseB has
+    # h_k*nqpkv = 1*8 = 8 heads).
+    "GREEN|baseB sink=CSV[8]      |$BASELINE_B -mask=b -sink=0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8"
+
+    # --- RED decode-tier cases (Phase 6 will flip these GREEN). All
+    #     baseA configs (-d=128 -h_k=8 -nqpkv=1 -query_lens=128,...) hit
+    #     decode_d128_m128 because avg_rows=128. No decode_*_sink
+    #     instance is compiled yet, so `dispatch_sink<decode_*, ...>`
+    #     returns {false, 0.f} → the example prints "faild to run
+    #     unified_attention()" → rc=1 → RED. ---
+
+    "RED  |baseA sink=-inf-ish    |$BASELINE_A -mask=b -sink=const:-1e4"
+    "RED  |baseA sink=0           |$BASELINE_A -mask=b -sink=const:0.0"
+    "RED  |baseA sink=1.0         |$BASELINE_A -mask=b -sink=const:1.0"
+    "RED  |baseA sink=random:17   |$BASELINE_A -mask=b -sink=random:17"
     "RED  |baseA sink=CSV[8]      |$BASELINE_A -mask=b -sink=0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8"
-    "RED  |baseB sink=CSV[8]      |$BASELINE_B -mask=b -sink=0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8"
 )
 
 n_green_pass=0

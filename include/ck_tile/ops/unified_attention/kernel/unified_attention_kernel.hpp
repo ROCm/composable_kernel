@@ -623,7 +623,25 @@ struct UnifiedAttentionKernel
             num_blocks       = ck_tile::min(num_blocks, sw_block_end);
 
             if(num_blocks_start >= num_blocks)
-                return; // this Q-tile has no KV inside the SWA window
+            {
+                // For no-sink instances we can early-return: with no real
+                // keys and no sink mass, the row's output is 0 and lse is
+                // -inf, which the split-KV combine treats as "this partial
+                // contributes nothing" (epilogue writes the cleared o_ptr
+                // tile on first split, later splits overwrite with
+                // exp(lse - lse_max)*partial = 0). For `kHasSink` instances
+                // the row still has one virtual key's worth of mass on the
+                // softmax denominator and the split-KV combine *must* see
+                // the corresponding LSE — so we fall through to the
+                // pipeline, which detects `num_blocks_start >= num_blocks`
+                // inside `if(num_total_loop - num_blocks_start <= 0)` and
+                // writes the sink-aware empty-partial (o_acc=0, lse=
+                // sm_scale * sink_raw[r]) before returning.
+                if constexpr(!UnifiedAttentionPipeline::kHasSink)
+                {
+                    return; // this Q-tile has no KV inside the SWA window
+                }
+            }
         }
 
         // Pass-2: the pipeline now uses a unified per-(thread, Y0-iter) page
@@ -640,6 +658,20 @@ struct UnifiedAttentionKernel
         // For num_splits > 1 we instead write o_acc and lse to FP32 workspaces
         // — a separate combine kernel will merge across splits.
 
+        // Pre-offset the per-Q-head sink vector by the current KV head's
+        // group start, so the pipeline only needs the within-group index
+        // `r % num_queries_per_kv` to recover the per-row sink scalar. The
+        // null-check keeps no-sink calls (the common case, and the only
+        // case for instances compiled with `kHasSink=false`) safely
+        // pointing at nullptr — the pipeline gates all dereferences on
+        // its own `if constexpr (kHasSink)`. Same offset rule as the
+        // Q/O pointers a few lines up.
+        const float* sink_ptr_pre_offset =
+            (kargs.sink_ptr != nullptr)
+                ? (static_cast<const float*>(kargs.sink_ptr) +
+                   kv_head_idx * num_queries_per_kv)
+                : nullptr;
+
         auto pipeline_result = UnifiedAttentionPipeline{}(q_dram_window,
                                                           k_dram_window,
                                                           v_dram_window,
@@ -655,7 +687,8 @@ struct UnifiedAttentionKernel
                                                           static_cast<long_index_t>(kargs.stride_v_cache_1),
                                                           num_queries_per_kv,
                                                           kargs.cache_ptr_int32_overflow_possible,
-                                                          kargs.v_descale);
+                                                          kargs.v_descale,
+                                                          sink_ptr_pre_offset);
         auto& o_acc_tile = pipeline_result[number<0>{}];
         auto& lse_tile   = pipeline_result[number<1>{}];
 

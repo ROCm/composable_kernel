@@ -172,6 +172,54 @@ std::pair<bool, float> dispatch_local(const unified_attention_args& args,
     }
 }
 
+// Per-(V, DType) availability of kHasSink=true (no-SWA) instances. The
+// "prefill tier" rolls out first; decode + sink combos come in a later
+// phase (see Sink-implementation-steps.md). The (sink && IsLocal) combo
+// is handled by `dispatch_sink_local` below — also a later-phase rollout.
+//
+// Sink instances are compiled at PageSize=0 (runtime page size) — same
+// reason as `dispatch_local`: the Tier-0/Tier-2 scalar-promote gate
+// doesn't benefit the sink-init path and the binary-size cost isn't
+// justified for the first rollout.
+template <KernelVariant V, unified_attention_args::data_type_enum DType>
+std::pair<bool, float> dispatch_sink(const unified_attention_args& args,
+                                     const stream_config& config)
+{
+    using DT = unified_attention_args::data_type_enum;
+    // Sink availability matrix (prefill tier only for this rollout):
+    //   prefill_d128       /  prefill_d64    (× {bf16, fp16})
+    // The 2x2 = 4 instance files live in
+    // instances/unified_attention_d{64,128}_{bf16,fp16}_mask_sink.cpp.
+    // fp8 + sink and decode + sink combos return {false, 0.f} here and
+    // will be enabled by later phases (see Sink-implementation-steps.md).
+    constexpr bool is_supported_variant =
+        (V == KernelVariant::prefill_d128 ||
+         V == KernelVariant::prefill_d64);
+    if constexpr(is_supported_variant &&
+                 (DType == DT::bf16 || DType == DT::fp16))
+    {
+        return unified_attention_kernel_dispatch<
+            unified_attention_kernel_traits<V, DType, /*IsMasking=*/true,
+                                            /*kPageSize=*/0,
+                                            /*IsLocal=*/false,
+                                            /*kHasSink=*/true>>(args, config);
+    }
+    else
+    {
+        return {false, 0.f};
+    }
+}
+
+// Stub for the (sink && IsLocal) combo. Compiled instances arrive in a
+// later phase; for now this returns {false, 0.f} so the dispatcher fails
+// loudly (rather than silently routing to a non-sink instance).
+template <KernelVariant V, unified_attention_args::data_type_enum DType>
+std::pair<bool, float> dispatch_sink_local(const unified_attention_args&,
+                                           const stream_config&)
+{
+    return {false, 0.f};
+}
+
 // ---------------------------------------------------------------------------
 // dispatch_page_size — pick the constexpr `kPageSize` instance.
 //
@@ -229,18 +277,26 @@ std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
     // combination opts into IsLocal=true.
     const bool is_local =
         is_mask && (args.window_size_left >= 0 || args.window_size_right > 0);
+    // Sink criterion: caller passed a non-null sink vector. The example
+    // CLI populates `args.sink_ptr` from `--sink=...`; production callers
+    // (vLLM / SGLang) set it from the model's per-head sink parameters.
+    const bool is_sink = (args.sink_ptr != nullptr);
 
     if(args.data_type == DT::fp16)
     {
-        if(is_local) return dispatch_local<V, DT::fp16>(args, config);
-        if(is_mask)  return dispatch_page_size<V, DT::fp16, true >(args, config);
-        return            dispatch_page_size<V, DT::fp16, false>(args, config);
+        if(is_sink && is_local) return dispatch_sink_local<V, DT::fp16>(args, config);
+        if(is_sink)             return dispatch_sink<V, DT::fp16>(args, config);
+        if(is_local)            return dispatch_local<V, DT::fp16>(args, config);
+        if(is_mask)             return dispatch_page_size<V, DT::fp16, true >(args, config);
+        return                         dispatch_page_size<V, DT::fp16, false>(args, config);
     }
     if(args.data_type == DT::bf16)
     {
-        if(is_local) return dispatch_local<V, DT::bf16>(args, config);
-        if(is_mask)  return dispatch_page_size<V, DT::bf16, true >(args, config);
-        return            dispatch_page_size<V, DT::bf16, false>(args, config);
+        if(is_sink && is_local) return dispatch_sink_local<V, DT::bf16>(args, config);
+        if(is_sink)             return dispatch_sink<V, DT::bf16>(args, config);
+        if(is_local)            return dispatch_local<V, DT::bf16>(args, config);
+        if(is_mask)             return dispatch_page_size<V, DT::bf16, true >(args, config);
+        return                         dispatch_page_size<V, DT::bf16, false>(args, config);
     }
     if(args.data_type == DT::fp8)
     {
@@ -262,6 +318,15 @@ std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
                      V == KernelVariant::decode_d64_m64 ||
                      V == KernelVariant::decode_d64_m16)
         {
+            // Fp8 + sink fast-fail (SWA-Phase-8 trap prophylaxis): no fp8
+            // sink instances are compiled yet, and we *don't* want the
+            // `if(is_sink) ... dispatch_sink` path to silently fall
+            // through to a non-sink instance — that would compute the
+            // wrong output. Return a clean dispatcher error here so the
+            // caller sees the (false, -1.f) failure. When the fp8 sink
+            // instances ship in a later phase this guard flips to call
+            // `dispatch_sink<V, DT::fp8>` directly.
+            if(is_sink) return {false, -1.f};
             // Mirror the bf16/fp16 branches: route SWA (window bounded
             // on at least one side) to the IsLocal=true instance menu.
             // Without this branch the fp8 SWA cases silently fall
