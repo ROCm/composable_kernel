@@ -43,10 +43,10 @@ struct unified_attention_args
     // is_top_left)` — so passing `(-1, 0, false)` reproduces the previous
     // hard-coded causal mask exactly.
     //
-    // Currently only the host side / kargs plumbing reads them. The kernel still
-    // constructs its mask with the hard-coded causal values; honouring these
-    // happens in Phase 2 (trait knob) and Phase 3 (Step D + IsLocal=true
-    // instances).
+    // Currently only the host side / kargs plumbing reads them. The kernel
+    // still constructs its mask with the hard-coded causal values; honouring
+    // these requires a trait knob (`IsLocal`) plus matching SWA instances on
+    // the device side.
     index_t window_size_left  = -1;
     index_t window_size_right = -1;
     bool    is_top_left       = false;

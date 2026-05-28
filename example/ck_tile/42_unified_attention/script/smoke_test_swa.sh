@@ -46,10 +46,10 @@ TESTS=(
     "GREEN|baseB causal     |$BASELINE_B -mask=b"
 
     # SWA via xformer-style window. baseB (d=64, GQA-style, prefill rows)
-    # is GREEN once Phase 3 lands. baseA (per-batch q_len=128) routes
-    # through `decode_d128_m128`. The matching IsLocal=true decode
-    # instances now ship, so `dispatch_local` returns true on them and
-    # the cases are GREEN.
+    # is GREEN now that the IsLocal=true prefill instances ship. baseA
+    # (per-batch q_len=128) routes through `decode_d128_m128`; the
+    # matching IsLocal=true decode instances now ship too, so
+    # `dispatch_local` returns true on them and the cases are GREEN.
     "GREEN|baseA xb:64      |$BASELINE_A -mask=xb:64"
     "GREEN|baseA xb:128     |$BASELINE_A -mask=xb:128"
     "GREEN|baseB xb:64      |$BASELINE_B -mask=xb:64"
@@ -60,8 +60,8 @@ TESTS=(
     "GREEN|baseB b:64,0     |$BASELINE_B -mask=b:64,0"
 
     # Pure prefill SWA on d=128 (forces `prefill_d128` by giving every batch a
-    # q_len > 128 = decode_d128_m128 threshold). Validates that the d=128 SWA
-    # instance compiled for Phase 3 is correct.
+    # q_len > 128 = decode_d128_m128 threshold). Validates that the d=128
+    # `IsLocal=true` prefill instance is correct.
     "GREEN|prefill d128 xb:64 |-d=128 -h_k=8 -nqpkv=1 -b=2 -s=512 -s_k=512 -query_lens=257,512 -kv_lens=257,512 -mask=xb:64"
     "GREEN|prefill d128 b:64,0|-d=128 -h_k=8 -nqpkv=1 -b=2 -s=512 -s_k=512 -query_lens=257,512 -kv_lens=257,512 -mask=b:64,0"
 )

@@ -115,9 +115,10 @@ struct UnifiedAttentionKernel
         // Sliding-window attention parameters (FA-style left/right window).
         // Defaults match the non-SWA identity: `(-1, -1, false)` reproduces
         // the previous hard-coded `(-1, 0, false)` causal mask once the
-        // kernel consumes them (Phase 2 / 3). Until then these are pure
-        // payload — the operator() still passes literal `(-1, 0, false)` to
-        // make_generic_attention_mask_from_lr_window.
+        // kernel consumes them. While the kernel still hard-codes
+        // `(-1, 0, false)` at the mask construction site, these fields are
+        // pure payload — they travel through kargs but do not affect the
+        // mask.
         ck_tile::index_t window_size_left  = -1;
         ck_tile::index_t window_size_right = -1;
         bool             is_top_left       = false;
@@ -556,9 +557,10 @@ struct UnifiedAttentionKernel
                 // Window args default to (-1, -1, false) on the host side, which
                 // make_generic_attention_mask_from_lr_window collapses to the
                 // previous hard-coded bottom-right causal layout (the `< 0`
-                // branches inside the helper). For SWA (Phase 3 IsLocal=true
-                // instances) the real (left, right, is_top_left) flow through
-                // unchanged and the mask honours both window bounds.
+                // branches inside the helper). For SWA instances compiled
+                // with `IsLocal=true`, the real (left, right, is_top_left)
+                // flow through unchanged and the mask honours both window
+                // bounds.
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
                     kargs.window_size_left,
                     kargs.window_size_right,

@@ -14,7 +14,7 @@
 #
 #     time(-mask=b)  /  time(-mask=xb:128)  ≥  RATIO_MIN
 #
-# on the two shape families that exercise the Phase 3 SWA instances:
+# on the two shape families that exercise the long-prefill SWA instances:
 #
 #   * d=128 MHA prefill        (-d=128 -h_k=8 -nqpkv=1)
 #   * d=64  GQA-8 prefill      (-d=64  -h_k=1 -nqpkv=8)
@@ -53,11 +53,11 @@ COMMON="-prec=bf16 -seed=17 -verify=0 -warmup=10 -repeat=30 -varlen=0 -nb=512"
 # per run by the loop; we never time the kernel with verify on. The shapes
 # cover all four SWA-capable instances landed so far:
 #
-#   prefill_d128 / prefill_d64   (Phase 3 — long prefill)
-#   decode_d64_m128              (Phase 5 — short prefill, q≈128)
-#   decode_d64_m16               (Phase 5 — q=1 generation step, GPT-OSS)
+#   prefill_d128 / prefill_d64   (long prefill — q ≈ kv)
+#   decode_d64_m128              (short prefill, q≈128)
+#   decode_d64_m16               (q=1 generation step, GPT-OSS shape)
 #
-# Phase 5 rows use -page_blk_size=32 to mirror GPT-OSS's KV cache page
+# Decode rows use -page_blk_size=32 to mirror GPT-OSS's KV cache page
 # layout (vs the 128 used for the prefill rows where ps is irrelevant to
 # the Step D math).
 SHAPES=(

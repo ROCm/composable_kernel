@@ -445,7 +445,7 @@ std::pair<bool, float> unified_attention_kernel_dispatch(const unified_attention
 // PAGE_SIZE_ = 0 is the legacy runtime-page-size instance (catch-all
 // fallback). IS_LOCAL_ = false is the non-SWA path (causal / no-mask);
 // IS_LOCAL_ = true compiles the SWA-capable kernel that honours both the
-// left and right window bounds inside the mask (used from Phase 3 on).
+// left and right window bounds inside the mask.
 #define INST_UNIFIED_ATTENTION_DISPATCH_PS_LOCAL(VARIANT_, DTYPE_, IS_MASK_, PAGE_SIZE_,     \
                                                  IS_LOCAL_)                                  \
     template <>                                                                              \

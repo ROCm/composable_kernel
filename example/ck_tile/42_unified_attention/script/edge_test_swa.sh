@@ -1,6 +1,6 @@
 #!/bin/bash
 # edge_test_swa.sh — boundary-condition tests for Sliding Window Attention
-# in the CK-tile unified attention kernel (Phase 3 prefill tier).
+# in the CK-tile unified attention kernel (prefill tier).
 #
 # Each entry is "NAME|EXTRA_ARGS" and must PASS today; failure is a
 # regression. The fixtures stress the corners of the SWA mask machinery:
@@ -31,8 +31,7 @@ echo "Using HIP_VISIBLE_DEVICES=$HIP_VISIBLE_DEVICES"
 
 # bf16/seed=17 mirrors smoke_test_swa.sh; only -mask varies per entry. The
 # shape baselines force the *prefill* tier (q_len > decode_*_m128 cutoff)
-# so we exercise the Phase 3 prefill_d{64,128} SWA instances, not the
-# decode tier (Phase 5).
+# so we exercise the prefill_d{64,128} SWA instances, not the decode tier.
 COMMON="-prec=bf16 -seed=17 -verify=1 -warmup=0 -repeat=1 -varlen=0 -nb=1024 -page_blk_size=128"
 
 # Prefill shape: d=64 GQA-8 with all batches at full seqlen (forces
@@ -84,7 +83,7 @@ TESTS=(
     "d64  odd s_k=480 (xb:64)      |-d=64  -h_k=1 -nqpkv=8 -b=2 -s=480 -s_k=480 -query_lens=480,480 -kv_lens=480,480 -mask=xb:64"
     "d128 odd s_k=480 (xb:64)      |-d=128 -h_k=8 -nqpkv=1 -b=2 -s=480 -s_k=480 -query_lens=257,480 -kv_lens=257,480 -mask=xb:64"
 
-    # --- Phase 5: GPT-OSS shapes (page_blk_size=32) -----------------------
+    # --- GPT-OSS shapes (page_blk_size=32) -------------------------------
     # The primary motivator for SWA in unified attention. GPT-OSS uses
     # d=64 with GQA-8, page_blk_size=32, and three operating regimes:
     #   * q=1 decode      (single-token generation, routes to decode_d64_m16)
@@ -98,7 +97,7 @@ TESTS=(
     "DECODE_BS32_QM   xb:128       |-d=64 -h_k=1 -nqpkv=8 -b=4 -s=1024 -s_k=1024 -query_lens=512,1024,512,1024 -kv_lens=1024,1024,1024,1024 -page_blk_size=32 -mask=xb:128"
     "DECODE_BS32_QM   b:127,0      |-d=64 -h_k=1 -nqpkv=8 -b=4 -s=1024 -s_k=1024 -query_lens=512,1024,512,1024 -kv_lens=1024,1024,1024,1024 -page_blk_size=32 -mask=b:127,0"
 
-    # --- Phase 5.4: non-page-aligned stress -------------------------------
+    # --- Non-page-aligned stress -----------------------------------------
     # For prefill_d64 bf16, kPageBlockSize=32 (kernel tile in tokens). The
     # *runtime* page_size is set by -page_blk_size. When page_size >
     # kPageBlockSize, each cache page holds multiple kernel tiles, and Step
@@ -114,8 +113,7 @@ TESTS=(
     #     3.5 pages → mid-page start.
     #   * page_size=128 (4 tiles/page), -mask=xb:64
     #     Q-tile 1 → num_blocks_start = 7 = 1.75 pages → mid-page start.
-    #     (This is the same case the Phase 3 smoke test already hits,
-    #      kept here for explicitness.)
+    #     (Same case as the prefill smoke test, kept here for explicitness.)
     #   * page_size=64, -mask=b:48,0 (window 48, asymmetric)
     #     Q-tile 1 → num_blocks_start = 6 (page-aligned) but the per-Q-tile
     #     start *boundary* varies across the batch — keeps both alignment
