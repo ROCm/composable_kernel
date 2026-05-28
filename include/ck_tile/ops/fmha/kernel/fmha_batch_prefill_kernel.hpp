@@ -220,6 +220,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         ck_tile::index_t stride_k_descale_token    = 0;
         ck_tile::index_t nhead_stride_k_descale    = 0;
         ck_tile::index_t nhead_stride_v_descale    = 0;
+        // Optional per-q-head P scale [num_head_q] fp32.
+        const void* p_scale_ptr                    = nullptr;
     };
 
     // Helper template to select QScale Kargs type based on QScaleEnum
@@ -409,7 +411,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t nblock_stride_k_descale_page = 0,
               ck_tile::index_t stride_k_descale_token       = 0,
               ck_tile::index_t nhead_stride_k_descale       = 0,
-              ck_tile::index_t nhead_stride_v_descale       = 0)
+              ck_tile::index_t nhead_stride_v_descale       = 0,
+              const void* p_scale_ptr                       = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -499,6 +502,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             kargs.stride_k_descale_token       = stride_k_descale_token;
             kargs.nhead_stride_k_descale       = nhead_stride_k_descale;
             kargs.nhead_stride_v_descale       = nhead_stride_v_descale;
+            kargs.p_scale_ptr                  = p_scale_ptr;
         }
         if constexpr(kHasDropout)
         {
@@ -585,7 +589,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
               ck_tile::index_t nblock_stride_k_descale_page = 0,
               ck_tile::index_t stride_k_descale_token       = 0,
               ck_tile::index_t nhead_stride_k_descale       = 0,
-              ck_tile::index_t nhead_stride_v_descale       = 0)
+              ck_tile::index_t nhead_stride_v_descale       = 0,
+              const void* p_scale_ptr                       = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -672,6 +677,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             kargs.stride_k_descale_token       = stride_k_descale_token;
             kargs.nhead_stride_k_descale       = nhead_stride_k_descale;
             kargs.nhead_stride_v_descale       = nhead_stride_v_descale;
+            kargs.p_scale_ptr                  = p_scale_ptr;
         }
         if constexpr(kHasDropout)
         {
@@ -1416,6 +1422,9 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                 const float* k_descale_ptr = reinterpret_cast<const float*>(kargs.k_descale_ptr);
                 const float* v_descale_ptr = reinterpret_cast<const float*>(kargs.v_descale_ptr);
 
+                const float* p_scale_ptr =
+                    reinterpret_cast<const float*>(kargs.p_scale_ptr);
+
                 return FmhaPipeline{}(q_dram_window,
                                       k_dram_window,
                                       v_dram_window,
@@ -1445,7 +1454,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                       kargs.nblock_stride_k_descale_page,
                                       kargs.stride_k_descale_token,
                                       kargs.nhead_stride_k_descale,
-                                      kargs.nhead_stride_v_descale);
+                                      kargs.nhead_stride_v_descale,
+                                      p_scale_ptr);
             }
             else
             {

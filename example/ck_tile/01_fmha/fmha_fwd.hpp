@@ -679,9 +679,19 @@ struct fmha_batch_prefill_args
     ck_tile::index_t stride_k_descale_token       = 0; // K descale: within-page token stride
     ck_tile::index_t nhead_stride_k_descale       = 0; // K descale: head stride
     ck_tile::index_t nhead_stride_v_descale       = 0; // V descale: head stride (per-head only)
+
+    // PER_TOKEN_HEAD optional per-q-head P scale [num_head_q] fp32.
+    const void* p_scale_ptr                       = nullptr;
 };
 
-// Select KV-cache load mode for batch-prefill.
+// Selects the KV-cache load mode for a batch-prefill dispatch arm.
+//   GLOBAL_LOAD_LDS: required when (a) the page is smaller than one K/V tile
+//     so per-page SRD is impossible, AND (b) the total KV-pool byte size
+//     exceeds INT32_MAX so SRD's 32-bit byte offset cannot address it.
+//   BUFFER_LOAD: every other case — the SGPR-resident SRD path is fastest.
+// Inputs are taken as plain integers so the helper has no template parameter
+// and can be called from each codegen-emitted dispatcher arm with the arm's
+// compile-time kN0 / element_bytes substituted as constants.
 inline ck_tile::BlockAttentionKVCacheLoadModeEnum
 fmha_batch_prefill_select_kv_load_mode(ck_tile::index_t page_block_size,
                                        ck_tile::index_t kN0,
@@ -689,7 +699,10 @@ fmha_batch_prefill_select_kv_load_mode(ck_tile::index_t page_block_size,
                                        ck_tile::index_t batch_stride_k,
                                        ck_tile::index_t element_bytes)
 {
-    // Promote all operands before multiply to avoid intermediate overflow.
+    // Promote every operand to long_index_t so overflow is impossible regardless
+    // of multiplication order. A bare `static_cast<long_index_t>(num_total_pages)
+    // * batch_stride_k * element_bytes` only works because of left-to-right
+    // associativity — a future reorder of the operands would silently truncate.
     const auto kv_pool_bytes = static_cast<ck_tile::long_index_t>(num_total_pages) *
                                static_cast<ck_tile::long_index_t>(batch_stride_k) *
                                static_cast<ck_tile::long_index_t>(element_bytes);
@@ -1344,7 +1357,8 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.nblock_stride_k_descale_page,
                                          args.stride_k_descale_token,
                                          args.nhead_stride_k_descale,
-                                         args.nhead_stride_v_descale);
+                                         args.nhead_stride_v_descale,
+                                         args.p_scale_ptr);
         }
         else
         { // create batch mode kernel arguments
@@ -1405,7 +1419,8 @@ auto fmha_batch_prefill_create_kargs_and_grids(fmha_batch_prefill_args args)
                                          args.nblock_stride_k_descale_page,
                                          args.stride_k_descale_token,
                                          args.nhead_stride_k_descale,
-                                         args.nhead_stride_v_descale);
+                                         args.nhead_stride_v_descale,
+                                         args.p_scale_ptr);
         }
     }();
 

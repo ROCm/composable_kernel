@@ -449,7 +449,11 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                index_t nblock_stride_k_descale_page   = 0,
                index_t stride_k_descale_token         = 0,
                index_t nhead_stride_k_descale         = 0,
-               index_t nhead_stride_v_descale         = 0) const
+               index_t nhead_stride_v_descale         = 0,
+               // PER_TOKEN_HEAD caller P scale [num_head_q] fp32, optional.
+               // Folded into the exp2 row-max shift; the rowsum carries the
+               // same factor so it cancels in O/l with no v_descale fixup.
+               const float* p_scale_ptr               = nullptr) const
     {
         // KV_BLOCKSCALE requires page_block_size >= kN0 to ensure
         // all tokens in a main loop iteration belong to the same page
@@ -461,6 +465,17 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         // tile) and kPageBlockSize < kN0 (cross-page tile). The dequant loop
         // below precomputes per-(kPageBlockSize)-wide-slice physical page IDs
         // and applies them per column.
+
+        // Per-q-head P scale (PER_TOKEN_HEAD only): folded into the exp2
+        // row-max shift below; null pointer reduces to the default 2^shift.
+        float p_scale_log2 = 0.f;
+        if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+        {
+            if(p_scale_ptr != nullptr)
+            {
+                p_scale_log2 = log2f(p_scale_ptr[block_indices.qo_head_idx]);
+            }
+        }
 
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -1463,21 +1478,27 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
                     constexpr auto i_idx = make_tuple(idx0);
 #if CK_TILE_FMHA_FWD_FAST_EXP2
-                    // For KV_BLOCKSCALE: precompute (m - shift) once per row
-                    // exp2(s - (m - shift)) = exp2(s - m + shift) = exp2(s - m) * 2^shift
-                    // This scales P by 2^shift (≈448 for fp8_e4m3) without explicit multiply
+                    // exp2(s - (m - shift)) = exp2(s - m) * 2^shift, i.e. P is
+                    // scaled by 2^shift before the fp8 cast: OCP fp8 (e4m3)
+                    // uses 8 -> 256, FNUZ fp8 uses 7 -> 128.
                     auto validated_m = get_validated_m(m[i_idx]);
                     auto row_max     = scale_s * validated_m;
                     if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE ||
                                  QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
                     {
 #if CK_TILE_USE_OCP_FP8
-                        validated_m -= OCP_FP8_SHIFT; // for Bias/Alibi/SoftCap
-                        row_max -= OCP_FP8_SHIFT;     // for else branch
+                        validated_m -= OCP_FP8_SHIFT;
+                        row_max -= OCP_FP8_SHIFT;
 #else
                         validated_m -= FNUZ_FP8_SHIFT;
                         row_max -= FNUZ_FP8_SHIFT;
 #endif
+                        if constexpr(QScaleEnum ==
+                                     BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+                        {
+                            validated_m -= p_scale_log2;
+                            row_max -= p_scale_log2;
+                        }
                     }
 #endif
                     sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
@@ -1991,7 +2012,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                index_t nblock_stride_k_descale_page,
                index_t stride_k_descale_token,
                index_t nhead_stride_k_descale,
-               index_t nhead_stride_v_descale) const
+               index_t nhead_stride_v_descale,
+               const float* p_scale_ptr = nullptr) const
     {
         return operator()(q_dram_block_window_tmp,
                           identity{},
@@ -2032,7 +2054,8 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                           nblock_stride_k_descale_page,
                           stride_k_descale_token,
                           nhead_stride_k_descale,
-                          nhead_stride_v_descale);
+                          nhead_stride_v_descale,
+                          p_scale_ptr);
     }
 };
 
