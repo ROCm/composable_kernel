@@ -124,31 +124,42 @@ std::pair<bool, float> dispatch_one(const unified_attention_args& args,
 }
 
 // Per-(V, DType) availability of IsLocal=true (Sliding-Window-Attention)
-// instances. Phase 3 ships the four large-tier prefill instances; everything
-// else returns {false, 0.f} so the host falls back to Triton (or whatever
-// downstream caller handles the negative dispatch result).
+// instances. SWA is now compiled on every UA variant (all prefill + decode
+// tiers for d=64 and d=128) across every supported dtype (bf16, fp16, fp8).
+// Anything that doesn't fall through the constexpr filter below still
+// returns {false, 0.f} so a future variant can be added without breaking
+// the binary.
 //
-// The Phase 3 SWA instances are all compiled at PageSize=0 (runtime page
-// size) — the page-pinned ps16/ps32/ps64 menu only exists for the IsLocal=
-// false fast path. SWA on Phase-5 (decode tiers) will follow the same rule
-// unless the perf gate proves otherwise.
+// All SWA instances are compiled at PageSize=0 (runtime page size) — the
+// page-pinned ps16/ps32/ps64 menu only exists for the IsLocal=false fast
+// path. The Tier-0/Tier-2 scalar-promote gate doesn't fire under IsLocal
+// (the per-row x_start/x_end clipping kills the constexpr KY0_step_N
+// precondition) so there's no payoff to specialising page_size for SWA.
 template <KernelVariant V, unified_attention_args::data_type_enum DType>
 std::pair<bool, float> dispatch_local(const unified_attention_args& args,
                                       const stream_config& config)
 {
     using DT = unified_attention_args::data_type_enum;
-    // SWA availability matrix as of Phase 5:
-    //   prefill_d128 / prefill_d64                — large-tier prefill (Phase 3)
-    //   decode_d64_m128 / decode_d64_m16          — GPT-OSS shapes  (Phase 5)
-    // For all of them we only compile {bf16, fp16}; fp8 SWA is a future
-    // phase. Anything else (decode_d128_*, decode_d64_m64, …) still falls
-    // back to {false, 0.f} so the aiter wrapper picks Triton.
+    // SWA availability matrix:
+    //   prefill_d128       /  prefill_d64
+    //   decode_d128_m128   /  decode_d64_m128
+    //   decode_d128_m32    /  decode_d64_m64
+    //   decode_d128_m16    /  decode_d64_m16
+    // Every variant compiles for {bf16, fp16, fp8}. The 8x3 = 24 instance
+    // files live in instances/unified_attention_d{64,128}_{bf16,fp16,fp8}_
+    // mask{,_decode{,_s,_t}}_local.cpp (a 1:1 mirror of the non-local
+    // instance menu).
     constexpr bool is_supported_variant =
-        (V == KernelVariant::prefill_d128 ||
-         V == KernelVariant::prefill_d64 ||
-         V == KernelVariant::decode_d64_m128 ||
+        (V == KernelVariant::prefill_d128       ||
+         V == KernelVariant::decode_d128_m128   ||
+         V == KernelVariant::decode_d128_m32    ||
+         V == KernelVariant::decode_d128_m16    ||
+         V == KernelVariant::prefill_d64        ||
+         V == KernelVariant::decode_d64_m128    ||
+         V == KernelVariant::decode_d64_m64     ||
          V == KernelVariant::decode_d64_m16);
-    if constexpr(is_supported_variant && (DType == DT::bf16 || DType == DT::fp16))
+    if constexpr(is_supported_variant &&
+                 (DType == DT::bf16 || DType == DT::fp16 || DType == DT::fp8))
     {
         return unified_attention_kernel_dispatch<
             unified_attention_kernel_traits<V, DType, /*IsMasking=*/true,
@@ -251,6 +262,16 @@ std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
                      V == KernelVariant::decode_d64_m64 ||
                      V == KernelVariant::decode_d64_m16)
         {
+            // Mirror the bf16/fp16 branches: route SWA (window bounded
+            // on at least one side) to the IsLocal=true instance menu.
+            // Without this branch the fp8 SWA cases silently fall
+            // through to dispatch_page_size which compiles an
+            // IsLocal=false instance, so the kernel ignores the window
+            // and computes the full causal output (output norm stays
+            // constant as the window narrows). The new fp8 _local.cpp
+            // instances cover every variant in the constexpr-supported
+            // set above, so this can never miss.
+            if(is_local) return dispatch_local<V, DT::fp8>(args, config);
             if(is_mask)  return dispatch_page_size<V, DT::fp8, true >(args, config);
             return            dispatch_page_size<V, DT::fp8, false>(args, config);
         }

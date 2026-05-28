@@ -45,18 +45,18 @@ TESTS=(
     "GREEN|baseA causal     |$BASELINE_A -mask=b"
     "GREEN|baseB causal     |$BASELINE_B -mask=b"
 
-    # SWA via xformer-style window. baseB (d=64, GQA-style, prefill rows) is
-    # GREEN once Phase 3 lands. baseA (per-batch q_len=128) routes through
-    # `decode_d128_m128` and intentionally stays RED until Phase 5 adds
-    # IsLocal=true decode instances — `dispatch_local` returns false for
-    # decode variants today and the harness reports "faild to run".
-    "RED  |baseA xb:64 (decode tier — Phase 5)|$BASELINE_A -mask=xb:64"
-    "RED  |baseA xb:128 (decode tier — Phase 5)|$BASELINE_A -mask=xb:128"
+    # SWA via xformer-style window. baseB (d=64, GQA-style, prefill rows)
+    # is GREEN once Phase 3 lands. baseA (per-batch q_len=128) routes
+    # through `decode_d128_m128`. The matching IsLocal=true decode
+    # instances now ship, so `dispatch_local` returns true on them and
+    # the cases are GREEN.
+    "GREEN|baseA xb:64      |$BASELINE_A -mask=xb:64"
+    "GREEN|baseA xb:128     |$BASELINE_A -mask=xb:128"
     "GREEN|baseB xb:64      |$BASELINE_B -mask=xb:64"
     "GREEN|baseB xb:128     |$BASELINE_B -mask=xb:128"
 
     # SWA via FA-style explicit left/right window.
-    "RED  |baseA b:64,0 (decode tier — Phase 5)|$BASELINE_A -mask=b:64,0"
+    "GREEN|baseA b:64,0     |$BASELINE_A -mask=b:64,0"
     "GREEN|baseB b:64,0     |$BASELINE_B -mask=b:64,0"
 
     # Pure prefill SWA on d=128 (forces `prefill_d128` by giving every batch a
