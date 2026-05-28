@@ -25,7 +25,7 @@
 #include "hstu_attention_fwd_type_config.hpp"
 #include "hstu_attention_bool_switch.hpp"
 #include "hstu_attention_params.hpp"
-#include "reference_hstu_attention.hpp"
+#include "reference_hstu_attention_fwd.hpp"
 
 #include "hstu_attention_util.hpp"
 #include "hstu_attention_api.hpp"
@@ -576,28 +576,28 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
         using CompDataType    = typename HstuAttentionFwdTypeConfig<InOutDataType>::CompDataType;
 
         BOOL_SWITCH_3(is_jagged, kIsJagged, use_softmax, kUseSoftmax, use_causal, kUseCausal, [&] {
-            ck_tile::reference_no_group_hstu_attention<InOutDataType,
-                                                       GemmAccDataType,
-                                                       CompDataType,
-                                                       kIsJagged,
-                                                       kUseSoftmax,
-                                                       kUseCausal>::Run(is_cross_attention,
-                                                                        q_host,
-                                                                        k_host,
-                                                                        v_host,
-                                                                        o_host_ref,
-                                                                        mask_host,
-                                                                        num_batch,
-                                                                        scale_s,
-                                                                        attn_scale,
-                                                                        max_seqlen_q,
-                                                                        max_seqlen_kv,
-                                                                        seq_offsets_q,
-                                                                        seq_offsets_kv,
-                                                                        num_targets,
-                                                                        contextual_seqlen,
-                                                                        window_size,
-                                                                        min_full_attn_seqlen);
+            ck_tile::reference_no_group_hstu_attention_fwd<InOutDataType,
+                                                           GemmAccDataType,
+                                                           CompDataType,
+                                                           kIsJagged,
+                                                           kUseSoftmax,
+                                                           kUseCausal>::Run(is_cross_attention,
+                                                                            q_host,
+                                                                            k_host,
+                                                                            v_host,
+                                                                            o_host_ref,
+                                                                            mask_host,
+                                                                            num_batch,
+                                                                            scale_s,
+                                                                            attn_scale,
+                                                                            max_seqlen_q,
+                                                                            max_seqlen_kv,
+                                                                            seq_offsets_q,
+                                                                            seq_offsets_kv,
+                                                                            num_targets,
+                                                                            contextual_seqlen,
+                                                                            window_size,
+                                                                            min_full_attn_seqlen);
         });
 
         ck_tile::HostTensor<InOutDataType> o_host(
@@ -1003,29 +1003,30 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
         using CompDataType    = typename HstuAttentionFwdTypeConfig<InOutDataType>::CompDataType;
 
         BOOL_SWITCH_2(use_softmax, kUseSoftmax, use_causal, kUseCausal, [&] {
-            ck_tile::reference_group_hstu_attention<InOutDataType,
-                                                    GemmAccDataType,
-                                                    CompDataType,
-                                                    kUseSoftmax,
-                                                    kUseCausal>::Run(is_cross_attention,
-                                                                     q_host,
-                                                                     k_host,
-                                                                     v_host,
-                                                                     o_host_ref,
-                                                                     mask_host,
-                                                                     num_batch,
-                                                                     num_batch / num_group,
-                                                                     scale_s,
-                                                                     max_max_seqlen_q,
-                                                                     max_max_seqlen_kv,
-                                                                     seq_offsets_q,
-                                                                     seq_offsets_kv,
-                                                                     num_targets,
-                                                                     group_max_seqlens_q,
-                                                                     group_contextual_seqlens,
-                                                                     group_window_sizes,
-                                                                     group_min_full_attn_seqlens,
-                                                                     group_attn_scales);
+            ck_tile::reference_group_hstu_attention_fwd<
+                InOutDataType,
+                GemmAccDataType,
+                CompDataType,
+                kUseSoftmax,
+                kUseCausal>::Run(is_cross_attention,
+                                 q_host,
+                                 k_host,
+                                 v_host,
+                                 o_host_ref,
+                                 mask_host,
+                                 num_batch,
+                                 num_batch / num_group,
+                                 scale_s,
+                                 max_max_seqlen_q,
+                                 max_max_seqlen_kv,
+                                 seq_offsets_q,
+                                 seq_offsets_kv,
+                                 num_targets,
+                                 group_max_seqlens_q,
+                                 group_contextual_seqlens,
+                                 group_window_sizes,
+                                 group_min_full_attn_seqlens,
+                                 group_attn_scales);
         });
 
         ck_tile::HostTensor<InOutDataType> o_host(
