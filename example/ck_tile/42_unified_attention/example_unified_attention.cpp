@@ -2,9 +2,12 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <optional>
+#include <random>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -96,10 +99,145 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
         .insert("kv_lens",
                 "",
                 "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
-                "Comma-separated list of length 'b'. If empty, no override.");
+                "Comma-separated list of length 'b'. If empty, no override.")
+        // Per-query-head learnable sink tensor (GPT-OSS / vLLM convention;
+        // one scalar per Q head, the "virtual key" that participates in the
+        // softmax denominator but contributes nothing to the V accumulator).
+        // The flag is parsed into `Problem::sinks` as a host-side
+        // `std::vector<float>` of length `nhead_q` and threaded through to
+        // the host reference. The kernel does not yet consume it (no
+        // `kHasSink` device-side branch); until that lands, a non-empty
+        // sinks vector makes the reference diverge from the kernel and
+        // verification is expected to fail.
+        // Accepted syntaxes:
+        //   ''            : no sink (default — host reference is the
+        //                   classic no-sink softmax).
+        //   'none'        : explicit no sink (same as empty).
+        //   'random'      : sample N(0, 0.5) scalars; deterministic on
+        //                   `-seed=`.
+        //   'random:S'    : same, but with an explicit seed S (overrides
+        //                   `-seed=` for the sink draw only).
+        //   'const:F'     : broadcast the single float F across all heads
+        //                   (e.g. 'const:0.0', 'const:-1e4', 'const:1.5').
+        //   'F1,F2,...'   : explicit per-head CSV of length `nhead_q`.
+        .insert("sink",
+                "",
+                "attention sinks (one scalar per Q head). Empty / 'none' = no sink.\n"
+                "  'random[:seed]' : per-head N(0, 0.5) draw\n"
+                "  'const:F'       : broadcast F across all heads\n"
+                "  'F1,F2,...'     : explicit per-head CSV (length == h_k*nqpkv)\n"
+                "The host reference applies this immediately; the kernel does\n"
+                "not yet consume it.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_pair(result, arg_parser);
+}
+
+// Parse the `-sink=` argument into a per-Q-head float vector. Returns
+// an empty vector when the flag is absent or set to "none"; both cases
+// reduce to the no-sink reference path in `host::fmha_fwd`.
+//
+// Accepted syntaxes (see the CLI help in parse_cmd_args for the canonical
+// list):
+//   ""                    -> no sink
+//   "none"                -> no sink
+//   "random"              -> per-head N(0, 0.5), seeded by `default_seed`
+//   "random:N"            -> per-head N(0, 0.5), seeded by N
+//   "const:F"             -> broadcast F across all `nhead_q` heads
+//   "F1,F2,...,Fn"        -> explicit CSV; size must equal `nhead_q`
+//
+// Errors abort the program with std::exit(2) — this is a CLI parser
+// failure, not a verification failure, so a non-zero exit code that
+// differs from the verification "RED" code keeps the smoke test honest.
+inline std::vector<float> parse_sinks(const std::string& spec,
+                                      ck_tile::index_t nhead_q,
+                                      uint32_t default_seed)
+{
+    if(spec.empty() || spec == "none")
+    {
+        return {};
+    }
+
+    auto fail = [&](const std::string& msg) {
+        std::cerr << "ERROR: -sink= parse failed: " << msg
+                  << " (got '" << spec << "', expected 'none', 'random[:N]', "
+                  << "'const:F', or a CSV of " << nhead_q << " floats)" << std::endl;
+        std::exit(2);
+    };
+
+    // 'random' / 'random:N'
+    if(spec.rfind("random", 0) == 0)
+    {
+        uint32_t seed = default_seed;
+        if(spec.size() > std::string("random").size())
+        {
+            if(spec[std::string("random").size()] != ':')
+                fail("'random' must be followed by ':N' or nothing");
+            try
+            {
+                seed = static_cast<uint32_t>(
+                    std::stoul(spec.substr(std::string("random:").size())));
+            }
+            catch(...)
+            {
+                fail("invalid seed after 'random:'");
+            }
+        }
+        std::mt19937                  gen(seed ? seed : 12345u);
+        std::normal_distribution<float> dist(0.f, 0.5f);
+        std::vector<float>            out(static_cast<size_t>(nhead_q));
+        for(auto& v : out)
+            v = dist(gen);
+        return out;
+    }
+
+    // 'const:F'
+    {
+        const std::string prefix = "const:";
+        if(spec.rfind(prefix, 0) == 0)
+        {
+            float f;
+            try
+            {
+                f = std::stof(spec.substr(prefix.size()));
+            }
+            catch(...)
+            {
+                fail("invalid float after 'const:'");
+                return {};
+            }
+            return std::vector<float>(static_cast<size_t>(nhead_q), f);
+        }
+    }
+
+    // CSV of nhead_q floats
+    {
+        std::vector<float> out;
+        out.reserve(static_cast<size_t>(nhead_q));
+        std::stringstream ss(spec);
+        std::string token;
+        while(std::getline(ss, token, ','))
+        {
+            if(token.empty())
+                continue;
+            try
+            {
+                out.push_back(std::stof(token));
+            }
+            catch(...)
+            {
+                fail("invalid float in CSV element '" + token + "'");
+                return {};
+            }
+        }
+        if(static_cast<ck_tile::index_t>(out.size()) != nhead_q)
+        {
+            std::stringstream msg;
+            msg << "CSV length " << out.size() << " != nhead_q (" << nhead_q << ")";
+            fail(msg.str());
+        }
+        return out;
+    }
 }
 
 auto seqlen_preprocess(ck_tile::index_t batch,
@@ -209,6 +347,18 @@ struct Problem
                 ? max_seqlen_kv
                 : *std::max_element(kv_lens.begin(), kv_lens.end());
         mask = mask_info::decode(mask_str, report_seqlen_q, report_seqlen_kv);
+
+        // Sink plumbing. `sinks` is per-Q-head; empty vector means "no
+        // sink" (matches Triton's `sinks=None` convention). The host
+        // reference path consumes it immediately, but `args.sink_ptr` is
+        // not set on the device side yet — the kargs wiring and the
+        // kernel-side `kHasSink` branch are still TODO. Until both
+        // arrive, a non-empty `sinks` makes the reference diverge from
+        // the kernel output (intentional: smoke tests use this gap to
+        // detect when the kernel-side path comes online).
+        sink_str = args.get_str("sink");
+        const uint32_t sink_default_seed = static_cast<uint32_t>(args.get_uint32("seed"));
+        sinks                            = parse_sinks(sink_str, nhead_q, sink_default_seed);
     }
 
     std::vector<ck_tile::index_t> get_query_shape() const { return {num_tokens, nhead_q, hdim}; }
@@ -242,6 +392,9 @@ struct Problem
     mask_info mask;
     std::vector<int> query_lens;
     std::vector<int> kv_lens;
+    // Per-Q-head sink scalars. Empty == no sink.
+    std::string        sink_str;
+    std::vector<float> sinks;
 };
 
 struct RunConfig
@@ -342,7 +495,15 @@ CK_TILE_HOST void fmha_fwd(const ck_tile::HostTensor<QDataType>& q_bshd,
                            const QElementOp& q_element_op        = {},
                            const KElementOp& k_element_op        = {},
                            const VElementOp& v_element_op        = {},
-                           const SAccElementOp& s_acc_element_op = {})
+                           const SAccElementOp& s_acc_element_op = {},
+                           // Per-Q-head sink scalars (length `nhead_q`).
+                           // Empty span == no sink (classic softmax). When set,
+                           // each (head_q, seqlen_q) row gets one virtual key
+                           // with raw logit `sinks[head_q]` (same scale as the
+                           // already-scaled `s_host_ref` entries — matches
+                           // Triton's `attn = cat([attn, sinks_aux])` pattern in
+                           // op_tests/triton_tests/attention/test_unified_attention.py).
+                           const std::vector<float>& sinks = {})
 {
     const int batch_size = q_bshd.mDesc.get_lengths()[0];
     const int seqlen_q   = q_bshd.mDesc.get_lengths()[1];
@@ -353,6 +514,13 @@ CK_TILE_HOST void fmha_fwd(const ck_tile::HostTensor<QDataType>& q_bshd,
     const int hdim_v     = v_bshd.mDesc.get_lengths()[3];
 
     const int nr = nhead_q / nhead_kv;
+
+    const bool has_sinks = !sinks.empty();
+    if(has_sinks)
+    {
+        assert(static_cast<int>(sinks.size()) == nhead_q &&
+               "sinks vector must have length nhead_q");
+    }
 
     ck_tile::HostTensor<QDataType> q_host_ref({nhead_q, seqlen_q, hdim_qk});
     ck_tile::HostTensor<KDataType> k_host_ref({nhead_q, seqlen_kv, hdim_qk});
@@ -389,8 +557,57 @@ CK_TILE_HOST void fmha_fwd(const ck_tile::HostTensor<QDataType>& q_bshd,
                     UnifiedAttentionMasks::GenericMask>(
                     mask.left, mask.right, seqlen_q, seqlen_kv, /*repeat_idx=*/1, is_top_left));
         }
-        ck_tile::reference_batched_softmax<AccDataType, AccDataType>(
-            s_host_ref, p_host_ref, ck_tile::identity{});
+        if(has_sinks)
+        {
+            // Sink-aware softmax (the "virtual key" trick, inlined). For each
+            // (head_q, seqlen_q) row, treat `sinks[head_q]` as an additional
+            // raw logit in the same scale as the already-scaled S row, then:
+            //   m       = max(max(S[h,q,:]), sinks[h])
+            //   denom   = sum_n exp(S[h,q,n] - m) + exp(sinks[h] - m)
+            //   P[h,q,n] = exp(S[h,q,n] - m) / denom
+            // The sink contributes nothing to the V accumulator below (no
+            // V row for the virtual key), matching the GPT-OSS / Triton UA
+            // convention. The "if mass == 0" guard from
+            // reference_batched_softmax is unnecessary here: with a finite
+            // sink the denominator is always >= exp(sink - m) > 0.
+            using Acc = AccDataType;
+            for(int h = 0; h < nhead_q; ++h)
+            {
+                const Acc sink_v = ck_tile::type_convert<Acc>(sinks[h]);
+                for(int q = 0; q < seqlen_q; ++q)
+                {
+                    Acc m_val = sink_v;
+                    for(int n = 0; n < seqlen_kv; ++n)
+                    {
+                        const Acc s_val = ck_tile::type_convert<Acc>(s_host_ref(h, q, n));
+                        if(s_val > m_val)
+                            m_val = s_val;
+                    }
+                    Acc denom = ck_tile::exp(sink_v - m_val);
+                    for(int n = 0; n < seqlen_kv; ++n)
+                    {
+                        const Acc s_val = ck_tile::type_convert<Acc>(s_host_ref(h, q, n));
+                        denom += ck_tile::exp(s_val - m_val);
+                    }
+                    // The "denom == 0 -> inv = 1" guard from reference_batched_softmax
+                    // is unnecessary here: with any finite sink, `denom >= exp(sink_v
+                    // - m_val) > 0`. Skipping it sidesteps the example tree's
+                    // -Wfloat-equal -Werror discipline.
+                    const Acc inv_denom = Acc{1.f} / denom;
+                    for(int n = 0; n < seqlen_kv; ++n)
+                    {
+                        const Acc s_val = ck_tile::type_convert<Acc>(s_host_ref(h, q, n));
+                        p_host_ref(h, q, n) =
+                            ck_tile::type_convert<PDataType>(ck_tile::exp(s_val - m_val) * inv_denom);
+                    }
+                }
+            }
+        }
+        else
+        {
+            ck_tile::reference_batched_softmax<AccDataType, AccDataType>(
+                s_host_ref, p_host_ref, ck_tile::identity{});
+        }
         ck_tile::reference_batched_gemm<PDataType, VDataType, AccDataType>(
             p_host_ref, v_host_ref, o_host_ref, ck_tile::identity{}, v_element_op);
 
@@ -429,10 +646,9 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.mask_type          = static_cast<int>(problem.mask.type);
     args.hdim               = problem.hdim;
 
-    // SWA window parameters from the parsed mask_info. The kernel still uses
-    // the hard-coded `(-1, 0, false)` mask in Phase 1 (pure refactor); these
-    // fields land in kargs but are not yet consumed. Phase 2 / 3 will read
-    // them inside the kernel.
+    // SWA window parameters from the parsed mask_info. These fields land
+    // in kargs but the kernel still uses the hard-coded `(-1, 0, false)`
+    // mask until the device-side SWA path is wired up.
     args.window_size_left  = problem.mask.left;
     args.window_size_right = problem.mask.right;
     args.is_top_left       = (problem.mask.type == mask_enum::mask_top_left);
@@ -624,7 +840,14 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         if(i < problem.kv_lens.size() - 1)
             std::cout << ",";
     }
-    std::cout << "], mask:" << problem.mask << std::fixed << ", " << std::setprecision(8) << time
+    std::cout << "], mask:" << problem.mask;
+    // Surface the sink spec when non-empty so smoke-test logs make it
+    // obvious which configurations are exercising the (host-only) sink path.
+    if(!problem.sinks.empty())
+    {
+        std::cout << ", sink:" << problem.sink_str;
+    }
+    std::cout << std::fixed << ", " << std::setprecision(8) << time
               << " ms, " << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2)
               << (static_cast<double>(mem) / 1e12 / (time / 1e3)) << " TB/s" << std::endl;
 
@@ -680,7 +903,13 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         // reference matches the per-batch attention shape (varlen-aware).
         const auto batch_mask = mask_info::decode(problem.mask_str, seqlen_q_eff, seqlen_kv_eff);
 
-        // Compute reference for this batch segment (host::fmha_fwd expects bshd tensors)
+        // Compute reference for this batch segment (host::fmha_fwd expects bshd tensors).
+        // Forward `problem.sinks` (empty vector when no sink) to the sink-aware
+        // softmax inside host::fmha_fwd. Note this is in the *post-scale* space
+        // — the existing `scales{problem.scale_s}` operator
+        // is applied during the QK gemm, after which the sink raw value sits in
+        // the same numerical space as the scaled S entries, matching the Triton
+        // reference (`attn = cat([attn*scale, sinks_aux])`).
         host::fmha_fwd<float, DataType>(q_b,
                                         k_b,
                                         v_b,
@@ -689,7 +918,8 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
                                         ck_tile::identity{},
                                         ck_tile::identity{},
                                         ck_tile::identity{},
-                                        ck_tile::scales{problem.scale_s});
+                                        ck_tile::scales{problem.scale_s},
+                                        problem.sinks);
 
         // Scatter into o_ref's bshd descriptor memory
         for(int s = 0; s < seqlen_q_eff; ++s)
