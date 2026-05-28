@@ -68,6 +68,7 @@ template <typename InOutDataType_,
           bool kHasDropout_,
           bool kHasCausal_,
           bool kUseSoftmax_,
+          bool kStoreLSE_,
           typename AttentionTileSetting_>
 struct HstuAttentionFwdPipelineProblem
 {
@@ -91,6 +92,7 @@ struct HstuAttentionFwdPipelineProblem
     static constexpr bool kHasDropout       = kHasDropout_;
     static constexpr bool kHasCausal        = kHasCausal_;
     static constexpr bool kUseSoftmax       = kUseSoftmax_;
+    static constexpr bool kStoreLSE         = kStoreLSE_;
 
     static_assert(!kUseGroup || (kUseGroup && kIsJagged),
                   "Group HSTU is only used with jagged mode!");
@@ -134,6 +136,7 @@ template <typename OaccDataType_,
           typename ODataType_,
           bool kIsJagged_,
           bool kUseSoftmax_,
+          bool kStoreLSE_,
           typename CombineTileSetting_,
           index_t kMaxSplits_ = 0>
 struct HstuAttentionFwdSplitKVCombinePipelineProblem
@@ -144,6 +147,7 @@ struct HstuAttentionFwdSplitKVCombinePipelineProblem
 
     static constexpr bool kIsJagged   = kIsJagged_;
     static constexpr bool kUseSoftmax = kUseSoftmax_;
+    static constexpr bool kStoreLSE   = kStoreLSE_;
 
     static constexpr index_t kM           = CombineTileSetting_::kM;
     static constexpr index_t NumWarps     = CombineTileSetting_::NumWarps;
