@@ -123,6 +123,18 @@ struct unified_attention_args
     index_t split_stride_lse_acc  = 0;
     index_t nhead_stride_o_acc    = 0;
     index_t nhead_stride_lse_acc  = 0;
+
+    // Learnable per-query-head attention sink (GPT-OSS / vLLM convention).
+    // When non-null, the device pointer addresses a contiguous
+    // `float[num_head_q]` of sink scalars; the softmax denominator gains
+    // one virtual key per Q head with logit `sink_ptr[h]` and an all-zero
+    // V row. Default `nullptr` reproduces the classic no-sink softmax.
+    // The host-facing CLI / aiter wrapper promotes bf16 sink tensors to
+    // fp32 host-side before pinning them on device — matches the
+    // `const void*` / `const float*` convention used by FMHA.
+    // Only the kargs plumbing reads the pointer today; the device-side
+    // pipeline does not yet consume it.
+    const void* sink_ptr = nullptr;
 };
 
 std::ostream& operator<<(std::ostream& stream,

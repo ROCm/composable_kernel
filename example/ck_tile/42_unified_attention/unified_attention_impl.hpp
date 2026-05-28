@@ -407,7 +407,8 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
                                    args.cache_ptr_int32_overflow_possible,
                                    args.window_size_left,
                                    args.window_size_right,
-                                   args.is_top_left);
+                                   args.is_top_left,
+                                   args.sink_ptr);
 
     dim3 grids;
     if constexpr(UseDecodeGrid)

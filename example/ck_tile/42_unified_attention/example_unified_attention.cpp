@@ -653,6 +653,26 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.window_size_right = problem.mask.right;
     args.is_top_left       = (problem.mask.type == mask_enum::mask_top_left);
 
+    // Mirror the per-Q-head sink vector to device memory and hand the
+    // pointer to kargs. Empty `problem.sinks` leaves `args.sink_ptr` as
+    // its default `nullptr` — matches the classic no-sink convention.
+    // The buffer must outlive `ck_tile::unified_attention(args, ...)`
+    // below, so declare it in `run_impl`'s scope alongside seq_lens_buf
+    // / block_tables_buf. We use the `DeviceMem` default-ctor + Realloc
+    // idiom (same as the grouped-gemm examples) because `DeviceMem`
+    // owns a HIP allocation but defines no copy/move, so `sink_buf =
+    // DeviceMem(size)` would shallow-copy and double-free on scope
+    // exit. The device-side kernel does not dereference `sink_ptr` yet;
+    // this commit only verifies the pointer survives the round-trip
+    // through kargs without observable behaviour change.
+    ck_tile::DeviceMem sink_buf;
+    if(!problem.sinks.empty())
+    {
+        sink_buf.Realloc(problem.sinks.size() * sizeof(float));
+        sink_buf.ToDevice(problem.sinks.data());
+        args.sink_ptr = sink_buf.GetDeviceBuffer();
+    }
+
     args.num_blks = problem.num_blks;
 
     args.q_ptr          = q_buf.GetDeviceBuffer();

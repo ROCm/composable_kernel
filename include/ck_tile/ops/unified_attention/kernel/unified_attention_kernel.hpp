@@ -122,6 +122,14 @@ struct UnifiedAttentionKernel
         ck_tile::index_t window_size_left  = -1;
         ck_tile::index_t window_size_right = -1;
         bool             is_top_left       = false;
+
+        // Learnable per-query-head attention sink. When non-null, points
+        // at `float[num_head_q]` on device; the softmax denominator gains
+        // one virtual key per Q head with logit `sink_ptr[h]` and an
+        // all-zero V row. Default `nullptr` reproduces the classic
+        // no-sink softmax. The pipeline does not yet read this pointer —
+        // it is currently pure payload threaded through kargs.
+        const void* sink_ptr = nullptr;
     };
 
     struct UnifiedAttentionVarlenKargs : UnifiedAttentionCommonKargs
@@ -196,7 +204,8 @@ struct UnifiedAttentionKernel
                                                   bool cache_ptr_int32_overflow_possible  = false,
                                                   ck_tile::index_t window_size_left       = -1,
                                                   ck_tile::index_t window_size_right      = -1,
-                                                  bool is_top_left                        = false)
+                                                  bool is_top_left                        = false,
+                                                  const void* sink_ptr                    = nullptr)
     {
         // Fuse the Q/K FP8 descales into `scale_s` so the softmax sees a
         // single combined scalar — matches the Triton FP8 reference
@@ -237,7 +246,8 @@ struct UnifiedAttentionKernel
                      output_stride_1,
                      window_size_left,
                      window_size_right,
-                     is_top_left},
+                     is_top_left,
+                     sink_ptr},
                     block_tables_ptr,
                     block_table_stride,
                     seq_lens_ptr,
