@@ -2861,65 +2861,6 @@ CK_TILE_DEVICE void amd_async_buffer_load_with_oob_raw(T* smem,
                                                 bool_constant<pre_nop>{});
 }
 
-// =============================================================================
-// global_load_lds path — direct DRAM->LDS load via per-lane 64-bit base pointer.
-//
-// Equivalent of `amd_async_buffer_load_with_oob_raw` but bypasses the SRD
-// (`int32x4_t` resource descriptor) entirely:
-//   - SRD's `size` field is uint32_t (max ~4 GB pool). Caches above that wrap.
-//   - `buffer_load_*` voffset is 32-bit. Per-lane offsets above 4 GB wrap.
-// Replacing the underlying HW instruction with `global_load_lds` (per-lane
-// 64-bit VGPR-pair base + 13-bit signed immediate offset) lifts both limits.
-// Required for paged-KV caches whose `num_blocks * page_size * row_stride *
-// sizeof(T)` exceeds INT32_MAX (e.g. very-long-context decode pools).
-//
-// Caveats:
-//   - Loses the SRD's free OOB clamp. Caller must ensure the per-lane pointer
-//     is valid (in our pipeline use, the page_table lookup guarantees this).
-//   - gfx9.4+ / gfx950 only — uses `__builtin_amdgcn_global_load_lds`.
-//     Older arches would need a `global_load + ds_write` fallback.
-// =============================================================================
-template <typename T,
-          index_t N,
-          index_t byte_offset_imm             = 0, // 13-bit signed
-          amd_buffer_coherence_enum coherence = amd_buffer_coherence_enum::coherence_default,
-          bool pre_nop                        = false>
-CK_TILE_DEVICE void amd_async_global_load_lds_raw(T* smem,
-                                                  const T* base_ptr_64,
-                                                  bool_constant<pre_nop> = {})
-{
-    constexpr index_t bytes = sizeof(T) * N;
-
-    static_assert(bytes == 4 || bytes == 12 || bytes == 16,
-                  "global_load_lds: only dword / dwordx3 / dwordx4 supported on gfx950");
-    static_assert(-4096 <= byte_offset_imm && byte_offset_imm <= 4095,
-                  "global_load_lds: byte_offset_imm must fit in 13-bit signed");
-
-    // C-style cast injects the address-space attribute the intrinsic expects
-    // (addrspace(1) for global, addrspace(3) for LDS) without losing const.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wold-style-cast"
-    const __attribute__((address_space(1))) void* gptr =
-        (const __attribute__((address_space(1))) void*)base_ptr_64;
-    __attribute__((address_space(3))) void* lptr =
-        (__attribute__((address_space(3))) void*)smem;
-#pragma clang diagnostic pop
-
-    if constexpr(pre_nop)
-        asm volatile("s_nop 4\n" ::: "memory");
-
-    // Front-end requires `size`, `offset` and `aux` to be ImmArg / integer
-    // literals. A switch on the constexpr `bytes` value lets each branch
-    // pass the literal directly.
-    constexpr int kCoherence = static_cast<int>(coherence);
-    if constexpr(bytes == 16)
-        __builtin_amdgcn_global_load_lds(gptr, lptr, 16, byte_offset_imm, kCoherence);
-    else if constexpr(bytes == 12)
-        __builtin_amdgcn_global_load_lds(gptr, lptr, 12, byte_offset_imm, kCoherence);
-    else /* bytes == 4 */
-        __builtin_amdgcn_global_load_lds(gptr, lptr, 4, byte_offset_imm, kCoherence);
-}
-
 // This version support buffer resource as input arg
 template <typename T,
           index_t N,

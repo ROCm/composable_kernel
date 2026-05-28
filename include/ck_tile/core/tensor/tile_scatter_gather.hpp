@@ -5,6 +5,7 @@
 
 #include "ck_tile/core/arch/utility.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
+#include "ck_tile/core/arch/amd_global_load_lds_raw.hpp"
 #include "ck_tile/core/algorithm/space_filling_curve.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/container/array.hpp"
