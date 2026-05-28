@@ -1137,10 +1137,26 @@ struct BlockFmhaFwdV3Pipeline
         {
             auto lse = make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
 
+            // Pre-compute scale_s / C_LOG2E outside loop for StandardAttention
+            // Note: scale_s is already (softmax_scale * log2(e)) from kernel,
+            //       so scale_s / C_LOG2E = softmax_scale
+            constexpr float inv_log2e      = 1.0f / C_LOG2E;
+            const float scale_s_normalized = scale_s * inv_log2e;
+
             constexpr auto lse_spans = decltype(lse)::get_distributed_spans();
             sweep_tile_span(lse_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-                lse(i_idx)           = m[i_idx] / C_LOG2E + log(l[i_idx]);
+                if constexpr(kHasLogitsSoftCap)
+                {
+                    // LogitsSoftCap: scale_s already applied in LogitsTransform
+                    lse(i_idx) = m[i_idx] * inv_log2e + log(l[i_idx]);
+                }
+                else
+                {
+                    // StandardAttention: use pre-computed scale_s_normalized
+                    // Compiler will fuse into FMA: scale_s_normalized * m + log(l)
+                    lse(i_idx) = scale_s_normalized * m[i_idx] + log(l[i_idx]);
+                }
             });
 
             store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
