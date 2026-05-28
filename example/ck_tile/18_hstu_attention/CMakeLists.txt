@@ -4,7 +4,7 @@ set(EXAMPLE_HSTU_ATTENTION "tile_example_hstu_attention")
 message("adding example ${EXAMPLE_HSTU_ATTENTION}")
 file(GLOB INSTANCE_SRCS instances/*.cpp)
 set(INTERFACES_SRCS  hstu_attention_no_group_forward_bf16.cpp  hstu_attention_no_group_forward_fp16.cpp hstu_attention_group_forward_bf16.cpp hstu_attention_group_forward_fp16.cpp)
-add_executable(${EXAMPLE_HSTU_ATTENTION} EXCLUDE_FROM_ALL example_hstu_attention.cpp)
+add_executable(${EXAMPLE_HSTU_ATTENTION} EXCLUDE_FROM_ALL example_hstu_attention_fwd.cpp)
 target_include_directories(${EXAMPLE_HSTU_ATTENTION} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${EXAMPLE_HSTU_ATTENTION} PRIVATE ${INTERFACES_SRCS}  ${INSTANCE_SRCS})
 

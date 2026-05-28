@@ -17,7 +17,7 @@
 namespace ck_tile {
 
 // clang-format off
-// Reference implementation of HSTUAttention problem, which does the following from input tensors:
+// Reference implementation of HSTUAttention forward problem, which does the following from input tensors:
 // S[num_batch, num_head, seqlen, seqlen] = Q[num_batch, seqlen, num_head, hdim_qk] @ key^T[num_batch, seqlen, num_head, hdim_v]
 // P[num_batch, num_head, seqlen, seqlen] = SiLU(Masking(S[num_batch, num_head, seqlen, seqlen]))
 // O[num_batch, num_head, seqlen, hdim_v] = P[num_batch, num_head, seqlen, seqlen] @ value^T[num_batch, num_head, seqlen, hdim_v]
@@ -31,7 +31,7 @@ template <typename InOutDataType,
           bool kIsJagged,
           bool kUseSoftmax,
           bool kUseCausal>
-struct reference_no_group_hstu_attention
+struct reference_no_group_hstu_attention_fwd
 {
     static void Run(bool is_cross_attention,
                     const HostTensor<InOutDataType>& q_batch_seq_nhead_hdim,
@@ -321,7 +321,7 @@ template <typename InOutDataType,
           typename CompDataType,
           bool kUseSoftmax,
           bool kUseCausal>
-struct reference_group_hstu_attention
+struct reference_group_hstu_attention_fwd
 {
     static void
     Run(bool is_cross_attention,
