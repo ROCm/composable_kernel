@@ -237,7 +237,106 @@ BWD_WEIGHT_TILES: List[Tuple[int, int, int]] = [
 ]
 
 # =============================================================================
-# Validation
+# Shared Validation Rules
+# =============================================================================
+# These functions are the single source of truth for validation rules
+# for onvolution code generation.
+
+# --- Vector size validation ---
+
+WARP_SIZE = 64
+
+
+def is_valid_vector_size(vec: int) -> bool:
+    """AMD GPUs only support vector widths 1, 2, 4, 8, 16."""
+    return vec == 1 or vec % 2 == 0
+
+
+def check_vectors(vec_a: int, vec_b: int, vec_c: int) -> bool:
+    """Check all three vector sizes are valid (1 or even)."""
+    return all(is_valid_vector_size(v) for v in (vec_a, vec_b, vec_c))
+
+
+# --- Tile coverage validation ---
+
+
+def check_warp_coverage(
+    tile_m: int, tile_n: int, tile_k: int,
+    vec_a: int, vec_b: int,
+    variant: str = "forward",
+) -> bool:
+    """Check tile dims don't exceed single-warp vector load coverage.
+
+    The A-tile dimension is direction-aware:
+      Forward / bwd_weight: tile_m is the A-tile dim
+      Backward data:        tile_k is the A-tile dim
+    """
+    a_tile_dim = tile_k if variant == "bwd_data" else tile_m
+    if a_tile_dim > WARP_SIZE * vec_a:
+        return False
+    if tile_n > WARP_SIZE * vec_b:
+        return False
+    return True
+
+
+def check_bwd_data_vec_coverage(
+    tile_m: int, tile_n: int, tile_k: int,
+    warp_m: int, warp_n: int, warp_k: int,
+    vec_a: int, vec_b: int,
+) -> bool:
+    """Bwd_data: vector width must not exceed elements per thread per tile slice."""
+    block_size = WARP_SIZE * warp_m * warp_n * warp_k
+    if vec_a > (tile_m * tile_k) // block_size:
+        return False
+    if vec_b > (tile_n * tile_k) // block_size:
+        return False
+    return True
+
+
+# --- Pipeline-scheduler restrictions ---
+
+INTERWAVE_PIPELINES = {"basic_v1", "mem"}  # Only these support interwave
+
+
+def is_valid_pipeline_scheduler(pipeline: str, scheduler: str) -> bool:
+    """Check pipeline+scheduler combo is valid.
+
+    Only 'mem' and 'basic_v1' pipelines support interwave; all compute
+    pipelines (compv3/v4/v5/v6/async) only support intrawave.
+    """
+    if scheduler == "interwave" and pipeline not in INTERWAVE_PIPELINES:
+        return False
+    return True
+
+
+# --- Pipeline-variant restrictions ---
+
+UNSUPPORTED_VARIANT_PIPELINES = {
+    "bwd_weight": {"compv5"},
+    "bwd_data": {"compv5"},
+}
+
+
+def is_valid_pipeline_for_variant(pipeline: str, variant: str) -> bool:
+    """Check pipeline is supported for the given conv variant.
+
+    Backward weight and backward data reject compv5 due to transpose_tile2d /
+    get_length issues.
+    """
+    blocked = UNSUPPORTED_VARIANT_PIPELINES.get(variant, set())
+    return pipeline not in blocked
+
+
+# --- Stream-K restrictions ---
+
+
+def is_streamk_valid_for_variant(variant: str) -> bool:
+    """Stream-K is only supported for backward weight."""
+    return variant == "bwd_weight"
+
+
+# =============================================================================
+# Tile Registration Validation
 # =============================================================================
 
 

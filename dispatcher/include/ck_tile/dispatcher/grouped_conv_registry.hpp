@@ -86,6 +86,17 @@ struct GroupedConvKernelKey
     int num_wave_groups     = 1;
     int num_groups_to_merge = 1;
 
+    // Convolution specialization (e.g., "default", "filter1x1_stride1_pad0")
+    std::string specialization = "default";
+
+    // Large tensor (split image) support
+    bool large_tensor = false;
+
+    // Stream-K configuration
+    bool streamk_enabled          = false;
+    std::string streamk_reduction = "none"; // "none", "tree", "linear"
+    bool streamk_persistent       = false;
+
     // GPU architecture (for filter_by_arch)
     std::string arch = "gfx942";
 
@@ -101,7 +112,11 @@ struct GroupedConvKernelKey
                vector_size_a == other.vector_size_a && vector_size_b == other.vector_size_b &&
                vector_size_c == other.vector_size_c && block_per_cu == other.block_per_cu &&
                num_wave_groups == other.num_wave_groups &&
-               num_groups_to_merge == other.num_groups_to_merge && arch == other.arch;
+               num_groups_to_merge == other.num_groups_to_merge &&
+               specialization == other.specialization && large_tensor == other.large_tensor &&
+               streamk_enabled == other.streamk_enabled &&
+               streamk_reduction == other.streamk_reduction &&
+               streamk_persistent == other.streamk_persistent && arch == other.arch;
     }
 
     std::string to_string() const
@@ -118,7 +133,8 @@ struct GroupedConvKernelKey
                std::to_string(tile_k) + "_" + std::to_string(wave_m) + "x" +
                std::to_string(wave_n) + "x" + std::to_string(wave_k) + "_" +
                std::to_string(warp_m) + "x" + std::to_string(warp_n) + "x" +
-               std::to_string(warp_k) + "_" + pipeline;
+               std::to_string(warp_k) + "_" + pipeline +
+               (specialization != "default" ? "_" + specialization : "");
     }
 };
 
@@ -139,6 +155,11 @@ struct GroupedConvKernelKeyHash
         h ^= std::hash<int>{}(key.warp_n) << 10;
         h ^= std::hash<std::string>{}(key.pipeline) << 11;
         h ^= std::hash<std::string>{}(key.arch) << 12;
+        h ^= std::hash<std::string>{}(key.specialization) << 13;
+        h ^= std::hash<bool>{}(key.large_tensor) << 14;
+        h ^= std::hash<bool>{}(key.streamk_enabled) << 15;
+        h ^= std::hash<std::string>{}(key.streamk_reduction) << 16;
+        h ^= std::hash<bool>{}(key.streamk_persistent) << 17;
         return h;
     }
 };
@@ -154,17 +175,44 @@ using GroupedConvKernelInstancePtr = std::shared_ptr<GroupedConvKernelInstance>;
 class GroupedConvKernelInstance
 {
     public:
-    using RunFn = std::function<float(const GroupedConvProblem&, void*)>;
+    using RunFn         = std::function<float(const GroupedConvProblem&, void*)>;
+    using IsSupportedFn = std::function<bool(const GroupedConvProblem&)>;
 
     GroupedConvKernelInstance(const GroupedConvKernelKey& key,
                               const std::string& name,
-                              RunFn run_fn)
-        : key_(key), name_(name), run_fn_(std::move(run_fn))
+                              RunFn run_fn,
+                              IsSupportedFn is_supported_fn      = nullptr,
+                              const std::string& instance_string = "")
+        : key_(key),
+          name_(name),
+          run_fn_(std::move(run_fn)),
+          is_supported_fn_(std::move(is_supported_fn)),
+          instance_string_(instance_string)
     {
     }
 
     const GroupedConvKernelKey& key() const { return key_; }
-    const std::string& name() const { return name_; }
+
+    /// Return the kernel name.
+    /// @param use_instance_string  When true, return the CK Tile
+    ///        GetInstanceString() representation (e.g.
+    ///        "GroupedConvolutionBackwardWeightKernel<2,Default,...>")
+    ///        if available; otherwise fall back to the dispatcher name.
+    const std::string& name(bool use_instance_string = false) const
+    {
+        if(use_instance_string && !instance_string_.empty())
+            return instance_string_;
+        return name_;
+    }
+
+    // Check whether this kernel supports the given problem.
+    // Returns true if no IsSupportedFn was provided.
+    bool is_supported(const GroupedConvProblem& problem) const
+    {
+        if(is_supported_fn_)
+            return is_supported_fn_(problem);
+        return true;
+    }
 
     float run(const GroupedConvProblem& problem, void* stream = nullptr) const
     {
@@ -181,6 +229,8 @@ class GroupedConvKernelInstance
     GroupedConvKernelKey key_;
     std::string name_;
     RunFn run_fn_;
+    IsSupportedFn is_supported_fn_;
+    std::string instance_string_;
 };
 
 // =============================================================================

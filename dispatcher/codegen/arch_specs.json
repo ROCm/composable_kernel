@@ -221,6 +221,7 @@
     "compv3": 65536,
     "compv4": 32768,
     "compv5": 65536,
+    "compv6": 32768,
     "preshufflev1": 32768,
     "preshufflev2": 32768,
     "default": 65536

@@ -234,3 +234,76 @@ python3 ../script/convert_miopen_driver_to_profiler.py
 ```
 
 Only convolution driver is supported.
+
+
+## Profiling CK Tile convolution kernels
+
+CK Tile convolution kernels can be profiled with the same API as the old CK kernels, only the profiler op is different
+
+| CK op | CK Tile op | 
+|---|---|
+| grouped_conv_fwd | grouped_conv_fwd_tile | 
+| grouped_conv_bwd_data | grouped_conv_bwd_data_tile | 
+| grouped_conv_bwd_weight | grouped_conv_bwd_weight_tile | 
+
+The CK Tile kernel instances for profiling are generated from configuration files via python codegen scripts.
+There are currently two ways of running the code generation
+
+- [CK Builder based codegen](../experimental/grouped_convolution_tile_instances/README.md)
+- [CK Dispatcher based codegen](../dispatcher/codegen/README.md)
+
+Both mechanism generate identical sets of instances. However, the CK Builder based codegen will be depracated 
+and the CK Dispatcher codegen will be the only codegen solution for CK Tile convolutions.
+One can choose between the two codegen schemes using the CMake configuration flag `CK_TILE_DISPATCHER`. 
+Currently the CK Builder based codegen is the default and dropping `CK_TILE_DISPATCHER` means CK Builder codegen will be used.
+Setting `-D CK_TILE_DISPATCHER=OFF` has the same effect. To use the Dispacther codegen, use `-D CK_TILE_DISPATCHER=ON`.
+
+CK Builder gives the kernel instance a unique name via an instance string. The Dispatcher has a similar mechanism 
+for generating a unique string for each kernel instance. One can instruct the Dispatcher based CK Profiler to use the CK Builder instance string 
+by specifying CMake configuration flag `-D CK_EXPERIMENTAL_BUILDER=ON`. Hence, we have three relevant combinations for the CMake configure step.
+
+CK Builder codgen with CK Builder instance string as kernel ID
+```bash
+cmake                                                                                             \
+  -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
+  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                       \
+  -D CMAKE_BUILD_TYPE=Release                                                                     \
+  -D GPU_TARGETS="gfx942"                                                                         \
+  -D CK_EXPERIMENTAL_BUILDER=ON                                                                   \
+  -D CK_TILE_DISPATCHER=OFF                                                                       \
+  -D CMAKE_CXX_STANDARD=20                                                                        \                                                                \
+  -G Ninja                                                                                        \
+  ..
+```
+
+CK Dispatcher codegen with CK Builder instance string as kernel ID
+```bash
+cmake                                                                                             \
+  -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
+  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                       \
+  -D CMAKE_BUILD_TYPE=Release                                                                     \
+  -D GPU_TARGETS="gfx942"                                                                         \
+  -D CK_EXPERIMENTAL_BUILDER=ON                                                                   \
+  -D CK_TILE_DISPATCHER=ON                                                                        \
+  -D CMAKE_CXX_STANDARD=20                                                                        \
+  -G Ninja                                                                                        \
+  ..
+```
+
+CK Dispatcher codegen with CK Dispatcher instance string as kernel ID
+```bash
+cmake                                                                                             \
+  -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
+  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                       \
+  -D CMAKE_BUILD_TYPE=Release                                                                     \
+  -D GPU_TARGETS="gfx942"                                                                         \
+  -D CK_TILE_DISPATCHER=ON                                                                        \
+  -D CMAKE_CXX_STANDARD=20                                                                        \
+  -G Ninja                                                                                        \
+  ..
+```
+
+By default, the Dispatcher generates a smaller `tests` set of kernels. To generate a full `profiler` set of 
+kernels, use CMake flag `-D DISPATCHER_CONFIG_SET=profiler` at the configuration step.
+
+To build only the CK Tile profiler, one can use an additional flag `-DCK_PROFILER_OP_FILTER="_tile"`.

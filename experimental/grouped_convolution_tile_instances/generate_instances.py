@@ -3,7 +3,21 @@
 
 import argparse
 import shutil
+import sys
 from pathlib import Path
+
+# Add dispatcher/codegen to path for shared validation rules
+_THIS_DIR = Path(__file__).resolve().parent
+_DISPATCHER_CODEGEN = _THIS_DIR.parents[1] / "dispatcher" / "codegen"
+if str(_DISPATCHER_CODEGEN) not in sys.path:
+    sys.path.insert(0, str(_DISPATCHER_CODEGEN))
+
+from grouped_config_rules import (
+    check_vectors as _shared_check_vectors,
+    check_warp_coverage,
+    check_bwd_data_vec_coverage,
+    WARP_SIZE,
+)
 
 
 class ConvInstanceTemplateParams:
@@ -124,13 +138,11 @@ def get_k_mfma(dtype, m_per_xdl, n_per_xdl):
 
 
 def check_vectors(a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector):
-    if a_scalar_per_vector != 1 and a_scalar_per_vector % 2 != 0:
-        return False
-    if b_scalar_per_vector != 1 and b_scalar_per_vector % 2 != 0:
-        return False
-    if c_scalar_per_vector != 1 and c_scalar_per_vector % 2 != 0:
-        return False
-    return True
+    """Reject odd vector sizes (except 1).
+
+    Delegates to the shared rule in grouped_config_rules.py.
+    """
+    return _shared_check_vectors(a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector)
 
 
 def parse_instance_string(instance_string):
@@ -422,7 +434,7 @@ def parse_fwd_instances(instances, problem_name):
             scheduler = "Intrawave"
             pipeline_version = "v1"
             direct_load = 0
-            num_groups_to_merge = 0 if split_image else int(args[48])
+            num_groups_to_merge = 1 if split_image else int(args[48])
 
         double_smem_buffer = pipeline_version == "v4"
         num_wave_groups = 1
@@ -439,28 +451,16 @@ def parse_fwd_instances(instances, problem_name):
         else:
             pipeline_version = pipeline_version.upper()
 
+        # Old CK pipeline version V5 maps to V6 for CK Tile
+        if pipeline_version == "V5":
+            pipeline_version = "V6"
+
         m_warp = int(m_per_block / (m_per_xdl * m_xdl_per_wave))
         n_warp = int(n_per_block / (n_per_xdl * n_xdl_per_wave))
         warp_size = 64
         k_warp = int(block_size / (warp_size * m_warp * n_warp))
         dtype = get_dtype(problem_name)
         k_per_xdl = min(max(k1, get_k_mfma(dtype, m_per_xdl, n_per_xdl)), k_per_block)
-
-        if split_image:
-            print(
-                f"Skipping instance {instance_id} with split_image since it's not supported yet."
-            )
-            continue
-        if pipeline_version == "V5":
-            print(
-                f"Skipping instance {instance_id} with V5 since it's not supported yet."
-            )
-            continue
-        if pipeline_version == "ASYNC_V4":
-            print(
-                f"Skipping instance {instance_id} with ASYNC_V4 since it's not supported yet."
-            )
-            continue
 
         is_two_stage = False
 
@@ -596,7 +596,7 @@ def parse_bwd_weight_instances(instances, problem_name):
                         + f"Expected 46 parameters for TwoStage instance. Found {len(args)} parameters."
                     )
 
-                num_groups_to_merge = args[41]
+                num_groups_to_merge = int(args[41])
 
                 # Block GEMM pipeline parameters
                 block_gemm_pipeline_scheduler = args[39]
@@ -636,7 +636,7 @@ def parse_bwd_weight_instances(instances, problem_name):
         scheduler = block_gemm_pipeline_scheduler
         pipeline_version = blk_gemm_pipeline_version.upper()
 
-        # OLd CK pipeline version V5 maps to V6 for CK Tile
+        # Old CK pipeline version V5 maps to V6 for CK Tile
         if pipeline_version == "V5":
             pipeline_version = "V6"
 
@@ -665,9 +665,13 @@ def parse_bwd_weight_instances(instances, problem_name):
                 f"Skipping instance {instance_id} with irregular load since it's not supported yet."
             )
             continue
-        if pipeline_version == "V6":
+        if not check_warp_coverage(
+            m_per_block, n_per_block, k_per_block,
+            a_scalar_per_vector, b_scalar_per_vector,
+            variant="bwd_weight",
+        ):
             print(
-                f"Skipping instance {instance_id} with V6 since it's not supported yet."
+                f"Skipping instance {instance_id} with multiple warps per continous tile dim since it's not supported yet."
             )
             continue
 
@@ -794,13 +798,24 @@ def parse_bwd_data_instances(instances, problem_name):
 
         k_per_xdl = min(max(k1, get_k_mfma(dtype, m_per_xdl, n_per_xdl)), k_per_block)
 
-        if check_vectors(a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector) == False:
+        # Skip irregular vector sizes — no HW vector load instructions for odd widths
+        if not check_vectors(a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector):
             print(f"Skipping instance {instance_id} with irregular load since it's not supported yet.")
             continue
-        if pipeline_version == "V6":
-            print(f"Skipping instance {instance_id} with V6 since it's not supported yet.")
+
+        # Skip multi-warp: single warp can't cover tile dim when it exceeds warp_size * vec
+        if not check_warp_coverage(
+            m_per_block, n_per_block, k_per_block,
+            a_scalar_per_vector, b_scalar_per_vector,
+            variant="bwd_data",
+        ):
+            print(f"Skipping instance {instance_id} with multiple warps per continous tile dim since it's not supported yet.")
             continue
-        if a_scalar_per_vector > (m_per_block * k_per_block) // block_size or  b_scalar_per_vector > (n_per_block * k_per_block) // block_size:
+        if not check_bwd_data_vec_coverage(
+            m_per_block, n_per_block, k_per_block,
+            m_warp, n_warp, k_warp,
+            a_scalar_per_vector, b_scalar_per_vector,
+        ):
             print(f"Skipping instance {instance_id} because current scalar per vector exceedes tile size")
             continue
 
@@ -1059,40 +1074,40 @@ def process_depthwise_forward(configs_prefix: str, instances_path: str) -> None:
 
         print(f"  -> {cpp_dir}  ({len(instances)} .cpp files)")
 
+fwd_configs = [
+        "nhwgc_fp32",
+        "nhwgc_fp16",
+        "nhwgc_bf16",
+        "ndhwgc_fp32",
+        "ndhwgc_fp16",
+        "ndhwgc_bf16",
+    ]
+
+bwd_weight_configs = [
+    "nhwgc_fp32",
+    "nhwgc_fp16",
+    "nhwgc_bf16",
+    "ndhwgc_fp32",
+    "ndhwgc_fp16",
+    "ndhwgc_bf16",
+    "nhwgc_fp32_streamk",
+    "nhwgc_fp16_streamk",
+    "nhwgc_bf16_streamk",
+    "ndhwgc_fp32_streamk",
+    "ndhwgc_fp16_streamk",
+    "ndhwgc_bf16_streamk",
+]
+
+bwd_data_configs = [
+    "nhwgc_fp32",
+    "nhwgc_fp16",
+    "nhwgc_bf16",
+    "ndhwgc_fp32",
+    "ndhwgc_fp16",
+    "ndhwgc_bf16",
+]
+
 if __name__ == "__main__":
-    fwd_configs = [
-        "nhwgc_fp32",
-        "nhwgc_fp16",
-        "nhwgc_bf16",
-        "ndhwgc_fp32",
-        "ndhwgc_fp16",
-        "ndhwgc_bf16",
-    ]
-
-    bwd_weight_configs = [
-        "nhwgc_fp32",
-        "nhwgc_fp16",
-        "nhwgc_bf16",
-        "ndhwgc_fp32",
-        "ndhwgc_fp16",
-        "ndhwgc_bf16",
-        "nhwgc_fp32_streamk",
-        "nhwgc_fp16_streamk",
-        "nhwgc_bf16_streamk",
-        "ndhwgc_fp32_streamk",
-        "ndhwgc_fp16_streamk",
-        "ndhwgc_bf16_streamk",
-    ]
-
-    bwd_data_configs = [
-        "nhwgc_fp32",
-        "nhwgc_fp16",
-        "nhwgc_bf16",
-        "ndhwgc_fp32",
-        "ndhwgc_fp16",
-        "ndhwgc_bf16",
-    ]
-
     parser = argparse.ArgumentParser(
         description="Generate grouped conv CK Tile instances."
     )

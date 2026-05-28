@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+#include "ck_tile/ops/gemm/pipeline/tile_gemm_traits.hpp"
 
 #if __clang_major__ >= 23
 #pragma clang diagnostic push

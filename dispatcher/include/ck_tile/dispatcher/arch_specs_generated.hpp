@@ -1,5 +1,5 @@
-// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
  * AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
@@ -138,6 +138,8 @@ inline std::size_t get_lds_capacity(Pipeline pipeline)
         return 32768;
     if(pipeline == Pipeline::CompV5)
         return 65536;
+    if(pipeline == Pipeline::CompV6)
+        return 32768;
     if(pipeline == Pipeline::PreShuffleV1)
         return 32768;
     if(pipeline == Pipeline::PreShuffleV2)

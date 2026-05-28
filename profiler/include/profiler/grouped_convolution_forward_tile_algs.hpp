@@ -15,13 +15,11 @@
 #include "ck_tile/builder/testing/conv/ck_tile.hpp"
 #include "ck_tile/builder/testing/conv/reference.hpp"
 #include "ck_tile/builder/conv_builder.hpp"
+#include "tile_profiler_common.hpp"
 
 #define ENABLE_BUILDER_VALIDATE 1
 
 namespace ck_tile::builder::profiling {
-
-namespace ckb = ck_tile::builder;
-namespace ckt = ck_tile::builder::test;
 
 #include "../../experimental/grouped_convolution_tile_instances/instances/forward/grouped_convolution_forward_tile_nhwgc_fp32.inc"
 #include "../../experimental/grouped_convolution_tile_instances/instances/forward/grouped_convolution_forward_tile_nhwgc_bf16.inc"
@@ -69,6 +67,8 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
                                    const ck_tile::stream_config& s_conf,
                                    bool do_verification = true)
 {
+    using DataType = DeduceDataType<SIGNATURE>;
+
     // Run first instance as dummy to get proper time from the first instance
     bool dummy_run_executed = false;
     float best_avg_time     = std::numeric_limits<float>::max();
@@ -130,7 +130,8 @@ run_grouped_conv_forward_tile_algs(const ckt::Args<SIGNATURE>& args,
                     std::cout << "Number of incorrect values: " << error.wrong_elements
                               << " Is all zero:" << error.is_all_zero()
                               << " max err: " << error.max_error << std::endl;
-                    run_cpu_validation<SIGNATURE>(args, outputs, reference.get());
+                    run_cpu_validation<SIGNATURE, ConvBuffer::Output>(
+                        args, outputs, reference.get());
                 }
             }
         }

@@ -147,6 +147,51 @@ inline GroupedConvKernelInstance::RunFn make_conv_bwd_weight_run_fn()
     };
 }
 
+// -------------------------------------------------------------------------
+// IsSupportedFn factories — check kernel applicability without launching
+// -------------------------------------------------------------------------
+
+template <typename LauncherType, int NDim>
+inline GroupedConvKernelInstance::IsSupportedFn make_conv_bwd_weight_is_supported_fn()
+{
+    return [](const GroupedConvProblem& problem) -> bool {
+        auto& ctx         = g_conv_dispatch_buffers;
+        auto param        = (NDim == 2) ? make_conv_param_2d(problem) : make_conv_param_3d(problem);
+        const int k_batch = ctx.split_k;
+        return LauncherType::is_supported(param, k_batch);
+    };
+}
+
+template <typename LauncherType, int NDim>
+inline GroupedConvKernelInstance::IsSupportedFn make_conv_fwd_is_supported_fn()
+{
+    return [](const GroupedConvProblem& problem) -> bool {
+        auto param = (NDim == 2) ? make_conv_param_2d(problem) : make_conv_param_3d(problem);
+        return LauncherType::is_supported(param, 1);
+    };
+}
+
+template <typename LauncherType, int NDim>
+inline GroupedConvKernelInstance::IsSupportedFn make_conv_bwd_data_is_supported_fn()
+{
+    return [](const GroupedConvProblem& problem) -> bool {
+        auto param = (NDim == 2) ? make_conv_param_2d(problem) : make_conv_param_3d(problem);
+        return LauncherType::is_supported(param, 1);
+    };
+}
+
+// -------------------------------------------------------------------------
+// Instance string extraction — get CK Tile GetInstanceString() representation
+// -------------------------------------------------------------------------
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+template <typename LauncherType>
+inline std::string get_instance_string()
+{
+    return LauncherType::get_instance_string();
+}
+#endif
+
 } // namespace backends
 } // namespace dispatcher
 } // namespace ck_tile

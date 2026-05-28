@@ -139,3 +139,5 @@ dispatcher/heuristics/__pycache__/
 dispatcher/heuristics/tests/__pycache__/
 dispatcher/heuristics/.pytest_cache/
 
+# CLAUDE markdown files
+CLAUDE.md

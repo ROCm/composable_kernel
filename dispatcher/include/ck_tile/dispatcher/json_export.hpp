@@ -75,6 +75,7 @@ inline std::string pipeline_to_string(Pipeline pipeline)
     case Pipeline::CompV3: return "compv3";
     case Pipeline::CompV4: return "compv4";
     case Pipeline::CompV5: return "compv5";
+    case Pipeline::CompV6: return "compv6";
     default: return "unknown";
     }
 }

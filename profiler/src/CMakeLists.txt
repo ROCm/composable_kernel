@@ -43,7 +43,7 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9")
     list(APPEND PROFILER_OPS profile_contraction_bilinear.cpp)
     list(APPEND PROFILER_OPS profile_contraction_scale.cpp)
   endif()
-  if(CK_EXPERIMENTAL_BUILDER)
+  if(CK_EXPERIMENTAL_BUILDER OR CK_TILE_DISPATCHER)
     list(APPEND PROFILER_OPS profile_grouped_conv_fwd_tile.cpp)
     list(APPEND PROFILER_OPS profile_grouped_conv_bwd_weight_tile.cpp)
     list(APPEND PROFILER_OPS profile_grouped_conv_bwd_data_tile.cpp)
@@ -155,6 +155,39 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
   target_compile_options(${PROFILER_EXECUTABLE} PRIVATE --offload-compress)
 endif()
 
+
+# =============================================================================
+# CK Tile Dispatcher: Generate and compile CK Tile conv kernels
+# =============================================================================
+if(CK_TILE_DISPATCHER AND SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+  # Build dispatcher instance libraries (defines ck_dispatcher_grouped_conv_* targets)
+  add_subdirectory(
+    ${PROJECT_SOURCE_DIR}/dispatcher/library
+    ${CMAKE_CURRENT_BINARY_DIR}/dispatcher_library
+  )
+
+  # Profiler needs dispatcher API headers and builder test infrastructure
+  target_include_directories(${PROFILER_EXECUTABLE} PRIVATE
+    ${PROJECT_SOURCE_DIR}/dispatcher/include
+    ${PROJECT_SOURCE_DIR}/experimental/builder/include
+  )
+  target_compile_options(${PROFILER_EXECUTABLE} PRIVATE
+    -Wno-undefined-func-template
+    -Wno-float-equal
+    -Wno-ctad-maybe-unsupported
+    -Wno-old-style-cast
+  )
+
+  # Link all available dispatcher instance libraries
+  foreach(_VARIANT fwd bwd_weight bwd_data)
+    set(_TARGET "ck_dispatcher_grouped_conv_${_VARIANT}")
+    if(TARGET ${_TARGET})
+      target_link_libraries(${PROFILER_EXECUTABLE} PRIVATE ${_TARGET})
+    endif()
+  endforeach()
+endif()
 
 set(DEVICE_INSTANCES "")
 list(APPEND DEVICE_INSTANCES device_gemm_instance)
@@ -274,9 +307,11 @@ endif()
 
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx9")
   if(CK_EXPERIMENTAL_BUILDER)
-    list(APPEND DEVICE_INSTANCES device_grouped_conv_fwd_tile_instances)
-    list(APPEND DEVICE_INSTANCES device_grouped_conv_bwd_weight_tile_instances)
-    list(APPEND DEVICE_INSTANCES device_grouped_conv_bwd_data_tile_instances)
+    if(NOT CK_TILE_DISPATCHER)
+      list(APPEND DEVICE_INSTANCES device_grouped_conv_fwd_tile_instances)
+      list(APPEND DEVICE_INSTANCES device_grouped_conv_bwd_weight_tile_instances)
+      list(APPEND DEVICE_INSTANCES device_grouped_conv_bwd_data_tile_instances)
+    endif()
   endif()
 endif()
 

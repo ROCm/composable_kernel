@@ -9,7 +9,11 @@
 
 #include "ck_tile/builder/testing/conv/ck_tile.hpp"
 #include "ck_tile/host/device_prop.hpp"
+#ifdef CK_TILE_DISPATCHER
+#include "profiler/grouped_convolution_backward_data_tile_dispatcher_algs.hpp"
+#else
 #include "profiler/grouped_convolution_backward_data_tile_algs.hpp"
+#endif
 #include "profiler/tile_profiler_utils.hpp"
 #include "profiler/profiler_arg_utils.hpp"
 

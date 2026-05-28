@@ -8,7 +8,11 @@
 
 #include "ck_tile/builder/testing/conv/ck_tile.hpp"
 #include "ck_tile/host/device_prop.hpp"
+#ifdef CK_TILE_DISPATCHER
+#include "profiler/grouped_convolution_forward_tile_dispatcher_algs.hpp"
+#else
 #include "profiler/grouped_convolution_forward_tile_algs.hpp"
+#endif
 #include "profiler/tile_profiler_utils.hpp"
 
 #include "profiler_operation_registry.hpp"
@@ -210,20 +214,20 @@ int profile_grouped_conv_fwd_tile(int argc, char* argv[])
             if(data_type == ConvDataType::F32_F32_F32)
             {
                 constexpr auto SIGNATURE = ckp::SIGNATURE_NGCHW_FP32_FWD;
-                return call_profiler<SIGNATURE>(ckp::parse_conv_args<SIGNATURE>(10, argv),
-                                                time_kernel);
+                return call_profiler<SIGNATURE>(
+                    ckp::parse_conv_args<SIGNATURE>(10, argv), do_verification, time_kernel);
             }
             else if(data_type == ConvDataType::F16_F16_F16)
             {
                 constexpr auto SIGNATURE = ckp::SIGNATURE_NGCHW_FP16_FWD;
-                return call_profiler<SIGNATURE>(ckp::parse_conv_args<SIGNATURE>(10, argv),
-                                                time_kernel);
+                return call_profiler<SIGNATURE>(
+                    ckp::parse_conv_args<SIGNATURE>(10, argv), do_verification, time_kernel);
             }
             else if(data_type == ConvDataType::BF16_BF16_BF16)
             {
                 constexpr auto SIGNATURE = ckp::SIGNATURE_NGCHW_BF16_FWD;
-                return call_profiler<SIGNATURE>(ckp::parse_conv_args<SIGNATURE>(10, argv),
-                                                time_kernel);
+                return call_profiler<SIGNATURE>(
+                    ckp::parse_conv_args<SIGNATURE>(10, argv), do_verification, time_kernel);
             }
         }
     }

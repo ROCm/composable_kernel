@@ -278,6 +278,7 @@ def generate_cpp_header(specs: Dict[str, Any], output_path: Path):
         "compv3": "CompV3",
         "compv4": "CompV4",
         "compv5": "CompV5",
+        "compv6": "CompV6",
         "preshufflev1": "PreShuffleV1",
         "preshufflev2": "PreShuffleV2",
     }

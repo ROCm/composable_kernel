@@ -29,6 +29,7 @@ inline int encode_pipeline(Pipeline p)
     case Pipeline::CompV5: return 2;
     case Pipeline::Mem: return 3;
     case Pipeline::PreShuffleV2: return 4;
+    case Pipeline::CompV6: return 5;
     default: return 0;
     }
 }
