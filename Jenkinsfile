@@ -849,7 +849,7 @@ def cmake_build(Map conf=[:]){
                     if (params.RUN_ROCM_CK_TESTS) {
                         sh 'ninja check-rocm-ck'
                     }
-                    if(params.BUILD_PACKAGES){
+                    if(params.BUILD_PACKAGES || params.BUILD_INSTANCES_ONLY){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
                         sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
@@ -1074,39 +1074,42 @@ def process_results(Map conf=[:]){
                         // unstash deb packages
                         try{
                             unstash "lib_package"
+                            sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                         }
                         catch(Exception err){
                             echo "could not locate lib_package."
                         }
-                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                     }
                     if (params.BUILD_PACKAGES){
                         // unstash deb packages
                         try{
                             unstash "profiler_package_gfx90a"
+                            sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-ckprofiler*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                         }
                         catch(Exception err){
                             echo "could not locate profiler_package_gfx90a."
                         }
                         try{
                             unstash "profiler_package_gfx942"
+                            sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-ckprofiler*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                         }
                         catch(Exception err){
                             echo "could not locate profiler_package_gfx942."
                         }
                         try{
                             unstash "profiler_package_gfx950"
+                            sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-ckprofiler*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                         }
                         catch(Exception err){
                             echo "could not locate profiler_package_gfx950."
                         }
                         try{
                             unstash "profiler_package_gfx12"
+                            sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-ckprofiler*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                         }
                         catch(Exception err){
                             echo "could not locate profiler_package_gfx12."
                         }
-                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-ckprofiler*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                     }
                     else{
                         // unstash perf files to master
@@ -2035,16 +2038,17 @@ pipeline {
                         expression { params.BUILD_INSTANCES_ONLY.toBoolean() && !params.RUN_FULL_QA.toBoolean() }
                     }
                     agent{ label rocmnode("gfx942") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                            -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
+                                            -DGPU_ARCHS="gfx908;gfx90a;gfx942;gfx950;gfx10-3-generic;gfx11-generic;gfx12-generic" \
+                                            -D CMAKE_BUILD_TYPE=Release .. && ninja -j64 """
+                    }
                     steps{
                         deleteDir()
-                        script {
-                            def execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                                -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
-                                                -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
-                                                -D CMAKE_BUILD_TYPE=Release .. && ninja -j64 """
-
-                            buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", build_type: 'Release', execute_cmd: execute_args)
-                        }
+                        buildHipClangJobAndReboot(setup_args: setup_args,  build_cmd: "", build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
