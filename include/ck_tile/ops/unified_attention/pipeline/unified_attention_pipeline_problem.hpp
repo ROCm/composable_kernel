@@ -53,5 +53,11 @@ struct UnifiedAttentionPipelineProblem
     static constexpr bool kHasDropout       = Traits::kHasDropout;
     static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
+    // Learnable per-Q-head attention sink. False reproduces the classic
+    // no-sink softmax; true seeds the online softmax denominator with one
+    // virtual key per Q head (GPT-OSS / vLLM convention). Threaded through
+    // from `TileUnifiedAttentionTraits::kHasSink` so a single trait knob
+    // controls both the pipeline init and the kernel-side pointer arithmetic.
+    static constexpr bool kHasSink          = Traits::kHasSink;
 };
 } // namespace ck_tile

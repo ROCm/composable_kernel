@@ -248,7 +248,8 @@ template <KernelVariant V,
           unified_attention_args::data_type_enum DataType,
           bool IsMasking,
           ck_tile::index_t kPageSize_ = 0,
-          bool IsLocal_               = false>
+          bool IsLocal_               = false,
+          bool kHasSink_              = false>
 struct unified_attention_kernel_traits
 {
     using cfg = variant_config<V>;
@@ -257,6 +258,7 @@ struct unified_attention_kernel_traits
     static constexpr auto             date_type  = DataType;
     static constexpr bool             is_masking = IsMasking;
     static constexpr bool             is_local   = IsLocal_;
+    static constexpr bool             has_sink   = kHasSink_;
     static constexpr KernelVariant    variant    = V;
     static constexpr ck_tile::index_t kPageSize  = kPageSize_;
 
@@ -315,9 +317,10 @@ struct unified_attention_kernel_traits
                                                               unified_attention_warp_gemm_shape,
                                                               true>; // IsVLayoutRowMajor
 
-    using unified_attention_traits = TileUnifiedAttentionTraits<true,  // kPadSeqLenQ_
-                                                                false, // kPadHeadDimQ
-                                                                -1>;   // kBlockPerCu
+    using unified_attention_traits = TileUnifiedAttentionTraits<true,       // kPadSeqLenQ_
+                                                                false,      // kPadHeadDimQ
+                                                                -1,         // kBlockPerCu
+                                                                kHasSink_>; // kHasSink
     using unified_attention_mask   = GenericAttentionMask<IsMasking, IsLocal_>;
 
     using unified_attention_pipeline_problem =
@@ -441,21 +444,27 @@ std::pair<bool, float> unified_attention_kernel_dispatch(const unified_attention
 
 } // namespace ck_tile
 
-// One-line instantiation per (V, DataType, IsMasking, PageSize, IsLocal)
-// combination. Each instance .cpp consists of exactly one of these calls.
-// PAGE_SIZE_ = 0 is the legacy runtime-page-size instance (catch-all
-// fallback). IS_LOCAL_ = false is the non-SWA path (causal / no-mask);
-// IS_LOCAL_ = true compiles the SWA-capable kernel that honours both the
-// left and right window bounds inside the mask.
-#define INST_UNIFIED_ATTENTION_DISPATCH_PS_LOCAL(VARIANT_, DTYPE_, IS_MASK_, PAGE_SIZE_,     \
-                                                 IS_LOCAL_)                                  \
+// One-line instantiation per (V, DataType, IsMasking, PageSize, IsLocal,
+// kHasSink) combination. Each instance .cpp consists of exactly one of
+// these calls. PAGE_SIZE_ = 0 is the legacy runtime-page-size instance
+// (catch-all fallback). IS_LOCAL_ = false is the non-SWA path (causal /
+// no-mask); IS_LOCAL_ = true compiles the SWA-capable kernel that honours
+// both the left and right window bounds inside the mask. HAS_SINK_ = true
+// compiles the sink-aware kernel which seeds the online softmax with a
+// per-Q-head virtual key (GPT-OSS / vLLM convention); HAS_SINK_ = false is
+// the classic no-sink softmax. No instance file flips HAS_SINK_ yet — the
+// trait knob exists so the pipeline can introduce an `if constexpr
+// (kHasSink)` branch without changing codegen on the existing instances.
+#define INST_UNIFIED_ATTENTION_DISPATCH_PS_LOCAL_SINK(VARIANT_, DTYPE_, IS_MASK_, PAGE_SIZE_,\
+                                                      IS_LOCAL_, HAS_SINK_)                  \
     template <>                                                                              \
     std::pair<bool, float> unified_attention_kernel_dispatch<                                \
         unified_attention_kernel_traits<KernelVariant::VARIANT_,                             \
                                         unified_attention_args::data_type_enum::DTYPE_,      \
                                         IS_MASK_,                                            \
                                         PAGE_SIZE_,                                          \
-                                        IS_LOCAL_>>(const unified_attention_args& args,      \
+                                        IS_LOCAL_,                                           \
+                                        HAS_SINK_>>(const unified_attention_args& args,      \
                                                     const stream_config& config)             \
     {                                                                                        \
         using Traits = unified_attention_kernel_traits<                                      \
@@ -463,14 +472,22 @@ std::pair<bool, float> unified_attention_kernel_dispatch(const unified_attention
             unified_attention_args::data_type_enum::DTYPE_,                                  \
             IS_MASK_,                                                                        \
             PAGE_SIZE_,                                                                      \
-            IS_LOCAL_>;                                                                      \
+            IS_LOCAL_,                                                                       \
+            HAS_SINK_>;                                                                      \
         return std::make_pair(true,                                                          \
             unified_attention_kernel_launch<typename Traits::kernel,                         \
                                             Traits::kUseDecodeGrid>(args, config));          \
     }
 
 // Backward-compat wrappers — every existing instance .cpp uses one of these
-// and defaults to `IsLocal = false` (the non-SWA path).
+// and defaults to `IsLocal = false` (the non-SWA path) and `kHasSink = false`
+// (the classic softmax). Each wrapper forwards through the canonical 6-arg
+// _PS_LOCAL_SINK form, so adding a sink instance only requires the new macro.
+#define INST_UNIFIED_ATTENTION_DISPATCH_PS_LOCAL(VARIANT_, DTYPE_, IS_MASK_, PAGE_SIZE_,     \
+                                                 IS_LOCAL_)                                  \
+    INST_UNIFIED_ATTENTION_DISPATCH_PS_LOCAL_SINK(                                           \
+        VARIANT_, DTYPE_, IS_MASK_, PAGE_SIZE_, IS_LOCAL_, false)
+
 #define INST_UNIFIED_ATTENTION_DISPATCH_PS(VARIANT_, DTYPE_, IS_MASK_, PAGE_SIZE_)            \
     INST_UNIFIED_ATTENTION_DISPATCH_PS_LOCAL(VARIANT_, DTYPE_, IS_MASK_, PAGE_SIZE_, false)
 
