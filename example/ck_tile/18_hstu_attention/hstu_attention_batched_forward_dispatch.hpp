@@ -57,6 +57,7 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
         kHasDropout,
         kUseCausal,
         kUseSoftmax,
+        false, // kStoreLSE
         HstuAttentionTileSetting>;
 
     static void Run(HstuAttentionNoGroupFwdParams& param, hipStream_t stream)

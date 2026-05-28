@@ -64,6 +64,7 @@ struct group_forward_splitkv_causal_softmax_bias_dropout_dispatch
         kHasDropout,
         kUseCausal,
         kUseSoftmax,
+        false, // kStoreLSE
         HstuAttentionFwdTileSetting>;
 
     using OaccDataType = HstuAttentionFwdTypeConfig<InOutDataType>::OaccDataType;
@@ -77,6 +78,7 @@ struct group_forward_splitkv_causal_softmax_bias_dropout_dispatch
                                                                ODataType,
                                                                true /* kIsJagged */,
                                                                kUseSoftmax,
+                                                               false, // kStoreLSE
                                                                HstuAttentionCombineTileSetting,
                                                                kMaxSplits>;
 
