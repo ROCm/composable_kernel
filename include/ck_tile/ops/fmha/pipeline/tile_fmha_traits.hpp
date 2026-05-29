@@ -81,8 +81,11 @@ struct TileFmhaBatchPrefillTraits : public TileFmhaTraits<kPadSeqLenQ_,
     static constexpr index_t kPageBlockSize = kPageBlockSize_;
     static constexpr auto kKVLoadMode       = kKVLoadMode_;
     static_assert(kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT ||
-                      kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT,
-                  "Batch prefill only supports vectorized or linear KV cache layout.");
+                      kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT ||
+                      kKVMemoryLayout ==
+                          BlockAttentionKVCacheMemoryLayoutEnum::VEC_K_COL_V_LAYOUT,
+                  "Batch prefill only supports vectorized, linear, or vec_k_col_v KV cache "
+                  "layouts.");
     static_assert(kPageBlockSize > 0 && ((kPageBlockSize & (kPageBlockSize - 1)) == 0),
                   "kPageBlockSize should be a power of 2 to support efficient page-based KV cache "
                   "addressing.");

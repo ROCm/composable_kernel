@@ -126,8 +126,9 @@ CK_TILE_DEVICE void load_physical_pages(const index_t* page_idx,
 //   - kVectorSize: Vector size for vectorized layout (e.g., 8 for fp8)
 //
 // Memory layout for V cache:
-//   LINEAR_LAYOUT:     [page, token_in_page, head_dim]
-//   VECTORIZED_LAYOUT: [page, token_in_page/kVectorSize, head_dim, kVectorSize]
+//   LINEAR_LAYOUT:      [page, token_in_page, head_dim]               (stride_token = NumHeads*HeadDim)
+//   VECTORIZED_LAYOUT:  [page, token_in_page/kVectorSize, head_dim, kVectorSize]
+//   VEC_K_COL_V_LAYOUT: [page, head_dim, token_in_page]               (stride_token = 1, behaves like LINEAR)
 //
 template <typename IndexArrayType,
           typename CoordVecType,
@@ -310,6 +311,13 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
     static constexpr index_t kAlignmentK = Policy::template GetAlignmentK<Problem>();
     static constexpr index_t kAlignmentV = []() {
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+            return Policy::template GetAlignmentV<Problem>();
+        else if constexpr(kKVMemoryLayout ==
+                          BlockAttentionKVCacheMemoryLayoutEnum::VEC_K_COL_V_LAYOUT)
+            // V is paged with PageSize tokens per page (always fully populated in
+            // memory). The pad-seqlen-K guard from the generic ColumnMajor branch is
+            // unnecessary here: vectorized loads along the contiguous PageSize dim never
+            // cross page boundaries, so we keep the same alignment as VECTORIZED_LAYOUT.
             return Policy::template GetAlignmentV<Problem>();
         else
             return kPadSeqLenK ? 1 : Policy::template GetAlignmentV<Problem>();

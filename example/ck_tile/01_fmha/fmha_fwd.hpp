@@ -621,6 +621,10 @@ struct fmha_batch_prefill_args
     ck_tile::BlockAttentionKVCacheMemoryLayoutEnum
         kv_memory_layout;                                          // KV memory layout (SGLang/vLLM)
     ck_tile::BlockAttentionKVCacheLookupTableEnum kv_lookup_table; // lookup table layout selector
+    // V tensor logical layout selector. true = RowMajor V (HeadDim contiguous), false =
+    // ColumnMajor V (PageSize contiguous, decode-aligned). Used by the auto-generated
+    // dispatcher to pick a kernel variant whose VLayout matches V's physical layout.
+    bool is_v_rowmajor = true;
     void* kv_indptr;                           // SGLang: prefix-sum; vLLM: unused
     void* kv_page_indices;                     // SGLang: 1D page list; vLLM: block_table 2D
     void* kv_last_page_lens;                   // SGLang: last page lengths; vLLM: unused

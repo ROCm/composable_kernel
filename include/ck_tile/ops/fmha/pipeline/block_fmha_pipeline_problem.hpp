@@ -174,17 +174,26 @@ struct BlockFmhaBatchPrefillPipelineProblem
     static constexpr auto kKVLookupTable  = Traits_::kKVLookupTable;
     static constexpr bool kIsVectorizedLayout =
         kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT;
+    // K is vectorized in both VECTORIZED_LAYOUT and VEC_K_COL_V_LAYOUT (only V differs).
+    static constexpr bool kIsKVectorized =
+        kIsVectorizedLayout ||
+        kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::VEC_K_COL_V_LAYOUT;
 
     static_assert(BlockFmhaShape_::kQKHeaddim % kVectorSize == 0,
                   "kQKHeaddim must be divisible by kVectorSize");
-    static_assert(!(kPageBlockSize == 1 && kIsVectorizedLayout),
+    static_assert(!(kPageBlockSize == 1 && kIsKVectorized),
                   "page_size=1 only supports linear KV cache layout");
-    static_assert(!kIsVectorizedLayout || kPageBlockSize % kVectorSize == 0,
-                  "kPageBlockSize must be divisible by kVectorSize for vectorized layout");
+    static_assert(!kIsKVectorized || kPageBlockSize % kVectorSize == 0,
+                  "kPageBlockSize must be divisible by kVectorSize for vectorized K layout");
     static_assert(kIsGroupMode_, "Batch prefill requires group mode");
 
-    static_assert(BlockFmhaShape_::IsVLayoutRowMajor,
-                  "Batch prefill kernel requires RowMajor VLayout");
+    // RowMajor V is the historical default. The decode-aligned VEC_K_COL_V_LAYOUT
+    // explicitly opts into ColumnMajor V (4D [Pages, Heads, HeadDim, PageSize]).
+    static_assert(
+        BlockFmhaShape_::IsVLayoutRowMajor ||
+            kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::VEC_K_COL_V_LAYOUT,
+        "Batch prefill kernel requires RowMajor VLayout (or VEC_K_COL_V_LAYOUT for "
+        "ColumnMajor V).");
 };
 
 template <typename QDataType_,

@@ -21,11 +21,23 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsyncDefaultPolicy
                                                      /* NumPrefetchK = */ 3,
                                                      /* NumPrefetchV = */ 3>;
 
+    // VEC_K_COL_V_LAYOUT shares K's vectorized layout with VECTORIZED_LAYOUT and has the
+    // same logical V tile semantics (HeadDim outer, SeqK contiguous), so it routes through
+    // the same policy specializations for V alignment / LDS layout / SmemKPack / V dram
+    // tile distribution.
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr bool kUseVectorizedVPolicy()
+    {
+        return Problem::kKVMemoryLayout ==
+                   BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT ||
+               Problem::kKVMemoryLayout ==
+                   BlockAttentionKVCacheMemoryLayoutEnum::VEC_K_COL_V_LAYOUT;
+    }
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentV()
     {
-        if constexpr(Problem::kKVMemoryLayout ==
-                     BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
+        if constexpr(kUseVectorizedVPolicy<Problem>())
         {
             using VDataType                 = remove_cvref_t<typename Problem::VDataType>;
             constexpr index_t kDwordx4Bytes = 16;
@@ -40,10 +52,9 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsyncDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
     {
-        if constexpr(Problem::kKVMemoryLayout ==
-                     BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
+        if constexpr(kUseVectorizedVPolicy<Problem>())
         {
-            // For VECTORIZED_LAYOUT, kKPack should match GEMM's kKPerThread
+            // For VECTORIZED_LAYOUT/VEC_K_COL_V, kKPack should match GEMM's kKPerThread
             // to ensure correct LDS access pattern
             constexpr auto gemm_k_decomp  = GetGemmKDecomposition<Problem>();
             constexpr index_t kKPerThread = gemm_k_decomp.template at<1>();
@@ -58,8 +69,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsyncDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetSingleSmemElementSpaceSize()
     {
-        if constexpr(Problem::kKVMemoryLayout ==
-                     BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
+        if constexpr(kUseVectorizedVPolicy<Problem>())
         {
             // For VECTORIZED_LAYOUT, we need to use our GetSmemKPackV for V size calculation
             constexpr index_t SingleKSize = [&]() {
@@ -107,8 +117,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsyncDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
     {
-        if constexpr(Problem::kKVMemoryLayout ==
-                     BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
+        if constexpr(kUseVectorizedVPolicy<Problem>())
         {
             using VDataType                = remove_cvref_t<typename Problem::VDataType>;
             constexpr index_t Banks        = get_n_lds_banks();
@@ -172,10 +181,10 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsyncDefaultPolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeVDramTileDistribution()
     {
-        if constexpr(Problem::kKVMemoryLayout ==
-                     BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
+        if constexpr(kUseVectorizedVPolicy<Problem>())
         {
-            // For VECTORIZED_LAYOUT, use column-major distribution (K direction vector load)
+            // For VECTORIZED_LAYOUT / VEC_K_COL_V, use column-major distribution
+            // (K direction vector load).
             // The K decomposition must match GEMM's BWarpDstrEncoding to ensure correct LDS access
             constexpr index_t kBlockSize = Problem::kBlockSize;
             constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;

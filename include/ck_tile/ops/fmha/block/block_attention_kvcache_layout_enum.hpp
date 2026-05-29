@@ -14,10 +14,17 @@ namespace ck_tile {
 // - LINEAR_LAYOUT:
 //   K: [NumBlocks, PageSize, NumHeads, HeadDim]
 //   V: [NumBlocks, PageSize, NumHeads, HeadDim]
+// - VEC_K_COL_V_LAYOUT (decode-aligned, hybrid):
+//   K: [NumBlocks, NumHeads, HeadDim/kVectorSize, PageSize, kVectorSize]   (same as VECTORIZED)
+//   V: [NumBlocks, NumHeads, HeadDim, PageSize]                            (4D, ColumnMajor)
+//   This matches the layout produced by aiter's reshape_and_cache_kernel and consumed
+//   by the decode paged-attention kernel, so prefill can ingest the live KV cache
+//   without an intermediate reshape.
 enum class BlockAttentionKVCacheMemoryLayoutEnum
 {
-    VECTORIZED_LAYOUT = 0,
-    LINEAR_LAYOUT     = 1,
+    VECTORIZED_LAYOUT  = 0,
+    LINEAR_LAYOUT      = 1,
+    VEC_K_COL_V_LAYOUT = 2,
 };
 
 // KV cache lookup table layout selector.

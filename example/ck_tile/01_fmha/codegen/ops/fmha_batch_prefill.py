@@ -50,10 +50,15 @@ K0_MAX_SUBMAX_MAP = {32: 32, 64: 64, 96: 128, 128: 128, 256: 256}
 
 SUPPORTED_PAGE_SIZE = [1, 16, 64, 1024]
 SUPPORTED_KV_MEMORY_LAYOUT = ["vectorized", "linear"]
+# vec_k_col_v: K is 5D vectorized (same as "vectorized") and V is 4D ColumnMajor
+# [NumBlocks, NumHeads, HeadDim, PageSize] (decode-aligned). Generated as an
+# additional gated variant for fp8bf16 PER_TOKEN_HEAD only; see get_pipelines().
+SUPPORTED_KV_MEMORY_LAYOUT_FP8_PTH_EXTRA = ["vec_k_col_v"]
 SUPPORTED_KV_LOOKUP_TABLE = ["vllm", "sglang"]
 KV_MEMORY_LAYOUT_ENUM_MAP = {
     "vectorized": "ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT",
     "linear": "ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::LINEAR_LAYOUT",
+    "vec_k_col_v": "ck_tile::BlockAttentionKVCacheMemoryLayoutEnum::VEC_K_COL_V_LAYOUT",
 }
 KV_LOOKUP_TABLE_ENUM_MAP = {
     "vllm": "ck_tile::BlockAttentionKVCacheLookupTableEnum::VLLM_BLOCK_TABLE_2D",
@@ -746,6 +751,31 @@ class KernelComponentFactory:
                 if sink == "t" and mask in ("no", "s_no"):
                     continue
                 pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, sink, kv_memory_layout, kv_lookup_table))  # fmt: skip
+
+            # Decode-aligned VEC_K_COL_V variants: 5D vectorized K + 4D ColumnMajor V
+            # [NumBlocks, NumHeads, HeadDim, PageSize]. Gated to PER_TOKEN_HEAD only.
+            # Both lookup tables are emitted because the wrapper picks VLLM_BLOCK_TABLE_2D
+            # whenever a block_table is supplied (decode/prefill production path) and falls
+            # back to SGLANG_PAGE_TABLE_1D otherwise. Pipeline runs with vlayout="col";
+            # existing else-branches already skip the RowMajor V shuffle.
+            for (
+                logits,
+                mask,
+                bias,
+                sink,
+                kv_memory_layout,
+                kv_lookup_table,
+            ) in itertools.product(
+                ["t", "f"],
+                get_mask_map(mask_impl).keys(),
+                ["no"],
+                ["t", "f"],
+                SUPPORTED_KV_MEMORY_LAYOUT_FP8_PTH_EXTRA,
+                SUPPORTED_KV_LOOKUP_TABLE,
+            ):
+                if sink == "t" and mask in ("no", "s_no"):
+                    continue
+                pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "t", "t", "t", logits, bias, "f", "f", "per_token_head", mask, sink, kv_memory_layout, kv_lookup_table))  # fmt: skip
         else:
             assert False
         return pipelines
@@ -869,7 +899,13 @@ def get_fwd_blobs(
                     elif receipt == 200:
                         cond = dtype in ["fp16", "bf16", "fp8bf16"]
                         cond &= mode == "group"
-                        cond &= pipeline.F_vlayout == "row"
+                        # vlayout="row" everywhere except the decode-aligned
+                        # vec_k_col_v variant (fp8bf16 PER_TOKEN_HEAD only) which
+                        # uses vlayout="col"; see get_pipelines() above.
+                        cond &= (
+                            pipeline.F_vlayout == "row"
+                            or pipeline.F_kv_memory_layout == "vec_k_col_v"
+                        )
                         if not cond:
                             continue
                     # aiter::mha_batch_prefill C++ api integration

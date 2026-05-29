@@ -962,10 +962,14 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         }();
         const auto k_dram = [&]() {
             if constexpr(kKVMemoryLayout ==
-                         BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT)
+                             BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT ||
+                         kKVMemoryLayout ==
+                             BlockAttentionKVCacheMemoryLayoutEnum::VEC_K_COL_V_LAYOUT)
             {
                 // Vectorized K Layout: [NumPages, D/kVectorSize, S, kVectorSize]
                 // Logical View for Pipeline: (TotalSeqK, D)
+                // VEC_K_COL_V_LAYOUT shares K's vectorized layout with VECTORIZED_LAYOUT;
+                // only V differs (4D ColumnMajor; see v_dram below).
 
                 // Define the naive physical view with 4D shape: (NumPages, HeadDim/kVectorSize,
                 // PageBlockSize, kVectorSize)
@@ -1056,6 +1060,38 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                                                                kargs.page_block_size / kVectorSize,
                                                                kVectorSize))), // TotalSeqK
                     make_tuple(sequence<2>{}, sequence<0, 1, 3>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+
+                constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;
+                return pad_tensor_view(
+                    v_dram_final,
+                    make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kK1>{}),
+                    sequence<kPadHeadDimV, kPadSeqLenK_>{});
+            }
+            else if constexpr(kKVMemoryLayout ==
+                              BlockAttentionKVCacheMemoryLayoutEnum::VEC_K_COL_V_LAYOUT)
+            {
+                // ColumnMajor V Layout (decode-aligned): [NumPages, NumHeads, HeadDim, PageSize]
+                // After per-head pointer hoist (i_kv_head * nhead_stride_v): [NumPages, HeadDim,
+                // PageSize] with HeadDim stride = page_block_size and PageSize contiguous.
+                // The `stride_v` kargs field carries the per-token stride (= 1 here, used by the
+                // V offset transform for the SeqK GEMM); HeadDim stride is computed locally.
+                // Logical View for Pipeline: (D, TotalSeqK)
+                const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                    v_ptr,
+                    make_tuple(kargs.num_total_pages, kargs.hdim_v, kargs.page_block_size),
+                    make_tuple(kargs.batch_stride_v, kargs.page_block_size, 1),
+                    number<FmhaPipeline::kAlignmentV>{},
+                    number<1>{});
+
+                // Merge to (D, TotalSeqK):
+                // physical (Page, D, S) -> logical (D, TotalSeqK = Page*S)
+                auto v_dram_final = transform_tensor_view(
+                    v_dram_naive,
+                    make_tuple(make_pass_through_transform(kargs.hdim_v),
+                               make_merge_transform(
+                                   make_tuple(kargs.num_total_pages, kargs.page_block_size))),
+                    make_tuple(sequence<1>{}, sequence<0, 2>{}),
                     make_tuple(sequence<0>{}, sequence<1>{}));
 
                 constexpr bool kPadSeqLenK_ = kUseAsyncCopy ? kPadSeqLenK : true;
@@ -1314,8 +1350,13 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 
         BlockIndices block_indices{i_batch, i_nhead, i_nhead / kargs.nhead_ratio_qk};
 
+        // VEC_K_COL_V_LAYOUT shares K's vectorized layout (per-token K stride = kVectorSize),
+        // so stride_k_for_pipeline matches VECTORIZED_LAYOUT. V differs: in VEC_K_COL_V the
+        // ColumnMajor V is contiguous along PageSize, so the per-token V stride is 1 — the
+        // wrapper passes that through `kargs.stride_v` and we route it via the LINEAR else.
         const index_t stride_k_for_pipeline =
-            kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT
+            (kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::VECTORIZED_LAYOUT ||
+             kKVMemoryLayout == BlockAttentionKVCacheMemoryLayoutEnum::VEC_K_COL_V_LAYOUT)
                 ? kVectorSize
                 : kargs.stride_k;
         const index_t stride_v_for_pipeline =
