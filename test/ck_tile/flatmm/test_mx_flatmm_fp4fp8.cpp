@@ -8,8 +8,15 @@
 // FP4 x FP8 -> FP16
 // N_Tile = 256, K must be a multiple of lcm(32, 8) = 32.
 // clang-format off
-using FP4FP8Types = ::testing::Types<
-    std::tuple<FP4, FP8, FP16, MXFlatmm_GFX950_FP4FP8_Traits>
+using FP4FP8Types = std::conditional_t<
+    GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX1250,
+    ::testing::Types<
+        std::tuple<FP4, FP8, FP16, MXFlatmm_GFX1250_FP4FP8_Traits>,
+        std::tuple<FP4, FP8, FP16, MXFlatmmTDM_GFX1250_FP4FP8_Traits>
+    >,
+    ::testing::Types<
+        std::tuple<FP4, FP8, FP16, MXFlatmm_GFX950_FP4FP8_Traits>
+    >
 >;
 // clang-format on
 

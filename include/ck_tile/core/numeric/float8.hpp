@@ -10,10 +10,7 @@
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include <stdint.h>
 #include <type_traits>
-
-#if CK_TILE_USE_CUSTOM_DATA_TYPE
 #include "ck_tile/core/numeric/math.hpp"
-#endif
 
 #pragma once
 

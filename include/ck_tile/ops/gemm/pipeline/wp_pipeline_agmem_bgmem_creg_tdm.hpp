@@ -115,6 +115,9 @@ struct WeightPreshufflePipelineAGmemBGmemCRegTDM
     static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;
     static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
 
+    static constexpr index_t MThreadPerXdl = BlockGemmShape::WarpTile::at(number<0>{});
+    static constexpr index_t NThreadPerXdl = BlockGemmShape::WarpTile::at(number<1>{});
+
     static constexpr index_t MIterPerWarp =
         kMPerBlock / BlockGemmShape::BlockWarps::at(I0) / BlockGemmShape::WarpTile::at(I0);
     static constexpr index_t NIterPerWarp =
@@ -193,6 +196,65 @@ struct WeightPreshufflePipelineAGmemBGmemCRegTDM
     {
         constexpr index_t smem_size = PipelinePolicy::template GetSmemSize<Problem>();
         return DoubleSmemBuffer ? 2 * smem_size : smem_size;
+    }
+
+    template <typename KernelArgs>
+    CK_TILE_DEVICE static auto MakeScaleABlockWindow(const KernelArgs& kargs,
+                                                     const index_t block_idx_m)
+    {
+        static constexpr int BlockScaleSize = 32;
+
+        const auto&& scale_packs_m = integer_divide_ceil(kargs.M, MThreadPerXdl);
+        const auto&& scale_packs_k =
+            kargs.K / BlockScaleSize / 4; // 4 is because scale tensor is
+                                          // int32_t data type, each int32_t
+                                          // exists 4 fp8 scale values
+
+        const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(scale_packs_m, scale_packs_k, MThreadPerXdl));
+        const auto scale_a_desc = transform_tensor_descriptor(
+            scale_a_naive_desc,
+            make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
+                       make_pass_through_transform(scale_packs_k)),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+        const auto& scale_a_tensor_view = make_tensor_view<address_space_enum::global>(
+            reinterpret_cast<const int32_t*>(kargs.scale_m_ptr.ptr), scale_a_desc);
+
+        return make_tile_window(
+            scale_a_tensor_view,
+            make_tuple(number<kMPerBlock>{}, number<kKPerBlock / (BlockScaleSize * 4)>{}),
+            {block_idx_m, 0});
+    }
+
+    template <typename KernelArgs>
+    CK_TILE_DEVICE static auto MakeScaleBBlockWindow(const KernelArgs& kargs,
+                                                     const index_t block_idx_n)
+    {
+        static constexpr int BlockScaleSize = 32;
+
+        //  XXX: This is specific to BaseWeightPreshufflePipelineAGmemBGmemCRegTDM
+        const auto&& scale_packs_n = integer_divide_ceil(kargs.N, NThreadPerXdl);
+        const auto&& scale_packs_k =
+            kargs.K / BlockScaleSize / 4; // 4 is because scale tensor is
+                                          // int32_t data type, each int32_t
+                                          // exists 4 fp8 scale values
+
+        const auto scale_b_naive_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(scale_packs_n, scale_packs_k, NThreadPerXdl));
+        const auto scale_b_desc = transform_tensor_descriptor(
+            scale_b_naive_desc,
+            make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
+                       make_pass_through_transform(scale_packs_k)),
+            make_tuple(sequence<0, 2>{}, sequence<1>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
+        const auto& scale_b_tensor_view = make_tensor_view<address_space_enum::global>(
+            reinterpret_cast<const int32_t*>(kargs.scale_n_ptr.ptr), scale_b_desc);
+
+        return make_tile_window(
+            scale_b_tensor_view,
+            make_tuple(number<kNPerBlock>{}, number<kKPerBlock / (BlockScaleSize * 4)>{}),
+            {block_idx_n, 0});
     }
 
     CK_TILE_DEVICE static constexpr auto HotLoopScheduler()

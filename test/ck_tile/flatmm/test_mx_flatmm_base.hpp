@@ -19,6 +19,46 @@
 
 #include "mx_flatmm.hpp"
 
+template <ck_tile::index_t NLane, typename dtype>
+auto preShuffleWeight(ck_tile::HostTensor<dtype>& src)
+{
+    auto src_lengths          = src.get_lengths();
+    const int K               = src_lengths[0];
+    const int N               = src_lengths[1];
+    constexpr int packed_size = ck_tile::numeric_traits<dtype>::PackedSize;
+
+    // fp4/fp6:32 or fp8:16
+    int KPack = std::is_same_v<dtype, ck_tile::pk_fp6x16_t> ? 32 : 16 * packed_size;
+
+    int KLane = ck_tile::get_warp_size() / NLane;
+    int K0    = K / (KLane * KPack);
+
+    ck_tile::HostTensor<dtype> shuffled(ck_tile::HostTensorDescriptor({N * K}, {1}));
+
+    // K -> K0 KLane KPack
+    // N -> N0 NLane
+    // N, K -> N0 K0 KLane NLane KPack
+    for(int n = 0; n < N; ++n)
+    {
+        for(int k = 0; k < K; k += packed_size)
+        {
+            int n0 = n / NLane;
+            int n1 = n % NLane;
+
+            int k0    = k / (KLane * KPack);
+            int tempk = k % (KLane * KPack);
+            int k1    = tempk / KPack;
+            int k2    = tempk % KPack;
+
+            int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
+                              k1 * KPack * NLane + n1 * KPack + k2;
+
+            shuffled(outputIndex) = src(k, n);
+        }
+    }
+    return shuffled;
+}
+
 // Base class for MX Flatmm unit tests.
 //
 // Tuple layout: <ADataType, BDataType, CDataType, MXFlatmmArchTraits>
@@ -123,7 +163,8 @@ class TestMXFlatmmBase : public ::testing::Test
         }
 
         // Preshuffle B and scales
-        const auto b_shuffled_host  = MXFlatmmArchTraits::preShuffleWeight(b_origin_host);
+        const auto b_shuffled_host =
+            preShuffleWeight<MXFlatmmArchTraits::GetNLane()>(b_origin_host);
         const auto scale_a_shuffled = MXFlatmmArchTraits::template preShuffleScale<true>(scale_a);
         const auto scale_b_shuffled = MXFlatmmArchTraits::template preShuffleScale<false>(scale_b);
 

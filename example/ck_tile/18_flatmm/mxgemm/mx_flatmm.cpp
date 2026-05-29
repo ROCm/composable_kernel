@@ -10,6 +10,7 @@
 #include <tuple>
 #include <type_traits>
 
+#include "ck_tile/core/numeric/pk_fp4.hpp"
 #include "ck_tile/host.hpp"
 #include "mx_flatmm.hpp"
 
@@ -143,11 +144,11 @@ float invoke_mx_flatmm(ck_tile::DeviceMem& a_dev_buf,
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "32", "m dimension")
-        .insert("n", "512", "n dimension")
-        .insert("k", "256", "k dimension")
+    arg_parser.insert("m", "512", "m dimension")
+        .insert("n", "1024", "n dimension")
+        .insert("k", "1024", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
-        .insert("b_layout", "C", "B tensor data layout - Row by default")
+        .insert("b_layout", "C", "B tensor data layout - Col by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_b", "0", "Tensor B stride")
@@ -155,14 +156,16 @@ auto create_args(int argc, char* argv[])
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert("mx_prec",
                 "fp4xfp4",
-                "data type for activation and weight, support: fp4xfp4, fp6xfp6, fp8xfp8, fp8xfp4 "
-                "and fp4xfp8")
-        .insert("warmup", "50", "number of iterations before benchmark the kernel")
-        .insert("repeat", "100", "number of iterations to benchmark the kernel")
+                "data type for activation and weight, support: fp4xfp4, fp8xfp8, fp6xfp6, "
+                "fp4xfp8, fp8xfp4")
+        .insert("warmup", "0", "number of iterations before benchmark the kernel")
+        .insert("repeat", "1", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("init", "0", "0:random, 1:constant(1)")
         .insert("persistent", "0", "0: no persistent, 1: persistent kernel")
-        .insert("warp_tile", "0", "0: 16x16x128 on gfx950.");
+        .insert("warp_tile", "0", "0: 16x16x128 on gfx950/gfx1250, 1: 32x32x128 on gfx1250 TDM")
+        .insert("verbose", "0", "0: no verbose, 1: verbose");
+
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
@@ -219,62 +222,207 @@ int run_mx_flatmm_example(const ck_tile::ArgParser& arg_parser)
     std::string b_layout = arg_parser.get_str("b_layout");
     int persistent_opt   = arg_parser.get_int("persistent");
 
-    std::cout << "Using default warptile of 16x16x128." << std::endl;
+    int warp_tile = arg_parser.get_int("warp_tile");
+    const auto supported_warp_tile =
+        (GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX950 && warp_tile == 0) ||
+        (GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX1250 &&
+         (warp_tile == 0 || warp_tile == 1));
+    if(!supported_warp_tile)
+    {
+        throw std::runtime_error("Unsupported warp_tile!");
+    }
 
     if(a_layout == "R" && b_layout == "C")
     {
-        if(mx_prec == "fp4" || mx_prec == "fp4xfp4")
+        if(mx_prec == "fp8" || mx_prec == "fp8xfp8")
         {
             if(persistent_opt == 0)
-                return run_mx_flatmm_with_layouts<ck_tile::pk_fp4_t,
-                                                  ck_tile::pk_fp4_t,
-                                                  ck_tile::fp16_t,
-                                                  MXFlatmm_FP4FP4_Traits,
-                                                  false>(arg_parser, Row{}, Col{}, Row{});
-            else
-                throw std::runtime_error("Only non-persistent kernels are supported currently!");
-        }
-        else if(mx_prec == "fp6" || mx_prec == "fp6xfp6")
-        {
-            if(persistent_opt == 0)
-                return run_mx_flatmm_with_layouts<ck_tile::pk_fp6x16_t,
-                                                  ck_tile::pk_fp6x16_t,
-                                                  ck_tile::fp16_t,
-                                                  MXFlatmm_FP6FP6_Traits,
-                                                  false>(arg_parser, Row{}, Col{}, Row{});
+            {
+                if constexpr(GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX950)
+                {
+                    return run_mx_flatmm_with_layouts<ck_tile::fp8_t,
+                                                      ck_tile::fp8_t,
+                                                      ck_tile::fp16_t,
+                                                      MXFlatmm_GFX950_FP8FP8_Traits,
+                                                      false>(arg_parser, Row{}, Col{}, Row{});
+                }
+                else if constexpr(GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX1250)
+                {
+
+                    if(warp_tile == 0)
+                    {
+                        return run_mx_flatmm_with_layouts<ck_tile::fp8_t,
+                                                          ck_tile::fp8_t,
+                                                          ck_tile::fp16_t,
+                                                          MXFlatmm_GFX1250_FP8FP8_Traits,
+                                                          false>(arg_parser, Row{}, Col{}, Row{});
+                    }
+                    else if(warp_tile == 1)
+                    {
+                        return run_mx_flatmm_with_layouts<ck_tile::fp8_t,
+                                                          ck_tile::fp8_t,
+                                                          ck_tile::fp16_t,
+                                                          MXFlatmmTDM_GFX1250_FP8FP8_Traits,
+                                                          false>(arg_parser, Row{}, Col{}, Row{});
+                    }
+                    else
+                        throw std::runtime_error("Unsupported warp_tile!");
+                }
+                else
+                    throw std::runtime_error("Unsupported target!");
+            }
             else
                 throw std::runtime_error("Only support non-persistent kernel now!");
         }
-        else if(mx_prec == "fp8" || mx_prec == "fp8xfp8")
+        else if(mx_prec == "fp4" || mx_prec == "fp4xfp4")
         {
             if(persistent_opt == 0)
-                return run_mx_flatmm_with_layouts<ck_tile::fp8_t,
-                                                  ck_tile::fp8_t,
-                                                  ck_tile::fp16_t,
-                                                  MXFlatmm_FP8FP8_Traits,
-                                                  false>(arg_parser, Row{}, Col{}, Row{});
-            else
-                throw std::runtime_error("Only support non-persistent kernel now!");
-        }
-        else if(mx_prec == "fp8xfp4")
-        {
-            if(persistent_opt == 0)
-                return run_mx_flatmm_with_layouts<ck_tile::fp8_t,
-                                                  ck_tile::pk_fp4_t,
-                                                  ck_tile::fp16_t,
-                                                  MXFlatmm_FP8FP4_Traits,
-                                                  false>(arg_parser, Row{}, Col{}, Row{});
+            {
+                if constexpr(GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX950)
+                {
+                    return run_mx_flatmm_with_layouts<ck_tile::pk_fp4_t,
+                                                      ck_tile::pk_fp4_t,
+                                                      ck_tile::fp16_t,
+                                                      MXFlatmm_GFX950_FP4FP4_Traits,
+                                                      false>(arg_parser, Row{}, Col{}, Row{});
+                }
+                else if constexpr(GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX1250)
+                {
+
+                    if(warp_tile == 0)
+                    {
+                        return run_mx_flatmm_with_layouts<ck_tile::pk_fp4_t,
+                                                          ck_tile::pk_fp4_t,
+                                                          ck_tile::fp16_t,
+                                                          MXFlatmm_GFX1250_FP4FP4_Traits,
+                                                          false>(arg_parser, Row{}, Col{}, Row{});
+                    }
+                    else if(warp_tile == 1)
+                    {
+                        return run_mx_flatmm_with_layouts<ck_tile::pk_fp4_t,
+                                                          ck_tile::pk_fp4_t,
+                                                          ck_tile::fp16_t,
+                                                          MXFlatmmTDM_GFX1250_FP4FP4_Traits,
+                                                          false>(arg_parser, Row{}, Col{}, Row{});
+                    }
+                    else
+                        throw std::runtime_error("Unsupported warp_tile!");
+                }
+                else
+                    throw std::runtime_error("Unsupported target!");
+            }
             else
                 throw std::runtime_error("Only support non-persistent kernel now!");
         }
         else if(mx_prec == "fp4xfp8")
         {
             if(persistent_opt == 0)
-                return run_mx_flatmm_with_layouts<ck_tile::pk_fp4_t,
-                                                  ck_tile::fp8_t,
-                                                  ck_tile::fp16_t,
-                                                  MXFlatmm_FP4FP8_Traits,
-                                                  false>(arg_parser, Row{}, Col{}, Row{});
+            {
+                if constexpr(GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX950)
+                {
+                    return run_mx_flatmm_with_layouts<ck_tile::pk_fp4_t,
+                                                      ck_tile::fp8_t,
+                                                      ck_tile::fp16_t,
+                                                      MXFlatmm_GFX950_FP4FP8_Traits,
+                                                      false>(arg_parser, Row{}, Col{}, Row{});
+                }
+                else if constexpr(GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX1250)
+                {
+
+                    if(warp_tile == 0)
+                    {
+                        return run_mx_flatmm_with_layouts<ck_tile::pk_fp4_t,
+                                                          ck_tile::fp8_t,
+                                                          ck_tile::fp16_t,
+                                                          MXFlatmm_GFX1250_FP4FP8_Traits,
+                                                          false>(arg_parser, Row{}, Col{}, Row{});
+                    }
+                    else if(warp_tile == 1)
+                    {
+                        return run_mx_flatmm_with_layouts<ck_tile::pk_fp4_t,
+                                                          ck_tile::fp8_t,
+                                                          ck_tile::fp16_t,
+                                                          MXFlatmmTDM_GFX1250_FP4FP8_Traits,
+                                                          false>(arg_parser, Row{}, Col{}, Row{});
+                    }
+                    else
+                        throw std::runtime_error("Unsupported warp_tile!");
+                }
+                else
+                    throw std::runtime_error("Unsupported target!");
+            }
+            else
+                throw std::runtime_error("Only support non-persistent kernel now!");
+        }
+        else if(mx_prec == "fp8xfp4")
+        {
+            if(persistent_opt == 0)
+            {
+                if constexpr(GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX950)
+                {
+                    return run_mx_flatmm_with_layouts<ck_tile::fp8_t,
+                                                      ck_tile::pk_fp4_t,
+                                                      ck_tile::fp16_t,
+                                                      MXFlatmm_GFX950_FP8FP4_Traits,
+                                                      false>(arg_parser, Row{}, Col{}, Row{});
+                }
+                else if constexpr(GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX1250)
+                {
+
+                    if(warp_tile == 0)
+                    {
+                        return run_mx_flatmm_with_layouts<ck_tile::fp8_t,
+                                                          ck_tile::pk_fp4_t,
+                                                          ck_tile::fp16_t,
+                                                          MXFlatmm_GFX1250_FP8FP4_Traits,
+                                                          false>(arg_parser, Row{}, Col{}, Row{});
+                    }
+                    else if(warp_tile == 1)
+                    {
+                        return run_mx_flatmm_with_layouts<ck_tile::fp8_t,
+                                                          ck_tile::pk_fp4_t,
+                                                          ck_tile::fp16_t,
+                                                          MXFlatmmTDM_GFX1250_FP8FP4_Traits,
+                                                          false>(arg_parser, Row{}, Col{}, Row{});
+                    }
+                    else
+                        throw std::runtime_error("Unsupported warp_tile!");
+                }
+                else
+                    throw std::runtime_error("Unsupported target!");
+            }
+            else
+                throw std::runtime_error("Only support non-persistent kernel now!");
+        }
+        else if(mx_prec == "fp6" || mx_prec == "fp6xfp6")
+        {
+            if(persistent_opt == 0)
+            {
+                if constexpr(GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX950)
+                {
+                    return run_mx_flatmm_with_layouts<ck_tile::pk_fp6x16_t,
+                                                      ck_tile::pk_fp6x16_t,
+                                                      ck_tile::fp16_t,
+                                                      MXFlatmm_GFX950_FP6FP6_Traits,
+                                                      false>(arg_parser, Row{}, Col{}, Row{});
+                }
+                else if constexpr(GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX1250)
+                {
+                    if(warp_tile == 0)
+                    {
+                        return run_mx_flatmm_with_layouts<ck_tile::pk_fp6x16_t,
+                                                          ck_tile::pk_fp6x16_t,
+                                                          ck_tile::fp16_t,
+                                                          MXFlatmm_GFX1250_FP6FP6_Traits,
+                                                          false>(arg_parser, Row{}, Col{}, Row{});
+                    }
+                    else
+                        throw std::runtime_error(
+                            "FP6 not supported on GFX1250 TDM (warp_tile==1)!");
+                }
+                else
+                    throw std::runtime_error("Unsupported target!");
+            }
             else
                 throw std::runtime_error("Only support non-persistent kernel now!");
         }
@@ -296,19 +444,7 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     try
     {
-        int warp_tile = arg_parser.get_int("warp_tile");
-        if(warp_tile == 0)
-        {
-            return run_mx_flatmm_example(arg_parser);
-        }
-        else if(warp_tile == 1)
-        {
-            throw std::runtime_error("Only support MFMA_16x16x128 now!");
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported warp_tile!");
-        }
+        return run_mx_flatmm_example(arg_parser);
     }
     catch(const std::runtime_error& e)
     {

@@ -36,16 +36,8 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
     // Below type is actually accumulation data type - the output of block GEMM.
     using EDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    static constexpr int MThreadPerXdl = BlockGemmShape::WarpTile::at(number<0>{});
-    static constexpr int NThreadPerXdl = BlockGemmShape::WarpTile::at(number<1>{});
-    static constexpr int KThreadPerXdl = 64 / MThreadPerXdl;
-
     static constexpr int APackedSize = numeric_traits<ADataType>::PackedSize;
     static constexpr int BPackedSize = numeric_traits<BDataType>::PackedSize;
-
-    static constexpr int MXdlPack = MXFlatmmPipeline::MXdlPack;
-    static constexpr int NXdlPack = MXFlatmmPipeline::NXdlPack;
-    static constexpr int KXdlPack = MXFlatmmPipeline::KXdlPack;
 
     static constexpr index_t NumDTensor = DsDataType::size();
 
@@ -312,114 +304,6 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
             {block_idx_m, block_idx_n});
     }
 
-    template <typename KernelArgs>
-    CK_TILE_DEVICE static auto MakeScaleABlockWindow(const KernelArgs& kargs,
-                                                     const index_t block_idx_m)
-    {
-        static constexpr int BlockScaleSize = 32;
-#if defined(__gfx125__)
-        const auto&& scale_packs_m = integer_divide_ceil(kargs.M, MThreadPerXdl);
-        const auto&& scale_packs_k =
-            kargs.K / BlockScaleSize / 4; // 4 is because scale tensor is
-                                          // int32_t data type, each int32_t
-                                          // exists 4 fp8 scale values
-
-        const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(scale_packs_m, scale_packs_k, MThreadPerXdl));
-        const auto scale_a_desc = transform_tensor_descriptor(
-            scale_a_naive_desc,
-            make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
-                       make_pass_through_transform(scale_packs_k)),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-        const auto& scale_a_tensor_view = make_tensor_view<address_space_enum::global>(
-            reinterpret_cast<const int32_t*>(kargs.scale_m_ptr.ptr), scale_a_desc);
-
-        return make_tile_window(
-            scale_a_tensor_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{},
-                       number<TilePartitioner::KPerBlock / (BlockScaleSize * 4)>{}),
-            {block_idx_m, 0});
-#else
-        const auto&& scale_packs_m = integer_divide_ceil(kargs.M, (MXdlPack * MThreadPerXdl));
-        const auto&& scale_packs_k = kargs.K / BlockScaleSize / (KXdlPack * KThreadPerXdl);
-
-        // Step 1: Create tensor view
-        const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(scale_packs_m, scale_packs_k, KThreadPerXdl, MThreadPerXdl));
-        const auto scale_a_desc = transform_tensor_descriptor(
-            scale_a_naive_desc,
-            make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
-                       make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
-            make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        const auto& scale_a_tensor_view = make_tensor_view<address_space_enum::global>(
-            reinterpret_cast<const int32_t*>(kargs.scale_m_ptr.ptr), scale_a_desc);
-
-        // Step 2: Create tile window
-        return make_tile_window(
-            scale_a_tensor_view,
-            make_tuple(number<TilePartitioner::MPerBlock / MXdlPack>{},
-                       number<TilePartitioner::KPerBlock / (BlockScaleSize * KXdlPack)>{}),
-            {block_idx_m / MXdlPack, 0});
-#endif
-    }
-
-    template <typename KernelArgs>
-    CK_TILE_DEVICE static auto MakeScaleBBlockWindow(const KernelArgs& kargs,
-                                                     const index_t block_idx_n)
-    {
-        static constexpr int BlockScaleSize = 32;
-#if defined(__gfx125__)
-        const auto&& scale_packs_n = integer_divide_ceil(kargs.N, NThreadPerXdl);
-        const auto&& scale_packs_k =
-            kargs.K / BlockScaleSize / 4; // 4 is because scale tensor is
-                                          // int32_t data type, each int32_t
-                                          // exists 4 fp8 scale values
-
-        const auto scale_b_naive_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(scale_packs_n, scale_packs_k, NThreadPerXdl));
-        const auto scale_b_desc = transform_tensor_descriptor(
-            scale_b_naive_desc,
-            make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
-                       make_pass_through_transform(scale_packs_k)),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-        const auto& scale_b_tensor_view = make_tensor_view<address_space_enum::global>(
-            reinterpret_cast<const int32_t*>(kargs.scale_n_ptr.ptr), scale_b_desc);
-
-        return make_tile_window(
-            scale_b_tensor_view,
-            make_tuple(number<TilePartitioner::NPerBlock>{},
-                       number<TilePartitioner::KPerBlock / (BlockScaleSize * 4)>{}),
-            {block_idx_n, 0});
-#else
-        const auto&& scale_packs_n = integer_divide_ceil(kargs.N, (NXdlPack * NThreadPerXdl));
-        const auto&& scale_packs_k = kargs.K / BlockScaleSize / (KXdlPack * KThreadPerXdl);
-
-        // Step 1: Create tensor view
-        const auto scale_b_naive_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(scale_packs_n, scale_packs_k, KThreadPerXdl, NThreadPerXdl));
-        const auto scale_b_desc = transform_tensor_descriptor(
-            scale_b_naive_desc,
-            make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
-                       make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
-            make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        const auto& scale_b_tensor_view = make_tensor_view<address_space_enum::global>(
-            reinterpret_cast<const int32_t*>(kargs.scale_n_ptr.ptr), scale_b_desc);
-
-        // Step 2: Create tile window
-        return make_tile_window(
-            scale_b_tensor_view,
-            make_tuple(number<TilePartitioner::NPerBlock / NXdlPack>{},
-                       number<TilePartitioner::KPerBlock / (BlockScaleSize * KXdlPack)>{}),
-            {block_idx_n / NXdlPack, 0});
-#endif
-    }
-
     template <class ScaleM, class ScaleN, bool UseDefaultScheduler = true>
     CK_TILE_DEVICE static void
     RunFlatmm(const ADataType* a_ptr,
@@ -437,8 +321,10 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
             MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
         const auto& b_flat_block_window = MakeBFlatBlockWindow(b_flat_ptr, kargs, block_idx_n);
         const auto& ds_block_window = MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n);
-        const auto& scale_a_block_window = MakeScaleABlockWindow(kargs, block_idx_m);
-        const auto& scale_b_block_window = MakeScaleBBlockWindow(kargs, block_idx_n);
+        const auto& scale_a_block_window =
+            MXFlatmmPipeline::MakeScaleABlockWindow(kargs, block_idx_m);
+        const auto& scale_b_block_window =
+            MXFlatmmPipeline::MakeScaleBBlockWindow(kargs, block_idx_n);
 
         const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
 

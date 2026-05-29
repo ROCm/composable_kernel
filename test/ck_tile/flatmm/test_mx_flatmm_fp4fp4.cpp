@@ -8,9 +8,22 @@
 // FP4 x FP4 -> FP16
 // N_Tile = 512 (MXfp4_FlatmmConfig16), so N must be a multiple of 512.
 // K must be a multiple of 32 (ScaleGranularityK) and 8 (FP4 PackedSize) -> multiple of 32.
+//
+// Compile-time arch dispatch via GetCurrentTargetId(). The GFX1250 branch is V1-only:
+// MXFlatmmTDM_GFX1250_FP4FP4_Traits is intentionally omitted because the
+// FP4xFP4 TDM path is confirmed numerically broken. The matching kernel
+// instance is also skipped at the CMake level (test/ck_tile/flatmm/
+// CMakeLists.txt).
+// TODO: Re-enable both together once the kernel is fixed.
 // clang-format off
-using FP4FP4Types = ::testing::Types<
-    std::tuple<FP4, FP4, FP16, MXFlatmm_GFX950_FP4FP4_Traits>
+using FP4FP4Types = std::conditional_t<
+    GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX1250,
+    ::testing::Types<
+        std::tuple<FP4, FP4, FP16, MXFlatmm_GFX1250_FP4FP4_Traits>
+    >,
+    ::testing::Types<
+        std::tuple<FP4, FP4, FP16, MXFlatmm_GFX950_FP4FP4_Traits>
+    >
 >;
 // clang-format on
 

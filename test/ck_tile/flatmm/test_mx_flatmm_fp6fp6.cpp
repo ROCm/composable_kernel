@@ -8,8 +8,14 @@
 // FP6 x FP6 -> FP16
 // N_Tile = 256, K must be a multiple of lcm(32, 16) = 32 (FP6 PackedSize=16, lcm(32,16)=32).
 // clang-format off
-using FP6FP6Types = ::testing::Types<
-    std::tuple<FP6, FP6, FP16, MXFlatmm_GFX950_FP6FP6_Traits>
+using FP6FP6Types = std::conditional_t<
+    GetCurrentTargetId() == ck_tile::core::arch::TargetId::GFX1250,
+    ::testing::Types<
+        std::tuple<FP6, FP6, FP16, MXFlatmm_GFX1250_FP6FP6_Traits>
+    >,
+    ::testing::Types<
+        std::tuple<FP6, FP6, FP16, MXFlatmm_GFX950_FP6FP6_Traits>
+    >
 >;
 // clang-format on
 

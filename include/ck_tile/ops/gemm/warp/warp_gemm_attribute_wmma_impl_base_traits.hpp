@@ -39,6 +39,13 @@ struct LayoutFromDataType<pk_fp4_t, 128, false> : LayoutFromNon8BitMixPrec
 {
 };
 
+// pk_fp6x16_t is a sub-byte packed format (6 bits per element); use the same
+// MixPrec layout split as pk_fp4_t (kK1PerLane=32, kK0PerLane=2).
+template <>
+struct LayoutFromDataType<pk_fp6x16_t, 128, true> : LayoutFromNon8BitMixPrec
+{
+};
+
 template <typename DataType, index_t K>
 struct LayoutFromDataType<DataType, K, false>
 {
