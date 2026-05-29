@@ -470,7 +470,9 @@ def buildAndPushDockerImage(String install_prefix, String image_name, String doc
     if(!forceBuild){
         try{
             echo "Checking for image: ${image_name}"
-            sh "docker manifest inspect --insecure ${image_name}"
+            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
+                sh "docker manifest inspect --insecure ${image_name}"
+            }
             echo "Image: ${image_name} found! Skipping building image"
             return image_name
         }
