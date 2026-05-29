@@ -154,6 +154,21 @@ class GemmKernelBuilder:
                     persistent,
                 ) = trait_combo
 
+                # Skip if this tile config is not valid for this specific pipeline
+                if not self._validate_tile_config(
+                    tile_config["tile_m"],
+                    tile_config["tile_n"],
+                    tile_config["tile_k"],
+                    tile_config["warp_m"],
+                    tile_config["warp_n"],
+                    tile_config["warp_k"],
+                    tile_config["warp_tile_m"],
+                    tile_config["warp_tile_n"],
+                    tile_config["warp_tile_k"],
+                    pipeline,
+                ):
+                    continue
+
                 # Create kernel name with proper boolean capitalization
                 kernel_name = f"{self.kernel_name_prefix}_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
 
@@ -240,15 +255,12 @@ class GemmKernelBuilder:
         warp_tile_k_values = tile_config.get("warp_tile_k").get("values")
 
         # Generate all combinations
-        default_pipeline = ""
-        if self.kernel_name_prefix == "gemm_universal":
-            default_pipeline = "compv4"
-        elif self.kernel_name_prefix == "gemm_multi_d":
-            default_pipeline = "compv4"
-        elif self.kernel_name_prefix == "gemm_preshuffle":
-            default_pipeline = "preshufflev2"
-        elif self.kernel_name_prefix == "grouped_gemm":
-            default_pipeline = "compv4"
+        pipelines = self.config["trait_config"].get("pipeline", {}).get("values", [])
+        if not pipelines:
+            if self.kernel_name_prefix == "gemm_preshuffle":
+                pipelines = ["preshufflev2"]
+            else:
+                pipelines = ["compv4"]
 
         configs = []
         for tile_m in tile_m_values:
@@ -260,18 +272,21 @@ class GemmKernelBuilder:
                                 for warp_tile_m in warp_tile_m_values:
                                     for warp_tile_n in warp_tile_n_values:
                                         for warp_tile_k in warp_tile_k_values:
-                                            # Validate configuration
-                                            if self._validate_tile_config(
-                                                tile_m,
-                                                tile_n,
-                                                tile_k,
-                                                warp_m,
-                                                warp_n,
-                                                warp_k,
-                                                warp_tile_m,
-                                                warp_tile_n,
-                                                warp_tile_k,
-                                                default_pipeline,
+                                            # Accept tile if valid for any pipeline
+                                            if any(
+                                                self._validate_tile_config(
+                                                    tile_m,
+                                                    tile_n,
+                                                    tile_k,
+                                                    warp_m,
+                                                    warp_n,
+                                                    warp_k,
+                                                    warp_tile_m,
+                                                    warp_tile_n,
+                                                    warp_tile_k,
+                                                    pipeline,
+                                                )
+                                                for pipeline in pipelines
                                             ):
                                                 configs.append(
                                                     {
