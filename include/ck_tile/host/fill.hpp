@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <iterator>
 #include <optional>
@@ -473,6 +474,93 @@ struct FillConstant
         -> std::void_t<decltype(std::declval<const FillConstant&>()(
             std::begin(std::forward<ForwardRange>(range)),
             std::end(std::forward<ForwardRange>(range))))>
+    {
+        (*this)(std::begin(std::forward<ForwardRange>(range)),
+                std::end(std::forward<ForwardRange>(range)));
+    }
+};
+
+/**
+ * @brief Fills a range with uniformly distributed random ExMy (exponent-mantissa) scale values.
+ *
+ * Accepts human-readable float bounds and maps them to the raw byte range of the
+ * target scale type by re-centering the IEEE 754 exponent into the type's own
+ * bias space. Sampling is then uniform over raw bytes, which is uniform over
+ * representable values of the type.
+ *
+ * @tparam ScaleType An ExMy scale type (e.g. e8m0_t, e4m3_t, e5m3_t).
+ *
+ * @note Both bounds snap down to the nearest representable power-of-two in ScaleType space.
+ *       If min_scale_ is not an exact power-of-two, the effective lower bound is lower than
+ *       requested; if max_scale_ is not an exact power-of-two, the effective upper bound is
+ *       also lower than requested.
+ *
+ * Fields: min_scale_ (lower float bound), max_scale_ (upper float bound, no value
+ * generated exceeds it), seed_ (RNG seed; nullopt for random device, default 11939).
+ * Precondition: min_scale_ <= max_scale_. Violating this is undefined behavior.
+ * Usage:
+ *   FillUniformScaleDistribution<e8m0_t>{0.125f, 2.0f, 42}(scale_tensor);
+ *   FillUniformScaleDistribution<e4m3_t>{0.125f, 2.0f}(buf.begin(), buf.end());
+ */
+template <typename ScaleType>
+struct FillUniformScaleDistribution
+{
+    float min_scale_{0.125f};
+    float max_scale_{2.0f};
+    std::optional<uint32_t> seed_{11939};
+
+    template <typename ForwardIter>
+    void operator()(ForwardIter first, ForwardIter last) const
+    {
+        using RawType = typename ScaleType::type; // uint8_t for all current ExMy types
+
+        // Bias and mantissa layout for the target type, resolved at compile time.
+        constexpr int float_bias = 127; // IEEE 754 single-precision bias
+        constexpr int type_bias =
+            numeric_traits<ScaleType>::bias; // e.g. 127 (e8m0), 7 (e4m3), 15 (e5m3)
+        constexpr int mant_bits =
+            numeric_traits<ScaleType>::mant; // mantissa bits: 0 (e8m0), 3 (e4m3/e5m3)
+
+        // Extract the biased IEEE 754 exponent byte from each float bound.
+        // get_exponent(f) == (bit_cast<uint32_t>(f) >> 23) & 0xFF - the raw 8-bit exponent field.
+        // Non-power-of-two values snap down: get_exponent(0.1f) == get_exponent(0.0625f) == 123.
+        const int ieee_min = static_cast<int>(numeric_utils<float>::get_exponent(min_scale_));
+        const int ieee_max = static_cast<int>(numeric_utils<float>::get_exponent(max_scale_));
+
+        // Absolute limits of the raw byte space for this type.
+        // raw=0 is reserved: denorm-zero for e4m3/e5m3 (decodes to 0.0), and subnormal
+        // territory for e8m0 (2^-127) - excluded to keep all generated values usable as scales.
+        // binary_max is the last finite raw value (binary_nan - 1 for all ExMy types).
+        constexpr int raw_min = 1;
+        constexpr int raw_max = static_cast<int>(numeric<ScaleType>::binary_max);
+
+        // Re-center the IEEE 754 exponent offset into the target type's bias space and pack into
+        // raw bytes. (ieee_exp - float_bias) gives the true power: e.g. 123-127 = -4 for 0.0625.
+        // Adding type_bias maps into the target encoding: e.g. -4+7 = 3 for e4m3.
+        // Left-shift by mant_bits places the exponent field: e.g. 3<<3 = 24 for e4m3.
+        // max_r uses mant=0 (not | mant_mask) so it decodes to exactly max_scale - the
+        // power-of-two itself. This ensures no generated value exceeds max_scale_ in float space.
+        // std::max/min clamp to the valid byte range, preventing out-of-range or NaN raw values.
+        const int min_r =
+            std::max(((ieee_min - float_bias) + type_bias) * (1 << mant_bits), raw_min);
+        const int max_r =
+            std::min(((ieee_max - float_bias) + type_bias) * (1 << mant_bits), raw_max);
+
+        // Precondition: clamping must not invert the range. This can happen when both bounds
+        // exceed the type's representable range in the same direction (both too large or too
+        // small). If triggered, use bounds within the type's representable range.
+        assert(min_r <= max_r);
+
+        // Sample raw bytes uniformly in [min_r, max_r], then construct ScaleType directly
+        // from the raw byte - bypassing the float ctor which would discard mantissa bits.
+        std::mt19937 gen(seed_.has_value() ? *seed_ : std::random_device{}());
+        std::uniform_int_distribution<int> dist(min_r, max_r);
+        std::generate(first, last, [&]() { return ScaleType(static_cast<RawType>(dist(gen))); });
+    }
+
+    // Range overload: accepts any container or HostTensor with begin()/end().
+    template <typename ForwardRange>
+    void operator()(ForwardRange&& range) const
     {
         (*this)(std::begin(std::forward<ForwardRange>(range)),
                 std::end(std::forward<ForwardRange>(range)));
