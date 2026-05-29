@@ -608,8 +608,6 @@ struct UnifiedAttentionPipeline
                 {
                     if(sink_ptr_pre_offset != nullptr)
                     {
-                        const float scale_s_natlog =
-                            scale_s / static_cast<float>(ck_tile::log2e_v<>);
                         constexpr auto lse_spans =
                             decltype(lse_early)::get_distributed_spans();
                         sweep_tile_span(lse_spans[number<0>{}], [&](auto idx0) {
@@ -619,8 +617,40 @@ struct UnifiedAttentionPipeline
                             const auto row = x_indices.at(number<0>{});
                             const float sink_raw =
                                 sink_ptr_pre_offset[row % num_queries_per_kv];
-                            // sm_scale * sink_raw, in natural-log domain.
-                            lse_early(i_idx) = sink_raw * scale_s_natlog;
+                            // Natural-log domain lse for the "sink-only" partial
+                            // (no real K touched this Q-row in this split).
+                            //
+                            // The sink is one virtual key with raw logit `sink_raw`
+                            // already in scaled-S space (vLLM / GPT-OSS convention,
+                            // matching `aiter/op_tests/test_unified_attention_ck.py`
+                            // line 315: "Sink lives in the same numerical space as
+                            // the already-scaled S = Q @ K^T * sm_scale"). So the
+                            // softmax denominator for this row is exactly
+                            // `exp(sink_raw)` and its natural-log lse is `sink_raw`.
+                            //
+                            // The full-loop path's lse formula on line 2069 is
+                            // `scale_s_natlog * m + log(l)`. With the sink-init
+                            // `m_init = sink_raw / sm_scale`, `l_init = 1`, and
+                            // no real K touching this row, that simplifies to
+                            // `sm_scale * (sink_raw / sm_scale) + log(1) =
+                            // sink_raw`. The two paths agree iff this branch
+                            // also writes `sink_raw` (not `sink_raw * sm_scale`,
+                            // which the pre-fix comment claimed was the correct
+                            // natural-log domain value but is a factor of
+                            // `1/sm_scale` off — see the EXPECTED_FAIL block in
+                            // `script/edge_test_sink.sh` for the small-SWA-window +
+                            // non-zero-sink + num_splits>1 reproducer that
+                            // surfaced this).
+                            //
+                            // For num_splits == 1 this lse is ignored (the
+                            // pipeline returns `o_acc / l` directly through the
+                            // user's epilogue), so the old formula's bug was
+                            // silent. For num_splits > 1 the per-split lse feeds
+                            // straight into the FlashDecoding combine and the
+                            // factor-of-1/sm_scale skew rebalances the partial
+                            // weights in favour of the sink-bearing split,
+                            // producing the visible output divergence.
+                            lse_early(i_idx) = sink_raw;
                         });
                     }
                     else

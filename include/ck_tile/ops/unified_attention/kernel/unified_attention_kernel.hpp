@@ -635,8 +635,14 @@ struct UnifiedAttentionKernel
                 // the corresponding LSE — so we fall through to the
                 // pipeline, which detects `num_blocks_start >= num_blocks`
                 // inside `if(num_total_loop - num_blocks_start <= 0)` and
-                // writes the sink-aware empty-partial (o_acc=0, lse=
-                // sm_scale * sink_raw[r]) before returning.
+                // writes the sink-aware empty-partial (o_acc=0,
+                // lse=sink_raw[r]) before returning. `sink_raw` is already
+                // in scaled-S space (vLLM convention), so its natural-log
+                // lse for the sink-only row is exactly `sink_raw` — see
+                // the long comment at the lse_early write in
+                // `unified_attention_pipeline.hpp` for the bug history
+                // (pre-fix the early-exit wrote `sink_raw * sm_scale`,
+                // which mis-weighted multi-split combines).
                 if constexpr(!UnifiedAttentionPipeline::kHasSink)
                 {
                     return; // this Q-tile has no KV inside the SWA window

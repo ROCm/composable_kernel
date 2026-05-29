@@ -174,20 +174,15 @@ std::pair<bool, float> dispatch_local(const unified_attention_args& args,
 
 // Per-(V, DType) availability of kHasSink=true (no-SWA) instances. The
 // full no-SWA matrix is compiled here: every prefill + decode tier on
-// d=64 and d=128, for {bf16, fp16}. fp8 + sink still returns {false, 0.f}
-// from the constexpr filter below — it gets a dedicated rollout once
-// the fp8 dispatcher trap (mirroring the prophylaxis the fp8 + SWA
-// dispatcher path already runs to keep the dispatcher from silently
-// falling through to a non-sink instance) is set up the same way the
-// existing fp8 + SWA path was.
+// d=64 and d=128, for {bf16, fp16, fp8}.
 //
 // Sink availability matrix:
 //   prefill_d128       /  prefill_d64
 //   decode_d128_m128   /  decode_d64_m128
 //   decode_d128_m32    /  decode_d64_m64
 //   decode_d128_m16    /  decode_d64_m16
-// Every variant compiles for {bf16, fp16}; that's 8 × 2 = 16 instance
-// files in instances/unified_attention_d{64,128}_{bf16,fp16}_mask
+// Every variant compiles for {bf16, fp16, fp8}; that's 8 × 3 = 24 instance
+// files in instances/unified_attention_d{64,128}_{bf16,fp16,fp8}_mask
 // {,_decode{,_s,_t}}_sink.cpp.
 //
 // All sink instances are compiled at PageSize=0 (runtime page size) —
@@ -209,7 +204,7 @@ std::pair<bool, float> dispatch_sink(const unified_attention_args& args,
          V == KernelVariant::decode_d64_m64     ||
          V == KernelVariant::decode_d64_m16);
     if constexpr(is_supported_variant &&
-                 (DType == DT::bf16 || DType == DT::fp16))
+                 (DType == DT::bf16 || DType == DT::fp16 || DType == DT::fp8))
     {
         return unified_attention_kernel_dispatch<
             unified_attention_kernel_traits<V, DType, /*IsMasking=*/true,
@@ -225,20 +220,20 @@ std::pair<bool, float> dispatch_sink(const unified_attention_args& args,
 
 // Per-(V, DType) availability of the (kHasSink=true, IsLocal=true) combo —
 // SWA × sink. Same 8-variant matrix as `dispatch_sink` and `dispatch_local`,
-// for {bf16, fp16}. The two `if constexpr` branches inside the pipeline
-// (the SWA Step-D clip in the kernel and the sink init in
+// for {bf16, fp16, fp8}. The two `if constexpr` branches inside the
+// pipeline (the SWA Step-D clip in the kernel and the sink init in
 // `unified_attention_pipeline.hpp`) are orthogonal and compose without any
 // extra code; the only thing needed at the dispatcher level is the
 // constexpr filter on (V, DType) plus the matching instance files
-// (instances/unified_attention_d{64,128}_{bf16,fp16}_mask{,_decode{,_s,_t}}_local_sink.cpp,
-// 8 × 2 = 16 files).
+// (instances/unified_attention_d{64,128}_{bf16,fp16,fp8}_mask{,_decode{,_s,_t}}_local_sink.cpp,
+// 8 × 3 = 24 files).
 //
 // One correctness note worth keeping here for the reader: when the SWA
 // window collapses to zero overlap (all-window-masked Q-tile) the kernel
 // no longer short-circuits — it falls through to the pipeline so the
 // "no work" early-exit can write the sink-aware empty partial
-// (o_acc = 0, lse = sm_scale * sink_raw). The kernel-side gate on this
-// is `if constexpr(!UnifiedAttentionPipeline::kHasSink) return;` in the
+// (o_acc = 0, lse = sink_raw). The kernel-side gate on this is
+// `if constexpr(!UnifiedAttentionPipeline::kHasSink) return;` in the
 // SWA Step-D clip block.
 template <KernelVariant V, unified_attention_args::data_type_enum DType>
 std::pair<bool, float> dispatch_sink_local(const unified_attention_args& args,
@@ -255,7 +250,7 @@ std::pair<bool, float> dispatch_sink_local(const unified_attention_args& args,
          V == KernelVariant::decode_d64_m64     ||
          V == KernelVariant::decode_d64_m16);
     if constexpr(is_supported_variant &&
-                 (DType == DT::bf16 || DType == DT::fp16))
+                 (DType == DT::bf16 || DType == DT::fp16 || DType == DT::fp8))
     {
         return unified_attention_kernel_dispatch<
             unified_attention_kernel_traits<V, DType, /*IsMasking=*/true,
@@ -367,28 +362,16 @@ std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
                      V == KernelVariant::decode_d64_m64 ||
                      V == KernelVariant::decode_d64_m16)
         {
-            // Fp8 + sink fast-fail (same prophylaxis the fp8 + SWA
-            // dispatcher path already runs): no fp8 sink instances are
-            // compiled yet, and we *don't* want the `if(is_sink) ...
-            // dispatch_sink` path to silently fall through to a non-sink
-            // instance — that would compute the wrong output. Return a
-            // clean dispatcher error here so the caller sees the
-            // (false, -1.f) failure. When the fp8 sink instances ship
-            // this guard flips to call `dispatch_sink<V, DT::fp8>`
-            // directly.
-            if(is_sink) return {false, -1.f};
-            // Mirror the bf16/fp16 branches: route SWA (window bounded
-            // on at least one side) to the IsLocal=true instance menu.
-            // Without this branch the fp8 SWA cases silently fall
-            // through to dispatch_page_size which compiles an
-            // IsLocal=false instance, so the kernel ignores the window
-            // and computes the full causal output (output norm stays
-            // constant as the window narrows). The new fp8 _local.cpp
-            // instances cover every variant in the constexpr-supported
-            // set above, so this can never miss.
-            if(is_local) return dispatch_local<V, DT::fp8>(args, config);
-            if(is_mask)  return dispatch_page_size<V, DT::fp8, true >(args, config);
-            return            dispatch_page_size<V, DT::fp8, false>(args, config);
+            // Mirror the bf16/fp16 branches: SWA × sink first, then
+            // sink-only, then SWA-only, then masked, then non-masked.
+            // Every (V, sub-combo) above maps to a compiled instance
+            // in instances/unified_attention_d{64,128}_fp8_mask{,_decode
+            // {,_s,_t}}{,_local}{_sink}.cpp.
+            if(is_sink && is_local) return dispatch_sink_local<V, DT::fp8>(args, config);
+            if(is_sink)             return dispatch_sink<V, DT::fp8>(args, config);
+            if(is_local)            return dispatch_local<V, DT::fp8>(args, config);
+            if(is_mask)             return dispatch_page_size<V, DT::fp8, true >(args, config);
+            return                         dispatch_page_size<V, DT::fp8, false>(args, config);
         }
         return {false, -1.f};
     }
