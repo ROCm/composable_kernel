@@ -1,11 +1,11 @@
 #!/bin/bash
 # perf_test_sink.sh — perf gate that locks in the "zero-overhead sinks"
-# contract from Phase 4 of the sink rollout.
+# contract.
 #
 # Two regressions this script catches:
 #
 #   1. The no-sink instance's runtime growing past `BASELINE_TOLERANCE`
-#      (default 5%) of the captured Phase-4 baseline. This fires on
+#      (default 5%) of the captured baseline. This fires on
 #      catastrophic regressions of the kHasSink=false code path:
 #      barriers added in the K/V loop, extra HBM round-trips per tile,
 #      tile-storage allocated inside the iteration, register-spill
@@ -27,7 +27,7 @@
 #   * d=64  GQA-8 prefill      (-d=64  -h_k=1 -nqpkv=8)   q = kv = 8192
 #
 # Baselines were captured on MI355 (HIP_VISIBLE_DEVICES=6) right after
-# Phase 4 landed. The procedure was:
+# the kernel-side sink path landed. The procedure was:
 #
 #   for shape in {d128_MHA, d64_GQA8}:
 #     for i in 1..3:
@@ -89,7 +89,7 @@ fi
 echo "Using EXE=$EXE"
 echo "Using HIP_VISIBLE_DEVICES=$HIP_VISIBLE_DEVICES"
 
-# Allow override via env vars; defaults match the Phase 5 plan thresholds.
+# Allow override via env vars; defaults match the perf plan thresholds.
 BASELINE_TOLERANCE="${BASELINE_TOLERANCE:-1.05}"  # no-sink within 5% of baseline
 SINK_OVERHEAD_MAX="${SINK_OVERHEAD_MAX:-1.10}"    # sink-on within 10% of no-sink
 

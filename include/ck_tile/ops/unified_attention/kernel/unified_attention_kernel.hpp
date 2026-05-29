@@ -666,8 +666,25 @@ struct UnifiedAttentionKernel
         // pointing at nullptr — the pipeline gates all dereferences on
         // its own `if constexpr (kHasSink)`. Same offset rule as the
         // Q/O pointers a few lines up.
+        //
+        // Split-KV gating: the sink is one virtual key contributing
+        // `exp(sm_scale * sink_raw)` to the global softmax denominator
+        // exactly *once*. Each split is an independent partial; if every
+        // split injected the sink mass into its own denominator and the
+        // combine kernel summed them, the final denominator would carry
+        // the sink mass `num_splits` times. The Triton 3D reference
+        // gates the sink to segment 0 only:
+        //
+        //   if USE_SINKS and segm_idx == 0: M = sink * RCP_LN2
+        //   else:                           M = -inf
+        //
+        // We do the same here by passing `nullptr` for `i_split != 0`,
+        // so non-zero splits land in the pipeline's no-sink init branch
+        // and the combine kernel only sees the sink mass once. For the
+        // single-split path (`num_splits == 1`, i_split == 0) this is a
+        // no-op — every call gets the real sink pointer.
         const float* sink_ptr_pre_offset =
-            (kargs.sink_ptr != nullptr)
+            (kargs.sink_ptr != nullptr && i_split == 0)
                 ? (static_cast<const float*>(kargs.sink_ptr) +
                    kv_head_idx * num_queries_per_kv)
                 : nullptr;

@@ -538,19 +538,35 @@ struct UnifiedAttentionPipeline
             // Q-head-in-group via `r % num_queries_per_kv` because the kernel
             // merges (q_tokens, num_qpkv) with the head index as the
             // fastest-changing dim.
-            const float scale_s_natlog =
-                scale_s / static_cast<float>(ck_tile::log2e_v<>);
-            constexpr auto m_spans = decltype(m)::get_distributed_spans();
-            sweep_tile_span(m_spans[number<0>{}], [&](auto idx0) {
-                constexpr auto i_idx = make_tuple(idx0);
-                const auto x_indices = get_x_indices_from_distributed_indices(
-                    m.get_tile_distribution(), i_idx);
-                const auto row = x_indices.at(number<0>{});
-                const float sink_raw =
-                    sink_ptr_pre_offset[row % num_queries_per_kv];
-                m(i_idx) = sink_raw / scale_s_natlog; // == sink_raw / sm_scale
-                l(i_idx) = SMPLComputeDataType{1.0f};
-            });
+            //
+            // Runtime null-check: the kernel passes `sink_ptr_pre_offset =
+            // nullptr` on every split except segment 0 (to gate the sink
+            // mass to a single partial in the split-KV combine — Triton 3D
+            // pattern). For those splits we want the classic no-sink init
+            // even on a `kHasSink=true` instance. The pointer is uniform
+            // across the workgroup (kernel arg → no warp divergence) so
+            // the branch is essentially free.
+            if(sink_ptr_pre_offset != nullptr)
+            {
+                const float scale_s_natlog =
+                    scale_s / static_cast<float>(ck_tile::log2e_v<>);
+                constexpr auto m_spans = decltype(m)::get_distributed_spans();
+                sweep_tile_span(m_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+                    const auto x_indices = get_x_indices_from_distributed_indices(
+                        m.get_tile_distribution(), i_idx);
+                    const auto row = x_indices.at(number<0>{});
+                    const float sink_raw =
+                        sink_ptr_pre_offset[row % num_queries_per_kv];
+                    m(i_idx) = sink_raw / scale_s_natlog; // == sink_raw / sm_scale
+                    l(i_idx) = SMPLComputeDataType{1.0f};
+                });
+            }
+            else
+            {
+                set_tile(m, bit_cast<float>(0xff7fffff));
+                clear_tile(l);
+            }
         }
         else
         {
@@ -582,22 +598,35 @@ struct UnifiedAttentionPipeline
                 // `block_fmha_pipeline_qr_ks_vs.hpp::338`.
                 auto lse_early =
                     make_static_distributed_tensor<SMPLComputeDataType>(m.get_tile_distribution());
+                // Same runtime null-check as in the m-init branch above:
+                // on segments != 0 of a split-KV launch the kernel passes
+                // a nullptr sink pointer, and the empty partial should
+                // contribute nothing (lse = -inf, the standard sentinel
+                // for "this partial weighs zero" in the combine kernel).
+                // The sink mass is folded into segment 0's partial only.
                 if constexpr(kHasSink)
                 {
-                    const float scale_s_natlog =
-                        scale_s / static_cast<float>(ck_tile::log2e_v<>);
-                    constexpr auto lse_spans =
-                        decltype(lse_early)::get_distributed_spans();
-                    sweep_tile_span(lse_spans[number<0>{}], [&](auto idx0) {
-                        constexpr auto i_idx = make_tuple(idx0);
-                        const auto x_indices = get_x_indices_from_distributed_indices(
-                            lse_early.get_tile_distribution(), i_idx);
-                        const auto row = x_indices.at(number<0>{});
-                        const float sink_raw =
-                            sink_ptr_pre_offset[row % num_queries_per_kv];
-                        // sm_scale * sink_raw, in natural-log domain.
-                        lse_early(i_idx) = sink_raw * scale_s_natlog;
-                    });
+                    if(sink_ptr_pre_offset != nullptr)
+                    {
+                        const float scale_s_natlog =
+                            scale_s / static_cast<float>(ck_tile::log2e_v<>);
+                        constexpr auto lse_spans =
+                            decltype(lse_early)::get_distributed_spans();
+                        sweep_tile_span(lse_spans[number<0>{}], [&](auto idx0) {
+                            constexpr auto i_idx = make_tuple(idx0);
+                            const auto x_indices = get_x_indices_from_distributed_indices(
+                                lse_early.get_tile_distribution(), i_idx);
+                            const auto row = x_indices.at(number<0>{});
+                            const float sink_raw =
+                                sink_ptr_pre_offset[row % num_queries_per_kv];
+                            // sm_scale * sink_raw, in natural-log domain.
+                            lse_early(i_idx) = sink_raw * scale_s_natlog;
+                        });
+                    }
+                    else
+                    {
+                        set_tile(lse_early, -ck_tile::numeric<SMPLComputeDataType>::infinity());
+                    }
                 }
                 else
                 {
