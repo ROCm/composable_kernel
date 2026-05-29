@@ -12,7 +12,7 @@ TEST(StreamKTilePartitionerBaseConstructor, SKOnly)
         Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
 
     StreamKTilePartitionerBaseExpected expected_values{
-        2, 0, 3, 4, 1, 2, 1, 0, 2, Config::MAX_ACTIVE_WGS, Config::N};
+        2, 0, 3, 4, 1, 2, 1, 0, 2, Config::MAX_ACTIVE_WGS, Config::N, Config::K, 0};
     validate_streamk_base_constructor<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
@@ -24,7 +24,7 @@ TEST(StreamKTilePartitionerBaseConstructor, DPOnly)
         Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
 
     StreamKTilePartitionerBaseExpected expected_values{
-        0, 6, 0, 0, 0, 2, 0, 12, 6, Config::MAX_ACTIVE_WGS, Config::N};
+        0, 6, 0, 0, 0, 2, 0, 12, 6, Config::MAX_ACTIVE_WGS, Config::N, Config::K, 0};
     validate_streamk_base_constructor<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
@@ -36,7 +36,7 @@ TEST(StreamKTilePartitionerBaseConstructor, DP2TileSK)
         Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
 
     StreamKTilePartitionerBaseExpected expected_values{
-        4, 3, 3, 8, 2, 2, 2, 6, 7, Config::MAX_ACTIVE_WGS, Config::N};
+        4, 3, 3, 8, 2, 2, 2, 6, 7, Config::MAX_ACTIVE_WGS, Config::N, Config::K, 0};
     validate_streamk_base_constructor<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
@@ -48,7 +48,19 @@ TEST(StreamKTilePartitionerBaseConstructor, EdgeCase)
         Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
 
     StreamKTilePartitionerBaseExpected expected_values{
-        0, 1, 0, 0, 0, 2, 0, 2, 1, Config::MAX_ACTIVE_WGS, Config::N};
+        0, 1, 0, 0, 0, 2, 0, 2, 1, Config::MAX_ACTIVE_WGS, Config::N, Config::K, 0};
+    validate_streamk_base_constructor<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitionerBaseConstructor, RemainderAlongK)
+{
+    using Config = StreamKTilePartitionerBaseConfigRemainderAlongK;
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
+        Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
+
+    StreamKTilePartitionerBaseExpected expected_values{
+        1, 0, 2, 3, 1, 3, 1, 0, 1, Config::MAX_ACTIVE_WGS, Config::N, Config::K, 1};
     validate_streamk_base_constructor<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
@@ -565,6 +577,80 @@ TEST(StreamKTilePartitionerBaseGetTileLocalCtaIndex, DP2TileSK)
         test_get_tile_local_cta_idx<StreamKTilePartitionerBaseConfigDP2TileSK>(
             tile_iter_start, cta_idx, tile_local_cta_idx);
     }
+}
+
+TEST(StreamKTilePartitionerBaseGetKSize, NoRemainderTiles)
+{
+    // Types
+    using Config          = StreamKTilePartitionerBaseConfigRemainderAlongK;
+    using TilePartitioner = ck_tile::StreamKTilePartitionerBase<Config::GemmShape>;
+    using Kernel =
+        KernelWrapperSpecialized<TilePartitioner, StreamKTilePartitionerBaseMethodId::GET_K_SIZE>;
+
+    // Test parameters
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
+        Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
+    ck_tile::DeviceMem k_size_dev(sizeof(ck_tile::index_t));
+    ck_tile::index_t num_macro_tiles = 2;
+    ck_tile::index_t local_iter_end  = 2;
+
+    // Launch kernel
+    auto kargs = Kernel::MakeKernelArgs(num_macro_tiles,
+                                        local_iter_end,
+                                        Config::UNUSED,
+                                        k_size_dev.GetDeviceBuffer(),
+                                        nullptr,
+                                        tile_partitioner);
+    ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0, 0, 1},
+                           ck_tile::make_kernel<1>(Kernel{}, 1, 1, 0, kargs));
+
+    // Validate results
+    ck_tile::index_t k_size;
+    k_size_dev.FromDevice(&k_size);
+
+    /*
+    In the StreamKTilePartitionerBaseConfigRemainderAlongK config, workgroup 0 is assigned the first
+    2 macro tile along K. Both of these macro tiles are MPerBlock x KPerBlock. So, the k_size is
+    K_TILE * 2. (See the struct definition for a detailed diagram.)
+    */
+    EXPECT_EQ(k_size, Config::K_TILE * 2);
+}
+
+TEST(StreamKTilePartitionerBaseGetKSize, RemainderTiles)
+{
+    // Types
+    using Config          = StreamKTilePartitionerBaseConfigRemainderAlongK;
+    using TilePartitioner = ck_tile::StreamKTilePartitionerBase<Config::GemmShape>;
+    using Kernel =
+        KernelWrapperSpecialized<TilePartitioner, StreamKTilePartitionerBaseMethodId::GET_K_SIZE>;
+
+    // Test parameters
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
+        Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
+    ck_tile::DeviceMem k_size_dev(sizeof(ck_tile::index_t));
+    ck_tile::index_t num_macro_tiles = 1;
+    ck_tile::index_t local_iter_end  = 3;
+
+    // Launch kernel
+    auto kargs = Kernel::MakeKernelArgs(num_macro_tiles,
+                                        local_iter_end,
+                                        Config::UNUSED,
+                                        k_size_dev.GetDeviceBuffer(),
+                                        nullptr,
+                                        tile_partitioner);
+    ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0, 0, 1},
+                           ck_tile::make_kernel<1>(Kernel{}, 1, 1, 0, kargs));
+
+    // Validate results
+    ck_tile::index_t k_size;
+    k_size_dev.FromDevice(&k_size);
+
+    /*
+    In the StreamKTilePartitionerBaseConfigRemainderAlongK config, workgroup 1 is assigned the final
+    macro tile along K. This macro tiles is MPerBlock x (K % K_TILE). So, the k_size is
+    K % K_TILE. (See the struct definition for a detailed diagram.)
+    */
+    EXPECT_EQ(k_size, Config::K % Config::K_TILE);
 }
 
 // Persistent

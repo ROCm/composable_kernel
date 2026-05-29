@@ -197,4 +197,9 @@ using KernelTypesStreamKPipelines = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I32,       I32,       I16,     NonPersistent,   CompV4,   Tree>,
     std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I32,       I32,       I16,     Persistent,      CompV4,   Linear>
 >;
+
+using KernelTypesStreamKRegression = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,        I256,        I256,        I32,         I32,       I32,       I16,     Persistent,      CompV3,   Atomic>,
+    std::tuple<    Col,     Col,     Row,       BF16,      BF16,        F32,       BF16,        I256,        I256,        I32,         I32,       I32,       I16,     Persistent,      CompV3,   Atomic>
+>;
 // clang-format on

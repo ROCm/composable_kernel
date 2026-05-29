@@ -33,12 +33,13 @@ if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${STREAMK_TYPES_HEADER} ${STREAMK_GEN_SCRIPT})
 
     # Define the targets and their corresponding executable names
-    set(STREAMK_GEN_TARGETS extended atomic_smoke linear_smoke tree_smoke pipelines_smoke)
+    set(STREAMK_GEN_TARGETS extended atomic_smoke linear_smoke tree_smoke pipelines_smoke regression)
     set(STREAMK_GEN_EXEC_EXTENDED         test_ck_tile_streamk_extended)
     set(STREAMK_GEN_EXEC_ATOMIC_SMOKE     test_ck_tile_streamk_atomic_smoke)
     set(STREAMK_GEN_EXEC_LINEAR_SMOKE     test_ck_tile_streamk_linear_smoke)
     set(STREAMK_GEN_EXEC_TREE_SMOKE       test_ck_tile_streamk_tree_smoke)
     set(STREAMK_GEN_EXEC_PIPELINES_SMOKE  test_ck_tile_streamk_pipelines_smoke)
+    set(STREAMK_GEN_EXEC_REGRESSION       test_ck_tile_streamk_regression)
 
     # Collect all test targets for umbrella label
     set(CK_TILE_GEMM_STREAMK_TEST_TARGETS

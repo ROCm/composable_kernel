@@ -68,6 +68,11 @@ class TestSuffixToFileTag(unittest.TestCase):
         expected_tag = "pipelines"
         self.assertEqual(suffix_to_file_tag(suffix), expected_tag)
 
+    def test_regression_token(self):
+        suffix = "Regression"
+        expected_tag = "regression"
+        self.assertEqual(suffix_to_file_tag(suffix), expected_tag)
+
     def test_unknown_token(self):
         suffix = "unknown"
         with self.assertRaises(ValueError):
@@ -202,6 +207,26 @@ class TestParseTypesHeader(unittest.TestCase):
                     "type_alias": "KernelTypesStreamKBf8PersistentTreeCompV3",
                     "class_name": "TestCkTileStreamKBf8PersistentTreeCompV3",
                     "file_tag": "bf8_persistent_tree_compv3",
+                }
+            ]
+            self.validate_entries(entries, expected)
+
+    def test_regression(self):
+        """Test regression target: matches suffix == 'Regression'.
+        Includes: Regression
+        """
+        mock_content = (
+            "using KernelTypesStreamKRegression = ...\n"
+            "using KernelTypesStreamKFp16Linear = ...\n"
+            "using KernelTypesStreamKPipelines = ...\n"
+        )
+        with patch("builtins.open", mock_open(read_data=mock_content)):
+            entries = parse_types_header("fake_path.hpp", "regression")
+            expected = [
+                {
+                    "type_alias": "KernelTypesStreamKRegression",
+                    "class_name": "TestCkTileStreamKRegression",
+                    "file_tag": "regression",
                 }
             ]
             self.validate_entries(entries, expected)
