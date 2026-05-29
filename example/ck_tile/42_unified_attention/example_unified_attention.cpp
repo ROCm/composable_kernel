@@ -2,9 +2,11 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <random>
 #include <sstream>
@@ -80,6 +82,35 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
         //       window centre off the output, so any mask/Step-D/page-index
         //       bug shows up immediately as a deviation from the analytical
         //       mean.
+        // ---- Split-KV knobs --------------------------------------------
+        // `-num_splits=N` enables KV-segment parallelism. The kernel writes
+        // per-split partials to FP32 workspaces; the example merges them on
+        // the host (FlashDecoding-style LSE rescale). Mirrors what aiter's
+        // Python wrapper does via `_pick_num_splits` + `_combine_splits` —
+        // the difference is that the wrapper picks `num_splits`
+        // heuristically while the example takes it as an explicit flag.
+        // Lets the standalone example exercise the multi-split + host
+        // combine path that production hits at scale.
+        .insert("num_splits",
+                "1",
+                "KV-segment parallelism. N=1 (default) uses the existing "
+                "single-launch path. N>1 launches a 3D grid (z=N), the "
+                "kernel writes per-split (o_acc, lse) partials, and the "
+                "example merges them on the host.")
+        // `-dump_splits=1` prints a small per-(head, split, token)
+        // diagnostic dump *after* the kernel finishes but *before* the
+        // host-side combine. Only fires when num_splits > 1. Volume is
+        // bounded by hardcoding the dump window to head=0 and the *last*
+        // up-to-16 query tokens, so a typical run prints ~256 lse +
+        // ~1024 o_acc numbers regardless of total_q. Useful for
+        // inspecting how individual splits contribute to the combine
+        // (e.g. spotting -inf sentinels or unexpected lse values).
+        // Anything beyond that needs a proper logger / file sink.
+        .insert("dump_splits",
+                "0",
+                "0 (default): no extra dump. 1: when num_splits>1, dump "
+                "per-split lse_acc + the first hdim slice of o_acc for "
+                "head=0, last <=16 tokens.")
         .insert("debug_probe",
                 "0",
                 "0:random fill (default), 1:Q=K=V=1 (NaN check), "
@@ -105,10 +136,8 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
         // softmax denominator but contributes nothing to the V accumulator).
         // The flag is parsed into `Problem::sinks` as a host-side
         // `std::vector<float>` of length `nhead_q` and threaded through to
-        // the host reference. The kernel does not yet consume it (no
-        // `kHasSink` device-side branch); until that lands, a non-empty
-        // sinks vector makes the reference diverge from the kernel and
-        // verification is expected to fail.
+        // both the kernel (via the sink-aware pipeline instances) and the
+        // host reference.
         // Accepted syntaxes:
         //   ''            : no sink (default — host reference is the
         //                   classic no-sink softmax).
@@ -125,9 +154,7 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
                 "attention sinks (one scalar per Q head). Empty / 'none' = no sink.\n"
                 "  'random[:seed]' : per-head N(0, 0.5) draw\n"
                 "  'const:F'       : broadcast F across all heads\n"
-                "  'F1,F2,...'     : explicit per-head CSV (length == h_k*nqpkv)\n"
-                "The host reference applies this immediately; the kernel does\n"
-                "not yet consume it.");
+                "  'F1,F2,...'     : explicit per-head CSV (length == h_k*nqpkv)");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_pair(result, arg_parser);
@@ -411,6 +438,8 @@ struct RunConfig
         kernel_repeat = args.get_int("repeat");
         verify        = args.get_bool("verify");
         debug_probe   = args.get_int("debug_probe");
+        num_splits    = args.get_int("num_splits");
+        dump_splits   = args.get_int("dump_splits");
     }
 
     std::optional<uint32_t> seed;
@@ -418,6 +447,8 @@ struct RunConfig
     int kernel_repeat;
     bool verify;
     int debug_probe;
+    int num_splits;   // 1 = single-launch (default); >1 = split-KV with host-side combine.
+    int dump_splits;  // 0 = no extra dump; 1 = print per-split lse/o_acc diagnostics.
 };
 
 template <typename DataType>
@@ -793,6 +824,48 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         reinterpret_cast<const ck_tile::index_t*>(block_tables_buf.GetDeviceBuffer());
     args.block_table_stride = max_num_blocks_per_seq;
 
+    // ---- Split-KV workspace allocation ---------------------------------
+    // When `num_splits > 1` the kernel writes per-split partials to FP32
+    // workspaces instead of `o_ptr`. Strides are in *elements* (the kernel
+    // multiplies by `long_index_t`). Layout matches what
+    // `aiter/ops/unified_attention.py::unified_attention_fwd` allocates:
+    //   o_acc   : [num_q_heads, num_splits, total_q, hdim]  fp32
+    //   lse_acc : [num_q_heads, num_splits, total_q]        fp32, init -inf
+    // The -inf init is essential — splits that early-return (per-row no
+    // work after Step D intersect, partition leaves them empty, ...) do
+    // not write to the workspace, and the combine kernel relies on the
+    // sentinel to give them weight 0. Without this fill the combine reads
+    // uninitialised device memory and silently corrupts those rows.
+    const ck_tile::index_t num_splits = run_config.num_splits;
+    const ck_tile::index_t total_q    = args.num_tokens;
+    const ck_tile::index_t nhead_q    = args.num_head_q;
+    ck_tile::DeviceMem o_acc_buf;
+    ck_tile::DeviceMem lse_acc_buf;
+    std::vector<float> lse_acc_host_init;
+    if(num_splits > 1)
+    {
+        const std::size_t o_acc_elems =
+            static_cast<std::size_t>(nhead_q) * num_splits * total_q * problem.hdim;
+        const std::size_t lse_acc_elems =
+            static_cast<std::size_t>(nhead_q) * num_splits * total_q;
+
+        o_acc_buf.Realloc(o_acc_elems * sizeof(float));
+        lse_acc_buf.Realloc(lse_acc_elems * sizeof(float));
+
+        lse_acc_host_init.assign(lse_acc_elems, -std::numeric_limits<float>::infinity());
+        lse_acc_buf.ToDevice(lse_acc_host_init.data());
+
+        args.num_splits           = num_splits;
+        args.o_acc_ptr            = o_acc_buf.GetDeviceBuffer();
+        args.lse_acc_ptr          = lse_acc_buf.GetDeviceBuffer();
+        // Strides for the [num_q_heads, num_splits, total_q, (hdim)] layout.
+        // o_acc has a trailing hdim dim; lse_acc does not.
+        args.split_stride_o_acc   = total_q * problem.hdim;
+        args.nhead_stride_o_acc   = num_splits * total_q * problem.hdim;
+        args.split_stride_lse_acc = total_q;
+        args.nhead_stride_lse_acc = num_splits * total_q;
+    }
+
     ck_tile::stream_config stream_config{nullptr,
                                          true,
                                          /*log_level=*/0,
@@ -805,6 +878,172 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     {
         std::cerr << "faild to run unified_attention()" << std::endl;
         return false;
+    }
+
+    // ---- Host-side split-KV combine ------------------------------------
+    // FlashDecoding-style merge of per-split partials. For each (token,
+    // head):
+    //   lse_max  = max_s lse_acc[h, s, token]
+    //   w[s]     = exp(lse_acc[h, s, token] - lse_max)   (-inf -> 0)
+    //   out[t,h] = sum_s o_acc[h, s, t, :] * w[s] / sum_s w[s]
+    // Matches `_reduce_segments_ck_layout` in
+    // aiter/ops/unified_attention.py byte-for-byte (modulo the casts and
+    // the loop layout) — the example just runs it on the host so we don't
+    // have to ship a Triton dep with the standalone CK build. The combine
+    // is O(num_q_heads * num_splits * total_q * hdim) which is plenty
+    // fast for the verification-only fixtures this example targets.
+    if(num_splits > 1)
+    {
+        const std::size_t o_acc_elems =
+            static_cast<std::size_t>(nhead_q) * num_splits * total_q * problem.hdim;
+        const std::size_t lse_acc_elems =
+            static_cast<std::size_t>(nhead_q) * num_splits * total_q;
+        std::vector<float> o_acc_host(o_acc_elems);
+        std::vector<float> lse_acc_host(lse_acc_elems);
+        o_acc_buf.FromDevice(o_acc_host.data());
+        lse_acc_buf.FromDevice(lse_acc_host.data());
+
+        // --- Optional per-split dump ---
+        // Dump only when explicitly asked (so the script harness output
+        // stays clean by default). Window: head=0, the *last*
+        // min(total_q, 16) tokens, all splits. Plus, for the very last
+        // token in that window, dump the first min(hdim, 16) o_acc dims
+        // across splits so anomalies in the V-position probe are
+        // visible.
+        if(run_config.dump_splits)
+        {
+            const ck_tile::index_t dump_h        = 0;
+            const ck_tile::index_t dump_t_count  = std::min(total_q, ck_tile::index_t{16});
+            const ck_tile::index_t dump_t_start  = total_q - dump_t_count;
+            const ck_tile::index_t dump_d_count  = std::min(problem.hdim, ck_tile::index_t{16});
+
+            std::cout << "\n=== Split-KV diagnostic dump (num_splits=" << num_splits
+                      << ", head=" << dump_h << ") ===\n";
+
+            std::cout << "lse_acc[head=" << dump_h << ", split=*, token=last "
+                      << dump_t_count << "]:\n";
+            std::cout << "  token";
+            for(ck_tile::index_t s = 0; s < num_splits; ++s)
+            {
+                std::cout << "       s=" << s;
+            }
+            std::cout << "\n";
+            for(ck_tile::index_t t = dump_t_start; t < total_q; ++t)
+            {
+                std::cout << "  t=" << t;
+                for(ck_tile::index_t s = 0; s < num_splits; ++s)
+                {
+                    const std::size_t off = static_cast<std::size_t>(dump_h) * num_splits * total_q
+                                            + static_cast<std::size_t>(s) * total_q
+                                            + static_cast<std::size_t>(t);
+                    const float val = lse_acc_host[off];
+                    if(std::isinf(val) && val < 0.f)
+                    {
+                        std::cout << "       -inf";
+                    }
+                    else
+                    {
+                        std::cout << "  " << std::setw(8) << std::setprecision(4) << val;
+                    }
+                }
+                std::cout << "\n";
+            }
+
+            const ck_tile::index_t probe_t = total_q - 1;
+            std::cout << "o_acc[head=" << dump_h << ", split=*, token=" << probe_t
+                      << ", d=0.." << (dump_d_count - 1) << "]:\n";
+            std::cout << "  d ";
+            for(ck_tile::index_t s = 0; s < num_splits; ++s)
+            {
+                std::cout << "       s=" << s;
+            }
+            std::cout << "\n";
+            for(ck_tile::index_t d = 0; d < dump_d_count; ++d)
+            {
+                std::cout << "  d=" << d;
+                for(ck_tile::index_t s = 0; s < num_splits; ++s)
+                {
+                    const std::size_t off =
+                        static_cast<std::size_t>(dump_h) * num_splits * total_q * problem.hdim
+                        + static_cast<std::size_t>(s) * total_q * problem.hdim
+                        + static_cast<std::size_t>(probe_t) * problem.hdim
+                        + static_cast<std::size_t>(d);
+                    std::cout << "  " << std::setw(8) << std::setprecision(4)
+                              << o_acc_host[off];
+                }
+                std::cout << "\n";
+            }
+            std::cout << "=== end dump ===\n\n";
+        }
+
+        std::vector<float> o_combined_host(
+            static_cast<std::size_t>(total_q) * nhead_q * problem.hdim, 0.0f);
+        for(ck_tile::index_t t = 0; t < total_q; ++t)
+        {
+            for(ck_tile::index_t h = 0; h < nhead_q; ++h)
+            {
+                float lse_max = -std::numeric_limits<float>::infinity();
+                for(ck_tile::index_t s = 0; s < num_splits; ++s)
+                {
+                    const std::size_t off = static_cast<std::size_t>(h) * num_splits * total_q
+                                            + static_cast<std::size_t>(s) * total_q
+                                            + static_cast<std::size_t>(t);
+                    const float lse_v = lse_acc_host[off];
+                    if(lse_v > lse_max) lse_max = lse_v;
+                }
+                if(std::isinf(lse_max) && lse_max < 0.f)
+                {
+                    // Row fully empty across every split; output is 0.
+                    continue;
+                }
+                float w_sum = 0.0f;
+                std::vector<float> w(num_splits);
+                for(ck_tile::index_t s = 0; s < num_splits; ++s)
+                {
+                    const std::size_t off = static_cast<std::size_t>(h) * num_splits * total_q
+                                            + static_cast<std::size_t>(s) * total_q
+                                            + static_cast<std::size_t>(t);
+                    const float lse_v = lse_acc_host[off];
+                    w[s] = (std::isinf(lse_v) && lse_v < 0.f) ? 0.0f
+                                                              : std::exp(lse_v - lse_max);
+                    w_sum += w[s];
+                }
+                if(w_sum <= 0.0f)
+                {
+                    continue;
+                }
+                for(ck_tile::index_t d = 0; d < problem.hdim; ++d)
+                {
+                    float acc = 0.0f;
+                    for(ck_tile::index_t s = 0; s < num_splits; ++s)
+                    {
+                        if(!(w[s] > 0.0f)) continue;
+                        const std::size_t off =
+                            static_cast<std::size_t>(h) * num_splits * total_q * problem.hdim
+                            + static_cast<std::size_t>(s) * total_q * problem.hdim
+                            + static_cast<std::size_t>(t) * problem.hdim
+                            + static_cast<std::size_t>(d);
+                        acc += o_acc_host[off] * w[s];
+                    }
+                    const std::size_t out_off =
+                        static_cast<std::size_t>(t) * nhead_q * problem.hdim
+                        + static_cast<std::size_t>(h) * problem.hdim
+                        + static_cast<std::size_t>(d);
+                    o_combined_host[out_off] = acc / w_sum;
+                }
+            }
+        }
+
+        // Cast the FP32 combine output back to the kernel's output dtype
+        // and overwrite o_buf so the downstream verification path sees
+        // the merged result (not the FP32 workspaces the kernel actually
+        // wrote when num_splits > 1).
+        std::vector<DataType> o_combined_typed(o_combined_host.size());
+        for(std::size_t i = 0; i < o_combined_host.size(); ++i)
+        {
+            o_combined_typed[i] = static_cast<DataType>(o_combined_host[i]);
+        }
+        o_buf.ToDevice(o_combined_typed.data());
     }
 
     std::size_t flop = [&] {
