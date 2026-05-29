@@ -140,6 +140,19 @@ struct StreamKTilePartitionerBase
     get_output_tile_index(index_t tile_idx) const noexcept -> tuple<index_t, index_t>;
 
     /**
+     * @brief Calculates the total size along the K dimension the workgroup is using in this
+     * Stream-K loop iteration
+     *
+     * @param num_macro_tiles  The number of macro tiles along the K dimension this workgroup is
+     * assigned.
+     * @param local_iter_end The workgroup's non-inclusive end iteration that is local to its
+     * current tile.
+     * @return index_t  The K dimension size for the current Stream-K loop iteration.
+     */
+    CK_TILE_DEVICE index_t get_k_size(index_t num_macro_tiles,
+                                      index_t local_iter_end) const noexcept;
+
+    /**
      * @brief Calculates the total space needed for the partials and flags buffers.
      *
      * @param acc_element_bytes  The number of bytes for the accumulator data type used in the GEMM.
@@ -209,6 +222,17 @@ struct StreamKTilePartitionerBase
     CK_TILE_HOST_DEVICE index_t get_n() const noexcept;
 
     /**
+     * @brief Returns the k dimension for the GEMM problem.
+     */
+    CK_TILE_HOST_DEVICE index_t get_k() const noexcept;
+
+    /**
+     * @brief Returns the remainder along the k dimension when k is not evenly divisible by
+     * KPerBlock.
+     */
+    CK_TILE_HOST_DEVICE index_t get_remainder_along_k() const noexcept;
+
+    /**
      * @brief Returns an estimate of the number of workgroups writing to the same macro tile in C.
      */
     CK_TILE_HOST index_t estimate_num_wgs_per_tile() const noexcept;
@@ -244,6 +268,8 @@ struct StreamKTilePartitionerBase
     index_t extra_iters_;
     index_t total_dp_iters_;
     index_t n_;
+    index_t k_;
+    index_t remainder_along_k_;
 };
 
 /**

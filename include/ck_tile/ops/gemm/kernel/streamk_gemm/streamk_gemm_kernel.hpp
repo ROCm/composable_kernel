@@ -363,7 +363,8 @@ struct StreamKKernel
 
             // Determine the total size along the K dimension the workgroup is using in this
             // iteration (used to construct tensor views).
-            index_t k_size = num_loop_sk * TilePartitioner::KPerBlock;
+            index_t k_size = amd_wave_read_first_lane(
+                kargs.tile_partitioner.get_k_size(num_loop_sk, local_iter_end));
 
             // Get the K offsets for the A and B tensors
             auto [i_k_a, i_k_b] = GetKOffsets<ALayout, BLayout>(

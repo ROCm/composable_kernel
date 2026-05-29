@@ -8,10 +8,11 @@ namespace ck_tile {
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::StreamKTilePartitionerBase(
     index_t m, index_t n, index_t k, index_t max_active_wgs)
-    : max_active_wgs_{max_active_wgs}, n_{n}
+    : max_active_wgs_{max_active_wgs}, n_{n}, k_{k}
 {
-    iters_per_tile_ = integer_divide_ceil(k, KPerBlock);
-    num_tiles_      = integer_divide_ceil(m, MPerBlock) * integer_divide_ceil(n_, NPerBlock);
+    iters_per_tile_    = integer_divide_ceil(k, KPerBlock);
+    num_tiles_         = integer_divide_ceil(m, MPerBlock) * integer_divide_ceil(n_, NPerBlock);
+    remainder_along_k_ = k % KPerBlock;
 
     bool big_enough         = num_tiles_ > max_active_wgs_;
     index_t remainder_tiles = num_tiles_ % max_active_wgs_;
@@ -251,6 +252,21 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_n() c
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
+CK_TILE_HOST_DEVICE index_t
+StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_k() const noexcept
+{
+    return k_;
+}
+
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
+CK_TILE_HOST_DEVICE index_t
+StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_remainder_along_k()
+    const noexcept
+{
+    return remainder_along_k_;
+}
+
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
 CK_TILE_HOST index_t
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::estimate_num_wgs_per_tile()
     const noexcept
@@ -332,6 +348,29 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::remap_xcd
      * after remap the ids are continguous on each XCD
      */
     return block_1d_id;
+}
+
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
+CK_TILE_DEVICE index_t
+StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_k_size(
+    index_t num_macro_tiles, index_t local_iter_end) const noexcept
+{
+    // Determine if this workgroup is responsible for the last macro tile in the K dimension
+    bool last_tile = get_iters_per_tile() == local_iter_end;
+    index_t k_size;
+    // If there is no remainder or if the workgroup was not assigned the last macro tile along K,
+    // then their k_size will be a multiple of KPerBlock.
+    if(!remainder_along_k_ || !last_tile)
+    {
+        k_size = num_macro_tiles * KPerBlock;
+    }
+    // Otherwise, there's a remainder. So, k_size is not a multiple of KPerBlock.
+    else
+    {
+        k_size = (num_macro_tiles - 1) * KPerBlock + remainder_along_k_;
+    }
+
+    return k_size;
 }
 
 template <typename BlockGemmShapeType,

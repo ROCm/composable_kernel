@@ -80,6 +80,10 @@ TARGETS = {
             "test_gemm_streamk_atomic_cases.inc",
         ],
     },
+    "regression": {
+        "filter": lambda suffix: suffix == "Regression",
+        "inc_files": ["test_gemm_streamk_regression_cases.inc"],
+    },
 }
 
 # --------------------------------------------------------------------------- #
@@ -97,6 +101,7 @@ KNOWN_TOKENS = [
     ("Tree", "tree"),
     ("CompV3", "compv3"),
     ("Pipelines", "pipelines"),
+    ("Regression", "regression"),
 ]
 
 
