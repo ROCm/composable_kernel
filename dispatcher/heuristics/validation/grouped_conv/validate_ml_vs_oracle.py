@@ -12,18 +12,24 @@ This script:
 4. Reports efficiency metrics
 """
 
+import argparse
 import sys
 from pathlib import Path
 import pandas as pd
 import numpy as np
 
 _THIS_DIR = Path(__file__).parent
-_DISPATCHER_ROOT = _THIS_DIR.parent.parent.parent / "dispatcher"
+# This file lives at: <repo>/projects/composablekernel/dispatcher/heuristics/validation/grouped_conv/
+# Walk up three levels (validation -> heuristics -> dispatcher) to find the dispatcher root.
+_DISPATCHER_ROOT = _THIS_DIR.parent.parent.parent
+_CK_ROOT = _DISPATCHER_ROOT.parent
+# Problem definitions still live with the benchmarking harness in tile_engine.
+_TILE_ENGINE_GROUPED_CONV = _CK_ROOT / "tile_engine" / "ops" / "grouped_conv"
 
 sys.path.insert(0, str(_DISPATCHER_ROOT / "python"))
 sys.path.insert(0, str(_DISPATCHER_ROOT / "heuristics"))
 sys.path.insert(0, str(_DISPATCHER_ROOT / "codegen"))
-sys.path.insert(0, str(_THIS_DIR / "problems"))
+sys.path.insert(0, str(_TILE_ENGINE_GROUPED_CONV / "problems"))
 
 from validation_holdout import VALIDATION_PROBLEMS  # noqa: E402
 from predict import Predictor  # noqa: E402
@@ -81,11 +87,31 @@ def _build_kernel_name(kconf, ndim):
     )
 
 
-# Load model
-model_dir = (
-    _DISPATCHER_ROOT
-    / "heuristics/models/grouped_conv_forward_bf16_gfx950_2d_3d_no_compv5"
+# Parse CLI args
+_parser = argparse.ArgumentParser(description=__doc__)
+_parser.add_argument(
+    "--oracle-csv",
+    type=Path,
+    default=_TILE_ENGINE_GROUPED_CONV / "validation_oracle_results.csv",
+    help="Oracle benchmark CSV (produced by tile_engine/ops/grouped_conv/grouped_conv_full_benchmark.py)",
 )
+_parser.add_argument(
+    "--model-dir",
+    type=Path,
+    default=_DISPATCHER_ROOT
+    / "heuristics/models/grouped_conv_forward_bf16_gfx950_2d_3d_no_compv5",
+    help="Trained LightGBM model directory.",
+)
+_parser.add_argument(
+    "--output",
+    type=Path,
+    default=_THIS_DIR / "validation_heuristic_vs_oracle.csv",
+    help="Where to write the per-problem comparison CSV.",
+)
+_args = _parser.parse_args()
+
+# Load model
+model_dir = _args.model_dir
 feature_engine = GroupedConvFeatureEngine()
 predictor = Predictor(model_dir, feature_engine=feature_engine)
 
@@ -98,7 +124,7 @@ print(f"Validation problems: {len(VALIDATION_PROBLEMS)}")
 print()
 
 # Load oracle benchmark results
-oracle_df = pd.read_csv(_THIS_DIR / "validation_oracle_results.csv")
+oracle_df = pd.read_csv(_args.oracle_csv)
 print(f"Oracle measurements: {len(oracle_df)}")
 print()
 
@@ -281,7 +307,7 @@ if len(efficiencies) > 0:
         print()
 
     # Save detailed results
-    results_df.to_csv(_THIS_DIR / "validation_heuristic_vs_oracle.csv", index=False)
-    print("Detailed results saved to: validation_heuristic_vs_oracle.csv")
+    results_df.to_csv(_args.output, index=False)
+    print(f"Detailed results saved to: {_args.output}")
 else:
     print("ERROR: No predictions could be compared with oracle data")
