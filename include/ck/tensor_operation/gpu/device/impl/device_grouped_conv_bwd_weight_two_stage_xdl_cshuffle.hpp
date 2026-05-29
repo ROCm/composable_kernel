@@ -1839,20 +1839,6 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 return false;
         }
 
-        if constexpr(LargeTensors)
-        {
-            if(!IsPackedTensor(arg.b_g_n_c_wis_lengths_, arg.b_g_n_c_wis_strides_) ||
-               !IsPackedTensor(arg.e_g_k_c_xs_lengths_, arg.e_g_k_c_xs_strides_) ||
-               !IsPackedTensor(arg.a_g_n_k_wos_lengths_, arg.a_g_n_k_wos_strides_))
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "LargeTensors requires packed (contiguous) tensors" << std::endl;
-                }
-                return false;
-            }
-        }
-
         const index_t GemmM = arg.a_grid_desc_k0_m_k1_.GetLength(I1);
         const index_t GemmN = arg.b_grid_desc_k0_n_k1_.GetLength(I1);
         const index_t GemmK =

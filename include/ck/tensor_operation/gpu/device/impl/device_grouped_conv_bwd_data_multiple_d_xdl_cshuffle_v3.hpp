@@ -901,20 +901,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffleV3
             }
         }
 
-        if constexpr(LargeTensors)
-        {
-            if(!IsPackedTensor(arg.a_g_n_k_wos_lengths_, arg.a_g_n_k_wos_strides_) ||
-               !IsPackedTensor(arg.b_g_k_c_xs_lengths_, arg.b_g_k_c_xs_strides_) ||
-               !IsPackedTensor(arg.e_g_n_c_wis_lengths_, arg.e_g_n_c_wis_strides_))
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "LargeTensors requires packed (contiguous) tensors" << std::endl;
-                }
-                return false;
-            }
-        }
-
         // check device
         if constexpr(DirectLoad)
         {
