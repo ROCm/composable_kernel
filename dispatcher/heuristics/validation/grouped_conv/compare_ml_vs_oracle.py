@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 """
 Compare ML heuristic predictions against oracle benchmark results.
 
@@ -114,7 +117,15 @@ def run_end_to_end_workflow(args):
     elif args.problem_set:
         print(f"Problem set: {args.problem_set}")
         # Import problem set dynamically
-        sys.path.insert(0, str(Path(__file__).parent / "problems"))
+        # Problem sets live with the benchmarking harness in tile_engine.
+        _THIS_DIR = Path(__file__).parent
+        _TILE_ENGINE_GROUPED_CONV = (
+            _THIS_DIR.parent.parent.parent.parent
+            / "tile_engine"
+            / "ops"
+            / "grouped_conv"
+        )
+        sys.path.insert(0, str(_TILE_ENGINE_GROUPED_CONV / "problems"))
         try:
             problem_module = __import__(args.problem_set)
             problem_attr = (
@@ -165,15 +176,15 @@ def run_end_to_end_workflow(args):
     print()
     print("Please use the manual workflow documented in README.md:")
     print()
-    print("  1. Create problem set file in problems/")
+    print("  1. Create problem set file in tile_engine/ops/grouped_conv/problems/")
     print(
-        "  2. Run: python grouped_conv_full_benchmark.py --problems <your_set> --csv oracle.csv"
+        "  2. Run: cd tile_engine/ops/grouped_conv && python grouped_conv_full_benchmark.py --problems <your_set> --csv oracle.csv"
     )
     print(
-        "  3. Run: cd ../../dispatcher/heuristics && python predict_cli.py --problem-module <your_set> --output ml.csv"
+        "  3. Run: cd dispatcher/heuristics && python predict_cli.py --problem-module <your_set> --output ml.csv"
     )
     print(
-        "  4. Run: cd ../../tile_engine/ops/grouped_conv && python compare_ml_vs_oracle.py --oracle-csv oracle.csv --ml-csv ml.csv --plot result.png"
+        "  4. Run: cd dispatcher/heuristics/validation/grouped_conv && python compare_ml_vs_oracle.py --oracle-csv oracle.csv --ml-csv ml.csv --plot result.png"
     )
     print()
 
