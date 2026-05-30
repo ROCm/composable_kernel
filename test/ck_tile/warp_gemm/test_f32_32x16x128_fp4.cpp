@@ -20,8 +20,20 @@ class WGRuntimeTest : public ::testing::Test
 
 TYPED_TEST_SUITE(WGRuntimeTest, WGDispatcherTypesList);
 
-TYPED_TEST(WGRuntimeTest, Compare_Dispatcher_MakeWG)
+TYPED_TEST(WGRuntimeTest, Compare_Dispatcher_MakeWG_NonScaled)
 {
     ck_tile::test::warp_gemm::
-        RunCompareDispatcherAndReference<TypeParam, 16, 16, 128, true, false>();
+        RunCompareDispatcherAndReference<TypeParam, 32, 16, 128, false, false>();
+}
+
+TYPED_TEST(WGRuntimeTest, Compare_Dispatcher_MakeWG_Scale16)
+{
+    ck_tile::test::warp_gemm::
+        RunCompareDispatcherAndReference<TypeParam, 32, 32, 128, true, true>();
+}
+
+TYPED_TEST(WGRuntimeTest, Compare_Dispatcher_MakeWG_Scale32)
+{
+    ck_tile::test::warp_gemm::
+        RunCompareDispatcherAndReference<TypeParam, 32, 32, 128, true, false>();
 }
