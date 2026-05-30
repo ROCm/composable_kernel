@@ -234,12 +234,12 @@ struct WarpGemmAttributeWmma
     }
 
     // c_vec += a_vec * b_vec
-    template <typename... Params>
+    template <typename... Params, typename AScaleType, typename BScaleType>
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
                                    const AVecType& a_vec,
-                                   const int32_t& a_scale,
+                                   const AScaleType& a_scale,
                                    const BVecType& b_vec,
-                                   const int32_t& b_scale) const
+                                   const BScaleType& b_scale) const
     {
         if constexpr(kTransC)
         {
@@ -253,11 +253,11 @@ struct WarpGemmAttributeWmma
     }
 
     // c_vec = a_vec * b_vec
-    template <typename... Params>
+    template <typename... Params, typename AScaleType, typename BScaleType>
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec,
-                                       const int32_t& a_scale,
+                                       const AScaleType& a_scale,
                                        const BVecType& b_vec,
-                                       const int32_t& b_scale) const
+                                       const BScaleType& b_scale) const
     {
         if constexpr(kTransC)
         {

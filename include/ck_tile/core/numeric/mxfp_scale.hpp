@@ -103,7 +103,101 @@ struct Packed4Scale
     }
 };
 
+template <typename ScaleType>
+struct Packed8Scale
+{
+    using scale_type     = ScaleType;
+    using raw_type       = uint64_t;
+    using raw_scale_type = typename ScaleType::raw_type;
+
+    static constexpr int num_pack = 8;
+    union
+    {
+        raw_type data_;
+        raw_scale_type scales_[num_pack]; // Direct byte/element access
+    };
+
+    // Constructors
+    CK_TILE_HOST_DEVICE constexpr Packed8Scale() = default;
+    CK_TILE_HOST_DEVICE constexpr Packed8Scale(raw_type val) : data_(val) {}
+    CK_TILE_HOST_DEVICE constexpr Packed8Scale(
+        float s0, float s1, float s2, float s3, float s4, float s5, float s6, float s7)
+    {
+        set_scales_from_float(s0, s1, s2, s3, s4, s5, s6, s7);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr Packed8Scale(ScaleType s0,
+                                               ScaleType s1,
+                                               ScaleType s2,
+                                               ScaleType s3,
+                                               ScaleType s4,
+                                               ScaleType s5,
+                                               ScaleType s6,
+                                               ScaleType s7)
+    {
+        set_scales(s0, s1, s2, s3, s4, s5, s6, s7);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void set_scales_from_float(
+        float s0, float s1, float s2, float s3, float s4, float s5, float s6, float s7)
+    {
+        set_scales(ScaleType(s0),
+                   ScaleType(s1),
+                   ScaleType(s2),
+                   ScaleType(s3),
+                   ScaleType(s4),
+                   ScaleType(s5),
+                   ScaleType(s6),
+                   ScaleType(s7));
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void set_scales(ScaleType s0,
+                                                  ScaleType s1,
+                                                  ScaleType s2,
+                                                  ScaleType s3,
+                                                  ScaleType s4,
+                                                  ScaleType s5,
+                                                  ScaleType s6,
+                                                  ScaleType s7)
+    {
+        data_ = 0;
+        pack_scale(s0, 7);
+        pack_scale(s1, 6);
+        pack_scale(s2, 5);
+        pack_scale(s3, 4);
+        pack_scale(s4, 3);
+        pack_scale(s5, 2);
+        pack_scale(s6, 1);
+        pack_scale(s7, 0);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr operator raw_type() const { return data_; }
+    CK_TILE_HOST_DEVICE constexpr raw_type& data() [[clang::lifetimebound]] { return data_; }
+    CK_TILE_HOST_DEVICE constexpr raw_type data() const { return data_; }
+
+    CK_TILE_HOST_DEVICE constexpr float unpack_to_float(int i) const
+    {
+        return static_cast<float>(unpack_scale(i));
+    }
+
+    CK_TILE_HOST_DEVICE constexpr ScaleType unpack_scale(int i) const
+    {
+        return ScaleType(scales_[i]);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void pack_from_float(float scale, int i)
+    {
+        pack_scale(ScaleType(scale), i);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void pack_scale(ScaleType scale, int i)
+    {
+        scales_[i] = scale.get();
+    }
+};
+
 // Type alias for e8m0_t scales
 using Packed4Scale_E8M0 = Packed4Scale<e8m0_t>;
+using Packed8Scale_E8M0 = Packed8Scale<e8m0_t>;
 
 } // namespace ck_tile

@@ -90,12 +90,17 @@ struct WarpGemmImpl
         c.get_thread_buffer().template set_as<CVec>(I0, c_vec);
     }
 
-    template <typename... Params, typename CTensor, typename ATensor, typename BTensor>
+    template <typename... Params,
+              typename CTensor,
+              typename ATensor,
+              typename BTensor,
+              typename AScaleType,
+              typename BScaleType>
     CK_TILE_DEVICE void operator()(CTensor& c,
                                    const ATensor& a,
                                    const BTensor& b,
-                                   const int32_t& a_scale,
-                                   const int32_t& b_scale) const
+                                   const AScaleType& a_scale,
+                                   const BScaleType& b_scale) const
     {
         static_assert(detail::is_similiar_distributed_tensor_v<CTensor, CWarpTensor> &&
                       detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
@@ -141,11 +146,15 @@ struct WarpGemmImpl
         return c;
     }
 
-    template <typename... Params, typename ATensor, typename BTensor>
+    template <typename... Params,
+              typename ATensor,
+              typename BTensor,
+              typename AScaleType,
+              typename BScaleType>
     CK_TILE_DEVICE auto operator()(const ATensor& a,
                                    const BTensor& b,
-                                   const int32_t& a_scale,
-                                   const int32_t& b_scale) const
+                                   const AScaleType& a_scale,
+                                   const BScaleType& b_scale) const
     {
         using CTensor = CWarpTensor;
         static_assert(detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&

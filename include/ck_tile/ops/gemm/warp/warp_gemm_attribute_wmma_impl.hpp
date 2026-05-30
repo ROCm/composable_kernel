@@ -19,6 +19,11 @@ template <typename Arch,
           typename MXTypeEnable = void>
 struct WmmaTraits;
 
+// Tag used to select scale16 WMMA traits specializations.
+struct WmmaScale16Tag
+{
+};
+
 // Generic WMMA implementation using traits
 template <typename Traits>
 struct WarpGemmAttributeWmmaImpl
@@ -88,22 +93,22 @@ struct WarpGemmAttributeWmmaImpl
             Traits::template wmma_intrinsic<Params...>(a_vec, b_vec, CVecType{0.f}));
     }
 
-    template <typename... Params>
+    template <typename... Params, typename AScaleType, typename BScaleType>
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
                                    const AVecType& a_vec,
-                                   const int32_t& a_scale,
+                                   const AScaleType& a_scale,
                                    const BVecType& b_vec,
-                                   const int32_t& b_scale) const
+                                   const BScaleType& b_scale) const
     {
         c_vec = Traits::template wmma_intrinsic<Params...>(a_vec, a_scale, b_vec, b_scale, c_vec);
     }
 
     // c_vec = a_vec * b_vec
-    template <typename... Params>
+    template <typename... Params, typename AScaleType, typename BScaleType>
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec,
-                                       const int32_t& a_scale,
+                                       const AScaleType& a_scale,
                                        const BVecType& b_vec,
-                                       const int32_t& b_scale) const
+                                       const BScaleType& b_scale) const
     {
         return bit_cast<CVecType>(Traits::template wmma_intrinsic<Params...>(
             a_vec, a_scale, b_vec, b_scale, CVecType{0.f}));
@@ -176,6 +181,9 @@ using WarpGemmAttributeWmmaImpl_f32_32x16x128_f4 =
 
 using WarpGemmAttributeWmmaImpl_f32_32x32x128_f4 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, pk_fp4_t, pk_fp4_t, float, 32, 32, 128>>;
+
+using WarpGemmAttributeWmmaImpl_f32_32x32x128_f4_scale16 = WarpGemmAttributeWmmaImpl<
+    WmmaTraits<gfx125_t, pk_fp4_t, pk_fp4_t, float, 32, 32, 128, WmmaScale16Tag>>;
 
 using WarpGemmAttributeWmmaImpl_f16_16x16x64_f8_f8 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, fp8_t, fp8_t, fp16_t, 16, 16, 64>>;
