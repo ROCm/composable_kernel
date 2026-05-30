@@ -50,6 +50,10 @@ else()
             -Wsign-compare
             -Wno-extra-semi-stmt
             -Wno-unused-template
+            -Wno-lifetime-safety-intra-tu-suggestions
+            -Wno-lifetime-safety-cross-tu-suggestions
+            -Wno-lifetime-safety-lifetimebound-violation
+            -Wno-unknown-warning-option
         )
         if (CMAKE_${COMPILER}_COMPILER_ID MATCHES "Clang")
             list(APPEND CMAKE_COMPILER_WARNINGS
@@ -76,6 +80,10 @@ else()
                 -Wno-unsafe-buffer-usage
                 -Wno-unused-lambda-capture
                 -Wno-nvcc-compat
+                -Wno-lifetime-safety-intra-tu-suggestions
+                -Wno-lifetime-safety-cross-tu-suggestions
+                -Wno-lifetime-safety-lifetimebound-violation
+                -Wno-unknown-warning-option
             )
             if(CK_CXX_STANDARD GREATER_EQUAL 20)
                 list(APPEND CMAKE_COMPILER_WARNINGS -Wno-c++20-compat)
