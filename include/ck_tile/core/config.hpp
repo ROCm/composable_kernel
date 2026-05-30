@@ -173,12 +173,14 @@
 #endif
 
 // buffer atomic add: floating point
+#ifndef CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #elif defined(__gfx9__) || defined(__gfx12__) // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 1
 #else // for GPU code
 #define CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT 0
+#endif
 #endif
 
 #if(defined(__gfx90a__) || defined(__gfx94__)) // for GPU code
