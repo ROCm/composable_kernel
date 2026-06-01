@@ -3,9 +3,52 @@
 
 #pragma once
 
+// FMHA_MASK PLACEMENT: pick exactly one of:
+//   - both 0 → baseline (mask in K-side memory phase, W0-3 phase 1
+//     / W4-7 phase 2, right after `cl_load(memK)`).
+//   - MOVE_FMHA_MASK_TO_COMPUTE=1: hoist mask onto the compute phase
+//     (W0-3 phase 0 / W4-7 phase 1), right after `fmha_alu1`.
+//     Experiment 1.5 finding: bf16 −0.33%, **fp8 +8.8% regression**
+//     because the FP8 cvt+bperm cluster inside `fmha_alu1` makes the
+//     compute phase already-saturated; adding T_mask oversubscribes
+//     it and the empirical cost is ~2× the bare instruction count.
+//   - MOVE_FMHA_MASK_TO_GEMM1=1: place mask at the START of the
+//     gemm1 phase (W0-3 phase 2 / W4-7 phase 3), right before
+//     `cl_calc(xdl_SP_p23_reg_idx, gemm1)`. This is the latest legal
+//     placement: `cl_calc(p23, gemm1)` ends with `fmha_alu0(p01_idx)`
+//     which READS `sp[p01_idx].sp_compute` to compute `m_latest`, so
+//     mask MUST run before that. Phase 3 (V-mem on W0-3, gemm1 on
+//     W4-7) is too late and silently corrupts the row-max.
+//
+//     For W4-7 the `++i_total_loops` also defers from end of phase 2
+//     to start of phase 3 (after mask, before cl_calc) so mask sees
+//     the same i_total_loops value as gemm0 of this iter.
+//
+//     Per-barrier algebra (mask added to gemm1 phase = T_D on both
+//     warp groups, removed from K-mem = T_K on both):
+//       - B1 wait = |T_C − (T_D + T_mask)|. With baseline T_C > T_D
+//         on FP8, the gap closes — DECREASES by T_mask.
+//       - B2 wait = |(T_K − T_mask) − T_C| — DECREASES by T_mask.
+//       - B3 wait = |(T_D + T_mask) − (T_K − T_mask)|
+//                 = |T_D − T_K + 2·T_mask| — DECREASES by 2·T_mask.
+//       - Net: −4·T_mask total wait (vs −2·T_mask for compute), and
+//         gemm1 phase has no FP8 cvt+bperm so it should absorb the
+//         mask without the FP8 oversubscription that hit compute.
+//
+// Must be defined BEFORE including unified_attention_core_loop_scheduler.hpp
+// — that header's `__builtin_amdgcn_sched_group_barrier` per-phase
+// hints are gated on these macros and need to stay in lockstep with
+// the code motion in this file.
+#define MOVE_FMHA_MASK_TO_COMPUTE 0
+#define MOVE_FMHA_MASK_TO_GEMM1   0
+#if MOVE_FMHA_MASK_TO_COMPUTE && MOVE_FMHA_MASK_TO_GEMM1
+#error "MOVE_FMHA_MASK_TO_COMPUTE and MOVE_FMHA_MASK_TO_GEMM1 are mutually exclusive"
+#endif
+
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/unified_attention/pipeline/unified_attention_pipeline_default_policy.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_v3_pipeline.hpp"
+#include "ck_tile/ops/unified_attention/pipeline/unified_attention_core_loop_scheduler.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 #define ENABLE_ASM_MARKER 1
 #if ENABLE_ASM_MARKER
@@ -31,6 +74,30 @@
 // Verified correctness on fp16/bf16/fp8 across the b/sq/sk shape ladder
 // (test_single_shape.py --test) before flipping the default.
 #define ADD_SBARRIER_FOR_PHASE0 0
+
+// ADD_SBARRIER_FOR_PHASE2
+//   1 (default): keep the s_barrier at the start of every phase-2 (cl_p==0
+//     and cl_p==1).
+//   0: drop both phase-2 barriers. EXPERIMENT (May 2026): **breaks
+//     correctness on the 8-warp warp-specialized prefill pipeline** (both
+//     prefill_d128 fp8 and bf16 on b=16 sq=sk=10000 fail vs reference).
+//     The decode-tier path (single warp group, line 1875 `else` branch) is
+//     not affected, but the prefill path runs `core_loop(0)` on W0-3 and
+//     `core_loop(1)` on W4-7 in a producer-consumer pingpong, and the
+//     phase-2 `s_barrier` is the cross-group handoff: W0-3's phase-2 is
+//     `lgkmcnt(0) + barrier + gemm1` while W4-7's phase-2 is
+//     `barrier + cl_load(memK, K_w4_lds_wr_idx, V_w4_lds_rd_idx)` — i.e.
+//     W4-7 may not begin overwriting its K LDS slot until W0-3 has drained
+//     the V LDS read that *might* alias the same physical LDS bytes through
+//     the shared `Policy::GetSmemSize` region. The remaining ~21% of
+//     stalled samples that show up as BARRIER_WAIT in the rocprof profile
+//     is the real cost of this cross-group sync — not a defensive insertion
+//     like the phase-0 one was.
+//   The knob is kept (rather than the macro deleted) so future work can
+//   re-audit whether the K_w4 / V_w0 buffer layout can be made disjoint
+//   enough to allow this barrier to be replaced with a vmcnt-only wait.
+#define ADD_SBARRIER_FOR_PHASE2 1
+
 #if !defined(CK_TILE_DISABLE_PACKED_FP32)
 #define CK_TILE_DISABLE_PACKED_FP32 0
 #endif
@@ -785,10 +852,73 @@ struct UnifiedAttentionPipeline
             __builtin_amdgcn_s_barrier();
         }
 
+        // Within-tile phys_page dedup gate (compile-time page geometry).
+        //
+        // The K/V tile is kPageBlockSize tokens wide and aligned to
+        // kPageBlockSize. The scalar-promote path resolves phys_page once per
+        // *issue* (KNRepeat ds_read_b32 broadcasts per tile), but multiple
+        // issues frequently land in the SAME page — the compiler can't CSE the
+        // reads because it can't prove `(base + i*Y0_step_N)/ps == base/ps` for
+        // a runtime `base`. With a compile-time page_size the issue->page map is
+        // a pure compile-time function in two provable regimes:
+        //   (1) kPageBlockSize % kPageSize == 0  (page divides tile): tile_base
+        //       is always a multiple of page_size, so issue i sits in relative
+        //       page (i*Y0_step_N)/kPageSize.
+        //   (2) kPageSize % kPageBlockSize == 0  (tile divides page): the whole
+        //       kPageBlockSize-token tile fits in ONE page, so every issue
+        //       shares relative page 0, regardless of tile_base alignment.
+        // In both regimes we resolve phys_page once per distinct page and reuse
+        // it, collapsing the B2 K-mem straggler's ds_read / readfirstlane count
+        // (to a single read at ps >= kPageBlockSize). The dedup needs a
+        // compile-time page_size, so it is gated on kHasCePageSize; the runtime
+        // page_size scalar-promote path keeps the original per-issue read, and
+        // any exotic (non-dividing) page_size falls back to it too.
+        constexpr bool kDedupPages =
+            kHasCePageSize &&
+            (kPageBlockSize % kPageSize == 0 || kPageSize % kPageBlockSize == 0);
+        constexpr bool kPageDividesTile =
+            kHasCePageSize && (kPageBlockSize % kPageSize == 0);
+
         auto refresh_k_offsets = [&](index_t k_tile_idx) {
-            static_for<0, KNRepeat, 1>{}([&](auto i) {
-                if constexpr(kScalarPromoteKPageIdx)
-                {
+            if constexpr(kScalarPromoteKPageIdx && kDedupPages)
+            {
+                // One uniform readfirstlane for the tile's first page; the
+                // per-issue page index is then base_page + a compile-time
+                // relative offset, so no further readfirstlane is emitted.
+                const index_t tile_base_token =
+                    split_token_offset + k_tile_idx * kPageBlockSize;
+                const int32_t base_page =
+                    __builtin_amdgcn_readfirstlane(tile_base_token / kPageSize);
+                // Shift by split_start_page to convert absolute -> window index
+                // (see "Per-split window" comment above the cache load).
+                int32_t phys_page = block_tables_lds[base_page - split_start_page];
+                static_for<0, KNRepeat, 1>{}([&](auto i) {
+                    constexpr index_t ii = i.value;
+                    constexpr index_t grp =
+                        kPageDividesTile ? (ii * KY0_step_N) / kPageSize : 0;
+                    // Re-read phys_page only when this issue crosses into a new
+                    // page (a compile-time decision); otherwise reuse the value
+                    // already in the VGPR.
+                    if constexpr(ii > 0)
+                    {
+                        constexpr index_t grp_prev =
+                            kPageDividesTile ? ((ii - 1) * KY0_step_N) / kPageSize : 0;
+                        if constexpr(grp != grp_prev)
+                            phys_page =
+                                block_tables_lds[base_page + grp - split_start_page];
+                    }
+                    const index_t logical_token =
+                        tile_base_token + ii * KY0_step_N + k_thread_n_pos;
+                    const index_t within_page =
+                        logical_token - (base_page + grp) * kPageSize;
+                    k_page_offsets(i) =
+                        (static_cast<long_index_t>(phys_page) * kPageSize + within_page) *
+                        k_row_stride;
+                });
+            }
+            else if constexpr(kScalarPromoteKPageIdx)
+            {
+                static_for<0, KNRepeat, 1>{}([&](auto i) {
                     // Compute the uniform per-`i` base in scalar; force the
                     // resulting page-table index into an SGPR. Tier 2 reads
                     // the phys_page from the LDS cache populated above (one
@@ -799,27 +929,17 @@ struct UnifiedAttentionPipeline
                                                  static_cast<index_t>(i.value) * KY0_step_N;
                     const int32_t i_base_page  = __builtin_amdgcn_readfirstlane(
                         i_base_token / page_size);
-                    // No outer readfirstlane: the ds_read with uniform
-                    // address is a broadcast — every lane already holds
-                    // the same phys_page — and the downstream
-                    //   phys_page * page_size + within_page
-                    // is per-lane VALU (within_page is per-lane), so
-                    // keeping phys_page in VGPRs lets that chain stay
-                    // parallel across lanes rather than serialise through
-                    // an SALU forwarding step.
-                    // Shift by split_start_page to convert absolute → window
-                    // index (see "Per-split window" comment above the cache
-                    // load). split_start_page is a kernel-entry constant so
-                    // the subtract folds into the s_load_dword's offset.
                     const int32_t phys_page    = block_tables_lds[i_base_page - split_start_page];
                     const index_t logical_token = i_base_token + k_thread_n_pos;
                     const index_t within_page   = logical_token - i_base_page * page_size;
                     k_page_offsets(i) =
                         (static_cast<long_index_t>(phys_page) * page_size + within_page) *
                         k_row_stride;
-                }
-                else
-                {
+                });
+            }
+            else
+            {
+                static_for<0, KNRepeat, 1>{}([&](auto i) {
                     // Byte-identical to the pre-optimisation path.
                     const index_t logical_token = split_token_offset +
                                                   k_tile_idx * kPageBlockSize + k_thread_n_pos +
@@ -831,13 +951,42 @@ struct UnifiedAttentionPipeline
                     k_page_offsets(i) =
                         (static_cast<long_index_t>(phys_page) * page_size + within_page) *
                         k_row_stride;
-                }
-            });
+                });
+            }
         };
         auto refresh_v_offsets = [&](index_t v_tile_idx) {
-            static_for<0, VNRepeat, 1>{}([&](auto i) {
-                if constexpr(kScalarPromoteVPageIdx)
-                {
+            if constexpr(kScalarPromoteVPageIdx && kDedupPages)
+            {
+                // See refresh_k_offsets for the dedup rationale.
+                const index_t tile_base_token =
+                    split_token_offset + v_tile_idx * kPageBlockSize;
+                const int32_t base_page =
+                    __builtin_amdgcn_readfirstlane(tile_base_token / kPageSize);
+                int32_t phys_page = block_tables_lds[base_page - split_start_page];
+                static_for<0, VNRepeat, 1>{}([&](auto i) {
+                    constexpr index_t ii = i.value;
+                    constexpr index_t grp =
+                        kPageDividesTile ? (ii * VY0_step_N) / kPageSize : 0;
+                    if constexpr(ii > 0)
+                    {
+                        constexpr index_t grp_prev =
+                            kPageDividesTile ? ((ii - 1) * VY0_step_N) / kPageSize : 0;
+                        if constexpr(grp != grp_prev)
+                            phys_page =
+                                block_tables_lds[base_page + grp - split_start_page];
+                    }
+                    const index_t logical_token =
+                        tile_base_token + ii * VY0_step_N + v_thread_n_pos;
+                    const index_t within_page =
+                        logical_token - (base_page + grp) * kPageSize;
+                    v_page_offsets(i) =
+                        (static_cast<long_index_t>(phys_page) * kPageSize + within_page) *
+                        v_row_stride;
+                });
+            }
+            else if constexpr(kScalarPromoteVPageIdx)
+            {
+                static_for<0, VNRepeat, 1>{}([&](auto i) {
                     const index_t i_base_token = split_token_offset +
                                                  v_tile_idx * kPageBlockSize +
                                                  static_cast<index_t>(i.value) * VY0_step_N;
@@ -850,9 +999,11 @@ struct UnifiedAttentionPipeline
                     v_page_offsets(i) =
                         (static_cast<long_index_t>(phys_page) * page_size + within_page) *
                         v_row_stride;
-                }
-                else
-                {
+                });
+            }
+            else
+            {
+                static_for<0, VNRepeat, 1>{}([&](auto i) {
                     const index_t logical_token = split_token_offset +
                                                   v_tile_idx * kPageBlockSize + v_thread_n_pos +
                                                   static_cast<index_t>(i.value) * VY0_step_N;
@@ -863,8 +1014,8 @@ struct UnifiedAttentionPipeline
                     v_page_offsets(i) =
                         (static_cast<long_index_t>(phys_page) * page_size + within_page) *
                         v_row_stride;
-                }
-            });
+                });
+            }
         };
 
         refresh_k_offsets(k_block_idx);
@@ -1571,7 +1722,7 @@ struct UnifiedAttentionPipeline
             auto memV = number<0>{};
             auto memK = number<1>{};
 
-            using Scheduler = CoreLoopScheduler<Problem, FmhaMask::IsMasking>;
+            using Scheduler = UAcoreLoopScheduler<Problem, FmhaMask::IsMasking>;
 
             auto iteration = [&](auto pi) {
                 auto xdl_SP_p01_reg_idx = number<1>{} - pi;
@@ -1609,6 +1760,9 @@ struct UnifiedAttentionPipeline
                     __builtin_amdgcn_sched_barrier(0);
                     cl_calc(xdl_SP_p01_reg_idx, gemm0);
                     fmha_alu1(xdl_SP_p23_reg_idx);
+#if MOVE_FMHA_MASK_TO_COMPUTE
+                    fmha_mask(xdl_SP_p01_reg_idx);
+#endif
 
                     Scheduler::schedule(cl_p, number<0>{});
                     __builtin_amdgcn_sched_barrier(0);
@@ -1620,17 +1774,33 @@ struct UnifiedAttentionPipeline
                     __builtin_amdgcn_sched_barrier(0);
                     cl_load(memK, K_w0_lds_wr_idx, V_w0_lds_rd_idx);
                     Scheduler::schedule(cl_p, number<1>{});
+#if !MOVE_FMHA_MASK_TO_COMPUTE && !MOVE_FMHA_MASK_TO_GEMM1
                     fmha_mask(xdl_SP_p01_reg_idx);
+#endif
 
                     __builtin_amdgcn_sched_barrier(0);
                     // phase2
                     ASM_MARKER("phase2 Wave0-3");
                     s_waitcnt_lgkmcnt<0>();
                     __builtin_amdgcn_sched_barrier(0);
+#if ADD_SBARRIER_FOR_PHASE2
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
+#endif
                     asm volatile("s_nop 0");
                     __builtin_amdgcn_sched_barrier(0);
+#if MOVE_FMHA_MASK_TO_GEMM1
+                    // Mask hoisted from K-side phase 1 onto the gemm1 phase,
+                    // BEFORE cl_calc(p23, gemm1). cl_calc ends with
+                    // fmha_alu0(p01_idx) which reads sp[p01_idx].sp_compute
+                    // to compute the row-max, so mask must precede it. The
+                    // gemm_1 inside cl_calc operates on sp[p23].p (different
+                    // sp slot) and can be reordered with mask by the
+                    // scheduler — the "2 VALU + 4 SALU" hint added to this
+                    // phase covers the mask cost.
+                    fmha_mask(xdl_SP_p01_reg_idx);
+                    __builtin_amdgcn_sched_barrier(0);
+#endif
                     cl_calc(xdl_SP_p23_reg_idx, gemm1);
 
                     Scheduler::schedule(cl_p, number<2>{});
@@ -1682,21 +1852,35 @@ struct UnifiedAttentionPipeline
                     __builtin_amdgcn_sched_barrier(0);
                     cl_calc(xdl_SP_p01_reg_idx, gemm0);
                     fmha_alu1(xdl_SP_p23_reg_idx);
+#if MOVE_FMHA_MASK_TO_COMPUTE
+                    fmha_mask(xdl_SP_p01_reg_idx);
+#endif
 
                     Scheduler::schedule(cl_p, number<1>{});
                     __builtin_amdgcn_sched_barrier(0);
                     // phase2
                     ASM_MARKER("phase2 Wave4-7");
+#if ADD_SBARRIER_FOR_PHASE2
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
+#endif
                     cl_load(memK, K_w4_lds_wr_idx, V_w4_lds_rd_idx);
                     Scheduler::schedule(cl_p, number<2>{});
+#if !MOVE_FMHA_MASK_TO_COMPUTE && !MOVE_FMHA_MASK_TO_GEMM1
                     fmha_mask(xdl_SP_p01_reg_idx);
+#endif
 
+#if !MOVE_FMHA_MASK_TO_GEMM1
+                    // Baseline: ++i_total_loops at end of phase 2 (after
+                    // the original mask placement). MOVE_FMHA_MASK_TO_GEMM1
+                    // defers this to start of phase 3 (after the moved mask,
+                    // before cl_calc) so the mask sees the pre-increment
+                    // value matching gemm0's K-tile column.
                     if(num_total_loop <= ++i_total_loops)
                     {
                         result = false;
                     }
+#endif
 
                     __builtin_amdgcn_sched_barrier(0);
                     // phase3
@@ -1707,6 +1891,20 @@ struct UnifiedAttentionPipeline
                     __builtin_amdgcn_sched_barrier(0);
                     asm volatile("s_nop 1");
                     __builtin_amdgcn_sched_barrier(0);
+#if MOVE_FMHA_MASK_TO_GEMM1
+                    // Mask hoisted from K-side phase 2 onto the gemm1
+                    // phase 3, BEFORE cl_calc(p23, gemm1). cl_calc ends
+                    // with fmha_alu0(p01_idx) which reads sp[p01_idx]
+                    // to compute the row-max, so mask must precede it.
+                    // Deferred increment (see above) keeps i_total_loops
+                    // aligned with gemm0 of this iter.
+                    fmha_mask(xdl_SP_p01_reg_idx);
+                    if(num_total_loop <= ++i_total_loops)
+                    {
+                        result = false;
+                    }
+                    __builtin_amdgcn_sched_barrier(0);
+#endif
                     cl_calc(xdl_SP_p23_reg_idx, gemm1);
 
                     Scheduler::schedule(cl_p, number<3>{});
