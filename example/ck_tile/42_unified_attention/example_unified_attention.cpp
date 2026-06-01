@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
 #include <optional>
@@ -52,9 +53,34 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
                 "permute input\n"
                 "if true, will be b*h*s*d, else b*s*h*d")
         .insert("operm", "0", "permute output")
-        .insert("causal", "0", "0: no mask, 1: causal mask")
+        .insert("mask",
+                "b",
+                "attention mask. accepts the same syntax as 01_fmha:\n"
+                "  '0'             : no mask\n"
+                "  '1' or 't'      : causal mask from top-left\n"
+                "  '2' or 'b'      : causal mask from bottom-right (default)\n"
+                "  'xt:N'/'xb:N'   : xformer-style window_size N from top-left/bottom-right\n"
+                "                    N<0 means causal, N>0 means sliding-window attention\n"
+                "  't:l,r'/'b:l,r' : FA-style left/right window from top-left/bottom-right\n"
+                "  'g:y,x'         : generic mask coordinate")
         .insert("verify", "1", "0:no verify, 1:verify")
         .insert("varlen", "1", "0: fixed length, 1: variable length")
+        // Debug switch for analytical bug isolation.
+        //   0 — normal random fill (default).
+        //   1 — Q=K=V=1. Uniform softmax × V=1 → o[m,d] = 1 for every valid
+        //       (token, head, dim). Catches NaN/Inf in the accumulator but
+        //       NOT mask/indexing bugs (sum-of-uniform-weights stays 1
+        //       regardless of which cells are valid).
+        //   2 — Q=K=1, V[n_kv, h, d] = n_kv. Q*K^T is constant → softmax is
+        //       uniform over the *valid* KV range per row, so
+        //       o[m, h, d] = mean(n in valid_range(m)). Reads the actual SWA
+        //       window centre off the output, so any mask/Step-D/page-index
+        //       bug shows up immediately as a deviation from the analytical
+        //       mean.
+        .insert("debug_probe",
+                "0",
+                "0:random fill (default), 1:Q=K=V=1 (NaN check), "
+                "2:Q=K=1 V=position (mask/index check)")
         .insert("seed",
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
@@ -169,6 +195,20 @@ struct Problem
         {
             num_tokens += len;
         }
+
+        mask_str = args.get_str("mask");
+        // Decode once with the maximum batch shape for top-level reporting and
+        // for the kernel-side mask_type. The host reference re-decodes per-batch
+        // with each batch's effective seqlens (varlen-aware) inside run_impl.
+        const ck_tile::index_t report_seqlen_q =
+            query_lens.empty()
+                ? max_seqlen_q
+                : *std::max_element(query_lens.begin(), query_lens.end());
+        const ck_tile::index_t report_seqlen_kv =
+            kv_lens.empty()
+                ? max_seqlen_kv
+                : *std::max_element(kv_lens.begin(), kv_lens.end());
+        mask = mask_info::decode(mask_str, report_seqlen_q, report_seqlen_kv);
     }
 
     std::vector<ck_tile::index_t> get_query_shape() const { return {num_tokens, nhead_q, hdim}; }
@@ -198,6 +238,7 @@ struct Problem
     float scale;
     float scale_k;
     float scale_v;
+    std::string mask_str;
     mask_info mask;
     std::vector<int> query_lens;
     std::vector<int> kv_lens;
@@ -216,17 +257,20 @@ struct RunConfig
         kernel_warmup = args.get_int("warmup");
         kernel_repeat = args.get_int("repeat");
         verify        = args.get_bool("verify");
+        debug_probe   = args.get_int("debug_probe");
     }
 
     std::optional<uint32_t> seed;
     int kernel_warmup;
     int kernel_repeat;
     bool verify;
+    int debug_probe;
 };
 
 template <typename DataType>
 auto generate_qkv(const Problem& problem,
-                  [[maybe_unused]] std::optional<uint32_t> seed = std::nullopt)
+                  [[maybe_unused]] std::optional<uint32_t> seed        = std::nullopt,
+                  int                                     debug_probe = 0)
     -> std::tuple<ck_tile::HostTensor<DataType>,
                   ck_tile::HostTensor<DataType>,
                   ck_tile::HostTensor<DataType>>
@@ -235,9 +279,46 @@ auto generate_qkv(const Problem& problem,
     ck_tile::HostTensor<DataType> k(problem.get_key_shape());
     ck_tile::HostTensor<DataType> v(problem.get_value_shape());
 
-    ck_tile::FillNormalDistribution<DataType>{0.f, 3.f, seed}(q);
-    ck_tile::FillNormalDistribution<DataType>{0.f, 3.f, seed}(k);
-    ck_tile::FillNormalDistribution<DataType>{0.f, 3.f, seed}(v);
+    if(debug_probe == 1)
+    {
+        std::fill(q.begin(), q.end(), DataType{1});
+        std::fill(k.begin(), k.end(), DataType{1});
+        std::fill(v.begin(), v.end(), DataType{1});
+    }
+    else if(debug_probe == 2)
+    {
+        // Q = K = 1 → Q*K^T is constant → softmax is uniform over the valid
+        // KV range for each row. V is filled with the *logical* token index
+        // assuming an identity block_tables (main() overrides block_tables to
+        // identity when debug_probe == 2). The expected output is then
+        //   o[m, h, d] = mean( n_kv  for  n_kv in valid_range(m) )
+        // which is a per-row analytical constant that depends on the SWA
+        // mask and the V index resolution. Any deviation pinpoints the
+        // offending stage (mask coords, Step D, page-table lookup, within-
+        // page offset).
+        std::fill(q.begin(), q.end(), DataType{1});
+        std::fill(k.begin(), k.end(), DataType{1});
+        // V[phys_blk, within, head_kv, d] = phys_blk * page_blk_size + within
+        const auto vshape = v.mDesc.get_lengths(); // {num_blks, page_blk_size, nhead_kv, hdim}
+        const auto nb     = static_cast<ck_tile::index_t>(vshape[0]);
+        const auto pb_sz  = static_cast<ck_tile::index_t>(vshape[1]);
+        const auto nh     = static_cast<ck_tile::index_t>(vshape[2]);
+        const auto hd     = static_cast<ck_tile::index_t>(vshape[3]);
+        for(ck_tile::index_t pb = 0; pb < nb; ++pb)
+            for(ck_tile::index_t wp = 0; wp < pb_sz; ++wp)
+            {
+                const float val = static_cast<float>(pb * problem.page_blk_size + wp);
+                for(ck_tile::index_t h = 0; h < nh; ++h)
+                    for(ck_tile::index_t d = 0; d < hd; ++d)
+                        v(pb, wp, h, d) = static_cast<DataType>(val);
+            }
+    }
+    else
+    {
+        ck_tile::FillNormalDistribution<DataType>{0.f, 3.f, seed}(q);
+        ck_tile::FillNormalDistribution<DataType>{0.f, 3.f, seed}(k);
+        ck_tile::FillNormalDistribution<DataType>{0.f, 3.f, seed}(v);
+    }
 
     return std::make_tuple(q, k, v);
 }
@@ -256,7 +337,7 @@ template <typename AccDataType,
 CK_TILE_HOST void fmha_fwd(const ck_tile::HostTensor<QDataType>& q_bshd,
                            const ck_tile::HostTensor<KDataType>& k_bshd,
                            const ck_tile::HostTensor<VDataType>& v_bshd,
-                           // const mask_info& mask,
+                           const mask_info& mask,
                            ck_tile::HostTensor<ODataType>& o_bshd,
                            const QElementOp& q_element_op        = {},
                            const KElementOp& k_element_op        = {},
@@ -295,10 +376,19 @@ CK_TILE_HOST void fmha_fwd(const ck_tile::HostTensor<QDataType>& q_bshd,
         ck_tile::reference_batched_gemm<QDataType, KDataType, AccDataType>(
             q_host_ref, k_host_ref, s_host_ref, q_element_op, k_element_op, s_acc_element_op);
 
-        ck_tile::reference_batched_masking(
-            s_host_ref,
-            ck_tile::make_generic_attention_mask_from_lr_window<UnifiedAttentionMasks::CausalMask>(
-                -1, 0, seqlen_q, seqlen_kv, 1, false));
+        if(mask.type != mask_enum::no_mask)
+        {
+            // Always use the GenericMask (IsLocal=true) path so both classical causal
+            // (left=-1, right=0) and sliding-window (left>=0) flow through the same
+            // codepath. The helper translates left/right into y/x mask coordinates
+            // and is_top_left selects the corner.
+            const bool is_top_left = (mask.type == mask_enum::mask_top_left);
+            ck_tile::reference_batched_masking(
+                s_host_ref,
+                ck_tile::make_generic_attention_mask_from_lr_window<
+                    UnifiedAttentionMasks::GenericMask>(
+                    mask.left, mask.right, seqlen_q, seqlen_kv, /*repeat_idx=*/1, is_top_left));
+        }
         ck_tile::reference_batched_softmax<AccDataType, AccDataType>(
             s_host_ref, p_host_ref, ck_tile::identity{});
         ck_tile::reference_batched_gemm<PDataType, VDataType, AccDataType>(
@@ -314,7 +404,7 @@ CK_TILE_HOST void fmha_fwd(const ck_tile::HostTensor<QDataType>& q_bshd,
 template <typename DataType>
 bool run_impl(const Problem& problem, const RunConfig& run_config)
 {
-    auto [q, k, v] = generate_qkv<DataType>(problem, run_config.seed);
+    auto [q, k, v] = generate_qkv<DataType>(problem, run_config.seed, run_config.debug_probe);
 
     ck_tile::DeviceMem q_buf(q.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_buf(k.get_element_space_size_in_bytes());
@@ -336,8 +426,16 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.num_head_q         = problem.nhead_q;
     args.num_queries_per_kv = problem.num_queries_per_kv;
     args.page_blk_size      = problem.page_blk_size;
-    args.mask_type          = 2;
+    args.mask_type          = static_cast<int>(problem.mask.type);
     args.hdim               = problem.hdim;
+
+    // SWA window parameters from the parsed mask_info. The kernel still uses
+    // the hard-coded `(-1, 0, false)` mask in Phase 1 (pure refactor); these
+    // fields land in kargs but are not yet consumed. Phase 2 / 3 will read
+    // them inside the kernel.
+    args.window_size_left  = problem.mask.left;
+    args.window_size_right = problem.mask.right;
+    args.is_top_left       = (problem.mask.type == mask_enum::mask_top_left);
 
     args.num_blks = problem.num_blks;
 
@@ -431,12 +529,24 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     // Allocate host memory for block_tables
     std::vector<ck_tile::index_t> block_tables_host(problem.batch * max_num_blocks_per_seq);
 
-    // Fill block_tables with random integers between 0 and num_blocks-1
+    // Fill block_tables. For debug_probe==2 we pin an *identity* table so the
+    // V-position probe's analytical expectation holds: with V_phys[pb, wp] =
+    // pb*PB + wp and identity table, V[logical_n] = logical_n exactly.
     std::mt19937 rng(run_config.seed ? *run_config.seed : std::random_device{}());
-    std::uniform_int_distribution<ck_tile::index_t> dist(0, problem.num_blks - 1);
-    for(size_t i = 0; i < block_tables_host.size(); ++i)
+    if(run_config.debug_probe == 2)
     {
-        block_tables_host[i] = dist(rng);
+        for(size_t i = 0; i < block_tables_host.size(); ++i)
+        {
+            block_tables_host[i] = static_cast<ck_tile::index_t>(i);
+        }
+    }
+    else
+    {
+        std::uniform_int_distribution<ck_tile::index_t> dist(0, problem.num_blks - 1);
+        for(size_t i = 0; i < block_tables_host.size(); ++i)
+        {
+            block_tables_host[i] = dist(rng);
+        }
     }
 
     // Copy to device
@@ -514,7 +624,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         if(i < problem.kv_lens.size() - 1)
             std::cout << ",";
     }
-    std::cout << "], mask:" << "causal mask" << std::fixed << ", " << std::setprecision(8) << time
+    std::cout << "], mask:" << problem.mask << std::fixed << ", " << std::setprecision(8) << time
               << " ms, " << std::setprecision(2) << tflops << " TFlops, " << std::setprecision(2)
               << (static_cast<double>(mem) / 1e12 / (time / 1e3)) << " TB/s" << std::endl;
 
@@ -566,11 +676,15 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         });
         // v_b.ForEach([&](auto& self, auto idx) { self(idx) = v(b, idx[1], idx[2], idx[3]); });
 
+        // Decode the mask freshly with this batch's effective seqlens so the host
+        // reference matches the per-batch attention shape (varlen-aware).
+        const auto batch_mask = mask_info::decode(problem.mask_str, seqlen_q_eff, seqlen_kv_eff);
+
         // Compute reference for this batch segment (host::fmha_fwd expects bshd tensors)
         host::fmha_fwd<float, DataType>(q_b,
                                         k_b,
                                         v_b,
-                                        // problem.mask,
+                                        batch_mask,
                                         o_b,
                                         ck_tile::identity{},
                                         ck_tile::identity{},

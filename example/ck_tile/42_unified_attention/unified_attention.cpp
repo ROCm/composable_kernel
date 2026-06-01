@@ -123,6 +123,55 @@ std::pair<bool, float> dispatch_one(const unified_attention_args& args,
         unified_attention_kernel_traits<V, DType, IsMask, PageSize>>(args, config);
 }
 
+// Per-(V, DType) availability of IsLocal=true (Sliding-Window-Attention)
+// instances. SWA is now compiled on every UA variant (all prefill + decode
+// tiers for d=64 and d=128) across every supported dtype (bf16, fp16, fp8).
+// Anything that doesn't fall through the constexpr filter below still
+// returns {false, 0.f} so a future variant can be added without breaking
+// the binary.
+//
+// All SWA instances are compiled at PageSize=0 (runtime page size) — the
+// page-pinned ps16/ps32/ps64 menu only exists for the IsLocal=false fast
+// path. The Tier-0/Tier-2 scalar-promote gate doesn't fire under IsLocal
+// (the per-row x_start/x_end clipping kills the constexpr KY0_step_N
+// precondition) so there's no payoff to specialising page_size for SWA.
+template <KernelVariant V, unified_attention_args::data_type_enum DType>
+std::pair<bool, float> dispatch_local(const unified_attention_args& args,
+                                      const stream_config& config)
+{
+    using DT = unified_attention_args::data_type_enum;
+    // SWA availability matrix:
+    //   prefill_d128       /  prefill_d64
+    //   decode_d128_m128   /  decode_d64_m128
+    //   decode_d128_m32    /  decode_d64_m64
+    //   decode_d128_m16    /  decode_d64_m16
+    // Every variant compiles for {bf16, fp16, fp8}. The 8x3 = 24 instance
+    // files live in instances/unified_attention_d{64,128}_{bf16,fp16,fp8}_
+    // mask{,_decode{,_s,_t}}_local.cpp (a 1:1 mirror of the non-local
+    // instance menu).
+    constexpr bool is_supported_variant =
+        (V == KernelVariant::prefill_d128       ||
+         V == KernelVariant::decode_d128_m128   ||
+         V == KernelVariant::decode_d128_m32    ||
+         V == KernelVariant::decode_d128_m16    ||
+         V == KernelVariant::prefill_d64        ||
+         V == KernelVariant::decode_d64_m128    ||
+         V == KernelVariant::decode_d64_m64     ||
+         V == KernelVariant::decode_d64_m16);
+    if constexpr(is_supported_variant &&
+                 (DType == DT::bf16 || DType == DT::fp16 || DType == DT::fp8))
+    {
+        return unified_attention_kernel_dispatch<
+            unified_attention_kernel_traits<V, DType, /*IsMasking=*/true,
+                                            /*kPageSize=*/0,
+                                            /*IsLocal=*/true>>(args, config);
+    }
+    else
+    {
+        return {false, 0.f};
+    }
+}
+
 // ---------------------------------------------------------------------------
 // dispatch_page_size — pick the constexpr `kPageSize` instance.
 //
@@ -173,14 +222,23 @@ std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
 {
     using DT           = unified_attention_args::data_type_enum;
     const bool is_mask = (args.mask_type != static_cast<int>(mask_enum::no_mask));
+    // SWA criterion mirrors the FA-style left/right window semantics: the
+    // mask is "local" iff at least one bound is finite. `window_size_left
+    // = -1` means "no left bound" (i.e. full causal), and
+    // `window_size_right = 0` is the default causal anchor. Any other
+    // combination opts into IsLocal=true.
+    const bool is_local =
+        is_mask && (args.window_size_left >= 0 || args.window_size_right > 0);
 
     if(args.data_type == DT::fp16)
     {
+        if(is_local) return dispatch_local<V, DT::fp16>(args, config);
         if(is_mask)  return dispatch_page_size<V, DT::fp16, true >(args, config);
         return            dispatch_page_size<V, DT::fp16, false>(args, config);
     }
     if(args.data_type == DT::bf16)
     {
+        if(is_local) return dispatch_local<V, DT::bf16>(args, config);
         if(is_mask)  return dispatch_page_size<V, DT::bf16, true >(args, config);
         return            dispatch_page_size<V, DT::bf16, false>(args, config);
     }
@@ -204,6 +262,16 @@ std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
                      V == KernelVariant::decode_d64_m64 ||
                      V == KernelVariant::decode_d64_m16)
         {
+            // Mirror the bf16/fp16 branches: route SWA (window bounded
+            // on at least one side) to the IsLocal=true instance menu.
+            // Without this branch the fp8 SWA cases silently fall
+            // through to dispatch_page_size which compiles an
+            // IsLocal=false instance, so the kernel ignores the window
+            // and computes the full causal output (output norm stays
+            // constant as the window narrows). The new fp8 _local.cpp
+            // instances cover every variant in the constexpr-supported
+            // set above, so this can never miss.
+            if(is_local) return dispatch_local<V, DT::fp8>(args, config);
             if(is_mask)  return dispatch_page_size<V, DT::fp8, true >(args, config);
             return            dispatch_page_size<V, DT::fp8, false>(args, config);
         }
