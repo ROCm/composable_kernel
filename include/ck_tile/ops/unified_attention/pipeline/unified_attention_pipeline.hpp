@@ -1429,9 +1429,15 @@ struct UnifiedAttentionPipeline
                                   "expects PV per-thread buffer in chunks of 8 "
                                   "fp8 (one warp-gemm K iteration).");
 
+                    // On gfx950 the paired-lane (l^32) swap is a single VALU
+                    // op (v_permlane32_swap_b32), so the lane-id / ds_bpermute
+                    // address machinery below is only needed for the
+                    // ds_bpermute fallback on older arches (e.g. gfx942).
+#if !defined(__gfx950__)
                     const int lane_id     = ck_tile::get_lane_id();
                     const int paired_addr = (lane_id ^ 32) << 2; // bytes
                     const bool is_sub_0   = (lane_id & 32) == 0;
+#endif
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wuninitialized"
@@ -1458,6 +1464,23 @@ struct UnifiedAttentionPipeline
                         const uint32_t hi_pack =
                             __builtin_amdgcn_cvt_pk_fp8_f32(g, h, hi_tmp, /*hi=*/true);
 
+#if defined(__gfx950__)
+                        // gfx950: do the paired-lane (l^32) swap in a single
+                        // VALU instruction instead of an LDS round-trip.
+                        // v_permlane32_swap_b32 exchanges operand0's high half
+                        // (lanes 32..63) with operand1's low half (lanes 0..31)
+                        // and keeps the diagonal halves, so feeding
+                        // (lo_pack, hi_pack) returns {out_lo, out_hi} directly
+                        // for every lane -- the swap and the per-lane sub-block
+                        // muxing the ds_bpermute path needs are both folded into
+                        // the instruction. (Semantics verified on hw.)
+                        const auto swapped =
+                            __builtin_amdgcn_permlane32_swap(lo_pack, hi_pack,
+                                                             /*fi=*/false,
+                                                             /*bound_ctrl=*/false);
+                        const uint32_t out_lo = swapped[0];
+                        const uint32_t out_hi = swapped[1];
+#else
                         // Issue ds_bpermute as early as possible so its LDS-DMA
                         // latency overlaps with the byte writes below (and with
                         // the next K-chunk's cvts after this iter unrolls).
@@ -1467,6 +1490,7 @@ struct UnifiedAttentionPipeline
 
                         const uint32_t out_lo = is_sub_0 ? lo_pack : recv;
                         const uint32_t out_hi = is_sub_0 ? recv    : hi_pack;
+#endif
 
                         p.thread_buf_[k_base + 0] =
                             bit_cast<fp8_t>(static_cast<fp8_raw_t>((out_lo >>  0) & 0xFFu));
