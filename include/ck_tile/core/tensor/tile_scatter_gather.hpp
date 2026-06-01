@@ -335,6 +335,10 @@ struct tile_scatter_gather
                 pre_computed_warp_coords_(iCoord) =
                     make_tuple(window_adaptor_thread_coord, bottom_tensor_thread_coord);
             });
+
+            // Hoist the wave-uniform warp id out of the per-issue async-load
+            // path (only the global-memory gather windows issue those loads).
+            cached_warp_id_ = get_warp_id();
         }
     }
 
@@ -650,7 +654,7 @@ struct tile_scatter_gather
                 sizeof(LdsDataType) -
             size_per_buf;
 
-        const index_t m0_init_value = size_per_buf + size_per_wave * get_warp_id();
+        const index_t m0_init_value = size_per_buf + size_per_wave * cached_warp_id_;
         m0_set_with_memory(
             amd_wave_read_first_lane(m0_init_value)); // This should be wave independent
 
@@ -1121,7 +1125,7 @@ struct tile_scatter_gather
         LdsDataType*    lds_base = lds_tile.get_bottom_tensor_view().get_buffer_view().p_data_;
 
         // Wave / warp-group offset into LDS, computed once.
-        const index_t lds_wave_elems = elems_per_buf + elems_per_wave * get_warp_id();
+        const index_t lds_wave_elems = elems_per_buf + elems_per_wave * cached_warp_id_;
 
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
@@ -1303,6 +1307,14 @@ struct tile_scatter_gather
                        array<tuple<WindowAdaptorCoord, BottomTensorCoord>, NumCoord>,
                        std::byte>
         pre_computed_warp_coords_;
+
+    // Wave-uniform warp id, materialized once at construction. The async-load
+    // paths (async_load_raw / async_load_raw_long) use this instead of calling
+    // get_warp_id() per issue: get_warp_id() lowers to threadIdx.x/warp_size
+    // (s_lshr) followed by a *convergent* v_readfirstlane, which LLVM cannot
+    // hoist/CSE across the load loop (convergence + the m0 asm-volatile
+    // barrier). Caching the uniform value here moves both out of the loop.
+    index_t cached_warp_id_ = 0;
 };
 
 // TODO: use strategy
