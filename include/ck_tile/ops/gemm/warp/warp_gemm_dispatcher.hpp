@@ -149,6 +149,8 @@ template<> struct Dispatcher<bf16_t, bf16_t, float, 16, 16, 16,  true> { using T
 #if defined(__gfx125__)
 template<bool TransposeC, WGAttrNumAccessEnum AttrNumAccess> struct Dispatcher<bf16_t, bf16_t, float, 16, 16, 32, TransposeC, false, false, AttrNumAccess, AttrNumAccess>
     : WmmaTag { using Type = WarpGemmWmma_f32_16x16x32_bf16_bf16<TransposeC, AttrNumAccess>;};
+template<bool TransposeC, WGAttrNumAccessEnum AttrNumAccess> struct Dispatcher<bf16_t, bf16_t, bf16_t, 16, 16, 32, TransposeC, false, false, AttrNumAccess, AttrNumAccess>
+    : WmmaTag { using Type = WarpGemmWmma_bf16_16x16x32_bf16_bf16<TransposeC, AttrNumAccess>;};
 #else
 template<> struct Dispatcher<bf16_t, bf16_t, float, 16, 16, 32, false> { using Type = WarpGemmMfmaBf16Bf16F32M16N16K32<>; };
 template<> struct Dispatcher<bf16_t, bf16_t, float, 16, 16, 32, true>  { using Type = WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution<>; };

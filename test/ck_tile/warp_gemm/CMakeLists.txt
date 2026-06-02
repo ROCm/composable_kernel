@@ -4,7 +4,8 @@
 if(GPU_TARGETS MATCHES "gfx95")
     add_gtest_executable(test_ck_tile_wg_16x16x128_fp4 test_f32_16x16x128_fp4.cpp)
 endif()
-
+ 
 if(GPU_TARGETS MATCHES "gfx125")
+    add_gtest_executable(test_ck_tile_wmma_bf16_16x16x32_gfx1250 test_wmma_bf16_16x16x32_gfx1250.cpp)
     add_gtest_executable(test_ck_tile_wg_32x16x128_fp4 test_f32_32x16x128_fp4.cpp)
 endif()
