@@ -23,7 +23,8 @@ enum struct GemmPipeline
     PRESHUFFLE_FLATMM,
     PRESHUFFLE_TDM,
     PRESHUFFLE_MX_TDM,
-    COMPUTE_MX_TDM
+    COMPUTE_MX_TDM,
+    WAVELET
 };
 
 } // namespace ck_tile

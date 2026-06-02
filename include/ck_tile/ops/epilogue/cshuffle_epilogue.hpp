@@ -563,6 +563,33 @@ struct CShuffleEpilogue
         return lds_block_desc.get_element_space_size() * sizeof(ODataType);
     }
 
+    /// Number of block_sync_lds() calls in operator().
+    /// Used by RunBarrierStub() to match barrier count for wavelet load waves.
+    /// IMPORTANT: Must be kept in sync with operator(). See RunBarrierStub().
+    CK_TILE_HOST_DEVICE static constexpr index_t GetBarrierCount()
+    {
+        // operator() issues:
+        //   1x s_wait_tensorcnt_barrier()  (counted as 1 barrier)
+        //   num_access iterations x 2 block_sync_lds() each
+        constexpr index_t num_access = SFC::get_num_of_access();
+        return 1 + 2 * num_access;
+    }
+
+    /// Run matching barriers for wavelet load waves that don't participate
+    /// in the epilogue data path. Must issue the same number of barriers
+    /// as operator() to avoid deadlock.
+    CK_TILE_DEVICE static void RunBarrierStub()
+    {
+        constexpr index_t num_access = SFC::get_num_of_access();
+        constexpr index_t count      = GetBarrierCount();
+        // Verify the barrier count formula matches the structural pattern in operator():
+        //   1 x s_wait_tensorcnt_barrier  +  num_access x 2 block_sync_lds
+        static_assert(count == 1 + 2 * num_access,
+                      "RunBarrierStub: barrier count mismatch with operator(). "
+                      "If operator()'s barrier pattern changed, update GetBarrierCount().");
+        static_for<0, count, 1>{}([&](auto) { block_sync_lds(); });
+    }
+
     template <index_t iAccess, typename LdsTile, typename ScaleM, typename ScaleN>
     CK_TILE_DEVICE void
     scale_tile(LdsTile& lds_tile, ScaleM& scale_m_window, ScaleN& scale_n_window)
@@ -784,6 +811,9 @@ struct CShuffleEpilogue
             }
         }();
 
+        // NOTE: This barrier pattern must match GetBarrierCount().
+        // Total barriers = 1 (s_wait_tensorcnt_barrier) + 2 * num_access (block_sync_lds pairs).
+        // If you add/remove barriers here, update GetBarrierCount() and RunBarrierStub().
         s_wait_tensorcnt_barrier();
 
         static_for<0, num_access, 1>{}([&](auto iAccess) {
