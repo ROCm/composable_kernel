@@ -65,14 +65,6 @@ struct HstuAttentionNoGroupFwdParams
     float p_drop;
     uint64_t philox_seed;
     uint64_t philox_offset;
-
-    // this need not be set by the API users, we only use it for passing num_splits between splitkv
-    // and combine kernel
-    int num_splits;
-    // pointer of device memory allocated before calling fwd_splitkv kernel and released after
-    // calling combine kernel
-    void* o_acc_ptr;
-    void* lse_acc_ptr;
 };
 
 struct HstuAttentionGroupFwdParams
@@ -133,12 +125,4 @@ struct HstuAttentionGroupFwdParams
     float p_drop;
     uint64_t philox_seed;
     uint64_t philox_offset;
-
-    // this need not be set by the API users, it only use it for passing num_splits between splitkv
-    // and combine kernel
-    int num_splits;
-    // pointer of device memory allocated before calling fwd_splitkv kernel and released after
-    // calling combine kernel
-    void* o_acc_ptr;
-    void* lse_acc_ptr;
 };
