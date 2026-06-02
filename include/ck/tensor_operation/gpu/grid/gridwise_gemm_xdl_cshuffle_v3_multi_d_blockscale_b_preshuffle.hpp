@@ -669,6 +669,11 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
         index_t BK0;
         index_t MBlock;
         index_t NBlock;
+        // When true, the caller guarantees p_c_grid is already zeroed before
+        // launch, so the device invoker skips its own hipMemsetAsync for the
+        // KBatch > 1 split-K atomic-accumulation path. Defaults to false, which
+        // preserves the original zero-init behavior.
+        bool skip_zero_init = false;
     };
 
     // Argument
