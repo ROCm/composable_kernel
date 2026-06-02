@@ -227,7 +227,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
                         // rotating mem
                         rotating_mem.Next();
                         // clear c mem
-                        if(arg_.KBatch > 1)
+                        if(arg_.KBatch > 1 && !arg_.skip_zero_init)
                             hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
                                                              0,
                                                              arg_.M * arg_.N * sizeof(CDataType),
@@ -245,7 +245,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
                 }
                 else
                 {
-                    if(arg.KBatch > 1)
+                    if(arg.KBatch > 1 && !arg.skip_zero_init)
                         hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
                                                          0,
                                                          arg.M * arg.N * sizeof(CDataType),

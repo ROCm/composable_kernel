@@ -230,7 +230,7 @@ struct DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
                         // rotating mem
                         rotating_mem.Next();
                         // clear c mem
-                        if(arg_.KBatch > 1)
+                        if(arg_.KBatch > 1 && !arg_.skip_zero_init)
                             hipGetErrorString(hipMemsetAsync(arg_.p_c_grid,
                                                              0,
                                                              arg_.M * arg_.N * sizeof(CDataType),
@@ -248,7 +248,7 @@ struct DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
                 }
                 else
                 {
-                    if(arg.KBatch > 1)
+                    if(arg.KBatch > 1 && !arg.skip_zero_init)
                         hipGetErrorString(hipMemsetAsync(arg.p_c_grid,
                                                          0,
                                                          arg.M * arg.N * sizeof(CDataType),
