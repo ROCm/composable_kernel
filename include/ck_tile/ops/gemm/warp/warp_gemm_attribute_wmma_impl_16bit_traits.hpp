@@ -142,4 +142,28 @@ struct WmmaTraits<gfx125_t, bf16_t, bf16_t, float, 16, 16, 32>
 #endif
     }
 };
+
+// bf16 -> bf16 specialization - GFX125
+template <>
+struct WmmaTraits<gfx125_t, bf16_t, bf16_t, bf16_t, 16, 16, 32>
+    : WmmaTraitsBase<gfx12_t, bf16_t, bf16_t, bf16_t, 32>
+{
+    using ArchType = gfx125_t;
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType
+    wmma_intrinsic(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
+    {
+#ifdef __gfx125__
+        using P = WarpGemmParamsParser<Params...>;
+        return __builtin_amdgcn_wmma_bf16_16x16x32_bf16(
+            0, a_vec, 0, b_vec, 0, c_vec, P::reuse_a, P::reuse_b);
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
+        ck_tile::ignore = c_vec;
+        return CVecType{0};
+#endif
+    }
+};
 } // namespace ck_tile
