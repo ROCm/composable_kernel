@@ -160,7 +160,8 @@ enum class PipelineVersion
     V6,
     ASYNC_V1,
     ASYNC_V4,
-    WEIGHT_ONLY
+    WEIGHT_ONLY,
+    WAVELET
 };
 
 // Enums for the GEMM specialization.
@@ -355,6 +356,7 @@ inline std::string_view to_string(PipelineVersion ver)
     case ASYNC_V1: return "ASYNC_V1";
     case ASYNC_V4: return "ASYNC_V4";
     case WEIGHT_ONLY: return "WEIGHT_ONLY";
+    case WAVELET: return "WAVELET";
     default: return "Unknown";
     }
 }

@@ -17,6 +17,7 @@
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/barrier.hpp"
 #include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
+#include "ck_tile/core/arch/inst_prefetch.hpp"
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
 #include "ck_tile/core/arch/mma/mfma/mfma.hpp"
 #include "ck_tile/core/arch/mma/mfma/mfma_gfx9.hpp"

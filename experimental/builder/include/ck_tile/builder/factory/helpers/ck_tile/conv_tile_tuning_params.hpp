@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_wavelet.hpp"
 #include "ck_tile/ops/gemm/kernel/streamk_gemm/streamk_gemm_tile_partitioner.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/types.hpp"
@@ -120,6 +121,14 @@ struct TilePipelineType<ck_tile::GemmPipeline::BASIC_ASYNC_V1>
     using GemmPipeline = ck_tile::GemmPipelineAGmemBGmemCRegAsyncV1<PipelineProblem>;
 };
 
+template <>
+struct TilePipelineType<ck_tile::GemmPipeline::WAVELET>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::
+        GemmPipelineAgBgCrWavelet<PipelineProblem, GroupedConvUniversalPipelineAgBgCrPolicy, 4>;
+};
+
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck_tile::GemmPipeline SetTileBlockGemmPipelineVersion()
 {
@@ -135,6 +144,7 @@ consteval ck_tile::GemmPipeline SetTileBlockGemmPipelineVersion()
     case PipelineVersion::V6: return ck_tile_pipeline::COMPUTE_V6;
     case PipelineVersion::ASYNC_V1: return ck_tile_pipeline::BASIC_ASYNC_V1;
     case PipelineVersion::ASYNC_V4: return ck_tile_pipeline::COMPUTE_ASYNC;
+    case PipelineVersion::WAVELET: return ck_tile_pipeline::WAVELET;
     case PipelineVersion::WEIGHT_ONLY:
         throw "PipelineVersion::WEIGHT_ONLY is not supported for block GEMM pipeline version.";
     default: throw "Unknown block GEMM PipelineVersion";

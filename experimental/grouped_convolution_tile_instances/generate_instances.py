@@ -12,11 +12,10 @@ _DISPATCHER_CODEGEN = _THIS_DIR.parents[1] / "dispatcher" / "codegen"
 if str(_DISPATCHER_CODEGEN) not in sys.path:
     sys.path.insert(0, str(_DISPATCHER_CODEGEN))
 
-from grouped_config_rules import (
+from grouped_config_rules import (  # noqa E402
     check_vectors as _shared_check_vectors,
     check_warp_coverage,
     check_bwd_data_vec_coverage,
-    WARP_SIZE,
 )
 
 
@@ -142,7 +141,9 @@ def check_vectors(a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector)
 
     Delegates to the shared rule in grouped_config_rules.py.
     """
-    return _shared_check_vectors(a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector)
+    return _shared_check_vectors(
+        a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector
+    )
 
 
 def parse_instance_string(instance_string):
@@ -267,6 +268,7 @@ PIPELINE_NAME_TO_VERSION = {
     "COMPUTE_V6": "V6",
     "BASIC_ASYNC_V1": "ASYNC_V1",
     "COMPUTE_ASYNC": "ASYNC_V4",
+    "WAVELET": "WAVELET",
 }
 
 # Maps ck_tile StreamKReductionStrategy int values (from static_cast<int> in instance string)
@@ -492,8 +494,14 @@ def parse_bwd_weight_instances(instances, problem_name):
             continue
         native = try_parse_native_instance(instance, instance_id, problem_name)
         if native is not None:
-            if native.streamk_enabled and get_dtype(problem_name) == "float" and native.pipeline_version.find("ASYNC") != -1:
-                print(f"Skipping instance {instance_id} with streamk, async, float since it's not supported yet.")
+            if (
+                native.streamk_enabled
+                and get_dtype(problem_name) == "float"
+                and native.pipeline_version.find("ASYNC") != -1
+            ):
+                print(
+                    f"Skipping instance {instance_id} with streamk, async, float since it's not supported yet."
+                )
                 continue
             convs.append(native)
             continue
@@ -666,8 +674,11 @@ def parse_bwd_weight_instances(instances, problem_name):
             )
             continue
         if not check_warp_coverage(
-            m_per_block, n_per_block, k_per_block,
-            a_scalar_per_vector, b_scalar_per_vector,
+            m_per_block,
+            n_per_block,
+            k_per_block,
+            a_scalar_per_vector,
+            b_scalar_per_vector,
             variant="bwd_weight",
         ):
             print(
@@ -711,20 +722,24 @@ def parse_bwd_data_instances(instances, problem_name):
             convs.append(native)
             continue
 
-        start = instance.index('<') + 1
-        end = instance.rindex('>')
+        start = instance.index("<") + 1
+        end = instance.rindex(">")
         params_str = instance[start:end]
         args = parse_instance_string(params_str)
 
         is_v1_instance = instance.find("Xdl_CShuffle<") != -1
-        
+
         if is_v1_instance:
             if len(args) != 51:
-                raise RuntimeError(f"Wrong number of parameters in the V1 XDL CShuffle instance string: {instance}\n" + 
-                                    f"Expected 51 parameters for V1 instance. Found {len(args)} parameters.")
+                raise RuntimeError(
+                    f"Wrong number of parameters in the V1 XDL CShuffle instance string: {instance}\n"
+                    + f"Expected 51 parameters for V1 instance. Found {len(args)} parameters."
+                )
         else:
-            raise RuntimeError(f"Only V1 XDL CShuffle instances are supported for backward data. Found instance: {instance}")
-        
+            raise RuntimeError(
+                f"Only V1 XDL CShuffle instances are supported for backward data. Found instance: {instance}"
+            )
+
         spec = args[13]
         block_size = int(args[17])
         m_per_block = int(args[18])
@@ -741,8 +756,10 @@ def parse_bwd_data_instances(instances, problem_name):
         c_scalar_per_vector = int(args[44])
 
         if ak1 != bk1:
-            raise RuntimeError(f"Not supported instance {instance_id} since ak1 != bk1. ak1: {ak1}, bk1: {bk1} in instance: {instance}")
-        
+            raise RuntimeError(
+                f"Not supported instance {instance_id} since ak1 != bk1. ak1: {ak1}, bk1: {bk1} in instance: {instance}"
+            )
+
         k1 = min(ak1, bk1)
 
         # TODO: Do we need split image for 3D bwd data convs?
@@ -768,9 +785,13 @@ def parse_bwd_data_instances(instances, problem_name):
         # Scheduler must be either Intrawave or Interwave.
         # Version must be from v1 to v5
         if block_gemm_pipeline_scheduler not in ["Intrawave", "Interwave"]:
-            raise RuntimeError(f"Invalid Block GEMM pipeline scheduler: {block_gemm_pipeline_scheduler} in instance: {instance}")
+            raise RuntimeError(
+                f"Invalid Block GEMM pipeline scheduler: {block_gemm_pipeline_scheduler} in instance: {instance}"
+            )
         if blk_gemm_pipeline_version not in ["v1", "v2", "v3", "v4", "v5"]:
-            raise RuntimeError(f"Invalid Block GEMM pipeline version: {blk_gemm_pipeline_version} in instance: {instance}")
+            raise RuntimeError(
+                f"Invalid Block GEMM pipeline version: {blk_gemm_pipeline_version} in instance: {instance}"
+            )
 
         double_smem_buffer = blk_gemm_pipeline_version == "v4"
         scheduler = block_gemm_pipeline_scheduler
@@ -798,25 +819,41 @@ def parse_bwd_data_instances(instances, problem_name):
 
         k_per_xdl = min(max(k1, get_k_mfma(dtype, m_per_xdl, n_per_xdl)), k_per_block)
 
-        # Skip irregular vector sizes — no HW vector load instructions for odd widths
-        if not check_vectors(a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector):
-            print(f"Skipping instance {instance_id} with irregular load since it's not supported yet.")
+        # Skip irregular vector sizes -- no HW vector load instructions for odd widths
+        if not check_vectors(
+            a_scalar_per_vector, b_scalar_per_vector, c_scalar_per_vector
+        ):
+            print(
+                f"Skipping instance {instance_id} with irregular load since it's not supported yet."
+            )
             continue
 
         # Skip multi-warp: single warp can't cover tile dim when it exceeds warp_size * vec
         if not check_warp_coverage(
-            m_per_block, n_per_block, k_per_block,
-            a_scalar_per_vector, b_scalar_per_vector,
+            m_per_block,
+            n_per_block,
+            k_per_block,
+            a_scalar_per_vector,
+            b_scalar_per_vector,
             variant="bwd_data",
         ):
-            print(f"Skipping instance {instance_id} with multiple warps per continous tile dim since it's not supported yet.")
+            print(
+                f"Skipping instance {instance_id} with multiple warps per continous tile dim since it's not supported yet."
+            )
             continue
         if not check_bwd_data_vec_coverage(
-            m_per_block, n_per_block, k_per_block,
-            m_warp, n_warp, k_warp,
-            a_scalar_per_vector, b_scalar_per_vector,
+            m_per_block,
+            n_per_block,
+            k_per_block,
+            m_warp,
+            n_warp,
+            k_warp,
+            a_scalar_per_vector,
+            b_scalar_per_vector,
         ):
-            print(f"Skipping instance {instance_id} because current scalar per vector exceedes tile size")
+            print(
+                f"Skipping instance {instance_id} because current scalar per vector exceedes tile size"
+            )
             continue
 
         conv = ConvInstanceTemplateParams(
@@ -836,7 +873,7 @@ def parse_bwd_data_instances(instances, problem_name):
             instance_id,
         )
         convs.append(conv)
-            
+
     return convs
 
 
@@ -945,18 +982,18 @@ def process_direction(
 
 DEPTHWISE_CONFIGS = [
     {
-        "name":      "ngchw_depthwise_fp32",
-        "conf":      "ngchw_depthwise.conf",
+        "name": "ngchw_depthwise_fp32",
+        "conf": "ngchw_depthwise.conf",
         "signature": "SIGNATURE_NGCHW_FP32_FWD",
     },
     {
-        "name":      "ngchw_depthwise_fp16",
-        "conf":      "ngchw_depthwise.conf",
+        "name": "ngchw_depthwise_fp16",
+        "conf": "ngchw_depthwise.conf",
         "signature": "SIGNATURE_NGCHW_FP16_FWD",
     },
     {
-        "name":      "ngchw_depthwise_bf16",
-        "conf":      "ngchw_depthwise.conf",
+        "name": "ngchw_depthwise_bf16",
+        "conf": "ngchw_depthwise.conf",
         "signature": "SIGNATURE_NGCHW_BF16_FWD",
     },
 ]
@@ -989,36 +1026,53 @@ def parse_depthwise_config(conf_path: Path) -> list:
     return instances
 
 
-def generate_depthwise_cpp(params: list, instance_name: str, signature: str, cpp_out: Path) -> None:
-    tile_h, tile_w, filt, str_h, str_w, pad_h, pad_w, nbatch, sub_h, sub_w, in_vec, out_vec = params
+def generate_depthwise_cpp(
+    params: list, instance_name: str, signature: str, cpp_out: Path
+) -> None:
+    (
+        tile_h,
+        tile_w,
+        filt,
+        str_h,
+        str_w,
+        pad_h,
+        pad_w,
+        nbatch,
+        sub_h,
+        sub_w,
+        in_vec,
+        out_vec,
+    ) = params
 
     parent_dir = Path(__file__).resolve().parent
     template_file = parent_dir / "include/grouped_convolution_depthwise_tile.cpp.in"
     content = template_file.read_text()
 
-    content = content.replace("gen_signature",     signature)
+    content = content.replace("gen_signature", signature)
     content = content.replace("gen_instance_name", instance_name)
-    content = content.replace("gen_block_size",    "64")
-    content = content.replace("gen_tile_h",        str(tile_h))
-    content = content.replace("gen_tile_w",        str(tile_w))
-    content = content.replace("gen_filter_h",      str(filt))
-    content = content.replace("gen_filter_w",      str(filt))
-    content = content.replace("gen_stride_h",      str(str_h))
-    content = content.replace("gen_stride_w",      str(str_w))
-    content = content.replace("gen_dilation_h",    "1")
-    content = content.replace("gen_dilation_w",    "1")
-    content = content.replace("gen_pad_h",         str(pad_h))
-    content = content.replace("gen_pad_w",         str(pad_w))
-    content = content.replace("gen_nbatch",        str(nbatch))
-    content = content.replace("gen_subtile_h",     str(sub_h))
-    content = content.replace("gen_subtile_w",     str(sub_w))
-    content = content.replace("gen_in_vec",        str(in_vec))
-    content = content.replace("gen_out_vec",       str(out_vec))
+    content = content.replace("gen_block_size", "64")
+    content = content.replace("gen_tile_h", str(tile_h))
+    content = content.replace("gen_tile_w", str(tile_w))
+    content = content.replace("gen_filter_h", str(filt))
+    content = content.replace("gen_filter_w", str(filt))
+    content = content.replace("gen_stride_h", str(str_h))
+    content = content.replace("gen_stride_w", str(str_w))
+    content = content.replace("gen_dilation_h", "1")
+    content = content.replace("gen_dilation_w", "1")
+    content = content.replace("gen_pad_h", str(pad_h))
+    content = content.replace("gen_pad_w", str(pad_w))
+    content = content.replace("gen_nbatch", str(nbatch))
+    content = content.replace("gen_subtile_h", str(sub_h))
+    content = content.replace("gen_subtile_w", str(sub_w))
+    content = content.replace("gen_in_vec", str(in_vec))
+    content = content.replace("gen_out_vec", str(out_vec))
 
     cpp_out.write_text(content)
 
 
-def generate_depthwise_defs_inc(instances: list, config_name: str, signature: str, inc_path: Path) -> None:
+def generate_depthwise_defs_inc(
+    instances: list, config_name: str, signature: str, inc_path: Path
+) -> None:
     lines = []
     for i in range(len(instances)):
         name = f"grouped_convolution_forward_tile_{config_name}_{i}"
@@ -1032,7 +1086,9 @@ def generate_depthwise_defs_inc(instances: list, config_name: str, signature: st
     inc_path.write_text("\n".join(lines) + "\n")
 
 
-def generate_depthwise_calls_inc(instances: list, config_name: str, calls_path: Path) -> None:
+def generate_depthwise_calls_inc(
+    instances: list, config_name: str, calls_path: Path
+) -> None:
     lines = []
     for i in range(len(instances)):
         name = f"grouped_convolution_forward_tile_{config_name}_{i}"
@@ -1044,11 +1100,11 @@ def process_depthwise_forward(configs_prefix: str, instances_path: str) -> None:
     """Generate all depthwise forward instances."""
     generate_dir = Path(__file__).resolve().parent
     conf_dir = generate_dir / "configs/forward" / configs_prefix
-    inc_dir  = generate_dir / "instances" / "forward"
+    inc_dir = generate_dir / "instances" / "forward"
     cpp_base = Path(instances_path) / "forward"
 
     for cfg in DEPTHWISE_CONFIGS:
-        name      = cfg["name"]
+        name = cfg["name"]
         conf_path = conf_dir / cfg["conf"]
         signature = cfg["signature"]
 
@@ -1064,24 +1120,33 @@ def process_depthwise_forward(configs_prefix: str, instances_path: str) -> None:
 
         for i, params in enumerate(instances):
             instance_name = f"grouped_convolution_forward_tile_{name}_{i}"
-            generate_depthwise_cpp(params, instance_name, signature,
-                                   cpp_dir / f"{instance_name}.cpp")
+            generate_depthwise_cpp(
+                params, instance_name, signature, cpp_dir / f"{instance_name}.cpp"
+            )
 
-        generate_depthwise_defs_inc(instances, name, signature,
-                                    inc_dir / f"grouped_convolution_forward_tile_{name}.inc")
-        generate_depthwise_calls_inc(instances, name,
-                                     inc_dir / f"grouped_convolution_forward_tile_{name}_calls.inc")
+        generate_depthwise_defs_inc(
+            instances,
+            name,
+            signature,
+            inc_dir / f"grouped_convolution_forward_tile_{name}.inc",
+        )
+        generate_depthwise_calls_inc(
+            instances,
+            name,
+            inc_dir / f"grouped_convolution_forward_tile_{name}_calls.inc",
+        )
 
         print(f"  -> {cpp_dir}  ({len(instances)} .cpp files)")
 
+
 fwd_configs = [
-        "nhwgc_fp32",
-        "nhwgc_fp16",
-        "nhwgc_bf16",
-        "ndhwgc_fp32",
-        "ndhwgc_fp16",
-        "ndhwgc_bf16",
-    ]
+    "nhwgc_fp32",
+    "nhwgc_fp16",
+    "nhwgc_bf16",
+    "ndhwgc_fp32",
+    "ndhwgc_fp16",
+    "ndhwgc_bf16",
+]
 
 bwd_weight_configs = [
     "nhwgc_fp32",
@@ -1153,7 +1218,14 @@ if __name__ == "__main__":
     copy_includes(args.instances_dir)
     match args.direction:
         case "forward":
-            process_direction(fwd_configs, args.direction, generate_instances_fwd, configs_prefix, args.filter_pattern, args.instances_dir)
+            process_direction(
+                fwd_configs,
+                args.direction,
+                generate_instances_fwd,
+                configs_prefix,
+                args.filter_pattern,
+                args.instances_dir,
+            )
             process_depthwise_forward(configs_prefix, args.instances_dir)
         case "backward_weight":
             process_direction(
@@ -1174,8 +1246,28 @@ if __name__ == "__main__":
                 args.instances_dir,
             )
         case "all":
-            process_direction(fwd_configs, "forward", generate_instances_fwd, configs_prefix, args.filter_pattern, args.instances_dir)
+            process_direction(
+                fwd_configs,
+                "forward",
+                generate_instances_fwd,
+                configs_prefix,
+                args.filter_pattern,
+                args.instances_dir,
+            )
             process_depthwise_forward(configs_prefix, args.instances_dir)
-            process_direction(bwd_weight_configs, "backward_weight", generate_instances_bwd_weight, configs_prefix, args.filter_pattern, args.instances_dir)
-            process_direction(bwd_data_configs, "backward_data", generate_instances_bwd_data, configs_prefix, args.filter_pattern, args.instances_dir)
-
+            process_direction(
+                bwd_weight_configs,
+                "backward_weight",
+                generate_instances_bwd_weight,
+                configs_prefix,
+                args.filter_pattern,
+                args.instances_dir,
+            )
+            process_direction(
+                bwd_data_configs,
+                "backward_data",
+                generate_instances_bwd_data,
+                configs_prefix,
+                args.filter_pattern,
+                args.instances_dir,
+            )
