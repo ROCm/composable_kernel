@@ -53,28 +53,29 @@ struct TensorDescriptor
         return unique_sort_all_dim_ids::Size();
     }
 
+    // Helper to get length of a visible dimension from transforms
+    template <index_t I>
+    __host__ __device__ static constexpr auto
+    GetVisibleDimLengthFromTransforms(const Transforms& transforms)
+    {
+        constexpr auto result =
+            find_in_tuple_of_sequences<VisibleDimensionIds::At(Number<I>{})>(UpperDimensionIdss{});
+        static_assert(result.found, "wrong! not found matching transformation and upper-dimension");
+        return transforms[Number<result.itran>{}].GetUpperLengths()[Number<result.idim_up>{}];
+    }
+
+    // Compute element size using pack expansion instead of generate_tuple with lambda
+    template <index_t... Is>
+    __host__ __device__ static constexpr auto ComputeElementSizeImpl(const Transforms& transforms,
+                                                                     Sequence<Is...>)
+    {
+        return (GetVisibleDimLengthFromTransforms<Is>(transforms) * ...);
+    }
+
     __host__ __device__ static constexpr auto InitializeElementSize(const Transforms& transforms)
     {
-        const auto lengths = generate_tuple(
-            [&](auto idim_visible) {
-                constexpr auto tmp = GetTransformAndItsUpperDimension(idim_visible);
-
-                constexpr index_t itran   = tmp[Number<0>{}];
-                constexpr index_t idim_up = tmp[Number<1>{}];
-                constexpr bool found      = tmp[Number<2>{}];
-
-                static_assert(found == true,
-                              "wrong! not found matching transformation and upper-dimension");
-
-                const auto length =
-                    transforms[Number<itran>{}].GetUpperLengths()[Number<idim_up>{}];
-
-                return length;
-            },
-            Number<ndim_visible_>{});
-
-        // TODO: make container_reduce support tuple of Number and index_t
-        return container_reduce(lengths, math::multiplies{}, Number<1>{});
+        return ComputeElementSizeImpl(
+            transforms, typename arithmetic_sequence_gen<0, ndim_visible_, 1>::type{});
     }
 
     template <index_t IDim>
@@ -84,24 +85,13 @@ struct TensorDescriptor
 
         constexpr index_t idim_hidden = VisibleDimensionIds::At(idim_visible);
 
-        index_t itran_found   = 0;
-        index_t idim_up_found = 0;
-        bool found            = false;
+        // Use compile-time search helper instead of nested static_for loops.
+        // This significantly reduces applier::operator() template instantiations
+        // by replacing nested lambda-based loops with a single constexpr search.
+        // See sequence_helper.hpp::find_in_tuple_of_sequences for details.
+        constexpr auto result = find_in_tuple_of_sequences<idim_hidden>(UpperDimensionIdss{});
 
-        static_for<0, ntransform_, 1>{}([&](auto itran) {
-            constexpr auto up_dim_ids = UpperDimensionIdss{}[itran];
-
-            static_for<0, up_dim_ids.Size(), 1>{}([&](auto idim_up) {
-                if constexpr(up_dim_ids[idim_up] == idim_hidden)
-                {
-                    itran_found   = itran;
-                    idim_up_found = idim_up;
-                    found         = true;
-                }
-            });
-        });
-
-        return make_tuple(itran_found, idim_up_found, found);
+        return make_tuple(result.itran, result.idim_up, result.found);
     }
 
     constexpr static index_t ntransform_   = GetNumOfTransform();
