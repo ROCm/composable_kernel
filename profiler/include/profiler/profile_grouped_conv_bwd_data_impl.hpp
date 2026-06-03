@@ -138,10 +138,17 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
 
     // Create host tensors
-    Tensor<OutDataType> out(out_g_n_k_wos_desc);
-    Tensor<WeiDataType> wei(wei_g_k_c_xs_desc);
-    Tensor<InDataType> in_host(in_g_n_c_wis_desc);
-    Tensor<InDataType> in_device(in_g_n_c_wis_desc);
+    Tensor<OutDataType> out({1});
+    Tensor<WeiDataType> wei({1});
+    Tensor<InDataType> in_host({1});
+    Tensor<InDataType> in_device({1});
+    if(init_method != 0 || do_verification != 0)
+    {
+        out       = Tensor<OutDataType>(out_g_n_k_wos_desc);
+        wei       = Tensor<WeiDataType>(wei_g_k_c_xs_desc);
+        in_host   = Tensor<InDataType>(in_g_n_c_wis_desc);
+        in_device = Tensor<InDataType>(in_g_n_c_wis_desc);
+    }
 
     // Get element space sizes for allocation
     const auto out_element_space_size = out_g_n_k_wos_desc.GetElementSpaceSize();
@@ -205,9 +212,12 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
             wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
         }
 
-        // Copy initialized host data to device
-        out_device_buf.ToDevice(out.mData.data());
-        wei_device_buf.ToDevice(wei.mData.data());
+        if(init_method != 0)
+        {
+            // Copy initialized host data to device
+            out_device_buf.ToDevice(out.mData.data());
+            wei_device_buf.ToDevice(wei.mData.data());
+        }
     }
 
     // Allocate GPU reference buffer (used only if do_verification == 2)
@@ -292,8 +302,12 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     auto run_impl = [&](auto& op_ptr, auto& argument_ptr, const index_t& split_k_for_run) {
         // workspace_sz will be equal to 0 for other layout than NGCHW
         const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
-        DeviceMem workspace_dev(workspace_sz);
-        op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
+        DeviceMem workspace_dev(0);
+        if(workspace_sz)
+        {
+            workspace_dev.Realloc(workspace_sz);
+            op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
+        }
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
