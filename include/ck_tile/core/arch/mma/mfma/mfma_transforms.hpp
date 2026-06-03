@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/arch/mma/mma_transforms.hpp"
 
 namespace ck_tile::core::arch::mma {
 

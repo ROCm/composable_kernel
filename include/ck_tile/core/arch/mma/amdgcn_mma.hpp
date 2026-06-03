@@ -393,10 +393,3 @@ CK_TILE_HOST_DEVICE void print(amdgcn_mma<ADataType,
 #if __clang_major__ >= 23
 #pragma clang diagnostic pop
 #endif
-
-// Include the implementations
-#include "wmma/wmma.hpp" // should be included before the below headers
-
-#include "mfma/mfma.hpp"
-#include "scale/scale.hpp"
-#include "sparse/sparse.hpp"

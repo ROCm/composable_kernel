@@ -169,7 +169,7 @@ struct WaveWiseMmaPipeline : public MmaPipelineBase<dense::wavewise::detail::get
         }
         else
         {
-            static_assert(false);
+            static_assert(false, "Invalid accumulation policy");
         }
     }
 };
