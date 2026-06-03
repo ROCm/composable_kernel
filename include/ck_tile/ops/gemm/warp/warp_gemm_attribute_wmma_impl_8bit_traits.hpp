@@ -427,6 +427,82 @@ struct WmmaTraits<gfx125_t, bf8_t, bf8_t, fp16_t, 16, 16, 64>
     }
 };
 
+// f8f6f4 specialization - GFX125
+enum F8F6F4OpDataTypeEnum
+{
+    E4M3, // 0x0
+    E5M2, // 0x1
+    E2M3, // 0x2
+    E3M2, // 0x3
+    E2M1, // 0x4
+};
+
+// Traits for MX data types used in f8f6f4 intrinsics
+template <typename T>
+struct MXDataTypeTrait;
+
+template <>
+struct MXDataTypeTrait<fp8_t>
+{
+    static constexpr F8F6F4OpDataTypeEnum OpDataType = F8F6F4OpDataTypeEnum::E4M3;
+    using VecType                                    = int32x16_t;
+
+    CK_TILE_DEVICE static int32x16_t to_wmma_vec(const int32x16_t& vec) { return vec; }
+};
+
+template <>
+struct MXDataTypeTrait<bf8_t>
+{
+    static constexpr F8F6F4OpDataTypeEnum OpDataType = F8F6F4OpDataTypeEnum::E5M2;
+    using VecType                                    = int32x16_t;
+
+    CK_TILE_DEVICE static int32x16_t to_wmma_vec(const int32x16_t& vec) { return vec; }
+};
+
+template <>
+struct MXDataTypeTrait<pk_fp4_t>
+{
+    static constexpr F8F6F4OpDataTypeEnum OpDataType = F8F6F4OpDataTypeEnum::E2M1;
+    using VecType                                    = int32x8_t;
+
+    CK_TILE_DEVICE static int32x16_t to_wmma_vec(const int32x8_t& vec)
+    {
+        return int32x16_t{
+            vec[0], vec[1], vec[2], vec[3], vec[4], vec[5], vec[6], vec[7], 0, 0, 0, 0, 0, 0, 0, 0};
+    }
+};
+
+// pk_fp6x16_t (legacy): 16 fp6 e2m3 values packed into 3 int32 (96 bits).
+// At 16x16x128 each lane holds 64 fp6 elements = 4 packs = 12 int32
+// (f6x16xN_tt<4, f6_kind::fp6>, whose storage is int32_t data[12]),
+// padded with 4 zero lanes to fit the 16-wide f8f6f4 wmma input.
+template <>
+struct MXDataTypeTrait<pk_fp6x16_t>
+{
+    static constexpr F8F6F4OpDataTypeEnum OpDataType = F8F6F4OpDataTypeEnum::E2M3;
+    using VecType                                    = f6x16xN_tt<4, f6_kind::fp6>;
+
+    CK_TILE_DEVICE static int32x16_t to_wmma_vec(const f6x16xN_tt<4, f6_kind::fp6>& vec)
+    {
+        return int32x16_t{vec.data[0],
+                          vec.data[1],
+                          vec.data[2],
+                          vec.data[3],
+                          vec.data[4],
+                          vec.data[5],
+                          vec.data[6],
+                          vec.data[7],
+                          vec.data[8],
+                          vec.data[9],
+                          vec.data[10],
+                          vec.data[11],
+                          0,
+                          0,
+                          0,
+                          0};
+    }
+};
+
 template <>
 struct WmmaTraits<gfx125_t, bf8_t, bf8_t, float, 16, 16, 128>
     : WmmaTraitsBase<gfx12_t, bf8_t, bf8_t, float, 128>
@@ -502,6 +578,232 @@ struct WmmaTraits<gfx125_t, bf8_t, fp8_t, float, 16, 16, 128>
 #else
         ck_tile::ignore = a_vec;
         ck_tile::ignore = b_vec;
+        ck_tile::ignore = c_vec;
+        return CVecType{0};
+#endif
+    }
+};
+
+// scale16 specializations: fp8xfp8, bf8xbf8, fp8xbf8, bf8xfp8
+// Override kAK1PerLane/kBK1PerLane to 16 for scale16 register layout -> sequence<4,2,16>
+template <>
+struct WmmaTraits<gfx125_t, fp8_t, fp8_t, float, 16, 16, 128, WmmaScale16Tag>
+    : WmmaTraitsBase<gfx12_t, fp8_t, fp8_t, float, 128>
+{
+    using ArchType         = gfx125_t;
+    using MXTypeEnableType = WmmaScale16Tag;
+
+    static constexpr index_t kAK1PerLane = 16;
+    static constexpr index_t kAK0PerLane = kK / (kAK1PerLane * kABKLane);
+    static constexpr index_t kBK1PerLane = 16;
+    static constexpr index_t kBK0PerLane = kK / (kBK1PerLane * kABKLane);
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType&, const BVecType&, const CVecType&)
+    {
+        static_assert(sizeof...(Params) < 0, "scale16 WmmaTraits requires int64_t scale arguments");
+        return CVecType{0};
+    }
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType& a_vec,
+                                                  const int64_t& a_scale,
+                                                  const BVecType& b_vec,
+                                                  const int64_t& b_scale,
+                                                  const CVecType& c_vec)
+    {
+#ifdef __gfx125__
+        using P       = WarpGemmParamsParser<Params...>;
+        using ATraits = MXDataTypeTrait<fp8_t>;
+        using BTraits = MXDataTypeTrait<fp8_t>;
+        return __builtin_amdgcn_wmma_scale16_f32_16x16x128_f8f6f4(
+            ATraits::OpDataType,
+            ATraits::to_wmma_vec(bit_cast<typename ATraits::VecType>(a_vec)),
+            BTraits::OpDataType,
+            BTraits::to_wmma_vec(bit_cast<typename BTraits::VecType>(b_vec)),
+            0,
+            bit_cast<fp32x8_t>(c_vec),
+            P::op_sel_a,
+            P::scale_a,
+            a_scale,
+            P::op_sel_b,
+            P::scale_b,
+            b_scale,
+            0,
+            0);
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = a_scale;
+        ck_tile::ignore = b_vec;
+        ck_tile::ignore = b_scale;
+        ck_tile::ignore = c_vec;
+        return CVecType{0};
+#endif
+    }
+};
+
+template <>
+struct WmmaTraits<gfx125_t, bf8_t, bf8_t, float, 16, 16, 128, WmmaScale16Tag>
+    : WmmaTraitsBase<gfx12_t, bf8_t, bf8_t, float, 128>
+{
+    using ArchType         = gfx125_t;
+    using MXTypeEnableType = WmmaScale16Tag;
+
+    static constexpr index_t kAK1PerLane = 16;
+    static constexpr index_t kAK0PerLane = kK / (kAK1PerLane * kABKLane);
+    static constexpr index_t kBK1PerLane = 16;
+    static constexpr index_t kBK0PerLane = kK / (kBK1PerLane * kABKLane);
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType&, const BVecType&, const CVecType&)
+    {
+        static_assert(sizeof...(Params) < 0, "scale16 WmmaTraits requires int64_t scale arguments");
+        return CVecType{0};
+    }
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType& a_vec,
+                                                  const int64_t& a_scale,
+                                                  const BVecType& b_vec,
+                                                  const int64_t& b_scale,
+                                                  const CVecType& c_vec)
+    {
+#ifdef __gfx125__
+        using P       = WarpGemmParamsParser<Params...>;
+        using ATraits = MXDataTypeTrait<bf8_t>;
+        using BTraits = MXDataTypeTrait<bf8_t>;
+        return __builtin_amdgcn_wmma_scale16_f32_16x16x128_f8f6f4(
+            ATraits::OpDataType,
+            ATraits::to_wmma_vec(bit_cast<typename ATraits::VecType>(a_vec)),
+            BTraits::OpDataType,
+            BTraits::to_wmma_vec(bit_cast<typename BTraits::VecType>(b_vec)),
+            0,
+            bit_cast<fp32x8_t>(c_vec),
+            P::op_sel_a,
+            P::scale_a,
+            a_scale,
+            P::op_sel_b,
+            P::scale_b,
+            b_scale,
+            0,
+            0);
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = a_scale;
+        ck_tile::ignore = b_vec;
+        ck_tile::ignore = b_scale;
+        ck_tile::ignore = c_vec;
+        return CVecType{0};
+#endif
+    }
+};
+
+template <>
+struct WmmaTraits<gfx125_t, fp8_t, bf8_t, float, 16, 16, 128, WmmaScale16Tag>
+    : WmmaTraitsBase<gfx12_t, fp8_t, bf8_t, float, 128>
+{
+    using ArchType         = gfx125_t;
+    using MXTypeEnableType = WmmaScale16Tag;
+
+    static constexpr index_t kAK1PerLane = 16;
+    static constexpr index_t kAK0PerLane = kK / (kAK1PerLane * kABKLane);
+    static constexpr index_t kBK1PerLane = 16;
+    static constexpr index_t kBK0PerLane = kK / (kBK1PerLane * kABKLane);
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType&, const BVecType&, const CVecType&)
+    {
+        static_assert(sizeof...(Params) < 0, "scale16 WmmaTraits requires int64_t scale arguments");
+        return CVecType{0};
+    }
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType& a_vec,
+                                                  const int64_t& a_scale,
+                                                  const BVecType& b_vec,
+                                                  const int64_t& b_scale,
+                                                  const CVecType& c_vec)
+    {
+#ifdef __gfx125__
+        using P       = WarpGemmParamsParser<Params...>;
+        using ATraits = MXDataTypeTrait<fp8_t>;
+        using BTraits = MXDataTypeTrait<bf8_t>;
+        return __builtin_amdgcn_wmma_scale16_f32_16x16x128_f8f6f4(
+            ATraits::OpDataType,
+            ATraits::to_wmma_vec(bit_cast<typename ATraits::VecType>(a_vec)),
+            BTraits::OpDataType,
+            BTraits::to_wmma_vec(bit_cast<typename BTraits::VecType>(b_vec)),
+            0,
+            bit_cast<fp32x8_t>(c_vec),
+            P::op_sel_a,
+            P::scale_a,
+            a_scale,
+            P::op_sel_b,
+            P::scale_b,
+            b_scale,
+            0,
+            0);
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = a_scale;
+        ck_tile::ignore = b_vec;
+        ck_tile::ignore = b_scale;
+        ck_tile::ignore = c_vec;
+        return CVecType{0};
+#endif
+    }
+};
+
+template <>
+struct WmmaTraits<gfx125_t, bf8_t, fp8_t, float, 16, 16, 128, WmmaScale16Tag>
+    : WmmaTraitsBase<gfx12_t, bf8_t, fp8_t, float, 128>
+{
+    using ArchType         = gfx125_t;
+    using MXTypeEnableType = WmmaScale16Tag;
+
+    static constexpr index_t kAK1PerLane = 16;
+    static constexpr index_t kAK0PerLane = kK / (kAK1PerLane * kABKLane);
+    static constexpr index_t kBK1PerLane = 16;
+    static constexpr index_t kBK0PerLane = kK / (kBK1PerLane * kABKLane);
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType&, const BVecType&, const CVecType&)
+    {
+        static_assert(sizeof...(Params) < 0, "scale16 WmmaTraits requires int64_t scale arguments");
+        return CVecType{0};
+    }
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType& a_vec,
+                                                  const int64_t& a_scale,
+                                                  const BVecType& b_vec,
+                                                  const int64_t& b_scale,
+                                                  const CVecType& c_vec)
+    {
+#ifdef __gfx125__
+        using P       = WarpGemmParamsParser<Params...>;
+        using ATraits = MXDataTypeTrait<bf8_t>;
+        using BTraits = MXDataTypeTrait<fp8_t>;
+        return __builtin_amdgcn_wmma_scale16_f32_16x16x128_f8f6f4(
+            ATraits::OpDataType,
+            ATraits::to_wmma_vec(bit_cast<typename ATraits::VecType>(a_vec)),
+            BTraits::OpDataType,
+            BTraits::to_wmma_vec(bit_cast<typename BTraits::VecType>(b_vec)),
+            0,
+            bit_cast<fp32x8_t>(c_vec),
+            P::op_sel_a,
+            P::scale_a,
+            a_scale,
+            P::op_sel_b,
+            P::scale_b,
+            b_scale,
+            0,
+            0);
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = a_scale;
+        ck_tile::ignore = b_vec;
+        ck_tile::ignore = b_scale;
         ck_tile::ignore = c_vec;
         return CVecType{0};
 #endif
@@ -646,82 +948,6 @@ template <>
 struct WmmaTraits<gfx125_t, pk_fp4_t, pk_fp4_t, float, 32, 32, 128, WmmaScale16Tag>
     : WmmaTraitsGfx125PkFp4F32_32x32x128<true>
 {
-};
-
-// f8f6f4 specialization - GFX125
-enum F8F6F4OpDataTypeEnum
-{
-    E4M3, // 0x0
-    E5M2, // 0x1
-    E2M3, // 0x2
-    E3M2, // 0x3
-    E2M1, // 0x4
-};
-
-// Traits for MX data types used in f8f6f4 intrinsics
-template <typename T>
-struct MXDataTypeTrait;
-
-template <>
-struct MXDataTypeTrait<fp8_t>
-{
-    static constexpr F8F6F4OpDataTypeEnum OpDataType = F8F6F4OpDataTypeEnum::E4M3;
-    using VecType                                    = int32x16_t;
-
-    CK_TILE_DEVICE static int32x16_t to_wmma_vec(const int32x16_t& vec) { return vec; }
-};
-
-template <>
-struct MXDataTypeTrait<bf8_t>
-{
-    static constexpr F8F6F4OpDataTypeEnum OpDataType = F8F6F4OpDataTypeEnum::E5M2;
-    using VecType                                    = int32x16_t;
-
-    CK_TILE_DEVICE static int32x16_t to_wmma_vec(const int32x16_t& vec) { return vec; }
-};
-
-template <>
-struct MXDataTypeTrait<pk_fp4_t>
-{
-    static constexpr F8F6F4OpDataTypeEnum OpDataType = F8F6F4OpDataTypeEnum::E2M1;
-    using VecType                                    = int32x8_t;
-
-    CK_TILE_DEVICE static int32x16_t to_wmma_vec(const int32x8_t& vec)
-    {
-        return int32x16_t{
-            vec[0], vec[1], vec[2], vec[3], vec[4], vec[5], vec[6], vec[7], 0, 0, 0, 0, 0, 0, 0, 0};
-    }
-};
-
-// pk_fp6x16_t (legacy): 16 fp6 e2m3 values packed into 3 int32 (96 bits).
-// At 16x16x128 each lane holds 64 fp6 elements = 4 packs = 12 int32
-// (f6x16xN_tt<4, f6_kind::fp6>, whose storage is int32_t data[12]),
-// padded with 4 zero lanes to fit the 16-wide f8f6f4 wmma input.
-template <>
-struct MXDataTypeTrait<pk_fp6x16_t>
-{
-    static constexpr F8F6F4OpDataTypeEnum OpDataType = F8F6F4OpDataTypeEnum::E2M3;
-    using VecType                                    = f6x16xN_tt<4, f6_kind::fp6>;
-
-    CK_TILE_DEVICE static int32x16_t to_wmma_vec(const f6x16xN_tt<4, f6_kind::fp6>& vec)
-    {
-        return int32x16_t{vec.data[0],
-                          vec.data[1],
-                          vec.data[2],
-                          vec.data[3],
-                          vec.data[4],
-                          vec.data[5],
-                          vec.data[6],
-                          vec.data[7],
-                          vec.data[8],
-                          vec.data[9],
-                          vec.data[10],
-                          vec.data[11],
-                          0,
-                          0,
-                          0,
-                          0};
-    }
 };
 
 // Unified WmmaTraits for f8f6f4 combinations

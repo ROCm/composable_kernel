@@ -221,6 +221,17 @@ template <typename AType,
           bool kTransC,
           WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Default,
           WGAttrNumAccessEnum AttrNumAccessB = WGAttrNumAccessEnum::Default>
+using WarpGemmWmma_f32_16x16x128_f8f6f4_scale16 = WarpGemmImpl<
+    WarpGemmAttributeWmma<WarpGemmAttributeWmmaImpl_f32_16x16x128_f8f6f4_scale16<AType, BType>,
+                          kTransC,
+                          AttrNumAccessA,
+                          AttrNumAccessB>>;
+
+template <typename AType,
+          typename BType,
+          bool kTransC,
+          WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Default,
+          WGAttrNumAccessEnum AttrNumAccessB = WGAttrNumAccessEnum::Default>
 using WarpGemmWmma_f32_32x32x128_f8f6f4 =
     WarpGemmImpl<WarpGemmAttributeWmma<WarpGemmAttributeWmmaImpl_f32_32x32x128_f8f6f4<AType, BType>,
                                        kTransC,
