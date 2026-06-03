@@ -35,6 +35,15 @@ struct is_streamk_partitioner<StreamKTilePartitioner<Shape, S, P>> : std::true_t
 {
 };
 
+template <typename T>
+struct is_compute_v6_pipeline : std::false_type
+{
+};
+template <typename Problem, typename Policy>
+struct is_compute_v6_pipeline<GemmPipelineAgBgCrCompV6<Problem, Policy>> : std::true_type
+{
+};
+
 template <typename... Args>
 CK_TILE_HOST void LogInfo(Args&&... args) noexcept
 {
@@ -468,8 +477,9 @@ struct GroupedConvolutionBackwardWeightKernel
     using DsDataType  = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
     using WeiDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    static constexpr bool IsSplitKSupported = true;
-    static constexpr bool IsStreamK         = is_streamk_partitioner<TilePartitioner>::value;
+    static constexpr bool IsSplitKSupported   = true;
+    static constexpr bool IsStreamK           = is_streamk_partitioner<TilePartitioner>::value;
+    static constexpr bool IsComputeV6Pipeline = is_compute_v6_pipeline<GemmPipeline>::value;
 
     using GroupedConvBwdWeightKernelArgsSpecialized =
         std::conditional_t<IsStreamK,
@@ -689,6 +699,30 @@ struct GroupedConvolutionBackwardWeightKernel
         {
             LogInfo("k_batch must be at least one. Ensure argument is created via MakeKernelArgs.");
             return false;
+        }
+
+        // V6 pipeline requires num_loop >= PrefetchStages + 1 = 4
+        // Otherwise it produces incorrect results (num_loop=1) or is just inefficient (num_loop=2
+        // or 3).
+        if constexpr(IsComputeV6Pipeline)
+        {
+            const index_t num_loop =
+                integer_divide_ceil(kargs.GemmK, kargs.k_batch * TilePartitioner::KPerBlock);
+            constexpr int num_loop_threashold = GemmPipeline_::PrefetchStages + 1;
+            if(num_loop < num_loop_threashold)
+            {
+                LogInfo("For V6 pipeline, GemmK / (k_batch * KPerBlock) must be >= ",
+                        num_loop_threashold,
+                        ". Now GemmK is ",
+                        kargs.GemmK,
+                        ", k_batch is ",
+                        kargs.k_batch,
+                        ", KPerBlock is ",
+                        number<TilePartitioner::KPerBlock>{},
+                        ", num_loop is ",
+                        num_loop);
+                return false;
+            }
         }
 
         if constexpr(!std::is_same_v<typename EpiloguePipeline::ODataType, float> &&

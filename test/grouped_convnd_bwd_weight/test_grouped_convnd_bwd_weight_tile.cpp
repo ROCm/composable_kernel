@@ -48,7 +48,7 @@ class TestGroupedConvndBwdWeightTile : public ::testing::Test
                            .output = {.config = {.layout = SignatureDetailsType::out_layout}}};
 
     std::vector<ckt::Args<SIGNATURE>> conv_args;
-    std::vector<std::string> split_ks{"-1", "1", "2"};
+    std::vector<std::string> split_ks{"-1", "1", "2", "64"};
 
     template <ck::index_t NDimSpatial>
     void Run()

@@ -4,6 +4,7 @@
 # Currently ck_tile is only built on gfx9
 if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     add_gtest_executable(test_ck_tile_grouped_conv_bwd_weight test_ck_tile_grouped_conv_bwd_weight.cpp)
+    add_gtest_executable(test_ck_tile_grouped_conv_fwd test_ck_tile_grouped_conv_fwd.cpp)
 endif()
 
 # StreamK requires cross-CU coherence via StreamKCoherency, which only has
