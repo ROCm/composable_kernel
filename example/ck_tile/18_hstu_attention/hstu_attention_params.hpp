@@ -14,6 +14,10 @@ struct HstuAttentionNoGroupFwdParams
 
     bool is_jagged;
 
+    bool use_softmax;
+
+    bool is_training;
+
     ck_tile::index_t num_batch;
     ck_tile::index_t seqlen_q;      // batched mode only
     ck_tile::index_t seqlen_kv;     // batched mode only
@@ -26,6 +30,7 @@ struct HstuAttentionNoGroupFwdParams
     const void* v_ptr;
     const void* bias_ptr;
     void* o_ptr;
+    void* lse_ptr; // only used when both is_training and use_softmax be true
 
     ck_tile::index_t hdim_qk;
     ck_tile::index_t hdim_v;
@@ -38,12 +43,14 @@ struct HstuAttentionNoGroupFwdParams
     ck_tile::index_t seq_stride_v;
     ck_tile::index_t seq_stride_bias;
     ck_tile::index_t seq_stride_o;
+    ck_tile::index_t seq_stride_lse;
 
     ck_tile::index_t nhead_stride_q;
     ck_tile::index_t nhead_stride_k;
     ck_tile::index_t nhead_stride_v;
     ck_tile::index_t nhead_stride_bias;
     ck_tile::index_t nhead_stride_o;
+    ck_tile::index_t nhead_stride_lse;
 
     // batched mode only parameters
     ck_tile::index_t batch_stride_q;
@@ -51,6 +58,7 @@ struct HstuAttentionNoGroupFwdParams
     ck_tile::index_t batch_stride_v;
     ck_tile::index_t batch_stride_bias;
     ck_tile::index_t batch_stride_o;
+    ck_tile::index_t batch_stride_lse;
 
     const void* num_targets_ptr;
 
@@ -59,8 +67,6 @@ struct HstuAttentionNoGroupFwdParams
     ck_tile::index_t window_size;
     ck_tile::index_t contextual_seqlen;
     ck_tile::index_t min_full_attn_seqlen;
-
-    bool use_softmax;
 
     float p_drop;
     uint64_t philox_seed;
@@ -73,6 +79,10 @@ struct HstuAttentionGroupFwdParams
     // 1) either seq_kv_offsets_ptr == nullptr, or seq_kv_offsets_ptr == seq_q_offsets_ptr
     bool is_cross_attention;
 
+    bool use_softmax;
+
+    bool is_training;
+
     ck_tile::index_t num_group;
     ck_tile::index_t num_batch;
     const void* seq_q_offsets_ptr;
@@ -84,6 +94,7 @@ struct HstuAttentionGroupFwdParams
     const void* v_ptr;
     const void* bias_ptr;
     void* o_ptr;
+    void* lse_ptr; // only used when both is_training and use_softmax be true
 
     ck_tile::index_t hdim_qk;
     ck_tile::index_t hdim_v;
@@ -95,19 +106,14 @@ struct HstuAttentionGroupFwdParams
     ck_tile::index_t seq_stride_v;
     ck_tile::index_t seq_stride_bias;
     ck_tile::index_t seq_stride_o;
+    ck_tile::index_t seq_stride_lse;
 
     ck_tile::index_t nhead_stride_q;
     ck_tile::index_t nhead_stride_k;
     ck_tile::index_t nhead_stride_v;
     ck_tile::index_t nhead_stride_bias;
     ck_tile::index_t nhead_stride_o;
-
-    // batched mode only parameters
-    ck_tile::index_t batch_stride_q;
-    ck_tile::index_t batch_stride_k;
-    ck_tile::index_t batch_stride_v;
-    ck_tile::index_t batch_stride_bias;
-    ck_tile::index_t batch_stride_o;
+    ck_tile::index_t nhead_stride_lse;
 
     const void* num_targets_ptr;
 
@@ -119,8 +125,6 @@ struct HstuAttentionGroupFwdParams
     const void* group_window_size_ptr;
     const void* group_contextual_seqlen_ptr;
     const void* group_min_full_attn_seqlen_ptr;
-
-    bool use_softmax;
 
     float p_drop;
     uint64_t philox_seed;

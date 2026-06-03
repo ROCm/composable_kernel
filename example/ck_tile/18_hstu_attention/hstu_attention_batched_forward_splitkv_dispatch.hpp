@@ -334,9 +334,13 @@ struct batched_forward_splitkv_causal_softmax_bias_dropout_dispatch
             return HstuKernel::MakeKargs(ws.o_acc_ptr,
                                          ws.lse_acc_ptr,
                                          param.o_ptr,
+                                         nullptr, // lse_ptr
                                          param.batch_stride_o,
+                                         0, // batch_stride_lse
                                          param.seq_stride_o,
+                                         0, // seq_stride_o
                                          param.nhead_stride_o,
+                                         0, // nhead_stride_o
                                          param.seqlen_q,
                                          param.num_head,
                                          ws.num_splits,
