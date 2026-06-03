@@ -45,6 +45,51 @@
 #error "MOVE_FMHA_MASK_TO_COMPUTE and MOVE_FMHA_MASK_TO_GEMM1 are mutually exclusive"
 #endif
 
+// UA_DYNAMIC_SETPRIO (warp-group-balance plan A2, HipKittens-style)
+//   0 (default): static per-warp-group priority, set once at loop entry
+//     (W0-3 → s_setprio(0), W4-7 → s_setprio(1)). Baseline, bit-identical.
+//   1: dynamic priority around the gemm MFMA cluster. `cl_calc` raises
+//     s_setprio(1) for the duration of the gemm (QK/PV MFMAs + trailing
+//     fmha_alu0) and drops back to s_setprio(0) after. The two warp groups
+//     are offset by two phases and co-resident (one wave of each group per
+//     SIMD), so the group currently in the compute cluster outbids the
+//     group currently issuing memory for the shared VALU/MFMA issue port —
+//     targeting the ARBITER_NOT_WIN stall that gates the compute side
+//     (W0-3: 37.8% of its stalls). Under the macro the static W4-7=1 entry
+//     is neutralised to 0 so the non-compute baseline is uniformly prio 0.
+#ifndef UA_DYNAMIC_SETPRIO
+#define UA_DYNAMIC_SETPRIO 0
+#endif
+
+// CONDITIONAL_RESCALE (PLAN_conditional_rescale Part 2)
+//   0 (default): always-rescale online softmax — the o_acc/l accumulators are
+//     renormalised to the true running max `m` every KV tile (the expensive
+//     128-VGPR `v_pk_mul_f32` rescale tail in fmha_alu_D_upd + the 6-reg
+//     partial in fmha_alu1). Bit-identical to the pre-Part-2 kernel.
+//   1: FA4-style conditional (skipped) rescale. Carry the accumulators in the
+//     frame of a *committed* max `m_commit` that only advances (with a rescale)
+//     when the true max pulls ahead by more than τ = log2 of the safe exp2
+//     bound. Between commits the shifted scores stay ≤ τ (exp2 ≤ 2^τ, fp32-
+//     safe) so o_acc/l just accumulate — the rescale multiplies are skipped.
+//     The decision is made wave-uniformly (ballot: rescale if ANY lane needs
+//     it) so the guard is a scalar branch with no divergence. Mathematically
+//     exact (the m_commit frame cancels in o_acc/l; LSE uses m_commit), so no
+//     end-of-loop correction is needed. Only applied on the 2-warp-group
+//     prefill path (see kCondRescale); decode keeps always-rescale. Part-1's
+//     --headroom instrument predicts ~85% (prefill) of rescales are skippable.
+// Defined BEFORE the includes so unified_attention_core_loop_scheduler.hpp can
+// gate its per-phase sched_group_barrier VALU hints on it (the gemm1+D_upd
+// phase reserves ~36 VALU slots for the rescale tail that this skips).
+#if !defined(CONDITIONAL_RESCALE)
+#define CONDITIONAL_RESCALE 1
+#endif
+// τ in scaled-logit (log2) units. exp2(τ) bounds the un-rescaled scores; 8 =>
+// max intermediate exp2 == 256, comfortably inside fp32 range even summed over
+// thousands of keys. FA4 uses the same log2(256)=8.
+#if !defined(CONDITIONAL_RESCALE_TAU)
+#define CONDITIONAL_RESCALE_TAU 8.0f
+#endif
+
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/unified_attention/pipeline/unified_attention_pipeline_default_policy.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_v3_pipeline.hpp"
@@ -97,6 +142,39 @@
 //   re-audit whether the K_w4 / V_w0 buffer layout can be made disjoint
 //   enough to allow this barrier to be replaced with a vmcnt-only wait.
 #define ADD_SBARRIER_FOR_PHASE2 1
+
+// UA_FA4_PIPELINE (FlashAttention-4 style matrix‖softmax warp overlap)
+//   0 (default): the established 8-wave compute/memory ping-pong. W0-3 run
+//     core_loop(0), W4-7 run core_loop(1); the two groups are offset by two
+//     phases so one group's compute (gemm0/gemm1 + softmax interleaved)
+//     overlaps the other group's K/V memory phase. Bit-identical baseline.
+//   1: FA4 functional split. Both warp groups run the *same* deferred-PV
+//     software pipeline (the known-correct sequence from the single-warp-group
+//     path: fmha_alu1(prev) → PV(prev) → QK(cur) → alu0(cur) → D_upd), but it
+//     is cut into two phases —
+//       MATRIX  phase: PV(k-1) + QK(k)            (matrix pipe only)
+//       SOFTMAX phase: alu1/exp + alu0/rowmax + D_upd/rescale  (VALU/MUFU only)
+//     — and the two groups are primed one phase apart (WG0 enters MATRIX while
+//     WG1 enters SOFTMAX) so on each SIMD the matrix-pipe work of one wave
+//     hides the VALU/transcendental work of its co-resident partner. The
+//     O*corr rescale (fmha_alu_D_upd) is kept at the END of the SOFTMAX phase
+//     so the MATRIX phase stays VALU-free (no MFMA-waits-on-rescale hazard,
+//     no cross-warp VALU contention). K/V are prefetched a tile ahead into a
+//     shared double buffer at the per-phase block barrier (issued cooperatively
+//     by all 8 warps so the full tile loads exactly once). Prefill path only
+//     (NumWarpGroups == 2); single-warp-group decode keeps its serial pipeline.
+// FA4 matrix‖softmax overlap pipeline. Default ON. The FA4 path is correctness-
+// validated (full bf16/fp16 grid, split-KV, mask types 1/2, GQA, small+large N)
+// and FASTER on long-context / tall prefill (+9–12% sq≪sk) and small/medium
+// square (+2–5%), within ~1% on large full-square causal. Set to 0 (or
+// -DUA_FA4_PIPELINE=0) to fall back to the baseline ping-pong pipeline.
+// NOTE: FA4 engages for the 2-warp-group prefill path (bf16/fp16 and FP8 —
+// the latter only on 32x32x16 tiers, where the P relayout is the barrier-free
+// within-wave permute; see kFA4). The decode tiers and any 16x16x32 FP8
+// instance compile-time fall back to baseline (kFA4 == false there).
+#ifndef UA_FA4_PIPELINE
+#define UA_FA4_PIPELINE 1
+#endif
 
 #if !defined(CK_TILE_DISABLE_PACKED_FP32)
 #define CK_TILE_DISABLE_PACKED_FP32 0
@@ -544,6 +622,19 @@ struct UnifiedAttentionPipeline
         decltype(block_tile_reduce<SMPLComputeDataType>(
             sp(number<0>{}).sp_compute, sequence<1>{}, f_max, SMPLComputeDataType{0})) m;
         decltype(m) l;
+#if CONDITIONAL_RESCALE
+        // Committed max the o_acc/l accumulators are normalised against, and
+        // its value before the current tile's (possible) advance. `m_commit`
+        // only moves when the wave decides to rescale (see fmha_alu0). Declared
+        // here (alongside m/l) so the pre-loop init below can reach it.
+        decltype(m) m_commit;
+        decltype(m) m_commit_old;
+        // Wave-uniform "this tile advanced m_commit" flag. Set in fmha_alu0,
+        // consumed by fmha_alu_D_upd (o_acc[6:]) of the same tile and, via the
+        // deferred carry, by the next fmha_alu1 (o_acc[0:6]). Uniform across
+        // the wave so the rescale guard compiles to a scalar s_cbranch.
+        bool need_rescale = true;
+#endif
 
         // initialize k_lds_window and v_lds_window
         static_for<0, 2, 1>{}([&](auto idx) {
@@ -573,6 +664,14 @@ struct UnifiedAttentionPipeline
         clear_tile(o_acc);
         set_tile(m, bit_cast<float>(0xff7fffff)); // a bit larger than -infinity
         clear_tile(l);
+#if CONDITIONAL_RESCALE
+        // Same -inf-ish init as `m`: the first tile's gap (m - m_commit) is
+        // huge so it always commits, with m_commit_old == -inf giving
+        // o_acc_scale == exp2(-inf) == 0 — a no-op on the cleared o_acc/l,
+        // matching the always-rescale path's first-tile behaviour.
+        set_tile(m_commit, bit_cast<float>(0xff7fffff));
+        set_tile(m_commit_old, bit_cast<float>(0xff7fffff));
+#endif
 
         const auto q_origin = q_dram_window.get_window_origin();
 
@@ -1050,6 +1149,42 @@ struct UnifiedAttentionPipeline
         constexpr index_t NumWarpGroups = Problem::kBlockSize / Policy::NumThreadPerWarpGroup;
         static_assert(NumWarpGroups == 1 || NumWarpGroups == 2);
 
+        // Conditional (skipped) online-softmax rescale applies only to the
+        // 2-warp-group *prefill* pipeline, which is VALU/rescale-bound. The
+        // single-warp-group *decode* path (NumWarpGroups==1) is memory-bound,
+        // its o_acc is small, and the per-tile ballot+branch overhead is not
+        // recovered (measured ~+2% regression) — so decode keeps the
+        // always-rescale path. Gated at compile time, so each instance lowers
+        // to exactly one path with no runtime cost.
+        constexpr bool kCondRescale = (CONDITIONAL_RESCALE != 0) && (NumWarpGroups == 2);
+
+        // FA4 matrix‖softmax warp-group overlap (see UA_FA4_PIPELINE). Enabled
+        // for the 2-warp-group prefill path. The constraint is the FP8 P-tile
+        // QK-C→PV-A relayout inside fmha_alu1: FA4 splits the 8 warps into two
+        // groups that run *different* phases at once, so any *block-wide*
+        // s_barrier inside a single group's softmax phase deadlocks (the matrix
+        // group never reaches it).
+        //
+        // Crucially the FP8 relayout has two strategies (see fmha_alu1): the
+        // 16x16x32 m16 tier takes the block-wide LDS-roundtrip path (strategy
+        // B — two s_barriers, NOT FA4-safe), but every 32x32x16 tier (all
+        // prefill, decode_m{32,64,128}) takes the *within-wave* permute
+        // (strategy A: permlane32_swap on gfx950 / ds_bpermute on gfx942 —
+        // zero LDS traffic, zero barriers). The within-wave path adds nothing
+        // to the per-phase barrier balance, so FP8 prefill is FA4-safe exactly
+        // when Gemm1WarpTile is 32x32x16. m16 (16x16x32) is single-warp-group
+        // anyway (NumWarpGroups==1), so the NumWarpGroups==2 guard already
+        // excludes the strategy-B case; the explicit tile check below documents
+        // the invariant and keeps any future 2-WG 16x16x32 instance on the
+        // baseline.
+        using Gemm1WarpTileFA4 = typename UnifiedAttentionShape::Gemm1WarpTile;
+        constexpr bool kFP8RelayoutWithinWave =
+            (Gemm1WarpTileFA4::at(number<0>{}) == 32) &&
+            (Gemm1WarpTileFA4::at(number<1>{}) == 32) &&
+            (Gemm1WarpTileFA4::at(number<2>{}) == 16);
+        constexpr bool kFA4 = (UA_FA4_PIPELINE != 0) && (NumWarpGroups == 2) &&
+                              (!std::is_same_v<PDataType, fp8_t> || kFP8RelayoutWithinWave);
+
         [[maybe_unused]] auto print_dist_tensor = [&](const auto& dist_tensor, const char* name) {
             printf("[POYENC] %s (size=%d): %5.2f",
                    name,
@@ -1254,6 +1389,36 @@ struct UnifiedAttentionPipeline
             block_tile_reduce_sync(m_latest, f_max, bool_constant<false>{});
 #endif
             m = m_latest;
+#if CONDITIONAL_RESCALE
+            if constexpr(kCondRescale)
+            {
+                // Decide — wave-uniformly — whether the true running max has
+                // pulled more than τ ahead of the committed max. m / m_commit
+                // are row-uniform after the cross-lane reduce, but the two
+                // 32-lane row groups of the wave hold different rows, so OR the
+                // per-lane predicate across the whole wave (ballot): if either
+                // group needs a rescale, both commit. The other group then does
+                // a near-no-op rescale, but the guard branch downstream stays
+                // wave-uniform (ballot result in an SGPR → scalar s_cbranch).
+                const bool nr_local =
+                    (scale_s * (m.thread_buf_[0] - m_commit.thread_buf_[0])) >
+                    CONDITIONAL_RESCALE_TAU;
+                need_rescale                = (__builtin_amdgcn_ballot_w64(nr_local) != 0ull);
+                m_commit_old.thread_buf_[0] = m_commit.thread_buf_[0];
+                if(need_rescale)
+                {
+                    m_commit.thread_buf_[0] = m.thread_buf_[0];
+                }
+            }
+#endif
+            // Score-shift base: committed max for the prefill conditional path
+            // (bounded by exp2(scale_s*(rowmax - m_commit)) ≤ exp2(τ) since we
+            // commit whenever the gap exceeds τ), true running max otherwise.
+#if CONDITIONAL_RESCALE
+            auto& m_shift = kCondRescale ? m_commit : m;
+#else
+            auto& m_shift = m;
+#endif
 
             constexpr auto p_spans =
                 std::decay_t<decltype(sp(sp_reg_idx).sp_compute)>::get_distributed_spans();
@@ -1261,7 +1426,7 @@ struct UnifiedAttentionPipeline
                 sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx        = make_tuple(idx0, idx1);
                     sp_delta(sp_reg_idx)(i_j_idx) = detail::fma_impl_vsv(
-                        sp(sp_reg_idx).sp_compute(i_j_idx), scale_s, -scale_s * m(i_j_idx));
+                        sp(sp_reg_idx).sp_compute(i_j_idx), scale_s, -scale_s * m_shift(i_j_idx));
                 });
             });
             /// TODO: move some fmha_alu1() code here if necessary
@@ -1312,12 +1477,30 @@ struct UnifiedAttentionPipeline
             constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
             sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
                 constexpr auto i_idx = make_tuple(idx0);
-                const auto tmp       = ck_tile::exp2(scale_s * (m_old[i_idx] - m[i_idx]));
-
+#if CONDITIONAL_RESCALE
+                // Denominator rescale uses the committed-max delta; == 1 (no-op
+                // add) on the ~85-99% of tiles that don't commit. m_commit /
+                // m_commit_old still hold this tile's values here (same
+                // lifetime as m / m_old in the baseline).
+                const auto tmp =
+                    kCondRescale
+                        ? ck_tile::exp2(scale_s * (m_commit_old[i_idx] - m_commit[i_idx]))
+                        : ck_tile::exp2(scale_s * (m_old[i_idx] - m[i_idx]));
+#else
+                const auto tmp = ck_tile::exp2(scale_s * (m_old[i_idx] - m[i_idx]));
+#endif
                 l(i_idx) = detail::add_impl_vv(tmp * l[i_idx], rowsum_p[i_idx]);
             });
 
             // update partial o_acc [0, fmha_alu_D_reg_cnt)
+#if CONDITIONAL_RESCALE
+            // Skip the 6-VGPR partial rescale unless this tile committed. The
+            // o_acc_scale + need_rescale read here are the values deferred from
+            // the matching fmha_alu_D_upd (one pipeline stage back), exactly as
+            // the baseline defers the o_acc_scale read. `!kCondRescale` folds
+            // the guard away (unconditional rescale) on the decode path.
+            if(!kCondRescale || need_rescale)
+#endif
             static_for<0, fmha_alu_D_reg_cnt, 1>{}([&](auto idx) {
                 o_acc.thread_buf_[idx] = detail::mul_impl_vv(o_acc.thread_buf_[idx], o_acc_scale);
             });
@@ -1637,6 +1820,12 @@ struct UnifiedAttentionPipeline
         };
 
         auto cl_calc = [&](auto sp_reg_idx, auto gemm_idx) {
+#if UA_DYNAMIC_SETPRIO
+            // Raise priority for the MFMA cluster so the computing warp group
+            // outbids the co-resident memory-issuing group at the shared SIMD
+            // issue port (HipKittens 8-wave ping-pong pattern).
+            __builtin_amdgcn_s_setprio(1);
+#endif
             if constexpr(gemm_idx == 0)
             {
                 clear_tile(sp(sp_reg_idx).sp_compute); // initialize C
@@ -1659,42 +1848,64 @@ struct UnifiedAttentionPipeline
                                       sequence<kHeadDimPadded, k1_loops * kPageBlockSize>{}));
                 fmha_alu0(number<1>{} - sp_reg_idx);
             }
+#if UA_DYNAMIC_SETPRIO
+            __builtin_amdgcn_s_setprio(0);
+#endif
         };
 
         auto fmha_alu_D_upd = [&] {
+#if CONDITIONAL_RESCALE
+            // exp2(0) == 1.0 exactly on non-committing tiles; the guarded
+            // multiplies below are then skipped entirely (scalar s_cbranch on
+            // the wave-uniform need_rescale).
+            o_acc_scale =
+                kCondRescale
+                    ? ck_tile::exp2(scale_s *
+                                    (m_commit_old.thread_buf_[0] - m_commit.thread_buf_[0]))
+                    : ck_tile::exp2(scale_s * (m_old.thread_buf_[0] - m.thread_buf_[0]));
+#else
             o_acc_scale = ck_tile::exp2(scale_s * (m_old.thread_buf_[0] - m.thread_buf_[0]));
-
-            fp32x2_t pk_o_acc_scale;
-            pk_o_acc_scale.x = o_acc_scale;
-            pk_o_acc_scale.y = o_acc_scale;
+#endif
 
             static_assert((o_acc.thread_buf_.size() - fmha_alu_D_reg_cnt) % 2 == 0);
+
+#if CONDITIONAL_RESCALE
+            if(!kCondRescale || need_rescale)
+            {
+#endif
+                fp32x2_t pk_o_acc_scale;
+                pk_o_acc_scale.x = o_acc_scale;
+                pk_o_acc_scale.y = o_acc_scale;
+
 #if CK_TILE_DISABLE_PACKED_FP32
-            static_assert(fmha_alu_D_reg_cnt + 2 <= o_acc.thread_buf_.size());
-            static_for<fmha_alu_D_reg_cnt, fmha_alu_D_reg_cnt + 2, 1>{}(
-                [&](auto idx) { o_acc.thread_buf_[idx] *= o_acc_scale; });
+                static_assert(fmha_alu_D_reg_cnt + 2 <= o_acc.thread_buf_.size());
+                static_for<fmha_alu_D_reg_cnt, fmha_alu_D_reg_cnt + 2, 1>{}(
+                    [&](auto idx) { o_acc.thread_buf_[idx] *= o_acc_scale; });
 #endif
 
-            constexpr auto issued_D_reg_cnt =
+                constexpr auto issued_D_reg_cnt =
 #if CK_TILE_DISABLE_PACKED_FP32
-                fmha_alu_D_reg_cnt + 2
+                    fmha_alu_D_reg_cnt + 2
 #else
-                fmha_alu_D_reg_cnt
+                    fmha_alu_D_reg_cnt
 #endif
-                ;
-            /// NOTICE: Use inline asm v_pk_mul_f32 to reduce latency. The fmha_alu_D_upd() call
-            /// should be placed at the end of a phase.
-            // update partial o_acc after [issued_D_reg_cnt]
-            static_for<issued_D_reg_cnt, o_acc.thread_buf_.size(), 2>{}([&](auto idx) {
-                fp32x2_t input;
-                input.x = o_acc.thread_buf_[idx];
-                input.y = o_acc.thread_buf_[idx + 1];
+                    ;
+                /// NOTICE: Use inline asm v_pk_mul_f32 to reduce latency. The fmha_alu_D_upd() call
+                /// should be placed at the end of a phase.
+                // update partial o_acc after [issued_D_reg_cnt]
+                static_for<issued_D_reg_cnt, o_acc.thread_buf_.size(), 2>{}([&](auto idx) {
+                    fp32x2_t input;
+                    input.x = o_acc.thread_buf_[idx];
+                    input.y = o_acc.thread_buf_[idx + 1];
 
-                auto output = detail::pk_mul_f32(input, pk_o_acc_scale);
+                    auto output = detail::pk_mul_f32(input, pk_o_acc_scale);
 
-                o_acc.thread_buf_[idx]     = output.x;
-                o_acc.thread_buf_[idx + 1] = output.y;
-            });
+                    o_acc.thread_buf_[idx]     = output.x;
+                    o_acc.thread_buf_[idx + 1] = output.y;
+                });
+#if CONDITIONAL_RESCALE
+            }
+#endif
         };
 
         // Resolve kBlockQ at runtime when the caller plumbs in
@@ -1720,6 +1931,36 @@ struct UnifiedAttentionPipeline
                                         q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
                                     const auto col =
                                         i_total_loops * kPageBlockSize + tile_idx.at(number<1>{});
+                                    return mask.IsOutOfBound(row, col);
+                                });
+                }
+            }
+        };
+
+        // FA4 mask variant: the matrix‖softmax split decouples "which KV tile's
+        // scores we are masking" from the loop counter `i_total_loops` (the FA4
+        // pre-stage pre-increments it, and the prime / deferred-softmax shift
+        // the softmax of tile k to a point where i_total_loops != k). Passing
+        // the absolute KV-tile index explicitly keeps the masked column window
+        // aligned with the tile actually held in `sp(sp_reg_idx)`. For large
+        // sk the early tiles are fully in-bounds (IsEdgeTile false) so the bug
+        // was invisible; it only bit the causal diagonal (small sk) tiles.
+        [[maybe_unused]] auto fmha_mask_at = [&](auto sp_reg_idx, index_t kv_tile_idx) {
+            if constexpr(FmhaMask::IsMasking)
+            {
+                const index_t col_base   = kv_tile_idx * kPageBlockSize;
+                bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
+                                                           col_base,
+                                                           kBlockQ_dyn,
+                                                           static_cast<index_t>(kPageBlockSize));
+                if(need_perpixel_check)
+                {
+                    set_tile_if(sp(sp_reg_idx).sp_compute,
+                                -numeric<SMPLComputeDataType>::infinity(),
+                                [&](auto tile_idx) {
+                                    const auto row =
+                                        q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                                    const auto col = col_base + tile_idx.at(number<1>{});
                                     return mask.IsOutOfBound(row, col);
                                 });
                 }
@@ -1940,6 +2181,201 @@ struct UnifiedAttentionPipeline
             return iteration(number<0>{}) && iteration(number<1>{});
         };
 
+#if UA_FA4_PIPELINE
+        // ---------------------------------------------------------------
+        // FA4 matrix‖softmax overlap core loop.
+        //
+        // Both warp groups run the SAME deferred-PV software pipeline, cut into
+        // two barrier-delimited phases. Per iteration pi (sp slot the NEW QK
+        // lands in is `1-pi`, matching the existing p01/p23 convention; the
+        // tile whose softmax finishes / is PV'd is slot `pi`):
+        //
+        //   MATRIX(pi)  : PV(sp(pi))   = o_acc += P(pi) @ V(k-1)   (matrix)
+        //                 QK(sp(1-pi)) = Q @ K(k)                  (matrix)
+        //   SOFTMAX(pi) : mask, alu0, D_upd, alu1  on slot (1-pi)  (VALU/MUFU)
+        //                 → produces P(1-pi) for the NEXT MATRIX's PV.
+        //
+        // NOTE on numerics: unlike the existing pipeline — which SPLITS the
+        // o_acc rescale (6 VGPRs in fmha_alu1, the rest in fmha_alu_D_upd) and
+        // defers the alu1 partial "one pipeline stage back" for latency — the
+        // FA4 SOFTMAX phase co-locates alu0→D_upd→alu1 on a single slot, so the
+        // whole o_acc is rescaled by THIS tile's o_acc_scale in one place. That
+        // is the textbook online-softmax rescale: numerically equivalent, but
+        // NOT bit-identical to the staged baseline. Keeping D_upd at the END of
+        // SOFTMAX is what leaves MATRIX pure-matrix (no MFMA-waits-on-rescale
+        // hazard, no cross-warp VALU contention).
+        //
+        // The two groups are primed one phase apart (see dispatch): cl_p == 0
+        // runs MATRIX-then-SOFTMAX each slot, cl_p == 1 runs SOFTMAX-then-
+        // MATRIX, so at every block barrier one group's matrix-pipe work hides
+        // its co-resident partner's VALU/MUFU work. Only the MATRIX-phase group
+        // touches K/V, so the shared double buffer has no cross-group conflict.
+        //
+        // K/V are prefetched a tile ahead at the block barrier, where all 8
+        // warps are converged, so the block-cooperative async load covers the
+        // full tile (a single 4-warp group can only load its own half-slice).
+        //
+        // Absolute KV-tile index of the NEXT tile to be softmaxed/masked in the
+        // FA4 path. Incremented once per softmax (in strict tile order across
+        // prime → loop → epilogue), so it always names the tile whose scores
+        // sit in the slot being masked — independent of `i_total_loops` (which
+        // FA4 uses only for loop control + prefetch bookkeeping). Starts at
+        // num_blocks_start to honour the split-KV column offset, matching the
+        // baseline's i_total_loops*kPageBlockSize convention.
+        [[maybe_unused]] index_t fa4_sm_tile = num_blocks_start;
+
+        [[maybe_unused]] auto core_loop_fa4 = [&](auto cl_p) {
+            auto gemm0 = number<0>{};
+            auto gemm1 = number<1>{};
+
+            // MATRIX phase: deferred PV(k-1) then QK(k). Pure matrix pipe.
+            // Consumes V(1-pi) / K(pi) resident in LDS; the union kv_tile holds
+            // v_tile for the PV then is overwritten with k_tile for the QK
+            // (V_lds → gemm1 → K_lds → gemm0 ordering).
+            // V-read hoist: issue the PV gemm's LDS→register read (v_rd == pi)
+            // EARLY — before the matrix phase's compute — so its ~LDS-latency
+            // overlaps the address-calc VALU of prefetch() (WG0) / the barrier
+            // exit (WG1) instead of being exposed right before the PV MFMA. The
+            // V buffer pi was populated by a prior prefetch and already waited
+            // on (vmcnt<0> at phase entry); prefetch writes K-buf[pi]/V-buf[1-pi]
+            // so there is no aliasing with this read.
+            // V-read hoist: issue the PV gemm's LDS→register read (v_rd == pi)
+            // EARLY — before the matrix phase's compute — so its ~LDS-latency
+            // overlaps the address-calc VALU of prefetch() (WG0) / the barrier
+            // exit (WG1) instead of being exposed right before the PV MFMA. The
+            // V buffer pi was populated by a prior prefetch and already waited
+            // on (vmcnt<0> at phase entry); prefetch writes K-buf[pi]/V-buf[1-pi]
+            // so there is no aliasing with this read.
+            //
+            // NOTE: do NOT also hoist K_lds_load here. The QK gemm reads K-buf
+            // [1-pi], and in the WG1 softmax-first prologue that buffer is not
+            // yet guaranteed resident this early (its async load completes a
+            // phase later) — hoisting K corrupts long-context runs. K stays
+            // issued between the PV and QK MFMAs (its latency hides under PV).
+            // V-read hoist: issue the PV gemm's LDS→register read (v_rd == pi)
+            // EARLY — before the matrix phase's compute — so its ~LDS-latency
+            // overlaps the address-calc VALU of prefetch() (WG0) / the barrier
+            // exit (WG1) instead of being exposed right before the PV MFMA.
+            //
+            // NOTE: do NOT also hoist K_lds_load. K/V are loaded COOPERATIVELY
+            // by both warp groups; a wave's vmcnt only drains its OWN async
+            // loads, not the partner group's half, so a cooperatively-filled
+            // buffer is reliably resident only deeper into the phase. The PV
+            // gemm provides exactly that slack for the K read — moving K ahead
+            // of PV races the partner's load completion and corrupts long
+            // contexts. K stays issued between the PV and QK MFMAs.
+            auto fa4_vload = [&](auto pi) { V_lds_load(pi); };
+
+            auto fa4_matrix = [&](auto pi) {
+                auto pv_sp = pi;               // PV source: P(pi) from prev SOFTMAX
+                auto qk_sp = number<1>{} - pi; // QK target slot
+                auto k_rd  = number<1>{} - pi;
+
+                s_waitcnt_lgkmcnt<0>(); // wait the hoisted fa4_vload(pi)
+                gemm(pv_sp, gemm1);     // o_acc += P(pi) @ V(k-1)
+                K_lds_load(k_rd);       // K read overlaps the PV MFMA
+                s_waitcnt_lgkmcnt<0>();
+                gemm(qk_sp, gemm0); // sp(1-pi).sp_compute = Q @ K(k)
+            };
+
+            // SOFTMAX phase on the just-QK'd slot (1-pi): mask, rowmax+shift
+            // (alu0), accumulator rescale (D_upd — the O*corr tail), then
+            // exp+rowsum+P-cvt (alu1), which produces P(1-pi) for the next
+            // MATRIX phase's PV.
+            auto fa4_softmax = [&](auto pi) {
+                auto sm_sp = number<1>{} - pi;
+                fmha_mask_at(sm_sp, fa4_sm_tile++);
+                fmha_alu0(sm_sp);
+                fmha_alu_D_upd();
+                fmha_alu1(sm_sp);
+            };
+
+            // One KV tile == one MATRIX + one SOFTMAX phase, separated by two
+            // block barriers. The prefetch for tile k+1 is issued right after
+            // the FIRST barrier in BOTH branches, where all 8 warps are
+            // converged, so the block-cooperative async load covers the full
+            // tile (a 4-warp group only owns its half-slice). Buffer index ==
+            // sp slot; prefetch targets the buffer the next iteration reads
+            // (K→buf[pi], V→buf[1-pi]; the opposite buffers are being read this
+            // iteration, so the double buffer never aliases).
+            auto iteration = [&](auto pi) {
+                bool result = true;
+                auto K_pf = pi;               // next-tile K buffer
+                auto V_pf = number<1>{} - pi; // next-tile V buffer
+
+                auto prefetch = [&] {
+                    if(i_total_loops + 1 < num_total_loop)
+                        K_mem_load(K_pf);
+                    V_mem_load(V_pf);
+                };
+
+                if constexpr(cl_p == 0)
+                {
+                    // ---- slot A: MATRIX(pi) ‖ (WG1: SOFTMAX) ----
+                    ASM_MARKER("fa4 MATRIX Wave0-3");
+                    s_waitcnt_vmcnt<0>();
+                    __builtin_amdgcn_sched_barrier(0);
+                    __builtin_amdgcn_s_barrier();
+                    __builtin_amdgcn_sched_barrier(0);
+                    fa4_vload(pi);  // hoisted V read; latency hidden under prefetch
+                    prefetch();
+                    fa4_matrix(pi);
+
+                    // ---- slot B: SOFTMAX(pi) ‖ (WG1: MATRIX) ----
+                    ASM_MARKER("fa4 SOFTMAX Wave0-3");
+                    __builtin_amdgcn_sched_barrier(0);
+                    __builtin_amdgcn_s_barrier();
+                    __builtin_amdgcn_sched_barrier(0);
+                    fa4_softmax(pi);
+
+                    if(num_total_loop <= ++i_total_loops)
+                        result = false;
+                }
+                else
+                {
+                    // ---- slot A: SOFTMAX ‖ (WG0: MATRIX) ----
+                    // WG1 is one phase ahead (primed by the FA4 prologue): it
+                    // softmaxes the tile it QK'd in its previous MATRIX phase
+                    // while WG0 runs the MATRIX of the same tile.
+                    ASM_MARKER("fa4 SOFTMAX Wave4-7");
+                    s_waitcnt_vmcnt<0>();
+                    __builtin_amdgcn_sched_barrier(0);
+                    __builtin_amdgcn_s_barrier();
+                    __builtin_amdgcn_sched_barrier(0);
+                    prefetch();
+                    fa4_softmax(number<1>{} - pi);
+
+                    // ---- slot B: MATRIX(pi) ‖ (WG0: SOFTMAX) ----
+                    ASM_MARKER("fa4 MATRIX Wave4-7");
+                    __builtin_amdgcn_sched_barrier(0);
+                    __builtin_amdgcn_s_barrier();
+                    __builtin_amdgcn_sched_barrier(0);
+                    fa4_vload(pi);  // hoisted V read (overlaps barrier exit)
+                    fa4_matrix(pi);
+
+                    if(num_total_loop <= ++i_total_loops)
+                        result = false;
+                }
+                return result;
+            };
+            return iteration(number<0>{}) && iteration(number<1>{});
+        };
+#endif
+
+#if UA_FA4_PIPELINE
+        // FA4 deferred-PV epilogue: the final SOFTMAX produced P for a tile
+        // whose PV has not yet been folded into o_acc. Run that last PV here.
+        // (alu1 already ran in the SOFTMAX phase, so unlike fmha_post_process
+        // we do NOT re-run it — just the V load + PV gemm.)
+        [[maybe_unused]] auto fa4_post_process = [&](auto last_pv_sp, auto last_v_buf) {
+            s_waitcnt_vmcnt<0>();
+            __builtin_amdgcn_s_barrier();
+            V_lds_load(last_v_buf);
+            s_waitcnt_lgkmcnt<0>();
+            gemm(last_pv_sp, /*gemm_idx=*/number<1>{});
+        };
+#endif
+
         auto fmha_post_process = [&](auto d) {
             auto ps_pi        = number<1>{} - d;
             auto V_lds_rd_idx = ps_pi;
@@ -1986,26 +2422,45 @@ struct UnifiedAttentionPipeline
             // (3) mfma (Q*K0) + softmax
             gemm(number<0>{}, /*gemm_idx=*/number<0>{});
 
-            fmha_mask(number<0>{});
-            /// TODO: find better way to map fmha_alu(0,96) call
-            fmha_alu0(number<0>{});
-            fmha_alu_D_upd();
-
-            ++i_total_loops;
-            if(num_total_loop <= i_total_loops)
+            // FA4 prefills sp(0) with the raw QK(0) only. The softmax of tile 0
+            // is done by each warp group itself: the softmax-first group folds
+            // it into its first loop iteration; the matrix-first group runs it
+            // as a one-shot prime in the dispatch below. The K2 prefetch is
+            // also skipped — the FA4 loop prefetches exactly one tile ahead, so
+            // the first iteration must issue K2 itself (issuing it here would
+            // leave the loop one K tile too far ahead and clobber K2 with K3).
+            if constexpr(kFA4)
             {
-                goto label_main_loops_exit;
+                ++i_total_loops;
+                if(num_total_loop <= i_total_loops)
+                {
+                    goto label_main_loops_exit;
+                }
+                ASM_MARKER("end pre-stage (FA4)");
             }
-
-            if(2 < num_total_loop)
+            else
             {
-                K_mem_load(number<0>{}); // mem_K2
+                fmha_mask(number<0>{});
+                /// TODO: find better way to map fmha_alu(0,96) call
+                fmha_alu0(number<0>{});
+                fmha_alu_D_upd();
 
-                s_waitcnt_vmcnt<K_mem_su_ld_insts + V_mem_su_ld_insts>();
-                __builtin_amdgcn_s_barrier();
+                ++i_total_loops;
+                if(num_total_loop <= i_total_loops)
+                {
+                    goto label_main_loops_exit;
+                }
+
+                if(2 < num_total_loop)
+                {
+                    K_mem_load(number<0>{}); // mem_K2
+
+                    s_waitcnt_vmcnt<K_mem_su_ld_insts + V_mem_su_ld_insts>();
+                    __builtin_amdgcn_s_barrier();
+                }
+
+                ASM_MARKER("end pre-stage");
             }
-
-            ASM_MARKER("end pre-stage");
         }
 
         if(1 < num_total_loop)
@@ -2095,23 +2550,62 @@ struct UnifiedAttentionPipeline
             }
             else
             {
-                // --- Two warp groups: interleaved pipeline ---
-                if(warp_group_id == 0)
+#if UA_FA4_PIPELINE
+                if constexpr(kFA4)
                 {
-                    V_mem_load(number<1>{}); // V1
-                    K_lds_load(number<1>{}); // K1
-
-                    __builtin_amdgcn_s_setprio(0);
-                    __builtin_amdgcn_s_barrier();
-                    while(core_loop(number<0>{}))
-                        ;
+                    // --- FA4: matrix‖softmax warp-group overlap ---
+                    // After the FA4 pre-stage sp(0) holds the raw QK(0). WG0 is
+                    // the matrix-first group: it primes tile-0's softmax once
+                    // (barrier-free: bf16/fp16 register cast, or FP8 strategy-A
+                    // within-wave permute) so its first MATRIX has P(0),
+                    // then runs MATRIX-then-SOFTMAX each slot. WG1 is softmax-
+                    // first: it folds tile-0's softmax into its first iteration
+                    // and runs SOFTMAX-then-MATRIX, so the two groups sit one
+                    // phase apart and overlap on every SIMD.
+                    if(warp_group_id == 0)
+                    {
+                        __builtin_amdgcn_s_setprio(0);
+                        fmha_mask_at(number<0>{}, fa4_sm_tile++); // tile num_blocks_start
+                        fmha_alu0(number<0>{});
+                        fmha_alu_D_upd();
+                        fmha_alu1(number<0>{}); // sp(0).p = P(0)
+                        while(core_loop_fa4(number<0>{}))
+                            ;
+                    }
+                    if(warp_group_id != 0)
+                    {
+                        __builtin_amdgcn_s_setprio(0);
+                        while(core_loop_fa4(number<1>{}))
+                            ;
+                    }
                 }
-                if(warp_group_id != 0)
+                else
+#endif
                 {
-                    __builtin_amdgcn_s_setprio(1);
-                    __builtin_amdgcn_s_barrier();
-                    while(core_loop(number<1>{}))
-                        ;
+                    // --- Two warp groups: interleaved pipeline ---
+                    if(warp_group_id == 0)
+                    {
+                        V_mem_load(number<1>{}); // V1
+                        K_lds_load(number<1>{}); // K1
+
+                        __builtin_amdgcn_s_setprio(0);
+                        __builtin_amdgcn_s_barrier();
+                        while(core_loop(number<0>{}))
+                            ;
+                    }
+                    if(warp_group_id != 0)
+                    {
+#if UA_DYNAMIC_SETPRIO
+                        // Dynamic scheme drives priority from cl_calc; keep the
+                        // non-compute baseline uniformly prio 0 on both groups.
+                        __builtin_amdgcn_s_setprio(0);
+#else
+                        __builtin_amdgcn_s_setprio(1);
+#endif
+                        __builtin_amdgcn_s_barrier();
+                        while(core_loop(number<1>{}))
+                            ;
+                    }
                 }
             }
         }
@@ -2124,13 +2618,55 @@ struct UnifiedAttentionPipeline
         // is always 0 so the two parities coincide; the split-KV path with
         // num_blocks_start > 0 needs the corrected expression below.
         const index_t num_iters = num_total_loop - num_blocks_start;
-        if(num_iters % 2)
+#if UA_FA4_PIPELINE
+        if constexpr(kFA4)
         {
-            fmha_post_process(number<1>{});
+            // Deferred-PV drain. The pending sp slot has the same parity as the
+            // baseline post-process slot (ps_pi == 1 - num_iters%2), and the
+            // last tile's V sits in the buffer with that same index. WG0
+            // (matrix-first) already softmaxed this slot inside the loop, so
+            // only its deferred PV remains. WG1 (softmax-first) — and the
+            // degenerate single-tile case, where the pre-stage jumped straight
+            // here without priming or looping — still owes the full softmax of
+            // that slot before the PV. Both branches issue exactly one
+            // s_barrier (inside fa4_post_process; the softmax tail is
+            // barrier-free — bf16/fp16 register cast or FP8 strategy-A
+            // within-wave permute) so the two warp groups stay in lockstep.
+            auto fa4_epi = [&](auto slot) {
+                // WG1 always owes the final tile's softmax (softmax-first group
+                // defers it one phase). WG0 (matrix-first) normally softmaxed it
+                // inside the loop — EXCEPT in the degenerate num_iters==1 case
+                // where the FA4 pre-stage jumped straight here without priming
+                // or looping, so NEITHER group softmaxed it. That predicate is
+                // num_iters==1, NOT num_total_loop==1: under split-KV a trailing
+                // 1-tile split has num_total_loop = num_blocks_start+1 > 1 while
+                // num_iters==1, and the old condition wrongly let WG0 PV an
+                // un-softmaxed slot (garbage) for that split.
+                if(warp_group_id != 0 || num_iters == 1)
+                {
+                    fmha_mask_at(slot, fa4_sm_tile++); // last tile (num_total_loop-1)
+                    fmha_alu0(slot);
+                    fmha_alu_D_upd();
+                    fmha_alu1(slot);
+                }
+                fa4_post_process(slot, slot);
+            };
+            if(num_iters % 2)
+                fa4_epi(number<0>{});
+            if(!(num_iters % 2))
+                fa4_epi(number<1>{});
         }
-        if(!(num_iters % 2))
+        else
+#endif
         {
-            fmha_post_process(number<0>{});
+            if(num_iters % 2)
+            {
+                fmha_post_process(number<1>{});
+            }
+            if(!(num_iters % 2))
+            {
+                fmha_post_process(number<0>{});
+            }
         }
 
         // finally, O — normalize by l
@@ -2174,7 +2710,17 @@ struct UnifiedAttentionPipeline
         const auto scale_natlog =
             scale_s / static_cast<SMPLComputeDataType>(C_LOG2E);
         auto lse = make_static_distributed_tensor<SMPLComputeDataType>(m.get_tile_distribution());
+#if CONDITIONAL_RESCALE
+        // o_acc/l are carried in the m_commit frame, so the denominator is
+        // l = sum exp2(scale_s*(s - m_commit)). LSE = scale*m_commit + log(l)
+        // is then exact (the frame cancels in o = o_acc/l regardless; only the
+        // side-output LSE needs the matching base). m_commit ≤ true max but
+        // that is precisely the frame l was summed in. Decode keeps m.
+        sweep_tile_span(o_spans[number<0>{}],
+                        [&, m_ = (kCondRescale ? m_commit : m), l_ = l](auto idx0) {
+#else
         sweep_tile_span(o_spans[number<0>{}], [&, m_ = m, l_ = l](auto idx0) {
+#endif
             constexpr auto i_idx = make_tuple(idx0);
             if constexpr(FmhaMask::IsMasking)
             {

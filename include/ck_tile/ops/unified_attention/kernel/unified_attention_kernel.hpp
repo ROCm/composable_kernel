@@ -411,10 +411,24 @@ struct UnifiedAttentionKernel
         // KV range from both sides to the actual SWA window — this bound
         // only has to be a safe *upper* envelope across all rows in the
         // Q-tile, not the exact per-row range.
+        //
+        // GQA pack with kBlockM % num_queries_per_kv != 0 (e.g. d=128,
+        // qpkv=6 -> kBlockQ_dyn=21, 21*6=126 < 128): the kBlockM-row tile
+        // spills 2 rows into the *next* query position (offset
+        // (kBlockM-1)/qpkv = 21, one past the last owned query 20). Those
+        // spill rows are co-owned by block N+1, which writes them with the
+        // correct (longer) causal KV range. If block N bounds its KV range
+        // by the last *owned* query (kBlockQ_dyn-1) it computes those spill
+        // rows one key short, so the overlapping store races block N+1 and
+        // yields a nondeterministic ~1-row error. Bounding by the tile's
+        // actual last row instead makes block N's spill-row result identical
+        // to block N+1's -> the duplicate store is idempotent. For ratios
+        // that divide kBlockM this reduces to (kBlockQ_dyn-1), a no-op.
+        const index_t last_tile_row_q_off = (kBlockM - 1) / num_queries_per_kv;
         const index_t swa_right_extra =
             (FmhaMask::IsLocal && kargs.window_size_right > 0) ? kargs.window_size_right : 0;
         index_t _max_seq_prefix_len = amd_wave_read_first_lane(
-            (context_len + q_block_local_idx * kBlockQ_dyn + (kBlockQ_dyn - 1) + 1 +
+            (context_len + q_block_local_idx * kBlockQ_dyn + last_tile_row_q_off + 1 +
              swa_right_extra));
 
         if(seq_len < _max_seq_prefix_len)
@@ -444,20 +458,28 @@ struct UnifiedAttentionKernel
         }
         long_index_t kv_head_offset    = static_cast<long_index_t>(kv_head_idx) * kargs.stride_k_cache_2;
 
-        // Q/K/V DRAM and DRAM window
-        index_t q_ptr_offset_0 = cur_batch_in_all_start_index *
-                                 kargs.query_stride_0; // move the pointer to the batch start
-        index_t q_ptr_offset_1 =
-            kv_head_idx * num_queries_per_kv *
+        // Q/K/V DRAM and DRAM window.
+        // Use long_index_t for the per-CTA base offsets into Q and O: for
+        // large total_q (e.g. big-batch prefill) cur_batch_in_all_start_index *
+        // stride exceeds 2^31 and an int32 (index_t) offset wraps, sending the
+        // store to a bogus address (observed as a "write to read-only page"
+        // fault). The cache_ptr_int32_overflow_possible flag only widens the
+        // gathered K/V cache addressing; Q and O are separate base pointers and
+        // must be widened independently. These offsets are computed once per
+        // CTA, so the cost is negligible.
+        long_index_t q_ptr_offset_0 = static_cast<long_index_t>(cur_batch_in_all_start_index) *
+                                      kargs.query_stride_0; // move the pointer to the batch start
+        long_index_t q_ptr_offset_1 =
+            static_cast<long_index_t>(kv_head_idx) * num_queries_per_kv *
             kargs.query_stride_1; // move the pointer to the correct head group start
-        index_t q_ptr_offset = q_ptr_offset_0 + q_ptr_offset_1;
+        long_index_t q_ptr_offset = q_ptr_offset_0 + q_ptr_offset_1;
 
-        index_t o_ptr_offset_0 = cur_batch_in_all_start_index *
-                                 kargs.output_stride_0; // move the pointer to the batch start
-        index_t o_ptr_offset_1 =
-            kv_head_idx * num_queries_per_kv *
+        long_index_t o_ptr_offset_0 = static_cast<long_index_t>(cur_batch_in_all_start_index) *
+                                      kargs.output_stride_0; // move the pointer to the batch start
+        long_index_t o_ptr_offset_1 =
+            static_cast<long_index_t>(kv_head_idx) * num_queries_per_kv *
             kargs.output_stride_1; // move the pointer to the correct head group start
-        index_t o_ptr_offset       = o_ptr_offset_0 + o_ptr_offset_1;
+        long_index_t o_ptr_offset  = o_ptr_offset_0 + o_ptr_offset_1;
         index_t block_table_offset = seq_idx * kargs.block_table_stride;
 
         const QDataType* q_ptr = reinterpret_cast<const QDataType*>(kargs.q_ptr) + q_ptr_offset;

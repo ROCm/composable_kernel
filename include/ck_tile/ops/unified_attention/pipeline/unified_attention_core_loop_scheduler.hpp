@@ -42,6 +42,25 @@
 #define CK_TILE_DISABLE_PACKED_FP32 0
 #endif
 
+#ifndef CONDITIONAL_RESCALE
+#define CONDITIONAL_RESCALE 0
+#endif
+
+// Per-MFMA VALU hint for the gemm1 + fmha_alu_D_upd phase (W0-3 phase 2 /
+// W4-7 phase 3). The baseline reserves 4 VALU slots per PV-MFMA to interleave
+// the always-on 128-VGPR o_acc rescale tail. With CONDITIONAL_RESCALE the
+// rescale is skipped on ~85% of KV tiles (wave-uniform branch), so most of
+// those slots sit empty and the static hint over-reserves — leaving schedule
+// bubbles the MFMAs could otherwise fill. Drop the per-MFMA VALU reservation
+// (the score-shift VALU that is *always* present is small) so the compiler
+// packs the common skip path tighter. Tuned empirically; revert to 4 if a
+// shape regresses.
+#if CONDITIONAL_RESCALE
+#define UA_DUPD_PER_MFMA_VALU 2
+#else
+#define UA_DUPD_PER_MFMA_VALU 4
+#endif
+
 namespace ck_tile {
 
 template <typename PipelineProblem, bool kIsMasking>
@@ -97,8 +116,8 @@ struct UAcoreLoopScheduler<PipelineProblem, /*kIsMasking=*/true>
                 __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
 #endif
                 static_for<0, 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                    // MFMA
+                    __builtin_amdgcn_sched_group_barrier(0x002, UA_DUPD_PER_MFMA_VALU, 0); // VALU
                 });
             }
             else if constexpr(Phase == 3)
@@ -155,8 +174,8 @@ struct UAcoreLoopScheduler<PipelineProblem, /*kIsMasking=*/true>
                 __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
 #endif
                 static_for<0, 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                    // MFMA
+                    __builtin_amdgcn_sched_group_barrier(0x002, UA_DUPD_PER_MFMA_VALU, 0); // VALU
                 });
             }
         }
@@ -196,8 +215,8 @@ struct UAcoreLoopScheduler<PipelineProblem, /*kIsMasking=*/false>
                 __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
 #endif
                 static_for<0, 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                    // MFMA
+                    __builtin_amdgcn_sched_group_barrier(0x002, UA_DUPD_PER_MFMA_VALU, 0); // VALU
                 });
             }
             else if constexpr(Phase == 3)
@@ -232,8 +251,8 @@ struct UAcoreLoopScheduler<PipelineProblem, /*kIsMasking=*/false>
                 __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
 #endif
                 static_for<0, 8, 1>{}([&](auto) {
-                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                    __builtin_amdgcn_sched_group_barrier(0x002, 4, 0); // VALU
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);                    // MFMA
+                    __builtin_amdgcn_sched_group_barrier(0x002, UA_DUPD_PER_MFMA_VALU, 0); // VALU
                 });
             }
         }
