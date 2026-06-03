@@ -96,6 +96,8 @@ struct HstuAttentionFwdPipelineProblem
 
     static_assert(!kUseGroup || (kUseGroup && kIsJagged),
                   "Group HSTU is only used with jagged mode!");
+    static_assert(!kStoreLSE || (kStoreLSE && kUseSoftmax),
+                  "Storing Lse is only necessary when softmax is used!");
 
     using HstuAttentionTileSetting = remove_cvref_t<AttentionTileSetting_>;
 
