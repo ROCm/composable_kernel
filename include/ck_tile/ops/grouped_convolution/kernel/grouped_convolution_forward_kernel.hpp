@@ -438,12 +438,15 @@ struct GroupedConvFwdKernelArgs
         index_t num_d_pieces = 1, num_h_pieces = 1, num_w_pieces = 1; // Split factors
 
         // Minimal per-piece data (only unique values)
+        // Default-initialized to 0 so that uninitialized pieces are detectable
+        // (the invoker sets these after MakeKernelArgs).
         struct PieceInfo
         {
-            index_t block_start;               // Starting block index for this piece
-            index_t block_end;                 // Ending block index (exclusive)
-            index_t d_start, h_start, w_start; // Piece starting position in OUTPUT space
-            index_t d_size, h_size, w_size;    // Piece size in OUTPUT space
+            index_t block_start = -1; // Starting block index for this piece
+            index_t block_end   = -1; // Ending block index (exclusive)
+            index_t d_start = -1, h_start = -1,
+                    w_start = -1; // Piece starting position in OUTPUT space
+            index_t d_size = -1, h_size = -1, w_size = -1; // Piece size in OUTPUT space
         };
 
         static constexpr index_t MaxPieces = 64; // Max pieces: 4 (1D), 16 (2D), 64 (3D)
@@ -767,6 +770,37 @@ struct GroupedConvolutionForwardKernel
     MakeKernelArgs(const GroupedConvFwdHostArgs<CDElementwise>& hostArgs)
     {
         auto kargs = GroupedConvFwdKernelArgsSpecialized(hostArgs);
+
+        // Initialize split-image with a single piece covering the entire output.
+        // The invoker may later override this with multi-piece data for large
+        // tensors. Without this default, the split-image kernel path would use
+        // uninitialized piece data and produce wrong results.
+        if constexpr(EnableSplitImage)
+        {
+            constexpr index_t ndim = GroupedConvTraitsType_::NDimSpatial;
+            constexpr index_t off  = GroupedConvFwdKernelArgsSpecialized::NonSpatialDims;
+
+            const index_t total_w = kargs.out_g_n_k_wos_lengths[off + ndim - 1];
+            const index_t total_h = (ndim >= 2) ? kargs.out_g_n_k_wos_lengths[off + ndim - 2] : 1;
+            const index_t total_d = (ndim >= 3) ? kargs.out_g_n_k_wos_lengths[off + ndim - 3] : 1;
+
+            kargs.split_image.total_d       = total_d;
+            kargs.split_image.total_h       = total_h;
+            kargs.split_image.total_w       = total_w;
+            kargs.split_image.total_spatial = total_d * total_h * total_w;
+
+            kargs.num_spatial_pieces                = 1;
+            kargs.split_image.pieces[0].block_start = 0;
+            kargs.split_image.pieces[0].block_end =
+                TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN);
+            kargs.split_image.pieces[0].d_start = 0;
+            kargs.split_image.pieces[0].h_start = 0;
+            kargs.split_image.pieces[0].w_start = 0;
+            kargs.split_image.pieces[0].d_size  = total_d;
+            kargs.split_image.pieces[0].h_size  = total_h;
+            kargs.split_image.pieces[0].w_size  = total_w;
+        }
+
         return kargs;
     }
 

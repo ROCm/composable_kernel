@@ -36,6 +36,46 @@ struct TestConvConfig
     static constexpr auto Scheduler           = GemmPipelineScheduler::Intrawave;
 };
 
+// ============================================================================
+// V6 pipeline: num_loop check
+//
+// GemmPipelineAgBgCrCompV6 uses a 3-stage prefetch (PrefetchStages=3).  The
+// hot loop only executes when num_loop > 3 (i.e. num_loop >= 4). When
+// num_loop == 1 the Odd-tail branch unconditionally processes all 3 prefetch
+// buffers, including two that contain K-data from neighbouring workgroups'
+// K-partitions, causing an ~3x over-count in the accumulator.  The kernel
+// must therefore reject configurations where:
+//
+//   num_loop = ceil(GemmK / (k_batch * KPerBlock)) < 4
+//
+// In the 2D bwd-weight tests below, GemmK = N * Ho * Wo.
+// The V6 config tile has KPerBlock = 32.
+// ============================================================================
+struct TestConvConfigV6
+{
+    static constexpr index_t VectorSizeA = 4;
+    static constexpr index_t VectorSizeB = 8;
+    static constexpr index_t VectorSizeC = 8;
+
+    static constexpr index_t M_Tile = 256;
+    static constexpr index_t N_Tile = 256;
+    static constexpr index_t K_Tile = 32; // KPerBlock = 32
+
+    static constexpr index_t M_Warp = 2;
+    static constexpr index_t N_Warp = 2;
+    static constexpr index_t K_Warp = 1;
+
+    static constexpr index_t M_Warp_Tile = 32;
+    static constexpr index_t N_Warp_Tile = 32;
+    static constexpr index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer    = false;
+    static constexpr GemmPipeline Pipeline    = GemmPipeline::COMPUTE_V6;
+    static constexpr index_t NumWaveGroups    = 1;
+    static constexpr index_t NumGroupsToMerge = 1;
+    static constexpr auto Scheduler           = GemmPipelineScheduler::Intrawave;
+};
+
 // Helper to build full kernel type
 template <typename PrecType,
           typename ConvConfig,
@@ -106,7 +146,9 @@ struct BuildKernel
                                      ConvTraits::VectorSizeA,
                                      ConvTraits::VectorSizeB>;
 
-    using GemmPipeline = GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
+    using GemmPipeline = std::conditional_t<ConvConfig::Pipeline == GemmPipeline::COMPUTE_V6,
+                                            GemmPipelineAgBgCrCompV6<UniversalGemmProblem>,
+                                            GemmPipelineAgBgCrCompV3<UniversalGemmProblem>>;
 
     using EpilogueProblem = CShuffleEpilogueProblem<PrecType,
                                                     PrecType,
@@ -250,4 +292,98 @@ TEST_F(GroupedConvBwdWeightIsSupportedArgumentTest, NonFloatDoubleOutputLimitsKB
     auto kargs_129 =
         typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args_kbatch_129);
     EXPECT_FALSE(Kernel::IsSupportedArgument(kargs_129));
+}
+class GroupedConvBwdWeightV6PipelineTest : public ::testing::Test
+{
+};
+
+// KPerBlock=32. GemmK = N*Ho*Wo.
+// For the default small args (N=2, Hi=Wi=7, Y=X=3, pad=1):
+//   Ho = Wo = 7, GemmK = 2*7*7 = 98.
+// With k_batch=1: num_loop = ceil(98/32) = 4  -> accepted.
+// With k_batch=2: num_loop = ceil(98/64) = 2  -> rejected (< 4).
+// With k_batch=3: num_loop = ceil(98/96) = 2  -> rejected.
+// With k_batch=4: num_loop = ceil(98/128)= 1  -> rejected.
+
+TEST_F(GroupedConvBwdWeightV6PipelineTest, AcceptsWhenNumLoopAtLeast4)
+{
+    using Kernel = typename BuildKernel<half_t,
+                                        TestConvConfigV6,
+                                        tensor_layout::convolution::NHWGC,
+                                        tensor_layout::convolution::GKYXC,
+                                        tensor_layout::convolution::NHWGK>::type;
+
+    // k_batch=1: num_loop=ceil(98/32)=4.  Exactly on the boundary -> must pass.
+    auto host_args = create_2d_host_args(1);
+    auto kargs     = typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args);
+    EXPECT_TRUE(Kernel::IsSupportedArgument(kargs))
+        << "V6 kernel must accept k_batch=1 (num_loop=4 >= 4)";
+}
+
+TEST_F(GroupedConvBwdWeightV6PipelineTest, RejectsWhenNumLoopIs2)
+{
+    using Kernel = typename BuildKernel<half_t,
+                                        TestConvConfigV6,
+                                        tensor_layout::convolution::NHWGC,
+                                        tensor_layout::convolution::GKYXC,
+                                        tensor_layout::convolution::NHWGK>::type;
+
+    // k_batch=2: num_loop=ceil(98/64)=2 < 4. Must be rejected.
+    auto host_args = create_2d_host_args(2);
+    auto kargs     = typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args);
+    EXPECT_FALSE(Kernel::IsSupportedArgument(kargs))
+        << "V6 kernel must reject k_batch=2 (num_loop=2 < 4) to avoid "
+           "incorrect Odd-tail prefetch over-read";
+}
+
+TEST_F(GroupedConvBwdWeightV6PipelineTest, RejectsWhenNumLoopIs1)
+{
+    using Kernel = typename BuildKernel<half_t,
+                                        TestConvConfigV6,
+                                        tensor_layout::convolution::NHWGC,
+                                        tensor_layout::convolution::GKYXC,
+                                        tensor_layout::convolution::NHWGK>::type;
+
+    // k_batch=4: num_loop=ceil(98/128)=1 < 4. Must be rejected.
+    auto host_args = create_2d_host_args(4);
+    auto kargs     = typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args);
+    EXPECT_FALSE(Kernel::IsSupportedArgument(kargs))
+        << "V6 kernel must reject k_batch=4 (num_loop=1 < 4)";
+}
+
+TEST_F(GroupedConvBwdWeightV6PipelineTest, AcceptsLargeSpatialWithSmallKBatch)
+{
+    using Kernel = typename BuildKernel<half_t,
+                                        TestConvConfigV6,
+                                        tensor_layout::convolution::NHWGC,
+                                        tensor_layout::convolution::GKYXC,
+                                        tensor_layout::convolution::NHWGK>::type;
+
+    // Large spatial: N=2, Hi=Wi=70 -> Ho=Wo=70, GemmK=2*70*70=9800.
+    // k_batch=1: num_loop=ceil(9800/32)=307 >= 4 -> accepted.
+    auto host_args = create_large_2d_host_args(1);
+    auto kargs     = typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args);
+    EXPECT_TRUE(Kernel::IsSupportedArgument(kargs))
+        << "V6 kernel must accept large spatial (num_loop=307) with k_batch=1";
+}
+
+TEST_F(GroupedConvBwdWeightV6PipelineTest, RejectsLargeSpatialWithLargeKBatch)
+{
+    using Kernel = typename BuildKernel<half_t,
+                                        TestConvConfigV6,
+                                        tensor_layout::convolution::NHWGC,
+                                        tensor_layout::convolution::GKYXC,
+                                        tensor_layout::convolution::NHWGK>::type;
+
+    // GemmK=9800. With k_batch=64: num_loop=ceil(9800/(64*32))=ceil(9800/2048)=5 >= 4 -> pass.
+    // With k_batch=128: num_loop=ceil(9800/4096)=3 < 4 -> rejected.
+    auto host_args_pass = create_large_2d_host_args(64);
+    auto kargs_pass = typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args_pass);
+    EXPECT_TRUE(Kernel::IsSupportedArgument(kargs_pass))
+        << "V6 kernel must accept k_batch=64 (num_loop=5 >= 4)";
+
+    auto host_args_fail = create_large_2d_host_args(128);
+    auto kargs_fail = typename Kernel::GroupedConvBwdWeightKernelArgsSpecialized(host_args_fail);
+    EXPECT_FALSE(Kernel::IsSupportedArgument(kargs_fail))
+        << "V6 kernel must reject k_batch=128 (num_loop=3 < 4)";
 }
