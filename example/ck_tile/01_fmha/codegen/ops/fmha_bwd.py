@@ -249,6 +249,28 @@ FMHA_BWD_API_INNER_DISPATCH_LAUNCHER = """
 M0_1D = 64
 
 
+# Per-d (M0, BlockSize) for convert_dq kernel, chosen so that:
+#   (a) convert M0 == bwd M0 (so convert's mask check at convert-tile granularity
+#       exactly matches bwd's per-tile write decision; enables torch::empty for
+#       dq_accum without garbage reads)
+#   (b) the convert tile distribution constraint M0 * d >= BlockSize * alignment(8)
+#       is satisfied.
+#
+# Reference bwd M0 by d for fp16/bf16 group deterministic gfx950:
+#   d=32, 64: bwd M0=32
+#   d=128, 256: bwd M0=16
+def get_convert_m0_and_blocksize(hdim):
+    if hdim <= 32:
+        # bwd M0=32; need M0*32 >= BlockSize*8 → BlockSize <= 128 for M0=32
+        return 32, 128
+    elif hdim <= 64:
+        # bwd M0=32; 32*64=2048 = 256*8 → BlockSize=256 OK
+        return 32, 256
+    else:
+        # d in [128, 256]: bwd M0=16; 16*128=2048 = 256*8 → BlockSize=256 OK
+        return 16, 256
+
+
 # GEMM0: Q@K=S^T
 # GEMM1: P^T@dO^T=dV(This was chosen as G1 to match fwd, but N1 must be equal to headdim_v)
 # GEMM2: dO@V=dP^T(This was chosen as G2 because of the calculation order)
@@ -647,7 +669,7 @@ using fmha_bwd_convert_dq_pipeline_problem_{F_idx} =
     ck_tile::BlockFmhaBwdConvertQGradPipelineProblem<
         typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::AccDataType,
         typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::QGradDataType,
-        /* BlockSize = */ 256,
+        /* BlockSize = */ {F_blocksize},
         {F_bm0},
         {F_bn0},
         {F_hdim},
@@ -712,6 +734,7 @@ class FmhaBwdConvertQGradKernel:
     F_dtype: str  # data type
     F_bm0: int  # tile size along q seqlen (block size)
     F_bn0: int  # tile size along k seqlen
+    F_blocksize: int  # convert kernel BlockSize (per-d, see get_convert_m0_and_blocksize)
     F_spad: str  # true/false
     F_dpad: str  #
     F_mode: str  # value from MODE_MAP
@@ -728,6 +751,7 @@ class FmhaBwdConvertQGradKernel:
             F_dtype=BWD_DTYPE_MAP[self.F_dtype],
             F_bm0=self.F_bm0,
             F_bn0=self.F_bn0,
+            F_blocksize=self.F_blocksize,
             F_spad=BOOL_MAP[self.F_spad],
             F_dpad=BOOL_MAP[self.F_dpad],
             F_mode=MODE_MAP[self.F_mode],
@@ -889,13 +913,15 @@ class FmhaBwdApiTrait:
             return 2
 
         F_dpad = "t" if self.dpad else "f"
+        convert_m0, convert_blocksize = get_convert_m0_and_blocksize(self.hdim)
         return FmhaBwdConvertQGradKernel(
             F_arch=self.arch,
             F_idx=self.idx,
             F_hdim=self.hdim,
             F_dtype=self.dtype,
-            F_bm0=M0_1D,
+            F_bm0=convert_m0,
             F_bn0=self.convert_dq_bn0,
+            F_blocksize=convert_blocksize,
             F_spad=self.spad1d,
             F_dpad=F_dpad,
             F_mode=self.mode,

@@ -416,7 +416,10 @@ auto fmha_bwd_convert_dq_create_kargs_and_grids(fmha_bwd_args args)
                                                         args.stride_dq_acc,
                                                         args.nhead_stride_dq,
                                                         args.nhead_stride_dq_acc,
-                                                        args.split_stride_dq_acc);
+                                                        args.split_stride_dq_acc,
+                                                        args.mask_type,
+                                                        args.window_size_left,
+                                                        args.window_size_right);
         }
         else
         { // create batch mode kernel arguments
@@ -433,7 +436,10 @@ auto fmha_bwd_convert_dq_create_kargs_and_grids(fmha_bwd_args args)
                                                         args.batch_stride_dq_acc,
                                                         args.split_stride_dq_acc,
                                                         args.batch,
-                                                        args.nhead_q);
+                                                        args.nhead_q,
+                                                        args.mask_type,
+                                                        args.window_size_left,
+                                                        args.window_size_right);
         }
     }();
 

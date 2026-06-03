@@ -1660,6 +1660,12 @@ struct FmhaBwdConvertQGradKernel
         ck_tile::index_t stride_dq_acc;
         ck_tile::index_t nhead_stride_dq;
         ck_tile::long_index_t nhead_stride_dq_acc;
+
+        // Mask params for split-skipping in deterministic reduce.
+        // mask_type == 0 (NO_MASK) disables skipping; window sizes are -1 for unbounded.
+        ck_tile::index_t mask_type         = 0;
+        ck_tile::index_t window_size_left  = -1;
+        ck_tile::index_t window_size_right = -1;
     };
 
     struct FmhaBwdConvertQGradDeterministicKargs
@@ -1713,7 +1719,10 @@ struct FmhaBwdConvertQGradKernel
               ck_tile::long_index_t batch_stride_dq_acc,
               ck_tile::index_t split_stride_dq_acc,
               ck_tile::index_t batch_size,
-              ck_tile::index_t nhead)
+              ck_tile::index_t nhead,
+              ck_tile::index_t mask_type         = 0,
+              ck_tile::index_t window_size_left  = -1,
+              ck_tile::index_t window_size_right = -1)
     {
         Kargs kargs{{dq_acc_ptr,
                      dq_ptr,
@@ -1723,7 +1732,10 @@ struct FmhaBwdConvertQGradKernel
                      stride_dq,
                      stride_dq_acc,
                      nhead_stride_dq,
-                     nhead_stride_dq_acc},
+                     nhead_stride_dq_acc,
+                     mask_type,
+                     window_size_left,
+                     window_size_right},
                     {},
                     batch_stride_dq,
                     batch_stride_dq_acc};
@@ -1757,7 +1769,10 @@ struct FmhaBwdConvertQGradKernel
               ck_tile::index_t stride_dq_acc,
               ck_tile::index_t nhead_stride_dq,
               ck_tile::long_index_t nhead_stride_dq_acc,
-              ck_tile::index_t split_stride_dq_acc)
+              ck_tile::index_t split_stride_dq_acc,
+              ck_tile::index_t mask_type         = 0,
+              ck_tile::index_t window_size_left  = -1,
+              ck_tile::index_t window_size_right = -1)
     {
         Kargs kargs{{dq_acc_ptr,
                      dq_ptr,
@@ -1767,7 +1782,10 @@ struct FmhaBwdConvertQGradKernel
                      stride_dq,
                      stride_dq_acc,
                      nhead_stride_dq,
-                     nhead_stride_dq_acc},
+                     nhead_stride_dq_acc,
+                     mask_type,
+                     window_size_left,
+                     window_size_right},
                     {},
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
@@ -1964,7 +1982,70 @@ struct FmhaBwdConvertQGradKernel
 
         if constexpr(kIsDeterministic)
         {
-            FmhaBwdConvertQGrad{}(dq_acc_dram_window, dq_dram_window, nsplits);
+            // Runtime mask-aware split skipping. When a mask is active, the set of
+            // splits whose K-chunk range intersects the valid K range for this
+            // Q-tile is a contiguous range [first_valid, last_valid] (causal / SWA
+            // produce a single contiguous valid K interval). Shift the window
+            // origin to first_valid and pass valid_nsplits to the same pipelined
+            // reduce overload — software pipelining is preserved unchanged.
+            //
+            // Skipped prefix splits avoid HBM reads entirely. dq_acc may be
+            // uninitialized (torch::empty) in deterministic mode; the skip is
+            // what makes that safe.
+            if(kargs.mask_type != 0)
+            {
+                const bool is_top_left =
+                    (kargs.mask_type ==
+                     static_cast<index_t>(GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT));
+                const auto coords =
+                    ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
+                        kargs.window_size_left,
+                        kargs.window_size_right,
+                        /*sink_size=*/0,
+                        kargs.seqlen_q,
+                        kargs.seqlen_k,
+                        is_top_left);
+                ck_tile::SimplifiedGenericAttentionMask</*IsMasking=*/true> mask(
+                    coords.at(ck_tile::number<0>{}),
+                    coords.at(ck_tile::number<1>{}),
+                    coords.at(ck_tile::number<2>{}),
+                    coords.at(ck_tile::number<3>{}),
+                    coords.at(ck_tile::number<4>{}));
+                const auto k_range = mask.GetTileRangeAlongX(
+                    i_m0, ck_tile::number<kM0>{}, ck_tile::number<1>{});
+                const index_t valid_k_lo = k_range.at(ck_tile::number<0>{});
+                const index_t valid_k_hi = k_range.at(ck_tile::number<1>{});
+
+                if(valid_k_lo < valid_k_hi)
+                {
+                    // Splits are laid out one per BWD-kernel K-chunk of size kN0.
+                    const index_t first_valid   = valid_k_lo / kN0;
+                    const index_t last_valid    = (valid_k_hi - 1) / kN0;
+                    const index_t valid_nsplits = last_valid - first_valid + 1;
+
+                    auto dq_acc_dram_window_shifted = make_tile_window(
+                        dq_acc_dram,
+                        make_tuple(
+                            number<1>{}, number<kM0>{}, number<kQKHeaddim>{}),
+                        {first_valid, i_m0, 0});
+
+                    FmhaBwdConvertQGrad{}(
+                        dq_acc_dram_window_shifted, dq_dram_window, valid_nsplits);
+                }
+                else
+                {
+                    // Valid_k range is empty for this Q-tile under the mask.
+                    // dq for this Q-tile is 0 (no K contributes). Caller must
+                    // have zeroed dq up front (mha_varlen_bwd.cpp does dq.zero_()
+                    // unconditionally). Return early without writing.
+                    return;
+                }
+
+            }
+            else
+            {
+                FmhaBwdConvertQGrad{}(dq_acc_dram_window, dq_dram_window, nsplits);
+            }
         }
         else
         {
