@@ -47,6 +47,7 @@ struct HstuAttentionFwdKernel
     static constexpr bool kHasDropout       = HstuAttentionPipeline::Problem::kHasDropout;
     static constexpr bool kHasCausalMask    = HstuAttentionPipeline::Problem::kHasCausal;
     static constexpr bool kUseSoftmax       = HstuAttentionPipeline::Problem::kUseSoftmax;
+    static constexpr bool kStoreLSE         = HstuAttentionPipeline::Problem::kStoreLSE;
 
     static constexpr bool kPadSeqLenQ   = HstuAttentionPipeline::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK   = HstuAttentionPipeline::kPadSeqLenK;
@@ -202,6 +203,21 @@ struct HstuAttentionFwdKernel
         uint64_t drop_offset;
     };
 
+    struct HstuAttentionFwdBatchedLSEKargs
+    {
+        void* lse_ptr;
+        ck_tile::index_t batch_stride_lse;
+        ck_tile::index_t seq_stride_lse;
+        ck_tile::index_t nhead_stride_lse;
+    };
+
+    struct HstuAttentionFwdJaggedLSEKargs
+    {
+        void* lse_ptr;
+        ck_tile::index_t seq_stride_lse;
+        ck_tile::index_t nhead_stride_lse;
+    };
+
     struct HstuAttentionFwdCommonDropoutKargs : HstuAttentionFwdDropoutSeedOffset
     {
         void init_dropout(float p_drop, uint64_t seed, uint64_t offset)
@@ -226,7 +242,11 @@ struct HstuAttentionFwdKernel
                              HstuAttentionFwdEmptyKargs<1>>,
           std::conditional_t<kHasDropout,
                              HstuAttentionFwdCommonDropoutKargs,
-                             HstuAttentionFwdEmptyKargs<2>>
+                             HstuAttentionFwdEmptyKargs<2>>,
+          std::conditional_t<kStoreLSE,
+                             HstuAttentionFwdBatchedLSEKargs,
+                             HstuAttentionFwdEmptyKargs<3>>
+
     {
     };
 
@@ -237,7 +257,10 @@ struct HstuAttentionFwdKernel
                              HstuAttentionFwdEmptyKargs<1>>,
           std::conditional_t<kHasDropout,
                              HstuAttentionFwdCommonDropoutKargs,
-                             HstuAttentionFwdEmptyKargs<2>>
+                             HstuAttentionFwdEmptyKargs<2>>,
+          std::conditional_t<kStoreLSE,
+                             HstuAttentionFwdJaggedLSEKargs,
+                             HstuAttentionFwdEmptyKargs<3>>
     {
     };
 
@@ -247,7 +270,10 @@ struct HstuAttentionFwdKernel
                                                            HstuAttentionFwdEmptyKargs<1>>,
                                         std::conditional_t<kHasDropout,
                                                            HstuAttentionFwdCommonDropoutKargs,
-                                                           HstuAttentionFwdEmptyKargs<2>>
+                                                           HstuAttentionFwdEmptyKargs<2>>,
+                                        std::conditional_t<kStoreLSE,
+                                                           HstuAttentionFwdJaggedLSEKargs,
+                                                           HstuAttentionFwdEmptyKargs<3>>
     {
     };
 
@@ -267,6 +293,7 @@ struct HstuAttentionFwdKernel
               const void* v_ptr,
               const void* bias_ptr,
               void* o_ptr,
+              void* lse_ptr,
               ck_tile::index_t seqlen_q,
               ck_tile::index_t seqlen_kv,
               ck_tile::index_t hdim_qk,
@@ -279,16 +306,19 @@ struct HstuAttentionFwdKernel
               ck_tile::index_t seq_stride_v,
               ck_tile::index_t seq_stride_bias,
               ck_tile::index_t seq_stride_o,
+              ck_tile::index_t seq_stride_lse,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
               ck_tile::index_t nhead_stride_v,
               ck_tile::index_t nhead_stride_bias,
               ck_tile::index_t nhead_stride_o,
+              ck_tile::index_t nhead_stride_lse,
               ck_tile::index_t batch_stride_q,
               ck_tile::index_t batch_stride_k,
               ck_tile::index_t batch_stride_v,
               ck_tile::index_t batch_stride_bias,
               ck_tile::index_t batch_stride_o,
+              ck_tile::index_t batch_stride_lse,
               const void* num_targets_ptr,
               ck_tile::index_t contextual_seqlen,
               ck_tile::index_t window_size,
@@ -327,6 +357,7 @@ struct HstuAttentionFwdKernel
              min_full_attn_seqlen}, // args for common karg
             {},                     // placeholder for bias
             {},                     // placeholder for dropout
+            {},                     // placeholder for LSE
         };
 
         if constexpr(kHasBias)
@@ -340,6 +371,13 @@ struct HstuAttentionFwdKernel
         {
             kargs.init_dropout(p_drop, philox_seed, philox_offset);
         }
+        if constexpr(kStoreLSE)
+        {
+            kargs.lse_ptr          = lse_ptr;
+            kargs.batch_stride_lse = batch_stride_lse;
+            kargs.seq_stride_lse   = seq_stride_lse;
+            kargs.nhead_stride_lse = nhead_stride_lse;
+        }
 
         return kargs;
     }
@@ -351,6 +389,7 @@ struct HstuAttentionFwdKernel
               const void* v_ptr,
               const void* bias_ptr,
               void* o_ptr,
+              void* lse_ptr,
               const void* seq_q_offsets_ptr,
               const void* seq_kv_offsets_ptr,
               ck_tile::index_t max_seqlen_q,
@@ -364,11 +403,13 @@ struct HstuAttentionFwdKernel
               ck_tile::index_t seq_stride_v,
               ck_tile::index_t seq_stride_bias,
               ck_tile::index_t seq_stride_o,
+              ck_tile::index_t seq_stride_lse,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
               ck_tile::index_t nhead_stride_v,
               ck_tile::index_t nhead_stride_bias,
               ck_tile::index_t nhead_stride_o,
+              ck_tile::index_t nhead_stride_lse,
               const void* num_targets_ptr,
               ck_tile::index_t contextual_seqlen,
               ck_tile::index_t window_size,
@@ -405,6 +446,7 @@ struct HstuAttentionFwdKernel
              min_full_attn_seqlen}, // args for common karg
             {},                     // placeholder for bias
             {},                     // placeholder for dropout
+            {},                     // placeholder for LSE
         };
 
         if constexpr(kHasBias)
@@ -417,6 +459,12 @@ struct HstuAttentionFwdKernel
         {
             kargs.init_dropout(p_drop, philox_seed, philox_offset);
         }
+        if constexpr(kStoreLSE)
+        {
+            kargs.lse_ptr          = lse_ptr;
+            kargs.seq_stride_lse   = seq_stride_lse;
+            kargs.nhead_stride_lse = nhead_stride_lse;
+        }
 
         return kargs;
     }
@@ -428,6 +476,7 @@ struct HstuAttentionFwdKernel
               const void* v_ptr,
               const void* bias_ptr,
               void* o_ptr,
+              void* lse_ptr,
               ck_tile::index_t num_batch_per_group,
               const void* seq_q_offsets_ptr,
               const void* seq_kv_offsets_ptr,
@@ -445,11 +494,13 @@ struct HstuAttentionFwdKernel
               ck_tile::index_t seq_stride_v,
               ck_tile::index_t seq_stride_bias,
               ck_tile::index_t seq_stride_o,
+              ck_tile::index_t seq_stride_lse,
               ck_tile::index_t nhead_stride_q,
               ck_tile::index_t nhead_stride_k,
               ck_tile::index_t nhead_stride_v,
               ck_tile::index_t nhead_stride_bias,
               ck_tile::index_t nhead_stride_o,
+              ck_tile::index_t nhead_stride_lse,
               const void* num_targets_ptr,
               float p_drop,
               uint64_t philox_seed,
@@ -489,6 +540,7 @@ struct HstuAttentionFwdKernel
              reinterpret_cast<const float*>(group_attn_scale_ptr)}, // args for common karg
             {},                                                     // placeholder for bias
             {},                                                     // placeholder for dropout
+            {},                                                     // placeholder for LSE
         };
 
         if constexpr(kHasBias)
@@ -500,6 +552,12 @@ struct HstuAttentionFwdKernel
         if constexpr(kHasDropout)
         {
             kargs.init_dropout(p_drop, philox_seed, philox_offset);
+        }
+        if constexpr(kStoreLSE)
+        {
+            kargs.lse_ptr          = lse_ptr;
+            kargs.seq_stride_lse   = seq_stride_lse;
+            kargs.nhead_stride_lse = nhead_stride_lse;
         }
 
         return kargs;

@@ -139,6 +139,7 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
                                          param.v_ptr,
                                          param.bias_ptr,
                                          param.o_ptr,
+                                         nullptr, // lse_ptr
                                          param.seqlen_q,
                                          param.is_cross_attention ? param.seqlen_kv
                                                                   : param.seqlen_q,
@@ -152,16 +153,19 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
                                          param.seq_stride_v,
                                          param.seq_stride_bias,
                                          param.seq_stride_o,
+                                         0, // seq_stride_lse
                                          param.nhead_stride_q,
                                          param.nhead_stride_k,
                                          param.nhead_stride_v,
                                          param.nhead_stride_bias,
                                          param.nhead_stride_o,
+                                         0, // nhead_stride_lse
                                          param.batch_stride_q,
                                          param.batch_stride_k,
                                          param.batch_stride_v,
                                          param.batch_stride_bias,
                                          param.batch_stride_o,
+                                         0, // batch_stride_lse
                                          param.num_targets_ptr,
                                          param.contextual_seqlen,
                                          param.window_size,

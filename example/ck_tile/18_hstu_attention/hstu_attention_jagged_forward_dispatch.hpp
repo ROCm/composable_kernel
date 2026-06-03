@@ -129,6 +129,7 @@ struct jagged_forward_causal_softmax_bias_dropout_dispatch
                                          param.v_ptr,
                                          param.bias_ptr,
                                          param.o_ptr,
+                                         nullptr, // lse_ptr
                                          param.seq_q_offsets_ptr,
                                          param.is_cross_attention ? param.seq_kv_offsets_ptr
                                                                   : param.seq_q_offsets_ptr,
@@ -143,11 +144,13 @@ struct jagged_forward_causal_softmax_bias_dropout_dispatch
                                          param.seq_stride_v,
                                          param.seq_stride_bias,
                                          param.seq_stride_o,
+                                         0, // seq_stride_o
                                          param.nhead_stride_q,
                                          param.nhead_stride_k,
                                          param.nhead_stride_v,
                                          param.nhead_stride_bias,
                                          param.nhead_stride_o,
+                                         0, // nhead_stride_o
                                          param.num_targets_ptr,
                                          param.contextual_seqlen,
                                          param.window_size,
