@@ -185,16 +185,19 @@ struct HstuAttentionFwdKernel
         const float* group_attn_scale_ptr;
     };
 
-    struct HstuAttentionFwdCommonBiasKargs
+    struct HstuAttentionFwdBatchedBiasKargs
     {
-        const void* bias_ptr               = nullptr;
-        ck_tile::index_t seq_stride_bias   = 0;
-        ck_tile::index_t nhead_stride_bias = 0;
+        const void* bias_ptr;
+        ck_tile::index_t seq_stride_bias;
+        ck_tile::index_t nhead_stride_bias;
+        ck_tile::index_t batch_stride_bias;
     };
 
-    struct HstuAttentionFwdBatchModeBiasKargs : HstuAttentionFwdCommonBiasKargs
+    struct HstuAttentionFwdJaggedBiasKargs
     {
-        ck_tile::index_t batch_stride_bias = 0;
+        const void* bias_ptr;
+        ck_tile::index_t seq_stride_bias;
+        ck_tile::index_t nhead_stride_bias;
     };
 
     struct HstuAttentionFwdDropoutSeedOffset
@@ -238,7 +241,7 @@ struct HstuAttentionFwdKernel
     struct HstuAttentionNoGroupBatchedFwdKargs
         : HstuAttentionNoGroupBatchedFwdBaseKargs,
           std::conditional_t<kHasBias,
-                             HstuAttentionFwdBatchModeBiasKargs,
+                             HstuAttentionFwdBatchedBiasKargs,
                              HstuAttentionFwdEmptyKargs<1>>,
           std::conditional_t<kHasDropout,
                              HstuAttentionFwdCommonDropoutKargs,
@@ -253,7 +256,7 @@ struct HstuAttentionFwdKernel
     struct HstuAttentionNoGroupJaggedFwdKargs
         : HstuAttentionNoGroupJaggedFwdBaseKargs,
           std::conditional_t<kHasBias,
-                             HstuAttentionFwdCommonBiasKargs,
+                             HstuAttentionFwdJaggedBiasKargs,
                              HstuAttentionFwdEmptyKargs<1>>,
           std::conditional_t<kHasDropout,
                              HstuAttentionFwdCommonDropoutKargs,
@@ -266,7 +269,7 @@ struct HstuAttentionFwdKernel
 
     struct HstuAttentionGroupFwdKargs : HstuAttentionGroupFwdBaseKargs,
                                         std::conditional_t<kHasBias,
-                                                           HstuAttentionFwdCommonBiasKargs,
+                                                           HstuAttentionFwdJaggedBiasKargs,
                                                            HstuAttentionFwdEmptyKargs<1>>,
                                         std::conditional_t<kHasDropout,
                                                            HstuAttentionFwdCommonDropoutKargs,
