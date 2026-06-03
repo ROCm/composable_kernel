@@ -105,76 +105,38 @@
 #define ASM_MARKER(marker)
 #endif
 
-// ADD_SBARRIER_FOR_PHASE0
-//   0 (default): omit the s_barrier at the start of every (cl_p) half of every
-//     KV iteration. The remaining 3 barriers (phase1 K-load, phase2 P-LDS,
-//     phase3 V-load) provide all the cross-warp ordering required: phase1's
-//     vmcnt-waitcnt-then-barrier guards the K-LDS write before any warp's
-//     K-LDS read; phase2's lgkmcnt-waitcnt-then-barrier guards the softmax
-//     P-LDS write before gemm1's P-LDS read; phase3's vmcnt-waitcnt-then-
-//     barrier guards the V-LDS write before the next iter's V-LDS read.
-//   1: re-instate the extra phase-0 barrier (defensive — was the historical
-//     default). Costs ~3% on prefill_d128 FP8 (8 warps × 4 phases) since
-//     8-wave block barriers dominate the kernel time on long-seq KV loops.
-// Verified correctness on fp16/bf16/fp8 across the b/sq/sk shape ladder
-// (test_single_shape.py --test) before flipping the default.
-#define ADD_SBARRIER_FOR_PHASE0 0
+// (ADD_SBARRIER_FOR_PHASE0 / ADD_SBARRIER_FOR_PHASE2 removed with the legacy
+// ping-pong core_loop — they only gated barriers inside that deleted path.
+// The FA4 pipeline manages its per-phase block barriers inline.)
 
-// ADD_SBARRIER_FOR_PHASE2
-//   1 (default): keep the s_barrier at the start of every phase-2 (cl_p==0
-//     and cl_p==1).
-//   0: drop both phase-2 barriers. EXPERIMENT (May 2026): **breaks
-//     correctness on the 8-warp warp-specialized prefill pipeline** (both
-//     prefill_d128 fp8 and bf16 on b=16 sq=sk=10000 fail vs reference).
-//     The decode-tier path (single warp group, line 1875 `else` branch) is
-//     not affected, but the prefill path runs `core_loop(0)` on W0-3 and
-//     `core_loop(1)` on W4-7 in a producer-consumer pingpong, and the
-//     phase-2 `s_barrier` is the cross-group handoff: W0-3's phase-2 is
-//     `lgkmcnt(0) + barrier + gemm1` while W4-7's phase-2 is
-//     `barrier + cl_load(memK, K_w4_lds_wr_idx, V_w4_lds_rd_idx)` — i.e.
-//     W4-7 may not begin overwriting its K LDS slot until W0-3 has drained
-//     the V LDS read that *might* alias the same physical LDS bytes through
-//     the shared `Policy::GetSmemSize` region. The remaining ~21% of
-//     stalled samples that show up as BARRIER_WAIT in the rocprof profile
-//     is the real cost of this cross-group sync — not a defensive insertion
-//     like the phase-0 one was.
-//   The knob is kept (rather than the macro deleted) so future work can
-//   re-audit whether the K_w4 / V_w0 buffer layout can be made disjoint
-//   enough to allow this barrier to be replaced with a vmcnt-only wait.
-#define ADD_SBARRIER_FOR_PHASE2 1
-
-// UA_FA4_PIPELINE (FlashAttention-4 style matrix‖softmax warp overlap)
-//   0 (default): the established 8-wave compute/memory ping-pong. W0-3 run
-//     core_loop(0), W4-7 run core_loop(1); the two groups are offset by two
-//     phases so one group's compute (gemm0/gemm1 + softmax interleaved)
-//     overlaps the other group's K/V memory phase. Bit-identical baseline.
-//   1: FA4 functional split. Both warp groups run the *same* deferred-PV
-//     software pipeline (the known-correct sequence from the single-warp-group
-//     path: fmha_alu1(prev) → PV(prev) → QK(cur) → alu0(cur) → D_upd), but it
-//     is cut into two phases —
-//       MATRIX  phase: PV(k-1) + QK(k)            (matrix pipe only)
-//       SOFTMAX phase: alu1/exp + alu0/rowmax + D_upd/rescale  (VALU/MUFU only)
-//     — and the two groups are primed one phase apart (WG0 enters MATRIX while
-//     WG1 enters SOFTMAX) so on each SIMD the matrix-pipe work of one wave
-//     hides the VALU/transcendental work of its co-resident partner. The
-//     O*corr rescale (fmha_alu_D_upd) is kept at the END of the SOFTMAX phase
-//     so the MATRIX phase stays VALU-free (no MFMA-waits-on-rescale hazard,
-//     no cross-warp VALU contention). K/V are prefetched a tile ahead into a
-//     shared double buffer at the per-phase block barrier (issued cooperatively
-//     by all 8 warps so the full tile loads exactly once). Prefill path only
-//     (NumWarpGroups == 2); single-warp-group decode keeps its serial pipeline.
-// FA4 matrix‖softmax overlap pipeline. Default ON. The FA4 path is correctness-
-// validated (full bf16/fp16 grid, split-KV, mask types 1/2, GQA, small+large N)
-// and FASTER on long-context / tall prefill (+9–12% sq≪sk) and small/medium
-// square (+2–5%), within ~1% on large full-square causal. Set to 0 (or
-// -DUA_FA4_PIPELINE=0) to fall back to the baseline ping-pong pipeline.
-// NOTE: FA4 engages for the 2-warp-group prefill path (bf16/fp16 and FP8 —
-// the latter only on 32x32x16 tiers, where the P relayout is the barrier-free
-// within-wave permute; see kFA4). The decode tiers and any 16x16x32 FP8
-// instance compile-time fall back to baseline (kFA4 == false there).
-#ifndef UA_FA4_PIPELINE
-#define UA_FA4_PIPELINE 1
-#endif
+// FA4 pipeline (FlashAttention-4 style matrix‖softmax warp-group overlap).
+//
+// FA4 is the ONLY 2-warp-group prefill pipeline. (The legacy 8-wave
+// compute/memory "ping-pong" baseline — two groups offset by two phases, each
+// running the monolithic interleaved core_loop — was REMOVED in the -fav4
+// cleanup. It was selected only under -DUA_FA4_PIPELINE=0, which never beat
+// FA4 on any measured prefill shape, so the toggle and the dead code path are
+// gone.)
+//
+// Both warp groups run the *same* deferred-PV software pipeline (the
+// known-correct sequence from the single-warp-group path: fmha_alu1(prev) →
+// PV(prev) → QK(cur) → alu0(cur) → D_upd), cut into two phases —
+//   MATRIX  phase: PV(k-1) + QK(k)                       (matrix pipe only)
+//   SOFTMAX phase: alu1/exp + alu0/rowmax + D_upd/rescale (VALU/MUFU only)
+// — and the two groups are primed one phase apart (WG0 enters MATRIX while WG1
+// enters SOFTMAX) so on each SIMD the matrix-pipe work of one wave hides the
+// VALU/transcendental work of its co-resident partner. The O*corr rescale
+// (fmha_alu_D_upd) stays at the END of the SOFTMAX phase so the MATRIX phase is
+// VALU-free (no MFMA-waits-on-rescale hazard, no cross-warp VALU contention).
+// K/V are prefetched a tile ahead into a shared double buffer at the per-phase
+// block barrier (issued cooperatively by all 8 warps so the full tile loads
+// exactly once).
+//
+// Engages for the 2-warp-group prefill path only (NumWarpGroups == 2; bf16 /
+// fp16, and FP8 on the 32x32x16 tiers where the P relayout is the barrier-free
+// within-wave permute — see kFA4). Single-warp-group decode tiers keep their
+// serial pipeline (kFA4 == false there). The kFA4 static_assert guarantees no
+// 2-WG instance is left without a pipeline.
 
 #if !defined(CK_TILE_DISABLE_PACKED_FP32)
 #define CK_TILE_DISABLE_PACKED_FP32 0
@@ -1158,8 +1120,9 @@ struct UnifiedAttentionPipeline
         // to exactly one path with no runtime cost.
         constexpr bool kCondRescale = (CONDITIONAL_RESCALE != 0) && (NumWarpGroups == 2);
 
-        // FA4 matrix‖softmax warp-group overlap (see UA_FA4_PIPELINE). Enabled
-        // for the 2-warp-group prefill path. The constraint is the FP8 P-tile
+        // FA4 matrix‖softmax warp-group overlap (see the FA4 pipeline notes at
+        // the top of this file). Enabled for the 2-warp-group prefill path; it
+        // is the only 2-WG pipeline now. The constraint is the FP8 P-tile
         // QK-C→PV-A relayout inside fmha_alu1: FA4 splits the 8 warps into two
         // groups that run *different* phases at once, so any *block-wide*
         // s_barrier inside a single group's softmax phase deadlocks (the matrix
@@ -1182,8 +1145,18 @@ struct UnifiedAttentionPipeline
             (Gemm1WarpTileFA4::at(number<0>{}) == 32) &&
             (Gemm1WarpTileFA4::at(number<1>{}) == 32) &&
             (Gemm1WarpTileFA4::at(number<2>{}) == 16);
-        constexpr bool kFA4 = (UA_FA4_PIPELINE != 0) && (NumWarpGroups == 2) &&
+        // FA4 is now the ONLY 2-warp-group prefill pipeline; the legacy
+        // ping-pong baseline was removed. Every compiled 2-WG instance uses
+        // the within-wave FP8 P relayout (32x32x16 Gemm1 tile), so kFA4 is
+        // unconditionally true for NumWarpGroups==2. The static_assert pins
+        // that invariant: a hypothetical future 2-WG 16x16x32 instance would
+        // have no 2-WG path left, so fail the build loudly rather than run an
+        // empty main loop.
+        constexpr bool kFA4 = (NumWarpGroups == 2) &&
                               (!std::is_same_v<PDataType, fp8_t> || kFP8RelayoutWithinWave);
+        static_assert(NumWarpGroups == 1 || kFA4,
+                      "2-warp-group UA instances must be FA4-capable (32x32x16 FP8 P "
+                      "relayout); the legacy ping-pong baseline was removed.");
 
         [[maybe_unused]] auto print_dist_tensor = [&](const auto& dist_tensor, const char* name) {
             printf("[POYENC] %s (size=%d): %5.2f",
@@ -1980,208 +1953,6 @@ struct UnifiedAttentionPipeline
             }
         };
 
-        auto core_loop = [&](auto cl_p) {
-            auto gemm0 = number<0>{};
-            auto gemm1 = number<1>{};
-
-            auto memV = number<0>{};
-            auto memK = number<1>{};
-
-            using Scheduler = UAcoreLoopScheduler<Problem, FmhaMask::IsMasking>;
-
-            auto iteration = [&](auto pi) {
-                auto xdl_SP_p01_reg_idx = number<1>{} - pi;
-                auto xdl_SP_p23_reg_idx = pi;
-
-                auto K_w0_lds_wr_idx = number<1>{} - pi;
-                auto V_w0_lds_wr_idx = pi;
-                auto K_w0_lds_rd_idx = pi;
-                auto V_w0_lds_rd_idx = pi;
-
-                auto K_w4_lds_wr_idx = number<1>{} - pi;
-                auto V_w4_lds_wr_idx = number<1>{} - pi;
-                auto K_w4_lds_rd_idx = number<1>{} - pi;
-                auto V_w4_lds_rd_idx = pi;
-
-                bool result = true;
-
-                if constexpr(cl_p == 0)
-                {
-#if ADD_SBARRIER_FOR_PHASE0
-                    __builtin_amdgcn_sched_barrier(0);
-                    __builtin_amdgcn_s_barrier();
-#endif
-                    __builtin_amdgcn_sched_barrier(0);
-                    // phase0
-                    if constexpr(pi == 0)
-                    {
-                        ASM_MARKER("phase0 Wave0-3 (pi=0)");
-                    }
-                    else
-                    {
-                        ASM_MARKER("phase0 Wave0-3 (pi=1)");
-                    }
-                    s_waitcnt_lgkmcnt<0>();
-                    __builtin_amdgcn_sched_barrier(0);
-                    cl_calc(xdl_SP_p01_reg_idx, gemm0);
-                    fmha_alu1(xdl_SP_p23_reg_idx);
-#if MOVE_FMHA_MASK_TO_COMPUTE
-                    fmha_mask(xdl_SP_p01_reg_idx);
-#endif
-
-                    Scheduler::schedule(cl_p, number<0>{});
-                    __builtin_amdgcn_sched_barrier(0);
-                    // phase1
-                    ASM_MARKER("phase1 Wave0-3");
-                    s_waitcnt_vmcnt<K_mem_su_ld_insts + V_mem_su_ld_insts>();
-                    __builtin_amdgcn_sched_barrier(0);
-                    __builtin_amdgcn_s_barrier();
-                    __builtin_amdgcn_sched_barrier(0);
-                    cl_load(memK, K_w0_lds_wr_idx, V_w0_lds_rd_idx);
-                    Scheduler::schedule(cl_p, number<1>{});
-#if !MOVE_FMHA_MASK_TO_COMPUTE && !MOVE_FMHA_MASK_TO_GEMM1
-                    fmha_mask(xdl_SP_p01_reg_idx);
-#endif
-
-                    __builtin_amdgcn_sched_barrier(0);
-                    // phase2
-                    ASM_MARKER("phase2 Wave0-3");
-                    s_waitcnt_lgkmcnt<0>();
-                    __builtin_amdgcn_sched_barrier(0);
-#if ADD_SBARRIER_FOR_PHASE2
-                    __builtin_amdgcn_s_barrier();
-                    __builtin_amdgcn_sched_barrier(0);
-#endif
-                    asm volatile("s_nop 0");
-                    __builtin_amdgcn_sched_barrier(0);
-#if MOVE_FMHA_MASK_TO_GEMM1
-                    // Mask hoisted from K-side phase 1 onto the gemm1 phase,
-                    // BEFORE cl_calc(p23, gemm1). cl_calc ends with
-                    // fmha_alu0(p01_idx) which reads sp[p01_idx].sp_compute
-                    // to compute the row-max, so mask must precede it. The
-                    // gemm_1 inside cl_calc operates on sp[p23].p (different
-                    // sp slot) and can be reordered with mask by the
-                    // scheduler — the "2 VALU + 4 SALU" hint added to this
-                    // phase covers the mask cost.
-                    fmha_mask(xdl_SP_p01_reg_idx);
-                    __builtin_amdgcn_sched_barrier(0);
-#endif
-                    cl_calc(xdl_SP_p23_reg_idx, gemm1);
-
-                    Scheduler::schedule(cl_p, number<2>{});
-                    __builtin_amdgcn_sched_barrier(0);
-                    fmha_alu_D_upd();
-
-                    __builtin_amdgcn_sched_barrier(0);
-                    // phase3
-                    ASM_MARKER("phase3 Wave0-3");
-                    s_waitcnt_vmcnt<K_mem_su_ld_insts + V_mem_su_ld_insts>();
-                    __builtin_amdgcn_sched_barrier(0);
-                    __builtin_amdgcn_s_barrier();
-                    __builtin_amdgcn_sched_barrier(0);
-                    cl_load(memV, V_w0_lds_wr_idx, K_w0_lds_rd_idx);
-
-                    Scheduler::schedule(cl_p, number<3>{});
-                    if(num_total_loop <= ++i_total_loops)
-                    {
-                        result = false;
-                    }
-                }
-                else
-                {
-#if ADD_SBARRIER_FOR_PHASE0
-                    __builtin_amdgcn_sched_barrier(0);
-                    __builtin_amdgcn_s_barrier();
-#endif
-                    __builtin_amdgcn_sched_barrier(0);
-                    // phase0
-                    if constexpr(pi == 0)
-                    {
-                        ASM_MARKER("phase0 Wave4-7 (pi=0)");
-                    }
-                    else
-                    {
-                        ASM_MARKER("phase0 Wave4-7 (pi=1)");
-                    }
-                    cl_load(memV, V_w4_lds_wr_idx, K_w4_lds_rd_idx);
-
-                    Scheduler::schedule(cl_p, number<0>{});
-                    __builtin_amdgcn_sched_barrier(0);
-                    // phase1
-                    ASM_MARKER("phase1 Wave4-7");
-                    s_waitcnt<K_mem_su_ld_insts + V_mem_su_ld_insts, 0>();
-                    __builtin_amdgcn_sched_barrier(0);
-                    __builtin_amdgcn_s_barrier();
-                    __builtin_amdgcn_sched_barrier(0);
-                    asm volatile("s_nop 1");
-                    __builtin_amdgcn_sched_barrier(0);
-                    cl_calc(xdl_SP_p01_reg_idx, gemm0);
-                    fmha_alu1(xdl_SP_p23_reg_idx);
-#if MOVE_FMHA_MASK_TO_COMPUTE
-                    fmha_mask(xdl_SP_p01_reg_idx);
-#endif
-
-                    Scheduler::schedule(cl_p, number<1>{});
-                    __builtin_amdgcn_sched_barrier(0);
-                    // phase2
-                    ASM_MARKER("phase2 Wave4-7");
-#if ADD_SBARRIER_FOR_PHASE2
-                    __builtin_amdgcn_s_barrier();
-                    __builtin_amdgcn_sched_barrier(0);
-#endif
-                    cl_load(memK, K_w4_lds_wr_idx, V_w4_lds_rd_idx);
-                    Scheduler::schedule(cl_p, number<2>{});
-#if !MOVE_FMHA_MASK_TO_COMPUTE && !MOVE_FMHA_MASK_TO_GEMM1
-                    fmha_mask(xdl_SP_p01_reg_idx);
-#endif
-
-#if !MOVE_FMHA_MASK_TO_GEMM1
-                    // Baseline: ++i_total_loops at end of phase 2 (after
-                    // the original mask placement). MOVE_FMHA_MASK_TO_GEMM1
-                    // defers this to start of phase 3 (after the moved mask,
-                    // before cl_calc) so the mask sees the pre-increment
-                    // value matching gemm0's K-tile column.
-                    if(num_total_loop <= ++i_total_loops)
-                    {
-                        result = false;
-                    }
-#endif
-
-                    __builtin_amdgcn_sched_barrier(0);
-                    // phase3
-                    ASM_MARKER("phase3 Wave4-7");
-                    s_waitcnt<K_mem_su_ld_insts + V_mem_su_ld_insts, 0>();
-                    __builtin_amdgcn_sched_barrier(0);
-                    __builtin_amdgcn_s_barrier();
-                    __builtin_amdgcn_sched_barrier(0);
-                    asm volatile("s_nop 1");
-                    __builtin_amdgcn_sched_barrier(0);
-#if MOVE_FMHA_MASK_TO_GEMM1
-                    // Mask hoisted from K-side phase 2 onto the gemm1
-                    // phase 3, BEFORE cl_calc(p23, gemm1). cl_calc ends
-                    // with fmha_alu0(p01_idx) which reads sp[p01_idx]
-                    // to compute the row-max, so mask must precede it.
-                    // Deferred increment (see above) keeps i_total_loops
-                    // aligned with gemm0 of this iter.
-                    fmha_mask(xdl_SP_p01_reg_idx);
-                    if(num_total_loop <= ++i_total_loops)
-                    {
-                        result = false;
-                    }
-                    __builtin_amdgcn_sched_barrier(0);
-#endif
-                    cl_calc(xdl_SP_p23_reg_idx, gemm1);
-
-                    Scheduler::schedule(cl_p, number<3>{});
-                    __builtin_amdgcn_sched_barrier(0);
-                    fmha_alu_D_upd();
-                }
-                return result;
-            };
-            return iteration(number<0>{}) && iteration(number<1>{});
-        };
-
-#if UA_FA4_PIPELINE
         // ---------------------------------------------------------------
         // FA4 matrix‖softmax overlap core loop.
         //
@@ -2360,9 +2131,7 @@ struct UnifiedAttentionPipeline
             };
             return iteration(number<0>{}) && iteration(number<1>{});
         };
-#endif
 
-#if UA_FA4_PIPELINE
         // FA4 deferred-PV epilogue: the final SOFTMAX produced P for a tile
         // whose PV has not yet been folded into o_acc. Run that last PV here.
         // (alu1 already ran in the SOFTMAX phase, so unlike fmha_post_process
@@ -2374,7 +2143,6 @@ struct UnifiedAttentionPipeline
             s_waitcnt_lgkmcnt<0>();
             gemm(last_pv_sp, /*gemm_idx=*/number<1>{});
         };
-#endif
 
         auto fmha_post_process = [&](auto d) {
             auto ps_pi        = number<1>{} - d;
@@ -2550,62 +2318,31 @@ struct UnifiedAttentionPipeline
             }
             else
             {
-#if UA_FA4_PIPELINE
-                if constexpr(kFA4)
+                // --- Two warp groups: FA4 matrix‖softmax overlap ---
+                // After the FA4 pre-stage sp(0) holds the raw QK(0). WG0 is the
+                // matrix-first group: it primes tile-0's softmax once (barrier-
+                // free: bf16/fp16 register cast, or FP8 strategy-A within-wave
+                // permute) so its first MATRIX has P(0), then runs MATRIX-then-
+                // SOFTMAX each slot. WG1 is softmax-first: it folds tile-0's
+                // softmax into its first iteration and runs SOFTMAX-then-MATRIX,
+                // so the two groups sit one phase apart and overlap on every
+                // SIMD. (kFA4 is statically guaranteed true here — see the
+                // static_assert at the kFA4 definition.)
+                if(warp_group_id == 0)
                 {
-                    // --- FA4: matrix‖softmax warp-group overlap ---
-                    // After the FA4 pre-stage sp(0) holds the raw QK(0). WG0 is
-                    // the matrix-first group: it primes tile-0's softmax once
-                    // (barrier-free: bf16/fp16 register cast, or FP8 strategy-A
-                    // within-wave permute) so its first MATRIX has P(0),
-                    // then runs MATRIX-then-SOFTMAX each slot. WG1 is softmax-
-                    // first: it folds tile-0's softmax into its first iteration
-                    // and runs SOFTMAX-then-MATRIX, so the two groups sit one
-                    // phase apart and overlap on every SIMD.
-                    if(warp_group_id == 0)
-                    {
-                        __builtin_amdgcn_s_setprio(0);
-                        fmha_mask_at(number<0>{}, fa4_sm_tile++); // tile num_blocks_start
-                        fmha_alu0(number<0>{});
-                        fmha_alu_D_upd();
-                        fmha_alu1(number<0>{}); // sp(0).p = P(0)
-                        while(core_loop_fa4(number<0>{}))
-                            ;
-                    }
-                    if(warp_group_id != 0)
-                    {
-                        __builtin_amdgcn_s_setprio(0);
-                        while(core_loop_fa4(number<1>{}))
-                            ;
-                    }
+                    __builtin_amdgcn_s_setprio(0);
+                    fmha_mask_at(number<0>{}, fa4_sm_tile++); // tile num_blocks_start
+                    fmha_alu0(number<0>{});
+                    fmha_alu_D_upd();
+                    fmha_alu1(number<0>{}); // sp(0).p = P(0)
+                    while(core_loop_fa4(number<0>{}))
+                        ;
                 }
-                else
-#endif
+                if(warp_group_id != 0)
                 {
-                    // --- Two warp groups: interleaved pipeline ---
-                    if(warp_group_id == 0)
-                    {
-                        V_mem_load(number<1>{}); // V1
-                        K_lds_load(number<1>{}); // K1
-
-                        __builtin_amdgcn_s_setprio(0);
-                        __builtin_amdgcn_s_barrier();
-                        while(core_loop(number<0>{}))
-                            ;
-                    }
-                    if(warp_group_id != 0)
-                    {
-#if UA_DYNAMIC_SETPRIO
-                        // Dynamic scheme drives priority from cl_calc; keep the
-                        // non-compute baseline uniformly prio 0 on both groups.
-                        __builtin_amdgcn_s_setprio(0);
-#else
-                        __builtin_amdgcn_s_setprio(1);
-#endif
-                        __builtin_amdgcn_s_barrier();
-                        while(core_loop(number<1>{}))
-                            ;
-                    }
+                    __builtin_amdgcn_s_setprio(0);
+                    while(core_loop_fa4(number<1>{}))
+                        ;
                 }
             }
         }
@@ -2618,7 +2355,8 @@ struct UnifiedAttentionPipeline
         // is always 0 so the two parities coincide; the split-KV path with
         // num_blocks_start > 0 needs the corrected expression below.
         const index_t num_iters = num_total_loop - num_blocks_start;
-#if UA_FA4_PIPELINE
+        // FA4 drain (NumWarpGroups==2) vs baseline post-process (the
+        // single-warp-group serial decode path, where kFA4 is false).
         if constexpr(kFA4)
         {
             // Deferred-PV drain. The pending sp slot has the same parity as the
@@ -2657,7 +2395,6 @@ struct UnifiedAttentionPipeline
                 fa4_epi(number<1>{});
         }
         else
-#endif
         {
             if(num_iters % 2)
             {

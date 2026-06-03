@@ -5,6 +5,8 @@
 #include "unified_attention_impl.hpp"
 #include "mask.hpp"
 
+#include <cstdlib>  // std::getenv (AITER_UA_PREFILL_FALLBACK)
+
 namespace ck_tile {
 
 std::ostream& operator<<(std::ostream& stream,
@@ -47,6 +49,25 @@ struct KernelConfig
     bool          unsupported = false;
 };
 
+// Opt-in prefill fallback: route prefill-sized shapes to the 4-warp,
+// single-warp-group *serial* decode_*_m128 instances instead of the 8-warp
+// 2-warp-group FA4 prefill pipeline. The serial path has no inter-warp-group
+// matrix/softmax overlap (and no cross-group s_barriers), so it is *slower*
+// than FA4 on prefill (measured ~0.66-0.70x Triton vs FA4's ~0.73-0.80x on
+// gfx950 fp8 GQA-12/2). It is therefore OFF by default and exists only as a
+// diagnostic / robustness A-B knob — useful if a future FA4 change regresses
+// or to compare the two scheduling strategies without recompiling. Reuses the
+// already-compiled decode_*_m128 instances (no extra binary).
+//   AITER_UA_PREFILL_FALLBACK=1  -> force serial prefill
+static bool ua_prefill_fallback_enabled()
+{
+    static const bool enabled = [] {
+        const char* e = std::getenv("AITER_UA_PREFILL_FALLBACK");
+        return e != nullptr && e[0] != '\0' && e[0] != '0';
+    }();
+    return enabled;
+}
+
 KernelConfig select_config(const unified_attention_args& args)
 {
     KernelConfig cfg;
@@ -77,7 +98,9 @@ KernelConfig select_config(const unified_attention_args& args)
         else if(avg_rows <= 128 && max_rows <= 128)
             cfg.variant = KernelVariant::decode_d128_m128;
         else
-            cfg.variant = KernelVariant::prefill_d128;
+            cfg.variant = ua_prefill_fallback_enabled()
+                              ? KernelVariant::decode_d128_m128   // 4-warp serial fallback
+                              : KernelVariant::prefill_d128;       // FA4 (default)
         return cfg;
     }
 
@@ -92,7 +115,9 @@ KernelConfig select_config(const unified_attention_args& args)
         else if(avg_rows <= 128 && max_rows <= 128)
             cfg.variant = KernelVariant::decode_d64_m128;
         else
-            cfg.variant = KernelVariant::prefill_d64;
+            cfg.variant = ua_prefill_fallback_enabled()
+                              ? KernelVariant::decode_d64_m128    // 4-warp serial fallback
+                              : KernelVariant::prefill_d64;        // FA4 (default)
         return cfg;
     }
 
