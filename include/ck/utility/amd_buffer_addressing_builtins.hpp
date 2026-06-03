@@ -830,16 +830,6 @@ amd_buffer_atomic_max(const typename vector_type_maker<T, N>::type::type src_thr
 }
 
 // Direct loads from global to LDS.
-#if __clang_major__ >= 21 && __clang_major__ < 23
-__device__ void
-llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
-                                __attribute__((address_space(3))) uint32_t* lds_ptr,
-                                index_t size,
-                                index_t voffset,
-                                index_t soffset,
-                                index_t offset,
-                                index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds.v4i32");
-#else
 __device__ void
 llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
                                 __attribute__((address_space(3))) uint32_t* lds_ptr,
@@ -848,7 +838,6 @@ llvm_amdgcn_raw_buffer_load_lds(int32x4_t rsrc,
                                 index_t soffset,
                                 index_t offset,
                                 index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds");
-#endif
 
 #ifndef __HIPCC_RTC__
 template <typename T, index_t NumElemsPerThread>

@@ -1180,6 +1180,8 @@ def getPytorchTestsCmds() {
 }
 def getAiterTestsCmds() {
     return [
+        // Pre-compile FlyDSL MoE AOT cache before the tests.
+        "cd /home/jenkins/workspace/aiter && python3 aiter/aot/flydsl/moe.py",
         "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py",
         "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py",
         "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py",
