@@ -270,12 +270,20 @@ struct MmaPipelineBase
     {
         if constexpr(MmaOpTraits<typename Derived::MmaOp>::IsSupported)
         {
-            auto transformed_inputs = applyTransformsToInputs(
-                hasFlag<MmaPipelineOptionFlag::ABSwap>() ? std::forward<VecTB>(b)
-                                                         : std::forward<VecTA>(a),
-                hasFlag<MmaPipelineOptionFlag::ABSwap>() ? std::forward<VecTA>(a)
-                                                         : std::forward<VecTB>(b),
-                std::forward<VecTC>(accum));
+            constexpr bool swap_a_and_b = hasFlag<MmaPipelineOptionFlag::ABSwap>();
+
+            auto transformed_inputs = [&]() {
+                if constexpr(swap_a_and_b)
+                {
+                    return applyTransformsToInputs(
+                        std::forward<VecTB>(b), std::forward<VecTA>(a), std::forward<VecTC>(accum));
+                }
+                else
+                {
+                    return applyTransformsToInputs(
+                        std::forward<VecTA>(a), std::forward<VecTB>(b), std::forward<VecTC>(accum));
+                }
+            }();
 
             Derived::execImpl(transformed_inputs);
 
@@ -302,17 +310,18 @@ struct MmaPipelineBase
     {
         if constexpr(MmaOpTraits<typename Derived::MmaOp>::IsSupported)
         {
-            // TODO: c++20: Call template functions with MmaPipelineOptionFlags directly
+            static_assert(MmaOpTraits<typename Derived::MmaOp>::IsScale,
+                          "This exec variant is intended for scale policy structs");
+            constexpr bool swap_a_and_b = hasFlag<MmaPipelineOptionFlag::ABSwap>();
+
             auto transformed_inputs = applyTransformsToInputs(
-                hasFlag<MmaPipelineOptionFlag::ABSwap>() ? std::forward<VecTB>(b)
-                                                         : std::forward<VecTA>(a),
-                hasFlag<MmaPipelineOptionFlag::ABSwap>() ? std::forward<VecTA>(a)
-                                                         : std::forward<VecTB>(b),
+                swap_a_and_b ? std::forward<VecTB>(b) : std::forward<VecTA>(a),
+                swap_a_and_b ? std::forward<VecTA>(a) : std::forward<VecTB>(b),
                 std::forward<VecTC>(accum),
-                hasFlag<MmaPipelineOptionFlag::ABSwap>() ? std::forward<ScaleBDataType>(scale_B)
-                                                         : std::forward<ScaleADataType>(scale_A),
-                hasFlag<MmaPipelineOptionFlag::ABSwap>() ? std::forward<ScaleADataType>(scale_A)
-                                                         : std::forward<ScaleBDataType>(scale_B));
+                swap_a_and_b ? std::forward<ScaleBDataType>(scale_B)
+                             : std::forward<ScaleADataType>(scale_A),
+                swap_a_and_b ? std::forward<ScaleADataType>(scale_A)
+                             : std::forward<ScaleBDataType>(scale_B));
 
             Derived::execImpl(transformed_inputs);
 

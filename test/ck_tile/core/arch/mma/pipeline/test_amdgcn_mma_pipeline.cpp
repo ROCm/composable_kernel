@@ -18,7 +18,7 @@ TEST(MmaPipelineOptionFlagsTests, ConversionTests)
     MmaPipelineOptionFlags flags_0{};
     MmaPipelineOptionFlags flags_1{MmaPipelineOptionFlag::ABSwap};
     MmaPipelineOptionFlags flags_2{MmaPipelineOptionFlag::COMPRESS_A};
-    MmaPipelineOptionFlags flags_3{0b11};
+    MmaPipelineOptionFlags flags_3{0b11}; // TODO c++20 - remove this
 
     EXPECT_TRUE(flags_0.testFlag(MmaPipelineOptionFlag::NONE));
     EXPECT_FALSE(flags_0.testFlag(MmaPipelineOptionFlag::ABSwap));

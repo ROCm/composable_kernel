@@ -24,6 +24,7 @@
 #include "ck_tile/core/arch/mma/mfma/mfma_selector.hpp"
 #include "ck_tile/core/arch/mma/mfma/mfma_traits.hpp"
 #include "ck_tile/core/arch/mma/mfma/mfma_transforms.hpp"
+#include "ck_tile/core/arch/mma/mma.hpp"
 #include "ck_tile/core/arch/mma/mma_op_family.hpp"
 #include "ck_tile/core/arch/mma/mma_pipeline.hpp"
 #include "ck_tile/core/arch/mma/mma_selector.hpp"
