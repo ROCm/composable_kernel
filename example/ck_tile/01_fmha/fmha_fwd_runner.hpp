@@ -165,8 +165,10 @@ int override_num_splits_if_necessary(
 
     if(num_splits < 1 && p_drop == 0.0f)
     {
+        // props.multiProcessorCount for >=gfx10 is the number of WGPs (each has 2 CUs)
+        const int num_blocks_per_SM = props.warpSize == 32 ? 4 : 2;
         return num_splits_heuristic(
-            batch * nhead * num_m_blocks, props.multiProcessorCount * 2, 128);
+            batch * nhead * num_m_blocks, props.multiProcessorCount * num_blocks_per_SM, 128);
     }
 
     return num_splits;
@@ -648,8 +650,18 @@ fwd_result fmha_fwd_run(mode_enum mode,
     // legalize num_splits according to other options
     if(num_splits < 1)
     {
+        int nhead_merged        = nhead;
+        int max_seqlen_q_merged = max_seqlen_q;
+        // When max_seqlen_q == 1 and multiple head groups are merged (kMergeNumHeadGroupsSeqLenQ)
+        // then more splits are required
+        if(bias.type == bias_enum::no_bias && mask.type == mask_enum::no_mask &&
+           max_seqlen_q == 1 && nhead_k < nhead)
+        {
+            nhead_merged        = nhead_k;
+            max_seqlen_q_merged = max_seqlen_q * (nhead / nhead_k);
+        }
         num_splits = override_num_splits_if_necessary(
-            batch, nhead, max_seqlen_q, hdim_v, p_drop, num_splits);
+            batch, nhead_merged, max_seqlen_q_merged, hdim_v, p_drop, num_splits);
     }
     if(128 < num_splits)
     {

@@ -5,8 +5,6 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qx_ks_vs_custom_policy.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1.hpp"
 
 namespace ck_tile {
 
@@ -163,6 +161,25 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
         constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
         constexpr index_t kTileK     = Problem::BlockFmhaShape::kN0;
 
+#if defined(__gfx11__)
+        // Keep C distribution and replicate data for NWarp to prevent doubling registers
+        // PermuteWarpGemmCToA will convert C distribution to A for matrix P later
+        constexpr index_t K1 = kKPerBlock / WG::kM;
+        constexpr index_t K0 = kTileK / kKPerBlock;
+        constexpr index_t M1 = MWarp;
+        constexpr index_t M0 = kMPerBlock / WG::kN;
+
+        constexpr auto s2_block_outer_dstr_encoding =
+            tile_distribution_encoding<sequence<NWarp>,
+                                       tuple<sequence<M0, M1>, sequence<K0, K1>>,
+                                       tuple<sequence<1, 0>>,
+                                       tuple<sequence<1, 0>>,
+                                       sequence<1, 2, 2>,
+                                       sequence<0, 0, 1>>{};
+
+        constexpr auto s2_block_dstr_encoding = detail::make_embed_tile_distribution_encoding(
+            s2_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
+#else
         // K2 is equal to Impl::kABKPerLane * kKIterPerWarpGemm
         constexpr index_t K3 = WG::kK / WG::WarpGemmAttribute::Impl::kABKLane;
         constexpr index_t K2 = WG::WarpGemmAttribute::Impl::kABKLane;
@@ -179,7 +196,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
                                        tuple<sequence<1, 0>, sequence<2, 2>>,
                                        sequence<1, 2, 2, 2>,
                                        sequence<0, 0, 1, 3>>{};
-
+#endif
         constexpr auto s2_block_dstr = make_static_tile_distribution(s2_block_dstr_encoding);
 
         return s2_block_dstr;
