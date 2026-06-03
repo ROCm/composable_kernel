@@ -204,6 +204,13 @@ template <typename AType, typename BType>
 using WarpGemmAttributeWmmaImpl_f32_16x16x128_f8f6f4 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, AType, BType, float, 16, 16, 128>>;
 
+// WmmaScale16Tag (declared above) is passed as MXTypeEnable to WmmaTraits to select scale16
+// specializations. These override kAK1PerLane=16 (-> sequence<4,2,16>) and use int64_t scales
+// for V_WMMA_SCALE16_F32_16X16X128_F8F6F4, vs the default layout / int32_t.
+template <typename AType, typename BType>
+using WarpGemmAttributeWmmaImpl_f32_16x16x128_f8f6f4_scale16 = WarpGemmAttributeWmmaImpl<
+    WmmaTraits<gfx125_t, AType, BType, float, 16, 16, 128, WmmaScale16Tag>>;
+
 template <typename AType, typename BType>
 using WarpGemmAttributeWmmaImpl_f32_32x32x128_f8f6f4 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, AType, BType, float, 32, 32, 128>>;
