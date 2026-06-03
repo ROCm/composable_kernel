@@ -411,27 +411,10 @@ class TDMDescriptor
     CK_TILE_DEVICE TDMGatherIndexSize getTDMGatherIndexSize() const { return m_rowIdxSize; }
     CK_TILE_DEVICE const void* getRowIndex() const { return m_rowIndex; }
 
-    // currently llvm gives two builtins for TDM descriptor
-    // __builtin_amdgcn_tensor_load_to_lds and __builtin_amdgcn_tensor_load_to_lds_d2
-    CK_TILE_DEVICE auto getResourceDescriptorGroup2() const -> tuple<int32x4_t, int32x8_t>
-    {
-        static_assert(TensorRank <= 2, "TensorRank must be less than or equal to 2");
-        static_assert(!IsGatherMode, "Gather mode not supported for getResourceDescriptorGroup2");
-        TDM_GROUP0 group0{reinterpret_cast<uintptr_t>(m_localAddress),
-                          reinterpret_cast<uintptr_t>(m_globalAddress),
-                          static_cast<uint32_t>(m_rowIdxSize),
-                          IsGatherMode ? 1u : 0u};
-
-        TDM_GROUP1 group1;
-        configureGroup1(group1);
-
-        // generate tuples with 2 elements; first is int32x4_t, second is int32x8_t
-        return make_tuple(amd_wave_read_first_lane(group0.bitfield),
-                          amd_wave_read_first_lane(group1.bitfield));
-    }
-
-    CK_TILE_DEVICE auto
-    getResourceDescriptorGroup4() const -> tuple<int32x4_t, int32x8_t, int32x4_t, int32x4_t>
+    // currently llvm gives unified builtins for TDM descriptor
+    // __builtin_amdgcn_tensor_load_to_lds (2D uses zero vectors for unused args)
+    CK_TILE_DEVICE auto getResourceDescriptorGroup() const
+        -> tuple<int32x4_t, int32x8_t, int32x4_t, int32x4_t, int32x8_t>
     {
         TDM_GROUP0 group0{reinterpret_cast<uintptr_t>(m_localAddress),
                           reinterpret_cast<uintptr_t>(m_globalAddress),
@@ -441,18 +424,31 @@ class TDMDescriptor
         TDM_GROUP1 group1;
         configureGroup1(group1);
 
-        // generate tuples with 4 elements; first is int32x4_t, second is int32x8_t, third is
-        // int32x4_t, fourth is int32x4_t
-        TDM_GROUP2 group2;
-        configureGroup2(group2);
+        if constexpr(TensorRank <= 2 && !IsGatherMode)
+        {
+            int32x4_t v4i_zeros = {};
+            int32x8_t v8i_zeros = {};
+            return make_tuple(amd_wave_read_first_lane(group0.bitfield),
+                              amd_wave_read_first_lane(group1.bitfield),
+                              v4i_zeros,
+                              v4i_zeros,
+                              v8i_zeros);
+        }
+        else
+        {
+            TDM_GROUP2 group2;
+            configureGroup2(group2);
 
-        TDM_GROUP3 group3;
-        configureGroup3(group3);
+            TDM_GROUP3 group3;
+            configureGroup3(group3);
 
-        return make_tuple(amd_wave_read_first_lane(group0.bitfield),
-                          amd_wave_read_first_lane(group1.bitfield),
-                          amd_wave_read_first_lane(group2.bitfield),
-                          amd_wave_read_first_lane(group3.bitfield));
+            int32x8_t v8i_zeros = {};
+            return make_tuple(amd_wave_read_first_lane(group0.bitfield),
+                              amd_wave_read_first_lane(group1.bitfield),
+                              amd_wave_read_first_lane(group2.bitfield),
+                              amd_wave_read_first_lane(group3.bitfield),
+                              v8i_zeros);
+        }
     }
 
     private:

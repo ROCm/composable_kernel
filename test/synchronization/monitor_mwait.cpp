@@ -13,7 +13,8 @@ using ::ck::DeviceMem;
 using F8DataType = ck::f8_t;
 
 #if defined(__gfx125__)
-__device__ constexpr int hint_and_scope = 2 << 3; // temporal + Device
+__device__ constexpr int hint  = __ATOMIC_RELAXED;
+__device__ constexpr int scope = __MEMORY_SCOPE_SYSTEM;
 // BUG: duration = 0x8000 (sleep-forever) should not be used as the wave might never wake up if the
 // s_monitor_sleep(duration) is called when MWAIT=0
 __device__ constexpr short duration = static_cast<short>(1 << 15) - 1; // forever - 1 clock cycle
@@ -27,8 +28,8 @@ __global__ void gpu_ping(F8DataType* ptr, const int Num, int* runNum, bool ck_lo
     ptr[0]  = F8DataType{0x38};
     while(run++ < Num && !ck::fp8_is_nan(ptr[0]) && !ck::fp8_is_nan(ptr[1]))
     {
-        while((__builtin_amdgcn_flat_load_monitor_b32(static_cast<int*>(static_cast<void*>(ptr)),
-                                                      hint_and_scope) &
+        while((__builtin_amdgcn_flat_load_monitor_b32(
+                   static_cast<int*>(static_cast<void*>(ptr)), hint, scope) &
                0xFF) == 0x38)
         {
             __builtin_amdgcn_s_monitor_sleep(duration);
@@ -63,8 +64,8 @@ __global__ void gpu_pong(F8DataType* ptr, const int Num, int* runNum, bool ck_lo
     int run = 0;
     while(run++ < Num && !ck::fp8_is_nan(ptr[0]) && !ck::fp8_is_nan(ptr[1]))
     {
-        while((__builtin_amdgcn_flat_load_monitor_b32(static_cast<int*>(static_cast<void*>(ptr)),
-                                                      hint_and_scope) &
+        while((__builtin_amdgcn_flat_load_monitor_b32(
+                   static_cast<int*>(static_cast<void*>(ptr)), hint, scope) &
                0xFF) == 0)
         {
             // Wait for the ping thread to set the value to 0x38
@@ -198,15 +199,15 @@ __global__ void gpu_ping(int* ptrA,
 
     while(run++ < Num)
     {
-        while(__builtin_amdgcn_flat_load_monitor_b128(reinterpret_cast<ck::int32x4_t*>(ptrA),
-                                                      hint_and_scope)[tid] != expectedA0)
+        while(__builtin_amdgcn_flat_load_monitor_b128(
+                  reinterpret_cast<ck::int32x4_t*>(ptrA), hint, scope)[tid] != expectedA0)
         {
             __builtin_amdgcn_s_monitor_sleep(duration);
         }
         ptrB[tid] = toUpdateB1;
 
-        while(__builtin_amdgcn_flat_load_monitor_b128(reinterpret_cast<ck::int32x4_t*>(ptrA),
-                                                      hint_and_scope)[tid] != expectedA1)
+        while(__builtin_amdgcn_flat_load_monitor_b128(
+                  reinterpret_cast<ck::int32x4_t*>(ptrA), hint, scope)[tid] != expectedA1)
         {
             __builtin_amdgcn_s_monitor_sleep(duration);
         }
@@ -237,15 +238,15 @@ __global__ void gpu_pong(int* ptrB,
     int run = 0;
     while(run++ < Num)
     {
-        while(__builtin_amdgcn_flat_load_monitor_b128(reinterpret_cast<ck::int32x4_t*>(ptrB),
-                                                      hint_and_scope)[tid] != expectedB0)
+        while(__builtin_amdgcn_flat_load_monitor_b128(
+                  reinterpret_cast<ck::int32x4_t*>(ptrB), hint, scope)[tid] != expectedB0)
         {
             __builtin_amdgcn_s_monitor_sleep(duration);
         }
         ptrA[tid] = toUpdateA0;
 
-        while(__builtin_amdgcn_flat_load_monitor_b128(reinterpret_cast<ck::int32x4_t*>(ptrB),
-                                                      hint_and_scope)[tid] != expectedB1)
+        while(__builtin_amdgcn_flat_load_monitor_b128(
+                  reinterpret_cast<ck::int32x4_t*>(ptrB), hint, scope)[tid] != expectedB1)
         {
             __builtin_amdgcn_s_monitor_sleep(duration);
         }
