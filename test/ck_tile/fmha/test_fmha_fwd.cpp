@@ -735,6 +735,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                                  Values(3, 4),
                                  Values(std::tuple{4, 3, 1, 200, 1024, "0"},
                                         std::tuple{2, 2, -1, 512, 2000, "0"},
+                                        std::tuple{2, 8, 2, 1, 1024, "0"},
                                         std::tuple{3, 2, -1, 230, 899, "t:128,128"})));
 
 TEST_P(SplitKV, DataTypeConfig)
