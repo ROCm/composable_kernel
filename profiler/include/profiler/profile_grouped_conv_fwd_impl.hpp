@@ -167,10 +167,17 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     std::cout << "ckProfiler found " << op_ptrs.size() << " instances" << std::endl;
 
     // Create host tensors
-    Tensor<InDataType> input(in_g_n_c_wis_desc);
-    Tensor<WeiDataType> weight(wei_g_k_c_xs_desc);
-    Tensor<OutDataType> host_output(out_g_n_k_wos_desc);
-    Tensor<OutDataType> device_output(out_g_n_k_wos_desc);
+    Tensor<InDataType> input({1});
+    Tensor<WeiDataType> weight({1});
+    Tensor<OutDataType> host_output({1});
+    Tensor<OutDataType> device_output({1});
+    if(init_method != 0 || do_verification != 0)
+    {
+        input         = Tensor<InDataType>(in_g_n_c_wis_desc);
+        weight        = Tensor<WeiDataType>(wei_g_k_c_xs_desc);
+        host_output   = Tensor<OutDataType>(out_g_n_k_wos_desc);
+        device_output = Tensor<OutDataType>(out_g_n_k_wos_desc);
+    }
 
     // Get element space sizes for allocation
     const auto input_size  = in_g_n_c_wis_desc.GetElementSpaceSize();
@@ -225,9 +232,12 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             weight.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
         }
 
-        // Copy initialized host data to device
-        in_device_buf.ToDevice(input.mData.data());
-        wei_device_buf.ToDevice(weight.mData.data());
+        if(init_method != 0)
+        {
+            // Copy initialized host data to device
+            in_device_buf.ToDevice(input.mData.data());
+            wei_device_buf.ToDevice(weight.mData.data());
+        }
     }
 
     // Allocate GPU reference buffer (used only if do_verification == 2)
@@ -302,8 +312,12 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     auto run_impl = [&](auto& op_ptr, auto& argument_ptr) {
         // workspace_sz will be equal to 0 for other layout than NGCHW
         const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
-        DeviceMem workspace_dev(workspace_sz);
-        op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
+        DeviceMem workspace_dev(0);
+        if(workspace_sz)
+        {
+            workspace_dev.Realloc(workspace_sz);
+            op_ptr->SetWorkSpacePointer(argument_ptr.get(), workspace_dev.GetDeviceBuffer());
+        }
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
@@ -327,8 +341,6 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
             std::string op_name = op_ptr->GetTypeString();
             valid_instances++;
-
-            out_device_buf.SetZero();
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
