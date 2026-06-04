@@ -24,19 +24,15 @@
 // Benefits: PR builds 5h -> 30min (typical), nightly builds unchanged
 // See: script/dependency-parser/README.md for details
 //
-ck = null
-
 def rocmnode(name) {
     return '(rocmtest || miopen) && (' + name + ')'
 }
 
 def loadCk() {
-    if (ck == null) {
-        checkout scm
-        dir("projects/composablekernel") {
-            ck = load "vars/ck.groovy"
-        }
-    }
+    def branch = (params.USE_CURRENT_BRANCH_FOR_CK_GROOVY
+        ? (env.CHANGE_BRANCH ?: env.BRANCH_NAME)
+        : 'develop')
+    library("ck@${branch}")
 }
 
 //launch develop branch daily jobs
@@ -256,6 +252,10 @@ pipeline {
             name: "FORCE_CI",
             defaultValue: false,
             description: "Force CI to run even when only non-relevant files are changed (default: OFF)")
+        booleanParam(
+            name: 'USE_CURRENT_BRANCH_FOR_CK_GROOVY',
+            defaultValue: false,
+            description: 'Load ck.groovy from the current branch instead of develop. Enable when testing pipeline changes (default: OFF).')
     }
     environment{
         dbuser = "${dbuser}"
