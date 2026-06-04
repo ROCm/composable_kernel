@@ -25,48 +25,31 @@ Step 1: XOR Transform
 
 The original K coordinate is split into K0 and K1, where K1 represents the thread vector size along the K dimension (KPack) and K0 is KPerBlock/KPack.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "3D LDS coordinate [K0, M, K1]"
-                 K0["KPerBlock/KPack * MLdsLayer<br/>K0"]
-                 M["MPerBlock/MLdsLayer<br/>M"]
-                 K1["KPack<br/>K1"]
-             end
-         
-             subgraph "XOR Transform"
-                 XT["make_xor_transform"]
-             end
-         
-             subgraph "Update K0 with XOR transformation"
-                 K01["KPerBlock/KPack * MLdsLayer<br/>K0'"]
-                 M1["MPerBlock/MLdsLayer<br/>M"]
-                 K11["KPack<br/>K1"]
-             end
-         
-             K0 --> XT
-             M --> XT
-             K1 --> K11
-         
-             XT --> K01
-             XT --> M1
-             
-             style K0 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style K01 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style M fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style M1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-         
-             style K1 fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-             style K11 fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-      
-      
+.. mermaid::
 
-.. image:: diagrams/lds_index_swapping_1.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "3D LDS coordinate [K0, M, K1]"
+           K0["KPerBlock/KPack * MLdsLayer<br/>K0"]
+           M["MPerBlock/MLdsLayer<br/>M"]
+           K1["KPack<br/>K1"]
+       end
+
+       subgraph "XOR Transform"
+           XT["make_xor_transform"]
+       end
+
+       subgraph "Update K0 with XOR transformation"
+           K01["KPerBlock/KPack * MLdsLayer<br/>K0'"]
+           M1["MPerBlock/MLdsLayer<br/>M"]
+           K11["KPack<br/>K1"]
+       end
+
+       K0 --> XT
+       M --> XT
+       K1 --> K11
+
+       XT --> K01
+       XT --> M1
 
 The XOR transformation updates the K0 coordinate using the formula:
 
@@ -81,54 +64,33 @@ Step 2: Unmerge Transform
 
 The transformed K0' is split into L and K0'' components, creating an intermediate 4D coordinate space. This is necessary when MLdsLayer > 1, allowing multiple rows to share the same set of memory banks for better utilization with smaller tile sizes.
 
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "3D LDS coordinate [K0', M, K1]"
-                 K0["KPerBlock/KPack * MLdsLayer<br/>K0'"]
-                 M["MPerBlock/MLdsLayer<br/>M"]
-                 K1["KPack<br/>K1"]
-             end
-         
-             subgraph "Unmerge into 2 components"
-                 UM["make_unmerge_transform"]
-             end
-         
-             subgraph "4D intermediate transformation space"
-                 L["MLdsLayer<br/>L"]
-                 M1["MPerBlock/MLdsLayer<br/>M"]
-                 K01["KPerBlock/KPack<br/>K0''"]
-                 K11["KPack<br/>K1"]
-             end
-         
-             K0 --> UM
-             M --> M1
-             K1 --> K11
-         
-             UM --> L
-             UM --> K01
-             
-             style K0 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style L fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style K01 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-         
-             style M fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-             style M1 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-         
-             style K1 fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-             style K11 fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-      
-      
-   
-   
 
-.. image:: diagrams/lds_index_swapping_2.svg
-   :alt: Diagram
-   :align: center
+.. mermaid::
+
+   graph TB
+       subgraph "3D LDS coordinate [K0', M, K1]"
+           K0["KPerBlock/KPack * MLdsLayer<br/>K0'"]
+           M["MPerBlock/MLdsLayer<br/>M"]
+           K1["KPack<br/>K1"]
+       end
+
+       subgraph "Unmerge into 2 components"
+           UM["make_unmerge_transform"]
+       end
+
+       subgraph "4D intermediate transformation space"
+           L["MLdsLayer<br/>L"]
+           M1["MPerBlock/MLdsLayer<br/>M"]
+           K01["KPerBlock/KPack<br/>K0''"]
+           K11["KPack<br/>K1"]
+       end
+
+       K0 --> UM
+       M --> M1
+       K1 --> K11
+
+       UM --> L
+       UM --> K01
 
 The unmerge operation:
 
@@ -144,56 +106,38 @@ Step 3: Merge Transform
 
 The final step merges the 4D coordinates back into 2D transformed coordinates (M', K').
 
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "4D LDS Coordinates [L, M, K0'', K1]"
-                 L["MLdsLayer<br/>L"]
-                 M1["MPerBlock/MLdsLayer<br/>M"]
-                 K0["KPerBlock/KPack<br/>K0''"]
-                 K1["KPack<br/>K1"]
-             end
-         
-             subgraph "Merge into 1 component"
-                 ME0["make_merge_transform"]
-             end
-         
-             subgraph "Merge into 1 component"
-                 ME1["make_merge_transform"]
-             end
-         
-             subgraph "Transformed 2D coordinates [M', K']"
-                 M11["MPerBlock<br/>M'"]
-                 K01["KPerBlock<br/>K'"]
-             end
-         
-             L --> ME0
-             M1 --> ME0
-         
-             K0 --> ME1
-             K1 --> ME1
-         
-             ME0 --> M11
-             ME1 --> K01    
-         
-             style K0 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style K1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style K01 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-         
-             style M1 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-             style L fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-             style M11 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-      
-      
 
+.. mermaid::
 
-.. image:: diagrams/lds_index_swapping_3.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "4D LDS Coordinates [L, M, K0'', K1]"
+           L["MLdsLayer<br/>L"]
+           M1["MPerBlock/MLdsLayer<br/>M"]
+           K0["KPerBlock/KPack<br/>K0''"]
+           K1["KPack<br/>K1"]
+       end
+
+       subgraph "Merge into 1 component"
+           ME0["make_merge_transform"]
+       end
+
+       subgraph "Merge into 1 component"
+           ME1["make_merge_transform"]
+       end
+
+       subgraph "Transformed 2D coordinates [M', K']"
+           M11["MPerBlock<br/>M'"]
+           K01["KPerBlock<br/>K'"]
+       end
+
+       L --> ME0
+       M1 --> ME0
+
+       K0 --> ME1
+       K1 --> ME1
+
+       ME0 --> M11
+       ME1 --> K01
 
 
 C++ Implementation

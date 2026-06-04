@@ -15,51 +15,30 @@ The Five Coordinate Spaces
 
 The CK framework employs five interconnected coordinate spaces, each serving a specific purpose in the journey from thread identification to memory access. These spaces work together to solve the fundamental challenge of GPU programming: efficiently distributing work across thousands of parallel threads while maintaining optimal memory access patterns.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "Coordinate Spaces Overview"
-                 P["P-space<br/>Thread Identification<br/>Which thread am I?"]
-                 Y["Y-space<br/>Logical Tile<br/>Which element in my tile?"]
-                 X["X-space<br/>Physical Tensor<br/>Where in the tensor?"]
-                 R["R-space<br/>Replication<br/>Data sharing pattern"]
-                 D["D-space<br/>Linear Storage<br/>Memory address"]
-             end
-   
-             subgraph "Transformations"
-                 T1["P + Y → X<br/>Thread + Element → Position"]
-                 T2["X → D<br/>Position → Address"]
-             end
-   
-             P --> T1
-             Y --> T1
-             T1 --> X
-             X --> T2
-             T2 --> D
-   
-             R -.-> P
-             R -.-> Y
-   
-             style P fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style Y fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-             style X fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-             style R fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-             style D fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/coordinate_systems_1.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Coordinate Spaces Overview"
+           P["P-space<br/>Thread Identification<br/>Which thread am I?"]
+           Y["Y-space<br/>Logical Tile<br/>Which element in my tile?"]
+           X["X-space<br/>Physical Tensor<br/>Where in the tensor?"]
+           R["R-space<br/>Replication<br/>Data sharing pattern"]
+           D["D-space<br/>Linear Storage<br/>Memory address"]
+       end
+
+       subgraph "Transformations"
+           T1["P + Y → X<br/>Thread + Element → Position"]
+           T2["X → D<br/>Position → Address"]
+       end
+
+       P --> T1
+       Y --> T1
+       T1 --> X
+       X --> T2
+       T2 --> D
+
+       R -.-> P
+       R -.-> Y
 
 The Challenge and Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -82,53 +61,35 @@ Partition Space (P-space) represents the foundation of the coordinate system hie
 GPU Thread Hierarchy
 ~~~~~~~~~~~~~~~~~~~~
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "GPU Thread Hierarchy"
-                 subgraph "Block"
-                     subgraph "Warp 0"
-                         T0["Thread 0<br/>P=[0,0]"]
-                         T1["Thread 1<br/>P=[0,1]"]
-                         T2["Thread 2<br/>P=[0,2]"]
-                         T31["..."]
-                         T3["Thread 31<br/>P=[0,31]"]
-                     end
-                     subgraph "Warp 1"
-                         T32["Thread 32<br/>P=[1,0]"]
-                         T33["Thread 33<br/>P=[1,1]"]
-                         T34["..."]
-                         T63["Thread 63<br/>P=[1,31]"]
-                     end
-                     W2["Warp 2..."]
-                     W7["Warp 7"]
-                 end
-             end
-   
-             subgraph "P-space Mapping"
-                 PM["P-coordinates = [warp_id, lane_id]<br/>or<br/>P-coordinates = [block_x, block_y, thread_x, thread_y]"]
-             end
-   
-             T0 --> PM
-             T32 --> PM
-   
-             style T0 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style T32 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/coordinate_systems_2.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "GPU Thread Hierarchy"
+           subgraph "Block"
+               subgraph "Warp 0"
+                   T0["Thread 0<br/>P=[0,0]"]
+                   T1["Thread 1<br/>P=[0,1]"]
+                   T2["Thread 2<br/>P=[0,2]"]
+                   T31["..."]
+                   T3["Thread 31<br/>P=[0,31]"]
+               end
+               subgraph "Warp 1"
+                   T32["Thread 32<br/>P=[1,0]"]
+                   T33["Thread 33<br/>P=[1,1]"]
+                   T34["..."]
+                   T63["Thread 63<br/>P=[1,31]"]
+               end
+               W2["Warp 2..."]
+               W7["Warp 7"]
+           end
+       end
+
+       subgraph "P-space Mapping"
+           PM["P-coordinates = [warp_id, lane_id]<br/>or<br/>P-coordinates = [block_x, block_y, thread_x, thread_y]"]
+       end
+
+       T0 --> PM
+       T32 --> PM
 
 The structure of P-space directly reflects the :ref:`hardware organization <ck_tile_gpu_basics>` of GPUs. Each thread receives a unique P-coordinate that encodes its position within the execution hierarchy. For simple distributions, P-space might be one-dimensional, containing only a thread ID. For complex hierarchical distributions, P-space can have multiple dimensions representing different levels of the GPU's thread organization.
 
@@ -173,56 +134,36 @@ Yield Space (Y-space) represents the logical organization of work within each th
 Work Assignment Structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "Thread's Tile (2x2 elements)"
-                 Y00["Y=[0,0]<br/>Element 0"]
-                 Y01["Y=[0,1]<br/>Element 1"]
-                 Y10["Y=[1,0]<br/>Element 2"]
-                 Y11["Y=[1,1]<br/>Element 3"]
-             end
-   
-             subgraph "Y-space Structure"
-                 YS["Each thread processes<br/>the same Y-space pattern<br/>but at different X locations"]
-             end
-   
-             subgraph "Example: 4 Threads"
-                 T0["Thread 0<br/>P=[0,0]"]
-                 T1["Thread 1<br/>P=[0,1]"]
-                 T2["Thread 2<br/>P=[1,0]"]
-                 T3["Thread 3<br/>P=[1,1]"]
-             end
-   
-             Y00 --> YS
-             Y01 --> YS
-             Y10 --> YS
-             Y11 --> YS
-   
-             T0 --> YS
-             T1 --> YS
-             T2 --> YS
-             T3 --> YS
-   
-             style Y00 fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-             style Y01 fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-             style Y10 fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-             style Y11 fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/coordinate_systems_3.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Thread's Tile (2x2 elements)"
+           Y00["Y=[0,0]<br/>Element 0"]
+           Y01["Y=[0,1]<br/>Element 1"]
+           Y10["Y=[1,0]<br/>Element 2"]
+           Y11["Y=[1,1]<br/>Element 3"]
+       end
+
+       subgraph "Y-space Structure"
+           YS["Each thread processes<br/>the same Y-space pattern<br/>but at different X locations"]
+       end
+
+       subgraph "Example: 4 Threads"
+           T0["Thread 0<br/>P=[0,0]"]
+           T1["Thread 1<br/>P=[0,1]"]
+           T2["Thread 2<br/>P=[1,0]"]
+           T3["Thread 3<br/>P=[1,1]"]
+       end
+
+       Y00 --> YS
+       Y01 --> YS
+       Y10 --> YS
+       Y11 --> YS
+
+       T0 --> YS
+       T1 --> YS
+       T2 --> YS
+       T3 --> YS
 
 The power of Y-space lies in its ability to express different iteration patterns without changing the underlying distribution logic. A thread might traverse its Y-space in row-major order for one algorithm, column-major for another, or even use :ref:`space-filling curves <ck_tile_space_filling_curve>` for optimal cache utilization. This flexibility enables algorithm-specific optimizations while maintaining a consistent framework.
 
@@ -304,49 +245,30 @@ The transformation from P and Y coordinates to X coordinates represents the hear
 Transformation Pipeline
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph LR
-             subgraph "Input"
-                 P["P-coordinates<br/>Thread identity<br/>P=[1,0]"]
-                 Y["Y-coordinates<br/>Element in tile<br/>Y=[0,1]"]
-             end
-   
-             subgraph "Transformation"
-                 T["P + Y → X<br/>Base position + Offset"]
-             end
-   
-             subgraph "Output"
-                 X["X-coordinates<br/>Tensor position<br/>X=[2,1]"]
-             end
-   
-             subgraph "Example"
-                 E["Thread P=[1,0] at base (2,0)<br/>Element Y=[0,1] adds offset (0,1)<br/>Result X=[2,1] in tensor"]
-             end
-   
-             P --> T
-             Y --> T
-             T --> X
-             X --> E
-   
-             style P fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style Y fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-             style X fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/coordinate_systems_4.svg
-   :alt: Diagram
-   :align: center
+   graph LR
+       subgraph "Input"
+           P["P-coordinates<br/>Thread identity<br/>P=[1,0]"]
+           Y["Y-coordinates<br/>Element in tile<br/>Y=[0,1]"]
+       end
+
+       subgraph "Transformation"
+           T["P + Y → X<br/>Base position + Offset"]
+       end
+
+       subgraph "Output"
+           X["X-coordinates<br/>Tensor position<br/>X=[2,1]"]
+       end
+
+       subgraph "Example"
+           E["Thread P=[1,0] at base (2,0)<br/>Element Y=[0,1] adds offset (0,1)<br/>Result X=[2,1] in tensor"]
+       end
+
+       P --> T
+       Y --> T
+       T --> X
+       X --> E
 
 Mathematical Foundation
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -413,45 +335,27 @@ D-space represents the final transformation in the coordinate pipeline: converti
 Linearization Strategies
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph LR
-             subgraph "X-coordinates"
-                 X["X = [2, 3]<br/>2D Position"]
-             end
-   
-             subgraph "Layout Options"
-                 RM["Row-Major<br/>D = 2×width + 3"]
-                 CM["Column-Major<br/>D = 3×height + 2"]
-                 BL["Blocked<br/>Complex pattern"]
-             end
-   
-             subgraph "D-coordinate"
-                 D["D = 11<br/>Linear Address"]
-             end
-   
-             X --> RM
-             X --> CM
-             X --> BL
-             RM --> D
-   
-             style X fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-             style D fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/coordinate_systems_5.svg
-   :alt: Diagram
-   :align: center
+   graph LR
+       subgraph "X-coordinates"
+           X["X = [2, 3]<br/>2D Position"]
+       end
+
+       subgraph "Layout Options"
+           RM["Row-Major<br/>D = 2×width + 3"]
+           CM["Column-Major<br/>D = 3×height + 2"]
+           BL["Blocked<br/>Complex pattern"]
+       end
+
+       subgraph "D-coordinate"
+           D["D = 11<br/>Linear Address"]
+       end
+
+       X --> RM
+       X --> CM
+       X --> BL
+       RM --> D
 
 The linearization process must consider multiple factors:
 
@@ -482,58 +386,39 @@ Complete Pipeline Example
 
 The following is a complete example showing how all coordinate spaces work together:
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "Step 1: Thread Identification"
-                 TID["Thread ID = 5"]
-                 P["P-coordinates<br/>P = [0, 5]<br/>(warp 0, lane 5)"]
-             end
-   
-             subgraph "Step 2: Work Assignment"
-                 Y["Y-coordinates<br/>Y = [1, 0]<br/>(element in tile)"]
-             end
-   
-             subgraph "Step 3: P+Y Transformation"
-                 TRANS["P + Y → X<br/>Thread position + Element offset"]
-                 X["X-coordinates<br/>X = [1, 5]<br/>(tensor position)"]
-             end
-   
-             subgraph "Step 4: Linearization"
-                 LIN["X → D<br/>Row-major: D = x₀ × width + x₁"]
-                 D["D-coordinate<br/>D = 13<br/>(memory address)"]
-             end
-   
-             subgraph "Step 5: Memory Access"
-                 MEM["Hardware accesses<br/>memory[13]"]
-             end
-   
-             TID --> P
-             P --> TRANS
-             Y --> TRANS
-             TRANS --> X
-             X --> LIN
-             LIN --> D
-             D --> MEM
-   
-             style P fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-             style Y fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-             style X fill:#e8f5e9,stroke:#388e3c,stroke-width:3px
-             style D fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px
-             style MEM fill:#ffebee,stroke:#c62828,stroke-width:3px
-      
-      
+.. mermaid::
 
+   graph TB
+       subgraph "Step 1: Thread Identification"
+           TID["Thread ID = 5"]
+           P["P-coordinates<br/>P = [0, 5]<br/>(warp 0, lane 5)"]
+       end
 
-.. image:: diagrams/coordinate_systems_6.svg
-   :alt: Diagram
-   :align: center
+       subgraph "Step 2: Work Assignment"
+           Y["Y-coordinates<br/>Y = [1, 0]<br/>(element in tile)"]
+       end
+
+       subgraph "Step 3: P+Y Transformation"
+           TRANS["P + Y → X<br/>Thread position + Element offset"]
+           X["X-coordinates<br/>X = [1, 5]<br/>(tensor position)"]
+       end
+
+       subgraph "Step 4: Linearization"
+           LIN["X → D<br/>Row-major: D = x₀ × width + x₁"]
+           D["D-coordinate<br/>D = 13<br/>(memory address)"]
+       end
+
+       subgraph "Step 5: Memory Access"
+           MEM["Hardware accesses<br/>memory[13]"]
+       end
+
+       TID --> P
+       P --> TRANS
+       Y --> TRANS
+       TRANS --> X
+       X --> LIN
+       LIN --> D
+       D --> MEM
 
 Real-World Example: Matrix Multiplication
 -----------------------------------------

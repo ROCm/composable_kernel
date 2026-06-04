@@ -24,53 +24,32 @@ Memory coherence and caching policies represent another layer of complexity that
 Address Space Usage Patterns
 ----------------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         flowchart TB
-             subgraph CF ["Compute Flow"]
-                 direction LR
-                 GM1["Global Memory<br/>Input Data"] --> LDS["LDS<br/>Tile Cache"]
-                 LDS --> VGPR["VGPR<br/>Working Set"]
-                 VGPR --> Compute["Compute<br/>Operations"]
-                 Compute --> VGPR
-                 VGPR --> LDS2["LDS<br/>Reduction"]
-                 LDS2 --> GM2["Global Memory<br/>Output Data"]
-             end
-   
-             subgraph UP ["Usage Pattern"]
-                 direction LR
-                 P1["1. Load tile from Global → LDS"]
-                 P2["2. Load working set LDS → VGPR"]
-                 P3["3. Compute in VGPR"]
-                 P4["4. Store results VGPR → LDS"]
-                 P5["5. Reduce in LDS"]
-                 P6["6. Write final LDS → Global"]
-   
-                 P1 --> P2 --> P3 --> P4 --> P5 --> P6
-             end
-   
-             CF ~~~ UP
-   
-             style GM1 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-             style LDS fill:#fed7aa,stroke:#f59e0b,stroke-width:2px
-             style VGPR fill:#d1fae5,stroke:#10b981,stroke-width:2px
-             style Compute fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/buffer_views_1.svg
-   :alt: Diagram
-   :align: center
-   
+   flowchart TB
+       subgraph CF ["Compute Flow"]
+           direction LR
+           GM1["Global Memory<br/>Input Data"] --> LDS["LDS<br/>Tile Cache"]
+           LDS --> VGPR["VGPR<br/>Working Set"]
+           VGPR --> Compute["Compute<br/>Operations"]
+           Compute --> VGPR
+           VGPR --> LDS2["LDS<br/>Reduction"]
+           LDS2 --> GM2["Global Memory<br/>Output Data"]
+       end
+
+       subgraph UP ["Usage Pattern"]
+           direction LR
+           P1["1. Load tile from Global → LDS"]
+           P2["2. Load working set LDS → VGPR"]
+           P3["3. Compute in VGPR"]
+           P4["4. Store results VGPR → LDS"]
+           P5["5. Reduce in LDS"]
+           P6["6. Write final LDS → Global"]
+
+           P1 --> P2 --> P3 --> P4 --> P5 --> P6
+       end
+
+       CF ~~~ UP
 C++ Implementation
 ------------------
 
@@ -190,101 +169,59 @@ The implementation of vector access maintains the same parameter structure as sc
 Scalar vs Vectorized Memory Access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph LR
-             subgraph "Scalar Access (4 instructions)"
-                 S1["Load float[0]"] --> R1["Register 1"]
-                 S2["Load float[1]"] --> R2["Register 2"]
-                 S3["Load float[2]"] --> R3["Register 3"]
-                 S4["Load float[3]"] --> R4["Register 4"]
-             end
-   
-             subgraph "Vectorized Access (1 instruction)"
-                 V1["Load float4[0]"] --> VR["Vector Register<br/>(4 floats)"]
-             end
-   
-             subgraph "Performance Impact"
-                 Perf["4x fewer instructions<br/>Better memory bandwidth<br/>Reduced latency"]
-             end
-   
-             R1 & R2 & R3 & R4 --> Perf
-             VR --> Perf
-   
-             style S1 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-             style S2 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-             style S3 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-             style S4 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-             style V1 fill:#d1fae5,stroke:#10b981,stroke-width:2px
-             style Perf fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/buffer_views_2.svg
-   :alt: Diagram
-   :align: center
+   graph LR
+       subgraph "Scalar Access (4 instructions)"
+           S1["Load float[0]"] --> R1["Register 1"]
+           S2["Load float[1]"] --> R2["Register 2"]
+           S3["Load float[2]"] --> R3["Register 3"]
+           S4["Load float[3]"] --> R4["Register 4"]
+       end
+
+       subgraph "Vectorized Access (1 instruction)"
+           V1["Load float4[0]"] --> VR["Vector Register<br/>(4 floats)"]
+       end
+
+       subgraph "Performance Impact"
+           Perf["4x fewer instructions<br/>Better memory bandwidth<br/>Reduced latency"]
+       end
+
+       R1 & R2 & R3 & R4 --> Perf
+       VR --> Perf
 
 Understanding BufferView Indexing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         flowchart LR
-             subgraph "Input Parameters"
-                 Offset["Offset<br/>(e.g., 5)"]
-                 ValidFlag["Valid Flag<br/>(optional)"]
-             end
-   
-             subgraph "Processing"
-                 BoundsCheck{{"Bounds Check<br/>offset < buffer_size?"}}
-                 FlagCheck{{"Flag Check<br/>valid_flag == True?"}}
-                 Access["Access Memory<br/>buffer[offset]"]
-             end
-   
-             subgraph "Output"
-                 ValidResult["Valid Result<br/>Return value"]
-                 Invalid["Invalid Result<br/>Return 0 or default"]
-             end
-   
-             Offset --> BoundsCheck
-             ValidFlag --> FlagCheck
-   
-             BoundsCheck -->|Yes| FlagCheck
-             BoundsCheck -->|No| Invalid
-   
-             FlagCheck -->|Yes| Access
-             FlagCheck -->|No| Invalid
-   
-             Access --> ValidResult
-   
-             style Offset fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
-             style ValidFlag fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
-             style ValidResult fill:#d1fae5,stroke:#10b981,stroke-width:2px
-             style Invalid fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/buffer_views_3.svg
-   :alt: Diagram
-   :align: center
+   flowchart LR
+       subgraph "Input Parameters"
+           Offset["Offset<br/>(e.g., 5)"]
+           ValidFlag["Valid Flag<br/>(optional)"]
+       end
+
+       subgraph "Processing"
+           BoundsCheck{{"Bounds Check<br/>offset < buffer_size?"}}
+           FlagCheck{{"Flag Check<br/>valid_flag == True?"}}
+           Access["Access Memory<br/>buffer[offset]"]
+       end
+
+       subgraph "Output"
+           ValidResult["Valid Result<br/>Return value"]
+           Invalid["Invalid Result<br/>Return 0 or default"]
+       end
+
+       Offset --> BoundsCheck
+       ValidFlag --> FlagCheck
+
+       BoundsCheck -->|Yes| FlagCheck
+       BoundsCheck -->|No| Invalid
+
+       FlagCheck -->|Yes| Access
+       FlagCheck -->|No| Invalid
+
+       Access --> ValidResult
 
 C++ Get Operations
 ~~~~~~~~~~~~~~~~~~
@@ -381,40 +318,22 @@ Atomic Operations
 Atomic vs Non-Atomic Operations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "Non-Atomic Operation (Race Condition)"
-                 NA1["Thread 1: Read value (10)"] --> NA2["Thread 1: Add 5 (15)"]
-                 NA3["Thread 2: Read value (10)"] --> NA4["Thread 2: Add 3 (13)"]
-                 NA2 --> NA5["Thread 1: Write 15"]
-                 NA4 --> NA6["Thread 2: Write 13"]
-                 NA5 & NA6 --> NA7["Final value: 13 ❌<br/>(Lost update from Thread 1)"]
-             end
-   
-             subgraph "Atomic Operation (Thread-Safe)"
-                 A1["Thread 1: atomic_add(5)"] --> A2["Hardware ensures<br/>serialization"]
-                 A3["Thread 2: atomic_add(3)"] --> A2
-                 A2 --> A4["Final value: 18 ✓<br/>(Both updates applied)"]
-             end
-   
-             style NA7 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-             style A4 fill:#d1fae5,stroke:#10b981,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/buffer_views_4.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Non-Atomic Operation (Race Condition)"
+           NA1["Thread 1: Read value (10)"] --> NA2["Thread 1: Add 5 (15)"]
+           NA3["Thread 2: Read value (10)"] --> NA4["Thread 2: Add 3 (13)"]
+           NA2 --> NA5["Thread 1: Write 15"]
+           NA4 --> NA6["Thread 2: Write 13"]
+           NA5 & NA6 --> NA7["Final value: 13 ❌<br/>(Lost update from Thread 1)"]
+       end
+
+       subgraph "Atomic Operation (Thread-Safe)"
+           A1["Thread 1: atomic_add(5)"] --> A2["Hardware ensures<br/>serialization"]
+           A3["Thread 2: atomic_add(3)"] --> A2
+           A2 --> A4["Final value: 18 ✓<br/>(Both updates applied)"]
+       end
 
 C++ Atomic Operations
 ~~~~~~~~~~~~~~~~~~~~~

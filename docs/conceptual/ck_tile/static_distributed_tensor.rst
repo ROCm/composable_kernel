@@ -89,29 +89,18 @@ Understanding how static distributed tensors organize memory is important for pe
 
 The memory layout follows a hierarchical pattern:
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TD
-             A[Global Tensor 64x64] --> B[Thread Block 16x16]
-             B --> C[Thread 0,0<br/>Elements 0:3,0:3]
-             B --> D[Thread 0,1<br/>Elements 0:3,4:7]
-             B --> E[Thread 1,0<br/>Elements 4:7,0:3]
-             B --> F[...]
-             
-             C --> G[Local Array<br/>16 elements]
-             D --> H[Local Array<br/>16 elements]
-             E --> I[Local Array<br/>16 elements]
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/static_distributed_tensor.svg
-   :alt: Diagram
-   :align: center
+   graph TD
+       A[Global Tensor 64x64] --> B[Thread Block 16x16]
+       B --> C[Thread 0,0<br/>Elements 0:3,0:3]
+       B --> D[Thread 0,1<br/>Elements 0:3,4:7]
+       B --> E[Thread 1,0<br/>Elements 4:7,0:3]
+       B --> F[...]
+
+       C --> G[Local Array<br/>16 elements]
+       D --> H[Local Array<br/>16 elements]
+       E --> I[Local Array<br/>16 elements]
 
 Element Access and Indexing
 ===========================

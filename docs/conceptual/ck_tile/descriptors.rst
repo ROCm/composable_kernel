@@ -96,46 +96,28 @@ The Pipeline Concept
 
 Every TensorDescriptor in CK Tile can be thought of as a **transformation pipeline**. The functions above create the *first stage* of this pipeline, defining the initial :ref:`transformation <ck_tile_transforms>` that takes a simple, one-dimensional block of memory and presents it as a logical, multi-dimensional tensor view.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph LR
-             subgraph "Pipeline Stages"
-                 S1["Stage 1<br/>Base Layout<br/>[M, N]"] 
-                 S2["Stage 2<br/>Transform<br/>Unmerge"]
-                 S3["Stage 3<br/>New View<br/>[M1, M2, N]"]
-                 S4["Stage N<br/>Final View<br/>[...]"]
-             end
-             
-             subgraph "Same Data"
-                 D["Physical Memory<br/>No data movement"]
-             end
-             
-             S1 --> S2
-             S2 --> S3
-             S3 --> S4
-             
-             S1 -.-> D
-             S2 -.-> D
-             S3 -.-> D
-             S4 -.-> D
-             
-             style D fill:#ffebee,stroke:#d32f2f,stroke-width:2px
-             style S1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style S3 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-      
-      
-   
-   
-.. image:: diagrams/descriptors_1.svg
-   :alt: Diagram
-   :align: center
+.. mermaid::
 
-.. image:: diagrams/descriptors_1.svg
-   :alt: Diagram
-   :align: center
+   graph LR
+       subgraph "Pipeline Stages"
+           S1["Stage 1<br/>Base Layout<br/>[M, N]"]
+           S2["Stage 2<br/>Transform<br/>Unmerge"]
+           S3["Stage 3<br/>New View<br/>[M1, M2, N]"]
+           S4["Stage N<br/>Final View<br/>[...]"]
+       end
+
+       subgraph "Same Data"
+           D["Physical Memory<br/>No data movement"]
+       end
+
+       S1 --> S2
+       S2 --> S3
+       S3 --> S4
+
+       S1 -.-> D
+       S2 -.-> D
+       S3 -.-> D
+       S4 -.-> D
 
 The Initial Pipeline Stage
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -200,52 +182,32 @@ To get from [2, 6] to [2, 2, 3], we need:
 Analysis of the Final Pipeline
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "Transform Pipeline"
-                 T0["Transform 0<br/>Base Unmerge<br/>Input: [0]<br/>Output: [1,2]"]
-                 T1["Transform 1<br/>PassThrough<br/>Input: [1]<br/>Output: [3]"]
-                 T2["Transform 2<br/>Unmerge<br/>Input: [2]<br/>Output: [4,5]"]
-             end
-             
-             subgraph "Hidden Dimensions"
-                 H0["Hidden ID 0<br/>Raw Buffer"]
-                 H1["Hidden ID 1<br/>Dim 0 (size 2)"]
-                 H2["Hidden ID 2<br/>Dim 1 (size 6)"]
-                 H3["Hidden ID 3<br/>Final Dim 0"]
-                 H4["Hidden ID 4<br/>Final Dim 1"]
-                 H5["Hidden ID 5<br/>Final Dim 2"]
-             end
-             
-             H0 --> T0
-             T0 --> H1
-             T0 --> H2
-             H1 --> T1
-             H2 --> T2
-             T1 --> H3
-             T2 --> H4
-             T2 --> H5
-             
-             style H0 fill:#ffebee,stroke:#d32f2f,stroke-width:2px
-             style H3 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-             style H4 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-             style H5 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/descriptors_2.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Transform Pipeline"
+           T0["Transform 0<br/>Base Unmerge<br/>Input: [0]<br/>Output: [1,2]"]
+           T1["Transform 1<br/>PassThrough<br/>Input: [1]<br/>Output: [3]"]
+           T2["Transform 2<br/>Unmerge<br/>Input: [2]<br/>Output: [4,5]"]
+       end
 
-.. image:: diagrams/descriptors_2.svg
-   :alt: Diagram
-   :align: center
+       subgraph "Hidden Dimensions"
+           H0["Hidden ID 0<br/>Raw Buffer"]
+           H1["Hidden ID 1<br/>Dim 0 (size 2)"]
+           H2["Hidden ID 2<br/>Dim 1 (size 6)"]
+           H3["Hidden ID 3<br/>Final Dim 0"]
+           H4["Hidden ID 4<br/>Final Dim 1"]
+           H5["Hidden ID 5<br/>Final Dim 2"]
+       end
+
+       H0 --> T0
+       T0 --> H1
+       T0 --> H2
+       H1 --> T1
+       H2 --> T2
+       T1 --> H3
+       T2 --> H4
+       T2 --> H5
 
 The pipeline now has three stages:
 

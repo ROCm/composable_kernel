@@ -15,50 +15,28 @@ TensorAdaptor Basics
 
 A TensorAdaptor encapsulates a sequence of :ref:`coordinate transformations <ck_tile_coordinate_systems>`, managing the flow of coordinates through multiple transform stages:
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph LR
-             subgraph "Adaptor Composition"
-                 subgraph "Single Transform"
-                     direction TB
-                     I1["Input Coords<br/>[0,1,2]"]
-                     T1["Transform<br/>(e.g., Transpose)"]
-                     O1["Output Coords<br/>[2,0,1]"]
-                     I1 --> T1 --> O1
-                 end
-      
-                 subgraph "Chained Transforms"
-                     direction TB
-                     I2["Input<br/>2D"]
-                     T2A["Transform A<br/>(e.g., Merge)"]
-                     M2["Intermediate<br/>1D"]
-                     T2B["Transform B<br/>(e.g., Pad)"]
-                     O2["Output<br/>1D Padded"]
-                     I2 --> T2A --> M2 --> T2B --> O2
-                 end
-             end
-      
-             style T1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style T2A fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-             style T2B fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/adaptors_1.svg
-   :alt: Diagram
-   :align: center
+   graph LR
+       subgraph "Adaptor Composition"
+           subgraph "Single Transform"
+               direction TB
+               I1["Input Coords<br/>[0,1,2]"]
+               T1["Transform<br/>(e.g., Transpose)"]
+               O1["Output Coords<br/>[2,0,1]"]
+               I1 --> T1 --> O1
+           end
 
-.. image:: diagrams/adaptors_1.svg
-   :alt: Diagram
-   :align: center
+           subgraph "Chained Transforms"
+               direction TB
+               I2["Input<br/>2D"]
+               T2A["Transform A<br/>(e.g., Merge)"]
+               M2["Intermediate<br/>1D"]
+               T2B["Transform B<br/>(e.g., Pad)"]
+               O2["Output<br/>1D Padded"]
+               I2 --> T2A --> M2 --> T2B --> O2
+           end
+       end
 
 Core Components
 ~~~~~~~~~~~~~~~
@@ -125,59 +103,36 @@ Chaining Adaptors: Building Complex Transformations
 
 The real power of adaptors comes from chaining multiple transformations together to create advanced data access patterns:
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph LR
-             subgraph "Adaptor Chaining Flow"
-                 subgraph "Adaptor 1"
-                     A1I["Bottom Dims<br/>[0,1]"]
-                     A1T["Transform:<br/>Merge[2,3]"]
-                     A1O["Top Dims<br/>[0]"]
-                 end
-                 
-                 subgraph "Adaptor 2"
-                     A2I["Bottom Dims<br/>[0]"]
-                     A2T["Transform:<br/>Unmerge[2,3]"]
-                     A2O["Top Dims<br/>[0,1]"]
-                 end
-                 
-                 subgraph "Chained Result"
-                     CI["Input 2D<br/>Bottom[0,1]"]
-                     CO["Output 2D<br/>Top[0,1]"]
-                 end
-             end
-             
-             A1I --> A1T
-             A1T --> A1O
-             A1O --> A2I
-             A2I --> A2T
-             A2T --> A2O
-             
-             CI --> A1I
-             A2O --> CO
-             
-             style A1T fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style A2T fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-             style CI fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-             style CO fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/adaptors_2.svg
-   :alt: Diagram
-   :align: center
+   graph LR
+       subgraph "Adaptor Chaining Flow"
+           subgraph "Adaptor 1"
+               A1I["Bottom Dims<br/>[0,1]"]
+               A1T["Transform:<br/>Merge[2,3]"]
+               A1O["Top Dims<br/>[0]"]
+           end
 
-.. image:: diagrams/adaptors_2.svg
-   :alt: Diagram
-   :align: center
+           subgraph "Adaptor 2"
+               A2I["Bottom Dims<br/>[0]"]
+               A2T["Transform:<br/>Unmerge[2,3]"]
+               A2O["Top Dims<br/>[0,1]"]
+           end
+
+           subgraph "Chained Result"
+               CI["Input 2D<br/>Bottom[0,1]"]
+               CO["Output 2D<br/>Top[0,1]"]
+           end
+       end
+
+       A1I --> A1T
+       A1T --> A1O
+       A1O --> A2I
+       A2I --> A2T
+       A2T --> A2O
+
+       CI --> A1I
+       A2O --> CO
 
 .. code-block:: cpp
 

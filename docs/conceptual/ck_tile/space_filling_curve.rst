@@ -190,44 +190,30 @@ Snake Pattern for Cache Optimization
 
 The snake pattern reverses traversal direction on alternate rows, minimizing the distance between consecutive accesses:
    
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph LR
-             subgraph "Linear Pattern"
-                 L1["Row 0: →"]
-                 L2["Row 1: →"]
-                 L3["Jump back"]
-                 L4["Row 2: →"]
-             end
-             
-             subgraph "Snake Pattern"
-                 S1["Row 0: →"]
-                 S2["Row 1: ←"]
-                 S3["Continue"]
-                 S4["Row 2: →"]
-             end
-             
-             L1 --> L3
-             L3 --> L2
-             L2 --> L3
-             L3 --> L4
-             
-             S1 --> S2
-             S2 --> S4
-             
-             style L3 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-             style S3 fill:#d1fae5,stroke:#10b981,stroke-width:2px
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/space_filling_curve.svg
-   :alt: Diagram
-   :align: center
+   graph LR
+       subgraph "Linear Pattern"
+           L1["Row 0: →"]
+           L2["Row 1: →"]
+           L3["Jump back"]
+           L4["Row 2: →"]
+       end
+
+       subgraph "Snake Pattern"
+           S1["Row 0: →"]
+           S2["Row 1: ←"]
+           S3["Continue"]
+           S4["Row 2: →"]
+       end
+
+       L1 --> L3
+       L3 --> L2
+       L2 --> L3
+       L3 --> L4
+
+       S1 --> S2
+       S2 --> S4
 
 .. code-block:: cpp
 

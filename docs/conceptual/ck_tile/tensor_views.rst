@@ -13,52 +13,31 @@ TensorView presents different logical views of the same underlying memory withou
 TensorView Architecture
 -----------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "Memory Foundation"
-                 Memory["Flat Memory Array<br/>0 1 2 3 4 5 6 7 8 9 10 11"]
-             end
-   
-             subgraph "Access Layer"
-                 BufferView["BufferView<br/>Linear Memory Access"]
-                 Descriptor["TensorDescriptor<br/>Shape & Stride Info"]
-             end
-   
-             subgraph "Tensor Layer"
-                 TensorView["TensorView<br/>Multi-dimensional Access"]
-             end
-   
-             subgraph "Logical View"
-                 Matrix["2D Matrix View<br/>[3×4]<br/>[[0,1,2,3]<br/>[4,5,6,7]<br/>[8,9,10,11]]"]
-             end
-   
-             Memory --> BufferView
-             Memory --> Descriptor
-             BufferView --> TensorView
-             Descriptor --> TensorView
-             TensorView --> Matrix
-   
-             style Memory fill:#d1fae5,stroke:#10b981,stroke-width:2px
-             style BufferView fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
-             style Descriptor fill:#fed7aa,stroke:#f59e0b,stroke-width:2px
-             style TensorView fill:#fce7f3,stroke:#ec4899,stroke-width:2px
-             style Matrix fill:#e9d5ff,stroke:#9333ea,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tensor_views_1.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Memory Foundation"
+           Memory["Flat Memory Array<br/>0 1 2 3 4 5 6 7 8 9 10 11"]
+       end
+
+       subgraph "Access Layer"
+           BufferView["BufferView<br/>Linear Memory Access"]
+           Descriptor["TensorDescriptor<br/>Shape & Stride Info"]
+       end
+
+       subgraph "Tensor Layer"
+           TensorView["TensorView<br/>Multi-dimensional Access"]
+       end
+
+       subgraph "Logical View"
+           Matrix["2D Matrix View<br/>[3×4]<br/>[[0,1,2,3]<br/>[4,5,6,7]<br/>[8,9,10,11]]"]
+       end
+
+       Memory --> BufferView
+       Memory --> Descriptor
+       BufferView --> TensorView
+       Descriptor --> TensorView
+       TensorView --> Matrix
 
 The Foundation: BufferView and TensorDescriptor
 ------------------------------------------------
@@ -122,93 +101,53 @@ Coordinate-Based Access
 
 The fundamental operation of TensorView is translating multi-dimensional coordinates into memory accesses. This translation happens through an advanced pipeline that maintains efficiency while providing flexibility:
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         flowchart LR
-             subgraph "User Input"
-                 Coord["Coordinate<br/>(1, 2)"]
-             end
-   
-             subgraph "TensorView Processing"
-                 Shape["Shape Check<br/>row < 3?<br/>col < 4?"]
-                 Stride["Apply Strides<br/>offset = 1×4 + 2×1"]
-                 Buffer["BufferView Access<br/>buffer[6]"]
-             end
-   
-             subgraph "Result"
-                 Value["Value: 6"]
-             end
-   
-             Coord --> Shape
-             Shape -->|Valid| Stride
-             Stride --> Buffer
-             Buffer --> Value
-   
-             style Coord fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
-             style Shape fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
-             style Stride fill:#dcfce7,stroke:#10b981,stroke-width:2px
-             style Buffer fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
-             style Value fill:#d1fae5,stroke:#10b981,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tensor_views_2.svg
-   :alt: Diagram
-   :align: center
+   flowchart LR
+       subgraph "User Input"
+           Coord["Coordinate<br/>(1, 2)"]
+       end
+
+       subgraph "TensorView Processing"
+           Shape["Shape Check<br/>row < 3?<br/>col < 4?"]
+           Stride["Apply Strides<br/>offset = 1×4 + 2×1"]
+           Buffer["BufferView Access<br/>buffer[6]"]
+       end
+
+       subgraph "Result"
+           Value["Value: 6"]
+       end
+
+       Coord --> Shape
+       Shape -->|Valid| Stride
+       Stride --> Buffer
+       Buffer --> Value
 
 Memory Layouts and Strides
 --------------------------
 
 A key feature of TensorView is its ability to represent different memory layouts through stride manipulation. This capability enables zero-copy transformations that would otherwise require expensive memory operations:
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "Row-Major Layout (C-style)"
-                 RM["Memory: [0,1,2,3,4,5,6,7,8,9,10,11]<br/>Shape: (3,4)<br/>Strides: (4,1)"]
-                 RMMatrix["[[0, 1, 2, 3]<br/> [4, 5, 6, 7]<br/> [8, 9, 10, 11]]"]
-                 RM --> RMMatrix
-             end
-   
-             subgraph "Column-Major Layout (Fortran-style)"
-                 CM["Memory: [0,3,6,9,1,4,7,10,2,5,8,11]<br/>Shape: (3,4)<br/>Strides: (1,3)"]
-                 CMMatrix["[[0, 1, 2, 3]<br/> [4, 5, 6, 7]<br/> [8, 9, 10, 11]]"]
-                 CM --> CMMatrix
-             end
-   
-             subgraph "Custom Stride (Transposed View)"
-                 TV["Memory: [0,1,2,3,4,5,6,7,8,9,10,11]<br/>Shape: (4,3)<br/>Strides: (1,4)"]
-                 TVMatrix["[[0, 4, 8]<br/> [1, 5, 9]<br/> [2, 6, 10]<br/> [3, 7, 11]]"]
-                 TV --> TVMatrix
-             end
-   
-             style RM fill:#e0f2fe,stroke:#0284c7,stroke-width:2px
-             style CM fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
-             style TV fill:#f3e8ff,stroke:#9333ea,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tensor_views_3.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Row-Major Layout (C-style)"
+           RM["Memory: [0,1,2,3,4,5,6,7,8,9,10,11]<br/>Shape: (3,4)<br/>Strides: (4,1)"]
+           RMMatrix["[[0, 1, 2, 3]<br/> [4, 5, 6, 7]<br/> [8, 9, 10, 11]]"]
+           RM --> RMMatrix
+       end
+
+       subgraph "Column-Major Layout (Fortran-style)"
+           CM["Memory: [0,3,6,9,1,4,7,10,2,5,8,11]<br/>Shape: (3,4)<br/>Strides: (1,3)"]
+           CMMatrix["[[0, 1, 2, 3]<br/> [4, 5, 6, 7]<br/> [8, 9, 10, 11]]"]
+           CM --> CMMatrix
+       end
+
+       subgraph "Custom Stride (Transposed View)"
+           TV["Memory: [0,1,2,3,4,5,6,7,8,9,10,11]<br/>Shape: (4,3)<br/>Strides: (1,4)"]
+           TVMatrix["[[0, 4, 8]<br/> [1, 5, 9]<br/> [2, 6, 10]<br/> [3, 7, 11]]"]
+           TV --> TVMatrix
+       end
    
 Row-Major vs Column-Major Layouts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -326,45 +265,26 @@ Memory Access Patterns
 
 The efficiency of TensorView operations depends on memory access patterns. Understanding these patterns is important for achieving optimal performance. See :ref:`ck_tile_gpu_basics` for hardware considerations.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph LR
-             subgraph "Memory Access Patterns"
-                 Seq["Sequential Access<br/>(Good cache usage)"]
-                 Stride["Strided Access<br/>(May cause cache misses)"]
-                 Random["Random Access<br/>(Poor cache usage)"]
-             end
-   
-             subgraph "Optimization Strategies"
-                 Opt1["Use row-major for row iteration"]
-                 Opt2["Use col-major for column iteration"]
-                 Opt3["Minimize stride between accesses"]
-                 Opt4["Vectorize when possible"]
-             end
-   
-             Seq --> Opt1
-             Stride --> Opt2
-             Stride --> Opt3
-             Random --> Opt4
-   
-             style Seq fill:#d1fae5,stroke:#10b981,stroke-width:2px
-             style Stride fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
-             style Random fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tensor_views_4.svg
-   :alt: Diagram
-   :align: center
+   graph LR
+       subgraph "Memory Access Patterns"
+           Seq["Sequential Access<br/>(Good cache usage)"]
+           Stride["Strided Access<br/>(May cause cache misses)"]
+           Random["Random Access<br/>(Poor cache usage)"]
+       end
+
+       subgraph "Optimization Strategies"
+           Opt1["Use row-major for row iteration"]
+           Opt2["Use col-major for column iteration"]
+           Opt3["Minimize stride between accesses"]
+           Opt4["Vectorize when possible"]
+       end
+
+       Seq --> Opt1
+       Stride --> Opt2
+       Stride --> Opt3
+       Random --> Opt4
 
 Compile-Time Optimization
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -391,48 +311,30 @@ TensorView vs BufferView
 
 Understanding when to use TensorView versus BufferView is crucial for writing efficient code:
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "BufferView"
-                 BV1["Linear indexing only"]
-                 BV2["buffer[5]"]
-                 BV3["No shape information"]
-                 BV4["Direct memory access"]
-             end
-   
-             subgraph "TensorView"
-                 TV1["Multi-dimensional indexing"]
-                 TV2["tensor(1, 2)"]
-                 TV3["Shape-aware operations"]
-                 TV4["Coordinate transformations"]
-             end
-   
-             subgraph "Use Cases"
-                 UC1["BufferView: Low-level memory ops"]
-                 UC2["TensorView: Matrix/tensor algorithms"]
-             end
-   
-             BV1 --> UC1
-             TV1 --> UC2
-   
-             style BV1 fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
-             style TV1 fill:#fce7f3,stroke:#ec4899,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tensor_views_5.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "BufferView"
+           BV1["Linear indexing only"]
+           BV2["buffer[5]"]
+           BV3["No shape information"]
+           BV4["Direct memory access"]
+       end
+
+       subgraph "TensorView"
+           TV1["Multi-dimensional indexing"]
+           TV2["tensor(1, 2)"]
+           TV3["Shape-aware operations"]
+           TV4["Coordinate transformations"]
+       end
+
+       subgraph "Use Cases"
+           UC1["BufferView: Low-level memory ops"]
+           UC2["TensorView: Matrix/tensor algorithms"]
+       end
+
+       BV1 --> UC1
+       TV1 --> UC2
 
 BufferView excels at raw memory operations where linear access is natural or where the overhead of coordinate calculation would be prohibitive. TensorView is best suited for algorithms that operate in terms of multi-dimensional coordinates, such as matrix operations, image processing, or tensor contractions.
 

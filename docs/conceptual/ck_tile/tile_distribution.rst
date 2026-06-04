@@ -19,98 +19,66 @@ This design adapts to diverse computational scenarios without manual interventio
 Complete Tile Distribution System Overview
 ------------------------------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "Logical View"
-                 T["Tensor<br/>Multi-dimensional data"]
-                 TD["TileDistribution<br/>Work assignment"]
-                 TW["TileWindow<br/>Data view"]
-             end
-   
-             subgraph "Coordinate Spaces"
-                 X["X: Physical tensor coords"]
-                 Y["Y: Tile pattern coords"]
-                 P["P: Processing element coords"]
-                 R["R: Replication coords (optional)"]
-             end
-   
-             subgraph "GPU Execution"
-                 W["Warps<br/>32 threads each"]
-                 L["Lanes<br/>Thread within warp"]
-                 REG["Registers<br/>Thread-local storage"]
-             end
-   
-             T --> TD
-             TD --> TW
-   
-             TD --> X
-             TD --> Y
-             TD --> P
-             TD --> R
-   
-             P --> W
-             P --> L
-             TW --> REG
-   
-             style TD fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-             style P fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-             style REG fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tile_distribution_1.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Logical View"
+           T["Tensor<br/>Multi-dimensional data"]
+           TD["TileDistribution<br/>Work assignment"]
+           TW["TileWindow<br/>Data view"]
+       end
+
+       subgraph "Coordinate Spaces"
+           X["X: Physical tensor coords"]
+           Y["Y: Tile pattern coords"]
+           P["P: Processing element coords"]
+           R["R: Replication coords (optional)"]
+       end
+
+       subgraph "GPU Execution"
+           W["Warps<br/>32 threads each"]
+           L["Lanes<br/>Thread within warp"]
+           REG["Registers<br/>Thread-local storage"]
+       end
+
+       T --> TD
+       TD --> TW
+
+       TD --> X
+       TD --> Y
+       TD --> P
+       TD --> R
+
+       P --> W
+       P --> L
+       TW --> REG
 
 Coordinate System Architecture
 ------------------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         flowchart LR
-             subgraph "Input"
-                 TC["Thread Coordinates<br/>(warpId, laneId)"]
-             end
-   
-             subgraph "Transformation Pipeline"
-                 P2Y["P → Y<br/>Thread to pattern"]
-                 Y2X["Y → X<br/>Pattern to physical"]
-                 Y2D["Y → D<br/>Pattern to register"]
-             end
-   
-             subgraph "Output"
-                 MC["Memory Coordinates<br/>Global addresses"]
-                 RI["Register Indices<br/>Local storage"]
-             end
-   
-             TC --> P2Y
-             P2Y --> Y2X
-             P2Y --> Y2D
-             Y2X --> MC
-             Y2D --> RI
-   
-             style TC fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
-             style MC fill:#d1fae5,stroke:#10b981,stroke-width:2px
-             style RI fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tile_distribution_2.svg
-   :alt: Diagram
-   :align: center
+   flowchart LR
+       subgraph "Input"
+           TC["Thread Coordinates<br/>(warpId, laneId)"]
+       end
+
+       subgraph "Transformation Pipeline"
+           P2Y["P → Y<br/>Thread to pattern"]
+           Y2X["Y → X<br/>Pattern to physical"]
+           Y2D["Y → D<br/>Pattern to register"]
+       end
+
+       subgraph "Output"
+           MC["Memory Coordinates<br/>Global addresses"]
+           RI["Register Indices<br/>Local storage"]
+       end
+
+       TC --> P2Y
+       P2Y --> Y2X
+       P2Y --> Y2D
+       Y2X --> MC
+       Y2D --> RI
 
 What is Tile Distribution?
 --------------------------
@@ -152,50 +120,34 @@ TileDistribution abstracts the mapping between logical problem coordinates and p
 Problem Space Mapping
 ---------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-   
-         graph TB
-             subgraph "Problem Space (256×256 Matrix)"
-                 M["Full Matrix<br/>65,536 elements"]
-                 T1["Tile 1<br/>32×32"]
-                 T2["Tile 2<br/>32×32"]
-                 TN["Tile N<br/>32×32"]
-             end
-   
-             subgraph "Thread Assignment"
-                 W0["Warp 0<br/>32 threads"]
-                 W1["Warp 1<br/>32 threads"]
-                 L0["Lane 0-31<br/>Individual threads"]
-             end
-   
-             subgraph "Memory Pattern"
-                 MP["Coalesced Access<br/>Sequential addresses<br/>No bank conflicts"]
-             end
-   
-             M --> T1
-             M --> T2
-             M --> TN
-   
-             T1 --> W0
-             T1 --> W1
-             W0 --> L0
-             L0 --> MP
-   
-             style M fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-             style MP fill:#d1fae5,stroke:#10b981,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tile_distribution_3.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Problem Space (256×256 Matrix)"
+           M["Full Matrix<br/>65,536 elements"]
+           T1["Tile 1<br/>32×32"]
+           T2["Tile 2<br/>32×32"]
+           TN["Tile N<br/>32×32"]
+       end
+
+       subgraph "Thread Assignment"
+           W0["Warp 0<br/>32 threads"]
+           W1["Warp 1<br/>32 threads"]
+           L0["Lane 0-31<br/>Individual threads"]
+       end
+
+       subgraph "Memory Pattern"
+           MP["Coalesced Access<br/>Sequential addresses<br/>No bank conflicts"]
+       end
+
+       M --> T1
+       M --> T2
+       M --> TN
+
+       T1 --> W0
+       T1 --> W1
+       W0 --> L0
+       L0 --> MP
 
 Creating a TileDistribution
 ---------------------------
@@ -369,47 +321,31 @@ Creating and using a TileDistribution:
 Hierarchical Decomposition
 --------------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "Level 1: Block Distribution"
-                 B["Thread Block<br/>256 threads"]
-                 BT1["Block Tile 1<br/>64×64"]
-                 BT2["Block Tile 2<br/>64×64"]
-             end
-   
-             subgraph "Level 2: Warp Distribution"
-                 W["Warp<br/>32 threads"]
-                 WT1["Warp Tile 1<br/>16×16"]
-                 WT2["Warp Tile 2<br/>16×16"]
-             end
-   
-             subgraph "Level 3: Thread Distribution"
-                 T["Thread"]
-                 TT["Thread Tile<br/>2×2"]
-             end
-   
-             B --> BT1
-             BT1 --> W
-             W --> WT1
-             WT1 --> T
-             T --> TT
-   
-             style B fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style W fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-             style T fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tile_distribution_4.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Level 1: Block Distribution"
+           B["Thread Block<br/>256 threads"]
+           BT1["Block Tile 1<br/>64×64"]
+           BT2["Block Tile 2<br/>64×64"]
+       end
+
+       subgraph "Level 2: Warp Distribution"
+           W["Warp<br/>32 threads"]
+           WT1["Warp Tile 1<br/>16×16"]
+           WT2["Warp Tile 2<br/>16×16"]
+       end
+
+       subgraph "Level 3: Thread Distribution"
+           T["Thread"]
+           TT["Thread Tile<br/>2×2"]
+       end
+
+       B --> BT1
+       BT1 --> W
+       W --> WT1
+       WT1 --> T
+       T --> TT
 
 Advanced Example: Matrix Multiplication Distribution
 ----------------------------------------------------
@@ -462,45 +398,28 @@ Advanced Example: Matrix Multiplication Distribution
 Work Distribution Pattern
 -------------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         flowchart TB
-             subgraph "Matrix C (128×128)"
-                 C["16,384 elements"]
-             end
-   
-             subgraph "Thread Grid (32×32)"
-                 TG["1,024 threads"]
-             end
-   
-             subgraph "Per Thread"
-                 PT["4×4 tile<br/>16 elements"]
-             end
-   
-             subgraph "Memory Access"
-                 MA["Coalesced reads<br/>Efficient writes<br/>No conflicts"]
-             end
-   
-             C --> TG
-             TG --> PT
-             PT --> MA
-   
-             style C fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-             style TG fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style PT fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-             style MA fill:#d1fae5,stroke:#10b981,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tile_distribution_5.svg
-   :alt: Diagram
-   :align: center
+   flowchart TB
+       subgraph "Matrix C (128×128)"
+           C["16,384 elements"]
+       end
+
+       subgraph "Thread Grid (32×32)"
+           TG["1,024 threads"]
+       end
+
+       subgraph "Per Thread"
+           PT["4×4 tile<br/>16 elements"]
+       end
+
+       subgraph "Memory Access"
+           MA["Coalesced reads<br/>Efficient writes<br/>No conflicts"]
+       end
+
+       C --> TG
+       TG --> PT
+       PT --> MA
 
 Memory Access Patterns
 ----------------------
@@ -514,97 +433,67 @@ One of the key benefits of TileDistribution is generating optimal memory access 
 Transformation Pipeline
 -----------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph LR
-             subgraph "Input"
-                 TID["Thread ID<br/>(0-1023)"]
-             end
-   
-             subgraph "Stage 1"
-                 P["P-coordinates<br/>(warp, lane)"]
-             end
-   
-             subgraph "Stage 2"
-                 Y["Y-coordinates<br/>(tile position)"]
-             end
-   
-             subgraph "Stage 3"
-                 X["X-coordinates<br/>(tensor indices)"]
-             end
-   
-             subgraph "Output"
-                 ADDR["Memory addresses<br/>Register indices"]
-             end
-   
-             TID --> P
-             P --> Y
-             Y --> X
-             X --> ADDR
-   
-             style TID fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
-             style ADDR fill:#d1fae5,stroke:#10b981,stroke-width:2px
-      
-      
-   
+.. mermaid::
 
+   graph LR
+       subgraph "Input"
+           TID["Thread ID<br/>(0-1023)"]
+       end
 
-.. image:: diagrams/tile_distribution_6.svg
-   :alt: Diagram
-   :align: center
+       subgraph "Stage 1"
+           P["P-coordinates<br/>(warp, lane)"]
+       end
+
+       subgraph "Stage 2"
+           Y["Y-coordinates<br/>(tile position)"]
+       end
+
+       subgraph "Stage 3"
+           X["X-coordinates<br/>(tensor indices)"]
+       end
+
+       subgraph "Output"
+           ADDR["Memory addresses<br/>Register indices"]
+       end
+
+       TID --> P
+       P --> Y
+       Y --> X
+       X --> ADDR
 
 Performance Comparison
 ----------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "Manual Implementation"
-                 M1["Calculate indices manually"]
-                 M2["Handle boundary conditions"]
-                 M3["Ensure coalescing"]
-                 M4["Manage bank conflicts"]
-                 M5["~200 lines of code"]
-             end
-   
-             subgraph "With TileDistribution"
-                 T1["make_tile_distribution()"]
-                 T2["Automatic optimization"]
-                 T3["~10 lines of code"]
-             end
-   
-             subgraph "Performance"
-                 P1["Same performance"]
-                 P2["Fewer bugs"]
-                 P3["Portable across GPUs"]
-             end
-   
-             M1 --> M5
-             T1 --> T3
-   
-             M5 --> P1
-             T3 --> P1
-             P1 --> P2
-             P2 --> P3
-   
-             style M5 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-             style T3 fill:#d1fae5,stroke:#10b981,stroke-width:2px
-             style P3 fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
-      
-      
-   
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tile_distribution_7.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Manual Implementation"
+           M1["Calculate indices manually"]
+           M2["Handle boundary conditions"]
+           M3["Ensure coalescing"]
+           M4["Manage bank conflicts"]
+           M5["~200 lines of code"]
+       end
+
+       subgraph "With TileDistribution"
+           T1["make_tile_distribution()"]
+           T2["Automatic optimization"]
+           T3["~10 lines of code"]
+       end
+
+       subgraph "Performance"
+           P1["Same performance"]
+           P2["Fewer bugs"]
+           P3["Portable across GPUs"]
+       end
+
+       M1 --> M5
+       T1 --> T3
+
+       M5 --> P1
+       T3 --> P1
+       P1 --> P2
+       P2 --> P3
 
 Summary
 -------

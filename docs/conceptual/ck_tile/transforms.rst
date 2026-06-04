@@ -29,36 +29,21 @@ Zero-Copy Logical Operations
 - **Data Storage**: The actual tensor data remains stored in memory in linear fashion, exactly as specified by the original tensor shape and strides at creation time. See :ref:`ck_tile_buffer_views` for more information about raw memory access.
 - **Logical Mapping**: Transforms create different logical views of the same underlying data and only change how access coordinates are interpreted. See :ref:`ck_tile_tensor_views` for more information about tensor views.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "Tensor Coordinate Transformation"
-                 US["Lower Dimension Space<br/>Source coordinate system"]
-                 LS["Upper Dimension Space<br/>Target coordinate system"]
-                 
-                 DATA["Linear Data in Memory<br/>Layout determined by tensor<br/>shape & strides"]
-             end
-             
-             US -->|"Forward Transform"| LS
-             LS -->|"Inverse Transform"| US
-             
-             DATA -.->|"Same data,<br/>different views"| US
-             DATA -.->|"Same data,<br/>different views"| LS
-             
-             style US fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-             style LS fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-             style DATA fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,stroke-dasharray: 5 5
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/transforms_1.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Tensor Coordinate Transformation"
+           US["Lower Dimension Space<br/>Source coordinate system"]
+           LS["Upper Dimension Space<br/>Target coordinate system"]
+
+           DATA["Linear Data in Memory<br/>Layout determined by tensor<br/>shape & strides"]
+       end
+
+       US -->|"Forward Transform"| LS
+       LS -->|"Inverse Transform"| US
+
+       DATA -.->|"Same data,<br/>different views"| US
+       DATA -.->|"Same data,<br/>different views"| LS
 
 Index Calculation Operations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -74,82 +59,54 @@ These operations enable bidirectional navigation between different coordinate re
 Transform System Architecture
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             
-             subgraph "Transform Types"
-                 EMB["EmbedTransform<br/>Linear → Multi-D Strided"]
-                 UNM["MergeTransform<br/>Multi-D → Linear"]
-                 MRG["UnmergeTransform<br/>Linear → Multi-D"]
-                 REP["ReplicateTransform<br/>0D → Multi-D Broadcast"]
-                 OFF["OffsetTransform<br/>Translation"]
-                 PAS["PassThroughTransform<br/>Identity"]
-                 PAD["PadTransform<br/>Boundaries"]
-             end
-             
-             subgraph "Operations"
-                 FWD["Forward<br/>calculate_lower_index()"]
-                 BWD["Backward<br/>calculate_upper_index()"]
-                 UPD["Update<br/>update_lower_index()"]
-             end
-             
-             EMB --> FWD
-             UNM --> FWD
-             MRG --> FWD
-             REP --> FWD
-             OFF --> FWD
-             PAS --> FWD
-             PAD --> FWD
-             
-             style FWD fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/transforms_2.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+
+       subgraph "Transform Types"
+           EMB["EmbedTransform<br/>Linear → Multi-D Strided"]
+           UNM["MergeTransform<br/>Multi-D → Linear"]
+           MRG["UnmergeTransform<br/>Linear → Multi-D"]
+           REP["ReplicateTransform<br/>0D → Multi-D Broadcast"]
+           OFF["OffsetTransform<br/>Translation"]
+           PAS["PassThroughTransform<br/>Identity"]
+           PAD["PadTransform<br/>Boundaries"]
+       end
+
+       subgraph "Operations"
+           FWD["Forward<br/>calculate_lower_index()"]
+           BWD["Backward<br/>calculate_upper_index()"]
+           UPD["Update<br/>update_lower_index()"]
+       end
+
+       EMB --> FWD
+       UNM --> FWD
+       MRG --> FWD
+       REP --> FWD
+       OFF --> FWD
+       PAS --> FWD
+       PAD --> FWD
 
 MergeTransform
 --------------
 
 MergeTransform collapses multiple dimensions from the lower coordinate space into a single dimension in the upper coordinate space, effectively reducing the dimensionality of the tensor representation while preserving data relationships. This transform is fundamental to the :ref:`tile distribution system <ck_tile_tile_distribution>`.
    
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "MergeTransform: Multi-D → Linear"
-                 LS["Lower Coordinate Space<br/>2D: [4, 5]<br/>Coord: (2, 3)"]
-                 US["Upper Coordinate Space<br/>1D Linear<br/>Index: 13"]
-                 
-                 DATA["Same Tensor Data<br/>Layout: row-major<br/>Size: 20 elements"]
-             end
-             
-             LS -->|"Forward Transform<br/>2×5 + 3 = 13"| US
-             US -->|"Inverse Transform<br/>13÷5=2, 13%5=3"| LS
-             
-             DATA -.->|"Multi-dimensional<br/>view"| LS
-             DATA -.->|"Linear<br/>view"| US
-             
-             style LS fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-             style US fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-             style DATA fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,stroke-dasharray: 5 5
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/transforms_3.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "MergeTransform: Multi-D → Linear"
+           LS["Lower Coordinate Space<br/>2D: [4, 5]<br/>Coord: (2, 3)"]
+           US["Upper Coordinate Space<br/>1D Linear<br/>Index: 13"]
+
+           DATA["Same Tensor Data<br/>Layout: row-major<br/>Size: 20 elements"]
+       end
+
+       LS -->|"Forward Transform<br/>2×5 + 3 = 13"| US
+       US -->|"Inverse Transform<br/>13÷5=2, 13%5=3"| LS
+
+       DATA -.->|"Multi-dimensional<br/>view"| LS
+       DATA -.->|"Linear<br/>view"| US
 
 
 **C++ Implementation:**
@@ -187,36 +144,21 @@ UnmergeTransform
 
 UnmergeTransform expands coordinates from a single dimension in the lower coordinate space into multiple dimensions in the upper coordinate space, effectively increasing the dimensionality of the tensor representation while preserving all data relationships.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "UnmergeTransform: Linear → Multi-D"
-                 LS["Lower Coordinate Space<br/>1D Linear<br/>Index: 14"]
-                 US["Upper Coordinate Space<br/>3D: [3, 4, 2]<br/>Coord: (1, 3, 0)"]
-                 
-                 DATA["Same Tensor Data<br/>Layout: row-major<br/>Size: 24 elements"]
-             end
-             
-             LS -->|"Forward Transform<br/>14 = 1×8 + 3×2 + 0"| US
-             US -->|"Inverse Transform<br/>linearize back"| LS
-             
-             DATA -.->|"Linear<br/>view"| LS
-             DATA -.->|"Multi-dimensional<br/>view"| US
-             
-             style LS fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-             style US fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-             style DATA fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,stroke-dasharray: 5 5
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/transforms_4.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "UnmergeTransform: Linear → Multi-D"
+           LS["Lower Coordinate Space<br/>1D Linear<br/>Index: 14"]
+           US["Upper Coordinate Space<br/>3D: [3, 4, 2]<br/>Coord: (1, 3, 0)"]
+
+           DATA["Same Tensor Data<br/>Layout: row-major<br/>Size: 24 elements"]
+       end
+
+       LS -->|"Forward Transform<br/>14 = 1×8 + 3×2 + 0"| US
+       US -->|"Inverse Transform<br/>linearize back"| LS
+
+       DATA -.->|"Linear<br/>view"| LS
+       DATA -.->|"Multi-dimensional<br/>view"| US
 
 **C++ Implementation:**
 
@@ -264,36 +206,21 @@ EmbedTransform
 EmbedTransform expands linear indices from the lower coordinate space into multi-dimensional coordinates in the upper coordinate space using configurable strides, enabling flexible strided tensor layouts and sub-tensor views within larger buffers.
 
    
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "EmbedTransform: Linear → Multi-D Strided"
-                 LS["Lower Coordinate Space<br/>1D Linear<br/>Index: 14"]
-                 US["Upper Coordinate Space<br/>2D: [2, 3]<br/>Coord: (1, 2)"]
-                 
-                 DATA["Linear Buffer in Memory"]
-             end
-             
-             LS -->|"Forward Transform <br/>Strides: [12, 1] <br/>14 ÷ 12 = 1, 14 % 12 = 2"| US
-             US -->|"Inverse Transform<br/>1×12 + 2×1 = 14"| LS
-             
-             DATA -.->|"Linear<br/>index view"| LS
-             DATA -.->|"Multi-dimensional<br/>strided view"| US
-             
-             style LS fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-             style US fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-             style DATA fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,stroke-dasharray: 5 5
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/transforms_5.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "EmbedTransform: Linear → Multi-D Strided"
+           LS["Lower Coordinate Space<br/>1D Linear<br/>Index: 14"]
+           US["Upper Coordinate Space<br/>2D: [2, 3]<br/>Coord: (1, 2)"]
+
+           DATA["Linear Buffer in Memory"]
+       end
+
+       LS -->|"Forward Transform <br/>Strides: [12, 1] <br/>14 ÷ 12 = 1, 14 % 12 = 2"| US
+       US -->|"Inverse Transform<br/>1×12 + 2×1 = 14"| LS
+
+       DATA -.->|"Linear<br/>index view"| LS
+       DATA -.->|"Multi-dimensional<br/>strided view"| US
 
 **C++ Implementation:**
 
@@ -329,36 +256,21 @@ ReplicateTransform
 
 ReplicateTransform creates a higher-dimensional tensor by replicating (broadcasting) a lower-dimensional tensor. It's essentially a broadcasting operation that takes a tensor with fewer dimensions and logically replicates it across new dimensions without data duplication. An example is taking a scalar (0-dimensional) input and broadcasting it across multiple dimensions, enabling efficient broadcasting patterns where a single value appears at every position in a multi-dimensional coordinate space.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "ReplicateTransform: 0D → Multi-D Broadcasting"
-                 LS["Lower Coordinate Space<br/>0D: Scalar<br/>Empty coordinate []"]
-                 US["Upper Coordinate Space<br/>2D: [3, 4]<br/>All coords: (i, j)"]
-                 
-                 DATA["Single Scalar Value"]
-             end
-             
-             LS -->|"Forward Transform<br/>[] → (i,j) for any i,j"| US
-             US -->|"Inverse Transform<br/>(i,j) → [] for any i,j"| LS
-             
-             DATA -.->|"One scalar<br/>value"| LS
-             DATA -.->|"Broadcasted view<br/>at all positions"| US
-             
-             style LS fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-             style US fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-             style DATA fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,stroke-dasharray: 5 5
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/transforms_6.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "ReplicateTransform: 0D → Multi-D Broadcasting"
+           LS["Lower Coordinate Space<br/>0D: Scalar<br/>Empty coordinate []"]
+           US["Upper Coordinate Space<br/>2D: [3, 4]<br/>All coords: (i, j)"]
+
+           DATA["Single Scalar Value"]
+       end
+
+       LS -->|"Forward Transform<br/>[] → (i,j) for any i,j"| US
+       US -->|"Inverse Transform<br/>(i,j) → [] for any i,j"| LS
+
+       DATA -.->|"One scalar<br/>value"| LS
+       DATA -.->|"Broadcasted view<br/>at all positions"| US
    
 **C++ Implementation:**
 
@@ -406,36 +318,21 @@ OffsetTransform
 OffsetTransform shifts coordinates by a fixed offset, creating a translated view of the coordinate space. It performs translation operations where each coordinate in the upper space is mapped to a coordinate in the lower space by adding a constant offset.
 
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "OffsetTransform: 1D → 1D Translation"
-                 LS["Lower Coordinate Space<br/>1D: [0, 63]<br/>Coord: index + offset"]
-                 US["Upper Coordinate Space<br/>1D: [0, 47]<br/>Coord: index"]
-                 
-                 DATA["Linear Buffer in Memory"]
-             end
-             
-             LS -->|"Forward Transform<br/>idx → idx + 16"| US
-             US -->|"Inverse Transform<br/>idx + 16 → idx"| LS
-             
-             DATA -.->|"Lower<br/>view"| LS
-             DATA -.->|"Upper<br/>view"| US
-             
-             style LS fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-             style US fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-             style DATA fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,stroke-dasharray: 5 5
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/transforms_7.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "OffsetTransform: 1D → 1D Translation"
+           LS["Lower Coordinate Space<br/>1D: [0, 63]<br/>Coord: index + offset"]
+           US["Upper Coordinate Space<br/>1D: [0, 47]<br/>Coord: index"]
+
+           DATA["Linear Buffer in Memory"]
+       end
+
+       LS -->|"Forward Transform<br/>idx → idx + 16"| US
+       US -->|"Inverse Transform<br/>idx + 16 → idx"| LS
+
+       DATA -.->|"Lower<br/>view"| LS
+       DATA -.->|"Upper<br/>view"| US
 
 **C++ Implementation:**
 
@@ -483,36 +380,21 @@ PassThroughTransform - Identity
 
 No-op transform that passes coordinates unchanged. The PassThrough transform is the simplest coordinate transformation in CK Tile, implementing a perfect identity mapping where input coordinates are passed through unchanged to the output. This transform is essential as a placeholder in transformation chains and for dimensions that require no modification.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "PassThroughTransform: 1D → 1D Identity"
-                 LS["Lower Coordinate Space<br/>1D: [0, 59]<br/>Coord: index"]
-                 US["Upper Coordinate Space<br/>1D: [0, 59]<br/>Coord: index"]
-                 
-                 DATA["Linear Buffer in Memory"]
-             end
-             
-             LS -.->|"Perfect Identity<br/>idx → idx"| US
-             US -.->|"Perfect Identity<br/>idx → idx"| LS
-             
-             DATA -->|"Same buffer<br/>same view"| LS
-             DATA -->|"Same buffer<br/>same view"| US
-             
-             style LS fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px
-             style US fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px
-             style DATA fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,stroke-dasharray: 5 5
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/transforms_8.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "PassThroughTransform: 1D → 1D Identity"
+           LS["Lower Coordinate Space<br/>1D: [0, 59]<br/>Coord: index"]
+           US["Upper Coordinate Space<br/>1D: [0, 59]<br/>Coord: index"]
+
+           DATA["Linear Buffer in Memory"]
+       end
+
+       LS -.->|"Perfect Identity<br/>idx → idx"| US
+       US -.->|"Perfect Identity<br/>idx → idx"| LS
+
+       DATA -->|"Same buffer<br/>same view"| LS
+       DATA -->|"Same buffer<br/>same view"| US
    
 **C++ Implementation:**
 
@@ -555,39 +437,21 @@ PadTransform
 
 PadTransform adds padding to tensor dimensions, mapping coordinates from upper dimension space (with padding) to lower dimension space (original data).
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "PadTransform: 1D → 1D with Padding"
-                 LS["Lower Coordinate Space<br/>1D: [0, 2] (original data)"]
-                 US["Upper Coordinate Space<br/>1D: [0, 4] (with padding)"]
-                 
-                 DATA["Tensor Data in Memory"]
-             end
-             
-             LS -->|"Forward Transform<br/>idx + left_pad"| US
-             US -->|"Inverse Transform<br/>idx - left_pad"| LS
-             
-             DATA -.->|"Original view"| LS
-             DATA -.->|"Padded view"| US
-             
-             style LS fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-             style US fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-             style DATA fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,stroke-dasharray: 5 5
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/transforms_9.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "PadTransform: 1D → 1D with Padding"
+           LS["Lower Coordinate Space<br/>1D: [0, 2] (original data)"]
+           US["Upper Coordinate Space<br/>1D: [0, 4] (with padding)"]
+
+           DATA["Tensor Data in Memory"]
+       end
+
+       LS -->|"Forward Transform<br/>idx + left_pad"| US
+       US -->|"Inverse Transform<br/>idx - left_pad"| LS
+
+       DATA -.->|"Original view"| LS
+       DATA -.->|"Padded view"| US
 
 **C++ Implementation:**
 
@@ -633,106 +497,63 @@ XorTransform
 
 XorTransform applies a 2D XOR mapping for specialized memory access patterns. It performs XOR operations on coordinates to create transformed memory layouts for specific algorithmic optimizations, particularly useful for avoiding :ref:`LDS bank conflicts <ck_tile_lds_bank_conflicts>`.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "XorTransform: 2D → 2D XOR Mapping"
-                 LS["Lower Coordinate Space<br/>2D: [4, 8]<br/>XOR-transformed coords"]
-                 US["Upper Coordinate Space<br/>2D: [4, 8]<br/>Normal coords"]
-                 
-                 DATA["Same Tensor Data"]
-             end
-             
-             LS -->|"Forward Transform<br/>apply XOR reverse"| US
-             US -->|"Inverse Transform<br/>apply XOR mapping"| LS
-             
-             DATA -.->|"XOR pattern<br/>view"| LS
-             DATA -.->|"Normal<br/>view"| US
-             
-             style LS fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-             style US fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-             style DATA fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,stroke-dasharray: 5 5
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/transforms_10.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "XorTransform: 2D → 2D XOR Mapping"
+           LS["Lower Coordinate Space<br/>2D: [4, 8]<br/>XOR-transformed coords"]
+           US["Upper Coordinate Space<br/>2D: [4, 8]<br/>Normal coords"]
+
+           DATA["Same Tensor Data"]
+       end
+
+       LS -->|"Forward Transform<br/>apply XOR reverse"| US
+       US -->|"Inverse Transform<br/>apply XOR mapping"| LS
+
+       DATA -.->|"XOR pattern<br/>view"| LS
+       DATA -.->|"Normal<br/>view"| US
 
 SliceTransform
 ~~~~~~~~~~~~~~
 
 SliceTransform extracts a sub-region from a tensor dimension.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "SliceTransform: 1D → 1D Sub-region"
-                 LS["Lower Coordinate Space<br/>1D: [0, 9] (original range)"]
-                 US["Upper Coordinate Space<br/>1D: [0, 4] (slice range)"]
-                 
-                 DATA["Tensor Data in Memory"]
-             end
-             
-             LS -->|"Forward Transform<br/>idx + slice_begin"| US
-             US -->|"Inverse Transform<br/>idx - slice_begin"| LS
-             
-             DATA -.->|"Full tensor<br/>view"| LS
-             DATA -.->|"Sub-region<br/>view"| US
-             
-             style LS fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-             style US fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-             style DATA fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,stroke-dasharray: 5 5
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/transforms_11.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "SliceTransform: 1D → 1D Sub-region"
+           LS["Lower Coordinate Space<br/>1D: [0, 9] (original range)"]
+           US["Upper Coordinate Space<br/>1D: [0, 4] (slice range)"]
+
+           DATA["Tensor Data in Memory"]
+       end
+
+       LS -->|"Forward Transform<br/>idx + slice_begin"| US
+       US -->|"Inverse Transform<br/>idx - slice_begin"| LS
+
+       DATA -.->|"Full tensor<br/>view"| LS
+       DATA -.->|"Sub-region<br/>view"| US
    
 ModuloTransform
 ~~~~~~~~~~~~~~~
 
 ModuloTransform applies cyclic wrapping to coordinates using modulo operations.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "ModuloTransform: 1D → 1D Cyclic"
-                 LS["Lower Coordinate Space<br/>1D: [0, 3] (modulus range)"]
-                 US["Upper Coordinate Space<br/>1D: [0, 15] (full range)"]
-                 
-                 DATA["Tensor Data in Memory"]
-             end
-             
-             LS -->|"Forward Transform<br/>idx * cycle_count"| US
-             US -->|"Inverse Transform<br/>idx % modulus"| LS
-             
-             DATA -.->|" "| LS
-             DATA -.->|" "| US
-             
-             style LS fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-             style US fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-             style DATA fill:#f0f9ff,stroke:#0284c7,stroke-width:2px,stroke-dasharray: 5 5
-      
-      
-   
-.. image:: diagrams/transforms_12.svg
-   :alt: Diagram
-   :align: center
+.. mermaid::
+
+   graph TB
+       subgraph "ModuloTransform: 1D → 1D Cyclic"
+           LS["Lower Coordinate Space<br/>1D: [0, 3] (modulus range)"]
+           US["Upper Coordinate Space<br/>1D: [0, 15] (full range)"]
+
+           DATA["Tensor Data in Memory"]
+       end
+
+       LS -->|"Forward Transform<br/>idx * cycle_count"| US
+       US -->|"Inverse Transform<br/>idx % modulus"| LS
+
+       DATA -.->|" "| LS
+       DATA -.->|" "| US
 
 Summary
 -------

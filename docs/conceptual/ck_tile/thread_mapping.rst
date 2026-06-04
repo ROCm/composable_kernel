@@ -78,61 +78,46 @@ Composable Kernel abstracts thread identification into partition indices, buildi
     };
 
    
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-          graph TB
-              subgraph "GPU Device"
-                  subgraph "Thread Block"
-                      subgraph "Warp 0"
-                          T0["Thread 0<br/>lane_id=0"]
-                          T1["Thread 1<br/>lane_id=1"]
-                          T2["..."]
-                          T31["Thread 31<br/>lane_id=31"]
-                      end
-                      
-                      subgraph "Warp 1"
-                          T32["Thread 32<br/>lane_id=0"]
-                          T33["Thread 33<br/>lane_id=1"]
-                          T34["..."]
-                          T63["Thread 63<br/>lane_id=31"]
-                      end
-                      
-                      W2["Warp 2"]
-                      W3["..."]
-                      W7["Warp 7"]
-                  end
-              end
-              
-              subgraph "Thread Identification"
-                  TID["Thread ID = blockIdx.x * blockDim.x + threadIdx.x"]
-                  WID["Warp ID = threadIdx.x / 32"]
-                  LID["Lane ID = threadIdx.x % 32"]
-              end
-              
-              subgraph "P-space Mapping"
-                  P["P-coordinates<br/>NDimP=1: [thread_id]<br/>NDimP=2: [warp_id, lane_id]"]
-              end
-              
-              T0 --> TID
-              TID --> WID
-              TID --> LID
-              WID --> P
-              LID --> P
-              
-              style T0 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-              style T32 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-              style P fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/thread_mapping_1.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "GPU Device"
+           subgraph "Thread Block"
+               subgraph "Warp 0"
+                   T0["Thread 0<br/>lane_id=0"]
+                   T1["Thread 1<br/>lane_id=1"]
+                   T2["..."]
+                   T31["Thread 31<br/>lane_id=31"]
+               end
+
+               subgraph "Warp 1"
+                   T32["Thread 32<br/>lane_id=0"]
+                   T33["Thread 33<br/>lane_id=1"]
+                   T34["..."]
+                   T63["Thread 63<br/>lane_id=31"]
+               end
+
+               W2["Warp 2"]
+               W3["..."]
+               W7["Warp 7"]
+           end
+       end
+
+       subgraph "Thread Identification"
+           TID["Thread ID = blockIdx.x * blockDim.x + threadIdx.x"]
+           WID["Warp ID = threadIdx.x / 32"]
+           LID["Lane ID = threadIdx.x % 32"]
+       end
+
+       subgraph "P-space Mapping"
+           P["P-coordinates<br/>NDimP=1: [thread_id]<br/>NDimP=2: [warp_id, lane_id]"]
+       end
+
+       T0 --> TID
+       TID --> WID
+       TID --> LID
+       WID --> P
+       LID --> P
 
 
 Thread Hierarchy Structure
@@ -179,51 +164,36 @@ Thread-to-Data Mapping
 
 Once threads know their IDs, they need to map those IDs to specific data elements.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-          graph TB
-              subgraph "Thread to Data Mapping"
-                  subgraph "Thread Grid"
-                      T00["Thread[0,0]<br/>Warp 0"]
-                      T01["Thread[0,1]<br/>Warp 0"]
-                      T10["Thread[1,0]<br/>Warp 1"]
-                      T11["Thread[1,1]<br/>Warp 1"]
-                  end
-                  
-                  subgraph "Data Tiles"
-                      D00["Data[0:4, 0:4]<br/>16 elements"]
-                      D01["Data[0:4, 4:8]<br/>16 elements"]
-                      D10["Data[4:8, 0:4]<br/>16 elements"]
-                      D11["Data[4:8, 4:8]<br/>16 elements"]
-                  end
-                  
-                  subgraph "Memory Access"
-                      MA["Coalesced Access<br/>Adjacent threads → Adjacent memory"]
-                  end
-              end
-              
-              T00 --> D00
-              T01 --> D01
-              T10 --> D10
-              T11 --> D11
-              
-              D00 --> MA
-              D01 --> MA
-              
-              style T00 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-              style D00 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-              style MA fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/thread_mapping_2.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Thread to Data Mapping"
+           subgraph "Thread Grid"
+               T00["Thread[0,0]<br/>Warp 0"]
+               T01["Thread[0,1]<br/>Warp 0"]
+               T10["Thread[1,0]<br/>Warp 1"]
+               T11["Thread[1,1]<br/>Warp 1"]
+           end
+
+           subgraph "Data Tiles"
+               D00["Data[0:4, 0:4]<br/>16 elements"]
+               D01["Data[0:4, 4:8]<br/>16 elements"]
+               D10["Data[4:8, 0:4]<br/>16 elements"]
+               D11["Data[4:8, 4:8]<br/>16 elements"]
+           end
+
+           subgraph "Memory Access"
+               MA["Coalesced Access<br/>Adjacent threads → Adjacent memory"]
+           end
+       end
+
+       T00 --> D00
+       T01 --> D01
+       T10 --> D10
+       T11 --> D11
+
+       D00 --> MA
+       D01 --> MA
 
 Data Distribution Pattern
 -------------------------
