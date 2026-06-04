@@ -726,6 +726,33 @@ class KernelComponentFactory:
                 if sink == "t" and mask in ("no", "s_no"):
                     continue
                 pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, sink, kv_memory_layout, kv_lookup_table))  # fmt: skip
+
+            # Decode-aligned VEC_K_COL_V variants for non-quant BF16/FP16: 5D
+            # vectorized K + 4D ColumnMajor V [NumBlocks, NumHeads, HeadDim,
+            # PageSize]. Mirrors the FP8 PER_TOKEN_HEAD col-V variant
+            # (vlayout="col") but with qscale="no", so the plain BF16/FP16 prefill
+            # path can ingest the decode KV cache (aiter reshape_and_cache_kernel
+            # output) without an intermediate reshape. The col-V V-side policy is
+            # independent of logits/mask/sink/lse. Restricted to bias="no" +
+            # dropout="f" (prefill-inference path); lse kept t/f for return_lse.
+            for (
+                logits,
+                mask,
+                lse,
+                sink,
+                kv_memory_layout,
+                kv_lookup_table,
+            ) in itertools.product(
+                ["t", "f"],
+                get_mask_map(mask_impl).keys(),
+                ["t", "f"],
+                ["t", "f"],
+                SUPPORTED_KV_MEMORY_LAYOUT_FP8_PTH_EXTRA,
+                SUPPORTED_KV_LOOKUP_TABLE,
+            ):
+                if sink == "t" and mask in ("no", "s_no"):
+                    continue
+                pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "t", "t", "t", logits, "no", lse, "f", "no", mask, sink, kv_memory_layout, kv_lookup_table))  # fmt: skip
         elif dtype in ["fp8bf16"]:
             # no need lse/dropout kernels (sink is supported via kHasSink)
             for (
