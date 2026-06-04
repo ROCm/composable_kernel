@@ -1243,7 +1243,7 @@ struct tile_scatter_gather
     // Maps each gather element to its physical page in a paged memory pool.
     // Updated via update_physical_pages() before each load call.
     // SRD mode: collapsed to gl_field_empty_t so the storage disappears.
-    [[no_unique_address]] std::conditional_t<kUseGlobalLoad_, PageIdxArray, gl_field_empty_t>
+    CK_TILE_NO_UNIQUE_ADDRESS std::conditional_t<kUseGlobalLoad_, PageIdxArray, gl_field_empty_t>
         physical_pages_;
 
     // Page stride in elements for global load mode (kUseGlobalLoad=true only).
@@ -1251,7 +1251,7 @@ struct tile_scatter_gather
     // Set at construction time via the make_tile_scatter_gather overload that
     // takes bool_constant<kUseGlobalLoad>; immutable thereafter.
     // SRD mode: collapsed to gl_field_empty_t so the storage disappears.
-    [[no_unique_address]] std::conditional_t<kUseGlobalLoad_, index_t, gl_field_empty_t>
+    CK_TILE_NO_UNIQUE_ADDRESS std::conditional_t<kUseGlobalLoad_, index_t, gl_field_empty_t>
         page_stride_elements_;
 
     ValidArray valids_;
