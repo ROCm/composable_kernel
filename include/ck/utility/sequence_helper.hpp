@@ -57,10 +57,11 @@ __host__ __device__ constexpr auto unpack_and_merge_sequences(TupleOfSequences t
 // Optimization: Constexpr loop with array lookup instead of recursive template pattern
 //
 // Why this approach:
-// - Recursive template (OLD): template instantiation for each recursion level → O(N) instantiations
+// - Recursive template (OLD): template instantiation for each recursion level -> O(N)
+// instantiations
 //   Example: Finding value in Sequence<1,2,3,4,5> requires 5 recursive instantiations
 //
-// - Constexpr loop (NEW): Single function instantiation with runtime loop → O(1) instantiation
+// - Constexpr loop (NEW): Single function instantiation with runtime loop -> O(1) instantiation
 //   Same search requires only 1 function instantiation, loop executes at compile-time
 //
 // Implementation details:

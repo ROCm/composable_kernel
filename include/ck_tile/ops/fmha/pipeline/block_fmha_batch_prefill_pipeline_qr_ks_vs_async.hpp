@@ -1315,7 +1315,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 #if CK_TILE_FMHA_FWD_FAST_EXP2
                     // For KV_BLOCKSCALE: precompute (m - shift) once per row
                     // exp2(s - (m - shift)) = exp2(s - m + shift) = exp2(s - m) * 2^shift
-                    // This scales P by 2^shift (≈448 for fp8_e4m3) without explicit multiply
+                    // This scales P by 2^shift (~=448 for fp8_e4m3) without explicit multiply
                     auto validated_m = get_validated_m(m[i_idx]);
                     auto row_max     = scale_s * validated_m;
                     if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)

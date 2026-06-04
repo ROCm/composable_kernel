@@ -27,7 +27,7 @@ namespace rocm_ck {
 
 // Matrix multiplication: out = lhs x rhs.
 // Layout defaults (applied during resolve): lhs=Row, rhs=Col, out=Row.
-// acc_dtype is the accumulation type — defaults to FP32, the universal safe
+// acc_dtype is the accumulation type -- defaults to FP32, the universal safe
 // choice across all input types.
 struct GemmOp
 {

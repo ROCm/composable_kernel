@@ -93,7 +93,7 @@ TEST(WavefrontSize, MatchesTargetProperties)
 }
 
 // ============================================================================
-// TargetSet — construction
+// TargetSet -- construction
 // ============================================================================
 
 TEST(TargetSet, DefaultConstructsToEmpty)
@@ -112,7 +112,7 @@ TEST(TargetSet, ImplicitConversionFromSingleTarget)
 }
 
 // ============================================================================
-// TargetSet — named constructors
+// TargetSet -- named constructors
 // ============================================================================
 
 TEST(TargetSet, AllContainsEveryTarget)
@@ -204,7 +204,7 @@ TEST(TargetSet, OnlyWithThreeTargets)
 // variadic arity of TargetSet::only() overloads (1, 2, 3 parameters).
 
 // ============================================================================
-// TargetSet — set operations
+// TargetSet -- set operations
 // ============================================================================
 
 TEST(TargetSet, ExcludingRemovesOneTarget)
@@ -271,7 +271,7 @@ TEST(TargetSet, EmptyIntersectIsEmpty)
 }
 
 // ============================================================================
-// TargetSet — operators
+// TargetSet -- operators
 // ============================================================================
 
 TEST(TargetSet, OperatorOrDelegatesToUnion)
@@ -299,7 +299,7 @@ TEST(TargetSet, InequalityDifferentSetsReturnsTrue)
 }
 
 // ============================================================================
-// TargetSet — queries
+// TargetSet -- queries
 // ============================================================================
 
 TEST(TargetSet, ContainsReturnsTrueForMember)
@@ -362,7 +362,7 @@ TEST(TargetSet, IsAllRdnaPredicateWorks)
 }
 
 // ============================================================================
-// TargetSet — iteration
+// TargetSet -- iteration
 // ============================================================================
 
 TEST(TargetSet, ForEachIteratesAllTargets)
@@ -380,7 +380,7 @@ TEST(TargetSet, ForEachOnEmptySetDoesNothing)
 }
 
 // ============================================================================
-// isValidWaveTile — single target
+// isValidWaveTile -- single target
 // ============================================================================
 
 TEST(IsValidWaveTile, FP32MFMATilesOnCDNA)
@@ -431,7 +431,7 @@ TEST(IsValidWaveTile, FP8FNUZBaseTilesOnGfx942)
 
 TEST(IsValidWaveTile, FP8FNUZIterateKTilesOnGfx942Plus)
 {
-    // IterateK compositions of base FP8 MFMA — available on gfx942+
+    // IterateK compositions of base FP8 MFMA -- available on gfx942+
     EXPECT_TRUE(isValidWaveTile(DataType::FP8_FNUZ, 32, 32, 32, GpuTarget::gfx942));
     EXPECT_TRUE(isValidWaveTile(DataType::FP8_FNUZ, 32, 32, 64, GpuTarget::gfx942));
     EXPECT_TRUE(isValidWaveTile(DataType::FP8_FNUZ, 16, 16, 64, GpuTarget::gfx942));
@@ -444,7 +444,7 @@ TEST(IsValidWaveTile, FP8FNUZIterateKTilesOnGfx942Plus)
 
 TEST(IsValidWaveTile, WMMATilesOnRDNA)
 {
-    // All RDNA targets share identical WMMA: 16×16×16 for FP16, BF16, INT8
+    // All RDNA targets share identical WMMA: 16x16x16 for FP16, BF16, INT8
     EXPECT_TRUE(isValidWaveTile(DataType::FP16, 16, 16, 16, GpuTarget::gfx1100));
     EXPECT_TRUE(isValidWaveTile(DataType::BF16, 16, 16, 16, GpuTarget::gfx1100));
     EXPECT_TRUE(isValidWaveTile(DataType::I8, 16, 16, 16, GpuTarget::gfx1100));
@@ -469,7 +469,7 @@ TEST(IsValidWaveTile, WMMARejectsFP32)
 }
 
 // ============================================================================
-// isValidWaveTile — TargetSet (intersection semantics)
+// isValidWaveTile -- TargetSet (intersection semantics)
 // ============================================================================
 
 TEST(IsValidWaveTile, IntersectionAcrossCDNATargets)

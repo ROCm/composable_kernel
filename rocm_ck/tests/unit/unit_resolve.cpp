@@ -122,7 +122,7 @@ TEST(Resolve, AllowsPerTensorRankOverride)
 
 TEST(Resolve, AllowsPerTensorLayoutOverride)
 {
-    // Override B from default Col to Row (R×R layout)
+    // Override B from default Col to Row (RxR layout)
     constexpr auto r = resolve( //
         Signature{.dtype   = DataType::FP16,
                   .tensors = {Tensor{.name = "B", .layout = Layout::Row}},
@@ -135,7 +135,7 @@ TEST(Resolve, AllowsPerTensorLayoutOverride)
 
 TEST(Resolve, AllowsMultipleLayoutOverrides)
 {
-    // Override both A and B (C×C layout)
+    // Override both A and B (CxC layout)
     constexpr auto r = resolve( //
         Signature{.dtype   = DataType::FP16,
                   .tensors = {Tensor{.name = "A", .layout = Layout::Col},
@@ -181,9 +181,9 @@ TEST(Resolve, PropagatesRankAndLayoutThroughEpilogueChain)
 
 TEST(Resolve, PropagatesRankAndLayoutThroughDiamondDAG)
 {
-    // Diamond: GEMM→C splits into two Add paths, then joins.
-    //   C → Add(C,bias1)→D1 ─→ Add(D1,D2)→E
-    //   C → Add(C,bias2)→D2 ─┘
+    // Diamond: GEMM->C splits into two Add paths, then joins.
+    //   C -> Add(C,bias1)->D1 --> Add(D1,D2)->E
+    //   C -> Add(C,bias2)->D2 -+
     constexpr auto r = resolve( //
         Signature{.dtype = DataType::FP16,
                   .ops   = {GemmOp{.lhs = "A", .rhs = "B", .out = "C"},
@@ -230,13 +230,13 @@ TEST(Resolve, ResolvesStandaloneAddWithoutImpliedRank)
 }
 
 // ============================================================================
-// Conflict detection — redundant identical sets are silent
+// Conflict detection -- redundant identical sets are silent
 // ============================================================================
 
 TEST(Resolve, AllowsRedundantIdenticalLayoutFromTwoGemmOps)
 {
     // GemmOp1 outputs "C" as Row. GemmOp2 uses "C" as lhs (also Row).
-    // Two ops set the same layout → no conflict.
+    // Two ops set the same layout -> no conflict.
     constexpr auto r = resolve( //
         Signature{.dtype = DataType::FP16,
                   .ops   = {GemmOp{.lhs = "A", .rhs = "B", .out = "C"},
@@ -249,7 +249,7 @@ TEST(Resolve, AllowsRedundantIdenticalLayoutFromTwoGemmOps)
 TEST(Resolve, AllowsPropagationThroughAddWithConsistentLayout)
 {
     // GemmOp sets C=Row. AddOp connects C to bias and D.
-    // Propagation sets bias and D to Row (matching C) → no conflict.
+    // Propagation sets bias and D to Row (matching C) -> no conflict.
     constexpr auto r = resolve( //
         Signature{.dtype = DataType::FP16,
                   .ops   = {GemmOp{.lhs = "A", .rhs = "B", .out = "C"},
@@ -307,7 +307,7 @@ TEST(Resolve, ReportsZeroScalarsWhenNoneDeclared)
 }
 
 // ============================================================================
-// findTensor / findScalar (constexpr, not consteval — returns -1 on miss)
+// findTensor / findScalar (constexpr, not consteval -- returns -1 on miss)
 // ============================================================================
 
 TEST(Resolve, FindsTensorByName)

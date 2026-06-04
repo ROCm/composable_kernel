@@ -244,7 +244,7 @@ void sparse_transform_verify(
     }
 
     // Semantic index validation: each 2-bit field in h_idx encodes the original
-    // slot (0–3) within the group of 4 that the corresponding compressed element
+    // slot (0-3) within the group of 4 that the corresponding compressed element
     // came from. Verify that the index is consistent with input and output.
     //
     // Note: when a group has fewer than 2 non-zeros, unused output slots contain

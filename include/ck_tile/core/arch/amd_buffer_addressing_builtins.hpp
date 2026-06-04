@@ -1443,7 +1443,7 @@ CK_TILE_DEVICE void async_buffer_load_fence(index_t cnt = 0)
 //
 // !!! M0 PRECONDITION - IMPLICIT INPUT NOT VISIBLE IN OPERAND LIST !!!
 //
-//   The LDS destination address is taken from M0 (per AMD CDNA3 ISA §10.3:
+//   The LDS destination address is taken from M0 (per AMD CDNA3 ISA Sec.10.3:
 //   `LDS_ADDR = LDSbase + LDSoffset(M0[17:2] * 4) + INST.OFFSET + ThreadID*4`).
 //   M0 does NOT appear as an operand of these instructions or of the inline
 //   asm below - the compiler cannot see the dependency. Caller must:
@@ -1472,7 +1472,7 @@ CK_TILE_DEVICE void async_buffer_load_fence(index_t cnt = 0)
 // Verified instruction emission (HIP 6.4 / clang 19, gfx942 + gfx950):
 //   `global_load_lds_dwordx4` is a single instruction (encoding 0xDDF48000
 //   0x007F0000), NOT software-expanded into 4x dword. Same encoding on both
-//   arches. The opcode is undocumented in CDNA3 ISA spec §13.6.2 but
+//   arches. The opcode is undocumented in CDNA3 ISA spec Sec.13.6.2 but
 //   supported by the LLVM AMDGPU backend.
 //
 // Available on gfx940+ (CDNA3: MI300, MI355, MI350 series).

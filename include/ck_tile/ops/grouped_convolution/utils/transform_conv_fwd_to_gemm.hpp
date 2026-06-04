@@ -6,9 +6,9 @@
 #include "ck_tile/ops/grouped_convolution/utils/convolution_specialization.hpp"
 namespace ck_tile {
 
-// ═══════════════════════════════════════════════════════════════════════
+// =======================================================================
 // Split-Image Information Structure
-// ═══════════════════════════════════════════════════════════════════════
+// =======================================================================
 // This structure holds all information needed to perform split-image
 // NOTE: SplitImageInfo struct deleted - was only used by deleted recursive split code
 // Current split-image implementation is in grouped_convolution_forward_invoker.hpp
@@ -1517,9 +1517,9 @@ struct TransformConvFwdToGemm
         }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
+    // =======================================================================
     // Split-Image Calculation (AFTER Split-N)
-    // ═══════════════════════════════════════════════════════════════════════
+    // =======================================================================
     // This method calculates split-image information using N_ (after Split-N).
     // This ensures correct offset calculations when both Split-N and Split-Image
     // are active simultaneously.

@@ -852,7 +852,7 @@ struct BlockFmhaPipelineQRKSVS
             };
 
             // Conditional rescaling: skip o_acc rescale when correction factor
-            // exp2(acc_scale_log2) is negligible (< exp2(-8) ≈ 0.004, below BF16
+            // exp2(acc_scale_log2) is negligible (< exp2(-8) ~= 0.004, below BF16
             // precision). Adapted from FlashAttention-4 (Tri Dao, 2025).
             // Eliminates 70-90% of rescale operations in practice.
             //

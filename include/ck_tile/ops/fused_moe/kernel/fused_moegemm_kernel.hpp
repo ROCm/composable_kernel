@@ -51,14 +51,14 @@
 //
 // * different from vLLM
 //   1) token_id stored in sorted_token_ids_ptr is actual token_id, not token_id*top_K expanded id
-//   2）need sorted_weight_ptr
+//   2)need sorted_weight_ptr
 //   3) use num_sorted_tiles_ptr, already divided by M_a
 //
 // * below used for indexing
 //  1) sorted_token_ids_ptr [max_num_tokens_padded]
 //  2) sorted_weight_ptr
 //  3) sorted_expert_ids_ptr
-//  4）num_tokens_post_padded_ptr/num_sorted_tiles_ptr (select one)
+//  4)num_tokens_post_padded_ptr/num_sorted_tiles_ptr (select one)
 //
 //   max_num_tokens_padded: opk_ids.numel() + num_experts * (block_size - 1)
 //

@@ -1,13 +1,13 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 //
-// Role: host — JSON serialization for spec types. No CK deps.
+// Role: host -- JSON serialization for spec types. No CK deps.
 //
 // Runtime to_json() functions for GemmSpec.
 // Used by build-time extractors to emit .spec.json files that pack.py
 // reads to embed structured metadata in the kpack TOC.
 //
-// Hand-written JSON — no library dependency. The schema is fixed and small.
+// Hand-written JSON -- no library dependency. The schema is fixed and small.
 
 #pragma once
 

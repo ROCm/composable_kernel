@@ -703,10 +703,10 @@ void test_pkscale_type_convert_device()
     if(scale_init_option == 0)
     {
         // Option 0: Fixed pattern with wide dynamic range (same for all rows)
-        // Note: Values chosen to be safe for fp16 (max ≈ 65504)
+        // Note: Values chosen to be safe for fp16 (max ~= 65504)
         for(int m = 0; m < M; m++)
         {
-            fscale[m * N_scale + 0] = std::pow(2.0f, -10.0f); // 2^-10 ≈ 0.000977
+            fscale[m * N_scale + 0] = std::pow(2.0f, -10.0f); // 2^-10 ~= 0.000977
             fscale[m * N_scale + 1] = std::pow(2.0f, -5.0f);  // 2^-5  = 0.03125
             fscale[m * N_scale + 2] = std::pow(2.0f, 8.0f);   // 2^8   = 256
             fscale[m * N_scale + 3] = std::pow(2.0f, 15.0f);  // 2^15  = 32768 (safe for fp16)

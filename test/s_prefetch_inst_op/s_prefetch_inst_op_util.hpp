@@ -40,7 +40,7 @@ struct KernelArgs
 //
 // Between the prefetch site and the target we place a deliberate computation
 // loop so that the prefetched instruction cache lines have time to arrive.
-// Correctness does not depend on prefetching — it is pure performance hint.
+// Correctness does not depend on prefetching -- it is pure performance hint.
 // We verify correctness to ensure the asm volatile markers do not break
 // code generation.
 // ---------------------------------------------------------------------------
@@ -74,7 +74,7 @@ __global__ void kernel_with_inst_prefetch(KernelArgs<T> args)
 
     __builtin_amdgcn_sched_barrier(0);
 
-    // Hot loop — the PLACE target sits after it.
+    // Hot loop -- the PLACE target sits after it.
     for(uint32_t iter = 0; iter < num_iters; ++iter)
     {
 #pragma unroll NUM_SCALARS

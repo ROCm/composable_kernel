@@ -36,7 +36,7 @@ static constexpr auto test_spec_d0 =
              TargetSet::cdna());
 
 // ============================================================================
-// validate() — passes when all tensors are filled
+// validate() -- passes when all tensors are filled
 // ============================================================================
 
 TEST(Validate, PassesWhenAllTensorsFilled)
@@ -69,7 +69,7 @@ TEST(Validate, PassesWithD0TensorFilled)
 }
 
 // ============================================================================
-// validate() — aborts when a tensor is missing
+// validate() -- aborts when a tensor is missing
 // ============================================================================
 
 #ifndef NDEBUG
@@ -101,7 +101,7 @@ TEST(ValidateDeathTest, AbortsOnMissingD0Tensor)
 
 TEST(ValidateDeathTest, ReportsFirstMissingTensor)
 {
-    // All slots null — should report the first one (lhs = "A", slot 0)
+    // All slots null -- should report the first one (lhs = "A", slot 0)
     Args args{};
 
     EXPECT_DEATH(validate(args, test_spec), "tensor \"A\" \\(slot 0\\) has null pointer");

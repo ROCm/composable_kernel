@@ -72,11 +72,11 @@ void print_help(const char* program_name)
     std::cout << "  -e_layout=<R|C>  E tensor layout (default: \"R\")\n\n";
 
     std::cout << "Examples:\n";
-    std::cout << "  Single batch (12 batches of 256×128):\n";
+    std::cout << "  Single batch (12 batches of 256x128):\n";
     std::cout << "    " << program_name
               << " -g_dims=\"12\" -m_dims=\"256\" -n_dims=\"128\" -k_dims=\"64\"\n\n";
 
-    std::cout << "  2D batch grid (2×3=6 batches):\n";
+    std::cout << "  2D batch grid (2x3=6 batches):\n";
     std::cout << "    " << program_name
               << " -g_dims=\"2,3\" -m_dims=\"128\" -n_dims=\"128\" -k_dims=\"64\"\n\n";
 

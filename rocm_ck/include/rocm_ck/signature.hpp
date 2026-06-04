@@ -1,7 +1,7 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 //
-// Role: meta — Signature, Tensor, Scalar. No runtime, no CK deps.
+// Role: meta -- Signature, Tensor, Scalar. No runtime, no CK deps.
 //
 // Signature: the complete description of WHAT a kernel computes.
 //
@@ -65,10 +65,10 @@ struct Scalar
 /// A directed compute graph where tensors are nodes and operators are edges.
 /// Each operator output gets a unique name; shared names form graph edges.
 ///
-/// Example — simple fp16 GEMM:
+/// Example -- simple fp16 GEMM:
 ///   {.dtype = FP16, .ops = {GemmOp{.lhs="A", .rhs="B", .out="C"}}}
 ///
-/// Example — GEMM + bias + ReLU:
+/// Example -- GEMM + bias + ReLU:
 ///   {.dtype = FP16,
 ///    .ops = {GemmOp{.lhs="A", .rhs="B", .out="C"},
 ///            AddOp{.lhs="C", .rhs="bias", .out="D"},

@@ -223,7 +223,7 @@ TEST_F(GroupedConvFwdIsSupportedArgumentTest, SplitImageFullImageAfterMakeKernel
                                            2,
                                            true /*EnableSplitImage*/>::type;
 
-    // K=64, C=64 — MakeKernelArgs should set up a single-piece split_image.
+    // K=64, C=64 - MakeKernelArgs should set up a single-piece split_image.
     // 3x3 filter, stride 1, no padding => output H/W = 5x5.
     auto host_args = create_2d_fwd_host_args(1, 2, 64, 64, 3, 3, 7, 7);
     auto kargs     = Kernel::MakeKernelArgs(host_args);
@@ -280,7 +280,7 @@ TEST_F(GroupedConvFwdIsSupportedArgumentTest, SplitImageFullImageLargeK)
                                            2,
                                            true /*EnableSplitImage*/>::type;
 
-    // K=96 — the case that caused flaky failures
+    // K=96 - the case that caused flaky failures
     // 1x1 filter, stride 1, no padding => output H/W = 73x128.
     auto host_args = create_2d_fwd_host_args(3, 5, 96, 200, 1, 1, 73, 128);
     auto kargs     = Kernel::MakeKernelArgs(host_args);

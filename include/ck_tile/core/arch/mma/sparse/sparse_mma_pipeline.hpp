@@ -27,7 +27,7 @@ constexpr inline int getPipelineFlags()
  * input WaveTiles of (A: WaveTileM x WaveTileK) x (B: WaveTileK x WaveTileN) and accumulates
  * results into output WaveTile (C: WaveTileM x WaveTileN).
  * Like WaveWiseMmaPipeline, this decomposes WaveTile dimensions into fragments and iterates
- * internally over FragsM × FragsN × FragsK. The A operand is provided in uncompressed form;
+ * internally over FragsM x FragsN x FragsK. The A operand is provided in uncompressed form;
  * 2:4 structured sparsity compression (SparseCompressTransform) is applied.
  * @tparam ADataType      Data type of input WaveTile A
  * @tparam BDataType      Data type of input WaveTile B

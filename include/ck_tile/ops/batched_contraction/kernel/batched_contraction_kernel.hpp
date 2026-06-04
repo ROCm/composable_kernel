@@ -30,11 +30,11 @@
  *
  * For tensors A and B with arbitrary dimensionalities, the complete operation computes:
  *
- * **E[G₀,G₁,...,M₀,M₁,...,N₀,N₁,...] = epilogue_op(C, D₀, D₁, D₂, ...)**
+ * **E[G_0,G_1,...,M_0,M_1,...,N_0,N_1,...] = epilogue_op(C, D_0, D_1, D_2, ...)**
  *
  * Where:
- * **C[G₀,G₁,...,M₀,M₁,...,N₀,N₁,...] = Σ_{K₀,K₁,...} A[G₀,G₁,...,M₀,M₁,...,K₀,K₁,...] x
- * B[G₀,G₁,...,N₀,N₁,...,K₀,K₁,...]**
+ * **C[G_0,G_1,...,M_0,M_1,...,N_0,N_1,...] = Sum_{K_0,K_1,...}
+ * A[G_0,G_1,...,M_0,M_1,...,K_0,K_1,...] x B[G_0,G_1,...,N_0,N_1,...,K_0,K_1,...]**
  *
  * Where:
  * - **G dimensions**: Batch dimensions (shared across A, B, and output E)
@@ -57,9 +57,9 @@
  *
  * **Mathematical Transformation**:
  * ```
- * Original: E[g,m₀,m₁,n₀,n₁] = Σ_{k₀,k₁} A[g,m₀,m₁,k₀,k₁] x B[g,n₀,n₁,k₀,k₁]
- * Flattened: E[g,M,N] = Σ_K A[g,M,K] x B[g,N,K]  (where M=m₀xm₁, N=n₀xn₁, K=k₀xk₁)
- * GEMM Form: E = A x Bᵀ
+ * Original: E[g,m_0,m_1,n_0,n_1] = Sum_{k_0,k_1} A[g,m_0,m_1,k_0,k_1] x B[g,n_0,n_1,k_0,k_1]
+ * Flattened: E[g,M,N] = Sum_K A[g,M,K] x B[g,N,K]  (where M=m_0xm_1, N=n_0xn_1, K=k_0xk_1)
+ * GEMM Form: E = A x B^T
  *
  * **Why This Approach Is Optimal**:
  * Rather than implementing tensor contraction from scratch, this kernel leverages the highly

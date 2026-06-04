@@ -30,7 +30,7 @@
 namespace ck_tile {
 
 // Per-CU state for group-mode deterministic persistent scheduling.
-// alignas(16): enables aligned 128-bit loads; sizeof == 32 (6×4 + 8 pad).
+// alignas(16): enables aligned 128-bit loads; sizeof == 32 (6x4 + 8 pad).
 struct alignas(16) FmhaBwdGroupPersistentCuState
 {
     index_t w_lo;       // global position of this CU's first K-chunk (= pb + head*hw + c*sq)
@@ -44,7 +44,7 @@ struct alignas(16) FmhaBwdGroupPersistentCuState
 
 // Per-batch precomputed values used in the group-mode persistent dispatch loop.
 // Avoids per-iteration reads from seqstart_q/k_ptr and nsplits_ptr.
-// alignas(16): sizeof == 16 (3×4 + 4 pad), fits in a single 128-bit load.
+// alignas(16): sizeof == 16 (3x4 + 4 pad), fits in a single 128-bit load.
 struct alignas(16) FmhaBwdBatchState
 {
     index_t sq;      // seqlen_q for this batch (seqstart_q[b+1] - seqstart_q[b])
@@ -67,9 +67,9 @@ struct FmhaBwdWorkspaceManager
 
     // [OPTIONAL, only for deterministic group mode persistent]
     // FmhaBwdGroupPersistentCuState cu_state[num_cus]
-    //   — per-CU packed dispatch state (ibatch, isplit, head_start, c_start, w_lo)
+    //   -- per-CU packed dispatch state (ibatch, isplit, head_start, c_start, w_lo)
     // FmhaBwdBatchState batch_state[batch]
-    //   — per-batch precomputed sq / nc / nsplits
+    //   -- per-batch precomputed sq / nc / nsplits
 
     // GPU WORKSPACE BELOW (read & written by kernels):
 
@@ -289,7 +289,7 @@ struct FmhaBwdWorkspaceManager
                         // nsplits matches the set of slots actually written by atomic_add.
                         // CUs with c_start >= nc start past the head's K-rows (advance to
                         // next head); their isplit would otherwise pad nsplits with a slot
-                        // that nobody writes — reduction would read garbage from it.
+                        // that nobody writes -- reduction would read garbage from it.
                         if(c_start < nc)
                             batch_states[b].nsplits =
                                 max(batch_states[b].nsplits, cu_states[c].isplit + 1);
@@ -311,7 +311,7 @@ struct FmhaBwdWorkspaceManager
             {
                 cu_states[c].w_lo       = total_w;
                 cu_states[c].w_hi       = total_w;
-                cu_states[c].ibatch     = batch_size; // sentinel → early return on GPU
+                cu_states[c].ibatch     = batch_size; // sentinel -> early return on GPU
                 cu_states[c].isplit     = 0;
                 cu_states[c].head_start = 0;
                 cu_states[c].c_start    = 0;
@@ -384,13 +384,13 @@ struct FmhaBwdWorkspaceManager
         // (~20x larger than the actual region for large seqlen_k).
         if constexpr(kUsePersistent && kIsGroupMode)
             return false;
-        // Persistent (batch and group): uses atomic_add → buffer must start at zero
+        // Persistent (batch and group): uses atomic_add -> buffer must start at zero
         //   so that accumulated dq values are correct.
-        // Non-deterministic: uses atomic_add → buffer must start at zero.
+        // Non-deterministic: uses atomic_add -> buffer must start at zero.
         if constexpr(kUsePersistent || !kIsDeterministic)
             return true;
         // Non-persistent deterministic: uses set, but causal mask may skip some tiles
-        // leaving dq_acc slots unwritten — zero them out first.
+        // leaving dq_acc slots unwritten -- zero them out first.
         return kHasMask;
     }
 
@@ -1631,7 +1631,7 @@ struct FmhaBwdDQDKDVKernel
             }();
 
             // kUseKSplit && !kUsePersistent is true only for QrQtrDor+deterministic,
-            // which writes dq directly (not through dq_acc splits) — use 'set'.
+            // which writes dq directly (not through dq_acc splits) -- use 'set'.
             // All other deterministic paths are persistent and use 'atomic_add':
             //   a single CU may process multiple chunks of the same (batch, head, isplit)
             //   sequentially, so contributions must accumulate rather than overwrite.

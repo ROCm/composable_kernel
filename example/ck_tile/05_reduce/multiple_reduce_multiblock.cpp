@@ -245,7 +245,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             if(pass_op)
             {
-                std::cout << "✅ valid results for this operation" << std::endl;
+                std::cout << "[OK] valid results for this operation" << std::endl;
             }
             pass &= pass_op;
         });

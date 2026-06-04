@@ -658,7 +658,7 @@ INSTANTIATE_TEST_SUITE_P(
             ValuesIn([]() {
                 std::vector<FmhaBwdDimsMaskParam> test_cases;
 
-                // Minimal waste: ~1-5% padding (logical ≈ physical - small delta)
+                // Minimal waste: ~1-5% padding (logical ~= physical - small delta)
                 test_cases.push_back(
                     std::tuple{2, 2, 2, 127, 127, "0"}); // Q:127->128 (~0.8%), K:127->128
                 test_cases.push_back(
