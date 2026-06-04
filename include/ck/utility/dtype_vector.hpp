@@ -8,7 +8,9 @@
 #if __clang_major__ >= 23
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#pragma clang diagnostic ignored "-Wlifetime-safety-lifetimebound-violation"
 #endif
+
 namespace ck {
 
 __device__ int static err = 0;

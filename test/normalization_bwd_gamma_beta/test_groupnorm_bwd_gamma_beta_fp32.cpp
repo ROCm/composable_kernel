@@ -7,8 +7,8 @@
 using F16 = ck::half_t;
 using F32 = float;
 using ck::index_t;
-static ck::index_t param_mask     = 0xffff;
-static ck::index_t instance_index = -1;
+static ck::index_t param_mask [[maybe_unused]] = 0xffff;
+static ck::index_t instance_index              = -1;
 template <typename Tuple>
 class TestgroupnormBwdGammaBeta : public ::testing::Test
 {

@@ -16,6 +16,10 @@
 #include "ck/tensor_operation/gpu/grid/gridwise_gemm_xdl_cshuffle_common.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 
+#if __clang_major__ >= 23
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#endif
 namespace ck {
 
 // Wave-specialized gridwise GEMM for convolution backward weight.
@@ -702,3 +706,6 @@ struct GridwiseGemm_xdl_waveletmodel_cshuffle_conv_v3
 };
 
 } // namespace ck
+#if __clang_major__ >= 23
+#pragma clang diagnostic pop
+#endif
