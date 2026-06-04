@@ -30,6 +30,7 @@ template <typename InOutDataType,
           typename CompDataType,
           bool kIsJagged,
           bool kUseSoftmax,
+          bool kStoreLSE,
           bool kUseCausal>
 struct reference_no_group_hstu_attention_fwd
 {
@@ -38,6 +39,7 @@ struct reference_no_group_hstu_attention_fwd
                     const HostTensor<InOutDataType>& k_batch_seq_nhead_hdim,
                     const HostTensor<InOutDataType>& v_batch_seq_nhead_hdim,
                     HostTensor<InOutDataType>& o_batch_seq_nhead_hdim,
+                    HostTensor<CompDataType>& lse_batch_seq_nhead,
                     HostTensor<int8_t>& mask_batch_nhead_seq_seq,
                     int num_batch,
                     float alpha,
@@ -63,6 +65,11 @@ struct reference_no_group_hstu_attention_fwd
             assert(k_batch_seq_nhead_hdim.get_lengths()[0] == 1);
             assert(v_batch_seq_nhead_hdim.get_lengths()[0] == 1);
             assert(o_batch_seq_nhead_hdim.get_lengths()[0] == 1);
+
+            if constexpr(kStoreLSE)
+            {
+                assert(lse_batch_seq_nhead.get_lengths()[0] == 1);
+            }
         }
         else
         {
@@ -72,18 +79,31 @@ struct reference_no_group_hstu_attention_fwd
             assert(k_batch_seq_nhead_hdim.get_lengths()[0] == num_batch);
             assert(v_batch_seq_nhead_hdim.get_lengths()[0] == num_batch);
             assert(o_batch_seq_nhead_hdim.get_lengths()[0] == num_batch);
+
+            if constexpr(kStoreLSE)
+            {
+                assert(lse_batch_seq_nhead.get_lengths()[0] == num_batch);
+            }
         };
 
         // check the sequence length
         assert(q_batch_seq_nhead_hdim.get_lengths()[1] == k_batch_seq_nhead_hdim.get_lengths()[1]);
         assert(q_batch_seq_nhead_hdim.get_lengths()[1] == v_batch_seq_nhead_hdim.get_lengths()[1]);
         assert(q_batch_seq_nhead_hdim.get_lengths()[1] == o_batch_seq_nhead_hdim.get_lengths()[1]);
+        if constexpr(kStoreLSE)
+        {
+            assert(q_batch_seq_nhead_hdim.get_lengths()[1] == lse_batch_seq_nhead.get_lengths()[1]);
+        }
 
         // check the number of heads
         int num_head = q_batch_seq_nhead_hdim.get_lengths()[2];
         assert(num_head == k_batch_seq_nhead_hdim.get_lengths()[2]);
         assert(num_head == v_batch_seq_nhead_hdim.get_lengths()[2]);
         assert(num_head == o_batch_seq_nhead_hdim.get_lengths()[2]);
+        if constexpr(kStoreLSE)
+        {
+            assert(num_head == lse_batch_seq_nhead.get_lengths()[2]);
+        }
 
         // check the hdim
         int hdim_qk = q_batch_seq_nhead_hdim.get_lengths()[3];
@@ -271,6 +291,11 @@ struct reference_no_group_hstu_attention_fwd
                             for(CompDataType& elem : locals)
                                 elem = std::exp(elem - m) / l;
                         }
+
+                        if constexpr(kStoreLSE)
+                        {
+                            lse_batch_seq_nhead(i_batch, sq, i_head) = std::log(l) + m;
+                        }
                     };
 
                     // second Gemm
@@ -320,6 +345,7 @@ template <typename InOutDataType,
           typename GemmAccDataType,
           typename CompDataType,
           bool kUseSoftmax,
+          bool kStoreLSE,
           bool kUseCausal>
 struct reference_group_hstu_attention_fwd
 {
@@ -329,6 +355,7 @@ struct reference_group_hstu_attention_fwd
         const HostTensor<InOutDataType>& k_batch_seq_nhead_hdim,
         const HostTensor<InOutDataType>& v_batch_seq_nhead_hdim,
         HostTensor<InOutDataType>& o_batch_seq_nhead_hdim,
+        HostTensor<CompDataType>& lse_batch_seq_nhead,
         HostTensor<int8_t>& mask_batch_nhead_seq_seq,
         int num_batch,
         int num_batch_per_group,
@@ -353,17 +380,29 @@ struct reference_group_hstu_attention_fwd
         assert(k_batch_seq_nhead_hdim.get_lengths()[0] == 1);
         assert(v_batch_seq_nhead_hdim.get_lengths()[0] == 1);
         assert(o_batch_seq_nhead_hdim.get_lengths()[0] == 1);
+        if constexpr(kStoreLSE)
+        {
+            assert(lse_batch_seq_nhead.get_lengths()[0] == 1);
+        }
 
         // check the sequence length
         assert(q_batch_seq_nhead_hdim.get_lengths()[1] == k_batch_seq_nhead_hdim.get_lengths()[1]);
         assert(q_batch_seq_nhead_hdim.get_lengths()[1] == v_batch_seq_nhead_hdim.get_lengths()[1]);
         assert(q_batch_seq_nhead_hdim.get_lengths()[1] == o_batch_seq_nhead_hdim.get_lengths()[1]);
+        if constexpr(kStoreLSE)
+        {
+            assert(q_batch_seq_nhead_hdim.get_lengths()[1] == lse_batch_seq_nhead.get_lengths()[1]);
+        }
 
         // check the number of heads
         int num_head = q_batch_seq_nhead_hdim.get_lengths()[2];
         assert(num_head == k_batch_seq_nhead_hdim.get_lengths()[2]);
         assert(num_head == v_batch_seq_nhead_hdim.get_lengths()[2]);
         assert(num_head == o_batch_seq_nhead_hdim.get_lengths()[2]);
+        if constexpr(kStoreLSE)
+        {
+            assert(num_head == lse_batch_seq_nhead.get_lengths()[2]);
+        }
 
         // check the hdim
         int hdim_qk = q_batch_seq_nhead_hdim.get_lengths()[3];
@@ -543,6 +582,11 @@ struct reference_group_hstu_attention_fwd
                             // normalization
                             for(CompDataType& elem : locals)
                                 elem = std::exp(elem - m) / l;
+                        }
+
+                        if constexpr(kStoreLSE)
+                        {
+                            lse_batch_seq_nhead(i_batch, sq, i_head) = std::log(l) + m;
                         }
                     };
 

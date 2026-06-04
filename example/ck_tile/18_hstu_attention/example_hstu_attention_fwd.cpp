@@ -107,6 +107,7 @@ auto create_args(int argc, char* argv[])
         .insert("targets", "", "sequence length at the end of query/key token sequence that should be excluded from attention") 
         .insert("max_target", "0", "max target, can be ignored, or else must be equal/bigger than the maximum of all targets")
         .insert("softmax", "0", "use softmax or not")
+        .insert("training", "0", "the foward is for training, lse should be saved if softmax is used")
         .insert("causal", "1", "enable causal mask or not")
         .insert("local_len", "5", "length of the diagonal window for enabling masking, value 0 to disable") 
         .insert("g_local_lens", "5,", "list of all group's length of the diagonal window for enabling masking, value 0 to disable") 
@@ -224,12 +225,15 @@ auto get_elimit<ck_tile::bf16_t>()
 template <typename InOutDataType>
 bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
 {
+    using CompDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::CompDataType;
+
     bool do_validation = static_cast<bool>(arg_parser.get_int("v"));
     int num_batch      = arg_parser.get_int("b");
     int num_head       = arg_parser.get_int("nhead");
     int hdim_qk        = arg_parser.get_int("hdim_qk");
     int hdim_v         = arg_parser.get_int("hdim_v");
     bool use_softmax   = static_cast<bool>(arg_parser.get_int("softmax"));
+    bool is_training   = static_cast<bool>(arg_parser.get_int("training"));
     bool use_causal    = static_cast<bool>(arg_parser.get_int("causal"));
 
     float alpha          = arg_parser.get_float("alpha");
@@ -419,6 +423,10 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
         std::array<ck_tile::index_t, 4>{batches_for_alloc, phy_seqlen_kv, num_head, hdim_v});
     ck_tile::HostTensor<InOutDataType> o_host_ref(
         std::array<ck_tile::index_t, 4>{batches_for_alloc, phy_seqlen_q, num_head, hdim_v});
+    ck_tile::HostTensor<CompDataType> lse_host_ref(
+        (is_training && use_softmax)
+            ? std::array<ck_tile::index_t, 3>{batches_for_alloc, phy_seqlen_q, num_head}
+            : std::array<ck_tile::index_t, 3>{1, 1, 1});
 
     ck_tile::HostTensor<int8_t> mask_host(
         save_mask
@@ -451,6 +459,7 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
     ck_tile::DeviceMem k_dev(k_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem v_dev(v_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem o_dev(o_host_ref.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem lse_dev(lse_host_ref.get_element_space_size_in_bytes());
 
     ck_tile::DeviceMem seq_offsets_q_dev(seq_offsets_q.size() * sizeof(int));
     ck_tile::DeviceMem seq_offsets_kv_dev(seq_offsets_kv.size() * sizeof(int));
@@ -485,23 +494,25 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
         params.v_ptr              = v_dev.GetDeviceBuffer();
         params.bias_ptr           = nullptr; // bias is not supported at present
         params.o_ptr              = o_dev.GetDeviceBuffer();
-        params.hdim_qk            = hdim_qk;
-        params.hdim_v             = hdim_v;
-        params.num_head           = num_head;
-        params.scale_s            = scale_s;
-        params.attn_scale         = attn_scale;
-        params.seq_stride_q       = q_host.get_strides()[1];
-        params.seq_stride_k       = k_host.get_strides()[1];
-        params.seq_stride_v       = v_host.get_strides()[1];
-        params.seq_stride_bias    = 0;
-        params.seq_stride_o       = o_host_ref.get_strides()[1];
-        params.nhead_stride_q     = q_host.get_strides()[2];
-        params.nhead_stride_k     = k_host.get_strides()[2];
-        params.nhead_stride_v     = v_host.get_strides()[2];
-        params.nhead_stride_bias  = 0;
-        params.nhead_stride_o     = o_host_ref.get_strides()[2];
+        params.lse_ptr         = (is_training && use_softmax) ? lse_dev.GetDeviceBuffer() : nullptr;
+        params.hdim_qk         = hdim_qk;
+        params.hdim_v          = hdim_v;
+        params.num_head        = num_head;
+        params.scale_s         = scale_s;
+        params.attn_scale      = attn_scale;
+        params.seq_stride_q    = q_host.get_strides()[1];
+        params.seq_stride_k    = k_host.get_strides()[1];
+        params.seq_stride_v    = v_host.get_strides()[1];
+        params.seq_stride_bias = 0;
+        params.seq_stride_o    = o_host_ref.get_strides()[1];
+        params.nhead_stride_q  = q_host.get_strides()[2];
+        params.nhead_stride_k  = k_host.get_strides()[2];
+        params.nhead_stride_v  = v_host.get_strides()[2];
+        params.nhead_stride_bias = 0;
+        params.nhead_stride_o    = o_host_ref.get_strides()[2];
         params.num_targets_ptr = num_targets.empty() ? nullptr : num_targets_dev.GetDeviceBuffer();
         params.use_softmax     = use_softmax;
+        params.is_training     = is_training;
         params.use_causal      = use_causal;
         params.window_size     = window_size;
         params.contextual_seqlen    = contextual_seqlen;
@@ -522,28 +533,30 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
         params.v_ptr              = v_dev.GetDeviceBuffer();
         params.bias_ptr           = nullptr; // bias is not supported at present
         params.o_ptr              = o_dev.GetDeviceBuffer();
-        params.hdim_qk            = hdim_qk;
-        params.hdim_v             = hdim_v;
-        params.num_head           = num_head;
-        params.scale_s            = scale_s;
-        params.attn_scale         = attn_scale;
-        params.seq_stride_q       = q_host.get_strides()[1];
-        params.seq_stride_k       = k_host.get_strides()[1];
-        params.seq_stride_v       = v_host.get_strides()[1];
-        params.seq_stride_bias    = 0;
-        params.seq_stride_o       = o_host_ref.get_strides()[1];
-        params.nhead_stride_q     = q_host.get_strides()[2];
-        params.nhead_stride_k     = k_host.get_strides()[2];
-        params.nhead_stride_v     = v_host.get_strides()[2];
-        params.nhead_stride_bias  = 0;
-        params.nhead_stride_o     = o_host_ref.get_strides()[2];
-        params.batch_stride_q     = q_host.get_strides()[0];
-        params.batch_stride_k     = k_host.get_strides()[0];
-        params.batch_stride_v     = v_host.get_strides()[0];
-        params.batch_stride_bias  = 0;
-        params.batch_stride_o     = o_host_ref.get_strides()[0];
+        params.lse_ptr         = (is_training && use_softmax) ? lse_dev.GetDeviceBuffer() : nullptr;
+        params.hdim_qk         = hdim_qk;
+        params.hdim_v          = hdim_v;
+        params.num_head        = num_head;
+        params.scale_s         = scale_s;
+        params.attn_scale      = attn_scale;
+        params.seq_stride_q    = q_host.get_strides()[1];
+        params.seq_stride_k    = k_host.get_strides()[1];
+        params.seq_stride_v    = v_host.get_strides()[1];
+        params.seq_stride_bias = 0;
+        params.seq_stride_o    = o_host_ref.get_strides()[1];
+        params.nhead_stride_q  = q_host.get_strides()[2];
+        params.nhead_stride_k  = k_host.get_strides()[2];
+        params.nhead_stride_v  = v_host.get_strides()[2];
+        params.nhead_stride_bias = 0;
+        params.nhead_stride_o    = o_host_ref.get_strides()[2];
+        params.batch_stride_q    = q_host.get_strides()[0];
+        params.batch_stride_k    = k_host.get_strides()[0];
+        params.batch_stride_v    = v_host.get_strides()[0];
+        params.batch_stride_bias = 0;
+        params.batch_stride_o    = o_host_ref.get_strides()[0];
         params.num_targets_ptr = num_targets.empty() ? nullptr : num_targets_dev.GetDeviceBuffer();
         params.use_softmax     = use_softmax;
+        params.is_training     = is_training;
         params.use_causal      = use_causal;
         params.window_size     = window_size;
         params.contextual_seqlen    = contextual_seqlen;
@@ -573,31 +586,36 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
     if(do_validation)
     {
         using GemmAccDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType;
-        using CompDataType    = typename HstuAttentionFwdTypeConfig<InOutDataType>::CompDataType;
 
         BOOL_SWITCH_3(is_jagged, kIsJagged, use_softmax, kUseSoftmax, use_causal, kUseCausal, [&] {
-            ck_tile::reference_no_group_hstu_attention_fwd<InOutDataType,
-                                                           GemmAccDataType,
-                                                           CompDataType,
-                                                           kIsJagged,
-                                                           kUseSoftmax,
-                                                           kUseCausal>::Run(is_cross_attention,
-                                                                            q_host,
-                                                                            k_host,
-                                                                            v_host,
-                                                                            o_host_ref,
-                                                                            mask_host,
-                                                                            num_batch,
-                                                                            scale_s,
-                                                                            attn_scale,
-                                                                            max_seqlen_q,
-                                                                            max_seqlen_kv,
-                                                                            seq_offsets_q,
-                                                                            seq_offsets_kv,
-                                                                            num_targets,
-                                                                            contextual_seqlen,
-                                                                            window_size,
-                                                                            min_full_attn_seqlen);
+            BOOL_SWITCH(is_training, kIsTraining, [&] {
+                constexpr bool kStoreLSE = (kIsTraining && kUseSoftmax);
+                ck_tile::reference_no_group_hstu_attention_fwd<
+                    InOutDataType,
+                    GemmAccDataType,
+                    CompDataType,
+                    kIsJagged,
+                    kUseSoftmax,
+                    kStoreLSE,
+                    kUseCausal>::Run(is_cross_attention,
+                                     q_host,
+                                     k_host,
+                                     v_host,
+                                     o_host_ref,
+                                     lse_host_ref,
+                                     mask_host,
+                                     num_batch,
+                                     scale_s,
+                                     attn_scale,
+                                     max_seqlen_q,
+                                     max_seqlen_kv,
+                                     seq_offsets_q,
+                                     seq_offsets_kv,
+                                     num_targets,
+                                     contextual_seqlen,
+                                     window_size,
+                                     min_full_attn_seqlen);
+            });
         });
 
         ck_tile::HostTensor<InOutDataType> o_host(
@@ -619,6 +637,19 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
 
         res = ck_tile::check_err(
             o_host, o_host_ref, std::string("hstu_attention output error"), rtol, atol);
+
+        if(is_training && use_softmax)
+        {
+            ck_tile::HostTensor<CompDataType> lse_host(
+                std::array<ck_tile::index_t, 3>{batches_for_alloc, phy_seqlen_q, num_head});
+
+            lse_dev.FromDevice(lse_host.data());
+
+            bool res_lse = ck_tile::check_err(
+                lse_host, lse_host_ref, std::string("hstu_attention lse error"), rtol, atol);
+
+            res = (res && res_lse);
+        }
     };
 
     if(measure_perf)
@@ -652,6 +683,8 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
 template <typename InOutDataType>
 bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
 {
+    using CompDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::CompDataType;
+
     bool do_validation = static_cast<bool>(arg_parser.get_int("v"));
 
     int num_batch = arg_parser.get_int("b");
@@ -666,6 +699,7 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
     int hdim_qk          = arg_parser.get_int("hdim_qk");
     int hdim_v           = arg_parser.get_int("hdim_v");
     bool use_softmax     = static_cast<bool>(arg_parser.get_int("softmax"));
+    bool is_training     = static_cast<bool>(arg_parser.get_int("training"));
     bool use_causal      = static_cast<bool>(arg_parser.get_int("causal"));
     float alpha          = arg_parser.get_float("alpha");
     int seed             = arg_parser.get_int("seed");
@@ -878,6 +912,10 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
         std::array<ck_tile::index_t, 4>{batches_for_alloc, phy_seqlen_kv, num_head, hdim_v});
     ck_tile::HostTensor<InOutDataType> o_host_ref(
         std::array<ck_tile::index_t, 4>{batches_for_alloc, phy_seqlen_q, num_head, hdim_v});
+    ck_tile::HostTensor<CompDataType> lse_host_ref(
+        (is_training && use_softmax)
+            ? std::array<ck_tile::index_t, 3>{batches_for_alloc, phy_seqlen_q, num_head}
+            : std::array<ck_tile::index_t, 3>{1, 1, 1});
 
     ck_tile::HostTensor<int8_t> mask_host(save_mask
                                               ? std::array<ck_tile::index_t, 4>{num_batch,
@@ -912,6 +950,7 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
     ck_tile::DeviceMem k_dev(k_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem v_dev(v_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem o_dev(o_host_ref.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem lse_dev(lse_host_ref.get_element_space_size_in_bytes());
 
     ck_tile::DeviceMem seq_offsets_q_dev(seq_offsets_q.size() * sizeof(int));
     ck_tile::DeviceMem seq_offsets_kv_dev(seq_offsets_kv.size() * sizeof(int));
@@ -954,6 +993,7 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
     params.v_ptr              = v_dev.GetDeviceBuffer();
     params.bias_ptr           = nullptr; // bias is not supported at present
     params.o_ptr              = o_dev.GetDeviceBuffer();
+    params.lse_ptr            = (is_training && use_softmax) ? lse_dev.GetDeviceBuffer() : nullptr;
     params.hdim_qk            = hdim_qk;
     params.hdim_v             = hdim_v;
     params.num_head           = num_head;
@@ -970,6 +1010,7 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
     params.nhead_stride_o     = o_host_ref.get_strides()[2];
     params.num_targets_ptr    = num_targets.empty() ? nullptr : num_targets_dev.GetDeviceBuffer();
     params.use_softmax        = use_softmax;
+    params.is_training        = is_training;
     params.use_causal         = use_causal;
     params.p_drop             = 0.0f; // dropout is not supported at present
     params.philox_seed        = 0UL;
@@ -1000,33 +1041,37 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
     if(do_validation)
     {
         using GemmAccDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType;
-        using CompDataType    = typename HstuAttentionFwdTypeConfig<InOutDataType>::CompDataType;
 
         BOOL_SWITCH_2(use_softmax, kUseSoftmax, use_causal, kUseCausal, [&] {
-            ck_tile::reference_group_hstu_attention_fwd<
-                InOutDataType,
-                GemmAccDataType,
-                CompDataType,
-                kUseSoftmax,
-                kUseCausal>::Run(is_cross_attention,
-                                 q_host,
-                                 k_host,
-                                 v_host,
-                                 o_host_ref,
-                                 mask_host,
-                                 num_batch,
-                                 num_batch / num_group,
-                                 scale_s,
-                                 max_max_seqlen_q,
-                                 max_max_seqlen_kv,
-                                 seq_offsets_q,
-                                 seq_offsets_kv,
-                                 num_targets,
-                                 group_max_seqlens_q,
-                                 group_contextual_seqlens,
-                                 group_window_sizes,
-                                 group_min_full_attn_seqlens,
-                                 group_attn_scales);
+            BOOL_SWITCH(is_training, kIsTraining, [&] {
+                constexpr bool kStoreLSE = (kIsTraining && kUseSoftmax);
+                ck_tile::reference_group_hstu_attention_fwd<
+                    InOutDataType,
+                    GemmAccDataType,
+                    CompDataType,
+                    kUseSoftmax,
+                    kStoreLSE,
+                    kUseCausal>::Run(is_cross_attention,
+                                     q_host,
+                                     k_host,
+                                     v_host,
+                                     o_host_ref,
+                                     lse_host_ref,
+                                     mask_host,
+                                     num_batch,
+                                     num_batch / num_group,
+                                     scale_s,
+                                     max_max_seqlen_q,
+                                     max_max_seqlen_kv,
+                                     seq_offsets_q,
+                                     seq_offsets_kv,
+                                     num_targets,
+                                     group_max_seqlens_q,
+                                     group_contextual_seqlens,
+                                     group_window_sizes,
+                                     group_min_full_attn_seqlens,
+                                     group_attn_scales);
+            });
         });
 
         ck_tile::HostTensor<InOutDataType> o_host(
@@ -1048,6 +1093,19 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
 
         res = ck_tile::check_err(
             o_host, o_host_ref, std::string("hstu_attention output error"), rtol, atol);
+
+        if(is_training && use_softmax)
+        {
+            ck_tile::HostTensor<CompDataType> lse_host(
+                std::array<ck_tile::index_t, 3>{batches_for_alloc, phy_seqlen_q, num_head});
+
+            lse_dev.FromDevice(lse_host.data());
+
+            bool res_lse = ck_tile::check_err(
+                lse_host, lse_host_ref, std::string("hstu_attention lse error"), rtol, atol);
+
+            res = (res && res_lse);
+        }
     };
 
     if(measure_perf)
