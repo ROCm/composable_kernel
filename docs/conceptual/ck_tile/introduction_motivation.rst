@@ -17,81 +17,62 @@ In this introduction, we establish the fundamental problems that tile distributi
 The GPU Memory Problem
 ----------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-   .. mermaid::
-   
-      graph TB
-      subgraph "Random Access Pattern (Inefficient)"
-          subgraph "Threads"
-              T0_R["Thread 0"]
-              T1_R["Thread 1"] 
-              T2_R["Thread 2"]
-              T3_R["Thread 3"]
-          end
+.. mermaid::
 
-          subgraph "Memory"
-              M0["Mem[0]"]
-              M7["Mem[7]"]
-              M15["Mem[15]"]
-              M23["Mem[23]"]
-              M31["Mem[31]"]
-              M39["Mem[39]"]
-              M47["Mem[47]"]
-              M55["Mem[55]"]
-          end
+   graph TB
+   subgraph "Random Access Pattern (Inefficient)"
+       subgraph "Threads"
+           T0_R["Thread 0"]
+           T1_R["Thread 1"]
+           T2_R["Thread 2"]
+           T3_R["Thread 3"]
+       end
 
-          T0_R -.-> M23
-          T1_R -.-> M7
-          T2_R -.-> M47
-          T3_R -.-> M15
-      end
+       subgraph "Memory"
+           M0["Mem[0]"]
+           M7["Mem[7]"]
+           M15["Mem[15]"]
+           M23["Mem[23]"]
+           M31["Mem[31]"]
+           M39["Mem[39]"]
+           M47["Mem[47]"]
+           M55["Mem[55]"]
+       end
 
-      subgraph "Tile Distribution Pattern (Efficient)"
-          subgraph "Threads_TD"
-              T0_TD["Thread 0"]
-              T1_TD["Thread 1"]
-              T2_TD["Thread 2"]
-              T3_TD["Thread 3"]
-          end
+       T0_R -.-> M23
+       T1_R -.-> M7
+       T2_R -.-> M47
+       T3_R -.-> M15
+   end
 
-          subgraph "Memory_TD"
-              M0_TD["Mem[0]"]
-              M1_TD["Mem[1]"]
-              M2_TD["Mem[2]"]
-              M3_TD["Mem[3]"]
-              M4_TD["Mem[4]"]
-              M5_TD["Mem[5]"]
-              M6_TD["Mem[6]"]
-              M7_TD["Mem[7]"]
-          end
+   subgraph "Tile Distribution Pattern (Efficient)"
+       subgraph "Threads_TD"
+           T0_TD["Thread 0"]
+           T1_TD["Thread 1"]
+           T2_TD["Thread 2"]
+           T3_TD["Thread 3"]
+       end
 
-          T0_TD --> M0_TD
-          T0_TD --> M1_TD
-          T1_TD --> M2_TD
-          T1_TD --> M3_TD
-          T2_TD --> M4_TD
-          T2_TD --> M5_TD
-          T3_TD --> M6_TD
-          T3_TD --> M7_TD
-      end
+       subgraph "Memory_TD"
+           M0_TD["Mem[0]"]
+           M1_TD["Mem[1]"]
+           M2_TD["Mem[2]"]
+           M3_TD["Mem[3]"]
+           M4_TD["Mem[4]"]
+           M5_TD["Mem[5]"]
+           M6_TD["Mem[6]"]
+           M7_TD["Mem[7]"]
+       end
 
-      style T0_R fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-      style T1_R fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-      style T2_R fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-      style T3_R fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-
-      style T0_TD fill:#d1fae5,stroke:#10b981,stroke-width:2px
-      style T1_TD fill:#d1fae5,stroke:#10b981,stroke-width:2px
-      style T2_TD fill:#d1fae5,stroke:#10b981,stroke-width:2px
-      style T3_TD fill:#d1fae5,stroke:#10b981,stroke-width:2px
-   
-   
-
-.. image:: diagrams/introduction_motivation_1.svg
-   :alt: Diagram
-   :align: center
+       T0_TD --> M0_TD
+       T0_TD --> M1_TD
+       T1_TD --> M2_TD
+       T1_TD --> M3_TD
+       T2_TD --> M4_TD
+       T2_TD --> M5_TD
+       T3_TD --> M6_TD
+       T3_TD --> M7_TD
+   end
 
 Why Random Memory Access is Slow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -216,42 +197,26 @@ The Coordinate Mapping Insight
 
 At the heart of tile distribution lies a profound mathematical insight: efficient GPU computation requires a systematic framework for mapping between different coordinate spaces. This framework transforms the complex problem of thread-to-data assignment into a series of well-defined mathematical transformations, each serving a specific purpose in the journey from abstract algorithm to concrete hardware execution.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-   .. mermaid::
-   
-      graph LR
-          subgraph "Coordinate Spaces"
-              P["P-space<br/>Thread Position<br/>(thread_x, thread_y,<br/>warp_id, block_id)"]
-              Y["Y-space<br/>Local Data<br/>(y0, y1, y2, y3)"]
-              X["X-space<br/>Global Position<br/>(x0, x1)"]
-              D["D-space<br/>Memory Address<br/>(linearized)"]
-          end
+.. mermaid::
 
-          subgraph "Transformations"
-              T1["P + Y → X<br/>Thread data mapping"]
-              T2["X → D<br/>Memory linearization"]
-          end
+   graph LR
+       subgraph "Coordinate Spaces"
+           P["P-space<br/>Thread Position<br/>(thread_x, thread_y,<br/>warp_id, block_id)"]
+           Y["Y-space<br/>Local Data<br/>(y0, y1, y2, y3)"]
+           X["X-space<br/>Global Position<br/>(x0, x1)"]
+           D["D-space<br/>Memory Address<br/>(linearized)"]
+       end
 
-          P --> T1
-          Y --> T1
-          T1 --> X
-          X --> T2
-          T2 --> D
+       subgraph "Transformations"
+           T1["P + Y → X<br/>Thread data mapping"]
+           T2["X → D<br/>Memory linearization"]
+       end
 
-          style P fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-          style Y fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-          style X fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-          style D fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-          style T1 fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
-          style T2 fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
-   
-   
-
-.. image:: diagrams/introduction_motivation_2.svg
-   :alt: Diagram
-   :align: center
+       P --> T1
+       Y --> T1
+       T1 --> X
+       X --> T2
+       T2 --> D
 
 The elegance of this approach emerges from its separation of concerns. Each coordinate space represents a distinct aspect of the computation, and the transformations between them encapsulate specific optimization strategies. This separation allows developers to reason about their algorithms in natural terms while the framework handles the complex mapping to efficient hardware execution patterns.
 

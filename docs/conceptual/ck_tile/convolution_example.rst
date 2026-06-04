@@ -15,53 +15,36 @@ This section covers how CK Tile's :ref:`tensor descriptor <ck_tile_descriptors>`
 
 The key insight is that convolution can be transformed from a complex nested loop operation into a highly parallel matrix multiplication through the image to column (im2col) transformation. CK Tile's tensor descriptors provide the perfect abstraction for implementing this transformation efficiently without data duplication.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-      .. mermaid::
-      
-         graph TB
-             subgraph "Convolution Process"
-                 I["Input Image<br/>6×6"]
-                 K["Kernel<br/>3×3"]
-                 SW["Sliding Window<br/>Extract 3×3 patches"]
-                 DP["Dot Product<br/>Element-wise multiply & sum"]
-                 O["Output<br/>4×4"]
-             end
-             
-             subgraph "Im2col Optimization"
-                 W["Windows Matrix<br/>16×9<br/>(all patches)"]
-                 KF["Kernel Flattened<br/>9×1"]
-                 MM["Matrix Multiply<br/>W @ K"]
-                 OF["Output Flattened<br/>16×1"]
-             end
-             
-             I --> SW
-             K --> DP
-             SW --> DP
-             DP --> O
-             
-             SW --> W
-             K --> KF
-             W --> MM
-             KF --> MM
-             MM --> OF
-             OF --> O
-             
-             style I fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-             style O fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-             style MM fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-      
-      
-   
-   
+.. mermaid::
 
-.. image:: diagrams/convolution_example.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Convolution Process"
+           I["Input Image<br/>6×6"]
+           K["Kernel<br/>3×3"]
+           SW["Sliding Window<br/>Extract 3×3 patches"]
+           DP["Dot Product<br/>Element-wise multiply & sum"]
+           O["Output<br/>4×4"]
+       end
+
+       subgraph "Im2col Optimization"
+           W["Windows Matrix<br/>16×9<br/>(all patches)"]
+           KF["Kernel Flattened<br/>9×1"]
+           MM["Matrix Multiply<br/>W @ K"]
+           OF["Output Flattened<br/>16×1"]
+       end
+
+       I --> SW
+       K --> DP
+       SW --> DP
+       DP --> O
+
+       SW --> W
+       K --> KF
+       W --> MM
+       KF --> MM
+       MM --> OF
+       OF --> O
+
 
 Understanding Sliding Windows
 =============================

@@ -13,56 +13,43 @@ TileWindow implements a distribution-aware windowing mechanism that views a subs
 TileWindow Architecture
 -----------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-   .. mermaid::
-   
-      graph TB
-          subgraph "Components"
-              TV["TensorView<br/>Data source"]
-              TD["TileDistribution<br/>Thread mapping"]
-              TW["TileWindow<br/>Access gateway"]
-              LT["LoadStoreTraits<br/>Access optimizer"]
-              DT["DistributedTensor<br/>Register storage"]
-          end
-          
-          subgraph "Operations"
-              Load["Load<br/>Global → Registers"]
-              Compute["Compute<br/>In registers"]
-              Store["Store<br/>Registers → Global"]
-          end
-          
-          subgraph "Optimizations"
-              Coal["Coalescing<br/>Adjacent access"]
-              Vec["Vectorization<br/>Multi-element ops"]
-              Bank["Bank conflict<br/>avoidance"]
-              SFC["Space-filling<br/>curve traversal"]
-          end
-          
-          TV --> TW
-          TD --> TW
-          TW --> LT
-          LT --> DT
-          
-          TW --> Load
-          Load --> Compute
-          Compute --> Store
-          
-          Load --> Coal
-          Load --> Vec
-          Load --> SFC
-          Store --> Bank
-          
-          style TW fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-          style LT fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-          style DT fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tile_window_1.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Components"
+           TV["TensorView<br/>Data source"]
+           TD["TileDistribution<br/>Thread mapping"]
+           TW["TileWindow<br/>Access gateway"]
+           LT["LoadStoreTraits<br/>Access optimizer"]
+           DT["DistributedTensor<br/>Register storage"]
+       end
+
+       subgraph "Operations"
+           Load["Load<br/>Global → Registers"]
+           Compute["Compute<br/>In registers"]
+           Store["Store<br/>Registers → Global"]
+       end
+
+       subgraph "Optimizations"
+           Coal["Coalescing<br/>Adjacent access"]
+           Vec["Vectorization<br/>Multi-element ops"]
+           Bank["Bank conflict<br/>avoidance"]
+           SFC["Space-filling<br/>curve traversal"]
+       end
+
+       TV --> TW
+       TD --> TW
+       TW --> LT
+       LT --> DT
+
+       TW --> Load
+       Load --> Compute
+       Compute --> Store
+
+       Load --> Coal
+       Load --> Vec
+       Load --> SFC
+       Store --> Bank
 
 What is a TileWindow?
 ---------------------
@@ -170,42 +157,30 @@ Space-Filling Curves for Memory Access
 
 TileWindow uses :ref:`space-filling curves <ck_tile_space_filling_curve>` to determine the order in which memory is accessed. Space-filling curves provide cache-friendly traversal patterns that help maximize hardware utilization. The "snake" pattern minimizes the distance between consecutive accesses, keeping data in cache longer.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-   .. mermaid::
-   
-      graph LR
-          subgraph "Linear Access Pattern"
-              L1["0,1,2,3"]
-              L2["4,5,6,7"]
-              L3["8,9,10,11"]
-              L4["12,13,14,15"]
-          end
-          
-          subgraph "Snake Access Pattern"
-              S1["0,1,2,3"]
-              S2["7,6,5,4"]
-              S3["8,9,10,11"]
-              S4["15,14,13,12"]
-          end
-          
-          L1 --> L2
-          L2 --> L3
-          L3 --> L4
-          
-          S1 --> S2
-          S2 --> S3
-          S3 --> S4
-          
-          style S1 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-          style S2 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tile_window_2.svg
-   :alt: Diagram
-   :align: center
+   graph LR
+       subgraph "Linear Access Pattern"
+           L1["0,1,2,3"]
+           L2["4,5,6,7"]
+           L3["8,9,10,11"]
+           L4["12,13,14,15"]
+       end
+
+       subgraph "Snake Access Pattern"
+           S1["0,1,2,3"]
+           S2["7,6,5,4"]
+           S3["8,9,10,11"]
+           S4["15,14,13,12"]
+       end
+
+       L1 --> L2
+       L2 --> L3
+       L3 --> L4
+
+       S1 --> S2
+       S2 --> S3
+       S3 --> S4
 
 **C++ Space-Filling Curve Implementation:**
 
@@ -237,44 +212,32 @@ TileWindow uses :ref:`space-filling curves <ck_tile_space_filling_curve>` to det
 TileWindow Data Flow
 --------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-   .. mermaid::
-   
-      flowchart LR
-          subgraph "Step 1: Create Window"
-              T["Tensor<br/>[256, 256]"]
-              O["Origin<br/>(64, 64)"]
-              W["Window Size<br/>[32, 32]"]
-          end
-          
-          subgraph "Step 2: Apply Distribution"
-              TD["TileDistribution<br/>Thread mapping"]
-              TW["TileWindow<br/>Created"]
-          end
-          
-          subgraph "Step 3: Load Data"
-              GM["Global Memory<br/>Window region"]
-              REG["Registers<br/>Distributed tensor"]
-          end
-          
-          T --> TW
-          O --> TW
-          W --> TW
-          TD --> TW
-          
-          TW --> GM
-          GM -->|"load()"| REG
-          
-          style TW fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-          style REG fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tile_window_3.svg
-   :alt: Diagram
-   :align: center
+   flowchart LR
+       subgraph "Step 1: Create Window"
+           T["Tensor<br/>[256, 256]"]
+           O["Origin<br/>(64, 64)"]
+           W["Window Size<br/>[32, 32]"]
+       end
+
+       subgraph "Step 2: Apply Distribution"
+           TD["TileDistribution<br/>Thread mapping"]
+           TW["TileWindow<br/>Created"]
+       end
+
+       subgraph "Step 3: Load Data"
+           GM["Global Memory<br/>Window region"]
+           REG["Registers<br/>Distributed tensor"]
+       end
+
+       T --> TW
+       O --> TW
+       W --> TW
+       TD --> TW
+
+       TW --> GM
+       GM -->|"load()"| REG
 
 Creating and Using TileWindow
 -----------------------------
@@ -366,50 +329,37 @@ Calls to ``window.load()`` trigger the following sequence of operations:
 Load Operation Architecture
 ---------------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-   .. mermaid::
-   
-      graph TB
-          subgraph "Load Analysis"
-              Analyze["Analyze access pattern<br/>Detect coalescing opportunities"]
-          end
-          
-          subgraph "Vectorization"
-              V1["Scalar: 4 loads"]
-              V2["Vector2: 2 loads"]
-              V4["Vector4: 1 load"]
-          end
-          
-          subgraph "Memory Transaction"
-              Coal["Coalesced access<br/>32 threads → 1 transaction"]
-              NonCoal["Non-coalesced<br/>32 threads → 32 transactions"]
-          end
-          
-          subgraph "Result"
-              Reg["Thread registers<br/>Local data"]
-          end
-          
-          Analyze --> V1
-          Analyze --> V2
-          Analyze --> V4
-          
-          V4 --> Coal
-          V1 --> NonCoal
-          
-          Coal --> Reg
-          NonCoal --> Reg
-          
-          style V4 fill:#d1fae5,stroke:#10b981,stroke-width:2px
-          style Coal fill:#d1fae5,stroke:#10b981,stroke-width:2px
-          style NonCoal fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tile_window_4.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Load Analysis"
+           Analyze["Analyze access pattern<br/>Detect coalescing opportunities"]
+       end
+
+       subgraph "Vectorization"
+           V1["Scalar: 4 loads"]
+           V2["Vector2: 2 loads"]
+           V4["Vector4: 1 load"]
+       end
+
+       subgraph "Memory Transaction"
+           Coal["Coalesced access<br/>32 threads → 1 transaction"]
+           NonCoal["Non-coalesced<br/>32 threads → 32 transactions"]
+       end
+
+       subgraph "Result"
+           Reg["Thread registers<br/>Local data"]
+       end
+
+       Analyze --> V1
+       Analyze --> V2
+       Analyze --> V4
+
+       V4 --> Coal
+       V1 --> NonCoal
+
+       Coal --> Reg
+       NonCoal --> Reg
 
 Memory Access Patterns
 ----------------------
@@ -586,39 +536,26 @@ Complete Load-Compute-Store Pipeline
 Performance Characteristics
 ---------------------------
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-   .. mermaid::
-   
-      graph LR
-          subgraph "Memory Access Optimization"
-              V["Vectorization<br/>4x fewer transactions"]
-              C["Coalescing<br/>32x bandwidth efficiency"]
-              P["Precomputation<br/>Zero overhead addressing"]
-              S["Space-filling<br/>Optimal cache usage"]
-          end
-          
-          subgraph "Hardware Utilization"
-              BW["Memory Bandwidth<br/>Near 100% utilization"]
-              L["Latency Hiding<br/>Overlapped operations"]
-              R["Register Reuse<br/>Minimal spills"]
-          end
-          
-          V --> BW
-          C --> BW
-          P --> L
-          S --> R
-          
-          style V fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-          style C fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-          style BW fill:#d1fae5,stroke:#10b981,stroke-width:3px
-   
-   
+.. mermaid::
 
-.. image:: diagrams/tile_window_5.svg
-   :alt: Diagram
-   :align: center
+   graph LR
+       subgraph "Memory Access Optimization"
+           V["Vectorization<br/>4x fewer transactions"]
+           C["Coalescing<br/>32x bandwidth efficiency"]
+           P["Precomputation<br/>Zero overhead addressing"]
+           S["Space-filling<br/>Optimal cache usage"]
+       end
+
+       subgraph "Hardware Utilization"
+           BW["Memory Bandwidth<br/>Near 100% utilization"]
+           L["Latency Hiding<br/>Overlapped operations"]
+           R["Register Reuse<br/>Minimal spills"]
+       end
+
+       V --> BW
+       C --> BW
+       P --> L
+       S --> R
 
 
 Best Practices

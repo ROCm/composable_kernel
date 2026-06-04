@@ -15,53 +15,39 @@ The tile distribution encoding system represents the core mathematical framework
 
 At its heart, the encoding system defines how multi-dimensional tensor data is distributed across GPU processing elements through a hierarchical decomposition scheme. By specifying relationships between different coordinate spaces of replication (R), hierarchical (H), partition (P), and yield (Y) dimension, the encoding provides a complete blueprint for data layout and access patterns that can be resolved entirely at compile time. This is the internal mechanism behind :ref:`ck_tile_tile_distribution`. See :ref:`ck_tile_coordinate_systems` for more information about coordinate spaces.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-   .. mermaid::
-   
-      graph TB
-          subgraph "Encoding Components"
-              RS["R-space Lengths<br/>Replication dimensions"]
-              HS["H-space Lengths<br/>Hierarchical decomposition<br/>[[2,2],[2,2]]"]
-              P2RH["P→RH Mappings<br/>Thread to hierarchy<br/>Major/Minor"]
-              Y2RH["Y→RH Mappings<br/>Element to hierarchy<br/>Major/Minor"]
-          end
-          
-          subgraph "Generated Components"
-              ADAPTOR["ps_ys_to_xs_adaptor<br/>Coordinate transformer"]
-              DESC["ys_to_d_descriptor<br/>Memory linearizer"]
-              ENC["Encoding<br/>Original specification"]
-          end
-          
-          subgraph "Transformation Chain"
-              T1["Replicate<br/>Transform"]
-              T2["Unmerge<br/>Transform"]
-              T3["Merge<br/>Transform"]
-          end
-          
-          RS --> T1
-          HS --> T2
-          P2RH --> ADAPTOR
-          Y2RH --> ADAPTOR
-          
-          T1 --> T2
-          T2 --> T3
-          T3 --> ADAPTOR
-          
-          HS --> DESC
-          Y2RH --> DESC
-          
-          style RS fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-          style HS fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-          style ADAPTOR fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-          style DESC fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-   
-   
+.. mermaid::
 
-.. image:: diagrams/encoding_internals_1.svg
-   :alt: Diagram
-   :align: center
+   graph TB
+       subgraph "Encoding Components"
+           RS["R-space Lengths<br/>Replication dimensions"]
+           HS["H-space Lengths<br/>Hierarchical decomposition<br/>[[2,2],[2,2]]"]
+           P2RH["P→RH Mappings<br/>Thread to hierarchy<br/>Major/Minor"]
+           Y2RH["Y→RH Mappings<br/>Element to hierarchy<br/>Major/Minor"]
+       end
+
+       subgraph "Generated Components"
+           ADAPTOR["ps_ys_to_xs_adaptor<br/>Coordinate transformer"]
+           DESC["ys_to_d_descriptor<br/>Memory linearizer"]
+           ENC["Encoding<br/>Original specification"]
+       end
+
+       subgraph "Transformation Chain"
+           T1["Replicate<br/>Transform"]
+           T2["Unmerge<br/>Transform"]
+           T3["Merge<br/>Transform"]
+       end
+
+       RS --> T1
+       HS --> T2
+       P2RH --> ADAPTOR
+       Y2RH --> ADAPTOR
+
+       T1 --> T2
+       T2 --> T3
+       T3 --> ADAPTOR
+
+       HS --> DESC
+       Y2RH --> DESC
 
 Encoding Structure
 ==================
@@ -203,44 +189,31 @@ Transformation Pipeline
 
 The encoding generates a transformation pipeline that converts coordinates using the concepts from :ref:`ck_tile_transforms` and :ref:`ck_tile_adaptors`:
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
-   .. mermaid::
-   
-      flowchart LR
-          subgraph "Input Coordinates"
-              P["P-coordinates<br/>[warp_id, lane_id]"]
-              Y["Y-coordinates<br/>[y0, y1, y2, y3]"]
-          end
-          
-          subgraph "Transformation Pipeline"
-              C1["Combine P+Y"]
-              T1["Replicate<br/>Transform<br/>(if R-dims exist)"]
-              T2["Unmerge<br/>Transform<br/>(break into H-dims)"]
-              T3["Merge<br/>Transform<br/>(combine to X-dims)"]
-          end
-          
-          subgraph "Output"
-              X["X-coordinates<br/>[x0, x1]<br/>Tensor position"]
-          end
-          
-          P --> C1
-          Y --> C1
-          C1 --> T1
-          T1 --> T2
-          T2 --> T3
-          T3 --> X
-          
-          style P fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-          style Y fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-          style X fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-   
-   
+.. mermaid::
 
-.. image:: diagrams/encoding_internals_2.svg
-   :alt: Diagram
-   :align: center
+   flowchart LR
+       subgraph "Input Coordinates"
+           P["P-coordinates<br/>[warp_id, lane_id]"]
+           Y["Y-coordinates<br/>[y0, y1, y2, y3]"]
+       end
+
+       subgraph "Transformation Pipeline"
+           C1["Combine P+Y"]
+           T1["Replicate<br/>Transform<br/>(if R-dims exist)"]
+           T2["Unmerge<br/>Transform<br/>(break into H-dims)"]
+           T3["Merge<br/>Transform<br/>(combine to X-dims)"]
+       end
+
+       subgraph "Output"
+           X["X-coordinates<br/>[x0, x1]<br/>Tensor position"]
+       end
+
+       P --> C1
+       Y --> C1
+       C1 --> T1
+       T1 --> T2
+       T2 --> T3
+       T3 --> X
 
 Building the Transformation Chain
 ---------------------------------
