@@ -12,8 +12,8 @@
 #include "../common/csv_test_loader.hpp"                   // Shared CSV test case loader
 
 using namespace ck::tensor_layout::convolution; // Import tensor layout names (GNHWK, GKYXC, etc.)
-static ck::index_t param_mask     = 0xffff;
-static ck::index_t instance_index = -1;
+static ck::index_t param_mask [[maybe_unused]] = 0xffff;
+static ck::index_t instance_index              = -1;
 
 #if __clang_major__ >= 23
 #pragma clang diagnostic push

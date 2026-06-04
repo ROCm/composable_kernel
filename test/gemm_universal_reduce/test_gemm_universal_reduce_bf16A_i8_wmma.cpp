@@ -5,8 +5,8 @@
 
 #include "gtest/gtest.h"
 #include "profiler/profile_gemm_universal_reduce_impl.hpp"
-static ck::index_t param_mask     = 0xffff;
-static ck::index_t instance_index = -1;
+static ck::index_t param_mask [[maybe_unused]] = 0xffff;
+static ck::index_t instance_index              = -1;
 
 TEST(GemmUniversalReduce, BF16A_I8)
 {
