@@ -352,6 +352,12 @@
 #define CK_TILE_ENC_SUPPORT_Y_TO_R 0
 #endif
 
+#if defined(_MSC_VER)
+#define CK_TILE_NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
+#else
+#define CK_TILE_NO_UNIQUE_ADDRESS [[no_unique_address]]
+#endif
+
 // Mark unsupported features with a deprecation warning in debug builds
 #if defined(NDEBUG)
 #define CK_TILE_UNSUPPORTED_IMPL(MSG)
