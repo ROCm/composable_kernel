@@ -41,6 +41,8 @@ struct HstuAttentionFwdKernel
     using BiasDataType =
         ck_tile::remove_cvref_t<typename HstuAttentionPipeline::Problem::BiasDataType>;
     using ODataType = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::Problem::ODataType>;
+    using CompDataType =
+        ck_tile::remove_cvref_t<typename HstuAttentionPipeline::Problem::CompDataType>;
 
     static constexpr bool kIsCrossAttention = HstuAttentionPipeline::Problem::kIsCrossAttention;
     static constexpr bool kUseGroup         = HstuAttentionPipeline::Problem::kUseGroup;
@@ -701,6 +703,7 @@ struct HstuAttentionFwdKernel
         long_index_t batch_offset_v    = 0;
         long_index_t batch_offset_bias = 0;
         long_index_t batch_offset_o    = 0;
+        long_index_t batch_offset_lse  = 0;
 
         if constexpr(kIsJagged)
         {
@@ -717,6 +720,10 @@ struct HstuAttentionFwdKernel
                 batch_offset_bias = query_start * kargs.seq_stride_bias;
             }
             batch_offset_o = query_start * kargs.seq_stride_o;
+            if constexpr(kStoreLSE)
+            {
+                batch_offset_lse = query_start * kargs.seq_stride_lse;
+            }
 
             kargs.seqlen_q =
                 kargs.seq_q_offsets_ptr[i_batch + 1] - kargs.seq_q_offsets_ptr[i_batch];
@@ -747,6 +754,10 @@ struct HstuAttentionFwdKernel
                 batch_offset_bias = static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
             }
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
+            if constexpr(kStoreLSE)
+            {
+                batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
+            }
         }
 
         int num_target = (kargs.num_targets_ptr == nullptr) ? 0 : kargs.num_targets_ptr[i_batch];
@@ -916,6 +927,35 @@ struct HstuAttentionFwdKernel
             }
         }();
 
+        auto lse_dram_window = [&, i_nhead_ = i_nhead]() {
+            constexpr auto lse_dram_window_lengths =
+                make_tuple(number<HstuAttentionPipeline::kM0>{});
+            if constexpr(kStoreLSE)
+            {
+                CompDataType* lse_ptr =
+                    reinterpret_cast<CompDataType*>(kargs.lse_ptr) +
+                    static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_lse + batch_offset_lse;
+
+                const auto lse_dram = [&]() {
+                    const auto lse_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                        lse_ptr,
+                        make_tuple(seqlen_q_in_ctrl),
+                        make_tuple(kargs.seq_stride_lse),
+                        number<1>{},
+                        number<1>{});
+
+                    return pad_tensor_view(
+                        lse_dram_naive, lse_dram_window_lengths, sequence<false>{});
+                }();
+
+                return make_tile_window(lse_dram, lse_dram_window_lengths, {i_m0});
+            }
+            else
+            {
+                return make_null_tile_window(lse_dram_window_lengths);
+            }
+        }();
+
         auto dropout = [&, i_nhead_ = i_nhead, i_batch_ = i_batch]() {
             if constexpr(kHasDropout)
             {
@@ -985,13 +1025,11 @@ struct HstuAttentionFwdKernel
                 }
                 else
                 {
-                    auto null_tile_window = ck_tile::make_null_tile_window(ck_tile::make_tuple());
-
                     return HstuAttentionPipeline{}(q_dram_window,
                                                    k_dram_window,
                                                    v_dram_window,
                                                    bias_dram_window,
-                                                   null_tile_window,
+                                                   lse_dram_window,
                                                    seqlen_k_start,
                                                    seqlen_k_end,
                                                    mask,
@@ -1040,12 +1078,11 @@ struct HstuAttentionFwdKernel
                 }
                 else
                 {
-                    auto null_tile_window = ck_tile::make_null_tile_window(ck_tile::make_tuple());
                     return HstuAttentionPipeline{}(q_dram_window,
                                                    k_dram_window,
                                                    v_dram_window,
                                                    bias_dram_window,
-                                                   null_tile_window,
+                                                   lse_dram_window,
                                                    seqlen_k_start,
                                                    seqlen_k_end,
                                                    mask,
