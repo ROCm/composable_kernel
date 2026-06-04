@@ -81,7 +81,6 @@ struct HstuAttentionFwdPipelineProblem
     using CompDataType = remove_cvref_t<CompDataType_>;
     using BiasDataType = remove_cvref_t<BiasDataType_>;
 
-    // to be compatible with ck_tile existing policy codes
     using OaccDataType = GemmAccDataType;
     using PDataType    = QKVDataType;
 

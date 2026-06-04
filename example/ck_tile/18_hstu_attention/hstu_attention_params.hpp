@@ -43,14 +43,14 @@ struct HstuAttentionNoGroupFwdParams
     ck_tile::index_t seq_stride_v;
     ck_tile::index_t seq_stride_bias;
     ck_tile::index_t seq_stride_o;
-    ck_tile::index_t seq_stride_lse;
+    ck_tile::index_t seq_stride_lse; // not needed if lse layout is [nhead, seqlen_q]
 
     ck_tile::index_t nhead_stride_q;
     ck_tile::index_t nhead_stride_k;
     ck_tile::index_t nhead_stride_v;
     ck_tile::index_t nhead_stride_bias;
     ck_tile::index_t nhead_stride_o;
-    ck_tile::index_t nhead_stride_lse;
+    ck_tile::index_t nhead_stride_lse; // not needed if lse layout is [seqlen_q, nhead]
 
     // batched mode only parameters
     ck_tile::index_t batch_stride_q;
@@ -106,14 +106,14 @@ struct HstuAttentionGroupFwdParams
     ck_tile::index_t seq_stride_v;
     ck_tile::index_t seq_stride_bias;
     ck_tile::index_t seq_stride_o;
-    ck_tile::index_t seq_stride_lse;
+    ck_tile::index_t seq_stride_lse; // not needed if lse layout is [nhead, seqlen_q]
 
     ck_tile::index_t nhead_stride_q;
     ck_tile::index_t nhead_stride_k;
     ck_tile::index_t nhead_stride_v;
     ck_tile::index_t nhead_stride_bias;
     ck_tile::index_t nhead_stride_o;
-    ck_tile::index_t nhead_stride_lse;
+    ck_tile::index_t nhead_stride_lse; // not needed if lse layout is [seqlen_q, nhead]
 
     const void* num_targets_ptr;
 
