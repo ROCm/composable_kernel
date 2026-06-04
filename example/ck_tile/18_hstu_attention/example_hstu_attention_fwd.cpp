@@ -587,35 +587,32 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
     {
         using GemmAccDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType;
 
-        BOOL_SWITCH_3(is_jagged, kIsJagged, use_softmax, kUseSoftmax, use_causal, kUseCausal, [&] {
-            BOOL_SWITCH(is_training, kIsTraining, [&] {
-                constexpr bool kStoreLSE = (kIsTraining && kUseSoftmax);
-                ck_tile::reference_no_group_hstu_attention_fwd<
-                    InOutDataType,
-                    GemmAccDataType,
-                    CompDataType,
-                    kIsJagged,
-                    kUseSoftmax,
-                    kStoreLSE,
-                    kUseCausal>::Run(is_cross_attention,
-                                     q_host,
-                                     k_host,
-                                     v_host,
-                                     o_host_ref,
-                                     lse_host_ref,
-                                     mask_host,
-                                     num_batch,
-                                     scale_s,
-                                     attn_scale,
-                                     max_seqlen_q,
-                                     max_seqlen_kv,
-                                     seq_offsets_q,
-                                     seq_offsets_kv,
-                                     num_targets,
-                                     contextual_seqlen,
-                                     window_size,
-                                     min_full_attn_seqlen);
-            });
+        BOOL_SWITCH_2(is_jagged, kIsJagged, use_causal, kUseCausal, [&] {
+            bool store_lse = (is_training && use_softmax);
+            ck_tile::reference_no_group_hstu_attention_fwd<InOutDataType,
+                                                           GemmAccDataType,
+                                                           CompDataType,
+                                                           kIsJagged,
+                                                           kUseCausal>::Run(is_cross_attention,
+                                                                            use_softmax,
+                                                                            store_lse,
+                                                                            q_host,
+                                                                            k_host,
+                                                                            v_host,
+                                                                            o_host_ref,
+                                                                            lse_host_ref,
+                                                                            mask_host,
+                                                                            num_batch,
+                                                                            scale_s,
+                                                                            attn_scale,
+                                                                            max_seqlen_q,
+                                                                            max_seqlen_kv,
+                                                                            seq_offsets_q,
+                                                                            seq_offsets_kv,
+                                                                            num_targets,
+                                                                            contextual_seqlen,
+                                                                            window_size,
+                                                                            min_full_attn_seqlen);
         });
 
         ck_tile::HostTensor<InOutDataType> o_host(
@@ -1042,36 +1039,34 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
     {
         using GemmAccDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType;
 
-        BOOL_SWITCH_2(use_softmax, kUseSoftmax, use_causal, kUseCausal, [&] {
-            BOOL_SWITCH(is_training, kIsTraining, [&] {
-                constexpr bool kStoreLSE = (kIsTraining && kUseSoftmax);
-                ck_tile::reference_group_hstu_attention_fwd<
-                    InOutDataType,
-                    GemmAccDataType,
-                    CompDataType,
-                    kUseSoftmax,
-                    kStoreLSE,
-                    kUseCausal>::Run(is_cross_attention,
-                                     q_host,
-                                     k_host,
-                                     v_host,
-                                     o_host_ref,
-                                     lse_host_ref,
-                                     mask_host,
-                                     num_batch,
-                                     num_batch / num_group,
-                                     scale_s,
-                                     max_max_seqlen_q,
-                                     max_max_seqlen_kv,
-                                     seq_offsets_q,
-                                     seq_offsets_kv,
-                                     num_targets,
-                                     group_max_seqlens_q,
-                                     group_contextual_seqlens,
-                                     group_window_sizes,
-                                     group_min_full_attn_seqlens,
-                                     group_attn_scales);
-            });
+        BOOL_SWITCH(use_causal, kUseCausal, [&] {
+            bool store_lse = (is_training && use_softmax);
+            ck_tile::reference_group_hstu_attention_fwd<
+                InOutDataType,
+                GemmAccDataType,
+                CompDataType,
+                kUseCausal>::Run(is_cross_attention,
+                                 use_softmax,
+                                 store_lse,
+                                 q_host,
+                                 k_host,
+                                 v_host,
+                                 o_host_ref,
+                                 lse_host_ref,
+                                 mask_host,
+                                 num_batch,
+                                 num_batch / num_group,
+                                 scale_s,
+                                 max_max_seqlen_q,
+                                 max_max_seqlen_kv,
+                                 seq_offsets_q,
+                                 seq_offsets_kv,
+                                 num_targets,
+                                 group_max_seqlens_q,
+                                 group_contextual_seqlens,
+                                 group_window_sizes,
+                                 group_min_full_attn_seqlens,
+                                 group_attn_scales);
         });
 
         ck_tile::HostTensor<InOutDataType> o_host(
