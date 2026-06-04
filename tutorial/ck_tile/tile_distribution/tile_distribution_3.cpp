@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: MIT
 
 /*
- * Tutorial: CK Tile Distribution Encoding — C Matrix Register Layout
+ * Tutorial: CK Tile Distribution Encoding -- C Matrix Register Layout
  *
  * Demonstrates how C-matrix elements are distributed across thread registers
  * after MFMA computation. Unlike A/B (which are DRAM loads), C lives entirely
- * in registers — the distribution describes which thread holds which output
- * element of C = A × B.
+ * in registers -- the distribution describes which thread holds which output
+ * element of C = A x B.
  *
  * This tutorial shows BOTH:
  *   1. The warp-level C distribution (from MFMA m32n32k8 output mapping)
@@ -17,11 +17,11 @@
  * The macro CK_TILE_ENABLE_TRANSPOSED_C_DISTRIBUTION (default 1) selects
  * between the standard and transposed C register layouts.
  *
- * Tile: M=256 × N=128 (matches the naive GEMM's C block tile)
+ * Tile: M=256 x N=128 (matches the naive GEMM's C block tile)
  * Warp config: MWarp=4, NWarp=1
- * MFMA: m32n32k8 (each warp produces a 32×32 output)
+ * MFMA: m32n32k8 (each warp produces a 32x32 output)
  *
- * No actual MFMA compute — we construct a C distributed tensor, fill it
+ * No actual MFMA compute -- we construct a C distributed tensor, fill it
  * with marker values (thread_id * 1000 + buffer_index), and print per-thread
  * contents to reveal which buffer slots belong to which thread.
  *
@@ -45,24 +45,24 @@ using namespace ck_tile;
 // THE GOAL
 // ============================================================================
 // After GEMM computation, each thread holds a subset of the C matrix
-// (M=256 × N=128 = 32768 elements) in its registers. We want to understand
+// (M=256 x N=128 = 32768 elements) in its registers. We want to understand
 // exactly which C[m][n] elements each thread owns.
 //
 // The mapping has two levels:
 //
-// BLOCK LEVEL (256×128 → warps and iterations):
+// BLOCK LEVEL (256x128 -> warps and iterations):
 //   - 4 warps along M (MWarp=4), 1 warp along N (NWarp=1)
-//   - Each warp covers 32 M-rows × 128 N-cols of the block tile
+//   - Each warp covers 32 M-rows x 128 N-cols of the block tile
 //   - Within each warp: MIterPerWarp=2, NIterPerWarp=4
-//     → 2 × 4 = 8 warp-tile iterations per warp
-//   - Each warp-tile iteration is a 32×32 MFMA output
+//     -> 2 x 4 = 8 warp-tile iterations per warp
+//   - Each warp-tile iteration is a 32x32 MFMA output
 //
-// WARP LEVEL (32×32 → threads):
-//   - 64 threads produce 32 × 32 = 1024 C elements
+// WARP LEVEL (32x32 -> threads):
+//   - 64 threads produce 32 x 32 = 1024 C elements
 //   - Each thread holds 1024/64 = 16 elements
 //   - MFMA m32n32k8 arranges these 16 elements in a specific pattern
 //
-// The per-thread register buffer = 8 iterations × 16 elements = 128 floats.
+// The per-thread register buffer = 8 iterations x 16 elements = 128 floats.
 //
 // ============================================================================
 // THE SOLUTION: Two-Level Distribution
@@ -70,105 +70,105 @@ using namespace ck_tile;
 //
 // --- WARP-LEVEL C DISTRIBUTION (from MFMA m32n32k8) ---
 //
-// For fp16→fp32 MFMA m32n32k8 output (kCM0PerLane=4, kCMLane=2,
+// For fp16->fp32 MFMA m32n32k8 output (kCM0PerLane=4, kCMLane=2,
 // kCM1PerLane=4, kCNLane=32):
 //
 // STANDARD (CK_TILE_ENABLE_TRANSPOSED_C_DISTRIBUTION=0):
 //
-//   Hs[0] = sequence<4, 2, 4>   → M-dim: 4 × 2 × 4 = 32
-//   Hs[1] = sequence<32>        → N-dim: 32
-//   Ps_major = tuple<sequence<1, 2>>   → lane maps to Hs[0][1] and Hs[1][0]
+//   Hs[0] = sequence<4, 2, 4>   -> M-dim: 4 x 2 x 4 = 32
+//   Hs[1] = sequence<32>        -> N-dim: 32
+//   Ps_major = tuple<sequence<1, 2>>   -> lane maps to Hs[0][1] and Hs[1][0]
 //   Ps_minor = tuple<sequence<1, 0>>
 //
-//   How to read Ps: the tuple has 1 element → NDimP=1 → P0 = lane_id.
-//     P0: major=<1,2>, minor=<1,0> → merged:
-//         Hs[0] level 1 → kCMLane=2  (outer, M-half)
-//         Hs[1] level 0 → kCNLane=32 (inner, N-col → contiguous!)
-//         lane / 32 → M-half,  lane % 32 → N-col
+//   How to read Ps: the tuple has 1 element -> NDimP=1 -> P0 = lane_id.
+//     P0: major=<1,2>, minor=<1,0> -> merged:
+//         Hs[0] level 1 -> kCMLane=2  (outer, M-half)
+//         Hs[1] level 0 -> kCNLane=32 (inner, N-col -> contiguous!)
+//         lane / 32 -> M-half,  lane % 32 -> N-col
 //
 //   Ys_major = sequence<1, 1>
 //   Ys_minor = sequence<0, 2>
 //
-//   How to read Ys: parallel arrays — position i gives Yi.
+//   How to read Ys: parallel arrays -- position i gives Yi.
 //
-//      Ys_major = seq< 1,  1 >   → Y0 is in Hs[0],  Y1 is in Hs[0]
-//      Ys_minor = seq< 0,  2 >   → Y0 is level 0,   Y1 is level 2
-//                     ─Y0─  ─Y1─
+//      Ys_major = seq< 1,  1 >   -> Y0 is in Hs[0],  Y1 is in Hs[0]
+//      Ys_minor = seq< 0,  2 >   -> Y0 is level 0,   Y1 is level 2
+//                     -Y0-  -Y1-
 //
-//      Y0: Hs[0] level 0 → kCM0PerLane=4  (M outer per lane)
-//      Y1: Hs[0] level 2 → kCM1PerLane=4  (M inner per lane)
+//      Y0: Hs[0] level 0 -> kCM0PerLane=4  (M outer per lane)
+//      Y1: Hs[0] level 2 -> kCM1PerLane=4  (M inner per lane)
 //
 //              Hs[0]                   Hs[1]
-//         ┌─────┼─────┐                 │
+//         +-----+-----+                 |
 //       [Y0]  [P0]   [Y1]            [P0]
 //        = 4   = 2    = 4             = 32
-//    (M outer)(lane) (M inner)      (lane → N)
+//    (M outer)(lane) (M inner)      (lane -> N)
 //
-//   Per-thread: Y0 × Y1 = 4 × 4 = 16 elements per warp-tile.
-//   Lane decomposition: lane / 32 → M-half (0..1), lane % 32 → N-col (0..31)
+//   Per-thread: Y0 x Y1 = 4 x 4 = 16 elements per warp-tile.
+//   Lane decomposition: lane / 32 -> M-half (0..1), lane % 32 -> N-col (0..31)
 //
 // TRANSPOSED (CK_TILE_ENABLE_TRANSPOSED_C_DISTRIBUTION=1):
 //
-//   Hs[0] = sequence<32>          → First dim: N (swapped!)
-//   Hs[1] = sequence<4, 2, 4>    → Second dim: M (swapped!)
-//   Ps_major = tuple<sequence<2, 1>>   → lane maps to Hs[1][1] and Hs[0][0]
+//   Hs[0] = sequence<32>          -> First dim: N (swapped!)
+//   Hs[1] = sequence<4, 2, 4>    -> Second dim: M (swapped!)
+//   Ps_major = tuple<sequence<2, 1>>   -> lane maps to Hs[1][1] and Hs[0][0]
 //   Ps_minor = tuple<sequence<1, 0>>
 //
-//   How to read Ps: tuple has 1 element → NDimP=1 → P0 = lane_id.
-//     P0: major=<2,1>, minor=<1,0> → merged:
-//         Hs[1] level 1 → kCMLane=2  (outer, M-half)
-//         Hs[0] level 0 → kCNLane=32 (inner, N-col → contiguous!)
+//   How to read Ps: tuple has 1 element -> NDimP=1 -> P0 = lane_id.
+//     P0: major=<2,1>, minor=<1,0> -> merged:
+//         Hs[1] level 1 -> kCMLane=2  (outer, M-half)
+//         Hs[0] level 0 -> kCNLane=32 (inner, N-col -> contiguous!)
 //         Same lane decomposition as standard, but dimensions are swapped.
 //
 //   Ys_major = sequence<2, 2>
 //   Ys_minor = sequence<0, 2>
 //
 //   How to read Ys:
-//      Ys_major = seq< 2,  2 >   → Y0 is in Hs[1],  Y1 is in Hs[1]
-//      Ys_minor = seq< 0,  2 >   → Y0 is level 0,   Y1 is level 2
-//                     ─Y0─  ─Y1─
+//      Ys_major = seq< 2,  2 >   -> Y0 is in Hs[1],  Y1 is in Hs[1]
+//      Ys_minor = seq< 0,  2 >   -> Y0 is level 0,   Y1 is level 2
+//                     -Y0-  -Y1-
 //
-//      Y0: Hs[1] level 0 → kCM0PerLane=4  (M outer per lane)
-//      Y1: Hs[1] level 2 → kCM1PerLane=4  (M inner per lane)
+//      Y0: Hs[1] level 0 -> kCM0PerLane=4  (M outer per lane)
+//      Y1: Hs[1] level 2 -> kCM1PerLane=4  (M inner per lane)
 //      Same 16 elements, but now both Y dims are in Hs[1] (M is second).
 //
 //              Hs[0]               Hs[1]
-//                │            ┌─────┼─────┐
+//                |            +-----+-----+
 //              [P0]         [Y0]  [P0]   [Y1]
 //              = 32          = 4   = 2    = 4
-//           (lane → N)   (M outer)(lane)(M inner)
+//           (lane -> N)   (M outer)(lane)(M inner)
 //
 //   Same 16 elements per thread, but N is the first dimension in the
-//   distribution — this changes which elements are contiguous in the
+//   distribution -- this changes which elements are contiguous in the
 //   thread buffer, affecting downstream store coalescing.
 //
 // --- BLOCK-LEVEL OUTER DISTRIBUTION ---
 //
-//   MIterPerWarp = MPerBlock / (MWarp × WarpGemm::kM) = 256 / (4 × 32) = 2
-//   NIterPerWarp = NPerBlock / (NWarp × WarpGemm::kN) = 128 / (1 × 32) = 4
+//   MIterPerWarp = MPerBlock / (MWarp x WarpGemm::kM) = 256 / (4 x 32) = 2
+//   NIterPerWarp = NPerBlock / (NWarp x WarpGemm::kN) = 128 / (1 x 32) = 4
 //
-//   Hs[0] = sequence<2, 4>  → M-dim: 2 iters × 4 warps
-//   Hs[1] = sequence<4, 1>  → N-dim: 4 iters × 1 warp
+//   Hs[0] = sequence<2, 4>  -> M-dim: 2 iters x 4 warps
+//   Hs[1] = sequence<4, 1>  -> N-dim: 4 iters x 1 warp
 //   Ps_major = tuple<sequence<1, 2>>
 //   Ps_minor = tuple<sequence<1, 1>>
 //
-//   How to read Ps: tuple has 1 element → NDimP=1 → P0 = warp_id.
-//     P0: major=<1,2>, minor=<1,1> → merged:
-//         Hs[0] level 1 → MWarp=4 (outer)
-//         Hs[1] level 1 → NWarp=1 (inner, trivial)
-//         Total: 4 × 1 = 4 = number of warps
+//   How to read Ps: tuple has 1 element -> NDimP=1 -> P0 = warp_id.
+//     P0: major=<1,2>, minor=<1,1> -> merged:
+//         Hs[0] level 1 -> MWarp=4 (outer)
+//         Hs[1] level 1 -> NWarp=1 (inner, trivial)
+//         Total: 4 x 1 = 4 = number of warps
 //
 //   Ys_major = sequence<1, 2>
 //   Ys_minor = sequence<0, 0>
 //
 //   How to read Ys:
-//      Ys_major = seq< 1,  2 >   → Y0 is in Hs[0],  Y1 is in Hs[1]
-//      Ys_minor = seq< 0,  0 >   → Y0 is level 0,   Y1 is level 0
-//                     ─Y0─  ─Y1─
+//      Ys_major = seq< 1,  2 >   -> Y0 is in Hs[0],  Y1 is in Hs[1]
+//      Ys_minor = seq< 0,  0 >   -> Y0 is level 0,   Y1 is level 0
+//                     -Y0-  -Y1-
 //
-//      Y0: Hs[0] level 0 → MIterPerWarp=2
-//      Y1: Hs[1] level 0 → NIterPerWarp=4
-//      Block-level buffer = Y0 × Y1 = 2 × 4 = 8 warp-tile slots.
+//      Y0: Hs[0] level 0 -> MIterPerWarp=2
+//      Y1: Hs[1] level 0 -> NIterPerWarp=4
+//      Block-level buffer = Y0 x Y1 = 2 x 4 = 8 warp-tile slots.
 //
 //   tile_distribution_encoding<sequence<>,
 //       tuple<sequence<2, 4>, sequence<4, 1>>,
@@ -179,7 +179,7 @@ using namespace ck_tile;
 //
 //   make_embed_tile_distribution_encoding(block_outer, warp_encoding)
 //   embeds the warp encoding inside each (MIter, MWarp, NIter, NWarp) cell.
-//   Total per-thread buffer = 2 × 4 × 16 = 128 elements.
+//   Total per-thread buffer = 2 x 4 x 16 = 128 elements.
 //
 // ============================================================================
 
@@ -354,10 +354,10 @@ int main()
     printf("=== CK Tile Distribution Tutorial 3: C-Matrix Register Layout ===\n");
     printf("=== Matches naive GEMM: MPerBlock=256, NPerBlock=128          ===\n\n");
     printf("MFMA m32n32k8: each warp produces 32x32 = 1024 elements\n");
-    printf("  64 threads per warp → 16 elements per thread per warp-tile\n");
-    printf("  MWarp=4, NWarp=1 → 4 warps along M, 1 along N\n");
-    printf("  MIterPerWarp=2, NIterPerWarp=4 → 8 warp-tiles per warp\n");
-    printf("  Total per thread: 8 × 16 = 128 elements\n\n");
+    printf("  64 threads per warp -> 16 elements per thread per warp-tile\n");
+    printf("  MWarp=4, NWarp=1 -> 4 warps along M, 1 along N\n");
+    printf("  MIterPerWarp=2, NIterPerWarp=4 -> 8 warp-tiles per warp\n");
+    printf("  Total per thread: 8 x 16 = 128 elements\n\n");
 
 #if CK_TILE_ENABLE_TRANSPOSED_C_DISTRIBUTION
     printf("Current mode: TRANSPOSED C distribution\n");

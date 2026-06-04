@@ -1,7 +1,7 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 //
-// Role: meta — consteval resolve(), C++20 concepts. No runtime, no CK deps.
+// Role: meta -- consteval resolve(), C++20 concepts. No runtime, no CK deps.
 //
 // Signature resolution: resolves a Signature into concrete tensor descriptors.
 //
@@ -10,8 +10,8 @@
 // Tensor entries, and applies the dtype cascade. All at compile time (consteval).
 //
 // Op dispatch uses C++20 concepts to classify ops by structural shape:
-//   BinaryOpLike  — has {lhs, rhs, out} string_view members
-//   UnaryOpLike   — has {in, out} string_view members
+//   BinaryOpLike  -- has {lhs, rhs, out} string_view members
+//   UnaryOpLike   -- has {in, out} string_view members
 // A single visitOp() function is the only place the Op variant type list
 // appears. Adding a new op requires one line in visitOp(); concepts handle
 // generic registration and propagation automatically.
@@ -29,7 +29,7 @@
 namespace rocm_ck {
 
 // ============================================================================
-// Op structural concepts — classify ops by their tensor slot shape
+// Op structural concepts -- classify ops by their tensor slot shape
 // ============================================================================
 
 /// Ops with three tensor slots: lhs, rhs, out (e.g., AddOp, MulOp).
@@ -53,9 +53,9 @@ concept UnaryOpLike = requires(const T& t) {
 };
 
 // ============================================================================
-// visitOp — single consteval dispatch point for all Op types
+// visitOp -- single consteval dispatch point for all Op types
 //
-// Adding a new Op alternative requires no changes here — std::visit
+// Adding a new Op alternative requires no changes here -- std::visit
 // enforces exhaustiveness at compile time via the visitor's operator().
 // ============================================================================
 
@@ -87,7 +87,7 @@ struct ResolvedSignature
         for(int i = 0; i < num_tensors; ++i)
             if(tensors[i].name == name)
                 return tensors[i];
-        throw "tensor() — name not found in resolved signature; "
+        throw "tensor() -- name not found in resolved signature; "
               "check that it appears in an op slot or Tensor entry";
     }
 
@@ -97,7 +97,7 @@ struct ResolvedSignature
         for(int i = 0; i < num_tensors; ++i)
             if(tensors[i].name == name)
                 return i;
-        throw "tensorIndex() — name not found in resolved signature; "
+        throw "tensorIndex() -- name not found in resolved signature; "
               "check that it appears in an op slot or Tensor entry";
     }
 
@@ -107,7 +107,7 @@ struct ResolvedSignature
         for(int i = 0; i < num_scalars; ++i)
             if(scalars[i].name == name)
                 return scalars[i];
-        throw "scalar() — name not found; "
+        throw "scalar() -- name not found; "
               "add a Scalar entry with this name to the Signature";
     }
 
@@ -117,7 +117,7 @@ struct ResolvedSignature
         for(int i = 0; i < num_scalars; ++i)
             if(scalars[i].name == name)
                 return i;
-        throw "scalarIndex() — name not found; "
+        throw "scalarIndex() -- name not found; "
               "add a Scalar entry with this name to the Signature";
     }
 
@@ -143,16 +143,16 @@ struct ResolvedSignature
 };
 
 // ============================================================================
-// Op slot visitors — concept-driven, generic handling for binary/unary ops
+// Op slot visitors -- concept-driven, generic handling for binary/unary ops
 // ============================================================================
 
 /// Register all tensor slots of an op. Returns the output tensor name.
 ///
 /// Uses concepts for generic dispatch:
-///   GemmOp  — special case: sets operator-implied rank/layout defaults
-///   ScaleOp — special case: validates scalar reference against sig.scalars[]
-///   BinaryOpLike — generic: registers lhs, rhs, out
-///   UnaryOpLike  — generic: registers in, out
+///   GemmOp  -- special case: sets operator-implied rank/layout defaults
+///   ScaleOp -- special case: validates scalar reference against sig.scalars[]
+///   BinaryOpLike -- generic: registers lhs, rhs, out
+///   UnaryOpLike  -- generic: registers in, out
 ///
 /// Adding a new BinaryOpLike or UnaryOpLike op requires no changes here.
 consteval std::string_view collectTensorSlotsFromOp(const Op& op,
@@ -192,7 +192,7 @@ consteval std::string_view collectTensorSlotsFromOp(const Op& op,
                 }
             }
             if(!found_scalar)
-                throw "ScaleOp.scale references undeclared Scalar — "
+                throw "ScaleOp.scale references undeclared Scalar -- "
                       "add a matching Scalar entry to the Signature";
             return typed_op.out;
         }
@@ -211,7 +211,7 @@ consteval std::string_view collectTensorSlotsFromOp(const Op& op,
         }
         else
         {
-            throw "unhandled Op type in collectTensorSlotsFromOp — "
+            throw "unhandled Op type in collectTensorSlotsFromOp -- "
                   "add explicit handling or satisfy BinaryOpLike/UnaryOpLike";
         }
     });
@@ -244,7 +244,7 @@ consteval void propagateRankLayout(const Op& op, auto& propagate_binary, auto& p
         }
         else
         {
-            throw "unhandled Op type in propagateRankLayout — "
+            throw "unhandled Op type in propagateRankLayout -- "
                   "add explicit handling or satisfy BinaryOpLike/UnaryOpLike";
         }
     });
@@ -318,7 +318,7 @@ consteval ResolvedSignature resolve(const Signature& sig)
                 changed         = true;
             }
             else if(infos[idx].rank != rank)
-                throw "conflicting rank for tensor — two operators imply different ranks; "
+                throw "conflicting rank for tensor -- two operators imply different ranks; "
                       "check that shared tensor names are intentional";
         }
         if(layout != Layout::Auto)
@@ -329,7 +329,7 @@ consteval ResolvedSignature resolve(const Signature& sig)
                 changed           = true;
             }
             else if(infos[idx].layout != layout)
-                throw "conflicting layout for tensor — two operators imply different layouts; "
+                throw "conflicting layout for tensor -- two operators imply different layouts; "
                       "check that shared tensor names are intentional";
         }
         return changed;
@@ -415,7 +415,7 @@ consteval ResolvedSignature resolve(const Signature& sig)
             break;
     }
     if(changed)
-        throw "could not infer rank/layout for all tensors — "
+        throw "could not infer rank/layout for all tensors -- "
               "set rank and layout explicitly on Tensor entries, "
               "or reduce chained operations";
 
@@ -490,7 +490,7 @@ consteval ResolvedSignature resolve(const Signature& sig)
                                                               infos[i].quantize_info.group_size};
     }
 
-    // Collect declared scalars (pass-through — no inference needed)
+    // Collect declared scalars (pass-through -- no inference needed)
     for(int i = 0; i < kMaxScalars; ++i)
     {
         if(sig.scalars[i].name.empty())

@@ -384,7 +384,7 @@ void test_pkscale_type_convert_device()
         // Option 0: Fixed pattern with wide dynamic range (same for all rows)
         for(int m = 0; m < M; m++)
         {
-            fscale[m * N_scale + 0] = std::pow(2.0f, -10.0f); // 2^-10 ≈ 0.000977
+            fscale[m * N_scale + 0] = std::pow(2.0f, -10.0f); // 2^-10 ~= 0.000977
             fscale[m * N_scale + 1] = std::pow(2.0f, -5.0f);  // 2^-5  = 0.03125
             fscale[m * N_scale + 2] = std::pow(2.0f, 8.0f);   // 2^8   = 256
             fscale[m * N_scale + 3] = std::pow(2.0f, 16.0f);  // 2^16  = 65536

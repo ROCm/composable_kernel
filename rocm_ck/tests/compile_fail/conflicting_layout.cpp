@@ -3,8 +3,8 @@
 //
 // Must fail: two GemmOps imply conflicting layouts for the same tensor.
 //
-// GemmOp1 outputs "C" → implied Row layout.
-// GemmOp2 uses "C" as rhs → implied Col layout.
+// GemmOp1 outputs "C" -> implied Row layout.
+// GemmOp2 uses "C" as rhs -> implied Col layout.
 // These conflict: "C" can't be both Row and Col.
 //
 // Expected error: "conflicting layout for tensor"

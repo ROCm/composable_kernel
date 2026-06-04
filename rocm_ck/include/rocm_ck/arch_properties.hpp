@@ -1,7 +1,7 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 //
-// Role: types — GPU target properties and target set (consteval bitset).
+// Role: types -- GPU target properties and target set (consteval bitset).
 //
 // UPSTREAM CANDIDATE: This header prototypes functionality that should
 // eventually live in ck_tile/core/arch/arch_properties.hpp as the single
@@ -60,7 +60,7 @@ constexpr TargetProperties properties(GpuTarget target)
     case GpuTarget::gfx1150: return {.wavefront_size = 32, .arch_family = ArchFamily::RDNA};
     case GpuTarget::gfx1151: return {.wavefront_size = 32, .arch_family = ArchFamily::RDNA};
     case GpuTarget::_count:
-    default: throw "unsupported GpuTarget — add a case to properties() for new targets";
+    default: throw "unsupported GpuTarget -- add a case to properties() for new targets";
     }
 }
 
@@ -80,7 +80,7 @@ constexpr bool isRDNA(GpuTarget target)
 constexpr int wavefrontSize(GpuTarget target) { return properties(target).wavefront_size; }
 
 // ============================================================================
-// TargetSet — consteval bitset over GpuTarget values
+// TargetSet -- consteval bitset over GpuTarget values
 // ============================================================================
 
 /// Compile-time set of GPU targets. Structural type (usable as NTTP).
@@ -93,13 +93,13 @@ constexpr int wavefrontSize(GpuTarget target) { return properties(target).wavefr
 ///   Specific:     TargetSet::only(GpuTarget::gfx942)
 ///
 /// CK Tile mapping:
-///   TargetSet::cdna()                          → enable_if_target_arch_cdna_t
-///   TargetSet::rdna()                          → enable_if_target_arch_rdna_t
-///   TargetSet::family_gfx9()                   → enable_if_target_family_gfx9_t
-///   TargetSet::family_gfx11()                  → __gfx11__ preprocessor grouping
-///   TargetSet::family_gfx115()                 → __gfx115__ preprocessor grouping
-///   TargetSet::only(gfx942, gfx950)            → enable_if_target_id_t<T, GFX942, GFX950>
-///   TargetSet::cdna().excluding(gfx90a)        → is_any_value_of(T::TARGET_ID, GFX942, GFX950)
+///   TargetSet::cdna()                          -> enable_if_target_arch_cdna_t
+///   TargetSet::rdna()                          -> enable_if_target_arch_rdna_t
+///   TargetSet::family_gfx9()                   -> enable_if_target_family_gfx9_t
+///   TargetSet::family_gfx11()                  -> __gfx11__ preprocessor grouping
+///   TargetSet::family_gfx115()                 -> __gfx115__ preprocessor grouping
+///   TargetSet::only(gfx942, gfx950)            -> enable_if_target_id_t<T, GFX942, GFX950>
+///   TargetSet::cdna().excluding(gfx90a)        -> is_any_value_of(T::TARGET_ID, GFX942, GFX950)
 struct TargetSet
 {
     uint64_t bits = 0;
@@ -114,7 +114,7 @@ struct TargetSet
     static constexpr int bitIndex(GpuTarget target)
     {
         if(target >= GpuTarget::_count)
-            throw "GpuTarget out of range — value must be a valid enum member, not _count";
+            throw "GpuTarget out of range -- value must be a valid enum member, not _count";
         return static_cast<int>(target);
     }
 
@@ -252,7 +252,7 @@ struct TargetSet
                 wf = target_wf;
             else if(wf != target_wf)
                 throw "wavefront_size() requires all targets in the set to have "
-                      "the same wavefront size — this set mixes wave64 (CDNA) and "
+                      "the same wavefront size -- this set mixes wave64 (CDNA) and "
                       "wave32 (RDNA) targets. Split with intersect_with(cdna()) or "
                       "intersect_with(rdna()).";
         }
@@ -290,7 +290,7 @@ struct TargetSet
 };
 
 // ============================================================================
-// Wave tile validation — single source of truth
+// Wave tile validation -- single source of truth
 // ============================================================================
 // Based on CK Tile's WarpGemmDispatcher specializations.
 // See: ck_tile/core/arch/mma/mfma/mfma_gfx9.hpp (MFMA builtins)
@@ -301,16 +301,16 @@ struct TargetSet
 /// on a specific target.
 consteval bool isValidWaveTile(DataType a_dtype, int m, int n, int k, GpuTarget target)
 {
-    // RDNA targets: WMMA — fixed 16x16x16 tile shape
+    // RDNA targets: WMMA -- fixed 16x16x16 tile shape
     if(isRDNA(target))
     {
         if(m != 16 || n != 16 || k != 16)
             return false;
-        // RDNA (gfx11xx) WMMA: fp16, bf16, int8 — all targets share 16×16×16 tile
+        // RDNA (gfx11xx) WMMA: fp16, bf16, int8 -- all targets share 16x16x16 tile
         return a_dtype == DataType::FP16 || a_dtype == DataType::BF16 || a_dtype == DataType::I8;
     }
 
-    // CDNA MFMA tiles — common across gfx90a, gfx942, gfx950
+    // CDNA MFMA tiles -- common across gfx90a, gfx942, gfx950
     if(a_dtype == DataType::FP32)
     {
         if(m == 16 && n == 16 && (k == 4 || k == 8 || k == 16))
@@ -333,7 +333,7 @@ consteval bool isValidWaveTile(DataType a_dtype, int m, int n, int k, GpuTarget 
             return true;
     }
 
-    // INT8 MFMA — int8x int8→int32 accumulation
+    // INT8 MFMA -- int8x int8->int32 accumulation
     if(a_dtype == DataType::I8)
     {
         if(m == 32 && n == 32 && k == 16)
@@ -342,7 +342,7 @@ consteval bool isValidWaveTile(DataType a_dtype, int m, int n, int k, GpuTarget 
             return true;
     }
 
-    // FP8/BF8 MFMA — architecture-dependent
+    // FP8/BF8 MFMA -- architecture-dependent
     if(a_dtype == DataType::FP8_FNUZ || a_dtype == DataType::BF8_FNUZ)
     {
         // gfx90a: no FP8 MFMA support
@@ -362,9 +362,9 @@ consteval bool isValidWaveTile(DataType a_dtype, int m, int n, int k, GpuTarget 
             return true;
     }
 
-    // FP8_OCP/BF8_OCP — not yet supported
+    // FP8_OCP/BF8_OCP -- not yet supported
     if(a_dtype == DataType::FP8_OCP || a_dtype == DataType::BF8_OCP)
-        throw "FP8_OCP/BF8_OCP not yet supported in GEMM — use FP8_FNUZ/BF8_FNUZ";
+        throw "FP8_OCP/BF8_OCP not yet supported in GEMM -- use FP8_FNUZ/BF8_FNUZ";
 
     return false;
 }

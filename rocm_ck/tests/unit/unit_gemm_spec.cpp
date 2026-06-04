@@ -444,30 +444,30 @@ TEST(WaveTileValidation, TargetSetAllMeansIntersectionAcrossAllTargets)
     // Only 16x16x16 FP16/BF16 pass (valid on both MFMA and WMMA).
     EXPECT_TRUE(isValidWaveTile(DataType::FP16, 16, 16, 16, TargetSet::all()));
     EXPECT_TRUE(isValidWaveTile(DataType::BF16, 16, 16, 16, TargetSet::all()));
-    // I8 16x16x16 fails — CDNA MFMA I8 tiles are 32x32x16 and 16x16x32, not 16x16x16
+    // I8 16x16x16 fails -- CDNA MFMA I8 tiles are 32x32x16 and 16x16x32, not 16x16x16
     EXPECT_FALSE(isValidWaveTile(DataType::I8, 16, 16, 16, TargetSet::all()));
 
-    // 32x32 tiles fail — WMMA only has 16x16x16
+    // 32x32 tiles fail -- WMMA only has 16x16x16
     EXPECT_FALSE(isValidWaveTile(DataType::FP16, 32, 32, 16, TargetSet::all()));
 
-    // FP8 fails — gfx90a has no FP8, gfx1151 has no FP8
+    // FP8 fails -- gfx90a has no FP8, gfx1151 has no FP8
     EXPECT_FALSE(isValidWaveTile(DataType::FP8_FNUZ, 32, 32, 16, TargetSet::all()));
     EXPECT_FALSE(isValidWaveTile(DataType::FP8_FNUZ, 16, 16, 32, TargetSet::all()));
 
-    // FP32 fails — WMMA doesn't support FP32
+    // FP32 fails -- WMMA doesn't support FP32
     EXPECT_FALSE(isValidWaveTile(DataType::FP32, 16, 16, 4, TargetSet::all()));
 }
 
 TEST(WaveTileValidation, TargetSetCdnaRejectsFP8BecauseGfx90a)
 {
-    // cdna() includes gfx90a which has no FP8 — intersection rejects all FP8 tiles
+    // cdna() includes gfx90a which has no FP8 -- intersection rejects all FP8 tiles
     EXPECT_FALSE(isValidWaveTile(DataType::FP8_FNUZ, 32, 32, 16, TargetSet::cdna()));
     EXPECT_FALSE(isValidWaveTile(DataType::FP8_FNUZ, 32, 32, 64, TargetSet::cdna()));
 }
 
 TEST(WaveTileValidation, TargetSetGfx94AcceptsFP8)
 {
-    // family_gfx94() = gfx942 + gfx950 — both support FP8
+    // family_gfx94() = gfx942 + gfx950 -- both support FP8
     EXPECT_TRUE(isValidWaveTile(DataType::FP8_FNUZ, 32, 32, 16, TargetSet::family_gfx94()));
     EXPECT_TRUE(isValidWaveTile(DataType::FP8_FNUZ, 16, 16, 32, TargetSet::family_gfx94()));
     // IterateK compositions valid across gfx94 family
@@ -706,7 +706,7 @@ TEST(MakeSpec, QuantizedGemmHasZeroDTensors)
                  GemmAlgorithm{{128, 128, 32}, {2, 2, 1}, {16, 16, 16}},
                  TargetSet::cdna());
 
-    // Scale is NOT a D tensor — num_d_tensors excludes it
+    // Scale is NOT a D tensor -- num_d_tensors excludes it
     EXPECT_EQ(k.numDTensors(), 0);
     EXPECT_EQ(k.num_physical_tensors, 4); // A, B, C, scale
 }
@@ -723,7 +723,7 @@ TEST(MakeSpec, QuantizedGemmAddHasOneDTensor)
                  GemmAlgorithm{{128, 128, 32}, {2, 2, 1}, {16, 16, 16}},
                  TargetSet::cdna());
 
-    // bias is D0, scale is separate — num_d_tensors counts only bias
+    // bias is D0, scale is separate -- num_d_tensors counts only bias
     EXPECT_EQ(k.numDTensors(), 1);
     EXPECT_EQ(k.num_physical_tensors, 5); // A, B, D, bias, scale
 }
@@ -944,7 +944,7 @@ TEST(MakeSpec, QuantizedGemmWithMultipleEpilogueOps)
 }
 
 // ============================================================================
-// makeSpec: two consecutive AddOps (Add+Add → 2 D tensors)
+// makeSpec: two consecutive AddOps (Add+Add -> 2 D tensors)
 // ============================================================================
 
 TEST(MakeSpec, TwoConsecutiveAddOpsProduceTwoDTensors)
@@ -979,7 +979,7 @@ TEST(MakeSpec, AcceptsMaxEpilogueOps)
                                 GemmAlgorithm{{128, 128, 32}, {2, 2, 1}, {16, 16, 16}},
                                 TargetSet::cdna());
 
-    // 2 epilogue ops (Add + Relu) — well under the limit of 4
+    // 2 epilogue ops (Add + Relu) -- well under the limit of 4
     EXPECT_EQ(k.num_epilogue_ops, 2);
     EXPECT_TRUE(k.hasEpilogueOp(EpilogueOp::Add));
     EXPECT_TRUE(k.hasEpilogueOp(EpilogueOp::Relu));

@@ -28,7 +28,7 @@ using ::rocm_ck::Signature;
 using ::rocm_ck::TargetSet;
 
 // Frozen baseline tests: these assert ALL fields of each spec variant.
-// This is intentionally brittle — adding a new field to GemmSpec will
+// This is intentionally brittle -- adding a new field to GemmSpec will
 // break these tests, forcing explicit review of the change's impact on
 // existing variants. Update the expected values when making intentional
 // schema changes.

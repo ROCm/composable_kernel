@@ -200,7 +200,7 @@ struct GroupedGemmKernel
         HIP_CHECK_ERROR(
             hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, kBlockSize, 0));
         // TODO: the below is a temporary fix which is due to kernel metadata
-        // .workgroup_processor_mode isn’t used correctly in clr for gfx1250. Will removed when clr
+        // .workgroup_processor_mode isn't used correctly in clr for gfx1250. Will removed when clr
         // and compiler team fix this.
         occupancy           = occupancy > 0 ? occupancy : 1;
         const int grid_size = get_available_compute_units(s) * occupancy;

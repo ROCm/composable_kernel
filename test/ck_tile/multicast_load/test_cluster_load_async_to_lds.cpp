@@ -154,12 +154,12 @@ TEST(AsyncLDS, B128_SingleWGP)
 // 4 waves per WG (128 threads). Wave 0 issues the async cluster load into
 // LDS[0..31], then all waves synchronize via block_sync_lds_direct_load
 // (which waits ASYNCcnt=0 then does s_barrier_signal/wait).
-// Waves 1–3 read from the same LDS buffer after the barrier.
+// Waves 1-3 read from the same LDS buffer after the barrier.
 // Verifies the core guarantee: non-requesting waves see correct LDS data.
 //
 // block_sync_lds_direct_load<0>() is used for all waves:
 //   - wave 0: asynccnt may be non-zero; it waits before signaling the barrier
-//   - waves 1–3: asynccnt is already 0 (no-op), then they signal and wait
+//   - waves 1-3: asynccnt is already 0 (no-op), then they signal and wait
 // The barrier ensures LDS writes from wave 0 are visible to all waves before
 // any wave reads from LDS.
 
@@ -184,7 +184,7 @@ struct LDSVisibilityKernel
         }
 
         // All waves call block_sync_lds_direct_load: it issues s_wait_asynccnt (a
-        // no-op for waves 1–3 whose count is already 0), then s_barrier_signal/wait.
+        // no-op for waves 1-3 whose count is already 0), then s_barrier_signal/wait.
         // After this call all waves are past the barrier and LDS is safe to read.
         ck_tile::block_sync_lds_direct_load<0>();
 
@@ -827,7 +827,7 @@ TEST(PartialBroadcast, B32_4WGP_Mask0x5)
 // ---------------------------------------------------------------------------
 // 4 WGPs in a cluster, 4 waves per WG (128 threads). Wave 0 of each WG issues
 // cluster_multicast_load_async_to_lds (true broadcast: all lanes load from the
-// same source address). After block_sync_lds_direct_load, waves 1–3 read from
+// same source address). After block_sync_lds_direct_load, waves 1-3 read from
 // the same LDS buffer and write to global for host verification.
 //
 // This is the canonical GEMM prefetch pattern:
@@ -836,12 +836,12 @@ TEST(PartialBroadcast, B32_4WGP_Mask0x5)
 //
 // Groups 2 and 4 test LDS visibility and multi-WGP broadcast in isolation;
 // this group tests the combination. A bug where the barrier doesn't fence
-// the async LDS write from wave 0 before waves 1–3 read would appear here
+// the async LDS write from wave 0 before waves 1-3 read would appear here
 // but not in Groups 2 or 4 individually.
 //
 // Verification:
 //   - Wave 0: each lane loaded src_val -> lds_buf[lane] (confirmed via dst)
-//   - Waves 1–3: each lane read lds_buf[lane_id] = src_val (cross-wave visibility)
+//   - Waves 1-3: each lane read lds_buf[lane_id] = src_val (cross-wave visibility)
 //   - All WGPs: same src_val in every LDS slot (multi-WGP broadcast)
 
 template <typename T>
@@ -875,7 +875,7 @@ struct MultiWGPLDSVisibilityKernel
         }
 
         // All waves call block_sync_lds_direct_load: it issues s_wait_asynccnt
-        // (a no-op for waves 1–3 whose count is already 0), then
+        // (a no-op for waves 1-3 whose count is already 0), then
         // s_barrier_signal/wait. Barrier ensures LDS is visible to all waves
         // before any wave reads from lds_buf.
         ck_tile::block_sync_lds_direct_load<0>();
@@ -927,7 +927,7 @@ void run_multiwgp_lds_visibility_test(int num_wgs, const T& src_val, const char*
         EXPECT_EQ(h_diag_ids[i], i) << test_name << ": blockIdx.x=" << i
                                     << " expected flat_id=" << i << " got " << h_diag_ids[i];
 
-    // Every thread in every WGP must read src_val from LDS (waves 0–3, all WGPs).
+    // Every thread in every WGP must read src_val from LDS (waves 0-3, all WGPs).
     for(int wgp = 0; wgp < num_wgs; wgp++)
     {
         for(int wave = 0; wave < 4; wave++)

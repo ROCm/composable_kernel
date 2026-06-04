@@ -1,7 +1,7 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 //
-// Role: meta — GemmSpec structural NTTP descriptor and consteval factory.
+// Role: meta -- GemmSpec structural NTTP descriptor and consteval factory.
 //
 // SHARED header: compiled in both host and device (--cuda-device-only) passes.
 // Contains structural types, consteval makeSpec() factory, and named accessors.
@@ -10,8 +10,8 @@
 // Wave tile validation and target properties live in arch_properties.hpp.
 //
 // Compilation boundary:
-//   _spec.hpp (this) — schema types + consteval factory (both passes)
-//   _dev.hpp           — CK Tile bridge + __device__ code (device pass only, #error on host)
+//   _spec.hpp (this) -- schema types + consteval factory (both passes)
+//   _dev.hpp           -- CK Tile bridge + __device__ code (device pass only, #error on host)
 
 #pragma once
 
@@ -38,15 +38,15 @@ namespace rocm_ck {
 /// epilogue chain. Enum is structural (NTTP-compatible); std::variant is not.
 ///
 /// Binary ops (Add, Mul) fold over D tensors via parameter pack:
-///   Add — result += D0 [+ D1]     (bias addition)
-///   Mul — result *= D0 [* D1]     (scaling)
+///   Add -- result += D0 [+ D1]     (bias addition)
+///   Mul -- result *= D0 [* D1]     (scaling)
 ///
 /// Unary ops transform the accumulator in place:
-///   Relu     — max(0, x)
-///   FastGelu — approximate GELU: x * sigmoid(1.702 * x)
-///   Gelu     — exact GELU: 0.5 * x * (1 + erf(x / sqrt(2)))
-///   Silu     — x * sigmoid(x)  (aka Swish with beta=1)
-///   Sigmoid  — 1 / (1 + exp(-x))
+///   Relu     -- max(0, x)
+///   FastGelu -- approximate GELU: x * sigmoid(1.702 * x)
+///   Gelu     -- exact GELU: 0.5 * x * (1 + erf(x / sqrt(2)))
+///   Silu     -- x * sigmoid(x)  (aka Swish with beta=1)
+///   Sigmoid  -- 1 / (1 + exp(-x))
 ///
 /// Operations compose as an ordered sequence in GemmSpec::epilogue_ops[].
 /// The Signature's operator chain (AddOp -> ReluOp) maps directly to this
@@ -71,22 +71,22 @@ inline constexpr int kMaxEpilogueOps = 4;
 
 /// Pipeline implementation strategy for the GEMM kernel.
 ///
-/// V1: Simple pipeline — A/B from global memory, C in registers.
+/// V1: Simple pipeline -- A/B from global memory, C in registers.
 ///     Uses GemmPipelineProblem + GemmPipelineAGmemBGmemCRegV1.
 ///
-/// V3: Compute-optimized pipeline — software-pipelined loads.
+/// V3: Compute-optimized pipeline -- software-pipelined loads.
 ///     Uses UniversalGemmPipelineProblem + GemmPipelineAgBgCrCompV3.
 ///     Better compute utilization through overlapped memory/compute.
 ///
-/// V4: Compute double-buffer — ping-pong LDS layout.
+/// V4: Compute double-buffer -- ping-pong LDS layout.
 ///     Uses UniversalGemmPipelineProblem + GemmPipelineAgBgCrCompV4.
 ///     Better compute/memory overlap through dual LDS buffers.
 ///
-/// Memory: Memory-optimized pipeline — A/B from global memory through LDS.
+/// Memory: Memory-optimized pipeline -- A/B from global memory through LDS.
 ///     Uses UniversalGemmPipelineProblem + GemmPipelineAgBgCrMem.
 ///     Supports both Intrawave and Interwave scheduling.
 ///
-/// Preshuffle: Weight preshuffle pipeline — B matrix pre-rearranged for
+/// Preshuffle: Weight preshuffle pipeline -- B matrix pre-rearranged for
 ///     optimal LDS loads. Uses WeightPreshufflePipelineAGmemBGmemCRegV2.
 ///     Requires A=RowMajor, B=ColumnMajor. Host must call preshuffle on B
 ///     before kernel launch.
@@ -105,11 +105,11 @@ enum class Pipeline
 /// operations within each wave. This is instruction-level scheduling,
 /// not spatial decomposition (which is TilePartitioner's concern).
 ///
-/// Intrawave: Synchronous — all waves in a workgroup synchronize after each
+/// Intrawave: Synchronous -- all waves in a workgroup synchronize after each
 ///     k-iteration. Memory loads and compute are interleaved within a single wave.
 ///     Two block_sync_lds() calls per iteration.
 ///
-/// Interwave: Asynchronous — waves proceed independently with minimal
+/// Interwave: Asynchronous -- waves proceed independently with minimal
 ///     synchronization. Only one block_sync_lds() per iteration. Overlaps
 ///     compute from one wave with memory loads from another.
 ///     Only valid with Pipeline::Memory.
@@ -127,7 +127,7 @@ enum class PipelineScheduler
 ///
 /// Direct: 2D grid with direct blockIdx mapping.
 ///     Grid: (M/TileM) x (N/TileN) x k_batch.
-///     Mapping: blockIdx.x → M tiles, blockIdx.y → N tiles.
+///     Mapping: blockIdx.x -> M tiles, blockIdx.y -> N tiles.
 ///     Uses GemmKernel<GemmTile2DPartitioner, Pipeline, Epilogue>.
 ///
 /// Linear: 1D grid with row-major linearized tile indexing (default).
@@ -174,7 +174,7 @@ struct Dim3
 };
 
 /// Algorithm: describes HOW a GEMM executes (tile geometry, partitioning).
-/// Independent of data types — paired with Signature in makeSpec().
+/// Independent of data types -- paired with Signature in makeSpec().
 struct GemmAlgorithm
 {
     Dim3 block_tile;       // Elements per workgroup {M, N, K}
@@ -195,31 +195,31 @@ struct GemmAlgorithm
     /// When true, kernel handles boundaries with bounds checks.
     ///
     /// Note: K must always be divisible by block_tile.k. CK Tile's kPadK flag only
-    /// controls vector load width (scalar vs vectorized) — it does NOT mask the K-tail.
+    /// controls vector load width (scalar vs vectorized) -- it does NOT mask the K-tail.
     /// Passing non-aligned K produces silently wrong results.
     bool pad_m = false;
     bool pad_n = false;
 };
 
 // ============================================================================
-// GemmSpec — structural NTTP for template instantiation
+// GemmSpec -- structural NTTP for template instantiation
 // ============================================================================
 
 /// Validated kernel descriptor with all types, layouts, and tile geometry resolved.
 /// All members are structural types (enums, ints, aggregates) so this works as NTTP.
 ///
 /// Physical tensor table layout (ordered by args_slot):
-///   [0] = lhs (GEMM left operand — name is user-chosen, e.g., "A", "Q")
-///   [1] = rhs (GEMM right operand — name is user-chosen, e.g., "B", "K")
-///   [2] = output (final output — name varies by epilogue chain)
-///   [3] = D0 (optional — first auxiliary epilogue tensor, e.g., "bias")
-///   [4] = D1 (optional — second auxiliary epilogue tensor)
+///   [0] = lhs (GEMM left operand -- name is user-chosen, e.g., "A", "Q")
+///   [1] = rhs (GEMM right operand -- name is user-chosen, e.g., "B", "K")
+///   [2] = output (final output -- name varies by epilogue chain)
+///   [3] = D0 (optional -- first auxiliary epilogue tensor, e.g., "bias")
+///   [4] = D1 (optional -- second auxiliary epilogue tensor)
 ///
 /// "D tensor" is CK Tile's convention for auxiliary tensors that participate
 /// in the epilogue (bias, scale, residual) but are not GEMM operands.
 struct GemmSpec
 {
-    // Physical tensor table — the kernel's view of Args::tensors[]
+    // Physical tensor table -- the kernel's view of Args::tensors[]
     int num_physical_tensors;
     std::array<PhysicalTensor, kMaxPhysicalTensors> physical_tensors;
 
@@ -256,7 +256,7 @@ struct GemmSpec
     // Quantization group size (0 = not quantized, >0 = elements per group along K)
     int group_size;
 
-    /// Number of auxiliary D tensors (bias, etc.) — excludes scale tensor.
+    /// Number of auxiliary D tensors (bias, etc.) -- excludes scale tensor.
     /// Derived from the physical tensor table: total slots minus lhs/rhs/output minus scale.
     constexpr int numDTensors() const
     {
@@ -282,11 +282,11 @@ struct GemmSpec
     /// Name varies by epilogue chain: "C" (plain), "D" (with combine), "E" (with activation).
     constexpr PhysicalTensor output() const { return physical_tensors[2]; }
 
-    /// First auxiliary tensor D0 (position 3 — e.g., bias for AddOp).
+    /// First auxiliary tensor D0 (position 3 -- e.g., bias for AddOp).
     /// Only valid when num_physical_tensors > 3.
     constexpr PhysicalTensor d0() const { return physical_tensors[3]; }
 
-    /// Second auxiliary tensor D1 (position 4 — e.g., second bias/scale).
+    /// Second auxiliary tensor D1 (position 4 -- e.g., second bias/scale).
     /// Only valid when num_physical_tensors > 4.
     constexpr PhysicalTensor d1() const { return physical_tensors[4]; }
 
@@ -296,10 +296,10 @@ struct GemmSpec
 };
 
 // ============================================================================
-// Named tensor accessors (consteval — compile-time only)
+// Named tensor accessors (consteval -- compile-time only)
 // ============================================================================
 
-/// Lookup a physical tensor by name. consteval — compile-time only.
+/// Lookup a physical tensor by name. consteval -- compile-time only.
 /// Used in static_asserts and consteval makeSpec() result inspection.
 /// For runtime access, use GemmSpec::output() or physical_tensors[] directly.
 consteval PhysicalTensor tensor(const GemmSpec& k, std::string_view name)
@@ -310,13 +310,13 @@ consteval PhysicalTensor tensor(const GemmSpec& k, std::string_view name)
     throw "tensor is not a physical slot in this kernel";
 }
 
-/// Slot index lookup by name. consteval — compile-time only.
+/// Slot index lookup by name. consteval -- compile-time only.
 consteval int slot(const GemmSpec& k, std::string_view name) { return tensor(k, name).args_slot; }
 
-/// Dtype lookup by name. consteval — compile-time only.
+/// Dtype lookup by name. consteval -- compile-time only.
 consteval DataType dtype(const GemmSpec& k, std::string_view name) { return tensor(k, name).dtype; }
 
-/// Layout lookup by name. consteval — compile-time only.
+/// Layout lookup by name. consteval -- compile-time only.
 consteval Layout layout(const GemmSpec& k, std::string_view name) { return tensor(k, name).layout; }
 
 // ============================================================================
@@ -418,15 +418,15 @@ makeSpec(const Signature& sig, const GemmAlgorithm& algo, const TargetSet& targe
     bool is_i8 = (a_td.dtype == DataType::I8 || b_td.dtype == DataType::I8);
 
     if(is_i8 && acc != DataType::I32)
-        throw "INT8 GEMM requires I32 accumulator — set GemmOp::acc_dtype = DataType::I32";
+        throw "INT8 GEMM requires I32 accumulator -- set GemmOp::acc_dtype = DataType::I32";
 
     if(is_i8 && targets.contains(GpuTarget::gfx90a))
-        throw "INT8 GEMM requires gfx942+ — gfx90a emulates int8 MFMA with float MFMA, "
+        throw "INT8 GEMM requires gfx942+ -- gfx90a emulates int8 MFMA with float MFMA, "
               "producing corrupted output. Use TargetSet::family_gfx94() or exclude gfx90a.";
 
     // INT4 rhs requires .quantize (no unquantized INT4 path exists in CK Tile)
     if(b_td.dtype == DataType::I4 && !b_td.quantize.has_value())
-        throw "rhs dtype is I4 but Tensor.quantize is not set — "
+        throw "rhs dtype is I4 but Tensor.quantize is not set -- "
               "INT4 requires quantization metadata (scale tensor and group_size)";
 
     // Build epilogue op chain from remaining ops after GemmOp.
@@ -488,7 +488,7 @@ makeSpec(const Signature& sig, const GemmAlgorithm& algo, const TargetSet& targe
 
     // Direct2D epilogue does not support D tensors
     if(algo.store_strategy == StoreStrategy::Direct2D && num_d_tensors > 0)
-        throw "Direct2D epilogue does not support D tensors — use CShuffle or remove binary ops "
+        throw "Direct2D epilogue does not support D tensors -- use CShuffle or remove binary ops "
               "(Add/Mul)";
 
     // Tile validation
@@ -507,7 +507,7 @@ makeSpec(const Signature& sig, const GemmAlgorithm& algo, const TargetSet& targe
 
     // Pipeline-specific constraints
     if(is_i8 && algo.pipeline == Pipeline::V1)
-        throw "INT8 GEMM requires V3/V4/Memory pipeline — V1 does not support int8";
+        throw "INT8 GEMM requires V3/V4/Memory pipeline -- V1 does not support int8";
 
     if(algo.pipeline == Pipeline::Preshuffle)
     {

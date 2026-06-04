@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 /*
- * Tutorial: CK Tile Distribution Encoding — B Matrix DRAM Load
+ * Tutorial: CK Tile Distribution Encoding -- B Matrix DRAM Load
  *
  * Demonstrates how tile_distribution_encoding maps threads to B-matrix
  * elements during a DRAM load in the naive GEMM tutorial.
@@ -10,7 +10,7 @@
  * Source: block_gemm_pipeline_agmem_bgmem_creg_policy.hpp
  *         MakeBDramTileDistribution(), with fp16, BlockSize=256
  *
- * Tile: N=128 × K=32  (matches the naive GEMM's B block tile)
+ * Tile: N=128 x K=32  (matches the naive GEMM's B block tile)
  * Threads: 256 (4 warps on CDNA, 8 on RDNA)
  *
  * The B encoding has the SAME structure as the A encoding (Tutorial 1),
@@ -18,7 +18,7 @@
  * count), showing how the same encoding pattern adapts to different
  * tile sizes.
  *
- * No compute is performed — this is purely about data movement.
+ * No compute is performed -- this is purely about data movement.
  *
  * Note: int32_t is used instead of fp16 for readable printf output.
  * The distribution encoding is hardcoded to match the fp16 derivation.
@@ -36,21 +36,21 @@ using namespace ck_tile;
 // ============================================================================
 // THE GOAL
 // ============================================================================
-// Matrix B: N=128 rows × K=32 columns, stored in DRAM (row-major, fp16).
-// (In GEMM, B is stored as [N, K] — each "row" is one output channel.)
+// Matrix B: N=128 rows x K=32 columns, stored in DRAM (row-major, fp16).
+// (In GEMM, B is stored as [N, K] -- each "row" is one output channel.)
 // Load the entire tile into registers using 256 threads (4 warps on CDNA).
 //
 // Same coalescing strategy as the A-matrix (Tutorial 1):
-//   - 4 lanes cover one K-row (4 × 8 = 32 K-values)
+//   - 4 lanes cover one K-row (4 x 8 = 32 K-values)
 //   - Each warp (64 lanes) covers 16 N-rows
 //   - 4 warps cover 64 N-rows per iteration
 //   - N0 = 128/64 = 2 iterations (vs 4 for A's M=256)
 //
-// Per-thread buffer = 2 iterations × 8 K-values = 16 elements.
+// Per-thread buffer = 2 iterations x 8 K-values = 16 elements.
 //
 // Compare with Tutorial 1 (A-matrix):
 //   A: M=256, M0=4, buffer=32   |   B: N=128, N0=2, buffer=16
-//   Everything else is identical — same K-splitting, same coalescing.
+//   Everything else is identical -- same K-splitting, same coalescing.
 //
 // ============================================================================
 // THE SOLUTION: tile_distribution_encoding
@@ -63,47 +63,47 @@ using namespace ck_tile;
 //     N1 = BlockSize/warp_size = 4
 //     N0 = NPerBlock/(N2*N1) = 2
 //
-//   Step 1 — Hierarchical dimensions (Hs):
+//   Step 1 -- Hierarchical dimensions (Hs):
 //
-//      Hs[0] = sequence<2, 4, 16>  → N = 2 × 4 × 16 = 128
-//      Hs[1] = sequence<4, 8>      → K = 4 × 8 = 32
+//      Hs[0] = sequence<2, 4, 16>  -> N = 2 x 4 x 16 = 128
+//      Hs[1] = sequence<4, 8>      -> K = 4 x 8 = 32
 //
 //              Hs[0]                    Hs[1]
-//         ┌─────┼─────┐              ┌───┴───┐
+//         +-----+-----+              +---+---+
 //       [Y0]   [P0]  [P1]          [P1]     [Y1]
 //        = 2    = 4   = 16          = 4      = 8
 //      (iter) (warp) (row)        (K-chunk) (vec load)
 //
-//   Step 2 — Parallel dimensions (Ps): NDimP=2 (P0=warp_id, P1=lane_id).
+//   Step 2 -- Parallel dimensions (Ps): NDimP=2 (P0=warp_id, P1=lane_id).
 //
 //      Ps_major = tuple<sequence<1>, sequence<1, 2>>
 //      Ps_minor = tuple<sequence<1>, sequence<2, 0>>
 //
-//      How to read Ps: the tuple has 2 elements → NDimP=2.
+//      How to read Ps: the tuple has 2 elements -> NDimP=2.
 //        First element  = P0 = warp_id
 //        Second element = P1 = lane_id
 //
-//      P0: major=<1>, minor=<1> → Hs[0], level 1 → N1=4 (which warp)
-//      P1: major=<1,2>, minor=<2,0> → merged:
-//          Hs[0] level 2 → N2=16 (outer, row within warp)
-//          Hs[1] level 0 → K0=4  (inner, K-chunk → coalesced!)
-//          lane / 4 → row_in_warp,  lane % 4 → K-chunk
+//      P0: major=<1>, minor=<1> -> Hs[0], level 1 -> N1=4 (which warp)
+//      P1: major=<1,2>, minor=<2,0> -> merged:
+//          Hs[0] level 2 -> N2=16 (outer, row within warp)
+//          Hs[1] level 0 -> K0=4  (inner, K-chunk -> coalesced!)
+//          lane / 4 -> row_in_warp,  lane % 4 -> K-chunk
 //
-//   Step 3 — Yield dimensions (Ys): what each thread owns.
+//   Step 3 -- Yield dimensions (Ys): what each thread owns.
 //
 //      Ys_major = sequence<1, 2>
 //      Ys_minor = sequence<0, 1>
 //
-//      How to read Ys: parallel arrays — position i gives Yi.
+//      How to read Ys: parallel arrays -- position i gives Yi.
 //
-//      Ys_major = seq< 1,  2 >   → Y0 is in Hs[0],  Y1 is in Hs[1]
-//      Ys_minor = seq< 0,  1 >   → Y0 is level 0,   Y1 is level 1
-//                     ─Y0─  ─Y1─
+//      Ys_major = seq< 1,  2 >   -> Y0 is in Hs[0],  Y1 is in Hs[1]
+//      Ys_minor = seq< 0,  1 >   -> Y0 is level 0,   Y1 is level 1
+//                     -Y0-  -Y1-
 //
-//      Y0: Hs[0] level 0 → N0=2  (iterations along N)
-//      Y1: Hs[1] level 1 → K1=8  (vector load width)
+//      Y0: Hs[0] level 0 -> N0=2  (iterations along N)
+//      Y1: Hs[1] level 1 -> K1=8  (vector load width)
 //
-//   Buffer size = Y0 × Y1 = 2 × 8 = 16 elements per thread.
+//   Buffer size = Y0 x Y1 = 2 x 8 = 16 elements per thread.
 //
 // ============================================================================
 
@@ -138,7 +138,7 @@ struct TileDistKernelB
 
         const auto& buf             = tile.get_thread_buffer();
         constexpr index_t warp_size = get_warp_size();
-        constexpr index_t kBufSize  = 16; // 2 iterations × 8 K-values
+        constexpr index_t kBufSize  = 16; // 2 iterations x 8 K-values
 
         int32_t local_buf[kBufSize];
         static_for<0, kBufSize, 1>{}([&](auto i) { local_buf[i] = static_cast<int32_t>(buf[i]); });
@@ -187,13 +187,13 @@ struct TileDistKernelB
             }
             __syncthreads();
 
-            // Lane 0: row_in_warp=0, k_chunk=0 → rows {0, 64}, K=0..7
+            // Lane 0: row_in_warp=0, k_chunk=0 -> rows {0, 64}, K=0..7
             print_thread(0);
             __syncthreads();
-            // Lane 1: k_chunk=1 → same rows, K=8..15
+            // Lane 1: k_chunk=1 -> same rows, K=8..15
             print_thread(1);
             __syncthreads();
-            // Lane 4: row_in_warp=1 → rows {1, 65}, K=0..7
+            // Lane 4: row_in_warp=1 -> rows {1, 65}, K=0..7
             print_thread(4);
             __syncthreads();
 

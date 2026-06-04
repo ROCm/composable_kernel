@@ -349,7 +349,7 @@ TYPED_TEST(BhalfConvertTest, F16RoundTrip)
         {0x3880u, f16_minnorm},          // fp16 min normal (2^-14) -> bf16 exact
         {0x4780u, f16_max, false, true}, // fp16 max (65504) -> bf16 65536 -> fp16 +inf
         // normal values spanning fp16 range, exact in both fp16 and bf16
-        {0xBA80u, 0x9400u}, // -2^-10 ≈ -9.77e-4
+        {0xBA80u, 0x9400u}, // -2^-10 ~= -9.77e-4
         {0x3C80u, 0x2400u}, // 2^-6 = 0.015625
         {0xC060u, 0xC300u}, // -3.5
         {0x3F80u, 0x3C00u}, // 1.0

@@ -1,7 +1,7 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 //
-// Role: host — debug-only runtime validation. No CK deps.
+// Role: host -- debug-only runtime validation. No CK deps.
 //
 // Validates Args against a spec's physical tensor table before kernel launch.
 // Catches "forgot to fill a tensor slot" at launch time instead of silent GPU

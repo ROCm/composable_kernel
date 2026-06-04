@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 
-// ─── ISA label markers for two-pass instruction-prefetch offset patching ───
+// --- ISA label markers for two-pass instruction-prefetch offset patching ---
 // Used by script/patch_prefetch_offset.py to locate prefetch sites and targets
 // in compiled GPU assembly and patch the koffset field.
 
@@ -16,8 +16,8 @@
 #define CK_TILE_XSTR_(x) CK_TILE_STR_(x)
 #endif
 
-// INST_PREFETCH_TARGET(label)       — default mode (mode=0): target is first instruction after
-// comment. INST_PREFETCH_TARGET(label, mode) — mode=1 (BLOCK_ENTRY): script scans backward to
+// INST_PREFETCH_TARGET(label)       -- default mode (mode=0): target is first instruction after
+// comment. INST_PREFETCH_TARGET(label, mode) -- mode=1 (BLOCK_ENTRY): script scans backward to
 // nearest block
 //                                    label (.LBB*:) and uses the first instruction after that.
 //                                    Use when the compiler hoists ALU between the block entry

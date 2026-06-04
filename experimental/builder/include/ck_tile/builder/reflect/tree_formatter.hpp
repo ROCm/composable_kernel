@@ -10,7 +10,7 @@
 namespace ck_tile::reflect {
 
 // Tree-node class for building hierarchical tree structures, then rendering them
-// with proper indentation and tree-drawing characters (├─, └─, │, etc.)
+// with ASCII tree-drawing characters (|-, +-, |, etc.)
 //
 // Unlike a streaming API, the tree is built first and rendered afterwards,
 // so last-child status is determined automatically.
@@ -28,11 +28,11 @@ namespace ck_tile::reflect {
 // Generated Output:
 //
 //   Root
-//   ├─ Branch 1
-//   │  ├─ Item 1a
-//   │  └─ Item 1b
-//   └─ Branch 2
-//      └─ Item 2a
+//   |- Branch 1
+//   |  |- Item 1a
+//   |  +- Item 1b
+//   +- Branch 2
+//      +- Item 2a
 class TreeFormatter
 {
     public:
@@ -76,8 +76,8 @@ class TreeFormatter
     // Recursive render helper
     void renderChild(std::ostringstream& oss, const std::string& prefix, bool is_last) const
     {
-        oss << prefix << (is_last ? "└─ " : "├─ ") << content_;
-        std::string child_prefix = prefix + (is_last ? "   " : "│  ");
+        oss << prefix << (is_last ? "+- " : "|- ") << content_;
+        std::string child_prefix = prefix + (is_last ? "   " : "|  ");
         for(size_t i = 0; i < children_.size(); ++i)
         {
             oss << '\n';

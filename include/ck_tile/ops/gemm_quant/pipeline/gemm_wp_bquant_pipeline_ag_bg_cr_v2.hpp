@@ -136,7 +136,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         // How often (in MFMA units) we should insert DS (LDS) operations.
         constexpr index_t ds_rep = mfma_inst / (ds_read_inst + ds_write_inst);
         // How often (in MFMA units) we should insert VMEM buffer loads.
-        // buffer_load_rep ≈ "MFMA per VMEM_READ", clamped so that one buffer_load
+        // buffer_load_rep ~= "MFMA per VMEM_READ", clamped so that one buffer_load
         // is assumed to cover at most 4 MFMA instructions.
         constexpr index_t buffer_load_rep =
             min(mfma_inst / buffer_load_inst, 4); // 1 buffer_load cover 4 mfma

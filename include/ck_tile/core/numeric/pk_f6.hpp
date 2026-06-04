@@ -391,16 +391,17 @@ struct numeric<pk_bf6_t>
     // Value layout (positive):
     //   exp=000,mant=00 -> 0 (zero)
     //   exp=000,mant=01 -> smallest positive subnormal
-    //   exp=000,mant=11 -> largest positive subnormal (≈ 0.0625)
-    //   exp=001,mant=00 -> smallest positive normal (≈ 0.25)
-    //   exp=111,mant=11 -> largest positive normal (≈ 28.0)
+    //   exp=000,mant=11 -> largest positive subnormal (~= 0.0625)
+    //   exp=001,mant=00 -> smallest positive normal (~= 0.25)
+    //   exp=111,mant=11 -> largest positive normal (~= 28.0)
 
-    static constexpr uint8_t binary_min_normal    = 0b000100; // smallest positive normal (≈ 0.25)
-    static constexpr uint8_t binary_max_normal    = 0b011111; // largest positive normal (≈ 28.0)
-    static constexpr uint8_t binary_lowest_normal = 0b111111; // most negative normal (≈ -28.0)
+    static constexpr uint8_t binary_min_normal    = 0b000100; // smallest positive normal (~= 0.25)
+    static constexpr uint8_t binary_max_normal    = 0b011111; // largest positive normal (~= 28.0)
+    static constexpr uint8_t binary_lowest_normal = 0b111111; // most negative normal (~= -28.0)
     static constexpr uint8_t binary_min_subnorm   = 0b000001; // smallest positive subnormal
-    static constexpr uint8_t binary_max_subnorm = 0b000011; // largest positive subnormal (≈ 0.0625)
-    static constexpr uint8_t binary_zero = 0b000000;        // zero
+    static constexpr uint8_t binary_max_subnorm =
+        0b000011;                                    // largest positive subnormal (~= 0.0625)
+    static constexpr uint8_t binary_zero = 0b000000; // zero
 
     CK_TILE_HOST_DEVICE static constexpr pk_bf6_t min()
     {

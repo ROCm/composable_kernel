@@ -426,7 +426,7 @@ TEST_F(Bf16ConversionTest, DenormalHandling)
 TEST_F(Bf16ConversionTest, OverflowHandling)
 {
     // Note: BF16 has the same 8-bit exponent as float32, but only 7 mantissa bits vs 23.
-    // This means bf16::max (0x7F7F) ≈ 3.39e38 is LESS than float::max ≈ 3.40e38.
+    // This means bf16::max (0x7F7F) ~= 3.39e38 is LESS than float::max ~= 3.40e38.
     //
     // Hardware behavior differs by architecture:
     // - gfx950: RTN rounding -> float::max rounds to infinity (IEEE-754 compliant)
@@ -1611,7 +1611,7 @@ TEST_F(Bf16PlatformTest, DevicePerformance)
 
     std::cout << "\n=== Performance Results ===" << std::endl;
     std::cout << "Float to BF16 conversion:" << std::endl;
-    std::cout << "  Average time: " << avg_time << " μs" << std::endl;
+    std::cout << "  Average time: " << avg_time << " us" << std::endl;
     std::cout << "  Throughput: " << throughput << " GB/s" << std::endl;
 
     // Initialize bf16 data for arithmetic test
@@ -1632,7 +1632,7 @@ TEST_F(Bf16PlatformTest, DevicePerformance)
     throughput = (3 * n * sizeof(bf16_t)) / (avg_time * 1e6); // GB/s
 
     std::cout << "\nBF16 arithmetic operations:" << std::endl;
-    std::cout << "  Average time: " << avg_time << " μs" << std::endl;
+    std::cout << "  Average time: " << avg_time << " us" << std::endl;
     std::cout << "  Throughput: " << throughput << " GB/s" << std::endl;
     std::cout << "===========================" << std::endl;
 

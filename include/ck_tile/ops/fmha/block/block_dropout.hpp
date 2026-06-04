@@ -200,7 +200,7 @@ struct BlockDropout
             sequence<1, 2>,
             sequence<1, 0>>{};
 
-        // Use Bwd WarpGemm to ensure that Fwd's random values ​​are consistent with Bwd.
+        // Use Bwd WarpGemm to ensure that Fwd's random values are consistent with Bwd.
         constexpr auto randval_block_inner_part_dstr_encoding =
             typename WarpGemmDispatcher<typename WG::ADataType,
                                         typename WG::BDataType,
@@ -649,7 +649,7 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
             static_for<0, kMPerBlock / kMPerStep, 1>{}([&](auto i_m0) {
                 const auto randval = generate_randval(i_m0, i_n0);
                 // Drop values of P based on the generated probabilities, negative sign is used to
-                // distinguish such values ​​later in bwd pipeline.
+                // distinguish such values later in bwd pipeline.
                 constexpr auto randval_spans = decltype(randval)::get_distributed_spans();
                 sweep_tile_span(randval_spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(randval_spans[number<1>{}], [&](auto idx1) {
