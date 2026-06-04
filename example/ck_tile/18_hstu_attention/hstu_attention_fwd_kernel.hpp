@@ -36,9 +36,11 @@ struct HstuAttentionFwdKernel
     static constexpr ck_tile::index_t kBlockPerCu = HstuAttentionPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
 
-    using QKVDataType  = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::QKVDataType>;
-    using BiasDataType = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::BiasDataType>;
-    using ODataType    = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::ODataType>;
+    using QKVDataType =
+        ck_tile::remove_cvref_t<typename HstuAttentionPipeline::Problem::QKVDataType>;
+    using BiasDataType =
+        ck_tile::remove_cvref_t<typename HstuAttentionPipeline::Problem::BiasDataType>;
+    using ODataType = ck_tile::remove_cvref_t<typename HstuAttentionPipeline::Problem::ODataType>;
 
     static constexpr bool kIsCrossAttention = HstuAttentionPipeline::Problem::kIsCrossAttention;
     static constexpr bool kUseGroup         = HstuAttentionPipeline::Problem::kUseGroup;
