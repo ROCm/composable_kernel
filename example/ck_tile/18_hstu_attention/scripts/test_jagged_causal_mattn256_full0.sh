@@ -8,7 +8,10 @@ fi
 
 set +x
 BUILD=build
-EXE=$BUILD/bin/tile_example_hstu_attention
+
+Training=${TEST_HSTU_FWD_TRAINING:-0}
+
+EXE="$BUILD/bin/tile_example_hstu_attention -training=$Training"
 
 dtype="bf16"
 

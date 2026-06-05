@@ -415,6 +415,8 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
 
     int batches_for_alloc = is_jagged ? 1 : num_batch;
 
+    bool store_lse = (is_training & use_softmax);
+
     ck_tile::HostTensor<InOutDataType> q_host(
         std::array<ck_tile::index_t, 4>{batches_for_alloc, phy_seqlen_q, num_head, hdim_qk});
     ck_tile::HostTensor<InOutDataType> k_host(
@@ -424,9 +426,8 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
     ck_tile::HostTensor<InOutDataType> o_host_ref(
         std::array<ck_tile::index_t, 4>{batches_for_alloc, phy_seqlen_q, num_head, hdim_v});
     ck_tile::HostTensor<CompDataType> lse_host_ref(
-        (is_training && use_softmax)
-            ? std::array<ck_tile::index_t, 3>{batches_for_alloc, phy_seqlen_q, num_head}
-            : std::array<ck_tile::index_t, 3>{1, 1, 1});
+        store_lse ? std::array<ck_tile::index_t, 3>{batches_for_alloc, phy_seqlen_q, num_head}
+                  : std::array<ck_tile::index_t, 3>{1, 1, 1});
 
     ck_tile::HostTensor<int8_t> mask_host(
         save_mask
@@ -593,7 +594,6 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
         using GemmAccDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType;
 
         BOOL_SWITCH_2(is_jagged, kIsJagged, use_causal, kUseCausal, [&] {
-            bool store_lse = (is_training && use_softmax);
             ck_tile::reference_no_group_hstu_attention_fwd<InOutDataType,
                                                            GemmAccDataType,
                                                            CompDataType,
@@ -640,7 +640,7 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
         res = ck_tile::check_err(
             o_host, o_host_ref, std::string("hstu_attention output error"), rtol, atol);
 
-        if(is_training && use_softmax)
+        if(store_lse)
         {
             ck_tile::HostTensor<CompDataType> lse_host(
                 std::array<ck_tile::index_t, 3>{batches_for_alloc, phy_seqlen_q, num_head});
@@ -913,6 +913,8 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
 
     int batches_for_alloc = 1;
 
+    bool store_lse = (is_training & use_softmax);
+
     ck_tile::HostTensor<InOutDataType> q_host(
         std::array<ck_tile::index_t, 4>{batches_for_alloc, phy_seqlen_q, num_head, hdim_qk});
     ck_tile::HostTensor<InOutDataType> k_host(
@@ -922,9 +924,8 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
     ck_tile::HostTensor<InOutDataType> o_host_ref(
         std::array<ck_tile::index_t, 4>{batches_for_alloc, phy_seqlen_q, num_head, hdim_v});
     ck_tile::HostTensor<CompDataType> lse_host_ref(
-        (is_training && use_softmax)
-            ? std::array<ck_tile::index_t, 3>{batches_for_alloc, phy_seqlen_q, num_head}
-            : std::array<ck_tile::index_t, 3>{1, 1, 1});
+        store_lse ? std::array<ck_tile::index_t, 3>{batches_for_alloc, phy_seqlen_q, num_head}
+                  : std::array<ck_tile::index_t, 3>{1, 1, 1});
 
     ck_tile::HostTensor<int8_t> mask_host(save_mask
                                               ? std::array<ck_tile::index_t, 4>{num_batch,
@@ -1054,7 +1055,6 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
         using GemmAccDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType;
 
         BOOL_SWITCH(use_causal, kUseCausal, [&] {
-            bool store_lse = (is_training && use_softmax);
             ck_tile::reference_group_hstu_attention_fwd<
                 InOutDataType,
                 GemmAccDataType,
@@ -1103,7 +1103,7 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
         res = ck_tile::check_err(
             o_host, o_host_ref, std::string("hstu_attention output error"), rtol, atol);
 
-        if(is_training && use_softmax)
+        if(store_lse)
         {
             ck_tile::HostTensor<CompDataType> lse_host(
                 std::array<ck_tile::index_t, 3>{batches_for_alloc, phy_seqlen_q, num_head});
