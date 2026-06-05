@@ -9,10 +9,12 @@ if [ $# -ge 1 ]; then
     USE_SOFTMAX=$1
 fi
 
+Training=${TEST_HSTU_FWD_TRAINING:-0}
+
 if [ $USE_SOFTMAX -eq 1 ]; then
-    EXE="$BUILD/bin/tile_example_hstu_attention -softmax=1"
+    EXE="$BUILD/bin/tile_example_hstu_attention -softmax=1 -training=$Training"
 else
-    EXE="$BUILD/bin/tile_example_hstu_attention"
+    EXE="$BUILD/bin/tile_example_hstu_attention -training=$Training"
 fi
 
 dtype="bf16"

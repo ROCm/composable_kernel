@@ -79,7 +79,7 @@ struct batched_forward_splitkv_causal_softmax_bias_dropout_dispatch
                                                                ODataType,
                                                                false /* kIsJagged */,
                                                                kUseSoftmax,
-                                                               false, // kStoreLSE
+                                                               kStoreLSE,
                                                                HstuAttentionCombineTileSetting,
                                                                kMaxSplits>;
 
