@@ -17,6 +17,7 @@
 #include "ck_tile/host/host_tensor_io.hpp"
 #include "ck_tile/host/joinable_thread.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/host/mx_processing.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/pinned_host_releaser.hpp"
 #include "ck_tile/host/ranges.hpp"

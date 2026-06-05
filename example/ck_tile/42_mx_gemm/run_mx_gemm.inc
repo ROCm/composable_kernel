@@ -14,56 +14,6 @@ auto calculate_rtol_atol(const ck_tile::index_t K, const float max_accumulated_v
     return ck_tile::make_tuple(rtol, atol);
 }
 
-// Pack [MN, K/32] e8m0_t scales into [MN/MNPack, K/32/KPack] int32_t
-// Each int32_t contains MNPack * KPack e8m0_t values with byte layout matching
-// the GPU tile distribution: values are XdlMNThread apart in M and XdlKThread apart in K.
-//   byte[ik * MNPack + imn] = e8m0 at strided (mn, k) position
-// kLast=true for A scales (layout [M, K/32]), kLast=false for B scales (layout [K/32, N])
-template <ck_tile::index_t MNPack      = 2,
-          ck_tile::index_t KPack       = 2,
-          ck_tile::index_t XdlMNThread = 16,
-          ck_tile::index_t XdlKThread  = 4>
-auto packScalesMNxK(const ck_tile::HostTensor<ck_tile::e8m0_t>& src, bool kLast)
-{
-    auto src_lengths                    = src.get_lengths();
-    const ck_tile::index_t MN           = kLast ? src_lengths[0] : src_lengths[1];
-    const ck_tile::index_t K_scale      = kLast ? src_lengths[1] : src_lengths[0];
-    const ck_tile::index_t MN_packed    = MN / MNPack;
-    const ck_tile::index_t K_packed     = K_scale / KPack;
-    const ck_tile::index_t total_packed = MN_packed * K_packed;
-
-    // Output as flat vector of int32_t (row-major [MN/MNPack, K/32/KPack])
-    std::vector<int32_t> packed(total_packed);
-
-    for(ck_tile::index_t packed_mn = 0; packed_mn < MN_packed; packed_mn++)
-    {
-        for(ck_tile::index_t packed_k = 0; packed_k < K_packed; packed_k++)
-        {
-            int32_t val               = 0;
-            ck_tile::index_t mn_lane  = packed_mn % XdlMNThread;
-            ck_tile::index_t mn_group = packed_mn / XdlMNThread;
-            ck_tile::index_t k_lane   = packed_k % XdlKThread;
-            ck_tile::index_t k_group  = packed_k / XdlKThread;
-            for(ck_tile::index_t ik = 0; ik < KPack; ik++)
-            {
-                for(ck_tile::index_t imn = 0; imn < MNPack; imn++)
-                {
-                    ck_tile::index_t byteIdx = ik * MNPack + imn;
-                    ck_tile::index_t orig_mn =
-                        mn_group * XdlMNThread * MNPack + imn * XdlMNThread + mn_lane;
-                    ck_tile::index_t orig_k =
-                        k_group * XdlKThread * KPack + ik * XdlKThread + k_lane;
-
-                    ck_tile::e8m0_t v = kLast ? src(orig_mn, orig_k) : src(orig_k, orig_mn);
-                    val |= (static_cast<int32_t>(v.get()) << (byteIdx * 8));
-                }
-            }
-            packed[packed_mn * K_packed + packed_k] = val;
-        }
-    }
-    return packed;
-}
-
 template <typename ADataType,
           typename BDataType,
           typename AccDataType,
@@ -124,7 +74,6 @@ int run_mx_gemm_with_layouts(int argc, char* argv[], ALayout, BLayout, CLayout)
         ck_tile::host_tensor_descriptor(M, scale_k_size, stride_scale_a, is_row_major(ALayout{})));
     ck_tile::HostTensor<ScaleType> scale_b_host(
         ck_tile::host_tensor_descriptor(scale_k_size, N, stride_scale_b, is_row_major(BLayout{})));
-
     std::mt19937 gen(42);
     std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
 
@@ -137,7 +86,6 @@ int run_mx_gemm_with_layouts(int argc, char* argv[], ALayout, BLayout, CLayout)
             self(i) = static_cast<ScaleType>(std::exp2(pow2(i)));
         });
     };
-
     switch(init_method)
     {
     case 0:
@@ -181,27 +129,42 @@ int run_mx_gemm_with_layouts(int argc, char* argv[], ALayout, BLayout, CLayout)
     constexpr ck_tile::index_t XdlKThread  = 64 / XdlMNThread;
 
     auto scale_a_packed =
-        packScalesMNxK<MXdlPackEff, KXdlPackEff, XdlMNThread, XdlKThread>(scale_a_host, true);
+        ck_tile::packScalesMNxK<MXdlPackEff, KXdlPackEff, XdlMNThread, XdlKThread>(scale_a_host,
+                                                                                   true);
     auto scale_b_packed =
-        packScalesMNxK<NXdlPackEff, KXdlPackEff, XdlMNThread, XdlKThread>(scale_b_host, false);
+        ck_tile::packScalesMNxK<NXdlPackEff, KXdlPackEff, XdlMNThread, XdlKThread>(scale_b_host,
+                                                                                   false);
 
     const auto b_host_for_device = [&]() {
         if constexpr(GemmConfig::Preshuffle)
-            return ck_tile::shuffle_b<GemmConfig>(b_host);
+            if constexpr(GemmConfig::TiledMMAPermuteN)
+                return ck_tile::shuffle_b_permuteN<GemmConfig, BDataType, NXdlPackEff>(b_host);
+            else
+                return ck_tile::shuffle_b<GemmConfig>(b_host);
         else
             return b_host;
     }();
 
     const auto scale_a_host_for_device = [&]() {
         if constexpr(GemmConfig::Preshuffle)
-            return MXGemmArchTraits<GemmConfig>::template preShuffleScale<true>(scale_a_host);
+            return ck_tile::preShuffleScale<GemmConfig::N_Warp_Tile>(scale_a_host, true);
         else
             return scale_a_packed;
     }();
 
+    constexpr ck_tile::index_t XdlNThread = GemmConfig::N_Warp_Tile;
+    constexpr ck_tile::index_t NPerBlock  = GemmConfig::N_Tile;
+    constexpr ck_tile::index_t NWarp      = GemmConfig::N_Warp;
+
     const auto scale_b_host_for_device = [&]() {
         if constexpr(GemmConfig::Preshuffle)
-            return MXGemmArchTraits<GemmConfig>::template preShuffleScale<false>(scale_b_host);
+        {
+            if constexpr(GemmConfig::TiledMMAPermuteN)
+                return ck_tile::preShuffleScalePermuteN<NWarp, NPerBlock, XdlNThread>(scale_b_host,
+                                                                                      false);
+            else
+                return ck_tile::preShuffleScale<GemmConfig::N_Warp_Tile>(scale_b_host, false);
+        }
         else
             return scale_b_packed;
     }();
