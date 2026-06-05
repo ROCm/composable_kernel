@@ -16,25 +16,32 @@ void hstu_attention_no_group_forward_fp16(HstuAttentionNoGroupFwdParams& param, 
 {
     const bool has_bias   = (param.bias_ptr != nullptr);
     const bool use_causal = param.use_causal;
-    BOOL_SWITCH_2(has_bias, kHasBias, use_causal, kUseCausal, [&] {
+    bool store_lse        = (param.use_softmax && param.is_training);
+
+    BOOL_SWITCH_3(has_bias, kHasBias, use_causal, kUseCausal, param.use_softmax, kUseSoftmax, [&] {
         HDIM_SWITCH(param.hdim_qk, param.hdim_v, MaxK, [&] {
-            BOOL_SWITCH(param.use_softmax, kUseSoftmax, [&] {
-                if(param.is_jagged)
-                    run_jagged_forward_causal_softmax_bias_dropout_dispatch<ck_tile::fp16_t,
-                                                                            kUseCausal,
-                                                                            kUseSoftmax,
-                                                                            false,
-                                                                            kHasBias,
-                                                                            false, // kHasDropout
-                                                                            MaxK>(param, stream);
-                else
-                    run_batched_forward_causal_softmax_bias_dropout_dispatch<ck_tile::fp16_t,
-                                                                             kUseCausal,
-                                                                             kUseSoftmax,
-                                                                             false,
-                                                                             kHasBias,
-                                                                             false, // kHasDropout
-                                                                             MaxK>(param, stream);
+            BOOL_SWITCH(store_lse, kStoreLSE, [&] {
+                if constexpr(kUseSoftmax || !kStoreLSE)
+                {
+                    if(param.is_jagged)
+                        run_jagged_forward_causal_softmax_bias_dropout_dispatch<
+                            ck_tile::fp16_t,
+                            kUseCausal,
+                            kUseSoftmax,
+                            kStoreLSE,
+                            kHasBias,
+                            false, // kHasDropout
+                            MaxK>(param, stream);
+                    else
+                        run_batched_forward_causal_softmax_bias_dropout_dispatch<
+                            ck_tile::fp16_t,
+                            kUseCausal,
+                            kUseSoftmax,
+                            kStoreLSE,
+                            kHasBias,
+                            false, // kHasDropout
+                            MaxK>(param, stream);
+                }
             });
         });
     });
