@@ -249,6 +249,22 @@ struct WarpGemmAttributeWmma
         }
     }
 
+    // c_out = a_vec * b_vec + c_vec : fp32 accumulate, narrowed C output (e.g. bf16)
+    template <typename... Params>
+    CK_TILE_DEVICE auto
+    mac_downconvert(const CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    {
+        if constexpr(kTransC)
+        {
+            return TransposedImpl{}.template mac_downconvert<Params..., SwapReuse_<true>>(
+                c_vec, b_vec, a_vec);
+        }
+        else
+        {
+            return Impl{}.template mac_downconvert<Params...>(c_vec, a_vec, b_vec);
+        }
+    }
+
     // c_vec += a_vec * b_vec
     template <typename... Params, typename AScaleType, typename BScaleType>
     CK_TILE_DEVICE void operator()(CVecType& c_vec,

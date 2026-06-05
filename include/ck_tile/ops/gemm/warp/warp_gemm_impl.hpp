@@ -146,6 +146,37 @@ struct WarpGemmImpl
         return c;
     }
 
+    // c_out = a * b + c_in : fp32 accumulate, narrowed (e.g. bf16) C output tile (tail handler)
+    template <typename... Params, typename CInTensor, typename ATensor, typename BTensor>
+    CK_TILE_DEVICE auto
+    mac_downconvert(const CInTensor& c_in, const ATensor& a, const BTensor& b) const
+    {
+        static_assert(detail::is_similiar_distributed_tensor_v<CInTensor, CWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
+
+        using AVec = ext_vector_t<ADataType, ATensor::get_thread_buffer_size()>;
+        using BVec = ext_vector_t<BDataType, BTensor::get_thread_buffer_size()>;
+        using CVec = ext_vector_t<CDataType, CInTensor::get_thread_buffer_size()>;
+
+        constexpr auto I0 = number<0>{};
+
+        const auto a_vec = a.get_thread_buffer().template get_as<AVec>()[I0];
+        const auto b_vec = b.get_thread_buffer().template get_as<BVec>()[I0];
+        const auto c_vec = c_in.get_thread_buffer().template get_as<CVec>()[I0];
+
+        auto c_out_vec =
+            WarpGemmAttribute{}.template mac_downconvert<Params...>(c_vec, a_vec, b_vec);
+
+        using COutDataType = typename WarpGemmAttribute::Impl::TraitsType::COutDataType;
+        using COutTensor   = static_distributed_tensor<COutDataType, CWarpDstr>;
+        using COutVec      = ext_vector_t<COutDataType, COutTensor::get_thread_buffer_size()>;
+
+        COutTensor c_out;
+        c_out.get_thread_buffer().template set_as<COutVec>(I0, c_out_vec);
+        return c_out;
+    }
+
     template <typename... Params,
               typename ATensor,
               typename BTensor,
