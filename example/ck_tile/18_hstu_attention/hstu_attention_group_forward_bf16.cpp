@@ -20,6 +20,7 @@ void hstu_attention_group_forward_bf16(HstuAttentionGroupFwdParams& param, hipSt
                 run_group_forward_causal_softmax_bias_dropout_dispatch<ck_tile::bf16_t,
                                                                        kUseCausal,
                                                                        kUseSoftmax,
+                                                                       false,
                                                                        kHasBias,
                                                                        false, // kHasDropout
                                                                        MaxK>(param, stream);

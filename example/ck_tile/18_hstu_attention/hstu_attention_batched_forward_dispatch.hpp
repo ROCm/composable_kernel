@@ -27,6 +27,7 @@
 template <typename InOutDataType,
           bool kUseCausal,
           bool kUseSoftmax,
+          bool kStoreLSE,
           bool kHasBias,
           bool kHasDropout,
           ck_tile::index_t MaxK,
@@ -57,7 +58,7 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
         kHasDropout,
         kUseCausal,
         kUseSoftmax,
-        false, // kStoreLSE
+        kStoreLSE,
         HstuAttentionTileSetting>;
 
     static void Run(HstuAttentionNoGroupFwdParams& param, hipStream_t stream)
@@ -139,7 +140,7 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
                                          param.v_ptr,
                                          param.bias_ptr,
                                          param.o_ptr,
-                                         nullptr, // lse_ptr
+                                         param.lse_ptr,
                                          param.seqlen_q,
                                          param.is_cross_attention ? param.seqlen_kv
                                                                   : param.seqlen_q,
@@ -153,19 +154,19 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
                                          param.seq_stride_v,
                                          param.seq_stride_bias,
                                          param.seq_stride_o,
-                                         0, // seq_stride_lse
+                                         param.seq_stride_lse,
                                          param.nhead_stride_q,
                                          param.nhead_stride_k,
                                          param.nhead_stride_v,
                                          param.nhead_stride_bias,
                                          param.nhead_stride_o,
-                                         0, // nhead_stride_lse
+                                         param.nhead_stride_lse,
                                          param.batch_stride_q,
                                          param.batch_stride_k,
                                          param.batch_stride_v,
                                          param.batch_stride_bias,
                                          param.batch_stride_o,
-                                         0, // batch_stride_lse
+                                         param.batch_stride_lse,
                                          param.num_targets_ptr,
                                          param.contextual_seqlen,
                                          param.window_size,
@@ -190,6 +191,7 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
 template <typename InOutDataType,
           bool kUseCausal,
           bool kUseSoftmax,
+          bool kStoreLSE,
           bool kHasBias,
           bool kHasDropout,
           ck_tile::index_t MaxK>
@@ -200,6 +202,7 @@ void run_batched_forward_causal_softmax_bias_dropout_dispatch(HstuAttentionNoGro
         batched_forward_causal_softmax_bias_dropout_dispatch<InOutDataType,
                                                              kUseCausal,
                                                              kUseSoftmax,
+                                                             kStoreLSE,
                                                              kHasBias,
                                                              kHasDropout,
                                                              MaxK,
@@ -219,6 +222,7 @@ void run_batched_forward_causal_softmax_bias_dropout_dispatch(HstuAttentionNoGro
             batched_forward_splitkv_causal_softmax_bias_dropout_dispatch<InOutDataType,
                                                                          kUseCausal,
                                                                          kUseSoftmax,
+                                                                         kStoreLSE,
                                                                          kHasBias,
                                                                          kHasDropout,
                                                                          MaxK,
@@ -228,6 +232,7 @@ void run_batched_forward_causal_softmax_bias_dropout_dispatch(HstuAttentionNoGro
             batched_forward_causal_softmax_bias_dropout_dispatch<InOutDataType,
                                                                  kUseCausal,
                                                                  kUseSoftmax,
+                                                                 kStoreLSE,
                                                                  kHasBias,
                                                                  kHasDropout,
                                                                  MaxK,
