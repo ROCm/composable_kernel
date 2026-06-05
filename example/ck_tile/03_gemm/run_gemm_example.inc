@@ -209,8 +209,6 @@ std::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t> inline parse_ge
     return std::make_tuple(M, N, K);
 }
 
-// ADataType_ and BDataType_ are original types (e.g., tf32_t for TF32 mode)
-// They are passed through invoke_gemm to invoker for tf32 auto-detection
 template <typename GemmConfig,
           typename Invoker,
           typename ADataType_,
@@ -224,13 +222,7 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                   const BLayout b_layout                  = BLayout{},
                                   [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
-    // ADataTypeCompute: compute type (tf32_t for TF32 mode, used for warp gemm selection)
-    // ADataTypeBuf: buffer/storage type (fp32 when tf32, from TypeConfig)
-    using ADataTypeCompute = ADataType_;
-    using BDataTypeCompute = BDataType_;
-
     // Use GemmTypeConfig to get actual data types for tensor operations
-    // This handles tf32 -> float mapping for host tensors and device buffers
     using TypeConfig   = GemmTypeConfig<ADataType_, BDataType_, CDataType_>;
     using ADataTypeBuf = typename TypeConfig::ADataType;
     using BDataTypeBuf = typename TypeConfig::BDataType;
@@ -357,8 +349,8 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
 
     float ave_time = invoke_gemm<GemmConfig,
                                  Invoker,
-                                 ADataTypeCompute,
-                                 BDataTypeCompute,
+                                 ADataTypeBuf,
+                                 BDataTypeBuf,
                                  ck_tile::tuple<>,
                                  AccDataType,
                                  CDataType,
@@ -411,12 +403,12 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
 
     if(arg_parser.get_int("v") == 1)
     {
-        ck_tile::reference_gemm<ADataTypeCompute, BDataTypeCompute, AccDataType, CDataType>(
+        ck_tile::reference_gemm<ADataTypeBuf, BDataTypeBuf, AccDataType, CDataType>(
             a_m_k, b_k_n, c_m_n_ref);
         const float max_accumulated_value =
             *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
         const auto rtol_atol =
-            calculate_rtol_atol<ADataTypeCompute, BDataTypeCompute, AccDataType, CDataType>(
+            calculate_rtol_atol<ADataTypeBuf, BDataTypeBuf, AccDataType, CDataType>(
                 K, kbatch, max_accumulated_value);
         pass = do_verify(c_m_n_dev_result, c_m_n_ref, rtol_atol, "CPU");
     }
@@ -440,8 +432,8 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
         BDataTypeBuf* d_B = static_cast<BDataTypeBuf*>(b_k_n_dev_buf.GetDeviceBuffer());
         CDataType* d_C    = static_cast<CDataType*>(c_m_n_gpu_buf_ref.GetDeviceBuffer());
 
-        ck_tile::reference_gemm_gpu<ADataTypeCompute,
-                                    BDataTypeCompute,
+        ck_tile::reference_gemm_gpu<ADataTypeBuf,
+                                    BDataTypeBuf,
                                     AccDataType,
                                     CDataType,
                                     ALayout,
@@ -453,7 +445,7 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
         const float max_accumulated_value =
             *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
         const auto rtol_atol =
-            calculate_rtol_atol<ADataTypeCompute, BDataTypeCompute, AccDataType, CDataType>(
+            calculate_rtol_atol<ADataTypeBuf, BDataTypeBuf, AccDataType, CDataType>(
                 K, kbatch, max_accumulated_value);
         pass = do_verify(c_m_n_dev_result, c_m_n_ref, rtol_atol, "GPU");
     }

@@ -1,14 +1,15 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include <tuple>
-#include <type_traits>
+#include "test_gemm_pipeline_prec_types.hpp"
+#include "test_gemm_pipeline_util.hpp"
+
+#include "ck_tile/host.hpp"
 
 #include "gtest/gtest.h"
 
-#include "ck_tile/host.hpp"
-#include "test_gemm_pipeline_util.hpp"
-#include "test_gemm_pipeline_prec_types.hpp"
+#include <tuple>
+#include <type_traits>
 
 using Row       = ck_tile::tensor_layout::gemm::RowMajor;
 using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
@@ -383,7 +384,7 @@ using KernelTypesPersistentWmma = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16, Intrawave,        CompV3, NonPersistent>
 >;
 
-// TF32 (gfx950 only): 3x bf16 MFMA emulation, uses float buffers with tf32_t compute type
+// TF32 (gfx950 only): 3x bf16 MFMA emulation
 // Tile: 128x128x64, Warp tile: 32x32x16
 using KernelTypesTf32Mem = ::testing::Types<
     //         ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType, CDataType, M_BlockSize, N_BlockSize, K_BlockSize, M_TileSize, N_TileSize, K_TileSize, Scheduler, PipelineType

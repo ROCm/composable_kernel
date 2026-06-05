@@ -1,16 +1,22 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 #pragma once
-#include <sstream>
-#include <gtest/gtest.h>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/core/numeric/math.hpp"
-#include "ck_tile/host/permute_pk_int4.hpp"
+
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <iostream>
+#include <stdexcept>
+#include <tuple>
+#include <type_traits>
+#include <vector>
 
 enum struct GemmPipelineType
 {
@@ -237,10 +243,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
     static constexpr bool ClusterLaunch =
         ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
 
-    // TF32 uses tf32_t as compute type but float as buffer/storage type
-    using ADataTypeBuf = ck_tile::if_select_t<ADataType, ck_tile::tf32_t, float, ADataType>;
-    using BDataTypeBuf = ck_tile::if_select_t<BDataType, ck_tile::tf32_t, float, BDataType>;
-
     protected:
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
@@ -320,8 +322,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      preshuffle>;
 
         using UniversalGemmProblem =
-            ck_tile::UniversalGemmPipelineProblem<ADataTypeBuf,
-                                                  BDataTypeBuf,
+            ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                  BDataType,
                                                   AccDataType,
                                                   GemmShape,
                                                   GemmUniversalTraits,
@@ -467,23 +469,23 @@ class TestCkTileGemmPipeline : public ::testing::Test
         ck_tile::index_t stride_C =
             ck_tile::get_default_stride(M, N, StrideC, is_row_major(CLayout{}));
 
-        ck_tile::HostTensor<ADataTypeBuf> a_m_k(
+        ck_tile::HostTensor<ADataType> a_m_k(
             ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(ALayout{})));
-        ck_tile::HostTensor<BDataTypeBuf> b_k_n(
+        ck_tile::HostTensor<BDataType> b_k_n(
             ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(BLayout{})));
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
-        ck_tile::FillUniformDistributionIntegerValue<ADataTypeBuf>{-5, 5, 11939}(a_m_k);
-        ck_tile::FillUniformDistributionIntegerValue<BDataTypeBuf>{-5, 5, 11940}(b_k_n);
+        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
+        ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
 
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
         ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
-        if constexpr(std::is_same_v<BDataTypeBuf, ck_tile::pk_int4_t>)
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
-            ck_tile::HostTensor<BDataTypeBuf> b_k_n_dev = b_k_n;
+            ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
             permute_vectors_i4x4_b(b_k_n_dev);
             b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
         }

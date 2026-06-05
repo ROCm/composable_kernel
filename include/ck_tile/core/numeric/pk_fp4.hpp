@@ -4,18 +4,21 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/utility/bit_cast.hpp"
-#include "ck_tile/core/utility/type_traits.hpp"
-#include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/ext_vector_base.hpp"
 #include "ck_tile/core/numeric/float8.hpp"
+#include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/numeric/mxfp_convert.hpp"
 #include "ck_tile/core/numeric/mxfp_scale.hpp"
+#include "ck_tile/core/numeric/numeric.hpp"
+#include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
 
-#if __clang_major__ >= 23
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-#endif
+#include <type_traits>
+
 #if defined(__gfx950__) || defined(__gfx125__)
 #define CK_TILE_FP4_CVT_DEVICE 1
 #else
@@ -77,7 +80,7 @@ struct pk_float4_e2m1_t
     {
     }
     CK_TILE_HOST_DEVICE constexpr operator type() const { return data; }
-    CK_TILE_HOST_DEVICE constexpr type& get() { return data; }
+    CK_TILE_HOST_DEVICE constexpr type& get() [[clang::lifetimebound]] { return data; }
     CK_TILE_HOST_DEVICE constexpr type get() const { return data; }
 
     CK_TILE_HOST_DEVICE constexpr float to_float(float scale = 1.f) const;
@@ -188,6 +191,15 @@ struct pk_float4_e2m1_t
 
 using pk_fp4_t     = pk_float4_e2m1_t;
 using pk_fp4_raw_t = typename pk_fp4_t::type;
+
+template <typename>
+struct native_t;
+
+template <>
+struct native_t<pk_fp4_t>
+{
+    using type = pk_fp4_t::type;
+};
 
 template <>
 struct numeric_traits<pk_fp4_t>
@@ -732,7 +744,75 @@ CK_TILE_HOST_DEVICE constexpr bf8x2_t pk_fp4_t::to_bf8x2(float scale) const
     // #endif
 }
 
-} // namespace ck_tile
-#if __clang_major__ >= 23
-#pragma clang diagnostic pop
+#if !CK_TILE_USE_CUSTOM_DATA_TYPE
+#define CK_TILE_SCALED_TYPE_CONVERT(dtype_, dname_, stype_, sname_)                       \
+    template <>                                                                           \
+    CK_TILE_HOST_DEVICE constexpr dtype_ scaled_type_convert<dtype_, stype_>(stype_ x,    \
+                                                                             float scale) \
+    {                                                                                     \
+        return sname_##_to_##dname_(x, scale);                                            \
+    }                                                                                     \
+    template <>                                                                           \
+    CK_TILE_HOST_DEVICE constexpr dtype_ type_convert<dtype_, stype_>(stype_ x)           \
+    {                                                                                     \
+        return sname_##_to_##dname_(x, 1.f);                                              \
+    }
+
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp32x2_t, fp32x2)
+CK_TILE_SCALED_TYPE_CONVERT(fp32x2_t, fp32x2, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16x2_t, fp16x2)
+CK_TILE_SCALED_TYPE_CONVERT(fp16x2_t, fp16x2, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16x2_t, bf16x2)
+CK_TILE_SCALED_TYPE_CONVERT(bf16x2_t, bf16x2, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, float, float)
+CK_TILE_SCALED_TYPE_CONVERT(float, float, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16_t, bf16)
+CK_TILE_SCALED_TYPE_CONVERT(bf16_t, bf16, pk_fp4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16_t, fp16)
+CK_TILE_SCALED_TYPE_CONVERT(fp16_t, fp16, pk_fp4_t, pk_fp4)
+
+// 8-element vector conversions for pk_fp4x4_t
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4x4_t, pk_fp4, fp32x8_t, fp32x8)
+CK_TILE_SCALED_TYPE_CONVERT(fp32x8_t, fp32x8, pk_fp4x4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4x4_t, pk_fp4, fp16x8_t, fp16x8)
+CK_TILE_SCALED_TYPE_CONVERT(fp16x8_t, fp16x8, pk_fp4x4_t, pk_fp4)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp4x4_t, pk_fp4, bf16x8_t, bf16x8)
+CK_TILE_SCALED_TYPE_CONVERT(bf16x8_t, bf16x8, pk_fp4x4_t, pk_fp4)
+
+#undef CK_TILE_SCALED_TYPE_CONVERT
+
+#if defined(__gfx125__)
+/* scale is packed 4 form [FP4]
+ * Scale_sel: select different scale set and apply to the tensor[16x16] represented by a wave,
+ *            th[0-15]: 16x8 and th[16-31]: 16x8
+ *      Block 32 :
+ *      0(000): src[th[0-15]]  * scale[th[0-15]][7:0]
+                src[th[16-31]] * scale[th[0-15]][15:8]
+ *      1(001): src[th[0-15]]  * scale[th[16-31]][7:0]
+                src[th[16-31]] * scale[th[16-31]][15:8]
+ *      2(010): src[th[0-15]]  * scale[th[0-15]][23:16]
+                src[th[16-31]] * scale[th[0-15]][31:24]
+ *      3(011): src[th[0-15]]  * scale[th[16-31]][23:16]
+                src[th[16-31]] * scale[th[16-31]][31:24]
+ *      Block 16 : Available for certain revision
+ *      4(100): src[th[0-15]]  * scale[th[0-15]][7:0]
+                src[th[16-31]] * scale[th[0-15]][23:16]
+ *      5(101): src[th[0-15]]  * scale[th[16-31]][7:0]
+                src[th[16-31]] * scale[th[16-31]][23:16]
+ *      6(110): src[th[0-15]]  * scale[th[0-15]][15:8]
+                src[th[16-31]] * scale[th[0-15]][31:24]
+ *      7(111): src[th[0-15]]  * scale[th[16-31]][15:8]
+                src[th[16-31]] * scale[th[16-31]][31:24]
+ */
+template <typename Y, int Scale_sel>
+struct pk4scaled_type_convert_impl<Y, pk_fp4x4_t, Scale_sel>
+{
+    CK_TILE_DEVICE static Y run(pk_fp4x4_t x, Packed4Scale_E8M0 scale)
+    {
+        return impl::_from_f4x8_pkscale<Y, Scale_sel>(bit_cast<uint32_t>(x), scale.data());
+    }
+};
 #endif
+#endif
+
+} // namespace ck_tile

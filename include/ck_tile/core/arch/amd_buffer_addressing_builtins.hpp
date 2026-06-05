@@ -7,18 +7,33 @@
 
 #if CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN
 
+#include "ck_tile/core/arch/amd_buffer_coherence.hpp"
 #include "ck_tile/core/arch/amd_tdm_descriptor.hpp"
 #include "ck_tile/core/arch/amd_wave_read_first_lane.hpp"
+#include "ck_tile/core/container/array.hpp"
+#include "ck_tile/core/container/thread_buffer.hpp"
+#include "ck_tile/core/container/tuple.hpp"
+#include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/e8m0.hpp"
+#include "ck_tile/core/numeric/ext_vector_base.hpp"
+#include "ck_tile/core/numeric/float8.hpp"
+#include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/core/numeric/int8.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/numeric/pk_f6.hpp"
+#include "ck_tile/core/numeric/pk_fp4.hpp"
+#include "ck_tile/core/numeric/pk_int4.hpp"
+#include "ck_tile/core/numeric/tfloat32.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
-#include "ck_tile/core/container/container_helper.hpp"
-#include "ck_tile/core/container/thread_buffer.hpp"
-#include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
-#include "ck_tile/core/arch/amd_buffer_coherence.hpp"
+#include "ck_tile/core/utility/type_traits.hpp"
+
+#include <cstdint>
+#include <cstring>
+#include <type_traits>
 
 #define HAS_GLOBAL_ATOMIC_PK_ADD_BUILTIN                        \
     __has_builtin(__builtin_amdgcn_global_atomic_fadd_v2f16) && \
@@ -130,7 +145,7 @@ CK_TILE_DEVICE __amdgpu_buffer_rsrc_t cast_to_amdgpu_buffer_rsrc_t(int32x4_t res
 {
     __amdgpu_buffer_rsrc_t as_rsrc;
     static_assert(sizeof(res) == sizeof(as_rsrc) && "Size of buffer resource should match");
-    memcpy(&as_rsrc, &res, sizeof(res));
+    std::memcpy(&as_rsrc, &res, sizeof(res));
     return as_rsrc;
 }
 #endif
@@ -1650,6 +1665,7 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
     static_assert(
         (std::is_same<T, double>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (std::is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (std::is_same<T, tf32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (std::is_same<T, fp16_t>::value &&
              (N == 1 || N == 2 || N == 4 || N == 6 || N == 8 || N == 16 || N == 32)) ||
             (std::is_same<T, bf16_t>::value &&
@@ -1675,7 +1691,7 @@ CK_TILE_DEVICE thread_buffer<T, N> amd_buffer_load_impl(int32x4_t src_wave_buffe
 
     using rtn_type = thread_buffer<T, N>;
 
-    if constexpr(std::is_same<T, float>::value) // fp32
+    if constexpr(std::is_same<T, float>::value || std::is_same<T, tf32_t>::value) // fp32 or tf32
     {
         if constexpr(N == 1)
         {
@@ -2572,7 +2588,7 @@ amd_buffer_load_invalid_element_return_zero(const T* p_src_wave,
             {
                 // Use vector_t for not valid elements to avoid permute instructions.
                 // Get raw type from structure
-                using vector_t = typename T::type __attribute__((ext_vector_type(N)));
+                using vector_t = typename native_t<T>::type __attribute__((ext_vector_type(N)));
                 if constexpr(sizeof(vector_t) != sizeof(typename T::type) * N)
                 {
                     // Not possible to use set_as

@@ -150,6 +150,12 @@ if(GPU_TARGETS MATCHES "gfx942|gfx950")
     set_mma_test_arch_define(test_amdgcn_mma_layout_gfx942_and_higher)
 endif()
 
+if(GPU_TARGETS MATCHES "gfx942")
+    add_gtest_executable(test_amdgcn_mma_layout_gfx942 test_amdgcn_mma_layout_gfx942.cpp)
+    target_compile_options(test_amdgcn_mma_layout_gfx942 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+    set_mma_test_arch_define(test_amdgcn_mma_layout_gfx942)
+endif()
+
 if(GPU_TARGETS MATCHES "gfx950")
     _add_mma_gtest(test_amdgcn_mma_layout_gfx950 test_amdgcn_mma_layout_gfx950.cpp)
     target_compile_options(test_amdgcn_mma_layout_gfx950 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})

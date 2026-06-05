@@ -3,15 +3,21 @@
 
 #pragma once
 
-#include <cmath>
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/bfloat16.hpp"
+#include "ck_tile/core/numeric/ext_vector_base.hpp"
+#include "ck_tile/core/numeric/half.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/numeric/mxfp_convert.hpp"
-#include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/numeric/mxfp_scale.hpp"
+#include "ck_tile/core/numeric/numeric.hpp"
+#include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/core/utility/bit_cast.hpp"
+
+#include <cmath>
+#include <type_traits>
 
 #if defined(__HIP_DEVICE_COMPILE__) && defined(__gfx125__)
 #define CK_TILE_FP6_CVT_DEVICE 1
@@ -1374,5 +1380,63 @@ struct impl::ext_vector<pk_fp6x16_t, 4>
 // may not be semantically meaningful for element-wise operations
 // CK_TILE_ARITHMETIC_USING_FLOAT(CK_TILE_HOST_DEVICE, pk_fp6_t)
 // CK_TILE_ARITHMETIC_USING_FLOAT(CK_TILE_HOST_DEVICE, pk_bf6_t)
+
+#if !CK_TILE_USE_CUSTOM_DATA_TYPE
+#define CK_TILE_SCALED_TYPE_CONVERT(dtype_, dname_, stype_, sname_)                       \
+    template <>                                                                           \
+    CK_TILE_HOST_DEVICE constexpr dtype_ scaled_type_convert<dtype_, stype_>(stype_ x,    \
+                                                                             float scale) \
+    {                                                                                     \
+        return sname_##_to_##dname_(x, scale);                                            \
+    }                                                                                     \
+    template <>                                                                           \
+    CK_TILE_HOST_DEVICE constexpr dtype_ type_convert<dtype_, stype_>(stype_ x)           \
+    {                                                                                     \
+        return sname_##_to_##dname_(x, 1.f);                                              \
+    }
+
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp6_t, pk_fp6, float, float)
+CK_TILE_SCALED_TYPE_CONVERT(float, float, pk_fp6_t, pk_fp6)
+CK_TILE_SCALED_TYPE_CONVERT(pk_bf6_t, pk_bf6, float, float)
+CK_TILE_SCALED_TYPE_CONVERT(float, float, pk_bf6_t, pk_bf6)
+
+// 16-element vector conversions for pk_fp6_t and pk_bf6_t
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp6_t, pk_fp6, fp16x16_t, fp16x16)
+CK_TILE_SCALED_TYPE_CONVERT(fp16x16_t, fp16x16, pk_fp6_t, pk_fp6)
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp6_t, pk_fp6, bf16x16_t, bf16x16)
+CK_TILE_SCALED_TYPE_CONVERT(bf16x16_t, bf16x16, pk_fp6_t, pk_fp6)
+CK_TILE_SCALED_TYPE_CONVERT(pk_bf6_t, pk_bf6, fp16x16_t, fp16x16)
+CK_TILE_SCALED_TYPE_CONVERT(fp16x16_t, fp16x16, pk_bf6_t, pk_bf6)
+CK_TILE_SCALED_TYPE_CONVERT(pk_bf6_t, pk_bf6, bf16x16_t, bf16x16)
+CK_TILE_SCALED_TYPE_CONVERT(bf16x16_t, bf16x16, pk_bf6_t, pk_bf6)
+#if !CK_TILE_AVX512F_WA
+CK_TILE_SCALED_TYPE_CONVERT(pk_fp6_t, pk_fp6, fp32x16_t, fp32x16)
+CK_TILE_SCALED_TYPE_CONVERT(fp32x16_t, fp32x16, pk_fp6_t, pk_fp6)
+CK_TILE_SCALED_TYPE_CONVERT(pk_bf6_t, pk_bf6, fp32x16_t, fp32x16)
+CK_TILE_SCALED_TYPE_CONVERT(fp32x16_t, fp32x16, pk_bf6_t, pk_bf6)
+#endif
+
+#undef CK_TILE_SCALED_TYPE_CONVERT
+
+#if defined(__gfx125__)
+template <typename Y, int Scale_sel>
+struct pk6scaled_type_convert_impl<Y, pk_fp6_t, Scale_sel>
+{
+    CK_TILE_DEVICE static Y run(pk_fp6_t x, Packed4Scale_E8M0 scale)
+    {
+        return impl::_from_fp6x16_pkscale<Y, Scale_sel>(x.get(), scale.data());
+    }
+};
+
+template <typename Y, int Scale_sel>
+struct pk6scaled_type_convert_impl<Y, pk_bf6_t, Scale_sel>
+{
+    CK_TILE_DEVICE static Y run(pk_bf6_t x, Packed4Scale_E8M0 scale)
+    {
+        return impl::_from_bf6x16_pkscale<Y, Scale_sel>(x.get(), scale.data());
+    }
+};
+#endif
+#endif
 
 } // namespace ck_tile

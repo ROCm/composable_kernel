@@ -4,13 +4,15 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/container/array.hpp"
 #include "ck_tile/core/container/tuple.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/core/utility/functional.hpp"
+#include "ck_tile/core/utility/type_traits.hpp"
 
-#if __clang_major__ >= 23
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-#endif
+#include <type_traits>
+
 namespace ck_tile {
 
 #if CK_TILE_THREAD_BUFFER_DEFAULT == CK_TILE_THREAD_BUFFER_USE_TUPLE
@@ -41,8 +43,8 @@ struct thread_buffer {
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto size() { return N; }
-    CK_TILE_HOST_DEVICE auto & get() {return data; }
-    CK_TILE_HOST_DEVICE const auto & get() const {return data; }
+    CK_TILE_HOST_DEVICE auto & get() [[clang::lifetimebound]] {return data; }
+    CK_TILE_HOST_DEVICE const auto & get() const [[clang::lifetimebound]] {return data; }
     CK_TILE_HOST_DEVICE auto & get(index_t i) [[clang::lifetimebound]] {return data[i]; }
     CK_TILE_HOST_DEVICE const auto & get(index_t i) const [[clang::lifetimebound]] {return data[i]; }
     CK_TILE_HOST_DEVICE constexpr const auto& operator[](index_t i) const [[clang::lifetimebound]] {return get(i); }
@@ -99,7 +101,7 @@ struct thread_buffer {
             constexpr int vx = sizeof(value_type) * N / sizeof(Tx)
 
     template<typename Tx>
-    CK_TILE_HOST_DEVICE auto & get_as() {TB_COMMON_AS();
+    CK_TILE_HOST_DEVICE auto & get_as() [[clang::lifetimebound]] {TB_COMMON_AS();
             return reinterpret_cast<thread_buffer<Tx, vx>&>(data);}
     template<typename Tx>
     CK_TILE_HOST_DEVICE constexpr auto get_as() const {TB_COMMON_AS();
@@ -108,7 +110,7 @@ struct thread_buffer {
             else
             return reinterpret_cast<const thread_buffer<Tx, vx>&>(data);}
     template<typename Tx, index_t I>
-    CK_TILE_HOST_DEVICE auto & get_as(number<I>) {TB_COMMON_AS();
+    CK_TILE_HOST_DEVICE auto & get_as(number<I>) [[clang::lifetimebound]] {TB_COMMON_AS();
             return reinterpret_cast<thread_buffer<Tx, vx>&>(data).get(number<I>{});}
     template<typename Tx, index_t I>
     CK_TILE_HOST_DEVICE constexpr auto get_as(number<I>) const {TB_COMMON_AS();
@@ -147,7 +149,3 @@ struct vector_traits<thread_buffer<T, N>, std::enable_if_t<std::is_class_v<T>>>
 #endif
 
 } // namespace ck_tile
-
-#if __clang_major__ >= 23
-#pragma clang diagnostic pop
-#endif

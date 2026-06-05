@@ -4,15 +4,13 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
+
+#include <cmath>
 #include <limits>
-#include <stdint.h>
+#include <type_traits>
 
 namespace ck_tile {
-
-// TF32 tag type: 1 sign bit, 8 exponent bits, 10 mantissa bits (see numeric_traits<tf32_t>)
-struct tf32_t
-{
-};
 
 // this struct has the information of
 // 1. limit of a certain type, simliar to std::numeric_limits
@@ -24,7 +22,7 @@ struct numeric
     // minimum finite value, or minimum positive normalized value for float
     CK_TILE_HOST_DEVICE static constexpr T min() { return std::numeric_limits<T>::min(); }
 
-    // minumum finite value
+    // minimum finite value
     CK_TILE_HOST_DEVICE static constexpr T lowest() { return std::numeric_limits<T>::lowest(); }
 
     // maximum finite value
@@ -106,25 +104,6 @@ struct numeric_traits<float>
     using bitwise_type                  = uint32_t;
 };
 
-template <>
-struct numeric_traits<tf32_t>
-{
-    static constexpr int exp            = 8;
-    static constexpr int mant           = 10;
-    static constexpr int bias           = 127;
-    static constexpr uint32_t nan_mask  = 0x7F800000;
-    static constexpr uint32_t head_mask = 0xFF800000;
-    static constexpr uint32_t mant_mask = 0x7FFFFF;
-    static constexpr uint32_t exp_mask  = 0xFF;
-    static constexpr uint32_t abs_mask  = 0x7FFFFFFF;
-    static constexpr uint32_t Inf       = 0x7F800000;
-    static constexpr uint32_t NegInf    = 0xFF800000;
-    static constexpr uint32_t NaN       = 0x7F800001;
-    static constexpr uint32_t Neg0      = 0x80000000;
-    static constexpr int PackedSize     = 1;
-    using bitwise_type                  = uint32_t;
-};
-
 } // namespace ck_tile
 
 #define CK_TILE_ARITHMETIC_USING_FLOAT(attr_, type_)                                       \
@@ -157,7 +136,7 @@ struct numeric_traits<tf32_t>
     attr_ type_ operator-(const type_& x)                                                  \
     {                                                                                      \
         constexpr uint32_t bits = sizeof(type_) * 8;                                       \
-        constexpr uint32_t mask = 1 << (bits - 1);                                         \
+        constexpr uint32_t mask = 1u << (bits - 1u);                                       \
         type_ y                 = x;                                                       \
         y.data ^= static_cast<typename type_::raw_type>(mask);                             \
         return y;                                                                          \
@@ -174,32 +153,32 @@ struct numeric_traits<tf32_t>
     {                                                                                      \
         return type_(static_cast<float>(x) / static_cast<float>(y));                       \
     }                                                                                      \
-    attr_ type_& operator+=(type_& x, const type_& y)                                      \
+    attr_ type_& operator+=([[clang::lifetimebound]] type_& x, const type_& y)             \
     {                                                                                      \
         x = type_(static_cast<float>(x) + static_cast<float>(y));                          \
         return x;                                                                          \
     }                                                                                      \
-    attr_ type_& operator-=(type_& x, const type_& y)                                      \
+    attr_ type_& operator-=([[clang::lifetimebound]] type_& x, const type_& y)             \
     {                                                                                      \
         x = type_(static_cast<float>(x) - static_cast<float>(y));                          \
         return x;                                                                          \
     }                                                                                      \
-    attr_ type_& operator*=(type_& x, const type_& y)                                      \
+    attr_ type_& operator*=([[clang::lifetimebound]] type_& x, const type_& y)             \
     {                                                                                      \
         x = type_(static_cast<float>(x) * static_cast<float>(y));                          \
         return x;                                                                          \
     }                                                                                      \
-    attr_ type_& operator/=(type_& x, const type_& y)                                      \
+    attr_ type_& operator/=([[clang::lifetimebound]] type_& x, const type_& y)             \
     {                                                                                      \
         x = type_(static_cast<float>(x) / static_cast<float>(y));                          \
         return x;                                                                          \
     }                                                                                      \
-    attr_ type_& operator++(type_& x)                                                      \
+    attr_ type_& operator++([[clang::lifetimebound]] type_& x)                             \
     {                                                                                      \
         x = type_(static_cast<float>(x) + 1.f);                                            \
         return x;                                                                          \
     }                                                                                      \
-    attr_ type_& operator--(type_& x)                                                      \
+    attr_ type_& operator--([[clang::lifetimebound]] type_& x)                             \
     {                                                                                      \
         x = type_(static_cast<float>(x) - 1.f);                                            \
         return x;                                                                          \

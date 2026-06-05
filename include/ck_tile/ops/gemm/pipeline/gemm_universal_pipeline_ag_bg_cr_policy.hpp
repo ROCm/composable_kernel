@@ -4,11 +4,14 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_universal_gemm_as_bs_cr.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
-#include "ck_tile/ops/common/tensor_layout.hpp"
+
+#include <tuple>
+#include <type_traits>
 
 namespace ck_tile {
 
@@ -1437,14 +1440,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr auto wg_attr_num_access = WGAttrNumAccessEnum::Default;
 #endif
 
-        using ATypeToUse = if_select_t<typename Problem::AComputeDataType,
-                                       tf32_t,
-                                       float_t,
-                                       typename Problem::AComputeDataType>;
-        using BTypeToUse = if_select_t<typename Problem::BComputeDataType,
-                                       tf32_t,
-                                       float_t,
-                                       typename Problem::BComputeDataType>;
+        using ATypeToUse = typename Problem::AComputeDataType;
+        using BTypeToUse = typename Problem::BComputeDataType;
 
         using WarpGemm = WarpGemmDispatcher<typename Problem::AComputeDataType,
                                             typename Problem::BComputeDataType,

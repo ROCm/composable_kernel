@@ -3,13 +3,15 @@
 
 #pragma once
 
-#include "ck_tile/host/concat.hpp"
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/common/utils.hpp"
-#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "ck_tile/host/concat.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
+#include <algorithm>
+#include <string>
+#include <tuple>
 #include <type_traits>
 
 namespace ck_tile {
@@ -94,32 +96,20 @@ struct CShuffleEpilogue
                                                remove_cvref_t<BsDataType>,
                                                remove_cvref_t<tuple<BsDataType>>>;
 
-    // ADataTypeCompute: compute type from Problem (may be tf32_t for TF32 mode)
-    using ADataTypeCompute = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataTypeTuple>>;
-    using BDataTypeCompute = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataTypeTuple>>;
+    using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataTypeTuple>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataTypeTuple>>;
 
-    // ADataTypeBuf: buffer/storage type (fp32 when tf32)
-    using ADataTypeBuf = if_select_t<ADataTypeCompute, tf32_t, float, ADataTypeCompute>;
-    using BDataTypeBuf = if_select_t<BDataTypeCompute, tf32_t, float, BDataTypeCompute>;
-
-    // For warp gemm selection: use tf32_t if compute type was tf32_t
     // For pk_int4/pk_fp4: use the other data type
-    using ATypeToUse =
-        std::conditional_t<std::is_same_v<ADataTypeCompute, tf32_t>,
-                           tf32_t,
-                           std::conditional_t<std::is_same_v<ADataTypeBuf, pk_int4_t> ||
-                                                  std::is_same_v<ADataTypeBuf, pk_fp4_t>,
-                                              BDataTypeBuf,
-                                              ADataTypeBuf>>;
+    using ATypeToUse = std::conditional_t<std::is_same_v<ADataType, pk_int4_t> ||
+                                              std::is_same_v<ADataType, pk_fp4_t>,
+                                          BDataType,
+                                          ADataType>;
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
-    using BTypeToUse =
-        std::conditional_t<std::is_same_v<BDataTypeCompute, tf32_t>,
-                           tf32_t,
-                           std::conditional_t<std::is_same_v<BDataTypeBuf, pk_int4_t> ||
-                                                  std::is_same_v<BDataTypeBuf, pk_fp4_t> ||
-                                                  sizeof(BDataTypeBuf) < sizeof(ADataTypeBuf),
-                                              ADataTypeBuf,
-                                              BDataTypeBuf>>;
+    using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
+                                              std::is_same_v<BDataType, pk_fp4_t> ||
+                                              sizeof(BDataType) < sizeof(ADataType),
+                                          ADataType,
+                                          BDataType>;
 
     using ELayout                          = remove_cvref_t<typename Problem::ELayout>;
     using CDElementwise                    = remove_cvref_t<typename Problem::CDElementwise>;
@@ -511,8 +501,8 @@ struct CShuffleEpilogue
                     // BlockedLayout
                     // this branch is for original a16w4
                     if constexpr(UseBlockedLayout ||
-                                 is_any_of<ADataTypeBuf, pk_int4_t, pk_fp4_t>::value ||
-                                 is_any_of<BDataTypeBuf, pk_int4_t, pk_fp4_t>::value)
+                                 is_any_of<ADataType, pk_int4_t, pk_fp4_t>::value ||
+                                 is_any_of<BDataType, pk_int4_t, pk_fp4_t>::value)
                     {
                         if constexpr(EightWave)
                         {

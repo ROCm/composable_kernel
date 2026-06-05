@@ -3,28 +3,30 @@
 
 #pragma once
 
-#include <algorithm>
-#include <cassert>
-#include <iostream>
-#include <iomanip>
-#include <numeric>
-#include <utility>
-#include <vector>
-#include <functional>
-#include <fstream>
-
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/joinable_thread.hpp"
 #include "ck_tile/host/ranges.hpp"
 
-#if __clang_major__ >= 23
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-#endif
+#include <algorithm>
+#include <array>
+#include <cassert>
+#include <cstddef>
+#include <fstream>
+#include <functional>
+#include <initializer_list>
+#include <iomanip>
+#include <iostream>
+#include <numeric>
+#include <stdexcept>
+#include <string>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
 namespace ck_tile {
 
 template <typename Range>
-CK_TILE_HOST std::ostream& LogRange(std::ostream& os,
+CK_TILE_HOST std::ostream& LogRange([[clang::lifetimebound]] std::ostream& os,
                                     Range&& range,
                                     std::string delim,
                                     int precision = std::cout.precision(),
@@ -43,7 +45,7 @@ CK_TILE_HOST std::ostream& LogRange(std::ostream& os,
 }
 
 template <typename T, typename Range>
-CK_TILE_HOST std::ostream& LogRangeAsType(std::ostream& os,
+CK_TILE_HOST std::ostream& LogRangeAsType([[clang::lifetimebound]] std::ostream& os,
                                           Range&& range,
                                           std::string delim,
                                           int precision = std::cout.precision(),
@@ -199,11 +201,14 @@ struct HostTensorDescriptor
 
     std::size_t get_length(std::size_t dim) const { return mLens[dim]; }
 
-    const std::vector<std::size_t>& get_lengths() const { return mLens; }
+    const std::vector<std::size_t>& get_lengths() const [[clang::lifetimebound]] { return mLens; }
 
     std::size_t get_stride(std::size_t dim) const { return mStrides[dim]; }
 
-    const std::vector<std::size_t>& get_strides() const { return mStrides; }
+    const std::vector<std::size_t>& get_strides() const [[clang::lifetimebound]]
+    {
+        return mStrides;
+    }
 
     /**
      * @brief Calculates the linear offset from multi-dimensional indices.
@@ -239,7 +244,8 @@ struct HostTensorDescriptor
         return std::inner_product(iss.begin(), iss.end(), mStrides.begin(), std::size_t{0});
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc)
+    friend std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                                    const HostTensorDescriptor& desc)
     {
         os << "dim " << desc.get_num_of_dimension() << ", ";
 
@@ -391,11 +397,11 @@ struct HostTensor
 
     std::size_t get_length(std::size_t dim) const { return mDesc.get_length(dim); }
 
-    decltype(auto) get_lengths() const { return mDesc.get_lengths(); }
+    decltype(auto) get_lengths() const [[clang::lifetimebound]] { return mDesc.get_lengths(); }
 
     std::size_t get_stride(std::size_t dim) const { return mDesc.get_stride(dim); }
 
-    decltype(auto) get_strides() const { return mDesc.get_strides(); }
+    decltype(auto) get_strides() const [[clang::lifetimebound]] { return mDesc.get_strides(); }
 
     std::size_t get_num_of_dimension() const { return mDesc.get_num_of_dimension(); }
 
@@ -416,6 +422,8 @@ struct HostTensor
     {
         if constexpr(std::is_same_v<T, e8m0_t>)
             std::fill(mData.begin(), mData.end(), e8m0_t{1.f});
+        else if constexpr(std::is_same_v<T, tf32_t>)
+            std::fill(mData.begin(), mData.end(), tf32_t{0.0f});
         else
             std::fill(mData.begin(), mData.end(), 0);
     }
@@ -538,23 +546,23 @@ struct HostTensor
     }
 
     template <typename... Is>
-    T& operator()(Is... is)
+    T& operator()(Is... is) [[clang::lifetimebound]]
     {
         return mData[GetOffsetFromMultiIndex(is...)];
     }
 
     template <typename... Is>
-    const T& operator()(Is... is) const
+    const T& operator()(Is... is) const [[clang::lifetimebound]]
     {
         return mData[GetOffsetFromMultiIndex(is...)];
     }
 
-    T& operator()(const std::vector<std::size_t>& idx)
+    T& operator()(const std::vector<std::size_t>& idx) [[clang::lifetimebound]]
     {
         return mData[GetOffsetFromMultiIndex(idx)];
     }
 
-    const T& operator()(const std::vector<std::size_t>& idx) const
+    const T& operator()(const std::vector<std::size_t>& idx) const [[clang::lifetimebound]]
     {
         return mData[GetOffsetFromMultiIndex(idx)];
     }
@@ -587,17 +595,17 @@ struct HostTensor
         return const_cast<HostTensor<T> const*>(this)->transpose(axes);
     }
 
-    typename Data::iterator begin() { return mData.begin(); }
+    typename Data::iterator begin() [[clang::lifetimebound]] { return mData.begin(); }
 
-    typename Data::iterator end() { return mData.end(); }
+    typename Data::iterator end() [[clang::lifetimebound]] { return mData.end(); }
 
-    typename Data::pointer data() { return mData.data(); }
+    typename Data::pointer data() [[clang::lifetimebound]] { return mData.data(); }
 
-    typename Data::const_iterator begin() const { return mData.begin(); }
+    typename Data::const_iterator begin() const [[clang::lifetimebound]] { return mData.begin(); }
 
-    typename Data::const_iterator end() const { return mData.end(); }
+    typename Data::const_iterator end() const [[clang::lifetimebound]] { return mData.end(); }
 
-    typename Data::const_pointer data() const { return mData.data(); }
+    typename Data::const_pointer data() const [[clang::lifetimebound]] { return mData.data(); }
 
     typename Data::size_type size() const { return mData.size(); }
 
@@ -628,7 +636,7 @@ struct HostTensor
     }
 
     template <typename U = T>
-    auto AsSpan() const
+    auto AsSpan() const [[clang::lifetimebound]]
     {
         constexpr std::size_t FromSize = sizeof(T);
         constexpr std::size_t ToSize   = sizeof(U);
@@ -639,7 +647,7 @@ struct HostTensor
     }
 
     template <typename U = T>
-    auto AsSpan()
+    auto AsSpan() [[clang::lifetimebound]]
     {
         constexpr std::size_t FromSize = sizeof(T);
         constexpr std::size_t ToSize   = sizeof(U);
@@ -656,7 +664,7 @@ struct HostTensor
      * @param n Number of elements to print (default: 5)
      * @return std::ostream& Reference to the output stream
      */
-    std::ostream& print_first_n(std::ostream& os, std::size_t n = 5) const
+    std::ostream& print_first_n([[clang::lifetimebound]] std::ostream& os, std::size_t n = 5) const
     {
         os << mDesc;
         os << "[";
@@ -694,7 +702,8 @@ struct HostTensor
         return os;
     }
 
-    friend std::ostream& operator<<(std::ostream& os, const HostTensor<T>& t)
+    friend std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                                    const HostTensor<T>& t)
     {
         os << t.mDesc;
         os << "[";
@@ -785,6 +794,3 @@ auto get_default_stride(std::size_t row,
         return stride;
 }
 } // namespace ck_tile
-#if __clang_major__ >= 23
-#pragma clang diagnostic pop
-#endif
