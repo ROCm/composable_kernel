@@ -16,6 +16,7 @@
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/int8.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/numeric/tfloat32.hpp"
 #include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 #include "ck_tile/host/device_memory.hpp"
@@ -46,6 +47,7 @@ using I32       = int32_t;
 using F16       = fp16_t;
 using BF16      = bf16_t;
 using F32       = fp32_t;
+using TF32      = tf32_t;
 using F64       = fp64_t;
 using I8        = int8_t;
 using F8        = fp8_t;
@@ -411,6 +413,10 @@ using Gfx942AndHigherIntrinsics = ::testing::Types<
     amdgcn_mma<F8,   BF8,  F32,  32u, 32u, 16u,  DefaultMfmaCtrlFlags,       TestTarget, MmaOpFamily::DENSE>,  // mfma_f32_32x32x16_fp8_bf8
     amdgcn_mma<F8,   F8,   F32,  32u, 32u, 16u,  DefaultMfmaCtrlFlags,       TestTarget, MmaOpFamily::DENSE>,  // mfma_f32_32x32x16_fp8_fp8
     amdgcn_mma<F16,  F16,  F32,  16u, 16u, 32u,  DefaultSparseMfmaCtrlFlags, TestTarget, MmaOpFamily::SPARSE>  // smfmac_f32_16x16x32_f16
+>;
+using Gfx942Intrinsics = ::testing::Types<
+    amdgcn_mma<TF32, TF32, F32,  16u, 16u, 8u,   DefaultMfmaCtrlFlags,       TestTarget, MmaOpFamily::DENSE>,  // mfma_f32_16x16x8_xf32
+    amdgcn_mma<TF32, TF32, F32,  32u, 32u, 4u,   DefaultMfmaCtrlFlags,       TestTarget, MmaOpFamily::DENSE>   // mfma_f32_32x32x4_xf32
 >;
 using Gfx950Intrinsics = ::testing::Types<
     amdgcn_mma<F16,  F16,  F32,  16u, 16u, 32u,  DefaultMfmaCtrlFlags,       TestTarget, MmaOpFamily::DENSE>,  // mfma_f32_16x16x32_f16

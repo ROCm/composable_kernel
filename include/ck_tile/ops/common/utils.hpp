@@ -13,6 +13,7 @@
 #include "ck_tile/core/numeric/pk_f6.hpp"
 #include "ck_tile/core/numeric/pk_fp4.hpp"
 #include "ck_tile/core/numeric/pk_int4.hpp"
+#include "ck_tile/core/numeric/tfloat32.hpp"
 
 #include <string>
 #include <type_traits>
@@ -35,7 +36,7 @@ template <> struct DataTypeTraits<pk_fp6x16_t> { static constexpr const char * n
 template <> struct DataTypeTraits<pk_bf6x16_t> { static constexpr const char * name = "pk_bf6x16"; };
 template <> struct DataTypeTraits<pk_fp4_raw_t> { static constexpr const char * name = "pk_fp4_raw"; };
 template <> struct DataTypeTraits<e8m0_t> { static constexpr const char * name = "e8m0"; };
-template <> struct DataTypeTraits<ck_tile::tf32_t>{ static constexpr const char* name = "tf32"; };
+template <> struct DataTypeTraits<tf32_t>{ static constexpr const char* name = "tf32"; };
 
 template <memory_operation_enum MemOp> struct memOpToStr;
 template <> struct memOpToStr<memory_operation_enum::set> { static constexpr const char * name = "set"; };
