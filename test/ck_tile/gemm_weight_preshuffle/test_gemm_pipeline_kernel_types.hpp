@@ -30,6 +30,17 @@ using WeightPreshuffleTDM =
 
 // clang-format off
 
+using KernelTypesWeightPreshuffleAsync = ::testing::Types<
+     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Default,        WeightPreshuffleV2, std::true_type>,
+     std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,            Default,        WeightPreshuffleV2, std::true_type>
+#if !CK_TILE_USE_WMMA || CK_TILE_USE_OCP_FP8
+     ,
+     std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,             Default,        WeightPreshuffleV2, std::true_type>,
+     std::tuple<    Row,     Col,     Row,       F8,        BF8,         F32,       F16,             Default,        WeightPreshuffleV2, std::true_type>,
+     std::tuple<    Row,     Col,     Row,       F8,        I4,          F32,       F16,             Default,        WeightPreshuffleV2, std::true_type>
+#endif
+     >;
+
 using KernelTypesWeightPreshuffle = ::testing::Types<
      std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,             Default,        WeightPreshuffleV2>,
      std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,            Default,        WeightPreshuffleV2>

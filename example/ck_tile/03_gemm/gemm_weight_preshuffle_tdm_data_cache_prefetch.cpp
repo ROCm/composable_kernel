@@ -182,6 +182,8 @@ struct GemmConfigWeightPreshuffleTDMPrefetch : public GemmConfigBase
     static constexpr ck_tile::DataCachePrefetchKind DataCachePrefetchB = DataCachePrefetchB_;
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
+
+    static constexpr bool Async = false;
 };
 
 int main(int argc, char* argv[])
