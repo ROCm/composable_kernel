@@ -647,6 +647,13 @@ bool run_no_group_hstu(const ck_tile::ArgParser& arg_parser, bool is_jagged)
 
             lse_dev.FromDevice(lse_host.data());
 
+            if(dump_output)
+            {
+                dumpBufferToFile("lse_dev.dat", lse_host.data(), lse_host.get_element_space_size());
+                dumpBufferToFile(
+                    "lse_host.dat", lse_host_ref.data(), lse_host.get_element_space_size());
+            }
+
             bool res_lse = ck_tile::check_err(
                 lse_host, lse_host_ref, std::string("hstu_attention lse error"), rtol, atol);
 
@@ -1102,6 +1109,13 @@ bool run_group_hstu(const ck_tile::ArgParser& arg_parser, int num_group)
                 std::array<ck_tile::index_t, 3>{batches_for_alloc, phy_seqlen_q, num_head});
 
             lse_dev.FromDevice(lse_host.data());
+
+            if(dump_output)
+            {
+                dumpBufferToFile("lse_dev.dat", lse_host.data(), lse_host.get_element_space_size());
+                dumpBufferToFile(
+                    "lse_host.dat", lse_host_ref.data(), lse_host.get_element_space_size());
+            }
 
             bool res_lse = ck_tile::check_err(
                 lse_host, lse_host_ref, std::string("hstu_attention lse error"), rtol, atol);
