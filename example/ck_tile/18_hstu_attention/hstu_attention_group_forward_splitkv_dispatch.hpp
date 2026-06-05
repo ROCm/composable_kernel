@@ -31,6 +31,7 @@
 template <typename InOutDataType,
           bool kUseCausal,
           bool kUseSoftmax,
+          bool kStoreLSE,
           bool kHasBias,
           bool kHasDropout,
           ck_tile::index_t MaxK,
@@ -65,7 +66,7 @@ struct group_forward_splitkv_causal_softmax_bias_dropout_dispatch
         kHasDropout,
         kUseCausal,
         kUseSoftmax,
-        false, // kStoreLSE
+        kStoreLSE,
         HstuAttentionFwdTileSetting>;
 
     using OaccDataType = HstuAttentionFwdTypeConfig<InOutDataType>::OaccDataType;
@@ -79,7 +80,7 @@ struct group_forward_splitkv_causal_softmax_bias_dropout_dispatch
                                                                ODataType,
                                                                true /* kIsJagged */,
                                                                kUseSoftmax,
-                                                               false, // kStoreLSE
+                                                               kStoreLSE,
                                                                HstuAttentionCombineTileSetting,
                                                                kMaxSplits>;
 
@@ -320,11 +321,11 @@ struct group_forward_splitkv_causal_softmax_bias_dropout_dispatch
             return HstuKernel::MakeKargs(ws.o_acc_ptr,
                                          ws.lse_acc_ptr,
                                          param.o_ptr,
-                                         nullptr, // lse_ptr
+                                         param.lse_ptr,
                                          param.seq_stride_o,
-                                         0, // seq_stride_lse
+                                         param.seq_stride_lse,
                                          param.nhead_stride_o,
-                                         0, // nhead_stride_lse
+                                         param.nhead_stride_lse,
                                          param.seq_q_offsets_ptr,
                                          param.num_head,
                                          ws.num_splits,

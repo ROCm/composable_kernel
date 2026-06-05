@@ -23,6 +23,7 @@ void hstu_attention_no_group_forward_bf16(HstuAttentionNoGroupFwdParams& param, 
                     run_jagged_forward_causal_softmax_bias_dropout_dispatch<ck_tile::bf16_t,
                                                                             kUseCausal,
                                                                             kUseSoftmax,
+                                                                            false,
                                                                             kHasBias,
                                                                             false, // kHasDropout
                                                                             MaxK>(param, stream);
@@ -30,6 +31,7 @@ void hstu_attention_no_group_forward_bf16(HstuAttentionNoGroupFwdParams& param, 
                     run_batched_forward_causal_softmax_bias_dropout_dispatch<ck_tile::bf16_t,
                                                                              kUseCausal,
                                                                              kUseSoftmax,
+                                                                             false,
                                                                              kHasBias,
                                                                              false, // kHasDropout
                                                                              MaxK>(param, stream);
