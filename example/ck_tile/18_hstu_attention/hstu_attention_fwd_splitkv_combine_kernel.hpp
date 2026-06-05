@@ -329,11 +329,11 @@ struct HstuAttentionFwdSplitKVCombineKernel
             }
         }
 
-        index_t i_m0;
+        index_t i_m;
 
-        i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM);
+        i_m = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM);
 
-        if(kargs.seqlen_q <= i_m0)
+        if(kargs.seqlen_q <= i_m)
             return;
 
         // assume o_acc is in compact shape of [batch_size, seqlen, num_head, num_splits, hdim]
@@ -364,7 +364,7 @@ struct HstuAttentionFwdSplitKVCombineKernel
             make_tile_window(o_acc_dram,
                              make_tuple(number<HstuAttentionPipeline::kM>{},
                                         number<HstuAttentionPipeline::kOHeaddim>{}),
-                             {i_m0, 0});
+                             {i_m, 0});
 
         auto o_acc_tile = [&]() {
             if constexpr(kUseSoftmax)
@@ -402,7 +402,7 @@ struct HstuAttentionFwdSplitKVCombineKernel
                     make_tile_window(lse_acc_dram,
                                      make_tuple(number<HstuAttentionPipeline::kM>{},
                                                 number<HstuAttentionPipeline::kMaxSplits>{}),
-                                     {i_m0, 0});
+                                     {i_m, 0});
 
                 auto lse_dram_window = [&, i_nhead_ = i_nhead]() {
                     constexpr auto lse_dram_window_lengths =
@@ -427,7 +427,7 @@ struct HstuAttentionFwdSplitKVCombineKernel
                                 lse_dram_naive, lse_dram_window_lengths, sequence<false>{});
                         }();
 
-                        return make_tile_window(lse_dram, lse_dram_window_lengths, {i_m0});
+                        return make_tile_window(lse_dram, lse_dram_window_lengths, {i_m});
                     }
                     else
                     {
@@ -467,7 +467,7 @@ struct HstuAttentionFwdSplitKVCombineKernel
             make_tile_window(o_dram,
                              make_tuple(number<HstuAttentionPipeline::kM>{},
                                         number<HstuAttentionPipeline::kOHeaddim>{}),
-                             {i_m0, 0});
+                             {i_m, 0});
 
         EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
     }
