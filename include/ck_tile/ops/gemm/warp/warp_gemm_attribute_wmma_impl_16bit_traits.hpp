@@ -141,6 +141,27 @@ struct WmmaTraits<gfx125_t, bf16_t, bf16_t, float, 16, 16, 32>
         return CVecType{0.f};
 #endif
     }
+
+    // C output (fp32 accumulate -> bf16 C result); same element count/layout as CVecType
+    using COutDataType = bf16_t;
+    using COutVecType  = ext_vector_t<COutDataType, kCOutputSize * kCNBlock>;
+
+    // c_out = a_vec * b_vec + c_vec : accumulate in fp32 (CVecType), emit bf16 (COutVecType)
+    template <typename... Params>
+    CK_TILE_DEVICE static COutVecType
+    wmma_intrinsic_downconvert(const AVecType& a_vec, const BVecType& b_vec, const CVecType& c_vec)
+    {
+#ifdef __gfx125__
+        using P = WarpGemmParamsParser<Params...>;
+        return __builtin_amdgcn_wmma_bf16f32_16x16x32_bf16(
+            0, a_vec, 0, b_vec, 0, c_vec, P::reuse_a, P::reuse_b);
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = b_vec;
+        ck_tile::ignore = c_vec;
+        return COutVecType{0};
+#endif
+    }
 };
 
 // bf16 -> bf16 specialization - GFX125

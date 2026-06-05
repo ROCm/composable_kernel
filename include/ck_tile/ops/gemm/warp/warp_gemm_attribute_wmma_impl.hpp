@@ -93,6 +93,14 @@ struct WarpGemmAttributeWmmaImpl
             Traits::template wmma_intrinsic<Params...>(a_vec, b_vec, CVecType{0.f}));
     }
 
+    // c_out = a_vec * b_vec + c_vec : fp32 accumulate, narrowed C output (e.g. bf16)
+    template <typename... Params>
+    CK_TILE_DEVICE auto
+    mac_downconvert(const CVecType& c_vec, const AVecType& a_vec, const BVecType& b_vec) const
+    {
+        return Traits::template wmma_intrinsic_downconvert<Params...>(a_vec, b_vec, c_vec);
+    }
+
     template <typename... Params, typename AScaleType, typename BScaleType>
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
                                    const AVecType& a_vec,
