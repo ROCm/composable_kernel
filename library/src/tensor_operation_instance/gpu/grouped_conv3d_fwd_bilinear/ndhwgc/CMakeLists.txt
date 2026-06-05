@@ -1,0 +1,23 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
+# NDHWGC layout instances for grouped_conv3d_fwd_bilinear
+set(GROUPED_CONV3D_FWD_BILINEAR_NDHWGC
+   # wmma
+   wmma/device_grouped_conv3d_fwd_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_instance_part1.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_instance_part2.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_instance_part3.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_instance_part4.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_f16_instance_part1.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_f16_instance_part2.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_f16_instance_part3.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_bilinear_ndhwgc_gkzyxc_ndhwgk_f16_instance_part4.cpp
+   # xdl
+   xdl/device_grouped_conv3d_fwd_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
+   xdl/device_grouped_conv3d_fwd_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
+   xdl/device_grouped_conv3d_fwd_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_f32_instance.cpp
+   xdl/device_grouped_conv3d_fwd_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instance.cpp
+   xdl/device_grouped_conv3d_fwd_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_int8_instance.cpp
+)
+
+add_instance_library(device_grouped_conv3d_fwd_bilinear_ndhwgc_instance ${GROUPED_CONV3D_FWD_BILINEAR_NDHWGC})

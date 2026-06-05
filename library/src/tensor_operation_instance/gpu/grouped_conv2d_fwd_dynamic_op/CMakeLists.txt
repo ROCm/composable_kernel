@@ -1,13 +1,7 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-# ONLY XDL_AND_WMMA_KERNELS
-set(GROUPED_CONV2D_FWD_DYNAMIC_OP
-   xdl/device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
-   xdl/device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_f16_instance.cpp
-   xdl/device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_f32_instance.cpp
-   xdl/device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_int8_instance.cpp
-   wmma/device_grouped_conv2d_fwd_wmma_dynamic_op_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
-   wmma/device_grouped_conv2d_fwd_wmma_dynamic_op_nhwgc_gkyxc_nhwgk_f16_instance.cpp)
+# grouped_conv2d_fwd_dynamic_op - layout-specific instances
 
-add_instance_library(device_grouped_conv2d_fwd_dynamic_op_instance ${GROUPED_CONV2D_FWD_DYNAMIC_OP})
+# NHWGC - Required by MIOpen
+add_subdirectory(nhwgc)

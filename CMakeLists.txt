@@ -765,8 +765,6 @@ if(NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY)
 endif()
 
 
-option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
-option(HIPTENSOR_REQ_LIBS_ONLY "Build only the HipTensor required libraries" OFF)
 option(DISABLE_OFFLOAD_COMPRESS "Disable offload compress compiler flag when building instances" OFF)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 option(BUILD_CK_DEVICE_INSTANCES "Build device operation instances in library/" ON)
