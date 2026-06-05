@@ -71,6 +71,11 @@ struct config
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
     static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::DataCachePrefetchKind DataCachePrefetchA =
+        ck_tile::DataCachePrefetchKind::None;
+    static constexpr ck_tile::DataCachePrefetchKind DataCachePrefetchB =
+        ck_tile::DataCachePrefetchKind::None;
 };
 
 template <typename Datatype>
@@ -106,6 +111,11 @@ struct config_wmma
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile =
         ck_tile::get_k_warp_tile<Datatype, M_Warp_Tile>();
+
+    static constexpr ck_tile::DataCachePrefetchKind DataCachePrefetchA =
+        ck_tile::DataCachePrefetchKind::None;
+    static constexpr ck_tile::DataCachePrefetchKind DataCachePrefetchB =
+        ck_tile::DataCachePrefetchKind::None;
 };
 
 template <typename Tuple>
@@ -121,12 +131,14 @@ class TestCkTileGemmPipeline : public ::testing::Test
     using CDataType                    = std::tuple_element_t<6, Tuple>;
     static constexpr auto Scheduler    = std::tuple_element_t<7, Tuple>::value;
     static constexpr auto PipelineType = std::tuple_element_t<8, Tuple>::value;
+    static constexpr bool Async =
+        ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
 
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
 
     static constexpr bool Persistent =
-        ck_tile::tuple_element_or_default_t<Tuple, 9, std::false_type>::value;
+        ck_tile::tuple_element_or_default_t<Tuple, 10, std::false_type>::value;
     // TODO: expose tile size through test t-param ?
 
     template <typename GemmConfig, bool PadM, bool PadN, bool PadK, bool Preshuffle>
@@ -159,6 +171,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
         static constexpr bool StructuredSparsity = false;
         static constexpr bool NumWaveGroup       = 1;
 
+        static constexpr ck_tile::index_t VectorSize = 16;
+
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
                                                                      kPadK,
@@ -170,7 +184,11 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      StructuredSparsity,
                                                                      Persistent,
                                                                      NumWaveGroup,
-                                                                     preshuffle>;
+                                                                     preshuffle,
+                                                                     VectorSize,
+                                                                     GemmConfig::DataCachePrefetchA,
+                                                                     GemmConfig::DataCachePrefetchB,
+                                                                     Async>;
 
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                            BDataType,

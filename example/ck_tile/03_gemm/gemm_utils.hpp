@@ -331,6 +331,19 @@ struct GemmConfigPreshufflePrefill : public GemmConfigBase
     static constexpr bool DoubleSmemBuffer          = true;
     static constexpr int N_Repeat                   = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN          = N_Repeat % 2 == 0;
+
+    static constexpr bool Async = false;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshufflePrefillAsync : public GemmConfigPreshufflePrefill<PrecType>
+{
+    static constexpr ck_tile::index_t N_Tile = 256;
+
+    // N_Repeat is even in this config
+    static constexpr bool TiledMMAPermuteN = true;
+
+    static constexpr bool Async = true;
 };
 
 template <typename PrecType>

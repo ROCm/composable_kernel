@@ -37,6 +37,14 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx11|gfx12")
             KernelTypesWeightPreshuffle
             wp
         )
+
+        if(GPU_TARGETS MATCHES "gfx95")
+            add_wp_test(
+                TestCkTileGemmPipelineWeightPreshuffleAsync
+                KernelTypesWeightPreshuffleAsync
+                wp_async
+            )
+        endif()
     endif()
 endif()
 

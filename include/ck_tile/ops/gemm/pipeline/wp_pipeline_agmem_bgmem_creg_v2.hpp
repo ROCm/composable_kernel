@@ -194,6 +194,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     static constexpr index_t HalfMIter      = (MIterPerWarp + 1) / 2;
     static constexpr index_t Bload_rep      = (Bload_num_perK + HalfMIter - 1) / HalfMIter;
 
+    static constexpr index_t Bload_total_num = BlockWeightPreshuffle::Bload_total_num;
+
     static constexpr index_t mfma_perM_perK = NIterPerWarp * mfma_per_wg;
     static constexpr index_t dswrite_mIter  = (DsWritePreIssue - 1) % MIterPerWarp;
     static constexpr index_t dswrite_kIter  = (DsWritePreIssue - 1) / MIterPerWarp;
@@ -415,29 +417,36 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                 dsread_perM = dsread_per_wg;
 
                 // Calculate ds_write number per M
-                if(mIter == 0)
-                {
-                    dswrite_perM =
-                        (dswrite_num_perK - (MIterPerWarp - DsWritePreIssue) * dswrite_rep) > 0
-                            ? dswrite_num_perK - (MIterPerWarp - DsWritePreIssue) * dswrite_rep
-                            : 0;
-                }
-                else if(mIter >= MIterPerWarp - DsWritePreIssue + 1)
+                if constexpr(Problem::Async)
                 {
                     dswrite_perM = 0;
                 }
                 else
                 {
-                    dswrite_perM = (dswrite_num_perK -
-                                    (MIterPerWarp - DsWritePreIssue - mIter) * dswrite_rep) > 0
-                                       ? dswrite_rep
-                                       : 0;
-                }
-                // Add ds write when ds write data > needed
-                if(dswrite_num_perK == 0 && kIter == (KIterPerWarp - 1 - dswrite_kIter))
-                {
-                    if(mIter == MIterPerWarp - 1 - dswrite_mIter)
-                        dswrite_perM = 1;
+                    if(mIter == 0)
+                    {
+                        dswrite_perM =
+                            (dswrite_num_perK - (MIterPerWarp - DsWritePreIssue) * dswrite_rep) > 0
+                                ? dswrite_num_perK - (MIterPerWarp - DsWritePreIssue) * dswrite_rep
+                                : 0;
+                    }
+                    else if(mIter >= MIterPerWarp - DsWritePreIssue + 1)
+                    {
+                        dswrite_perM = 0;
+                    }
+                    else
+                    {
+                        dswrite_perM = (dswrite_num_perK -
+                                        (MIterPerWarp - DsWritePreIssue - mIter) * dswrite_rep) > 0
+                                           ? dswrite_rep
+                                           : 0;
+                    }
+                    // Add ds write when ds write data > needed
+                    if(dswrite_num_perK == 0 && kIter == (KIterPerWarp - 1 - dswrite_kIter))
+                    {
+                        if(mIter == MIterPerWarp - 1 - dswrite_mIter)
+                            dswrite_perM = 1;
+                    }
                 }
 
                 // Calculate buffer_load number per M
@@ -480,29 +489,36 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                 dsread_perM = dsread_per_wg;
 
                 // Calculate ds_write number per M
-                if(mIter == 0)
-                {
-                    dswrite_perM =
-                        (dswrite_num_perK - (MIterPerWarp - DsWritePreIssue) * dswrite_rep) > 0
-                            ? dswrite_num_perK - (MIterPerWarp - DsWritePreIssue) * dswrite_rep
-                            : 0;
-                }
-                else if(mIter >= MIterPerWarp - DsWritePreIssue + 1)
+                if constexpr(Problem::Async)
                 {
                     dswrite_perM = 0;
                 }
                 else
                 {
-                    dswrite_perM = (dswrite_num_perK -
-                                    (MIterPerWarp - DsWritePreIssue - mIter) * dswrite_rep) > 0
-                                       ? dswrite_rep
-                                       : 0;
-                }
-                // Add ds write when ds write data > needed
-                if(dswrite_num_perK == 0 && kIter == (KIterPerWarp - 1 - dswrite_kIter))
-                {
-                    if(mIter == MIterPerWarp - 1 - dswrite_mIter)
-                        dswrite_perM = 1;
+                    if(mIter == 0)
+                    {
+                        dswrite_perM =
+                            (dswrite_num_perK - (MIterPerWarp - DsWritePreIssue) * dswrite_rep) > 0
+                                ? dswrite_num_perK - (MIterPerWarp - DsWritePreIssue) * dswrite_rep
+                                : 0;
+                    }
+                    else if(mIter >= MIterPerWarp - DsWritePreIssue + 1)
+                    {
+                        dswrite_perM = 0;
+                    }
+                    else
+                    {
+                        dswrite_perM = (dswrite_num_perK -
+                                        (MIterPerWarp - DsWritePreIssue - mIter) * dswrite_rep) > 0
+                                           ? dswrite_rep
+                                           : 0;
+                    }
+                    // Add ds write when ds write data > needed
+                    if(dswrite_num_perK == 0 && kIter == (KIterPerWarp - 1 - dswrite_kIter))
+                    {
+                        if(mIter == MIterPerWarp - 1 - dswrite_mIter)
+                            dswrite_perM = 1;
+                    }
                 }
 
                 // Calculate buffer_load number per M
@@ -557,7 +573,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                        [[maybe_unused]] const AElementFunction& a_element_func,
                                        const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                        index_t num_loop,
-                                       void* p_smem) const
+                                       void* __restrict__ p_smem_ping,
+                                       void* __restrict__ p_smem_pong) const
         {
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
@@ -568,29 +585,36 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
             static_assert(kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                           "wrong!");
 
+            const auto smem01 = make_array(reinterpret_cast<uint8_t*>(p_smem_ping),
+                                           reinterpret_cast<uint8_t*>(p_smem_pong));
+
+            constexpr index_t NumLdsBuffers = 2;
+            static_assert(DoubleSmemBuffer, "preshuffle pipeline requires double LDS buffering.");
+
             // A tile in LDS
-            constexpr index_t smem_size = PipelinePolicy::template GetSmemSize<Problem>();
+            auto a_copy_dram_window =
+                PipelinePolicy::template MakeADramWindow<Problem>(a_dram_block_window_tmp);
 
             constexpr auto a_lds_block_desc =
                 PipelinePolicy::template MakeALdsBlockDescriptor<Problem>();
 
             auto a_lds_blocks = generate_tuple(
                 [&](auto i) {
-                    ADataType* p_a_lds = static_cast<ADataType*>(
-                        static_cast<void*>(static_cast<char*>(p_smem) + smem_size * i.value));
+                    ADataType* p_a_lds = reinterpret_cast<ADataType*>(smem01[i]);
                     return make_tensor_view<address_space_enum::lds>(p_a_lds, a_lds_block_desc);
                 },
-                number<2>{});
+                number<NumLdsBuffers>{});
 
-            constexpr auto a_lds_load_tile_distr = make_static_tile_distribution(
-                BlockWeightPreshuffle::MakeABlockDistributionEncode());
-            auto&& windows_result =
-                Base::GetAWindows(a_dram_block_window_tmp, a_lds_blocks, a_lds_load_tile_distr);
-            auto&& a_copy_dram_window = windows_result.template get<0>();
-            auto&& a_lds_windows      = windows_result.template get<1>();
-            auto a_copy_lds_windows   = generate_tuple(
-                [&](auto i) -> decltype(auto) { return a_lds_windows[i].template at<0>(); },
-                number<2>{});
+            auto a_copy_lds_windows = generate_tuple(
+                [&](auto i) {
+                    return make_tile_window(
+                        a_lds_blocks[i],
+                        make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                        {0, 0},
+                        PipelinePolicy::template MakeADramTileDistribution<Problem>());
+                },
+                number<NumLdsBuffers>{});
+
             // Block GEMM
             auto block_weight_preshuffle = BlockWeightPreshuffle();
             // Acc register tile
@@ -598,9 +622,13 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
 
             auto a_load_windows = generate_tuple(
                 [&](auto i) -> decltype(auto) {
-                    return block_weight_preshuffle.MakeALoadWindows(a_copy_lds_windows[i]);
+                    auto window =
+                        make_tile_window(a_lds_blocks[i],
+                                         make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                                         {0, 0});
+                    return block_weight_preshuffle.MakeALoadWindows(window);
                 },
-                number<2>{});
+                number<NumLdsBuffers>{});
 
             // B flat DRAM window for load
             auto b_flat_distribution =
@@ -630,20 +658,69 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
             ABlockTile a_global_tile;
             BBlockTile b_global_tile[2];
 
-            // // Prefetch A0
-            Base::GlobalPrefetch(a_global_tile, a_copy_dram_window, a_dram_tile_window_step);
+            enum
+            {
+                PrefillBeforeGemm = 1,
+                PrefillAfterGemm  = 2,
+                PrefillAlways     = PrefillBeforeGemm | PrefillAfterGemm,
+            };
+
+            constexpr auto PrefetchCondition =
+                Problem::Async ? PrefillAfterGemm : PrefillBeforeGemm;
+
+            auto global_prefetch = [&](auto& lds_tile_a,
+                                       auto& dram_tile_a,
+                                       auto& window_step_a,
+                                       auto prefetch_location) {
+                if constexpr(prefetch_location & PrefetchCondition)
+                {
+                    if constexpr(Problem::Async)
+                    {
+                        // global -> lds
+                        constexpr auto NEG1 = number<-1>{};
+                        async_load_tile(lds_tile_a, dram_tile_a, NEG1, false_type{}, true_type{});
+                        move_tile_window(dram_tile_a, window_step_a);
+                    }
+                    else
+                    {
+                        // global -> vgpr
+                        Base::GlobalPrefetch(a_global_tile, dram_tile_a, window_step_a);
+                    }
+                }
+            };
+
+            auto local_prefill = [&](auto& lds_tile_a) {
+                if constexpr(!Problem::Async)
+                {
+                    // vgpr -> lds
+                    Base::LocalPrefill(lds_tile_a, a_global_tile);
+                }
+            };
+
+            // Prefetch A0
+            global_prefetch(a_copy_lds_windows[I0],
+                            a_copy_dram_window,
+                            a_dram_tile_window_step,
+                            number<PrefillAlways>{});
 
             Base::GlobalPrefetch(b_global_tile[0], b_flat_dram_window, b_dram_tile_window_step);
 
             // Prefill A0
-            Base::LocalPrefill(a_copy_lds_windows[I0], a_global_tile);
+            local_prefill(a_copy_lds_windows[I0]);
 
             // Prefetch A1
-            Base::GlobalPrefetch(a_global_tile, a_copy_dram_window, a_dram_tile_window_step);
+            global_prefetch(a_copy_lds_windows[I1],
+                            a_copy_dram_window,
+                            a_dram_tile_window_step,
+                            number<PrefillAlways>{});
 
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
+            if constexpr(Problem::Async)
+            {
+                s_waitcnt<Bload_total_num>();
+            }
             block_sync_lds();
 
             // preload A00,A10 from lds
@@ -659,13 +736,22 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                     {
                         Base::GlobalPrefetch(
                             b_global_tile[1], b_flat_dram_window, b_dram_tile_window_step);
-                        Base::LocalPrefill(a_copy_lds_windows[I1], a_global_tile);
-                        Base::GlobalPrefetch(
-                            a_global_tile, a_copy_dram_window, a_dram_tile_window_step);
+                        local_prefill(a_copy_lds_windows[I1]);
+
+                        global_prefetch(a_copy_lds_windows[I0],
+                                        a_copy_dram_window,
+                                        a_dram_tile_window_step,
+                                        number<PrefillBeforeGemm>{});
+
                         block_weight_preshuffle(c_block_tile,
                                                 a_load_windows[I0],
                                                 b_global_tile[0],
                                                 b_flat_distribution);
+
+                        global_prefetch(a_copy_lds_windows[I0],
+                                        a_copy_dram_window,
+                                        a_dram_tile_window_step,
+                                        number<PrefillAfterGemm>{});
 
                         block_weight_preshuffle.LocalPrefetch(a_load_windows[I1]);
                         HotLoopScheduler();
@@ -673,13 +759,23 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                     {
                         Base::GlobalPrefetch(
                             b_global_tile[0], b_flat_dram_window, b_dram_tile_window_step);
-                        Base::LocalPrefill(a_copy_lds_windows[I0], a_global_tile);
-                        Base::GlobalPrefetch(
-                            a_global_tile, a_copy_dram_window, a_dram_tile_window_step);
+
+                        local_prefill(a_copy_lds_windows[I0]);
+
+                        global_prefetch(a_copy_lds_windows[I1],
+                                        a_copy_dram_window,
+                                        a_dram_tile_window_step,
+                                        number<PrefillBeforeGemm>{});
+
                         block_weight_preshuffle(c_block_tile,
                                                 a_load_windows[I1],
                                                 b_global_tile[1],
                                                 b_flat_distribution);
+
+                        global_prefetch(a_copy_lds_windows[I1],
+                                        a_copy_dram_window,
+                                        a_dram_tile_window_step,
+                                        number<PrefillAfterGemm>{});
 
                         block_weight_preshuffle.LocalPrefetch(a_load_windows[I0]);
                         HotLoopScheduler();
@@ -694,7 +790,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                 {
                     Base::GlobalPrefetch(
                         b_global_tile[1], b_flat_dram_window, b_dram_tile_window_step);
-                    Base::LocalPrefill(a_copy_lds_windows[I1], a_global_tile);
+                    local_prefill(a_copy_lds_windows[I1]);
                     block_weight_preshuffle(
                         c_block_tile, a_load_windows[I0], b_global_tile[0], b_flat_distribution);
                     block_sync_lds();
@@ -733,6 +829,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                    index_t num_loop,
                                    void* p_smem) const
     {
+        constexpr index_t smem_size = PipelinePolicy::template GetSmemSize<Problem>();
+
         const auto has_hot_loop = Base::BlockHasHotloop(num_loop);
         const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
 
@@ -742,7 +840,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                 a_element_func,
                 b_flat_dram_block_window_tmp[number<0>{}],
                 num_loop,
-                p_smem);
+                p_smem,
+                static_cast<char*>(p_smem) + smem_size);
         };
         return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
     }
@@ -758,6 +857,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                    index_t num_loop,
                                    void* p_smem) const
     {
+        constexpr index_t smem_size = PipelinePolicy::template GetSmemSize<Problem>();
+
         const auto has_hot_loop = Base::BlockHasHotloop(num_loop);
         const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
 
@@ -768,7 +869,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                 PassThrough,
                 b_flat_dram_block_window_tmp,
                 num_loop,
-                p_smem);
+                p_smem,
+                static_cast<char*>(p_smem) + smem_size);
         };
         return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
     }
@@ -785,6 +887,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                    TailNumber tail_number,
                                    void* __restrict__ p_smem) const
     {
+        constexpr index_t smem_size = PipelinePolicy::template GetSmemSize<Problem>();
+
         const auto has_hot_loop = Base::BlockHasHotloop(num_loop);
         const auto RunPipeline  = [&](auto hot_loop_, auto tail_num_) {
             constexpr auto PassThrough = [](const auto& x) { return x; };
@@ -793,7 +897,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                 PassThrough,
                 b_flat_dram_block_window_tmp,
                 num_loop,
-                p_smem);
+                p_smem,
+                static_cast<char*>(p_smem) + smem_size);
         };
         return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
     }

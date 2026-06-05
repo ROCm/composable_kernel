@@ -111,6 +111,9 @@ struct GemmQuantPipelineProblemBase
             : BCastPolicy_;
 #endif
 
+    // async pipelines not supported for blockscale yet
+    static constexpr bool Async = false;
+
     static_assert(BlockGemmShape::kM % AQuantGroupSize::kM == 0);
     static_assert(BlockGemmShape::kK % AQuantGroupSize::kK == 0);
     static_assert(BlockGemmShape::kM % BQuantGroupSize::kM == 0);

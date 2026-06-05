@@ -33,6 +33,8 @@ struct WeightPreshuffleInvoker
                                                        GemmConfig::TileParitionerGroupNum,
                                                        GemmConfig::TileParitionerM01>;
 
+        static constexpr ck_tile::index_t VectorSize = 16;
+
         using GemmUniversalTraits =
             ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
                                              GemmConfig::kPadN,
@@ -46,9 +48,11 @@ struct WeightPreshuffleInvoker
                                              Persistent,
                                              GemmConfig::NumWaveGroups,
                                              GemmConfig::Preshuffle,
-                                             16,
+                                             VectorSize,
                                              GemmConfig::DataCachePrefetchA,
-                                             GemmConfig::DataCachePrefetchB>;
+                                             GemmConfig::DataCachePrefetchB,
+                                             GemmConfig::Async>;
+
         constexpr auto scheduler = GemmConfig::Scheduler;
 
         using AComputeDataType =
