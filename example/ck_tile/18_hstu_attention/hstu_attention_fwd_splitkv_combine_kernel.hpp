@@ -281,6 +281,7 @@ struct HstuAttentionFwdSplitKVCombineKernel
         long_index_t batch_offset_o_acc   = 0;
         long_index_t batch_offset_o       = 0;
         long_index_t batch_offset_lse_acc = 0;
+        long_index_t batch_offset_lse     = 0;
 
         if constexpr(kIsJagged)
         {
@@ -299,6 +300,11 @@ struct HstuAttentionFwdSplitKVCombineKernel
             {
                 batch_offset_lse_acc = query_start * kargs.num_head * kargs.num_splits;
             }
+            if constexpr(kStoreLSE)
+            {
+                batch_offset_lse = query_start * kargs.seq_stride_lse;
+            }
+
             kargs.seqlen_q =
                 kargs.seq_q_offsets_ptr[i_batch + 1] - kargs.seq_q_offsets_ptr[i_batch];
         }
@@ -316,6 +322,10 @@ struct HstuAttentionFwdSplitKVCombineKernel
             {
                 batch_offset_lse_acc = static_cast<long_index_t>(i_batch) * kargs.seqlen_q *
                                        kargs.num_head * kargs.num_splits;
+            }
+            if constexpr(kStoreLSE)
+            {
+                batch_offset_lse = static_cast<long_index_t>(i_batch) * kargs.batch_stride_lse;
             }
         }
 
@@ -394,8 +404,40 @@ struct HstuAttentionFwdSplitKVCombineKernel
                                                 number<HstuAttentionPipeline::kMaxSplits>{}),
                                      {i_m0, 0});
 
+                auto lse_dram_window = [&, i_nhead_ = i_nhead]() {
+                    constexpr auto lse_dram_window_lengths =
+                        make_tuple(number<HstuAttentionPipeline::kM>{});
+                    if constexpr(kStoreLSE)
+                    {
+                        LSEDataType* lse_ptr =
+                            reinterpret_cast<LSEDataType*>(kargs.lse_ptr) +
+                            static_cast<long_index_t>(i_nhead_) * kargs.nhead_stride_lse +
+                            batch_offset_lse;
+
+                        const auto lse_dram = [&]() {
+                            const auto lse_dram_naive =
+                                make_naive_tensor_view<address_space_enum::global>(
+                                    lse_ptr,
+                                    make_tuple(kargs.seqlen_q),
+                                    make_tuple(kargs.seq_stride_lse),
+                                    number<1>{},
+                                    number<1>{});
+
+                            return pad_tensor_view(
+                                lse_dram_naive, lse_dram_window_lengths, sequence<false>{});
+                        }();
+
+                        return make_tile_window(lse_dram, lse_dram_window_lengths, {i_m0});
+                    }
+                    else
+                    {
+                        return make_null_tile_window(lse_dram_window_lengths);
+                    }
+                }();
+
                 return HstuAttentionPipeline{}(lse_acc_dram_window,
                                                o_acc_dram_window,
+                                               lse_dram_window,
                                                kargs.hdim_v,
                                                kargs.num_splits,
                                                smem_ptr);

@@ -294,7 +294,11 @@ struct reference_no_group_hstu_attention_fwd
 
                         if(store_lse)
                         {
-                            lse_batch_seq_nhead(i_batch, sq, i_head) = std::log(l) + m;
+                            if constexpr(kIsJagged)
+                                lse_batch_seq_nhead(0, seq_q_offsets[i_batch] + sq, i_head) =
+                                    std::log(l) + m;
+                            else
+                                lse_batch_seq_nhead(i_batch, sq, i_head) = std::log(l) + m;
                         }
                     };
 
@@ -583,7 +587,8 @@ struct reference_group_hstu_attention_fwd
 
                         if(store_lse)
                         {
-                            lse_batch_seq_nhead(i_batch, sq, i_head) = std::log(l) + m;
+                            lse_batch_seq_nhead(0, seq_q_offsets[i_batch] + sq, i_head) =
+                                std::log(l) + m;
                         }
                     };
 
