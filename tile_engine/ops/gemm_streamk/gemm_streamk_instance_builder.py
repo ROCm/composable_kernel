@@ -22,11 +22,27 @@ logging.basicConfig(level=logging.INFO)
 
 
 class GemmKernelBuilder:
-    def __init__(self, working_path, datatype, layout, config_json=None):
+    def __init__(
+        self,
+        working_path,
+        datatype,
+        layout,
+        config_json=None,
+        gpu_target=None,
+        max_instances=None,
+        seed=None,
+        tier=None,
+        manifest_path=None,
+    ):
         self.working_path = Path(working_path)
         self.datatype = datatype
         self.layout = layout
         self.config_json = config_json
+        self.gpu_target = gpu_target
+        self.max_instances = max_instances
+        self.seed = seed
+        self.tier = tier
+        self.manifest_path = manifest_path
 
         # Create working directory if it doesn't exist
         self.working_path.mkdir(parents=True, exist_ok=True)
@@ -37,6 +53,86 @@ class GemmKernelBuilder:
                 self.config = json.load(f)
         else:
             self.config = self._get_default_config()
+
+    def _apply_sampling(self, kernel_list):
+        """Apply RFC Sobol+LHS+maximin sampling. Returns sampled subset."""
+        if self.max_instances is None or len(kernel_list) <= self.max_instances:
+            return kernel_list
+
+        import sys
+
+        sampling_parent = os.path.join(os.path.dirname(__file__), "..", "..", "gemm")
+        if sampling_parent not in sys.path:
+            sys.path.insert(0, sampling_parent)
+
+        sampling_root = os.path.join(os.path.dirname(__file__), "..", "..")
+        if sampling_root not in sys.path:
+            sys.path.insert(0, sampling_root)
+
+        from sampling.sampler import sample_feasible_set
+        from sampling.seed import make_seed
+        from sampling.feasible_set import GEMM_STREAMK_AXES
+
+        effective_seed = make_seed(
+            self.seed, self.gpu_target, self.datatype, self.layout
+        )
+
+        flat_items = []
+        for k in kernel_list:
+            flat = dict(k["tile_config"])
+            (
+                pipeline,
+                epilogue,
+                scheduler,
+                reduction_strategy,
+                pad_m,
+                pad_n,
+                pad_k,
+                persistent,
+            ) = k["trait_combo"]
+            flat.update(
+                {
+                    "pipeline": pipeline,
+                    "epilogue": epilogue,
+                    "scheduler": scheduler,
+                    "reduction_strategy": reduction_strategy,
+                    "pad_m": pad_m,
+                    "pad_n": pad_n,
+                    "pad_k": pad_k,
+                    "persistent": persistent,
+                }
+            )
+            flat_items.append(flat)
+
+        selected, method, selected_indices = sample_feasible_set(
+            flat_items,
+            self.max_instances,
+            effective_seed,
+            GEMM_STREAMK_AXES,
+        )
+
+        kernel_list = [kernel_list[i] for i in selected_indices]
+
+        if self.manifest_path:
+            from sampling.manifest import write_manifest
+
+            write_manifest(
+                selected,
+                self.manifest_path,
+                "gemm_streamk",
+                self.datatype,
+                self.layout,
+                self.gpu_target,
+                effective_seed,
+                self.tier or "daily",
+                method,
+            )
+
+        print(
+            f"Sampled {len(kernel_list)} from feasible set "
+            f"(budget={self.max_instances}, seed={effective_seed}, method={method})"
+        )
+        return kernel_list
 
     def _get_default_config(self):
         """Return default configuration if no config file is provided"""
@@ -632,6 +728,15 @@ struct SelectedKernel {{
                     )
                 )
 
+        # Apply RFC-compliant sampling (Sobol + LHS + maximin)
+        if self.max_instances is not None and len(work_items) > self.max_instances:
+            kernel_dicts = [
+                {"tile_config": item[0], "trait_combo": item[1], "_work_item": item}
+                for item in work_items
+            ]
+            sampled = self._apply_sampling(kernel_dicts)
+            work_items = [k["_work_item"] for k in sampled]
+
         print(
             f"Generating {len(work_items)} individual kernel files using {num_workers} workers..."
         )
@@ -750,6 +855,9 @@ struct SelectedKernel {{
                     }
                 )
 
+        # Apply RFC-compliant sampling (Sobol + LHS + maximin)
+        kernel_list = self._apply_sampling(kernel_list)
+
         # Write kernel count
         with open(self.working_path / "gemm_kernel_count.txt", "w") as f:
             f.write(str(len(kernel_list)))
@@ -852,6 +960,33 @@ def main():
         "--gpu_targets",
         help="Semicolon-separated list of GPU targets from CMake (e.g., 'gfx90a;gfx942;gfx950')",
     )
+    parser.add_argument(
+        "--gpu_target",
+        default=None,
+        help="Single GPU target for sampling seed derivation (e.g., 'gfx942')",
+    )
+    parser.add_argument(
+        "--max-instances",
+        type=int,
+        default=None,
+        help="Cap on number of kernel instances per (dtype, layout) combo",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="RNG seed for deterministic sampling; if omitted, derived from today's date",
+    )
+    parser.add_argument(
+        "--tier",
+        default=None,
+        help="Sampling tier (daily/weekly)",
+    )
+    parser.add_argument(
+        "--manifest-path",
+        default=None,
+        help="Directory for chosen_instances.json",
+    )
 
     args = parser.parse_args()
 
@@ -863,7 +998,15 @@ def main():
 
     # Create builder
     builder = GemmKernelBuilder(
-        args.working_path, args.datatype, args.layout, args.config_json
+        args.working_path,
+        args.datatype,
+        args.layout,
+        args.config_json,
+        gpu_target=args.gpu_target,
+        max_instances=args.max_instances,
+        seed=args.seed,
+        tier=args.tier,
+        manifest_path=args.manifest_path,
     )
 
     if args.list_kernels:
