@@ -12,7 +12,6 @@
 
 #include "ck_tile/host.hpp"
 #include "mx_gemm.hpp"
-#include "mx_gemm_arch_traits.hpp"
 #include "mx_gemm_instance.hpp"
 
 template <typename Layout>

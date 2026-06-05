@@ -158,8 +158,10 @@ auto bq_permuteN(const ck_tile::HostTensor<T>& t, index_t group_n)
     return ck_tile::reference_permute(t_view, {0, 3, 1, 2, 4});
 }
 
-template <typename GemmConfig, typename T>
-auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmConfig)
+template <typename GemmConfig, index_t BlockedXDLNPerWarp, typename T>
+auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t,
+                        const GemmConfig& gemmConfig,
+                        number<BlockedXDLNPerWarp>)
 {
     assert(t.get_lengths().size() == 2);
     int n_      = t.get_lengths()[1];
@@ -183,6 +185,7 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmC
     }
     else
     {
+        assert(NRepeat % BlockedXDLNPerWarp == 0);
         constexpr int KLane = ck_tile::get_warp_size() / GemmConfig::N_Warp_Tile;
         constexpr int ItemsPerAccess =
             std::min(detail::b_contiguous_items_per_access<GemmConfig, T>::value,
@@ -190,18 +193,19 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmC
         ck_tile::HostTensor<T> t_view({n_ / gemmConfig.N_Tile,
                                        gemmConfig.N_Warp,
                                        gemmConfig.N_Warp_Tile,
-                                       NRepeat,
+                                       NRepeat / BlockedXDLNPerWarp,
+                                       BlockedXDLNPerWarp,
                                        k_ / ItemsPerAccess,
                                        ItemsPerAccess});
         std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 2, 5});
+        return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 5, 2, 6});
     }
 }
 
-template <typename GemmConfig, typename T>
+template <typename GemmConfig, typename T, index_t BlockedXDLNPerWarp = 1>
 auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t)
 {
-    return shuffle_b_permuteN(t, GemmConfig{});
+    return shuffle_b_permuteN(t, GemmConfig{}, number<BlockedXDLNPerWarp>{});
 }
 
 template <typename FlatmmConfig, typename T>

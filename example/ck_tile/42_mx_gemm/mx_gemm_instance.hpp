@@ -74,34 +74,53 @@ float mx_gemm_calc(const MXGemmHostArgs<ScaleM, ScaleN>& args, const ck_tile::st
                                                    GemmConfig::TileParitionerGroupNum,
                                                    GemmConfig::TileParitionerM01>;
 
-    constexpr ck_tile::index_t kBlockedXDLNPerWarp =
-        ck_tile::MXEpilogueTraits<GemmConfig>::BlockedXDLNPerWarp;
-
-    using GemmEpilogue = ck_tile::CShuffleEpilogue<
-        ck_tile::CShuffleEpilogueProblem<ComputeDataType,
-                                         ComputeDataType,
-                                         ck_tile::tuple<>, // DsDataType
-                                         AccDataType,
-                                         CDataType,
-                                         ck_tile::tuple<>, // DsLayout
-                                         CLayout,
-                                         ck_tile::element_wise::PassThrough,
-                                         TilePartitioner::MPerBlock,
-                                         TilePartitioner::NPerBlock,
-                                         GemmConfig::M_Warp,
-                                         GemmConfig::N_Warp,
-                                         GemmConfig::M_Warp_Tile,
-                                         GemmConfig::N_Warp_Tile,
-                                         GemmConfig::K_Warp_Tile,
-                                         MXPipelineProblem::TransposeC,
-                                         GemmConfig::NumWaveGroups,
-                                         false, // FixedVectorSize_ (Default)
-                                         1,     // VectorSizeC_ (Default)
-                                         kBlockedXDLNPerWarp,
-                                         false,           // DoubleSmemBuffer_ (Default)
-                                         ComputeDataType, // AComputeDataType
-                                         ComputeDataType, // BComputeDataType
-                                         !GemmConfig::Preshuffle>>;
+    using GemmEpilogue =
+        std::conditional_t<GemmConfig::TiledMMAPermuteN,
+                           ck_tile::PermuteNEpilogue<
+                               ck_tile::PermuteNEpilogueProblem<ComputeDataType,
+                                                                ComputeDataType,
+                                                                ck_tile::tuple<>, // DsDataType
+                                                                AccDataType,
+                                                                CDataType,
+                                                                ck_tile::tuple<>, // DsLayout
+                                                                CLayout,
+                                                                ck_tile::element_wise::PassThrough,
+                                                                TilePartitioner::MPerBlock,
+                                                                TilePartitioner::NPerBlock,
+                                                                GemmConfig::M_Warp,
+                                                                GemmConfig::N_Warp,
+                                                                GemmConfig::M_Warp_Tile,
+                                                                GemmConfig::N_Warp_Tile,
+                                                                GemmConfig::K_Warp_Tile,
+                                                                MXPipelineProblem::TransposeC,
+                                                                false, // FixedVectorSize_ (Default)
+                                                                1>>,   // VectorSizeC_ (Default)
+                           ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+                               ComputeDataType,
+                               ComputeDataType,
+                               ck_tile::tuple<>, // DsDataType
+                               AccDataType,
+                               CDataType,
+                               ck_tile::tuple<>, // DsLayout
+                               CLayout,
+                               ck_tile::element_wise::PassThrough,
+                               TilePartitioner::MPerBlock,
+                               TilePartitioner::NPerBlock,
+                               GemmConfig::M_Warp,
+                               GemmConfig::N_Warp,
+                               GemmConfig::M_Warp_Tile,
+                               GemmConfig::N_Warp_Tile,
+                               GemmConfig::K_Warp_Tile,
+                               MXPipelineProblem::TransposeC,
+                               GemmConfig::NumWaveGroups,
+                               false, // FixedVectorSize_ (Default)
+                               1,     // VectorSizeC_ (Default)
+                               ck_tile::MXEpilogueTraits<GemmConfig>::BlockedXDLNPerWarp,
+                               false,                      // DoubleSmemBuffer_ (Default)
+                               ComputeDataType,            // AComputeDataType
+                               ComputeDataType,            // BComputeDataType
+                               !GemmConfig::Preshuffle>>>; // TilesPacked_ (because of
+                                                           // packed scales)
 
     using Kernel = ck_tile::MXGemmKernel<TilePartitioner, MXGemmPipeline, GemmEpilogue>;
 
