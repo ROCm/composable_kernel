@@ -20,10 +20,13 @@ GEMM_AXES = [
     "persistent",
 ]
 
+GEMM_STREAMK_AXES = GEMM_AXES + ["reduction_strategy"]
+
 CATEGORICAL_AXES = {
     "pipeline",
     "epilogue",
     "scheduler",
+    "reduction_strategy",
     "pad_m",
     "pad_n",
     "pad_k",
