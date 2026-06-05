@@ -23,6 +23,16 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     add_gtest_executable(test_ck_tile_grouped_gemm_quant_bquant_preshuffleb test_grouped_gemm_quant_bquant_preshuffleb.cpp)
     target_compile_options(test_ck_tile_grouped_gemm_quant_bquant_preshuffleb PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 
+    # Smoke test for grouped ABQuant + split-K.  Verifies that
+    # QuantGroupedGemmKernel<..., ABQuantGrouped, ...> instantiates, that
+    # IsSupportedArgument behaves correctly for valid / invalid k_batch, and
+    # runs one minimal end-to-end correctness check (single group, k_batch=2)
+    # to cover the grouped-specific per-batch pointer offsetting and AQ
+    # group offset wiring (broader code paths are tested under
+    # gemm_block_scale/test_gemm_quant_abquant_splitk_*).
+    add_gtest_executable(test_ck_tile_grouped_gemm_quant_abquant_splitk_smoke test_grouped_gemm_quant_abquant_splitk_smoke.cpp)
+    target_compile_options(test_ck_tile_grouped_gemm_quant_abquant_splitk_smoke PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+
     # Collect all test targets for umbrella label
     set(CK_TILE_GROUPED_GEMM_QUANT_TEST_TARGETS
         test_ck_tile_grouped_gemm_quant_rowcol
@@ -30,6 +40,7 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         test_ck_tile_grouped_gemm_quant_aquant
         test_ck_tile_grouped_gemm_quant_bquant
         test_ck_tile_grouped_gemm_quant_bquant_preshuffleb
+        test_ck_tile_grouped_gemm_quant_abquant_splitk_smoke
     )
 
     # Label all ck_tile grouped_gemm_quant tests with CK_TILE_GROUPED_GEMM_QUANT_TESTS for selective execution

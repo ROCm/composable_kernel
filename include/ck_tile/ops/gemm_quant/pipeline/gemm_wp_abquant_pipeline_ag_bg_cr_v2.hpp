@@ -637,8 +637,10 @@ struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRe
                                    const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
                                    index_t num_loop,
+                                   bool has_hot_loop,
                                    TailNumber tail_number,
                                    void* p_smem,
+                                   index_t m = 0,
                                    index_t n = 0) const
     {
         const auto RunPipeline = [&](auto bool_val, auto tail_num_) {
@@ -650,11 +652,14 @@ struct WPABQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRe
                 b_flat_dram_block_window_tmp,
                 aq_dram_block_window_tmp,
                 bq_dram_block_window_tmp,
-                n, // dummy value, won't be used
+                // The preshuffle-B ABQuant pipeline currently ignores m and n; keep this
+                // runtime-tail wrapper aligned with the generic ABQuant pipeline signature.
+                m,
+                n,
                 num_loop,
                 p_smem);
         };
-        return Base::TailHandler(RunPipeline, true, tail_number);
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
     }
 };
 } // namespace ck_tile

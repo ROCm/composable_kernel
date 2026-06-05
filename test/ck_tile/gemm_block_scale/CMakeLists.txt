@@ -92,6 +92,11 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     )
     target_compile_options(test_tile_gemm_quant_abquant_splitk_prefill PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
 
+    add_gtest_executable(test_tile_gemm_quant_abquant_splitk_preshuffleB
+        test_gemm_quant_abquant_splitk_preshuffleB.cpp
+    )
+    target_compile_options(test_tile_gemm_quant_abquant_splitk_preshuffleB PRIVATE ${TEST_GEMM_COMPILE_OPTIONS})
+
     add_gtest_executable(test_tile_gemm_quant_abquant_a4w4_base
         test_gemm_quant_abquant_a4w4_base.cpp
     )
@@ -278,6 +283,7 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         # ABQuant split-K tests
         test_tile_gemm_quant_abquant_splitk_decode
         test_tile_gemm_quant_abquant_splitk_prefill
+        test_tile_gemm_quant_abquant_splitk_preshuffleB
         # BQuant tests
         test_tile_gemm_quant_bquant_1d_128
         test_tile_gemm_quant_bquant_1d_64
