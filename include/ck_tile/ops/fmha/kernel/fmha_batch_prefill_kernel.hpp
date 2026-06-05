@@ -868,10 +868,11 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
             }
         }();
 
+        long_index_t query_start = 0;
         if constexpr(kIsGroupMode)
         {
             // get starting offset for each batch
-            const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
+            query_start = kargs.seqstart_q_ptr[i_batch];
 
             batch_offset_q = query_start * kargs.stride_q;
 
@@ -1459,7 +1460,9 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                 assert(kargs.q_descale_ptr != nullptr);
                 assert(kargs.k_descale_ptr != nullptr);
                 assert(kargs.v_descale_ptr != nullptr);
-                const float* q_descale_ptr = reinterpret_cast<const float*>(kargs.q_descale_ptr);
+                const float* q_descale_ptr =
+                    reinterpret_cast<const float*>(kargs.q_descale_ptr) +
+                    query_start * kargs.stride_q_descale_token;
                 const float* k_descale_ptr = reinterpret_cast<const float*>(kargs.k_descale_ptr);
                 const float* v_descale_ptr = reinterpret_cast<const float*>(kargs.v_descale_ptr);
 

@@ -1232,11 +1232,19 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                 __builtin_amdgcn_sched_barrier(0);
 
                 // Q-row descales (kM0 entries).
+                // Guard against small-seqlen tiles whose tail rows fall past the
+                // valid query range: rows >= y_total have no per-token descale and
+                // must not read out of bounds. Stage 0.0f for them (their masked
+                // s_acc lanes are dropped before softmax anyway).
+                const index_t q_row_total = mask.GetYTotal();
                 for(index_t off = tid_in_block; off < kM0; off += threads_per_block)
                 {
-                    lds_q_descale[off] = q_descale_per_token_ptr[
-                        (q_row_base + off) * stride_q_descale_token +
-                        qo_head * nhead_stride_q_descale];
+                    const index_t q_row = q_row_base + off;
+                    lds_q_descale[off] =
+                        q_row < q_row_total
+                            ? q_descale_per_token_ptr[q_row * stride_q_descale_token +
+                                                      qo_head * nhead_stride_q_descale]
+                            : 0.0f;
                 }
 
                 // K-col descales (kN0 entries).

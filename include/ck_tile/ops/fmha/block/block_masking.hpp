@@ -310,6 +310,11 @@ struct GenericAttentionMask
         }
     }
 
+    CK_TILE_HOST_DEVICE constexpr auto GetYTotal() const
+    {
+        return y_total;
+    }
+
     private:
     index_t y, x, sink;
     index_t y_total, x_total;
@@ -549,6 +554,11 @@ struct SimplifiedGenericAttentionMask
         }
     }
 
+    CK_TILE_HOST_DEVICE constexpr auto GetYTotal() const
+    {
+        return y_total;
+    }
+
     private:
     index_t y, x, sink;
     index_t y_total, x_total;
@@ -733,6 +743,11 @@ struct SimplifiedRatioAttentionMask
                 i_y_end > min(i_x * y_ratio + y, y_total); // consider bottom pad
             return top_right_edge || bottom_left_edge;
         }
+    }
+
+    CK_TILE_HOST_DEVICE constexpr auto GetYTotal() const
+    {
+        return y_total;
     }
 
     private:
