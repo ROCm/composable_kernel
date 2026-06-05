@@ -63,8 +63,11 @@ constexpr ck_tile::index_t get_k_warp_tile()
     return 16;
 #endif
 #else
-    if constexpr(PipelineType == GemmPipelineType::CompAsyncEightWaves)
+    if constexpr(PipelineType == GemmPipelineType::CompAsyncEightWaves && sizeof(PrecType) == 1)
         return 128;
+    else if constexpr(PipelineType == GemmPipelineType::CompAsyncEightWaves &&
+                      sizeof(PrecType) == 2)
+        return 32;
     // CompAsyncConfig16x16x128
     else if constexpr(PipelineType == GemmPipelineType::CompAsync && M_Warp_Tile == 16)
         return 128;

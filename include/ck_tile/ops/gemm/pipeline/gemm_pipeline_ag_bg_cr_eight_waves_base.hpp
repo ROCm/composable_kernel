@@ -63,8 +63,11 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
                                        DstBlockTile& dst_block_tile,
                                        SrcTileWindow& lds_tile_window) const
     {
+        // swizzle factor limitation
+        using static_move_ys =
+            std::conditional_t<std::is_same_v<DataType, pk_fp6x16_t>, false_type, true_type>;
         lds_tile_window.set_bottom_tensor_view_data_ptr(smem);
-        lds_tile_window.load(dst_block_tile, number<-1>{}, true_type{}, true_type{});
+        lds_tile_window.load(dst_block_tile, number<-1>{}, true_type{}, static_move_ys{});
     }
 
     template <typename DataType, typename DstBlockTile, typename SrcTileWindow>
@@ -72,6 +75,9 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
                                        DstBlockTile& dst_block_tile,
                                        SrcTileWindow& lds_tile_window) const
     {
+        // swizzle factor limitation
+        using static_move_ys =
+            std::conditional_t<std::is_same_v<DataType, pk_fp6x16_t>, false_type, true_type>;
         lds_tile_window.set_bottom_tensor_view_data_ptr(smem);
         static_for_product<number<NIterPerWarp>, number<KIterPerWarp>>{}(
             [&](auto nIter, auto kIter) {
@@ -80,7 +86,7 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
                     dst_block_tile[nIter][kIter],
                     number<-1>{},
                     true_type{},
-                    true_type{});
+                    static_move_ys{});
             });
     }
 
