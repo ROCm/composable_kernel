@@ -7,7 +7,7 @@
 #include <ck_tile/ops/fmha/block/block_dropout.hpp>
 
 #include "hstu_attention_fwd_pipeline_policy.hpp"
-#include "hstu_attention_util.hpp"
+#include "hstu_attention_kernel_util.hpp"
 
 namespace ck_tile {
 

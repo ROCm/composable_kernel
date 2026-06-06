@@ -4,7 +4,6 @@
 #pragma once
 
 #include <ck_tile/core.hpp>
-#include <ck_tile/ops/common.hpp>
 #include <ck_tile/ops/fmha/block/block_dropout.hpp>
 
 #include <string>
@@ -13,7 +12,7 @@
 #include <variant>
 
 #include "hstu_block_masking.hpp"
-#include "hstu_attention_util.hpp"
+#include "hstu_attention_kernel_util.hpp"
 
 #ifndef HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
 #define HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM 1
