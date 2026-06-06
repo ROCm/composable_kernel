@@ -40,7 +40,8 @@ template <typename SliceLengths,
           typename DstsResetCoordinateAfterRun, // control whether to move back dst coordinate after
                                                 // each RunWrite(),  will be fused with
                                                 // MoveDstSliceWindow to save addr computation
-          index_t NumThreadScratch = 1>
+          index_t NumThreadScratch = 1,
+          typename IndexType       = index_t>
 struct ThreadwiseTensorSliceTransfer_v3r2
 {
     static constexpr index_t nDim = SliceLengths::Size();
@@ -57,8 +58,9 @@ struct ThreadwiseTensorSliceTransfer_v3r2
               enable_if_t<Descs::Size() == Indices::Size(), bool> = false>
     static constexpr auto MakeCoordinates(const Descs& descs, const Indices& indices)
     {
-        return generate_tuple([&](auto i) { return make_tensor_coordinate(descs[i], indices[i]); },
-                              Number<Descs::Size()>{});
+        return generate_tuple(
+            [&](auto i) { return make_tensor_coordinate<IndexType>(descs[i], indices[i]); },
+            Number<Descs::Size()>{});
     }
 
     using SrcCoords = decltype(MakeCoordinates(SrcDescs{}, StaticallyIndexedArray<Index, nSrc>{}));
@@ -81,8 +83,8 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                                        const Indices& src_slice_origin_idxs)
     {
         static_for<0, nSrc, 1>{}([&](auto src_i) {
-            src_coords_(src_i) =
-                make_tensor_coordinate(src_descs.At(src_i), src_slice_origin_idxs[src_i]);
+            src_coords_(src_i) = make_tensor_coordinate<IndexType>(src_descs.At(src_i),
+                                                                   src_slice_origin_idxs[src_i]);
         });
     }
 
@@ -91,8 +93,8 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                                        const Indices& dst_slice_origin_idxs)
     {
         static_for<0, nDst, 1>{}([&](auto dst_i) {
-            dst_coords_(dst_i) =
-                make_tensor_coordinate(dst_descs.At(dst_i), dst_slice_origin_idxs[dst_i]);
+            dst_coords_(dst_i) = make_tensor_coordinate<IndexType>(dst_descs.At(dst_i),
+                                                                   dst_slice_origin_idxs[dst_i]);
         });
     }
 
@@ -172,10 +174,10 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                                                                 SrcsScalarPerVector::At(src_i)>;
                     using src_vector_t    = typename src_vector_type::type;
 
+                    const IndexType ld_offset = src_coords_.At(src_i).GetOffset();
                     // copy data from src_buf into src_vector_container
-                    auto src_vector_container =
-                        src_vector_type{src_bufs.At(src_i).template Get<src_vector_t>(
-                            src_coords_.At(src_i).GetOffset(), is_src_valid)};
+                    auto src_vector_container = src_vector_type{
+                        src_bufs.At(src_i).template Get<src_vector_t>(ld_offset, is_src_valid)};
 
                     // copy data from src_vector_container into src_thread_scratch_
                     src_thread_scratch_tuple_(thread_scratch_id)
@@ -338,8 +340,9 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                         static_cast<InMemoryDataOperationEnum>(DstInMemOps::At(dst_i.value));
 
                     // copy data from dst_vector_container to dst_buf
+                    const IndexType st_offset = dst_coords_.At(dst_i).GetOffset();
                     dst_bufs.At(dst_i).template Update<DstInMemOp, dst_vector_t>(
-                        dst_coords_.At(dst_i).GetOffset(),
+                        st_offset,
                         is_dst_valid,
                         dst_vector_container.template AsType<dst_vector_t>()[Helper::I0]);
 

@@ -328,13 +328,13 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
         return 1;
     }
 
-    const auto data_type       = static_cast<ConvDataType>(std::stoi(argv[2]));
-    const auto layout          = static_cast<ConvLayout>(std::stoi(argv[3]));
-    const bool do_verification = std::stoi(argv[4]);
-    const int init_method      = std::stoi(argv[5]);
-    const bool do_log          = std::stoi(argv[6]);
-    const bool time_kernel     = std::stoi(argv[7]);
-    const int num_dim_spatial  = std::stoi(argv[8]);
+    const auto data_type      = static_cast<ConvDataType>(std::stoi(argv[2]));
+    const auto layout         = static_cast<ConvLayout>(std::stoi(argv[3]));
+    const int do_verification = std::stoi(argv[4]);
+    const int init_method     = std::stoi(argv[5]);
+    const bool do_log         = std::stoi(argv[6]);
+    const bool time_kernel    = std::stoi(argv[7]);
+    const int num_dim_spatial = std::stoi(argv[8]);
 
     // 8 for control, 1 for num_dim_spatial, 4 for G/N/K/C, and 6 * num_dim_spatial, 1 for split-K
     if(positional_argc != 8 + 1 + 4 + 6 * num_dim_spatial + 1)

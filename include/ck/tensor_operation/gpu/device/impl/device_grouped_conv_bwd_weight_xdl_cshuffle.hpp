@@ -1366,9 +1366,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                              OutElementwiseOperation out_element_op,
                              const ck::index_t split_k)
     {
-        const bool stride_ovf = tensor_exceeds_2gb(b_g_n_c_wis_lengths) ||
-                                tensor_exceeds_2gb(e_g_k_c_xs_lengths) ||
-                                tensor_exceeds_2gb(a_g_n_k_wos_lengths);
+        const bool stride_ovf = tensor_exceeds_2gb<BDataType>(b_g_n_c_wis_lengths) ||
+                                tensor_exceeds_2gb<CDataType>(e_g_k_c_xs_lengths) ||
+                                tensor_exceeds_2gb<ADataType>(a_g_n_k_wos_lengths);
         std::array<index_t, NDimSpatial + 3> b_g_n_c_wis_lengths_i32;
         std::array<index_t, NDimSpatial + 3> b_g_n_c_wis_strides_i32;
         std::array<index_t, NDimSpatial + 3> e_g_k_c_xs_lengths_i32;
@@ -1472,9 +1472,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                         OutElementwiseOperation out_element_op,
                         ck::index_t split_k) override
     {
-        const bool stride_ovf = tensor_exceeds_2gb(b_g_n_c_wis_lengths) ||
-                                tensor_exceeds_2gb(e_g_k_c_xs_lengths) ||
-                                tensor_exceeds_2gb(a_g_n_k_wos_lengths);
+        const bool stride_ovf = tensor_exceeds_2gb<BDataType>(b_g_n_c_wis_lengths) ||
+                                tensor_exceeds_2gb<CDataType>(e_g_k_c_xs_lengths) ||
+                                tensor_exceeds_2gb<ADataType>(a_g_n_k_wos_lengths);
 
         std::array<index_t, NDimSpatial + 3> b_g_n_c_wis_lengths_i32;
         std::array<index_t, NDimSpatial + 3> b_g_n_c_wis_strides_i32;

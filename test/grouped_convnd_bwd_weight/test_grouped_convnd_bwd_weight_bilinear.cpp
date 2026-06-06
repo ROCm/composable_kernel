@@ -101,8 +101,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                     conv_param);
 
             // Prepare D tensor with correct strides for GPU kernel
-            std::vector<ck::index_t> d_lengths;
-            std::vector<ck::index_t> d_strides;
+            std::vector<ck::long_index_t> d_lengths;
+            std::vector<ck::long_index_t> d_strides;
             auto copy_dims = [](const auto& desc, auto& lengths, auto& strides) {
                 const auto& l = desc.GetLengths();
                 const auto& s = desc.GetStrides();
@@ -111,8 +111,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
             };
             copy_dims(wei_g_k_c_xs_desc, d_lengths, d_strides);
 
-            std::array<std::vector<ck::index_t>, NumDs> d_lengths_array = {d_lengths};
-            std::array<std::vector<ck::index_t>, NumDs> d_strides_array = {d_strides};
+            std::array<std::vector<ck::long_index_t>, NumDs> d_lengths_array = {d_lengths};
+            std::array<std::vector<ck::long_index_t>, NumDs> d_strides_array = {d_strides};
 
             DeviceMem d_device_buf(sizeof(WeiDataType) * d.mDesc.GetElementSpaceSize());
             d_device_buf.ToDevice(d.mData.data());

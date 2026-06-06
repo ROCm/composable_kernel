@@ -271,21 +271,21 @@ struct BlockToCTileMap_M00_N0_M01Adapt
 // Grouped Rows of column-vectors WGP mapping
 // Optimized for gfx94x-like multipe-die chip
 
-template <index_t GroupNum, index_t MPerBlock, index_t NPerBlock>
+template <index_t GroupNum, index_t MPerBlock, index_t NPerBlock, typename IndexType = index_t>
 struct BlockToCTileMap_Grouped_M00_N0_M01Adapt
 {
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
     __host__ __device__ BlockToCTileMap_Grouped_M00_N0_M01Adapt() = default;
-    __host__ __device__ BlockToCTileMap_Grouped_M00_N0_M01Adapt(index_t M,
-                                                                index_t N,
-                                                                index_t M01 = 8)
+    __host__ __device__ BlockToCTileMap_Grouped_M00_N0_M01Adapt(IndexType M,
+                                                                IndexType N,
+                                                                IndexType M01 = 8)
         : M_(M), N_(N), M01_(M01)
     {
     }
 
-    __host__ __device__ static constexpr index_t CalculateGridSize(index_t M, index_t N)
+    __host__ __device__ static constexpr IndexType CalculateGridSize(IndexType M, IndexType N)
     {
         const auto M0 = math::integer_divide_ceil(M, MPerBlock);
         const auto N0 = math::integer_divide_ceil(N, NPerBlock);
@@ -302,18 +302,18 @@ struct BlockToCTileMap_Grouped_M00_N0_M01Adapt
     template <typename TopIdx>
     __host__ __device__ constexpr auto CalculateBottomIndex(const TopIdx& idx_top) const
     {
-        auto block_1d_id = idx_top[I0];
+        IndexType block_1d_id = idx_top[I0];
 
-        const auto M0 = math::integer_divide_ceil(M_, MPerBlock);
-        const auto N0 = math::integer_divide_ceil(N_, NPerBlock);
+        const IndexType M0 = math::integer_divide_ceil(M_, MPerBlock);
+        const IndexType N0 = math::integer_divide_ceil(N_, NPerBlock);
 
         if(M0 == 1)
         {
-            return make_tuple(0, block_1d_id);
+            return make_tuple(IndexType{0}, block_1d_id);
         }
         else if(N0 == 1)
         {
-            return make_tuple(block_1d_id, 0);
+            return make_tuple(block_1d_id, IndexType{0});
         }
         // block_1d_id = block_1d_id % (M0 * N0); // swallow batch index
         else
@@ -327,14 +327,14 @@ struct BlockToCTileMap_Grouped_M00_N0_M01Adapt
                     ? group_id_x * group_size + group_id_y
                     : group_id_x * group_size + big_group_num - group_id_x + group_id_y;
 
-            index_t idx_N0 = remap_block_1d_id % N0;
-            index_t idx_M0 = remap_block_1d_id / N0;
+            IndexType idx_N0 = remap_block_1d_id % N0;
+            IndexType idx_M0 = remap_block_1d_id / N0;
 
             const auto M01_adapt = (idx_M0 < M0 - M0 % M01_) ? M01_ : M0 % M01_;
 
-            index_t idx_M00          = idx_M0 / M01_;
-            index_t idx_M01          = idx_M0 % M01_;
-            index_t idx_N0_M01_local = idx_N0 + idx_M01 * N0;
+            IndexType idx_M00          = idx_M0 / M01_;
+            IndexType idx_M01          = idx_M0 % M01_;
+            IndexType idx_N0_M01_local = idx_N0 + idx_M01 * N0;
 
             /**
              *                        idxN0
@@ -393,9 +393,9 @@ struct BlockToCTileMap_Grouped_M00_N0_M01Adapt
     }
 
     private:
-    index_t M_;
-    index_t N_;
-    index_t M01_;
+    IndexType M_;
+    IndexType N_;
+    IndexType M01_;
 };
 
 // columns of row-vectors

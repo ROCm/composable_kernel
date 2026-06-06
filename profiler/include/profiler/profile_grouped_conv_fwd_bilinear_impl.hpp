@@ -194,15 +194,16 @@ bool profile_grouped_conv_fwd_bilinear_impl(
     else if(do_verification == 2)
     {
         // GPU reference
-        std::vector<ck::index_t> d_lengths_vec(NDimSpatial + 3);
-        std::vector<ck::index_t> d_strides_vec(NDimSpatial + 3);
+        std::vector<ck::long_index_t> d_lengths_vec(NDimSpatial + 3);
+        std::vector<ck::long_index_t> d_strides_vec(NDimSpatial + 3);
 
         d_lengths_vec[0] = conv_param.G_;
         d_lengths_vec[1] = conv_param.N_;
         d_lengths_vec[2] = conv_param.K_;
         for(ck::index_t i = 0; i < NDimSpatial; ++i)
         {
-            d_lengths_vec[3 + i] = static_cast<ck::index_t>(conv_param.output_spatial_lengths_[i]);
+            d_lengths_vec[3 + i] =
+                static_cast<ck::long_index_t>(conv_param.output_spatial_lengths_[i]);
         }
 
         // D tensor has same layout as output
@@ -210,8 +211,8 @@ bool profile_grouped_conv_fwd_bilinear_impl(
 
         std::array<const DDataType*, 1> d_ptrs = {
             reinterpret_cast<const DDataType*>(d_device_buf.GetDeviceBuffer())};
-        std::array<std::vector<ck::index_t>, 1> d_lengths = {d_lengths_vec};
-        std::array<std::vector<ck::index_t>, 1> d_strides = {d_strides_vec};
+        std::array<std::vector<ck::long_index_t>, 1> d_lengths = {d_lengths_vec};
+        std::array<std::vector<ck::long_index_t>, 1> d_strides = {d_strides_vec};
 
         std::array<const InDataType*, 1> in_ptrs = {
             reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer())};

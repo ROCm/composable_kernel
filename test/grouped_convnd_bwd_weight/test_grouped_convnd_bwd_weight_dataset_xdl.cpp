@@ -20,8 +20,6 @@
 #pragma clang diagnostic ignored "-Wlifetime-safety-invalidation"
 #endif
 using namespace ck::tensor_layout::convolution;
-static ck::index_t param_mask [[maybe_unused]] = 0xffff;
-static ck::index_t instance_index              = -1;
 // Load CSV data for 2D tests
 static std::vector<ck::utils::conv::ConvParam> Get2DTestCases()
 {
@@ -96,7 +94,7 @@ bool RunConvBwdWeightTest(const ck::utils::conv::ConvParam& param, ck::index_t s
         false,                   // time_kernel
         param,                   // ConvParam
         std::to_string(split_k), // Split-K value as string
-        instance_index);         // instance_index
+        -1);                     // instance_index
 }
 
 // 2D Tests - NHWGK layout - Float - SplitK=1
@@ -267,22 +265,6 @@ INSTANTIATE_TEST_SUITE_P(Dataset,
                          TestGroupedConvndBwdWeight3dNDHWGKBFloat16SplitK2,
                          ::testing::ValuesIn(Get3DTestCases()));
 
-int main(int argc, char** argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    if(argc == 1) {}
-    else if(argc == 3)
-    {
-        param_mask     = strtol(argv[1], nullptr, 0);
-        instance_index = atoi(argv[2]);
-    }
-    else
-    {
-        std::cout << "Usage of " << argv[0] << std::endl;
-        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
-    }
-    return RUN_ALL_TESTS();
-}
 #if __clang_major__ >= 23
 #pragma clang diagnostic pop
 #endif
