@@ -27,7 +27,7 @@
 #include "hstu_attention_params.hpp"
 #include "reference_hstu_attention_fwd.hpp"
 
-#include "hstu_attention_util.hpp"
+#include "hstu_attention_host_util.hpp"
 #include "hstu_attention_api.hpp"
 
 template <typename T>
