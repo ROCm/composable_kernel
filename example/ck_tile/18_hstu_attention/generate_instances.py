@@ -78,8 +78,8 @@ TYPE_CTYPE_MAP = {
 }
 
 TYPE_FNAME_MAP = {
-    "fp16": "bfloat16",
-    "bf16": "half",
+    "fp16": "half",
+    "bf16": "bfloat16",
 }
 
 MODE_GROUP_OR_NOT_MAP = {
