@@ -8,6 +8,7 @@
 #include <sstream>
 #include <stdexcept>
 
+#include <ck_tile/core.hpp>
 #include <ck_tile/host/hip_check_error.hpp>
 
 #define HSTU_CHECK(COND, ERR)                  \

@@ -3,8 +3,8 @@
 
 #pragma once
 
-#include <ck_tile/core.hpp>
 #include <stdexcept>
+#include <ck_tile/core/numeric/integer.hpp>
 
 // num_splits should not be bigger than 64
 #define MAX_SPLITS_SWITCH(num_splits, CONST_NAME, ...)                  \

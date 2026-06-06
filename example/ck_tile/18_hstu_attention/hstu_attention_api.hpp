@@ -3,8 +3,6 @@
 
 #pragma once
 
-#include <ck_tile/core.hpp>
-
 #include "hstu_attention_params.hpp"
 
 extern void hstu_attention_no_group_forward_fp16(HstuAttentionNoGroupFwdParams& param,
