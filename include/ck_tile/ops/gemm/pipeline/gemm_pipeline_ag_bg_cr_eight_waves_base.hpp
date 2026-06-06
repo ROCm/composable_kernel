@@ -24,6 +24,8 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
     static constexpr auto I1 = number<1>{};
     static constexpr auto I2 = number<2>{};
 
+    static constexpr bool LargeTensors = Problem::LargeTensors;
+
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;

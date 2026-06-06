@@ -542,6 +542,8 @@ struct GroupedConvolutionBackwardDataKernel
     static constexpr index_t MaxGroupedGemmGroupsNum =
         GroupedConvBwdDataKernelArgsSpecialized::MaxGroupedGemmGroupsNum;
 
+    static constexpr bool LargeTensors = GemmPipeline::LargeTensors;
+
     static constexpr auto I0 = number<0>();
     static constexpr auto I1 = number<1>();
     static constexpr auto I2 = number<2>();
@@ -624,15 +626,20 @@ struct GroupedConvolutionBackwardDataKernel
                      const index_t i_m,
                      const index_t i_k)
     {
+        constexpr bool pad_not_contiguous_dim = LargeTensors;
+
         // Step 1: Create tensor view for A (Out tensor)
         const auto& a_tensor_view =
-            make_tensor_view<address_space_enum::global>(a_ptr, kargs.a_grid_descs_m_k[group_id]);
+            make_tensor_view<address_space_enum::global,
+                             memory_operation_enum::set,
+                             amd_buffer_coherence_enum::coherence_default,
+                             LargeTensors>(a_ptr, kargs.a_grid_descs_m_k[group_id]);
 
         // Step 2: Create padded view
         const auto& a_pad_view = pad_tensor_view(
             a_tensor_view,
             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::KPerBlock>{}),
-            sequence<false, true>{});
+            sequence<pad_not_contiguous_dim, true>{});
 
         // Step 3: Create tile window
         auto a_block_window = make_tile_window(
@@ -650,15 +657,20 @@ struct GroupedConvolutionBackwardDataKernel
                      const index_t i_n,
                      const index_t i_k)
     {
+        constexpr bool pad_not_contiguous_dim = LargeTensors;
+
         // Step 1: Create tensor view for B (Weight tensor)
         const auto& b_tensor_view =
-            make_tensor_view<address_space_enum::global>(b_ptr, kargs.b_grid_descs_n_k[group_id]);
+            make_tensor_view<address_space_enum::global,
+                             memory_operation_enum::set,
+                             amd_buffer_coherence_enum::coherence_default,
+                             LargeTensors>(b_ptr, kargs.b_grid_descs_n_k[group_id]);
 
         // Step 2: Create padded view
         const auto& b_pad_view = pad_tensor_view(
             b_tensor_view,
             make_tuple(number<TilePartitioner::KPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-            sequence<false, true>{});
+            sequence<pad_not_contiguous_dim, true>{});
 
         // Step 3: Create tile window
         auto b_block_window = make_tile_window(
@@ -676,19 +688,25 @@ struct GroupedConvolutionBackwardDataKernel
                       const index_t i_m,
                       const index_t i_n)
     {
+        constexpr bool pad_not_contiguous_dim = LargeTensors;
+
         // Create D tensor block windows
         const auto ds_block_window = generate_tuple(
             [&](auto i) {
                 // Step 1: Create tensor view for D
-                const auto& d_tensor_view = make_tensor_view<address_space_enum::global>(
-                    static_cast<const InDataType*>(ds_ptr[i]), kargs.c_grid_descs_m_n[group_id]);
+                const auto& d_tensor_view =
+                    make_tensor_view<address_space_enum::global,
+                                     memory_operation_enum::set,
+                                     amd_buffer_coherence_enum::coherence_default,
+                                     LargeTensors>(static_cast<const InDataType*>(ds_ptr[i]),
+                                                   kargs.c_grid_descs_m_n[group_id]);
 
                 // Step 2: Create padded view
                 const auto& d_pad_view =
                     pad_tensor_view(d_tensor_view,
                                     make_tuple(number<TilePartitioner::MPerBlock>{},
                                                number<TilePartitioner::NPerBlock>{}),
-                                    sequence<false, true>{});
+                                    sequence<pad_not_contiguous_dim, true>{});
 
                 // Step 3: Create tile window
                 return make_tile_window(d_pad_view,
@@ -710,17 +728,22 @@ struct GroupedConvolutionBackwardDataKernel
                      const index_t i_n)
     {
         // Step 1: Create tensor view for C (Input tensor)
-        const auto& c_tensor_view = make_tensor_view<address_space_enum::global, DstInMemOp>(
-            c_ptr, kargs.c_grid_descs_m_n[group_id]);
+        const auto& c_tensor_view =
+            make_tensor_view<address_space_enum::global,
+                             DstInMemOp,
+                             amd_buffer_coherence_enum::coherence_default,
+                             LargeTensors>(c_ptr, kargs.c_grid_descs_m_n[group_id]);
 
         // For bf16_t and atomic_add global_atomic_add is used instead of buffer_atomic_add
-        // Add padding for not contiguous dim due to the lack of OOB check
-        // Not needed from gfx950.
+        // Add padding for not contiguous dim due to the lack of OOB check.
+        // On gfx950 this padding is only needed for LargeTensors; on other targets it is also
+        // needed for bf16_t with atomic_add.
 #if defined(__gfx950__)
-        constexpr bool pad_not_contiguous_dim = false;
+        constexpr bool pad_not_contiguous_dim = LargeTensors;
 #else
         constexpr bool pad_not_contiguous_dim =
-            std::is_same_v<InDataType, bf16_t> && DstInMemOp == memory_operation_enum::atomic_add;
+            LargeTensors ||
+            (std::is_same_v<InDataType, bf16_t> && DstInMemOp == memory_operation_enum::atomic_add);
 #endif
         // Step 2: Create padded view
         const auto& c_pad_view = pad_tensor_view(

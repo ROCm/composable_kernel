@@ -100,6 +100,8 @@ struct GroupedConvTraits
         static constexpr bool FixedVectorSize                     = true;
         static constexpr bool UseStructuredSparsity               = false;
         static constexpr bool Persistent                          = false;
+        static constexpr bool Preshuffle                          = false;
+        static constexpr index_t LDSVectorSize                    = 16;
         using ELayout = ck_tile::tensor_layout::gemm::RowMajor;
     };
     // Compile time parameters
