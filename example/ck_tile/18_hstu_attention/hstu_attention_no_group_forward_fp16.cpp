@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <ck_tile/core.hpp>
-#include <stdexcept>
-
 #include "hstu_attention_bool_switch.hpp"
 #include "hstu_attention_hdim_switch.hpp"
-#include "hstu_attention_batched_forward_dispatch.hpp"
-#include "hstu_attention_jagged_forward_dispatch.hpp"
 
 #include "instances/hstu_attention_batched_forward_fp16_instances_ref.hpp"
 #include "instances/hstu_attention_jagged_forward_fp16_instances_ref.hpp"
