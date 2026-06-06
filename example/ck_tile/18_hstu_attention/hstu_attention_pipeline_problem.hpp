@@ -3,7 +3,10 @@
 
 #pragma once
 
-#include <ck_tile/core.hpp>
+#include <type_traits>
+
+#include <ck_tile/core/config.hpp>
+#include <ck_tile/core/numeric/integer.hpp>
 
 namespace ck_tile {
 

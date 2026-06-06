@@ -3,7 +3,8 @@
 
 #pragma once
 
-#include <ck_tile/core.hpp>
+#include <ck_tile/core/numeric/half.hpp>
+#include <ck_tile/core/numeric/bfloat16.hpp>
 
 template <typename InOutDataType>
 struct HstuAttentionFwdTypeConfig;

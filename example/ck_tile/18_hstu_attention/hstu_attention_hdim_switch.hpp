@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <ck_tile/core.hpp>
+#include <ck_tile/core/numeric/integer.hpp>
 #include <stdexcept>
 
 #define HDIM_SWITCH(HDIM_1, HDIM_2, CONST_NAME, ...)                   \

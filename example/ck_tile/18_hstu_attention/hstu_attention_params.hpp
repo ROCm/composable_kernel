@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <ck_tile/core.hpp>
+#include <ck_tile/core/numeric/integer.hpp>
 
 struct HstuAttentionNoGroupFwdParams
 {

@@ -4,7 +4,10 @@
 #pragma once
 
 #include <type_traits>
-#include <ck_tile/core.hpp>
+#include <ck_tile/core/config.hpp>
+#include <ck_tile/core/numeric/integer.hpp>
+#include <ck_tile/core/numeric/integral_constant.hpp>
+#include <ck_tile/core/numeric/math.hpp>
 
 namespace ck_tile {
 
