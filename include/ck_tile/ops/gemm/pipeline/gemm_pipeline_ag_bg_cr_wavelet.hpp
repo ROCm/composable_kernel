@@ -68,6 +68,8 @@ struct GemmPipelineAgBgCrWavelet
     // LaunchBlockSize: total threads launched per workgroup.
     static constexpr index_t LaunchBlockSize = MathBlockSize + LoadBlockSize;
 
+    static constexpr bool LargeTensors = Problem::LargeTensors;
+
     // BlockSize exposed to the kernel for BlockGemm compatibility.
     // The kernel uses this for MFMA wave-to-tile mapping.
     static constexpr index_t BlockSize = MathBlockSize;

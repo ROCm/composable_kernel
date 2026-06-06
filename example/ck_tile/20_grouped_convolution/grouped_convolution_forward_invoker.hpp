@@ -1,12 +1,6 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-// Regular grouped convolution invoker (no split-image)
-// This invoker demonstrates regular convolution without split-image.
-// It always uses Kernel<false> (split-image disabled).
-// For large images that require split-image, use
-// grouped_convolution_forward_split_image_invoker.hpp
-
 #pragma once
 
 #include "grouped_convolution_utils.hpp"
@@ -53,6 +47,8 @@ struct GroupedConvolutionForwardInvoker
             GroupedConvTraitsType::FixedGemmParams::TilePartitionerGroupNum,
             GroupedConvTraitsType::FixedGemmParams::TilePartitionerM01>;
 
+        constexpr bool LargeTensors = false;
+
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<
             GroupedConvTraitsType::FixedGemmParams::kPadM,
             GroupedConvTraitsType::FixedGemmParams::kPadN,
@@ -64,7 +60,13 @@ struct GroupedConvolutionForwardInvoker
             GroupedConvTraitsType::FixedGemmParams::TransposeC,
             GroupedConvTraitsType::FixedGemmParams::UseStructuredSparsity,
             GroupedConvTraitsType::FixedGemmParams::Persistent,
-            ConvConfig::NumWaveGroups>;
+            ConvConfig::NumWaveGroups,
+            GroupedConvTraitsType::FixedGemmParams::Preshuffle,
+            GroupedConvTraitsType::FixedGemmParams::LDSVectorSize,
+            ck_tile::DataCachePrefetchKind::None,
+            ck_tile::DataCachePrefetchKind::None,
+            false, /*Async*/
+            LargeTensors>;
         constexpr auto scheduler = ConvConfig::Scheduler;
 
         // =====================================================================

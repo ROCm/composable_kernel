@@ -43,7 +43,7 @@ struct tensor_coordinate
 
     CK_TILE_HOST_DEVICE constexpr auto get_index() const { return Base::get_top_index(); }
 
-    CK_TILE_HOST_DEVICE constexpr index_t get_offset() const
+    CK_TILE_HOST_DEVICE constexpr auto get_offset() const
     {
         return Base::get_bottom_index()[number<0>{}];
     }

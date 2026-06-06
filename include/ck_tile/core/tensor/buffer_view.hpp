@@ -98,16 +98,19 @@ struct buffer_view<address_space_enum::generic,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              typename OffsetType,
               index_t static_offset      = 0,
               bool oob_conditional_check = true,
+              bool force_global_load     = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE constexpr auto get(index_t i,
-                                      index_t linear_offset,
+    CK_TILE_DEVICE constexpr auto get(OffsetType i,
+                                      OffsetType linear_offset,
                                       bool is_valid_element,
-                                      bool_constant<oob_conditional_check> = {}) const
+                                      bool_constant<oob_conditional_check> = {},
+                                      bool_constant<force_global_load>     = {}) const
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
@@ -167,11 +170,17 @@ struct buffer_view<address_space_enum::generic,
     // i is offset of T, not X. i should be aligned to X
     template <memory_operation_enum Op,
               typename X,
+              typename OffsetType,
+              bool force_global_store = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE void update(index_t i, index_t linear_offset, bool is_valid_element, const X& x)
+    CK_TILE_DEVICE void update(OffsetType i,
+                               OffsetType linear_offset,
+                               bool is_valid_element,
+                               const X& x,
+                               bool_constant<force_global_store> = {})
     {
         if constexpr(Op == memory_operation_enum::set)
         {
@@ -187,11 +196,17 @@ struct buffer_view<address_space_enum::generic,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              typename OffsetType,
+              bool force_global_store = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE void set(index_t i, index_t linear_offset, bool is_valid_element, const X& x)
+    CK_TILE_DEVICE void set(OffsetType i,
+                            OffsetType linear_offset,
+                            bool is_valid_element,
+                            const X& x,
+                            bool_constant<force_global_store> = {})
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
@@ -292,16 +307,19 @@ struct buffer_view<address_space_enum::global,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              typename OffsetType,
               index_t static_offset      = 0,
               bool oob_conditional_check = true,
+              bool force_global_load     = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE constexpr auto get(index_t i,
-                                      index_t linear_offset,
+    CK_TILE_DEVICE constexpr auto get(OffsetType i,
+                                      OffsetType linear_offset,
                                       bool is_valid_element,
-                                      bool_constant<oob_conditional_check> = {}) const
+                                      bool_constant<oob_conditional_check> = {},
+                                      bool_constant<force_global_load>     = {}) const
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
@@ -312,7 +330,7 @@ struct buffer_view<address_space_enum::global,
                       "wrong! X should contain multiple T");
 
 #if CK_TILE_USE_AMD_BUFFER_LOAD
-        bool constexpr use_amd_buffer_addressing = true;
+        bool constexpr use_amd_buffer_addressing = !force_global_load;
 #else
         bool constexpr use_amd_buffer_addressing = false;
 #endif
@@ -623,34 +641,40 @@ struct buffer_view<address_space_enum::global,
     // i is offset of T, not X. i should be aligned to X
     template <memory_operation_enum Op,
               typename X,
+              typename OffsetType,
+              bool force_global_store    = false,
               bool oob_conditional_check = true,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE void update(index_t i,
-                               index_t linear_offset,
+    CK_TILE_DEVICE void update(OffsetType i,
+                               OffsetType linear_offset,
                                bool is_valid_element,
                                const X& x,
-                               bool_constant<oob_conditional_check> = {})
+                               bool_constant<oob_conditional_check> = {},
+                               bool_constant<force_global_store>    = {})
     {
         if constexpr(Op == memory_operation_enum::set)
         {
-            this->template set<X, oob_conditional_check>(i, linear_offset, is_valid_element, x);
+            this->template set<X, OffsetType, oob_conditional_check>(
+                i, linear_offset, is_valid_element, x, bool_constant<force_global_store>{});
         }
         else if constexpr(Op == memory_operation_enum::atomic_add)
         {
-            this->template atomic_add<X, oob_conditional_check>(
-                i, linear_offset, is_valid_element, x);
+            this->template atomic_add<X, OffsetType, oob_conditional_check>(
+                i, linear_offset, is_valid_element, x, bool_constant<force_global_store>{});
         }
         else if constexpr(Op == memory_operation_enum::atomic_max)
         {
+            static_assert(!force_global_store, "Not supported");
             this->template atomic_max<X, oob_conditional_check>(
                 i, linear_offset, is_valid_element, x);
         }
         // FIXME: remove memory_operation_enum::add
         else if constexpr(Op == memory_operation_enum::add)
         {
+            static_assert(!force_global_store, "Not supported");
             auto tmp =
                 this->template get<X, oob_conditional_check>(i, linear_offset, is_valid_element);
             this->template set<X, oob_conditional_check>(
@@ -693,12 +717,18 @@ struct buffer_view<address_space_enum::global,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              typename OffsetType,
               bool oob_conditional_check = true,
+              bool force_global_store    = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE void set(index_t i, index_t linear_offset, bool is_valid_element, const X& x)
+    CK_TILE_DEVICE void set(OffsetType i,
+                            OffsetType linear_offset,
+                            bool is_valid_element,
+                            const X& x,
+                            bool_constant<force_global_store> = {})
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
@@ -709,7 +739,7 @@ struct buffer_view<address_space_enum::global,
                       "wrong! X should contain multiple T");
 
 #if CK_TILE_USE_AMD_BUFFER_STORE
-        bool constexpr use_amd_buffer_addressing = true;
+        bool constexpr use_amd_buffer_addressing = !force_global_store;
 #else
         bool constexpr use_amd_buffer_addressing = false;
 #endif
@@ -759,13 +789,18 @@ struct buffer_view<address_space_enum::global,
     }
 
     template <typename X,
+              typename OffsetType,
               bool oob_conditional_check = true,
+              bool force_global_store    = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE void
-    atomic_add(index_t i, index_t linear_offset, bool is_valid_element, const X& x)
+    CK_TILE_DEVICE void atomic_add(OffsetType i,
+                                   OffsetType linear_offset,
+                                   bool is_valid_element,
+                                   const X& x,
+                                   bool_constant<force_global_store> = {})
     {
         using scalar_t = typename vector_traits<remove_cvref_t<T>>::scalar_type;
 
@@ -807,7 +842,7 @@ struct buffer_view<address_space_enum::global,
 
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
-        if constexpr(use_amd_buffer_addressing)
+        if constexpr(use_amd_buffer_addressing && !force_global_store)
         {
             amd_buffer_atomic_add<remove_cvref_t<T>, t_per_x>(
                 x, p_data_, i + linear_offset, is_valid_element, buffer_size_);
@@ -1056,16 +1091,19 @@ struct buffer_view<address_space_enum::lds,
     // i is offset of T, not X. i should be aligned to X
     // static_offset is compile-time offset for LDS access optimization
     template <typename X,
+              typename OffsetType,
               index_t static_offset      = 0,
               bool oob_conditional_check = true,
+              bool force_global_load     = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE constexpr auto get(index_t i,
-                                      index_t linear_offset,
+    CK_TILE_DEVICE constexpr auto get(OffsetType i,
+                                      OffsetType linear_offset,
                                       bool is_valid_element,
-                                      bool_constant<oob_conditional_check> = {}) const
+                                      bool_constant<oob_conditional_check> = {},
+                                      bool_constant<force_global_load>     = {}) const
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
@@ -1178,11 +1216,17 @@ struct buffer_view<address_space_enum::lds,
     // i is offset of T, not X. i should be aligned to X
     template <memory_operation_enum Op,
               typename X,
+              typename OffsetType,
+              bool force_global_store = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE void update(index_t i, index_t linear_offset, bool is_valid_element, const X& x)
+    CK_TILE_DEVICE void update(OffsetType i,
+                               OffsetType linear_offset,
+                               bool is_valid_element,
+                               const X& x,
+                               bool_constant<force_global_store> = {})
     {
         if constexpr(Op == memory_operation_enum::set)
         {
@@ -1198,11 +1242,17 @@ struct buffer_view<address_space_enum::lds,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              typename OffsetType,
+              bool force_global_store = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE void set(index_t i, index_t linear_offset, bool is_valid_element, const X& x)
+    CK_TILE_DEVICE void set(OffsetType i,
+                            OffsetType linear_offset,
+                            bool is_valid_element,
+                            const X& x,
+                            bool_constant<force_global_store> = {})
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
@@ -1441,16 +1491,19 @@ struct buffer_view<address_space_enum::vgpr,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              typename OffsetType,
               index_t static_offset      = 0,
               bool oob_conditional_check = true,
+              bool force_global_load     = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE constexpr auto get(index_t i,
-                                      index_t /*linear_offset*/,
+    CK_TILE_DEVICE constexpr auto get(OffsetType i,
+                                      OffsetType /*linear_offset*/,
                                       bool is_valid_element,
-                                      bool_constant<oob_conditional_check> = {}) const
+                                      bool_constant<oob_conditional_check> = {},
+                                      bool_constant<force_global_load>     = {}) const
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
@@ -1488,11 +1541,17 @@ struct buffer_view<address_space_enum::vgpr,
     // i is offset of T, not X. i should be aligned to X
     template <memory_operation_enum Op,
               typename X,
+              typename OffsetType,
+              bool force_global_store = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE void update(index_t i, index_t linear_offset, bool is_valid_element, const X& x)
+    CK_TILE_DEVICE void update(OffsetType i,
+                               OffsetType linear_offset,
+                               bool is_valid_element,
+                               const X& x,
+                               bool_constant<force_global_store> = {})
     {
         if constexpr(Op == memory_operation_enum::set)
         {
@@ -1508,11 +1567,17 @@ struct buffer_view<address_space_enum::vgpr,
 
     // i is offset of T, not X. i should be aligned to X
     template <typename X,
+              typename OffsetType,
+              bool force_global_store = false,
               typename std::enable_if<
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE void set(index_t i, index_t linear_offset, bool is_valid_element, const X& x)
+    CK_TILE_DEVICE void set(OffsetType i,
+                            OffsetType linear_offset,
+                            bool is_valid_element,
+                            const X& x,
+                            bool_constant<force_global_store> = {})
     {
         // X contains multiple T
         constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
