@@ -6,7 +6,7 @@
 // See the generator script
 // `composable_kernel/example/ck_tile/18_hstu_attention/generate_instances.py`
 
-#include <ck_tile/core/numeric/bfloat16.hpp>
+#include <ck_tile/core/numeric/half.hpp>
 #include "hstu_attention_batched_forward_dispatch.hpp"
 
 extern template void run_batched_forward_causal_softmax_bias_dropout_dispatch<
