@@ -8,6 +8,7 @@
 
 #include <ck_tile/core/numeric/half.hpp>
 #include "hstu_attention_jagged_forward_dispatch.hpp"
+#include "hstu_attention_params.hpp"
 
 extern template void run_jagged_forward_causal_softmax_bias_dropout_dispatch<
     ck_tile::fp16_t,

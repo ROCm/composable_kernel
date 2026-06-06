@@ -23,6 +23,7 @@ HSTU_COPYRIGHT_HEADER = """
 HSTU_FORWARD_INSTANCE_TEMPLATE_INC = """
 #include <ck_tile/core/numeric/{dtype_file}.hpp>
 #include \"hstu_attention_{mode}_forward_dispatch.hpp\"
+#include \"hstu_attention_params.hpp\"
 """
 
 HSTU_FORWARD_INSTANCE_TEMPLATE = """
