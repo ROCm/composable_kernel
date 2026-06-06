@@ -3,7 +3,9 @@
 
 #pragma once
 
-#include "hstu_attention_util.hpp"
+#include <ck_tile/core/numeric/math.hpp>
+
+#include "hstu_attention_host_util.hpp"
 
 static float get_estimated_cu_coverage_ratio(int num_batches, int num_heads, int max_seqlen_q)
 {
