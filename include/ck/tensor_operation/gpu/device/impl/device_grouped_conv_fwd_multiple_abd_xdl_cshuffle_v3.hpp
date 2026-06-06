@@ -1008,15 +1008,15 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             constexpr index_t minimum_occupancy =
                 BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
 
-            const index_t GemmM = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
-            const index_t GemmN = arg.b_grid_desc_bk0_n_bk1_.GetLength(I1);
-            const index_t GemmK =
+            const IndexType GemmM = arg.a_grid_desc_ak0_m_ak1_.GetLength(I1);
+            const IndexType GemmN = arg.b_grid_desc_bk0_n_bk1_.GetLength(I1);
+            const IndexType GemmK =
                 arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
             const auto num_workgroups_per_Conv_N =
                 arg.a_g_n_c_wis_lengths_[I1] / arg.conv_N_per_block_;
 
-            index_t gdx, gdy, gdz;
+            IndexType gdx, gdy, gdz;
             // TODO: Do we want to support kbatch ??
             std::tie(gdx, gdy, gdz) =
                 GridwiseGemm::CalculateGridSize(GemmM, GemmN, I1 /*arg.KBatch*/);
@@ -1814,16 +1814,19 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         }
 
         // Gridwise gemm v3 doesn't verify descriptors size
-        if(!arg.conv_to_gemm_transformer_.AreDescriptorsSmallerThan2GB())
+        if(!LargeTensors)
         {
-            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            if(!arg.conv_to_gemm_transformer_.AreDescriptorsSmallerThan2GB())
             {
-                std::cout
-                    << "[conv_to_gemm_transformer_] One of the descriptors is bigger than 2GB!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                    << std::endl;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout
+                        << "[conv_to_gemm_transformer_] One of the descriptors is bigger than 2GB!"
+                        << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                        << std::endl;
+                }
+                return false;
             }
-            return false;
         }
 
         // check Gridwise GEMM
@@ -2031,11 +2034,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         else
         {
             bool ds_ovf = false;
-            for(index_t d = 0; d < NumDTensor; d++)
-                ds_ovf |= tensor_exceeds_2gb(ds_g_n_k_wos_lengths[d]);
-            const bool stride_ovf = tensor_exceeds_2gb(a_g_n_c_wis_lengths) ||
-                                    tensor_exceeds_2gb(b_g_k_c_xs_lengths) ||
-                                    tensor_exceeds_2gb(e_g_n_k_wos_lengths) || ds_ovf;
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                ds_ovf |= tensor_exceeds_2gb<DDataType>(ds_g_n_k_wos_lengths[i]);
+            });
+            const bool stride_ovf = tensor_exceeds_2gb<ADataType>(a_g_n_c_wis_lengths) ||
+                                    tensor_exceeds_2gb<BDataType>(b_g_k_c_xs_lengths) ||
+                                    tensor_exceeds_2gb<EDataType>(e_g_n_k_wos_lengths) || ds_ovf;
 
             std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
             std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;
@@ -2237,11 +2242,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         else
         {
             bool ds_ovf = false;
-            for(index_t d = 0; d < NumDTensor; d++)
-                ds_ovf |= tensor_exceeds_2gb(ds_g_n_k_wos_lengths[d]);
-            const bool stride_ovf = tensor_exceeds_2gb(a_g_n_c_wis_lengths) ||
-                                    tensor_exceeds_2gb(b_g_k_c_xs_lengths) ||
-                                    tensor_exceeds_2gb(e_g_n_k_wos_lengths) || ds_ovf;
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
+                using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                ds_ovf |= tensor_exceeds_2gb<DDataType>(ds_g_n_k_wos_lengths[i]);
+            });
+            const bool stride_ovf = tensor_exceeds_2gb<ADataType>(a_g_n_c_wis_lengths) ||
+                                    tensor_exceeds_2gb<BDataType>(b_g_k_c_xs_lengths) ||
+                                    tensor_exceeds_2gb<EDataType>(e_g_n_k_wos_lengths) || ds_ovf;
 
             std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_i32;
             std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_strides_i32;

@@ -529,7 +529,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                             Sequence<CBlockTransferScalarPerVector_NWaveNPerXdl>,
                             Sequence<CBlockTransferScalarPerVector_NWaveNPerXdl>,
                             I1,
-                            I1>;
+                            I1,
+                            IndexType>;
     // NPerBlock is used for the first dim which is store dimension
     // (with CBlockTransferScalarPerVector_NWaveNPerXdl scalar per vector).
     // CBlockTransferScalarPerVector_NWaveNPerXdl is aligned to NPerBlock so
@@ -723,7 +724,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
 
             if(split_k < 0)
             {
-                ck::index_t gemmM, gemmN, gemmK;
+                IndexType gemmM, gemmN, gemmK;
                 std::tie(gemmM, gemmN, gemmK) =
                     get_bwd_weight_gemm_sizes<NDimSpatial>(a_g_n_k_wos_lengths, e_g_k_c_xs_lengths);
 
@@ -734,8 +735,9 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
 
                 // Ensure that k_batch_ does not exceed the maximum value
                 // for the GEMM pipeline.
-                const auto k_batch_max = math::integer_divide_ceil(gemmK, KPerBlock);
-                k_batch_               = std::max(std::min(k_batch_, k_batch_max), 1);
+                const auto k_batch_max =
+                    static_cast<index_t>(math::integer_divide_ceil(gemmK, KPerBlock));
+                k_batch_ = std::max(std::min(k_batch_, k_batch_max), 1);
 
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
                 {
@@ -858,13 +860,16 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 split_k_stride_b_ = b_grid_desc_k0_n_k1_.GetElementSpaceSize();
             }
 
-            const index_t GemmM = a_grid_desc_k0_m_k1_.GetLength(I1);
-            const index_t GemmN = b_grid_desc_k0_n_k1_.GetLength(I1);
+            const IndexType GemmM = a_grid_desc_k0_m_k1_.GetLength(I1);
+            const IndexType GemmN = b_grid_desc_k0_n_k1_.GetLength(I1);
 
             // A/B/C Batch Stride
-            compute_ptr_offset_of_batch_.BatchStrideA_ = a_g_n_k_wos_strides_transposed[0];
-            compute_ptr_offset_of_batch_.BatchStrideB_ = b_g_n_c_wis_strides_transposed[0];
-            compute_ptr_offset_of_batch_.BatchStrideC_ = e_g_k_c_xs_strides_transposed[0];
+            compute_ptr_offset_of_batch_.BatchStrideA_ =
+                static_cast<long_index_t>(a_g_n_k_wos_strides_transposed[0]);
+            compute_ptr_offset_of_batch_.BatchStrideB_ =
+                static_cast<long_index_t>(b_g_n_c_wis_strides_transposed[0]);
+            compute_ptr_offset_of_batch_.BatchStrideC_ =
+                static_cast<long_index_t>(e_g_k_c_xs_strides_transposed[0]);
             c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                 GridwiseGemm64::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     ce_grid_desc_m_n_,
@@ -1025,9 +1030,9 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         template <typename GridwiseGemm>
         float RunGemmV3(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
-            const index_t GemmM = arg.a_grid_desc_k0_m_k1_.GetLength(I1);
-            const index_t GemmN = arg.b_grid_desc_k0_n_k1_.GetLength(I1);
-            const index_t GemmK =
+            const IndexType GemmM = arg.a_grid_desc_k0_m_k1_.GetLength(I1);
+            const IndexType GemmN = arg.b_grid_desc_k0_n_k1_.GetLength(I1);
+            const IndexType GemmK =
                 arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
             AccDataType* p_c_grid = type_convert<AccDataType*>(arg.p_workspace_);
@@ -1050,7 +1055,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             typename GridwiseGemm::Argument gemm_arg{
                 p_a_grid, p_b_grid, p_c_grid, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
 
-            index_t gdx, gdy, gdz;
+            IndexType gdx, gdy, gdz;
             std::tie(gdx, gdy, gdz) = GridwiseGemm::CalculateGridSize(
                 gemm_arg.M, gemm_arg.N, gemm_arg.KBatch, arg.Conv_G_ / NumGroupsToMerge);
 
@@ -1697,8 +1702,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             auto launch_elementwise_kernel = [&]() {
                 const AccDataType* p_c_grid = type_convert<const AccDataType*>(arg.p_workspace_);
 
-                std::array<index_t, I1> in_out_batch_strides = {
-                    static_cast<index_t>(arg.compute_ptr_offset_of_batch_.BatchStrideC_)};
+                std::array<IndexType, I1> in_out_batch_strides = {
+                    static_cast<IndexType>(arg.compute_ptr_offset_of_batch_.BatchStrideC_)};
 
                 if constexpr(is_NGCHW_GKCYX_NGKHW<InLayout, WeiLayout, OutLayout>() ||
                              is_NGCDHW_GKCZYX_NGKDHW<InLayout, WeiLayout, OutLayout>())
@@ -1741,7 +1746,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                                    Block2TileMapElementwise,
                                                    CDEElementwiseOperation,
                                                    I1,
-                                                   I1>;
+                                                   I1,
+                                                   IndexType>;
 
                     return launch_and_time_kernel(stream_config,
                                                   kernel,
@@ -1839,9 +1845,9 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 return false;
         }
 
-        const index_t GemmM = arg.a_grid_desc_k0_m_k1_.GetLength(I1);
-        const index_t GemmN = arg.b_grid_desc_k0_n_k1_.GetLength(I1);
-        const index_t GemmK =
+        const IndexType GemmM = arg.a_grid_desc_k0_m_k1_.GetLength(I1);
+        const IndexType GemmN = arg.b_grid_desc_k0_n_k1_.GetLength(I1);
+        const IndexType GemmK =
             arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
         if constexpr(is_same_v<ComputeTypeA, ck::tf32_t> || is_same_v<ComputeTypeB, ck::tf32_t>)
@@ -2218,9 +2224,9 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         }
         else
         {
-            const bool stride_ovf = tensor_exceeds_2gb(b_g_n_c_wis_lengths) ||
-                                    tensor_exceeds_2gb(e_g_k_c_xs_lengths) ||
-                                    tensor_exceeds_2gb(a_g_n_k_wos_lengths);
+            const bool stride_ovf = tensor_exceeds_2gb<BDataType>(b_g_n_c_wis_lengths) ||
+                                    tensor_exceeds_2gb<float>(e_g_k_c_xs_lengths) ||
+                                    tensor_exceeds_2gb<ADataType>(a_g_n_k_wos_lengths);
 
             std::array<index_t, NDimSpatial + 3> b_g_n_c_wis_lengths_i32;
             std::array<index_t, NDimSpatial + 3> b_g_n_c_wis_strides_i32;
@@ -2399,9 +2405,9 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         }
         else
         {
-            const bool stride_ovf = tensor_exceeds_2gb(b_g_n_c_wis_lengths) ||
-                                    tensor_exceeds_2gb(e_g_k_c_xs_lengths) ||
-                                    tensor_exceeds_2gb(a_g_n_k_wos_lengths);
+            const bool stride_ovf = tensor_exceeds_2gb<BDataType>(b_g_n_c_wis_lengths) ||
+                                    tensor_exceeds_2gb<float>(e_g_k_c_xs_lengths) ||
+                                    tensor_exceeds_2gb<ADataType>(a_g_n_k_wos_lengths);
 
             std::array<index_t, NDimSpatial + 3> b_g_n_c_wis_lengths_i32;
             std::array<index_t, NDimSpatial + 3> b_g_n_c_wis_strides_i32;

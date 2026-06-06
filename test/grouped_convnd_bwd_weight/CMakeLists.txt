@@ -8,6 +8,10 @@ if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
    add_gtest_executable(test_grouped_convnd_bwd_weight test_grouped_convnd_bwd_weight.cpp)
    target_link_device_conv_libraries_if_exist(test_grouped_convnd_bwd_weight PRIVATE utility device_conv_operations)
 
+    add_executable(test_grouped_convnd_bwd_weight_large_cases test_grouped_convnd_bwd_weight_large_cases.cpp)
+    target_compile_options(test_grouped_convnd_bwd_weight_large_cases PRIVATE -Wno-global-constructors -Wno-undef)
+    target_link_libraries(test_grouped_convnd_bwd_weight_large_cases PRIVATE gtest_main getopt::getopt utility device_conv_operations)
+
    add_gtest_executable(test_grouped_convnd_bwd_weight_bilinear test_grouped_convnd_bwd_weight_bilinear.cpp)
    target_link_device_conv_libraries_if_exist(test_grouped_convnd_bwd_weight_bilinear PRIVATE utility device_conv_operations)
    add_gtest_executable(test_grouped_convnd_bwd_weight_scale test_grouped_convnd_bwd_weight_scale.cpp)

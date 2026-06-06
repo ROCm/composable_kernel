@@ -197,9 +197,9 @@ bool profile_grouped_conv_fwd_scaleadd_ab_impl(int do_verification,
         std::array<const WeiDataType*, 2> wei_ptrs = {
             reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
             reinterpret_cast<const WeiDataType*>(wei_bias_device_buf.GetDeviceBuffer())};
-        std::array<const OutDataType*, 0> d_ptrs          = {};
-        std::array<std::vector<ck::index_t>, 0> d_lengths = {};
-        std::array<std::vector<ck::index_t>, 0> d_strides = {};
+        std::array<const OutDataType*, 0> d_ptrs               = {};
+        std::array<std::vector<ck::long_index_t>, 0> d_lengths = {};
+        std::array<std::vector<ck::long_index_t>, 0> d_strides = {};
 
         ck::ref::naive_conv_fwd_multi_abd<1, 1, 0, InLayout, WeiLayout, OutLayout>(
             in_ptrs,

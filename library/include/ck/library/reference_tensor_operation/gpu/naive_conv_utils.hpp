@@ -110,12 +110,12 @@ inline int map_dim_char_to_index(char dim_char, index_t ndim_spatial, bool is_we
 // Template function to compute layout-aware strides based on layout name
 // The layout name directly encodes memory ordering from left to right
 template <typename Layout>
-inline std::vector<index_t> compute_conv_tensor_strides(const std::vector<index_t>& lengths,
-                                                        index_t ndim_spatial)
+inline std::vector<long_index_t>
+compute_conv_tensor_strides(const std::vector<long_index_t>& lengths, index_t ndim_spatial)
 {
     constexpr const char* layout_name = Layout::name;
     const int num_dims                = static_cast<int>(lengths.size());
-    std::vector<index_t> strides(num_dims, 0);
+    std::vector<long_index_t> strides(num_dims, 0);
 
     // Determine if this is a weight tensor (has 'K' but not 'N')
     bool has_k = false;
@@ -146,7 +146,7 @@ inline std::vector<index_t> compute_conv_tensor_strides(const std::vector<index_
     }
 
     // Compute strides: process from right to left (innermost to outermost)
-    index_t stride = 1;
+    long_index_t stride = 1;
     for(int i = static_cast<int>(dim_order.size()) - 1; i >= 0; --i)
     {
         char dim_char  = dim_order[i];
@@ -168,8 +168,8 @@ inline std::vector<index_t> compute_conv_tensor_strides(const std::vector<index_
 template <typename DataType, bool IsUnpack>
 __global__ void strided_copy_kernel(const DataType* __restrict__ src,
                                     DataType* __restrict__ dst,
-                                    const index_t* tensor_lengths,
-                                    const index_t* strided_strides,
+                                    const long_index_t* tensor_lengths,
+                                    const long_index_t* strided_strides,
                                     int num_dims,
                                     long_index_t total_elements)
 {
@@ -184,7 +184,7 @@ __global__ void strided_copy_kernel(const DataType* __restrict__ src,
 
         for(int dim = num_dims - 1; dim >= 0; --dim)
         {
-            index_t coord = remaining % tensor_lengths[dim];
+            long_index_t coord = remaining % tensor_lengths[dim];
             remaining /= tensor_lengths[dim];
             strided_idx += coord * strided_strides[dim];
         }
@@ -253,15 +253,16 @@ __device__ __forceinline__ void apply_d_tensor_impl(OutDataType& result_out,
 
 // Specialized helper for D tensors with stride calculations and float conversion
 template <index_t NumDTensors, typename DDataType, typename OutDataType, typename Op>
-__device__ __forceinline__ void apply_d_tensor_elementwise_op(OutDataType& result_out,
-                                                              Op&& element_op,
-                                                              float computed_value,
-                                                              const DDataType* const* p_ds,
-                                                              const index_t* const* p_d_strides,
-                                                              index_t g,
-                                                              index_t n,
-                                                              index_t c_or_k,
-                                                              long_index_t spatial_linear_index)
+__device__ __forceinline__ void
+apply_d_tensor_elementwise_op(OutDataType& result_out,
+                              Op&& element_op,
+                              float computed_value,
+                              const DDataType* const* p_ds,
+                              const long_index_t* const* p_d_strides,
+                              long_index_t g,
+                              long_index_t n,
+                              long_index_t c_or_k,
+                              long_index_t spatial_linear_index)
 {
     if constexpr(NumDTensors == 0)
     {

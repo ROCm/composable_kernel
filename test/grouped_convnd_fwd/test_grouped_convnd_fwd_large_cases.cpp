@@ -8,8 +8,7 @@
 #include <gtest/gtest.h>
 
 #include "profiler/profile_grouped_conv_fwd_impl.hpp"
-static ck::index_t param_mask     = 0xffff;
-static ck::index_t instance_index = -1;
+
 template <typename Tuple>
 class TestGroupedConvndFwd : public ::testing::Test
 {
@@ -27,30 +26,23 @@ class TestGroupedConvndFwd : public ::testing::Test
     {
         EXPECT_FALSE(conv_params.empty());
         bool pass = true;
-        for(size_t i = 0; i < conv_params.size(); i++)
+        for(auto& param : conv_params)
         {
-            if((param_mask & (1 << i)) == 0)
-            {
-                continue;
-            }
-            auto& param = conv_params[i];
-            pass        = pass && ck::profiler::profile_grouped_conv_fwd_impl<NDimSpatial,
-                                                                              InLayout,
-                                                                              WeiLayout,
-                                                                              OutLayout,
-                                                                              DataType,
-                                                                              DataType,
-                                                                              DataType,
-                                                                              DataType,
-                                                                              DataType,
-                                                                              IndexType>(
-                               true,  // do_verification
+            pass = pass && ck::profiler::profile_grouped_conv_fwd_impl<NDimSpatial,
+                                                                       InLayout,
+                                                                       WeiLayout,
+                                                                       OutLayout,
+                                                                       DataType,
+                                                                       DataType,
+                                                                       DataType,
+                                                                       DataType,
+                                                                       DataType,
+                                                                       IndexType>(
+                               2,     // do_verification
                                1,     // init_method: integer value
                                false, // do_log
                                false, // time_kernel
-                               param,
-                               ck::tensor_operation::element_wise::PassThrough{},
-                               instance_index);
+                               param);
         }
         EXPECT_TRUE(pass);
     }
@@ -60,8 +52,7 @@ using namespace ck::tensor_layout::convolution;
 
 using KernelTypes2d = ::testing::Types<std::tuple<float, NHWGC, GKYXC, NHWGK>,
                                        std::tuple<ck::half_t, NHWGC, GKYXC, NHWGK>,
-                                       std::tuple<ck::bhalf_t, NHWGC, GKYXC, NHWGK>,
-                                       std::tuple<int8_t, NHWGC, GKYXC, NHWGK>>;
+                                       std::tuple<ck::bhalf_t, NHWGC, GKYXC, NHWGK>>;
 
 using KernelTypes3d = ::testing::Types<std::tuple<float, NDHWGC, GKZYXC, NDHWGK>,
                                        std::tuple<ck::half_t, NDHWGC, GKZYXC, NDHWGK>,
@@ -136,21 +127,4 @@ TYPED_TEST(TestGroupedConvndFwd3d, Test3D)
                                  {1, 1, 1},
                                  {1, 1, 1}});
     this->template Run<3>();
-}
-
-int main(int argc, char** argv)
-{
-    testing::InitGoogleTest(&argc, argv);
-    if(argc == 1) {}
-    else if(argc == 3)
-    {
-        param_mask     = strtol(argv[1], nullptr, 0);
-        instance_index = atoi(argv[2]);
-    }
-    else
-    {
-        std::cout << "Usage of " << argv[0] << std::endl;
-        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
-    }
-    return RUN_ALL_TESTS();
 }

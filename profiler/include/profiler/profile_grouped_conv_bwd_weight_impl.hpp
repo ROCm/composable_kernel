@@ -538,6 +538,9 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                             LogRangeAsType<float>(std::cout << "input: ", input.mData, ",")
                                 << std::endl;
                         }
+
+                        std::cout << "Relative error threshold: " << rtol
+                                  << " Absolute error threshold: " << atol << std::endl;
                     }
                 }
                 else if(do_verification == 1)

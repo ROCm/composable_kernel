@@ -210,59 +210,59 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                                is_single_rate_mfma,
                                is_scale_mfma>::selected_mfma.k_per_blk);
 
-    __host__ static auto CalculateGridSize(index_t M, index_t N, index_t KBatch, index_t Batch)
+    __host__ static auto CalculateGridSize(IndexType M, IndexType N, index_t KBatch, index_t Batch)
     {
         return std::make_tuple(Block2CTileMap::CalculateGridSize(M, N), KBatch, Batch);
     }
 
-    __host__ static auto CalculateMPadded(index_t M)
+    __host__ static IndexType CalculateMPadded(IndexType M)
     {
         return math::integer_least_multiple(M, MPerBlock);
     }
 
-    __host__ static auto CalculateNPadded(index_t N)
+    __host__ static IndexType CalculateNPadded(IndexType N)
     {
         return math::integer_least_multiple(N, NPerBlock);
     }
 
-    __host__ static auto CalculateKPadded(index_t K)
+    __host__ static IndexType CalculateKPadded(IndexType K)
     {
         return math::integer_divide_ceil(K, KPerBlock) * KPerBlock;
     }
 
-    __host__ static auto CalculateAK0Padded(index_t K, index_t K_Batch = 1)
+    __host__ static IndexType CalculateAK0Padded(IndexType K, IndexType K_Batch = 1)
     {
         auto K_t = K_Batch * KPerBlock;
         return (K + K_t - 1) / K_t * (KPerBlock / AK1Value);
     }
 
-    __host__ static auto CalculateBK0Padded(index_t K, index_t K_Batch = 1)
+    __host__ static IndexType CalculateBK0Padded(IndexType K, IndexType K_Batch = 1)
     {
         auto K_t = K_Batch * KPerBlock;
         return (K + K_t - 1) / K_t * (KPerBlock / BK1Value);
     }
 
-    __host__ static auto CalculateKPadded(index_t K, index_t K_Batch = 1)
+    __host__ static IndexType CalculateKPadded(IndexType K, IndexType K_Batch = 1)
     {
         auto K_t = K_Batch * KPerBlock;
         return (K + K_t - 1) / K_t * KPerBlock;
     }
 
-    __host__ static auto CalculateKRead(index_t K, index_t K_Batch = 1)
+    __host__ static IndexType CalculateKRead(IndexType K, IndexType K_Batch = 1)
     {
         constexpr auto KReadVec = math::lcm(AK1Number, BK1Number);
         auto K_t                = K_Batch * KReadVec;
         return (K + K_t - 1) / K_t * KReadVec;
     }
 
-    __host__ static auto CalculateMBlock(index_t M)
+    __host__ static IndexType CalculateMBlock(IndexType M)
     {
-        return math::integer_divide_ceil(M, MPerBlock);
+        return math::integer_divide_ceil(M, static_cast<IndexType>(MPerBlock));
     }
 
-    __host__ static auto CalculateNBlock(index_t N)
+    __host__ static IndexType CalculateNBlock(IndexType N)
     {
-        return math::integer_divide_ceil(N, NPerBlock);
+        return math::integer_divide_ceil(N, static_cast<IndexType>(NPerBlock));
     }
 
     template <typename GridDesc_K0_MN_K1_T, index_t K0Number, index_t K1Value>
@@ -379,13 +379,13 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
     struct Problem
     {
-        __host__ Problem(index_t M_,
-                         index_t N_,
-                         index_t K_,
-                         index_t StrideA_,
-                         index_t StrideB_,
-                         index_t StrideC_,
-                         index_t KBatch_)
+        __host__ Problem(IndexType M_,
+                         IndexType N_,
+                         IndexType K_,
+                         IndexType StrideA_,
+                         IndexType StrideB_,
+                         IndexType StrideC_,
+                         IndexType KBatch_)
             : M{M_},
               N{N_},
               K{K_},
@@ -414,21 +414,21 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                       << "NBlock: " << NBlock << "}" << std::endl;
         }
 
-        index_t M;
-        index_t N;
-        index_t K;
-        index_t StrideA;
-        index_t StrideB;
-        index_t StrideC;
-        index_t KBatch;
-        index_t MPadded;
-        index_t NPadded;
-        index_t KRead;
-        index_t KPadded;
-        index_t AK0;
-        index_t BK0;
-        index_t MBlock;
-        index_t NBlock;
+        IndexType M;
+        IndexType N;
+        IndexType K;
+        IndexType StrideA;
+        IndexType StrideB;
+        IndexType StrideC;
+        IndexType KBatch;
+        IndexType MPadded;
+        IndexType NPadded;
+        IndexType KRead;
+        IndexType KPadded;
+        IndexType AK0;
+        IndexType BK0;
+        IndexType MBlock;
+        IndexType NBlock;
     };
 
     // Argument
@@ -437,13 +437,13 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
         __host__ Argument(const ADataType* p_a_grid_,
                           const BDataType* p_b_grid_,
                           CDataType* p_c_grid_,
-                          index_t M_,
-                          index_t N_,
-                          index_t K_,
-                          index_t StrideA_,
-                          index_t StrideB_,
-                          index_t StrideC_,
-                          index_t k_batch_)
+                          IndexType M_,
+                          IndexType N_,
+                          IndexType K_,
+                          IndexType StrideA_,
+                          IndexType StrideB_,
+                          IndexType StrideC_,
+                          IndexType k_batch_)
             : Problem{M_, N_, K_, StrideA_, StrideB_, StrideC_, k_batch_},
               p_a_grid{p_a_grid_},
               p_b_grid{p_b_grid_},
@@ -599,14 +599,18 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
         return BlockwiseGemmPipe::BlockLoopTailNum(num_loop);
     }
 
+    template <index_t N>
+    using NumberType =
+        std::conditional_t<std::is_same_v<IndexType, index_t>, Number<N>, LongNumber<N>>;
+
     template <typename CGridDesc>
     __host__ __device__ static constexpr auto MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-        const CGridDesc& c_grid_desc_m_n, index_t MBlock, index_t NBlock)
+        const CGridDesc& c_grid_desc_m_n, IndexType MBlock, IndexType NBlock)
     {
         const auto c_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             c_grid_desc_m_n,
-            make_tuple(make_unmerge_transform(make_tuple(MBlock, Number<MPerBlock>{})),
-                       make_unmerge_transform(make_tuple(NBlock, Number<NPerBlock>{}))),
+            make_tuple(make_unmerge_transform(make_tuple(MBlock, NumberType<MPerBlock>{})),
+                       make_unmerge_transform(make_tuple(NBlock, NumberType<NPerBlock>{}))),
             make_tuple(Sequence<0>{}, Sequence<1>{}),
             make_tuple(Sequence<0, 1>{}, Sequence<2, 3>{}));
 
@@ -615,7 +619,8 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
     // return block_id to C matrix tile idx (m0, n0) mapping
     // if arch = gfx942
-    using Block2CTileMap = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;
+    using Block2CTileMap =
+        BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock, IndexType>;
 
     template <typename AGridDesc_AK0_M_K1,
               typename BGridDesc_BK0_N_K1,
@@ -880,10 +885,6 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
                                                     AmdBufferCoherenceEnum::DefaultCoherence,
                                                     IndexType>(
             p_b_grid, b_grid_desc_bk0_n_bk1.GetElementSpaceSize() / b_space_size_divisor);
-        auto c_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global,
-                                              AmdBufferCoherenceEnum::DefaultCoherence,
-                                              IndexType>(
-            p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
         const AElementwiseOperation a_element_op{};
         const BElementwiseOperation b_element_op{};

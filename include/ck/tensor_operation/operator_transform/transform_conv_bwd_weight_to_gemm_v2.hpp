@@ -37,8 +37,9 @@ struct TransformConvBwdWeightToGemmV2
     static_assert(GemmK1Number > 0, "GemmK1Number must be positive");
     static_assert(K0PerBlock > 0, "K0PerBlock must be positive");
 
-    static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
+    template <index_t N>
+    using NumberType =
+        std::conditional_t<std::is_same_v<IndexType, index_t>, Number<N>, LongNumber<N>>;
 
     template <index_t NDim, typename enable_if<NDim == 1, bool>::type = false>
     constexpr static auto
@@ -49,7 +50,7 @@ struct TransformConvBwdWeightToGemmV2
     {
         const auto BatchStride = output_strides[0];
         const auto WoStride    = output_strides[3];
-        const auto KStride     = Number<1>{};
+        const auto KStride     = NumberType<1>{};
         return make_naive_tensor_descriptor(make_tuple(N * Wo, NumGroupsToMerge, K),
                                             make_tuple(WoStride, BatchStride, KStride));
     }
@@ -86,7 +87,7 @@ struct TransformConvBwdWeightToGemmV2
                        const IndexType C,
                        const std::array<IndexType, NDimSpatial + 3>& weights_strides)
     {
-        const auto CStride     = Number<1>{};
+        const auto CStride     = NumberType<1>{};
         const auto KStride     = weights_strides[1];
         const auto XStride     = weights_strides[3];
         const auto BatchStride = weights_strides[0];
@@ -138,7 +139,7 @@ struct TransformConvBwdWeightToGemmV2
     {
         const auto BatchStride = output_strides[0];
         const auto WoStride    = output_strides[4];
-        const auto KStride     = Number<1>{};
+        const auto KStride     = NumberType<1>{};
         return make_naive_tensor_descriptor(make_tuple(N * Ho * Wo, NumGroupsToMerge, K),
                                             make_tuple(WoStride, BatchStride, KStride));
     }
@@ -178,7 +179,7 @@ struct TransformConvBwdWeightToGemmV2
                        const IndexType C,
                        const std::array<IndexType, NDimSpatial + 3>& weights_strides)
     {
-        const auto CStride     = Number<1>{};
+        const auto CStride     = NumberType<1>{};
         const auto KStride     = weights_strides[1];
         const auto XStride     = weights_strides[4];
         const auto BatchStride = weights_strides[0];
@@ -231,7 +232,7 @@ struct TransformConvBwdWeightToGemmV2
     {
         const auto BatchStride = output_strides[0];
         const auto WoStride    = output_strides[5];
-        const auto KStride     = Number<1>{};
+        const auto KStride     = NumberType<1>{};
         return make_naive_tensor_descriptor(make_tuple(N * Do * Ho * Wo, NumGroupsToMerge, K),
                                             make_tuple(WoStride, BatchStride, KStride));
     }
@@ -274,7 +275,7 @@ struct TransformConvBwdWeightToGemmV2
                        const IndexType C,
                        const std::array<IndexType, NDimSpatial + 3>& weights_strides)
     {
-        const auto CStride     = Number<1>{};
+        const auto CStride     = NumberType<1>{};
         const auto KStride     = weights_strides[1];
         const auto XStride     = weights_strides[5];
         const auto BatchStride = weights_strides[0];

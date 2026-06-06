@@ -404,22 +404,22 @@ bool test_conv_fwd_with_d_tensor_impl(const ck::utils::conv::ConvParam& params,
     using WeiElementOp = tensor_operation::element_wise::PassThrough;
 
     // Create D tensor lengths and strides for GPU reference
-    std::vector<index_t> d_lengths_vec(NDimSpatial + 3);
+    std::vector<long_index_t> d_lengths_vec(NDimSpatial + 3);
     d_lengths_vec[0] = params.G_;
     d_lengths_vec[1] = params.N_;
     d_lengths_vec[2] = params.K_;
     for(index_t i = 0; i < NDimSpatial; ++i)
     {
-        d_lengths_vec[3 + i] = static_cast<index_t>(params.output_spatial_lengths_[i]);
+        d_lengths_vec[3 + i] = static_cast<long_index_t>(params.output_spatial_lengths_[i]);
     }
 
-    std::vector<index_t> d_strides_vec =
+    std::vector<long_index_t> d_strides_vec =
         ref::compute_conv_tensor_strides<OutLayout>(d_lengths_vec, params.num_dim_spatial_);
 
     std::array<const OutDataType*, 1> d_ptrs = {
         reinterpret_cast<const OutDataType*>(d_dev.GetDeviceBuffer())};
-    std::array<std::vector<index_t>, 1> d_lengths = {d_lengths_vec};
-    std::array<std::vector<index_t>, 1> d_strides = {d_strides_vec};
+    std::array<std::vector<long_index_t>, 1> d_lengths = {d_lengths_vec};
+    std::array<std::vector<long_index_t>, 1> d_strides = {d_strides_vec};
 
     // Call GPU reference with D tensor
     std::array<const InDataType*, 1> in_ptrs = {
@@ -536,9 +536,9 @@ bool test_conv_fwd_with_multi_ab_impl(const ck::utils::conv::ConvParam& params,
     std::array<const WeiDataType*, 2> wei_ptrs = {
         reinterpret_cast<const WeiDataType*>(weight_dev.GetDeviceBuffer()),
         reinterpret_cast<const WeiDataType*>(b_extra_dev.GetDeviceBuffer())};
-    std::array<const OutDataType*, 0> d_ptrs      = {};
-    std::array<std::vector<index_t>, 0> d_lengths = {};
-    std::array<std::vector<index_t>, 0> d_strides = {};
+    std::array<const OutDataType*, 0> d_ptrs           = {};
+    std::array<std::vector<long_index_t>, 0> d_lengths = {};
+    std::array<std::vector<long_index_t>, 0> d_strides = {};
 
     ref::naive_conv_fwd_multi_abd<1, 1, 0, InLayout, WeiLayout, OutLayout>(
         in_ptrs,

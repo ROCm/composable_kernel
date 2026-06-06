@@ -26,8 +26,9 @@ struct TransformConvBwdWeightToGemm
     static_assert(GemmK1Number > 0, "GemmK1Number must be positive");
     static_assert(K0PerBlock > 0, "K0PerBlock must be positive");
 
-    static constexpr auto I0 = Number<0>{};
-    static constexpr auto I1 = Number<1>{};
+    template <index_t N>
+    using NumberType =
+        std::conditional_t<std::is_same_v<IndexType, index_t>, Number<N>, LongNumber<N>>;
 
     template <index_t NDim, typename enable_if<NDim == 2, bool>::type = false>
     constexpr static auto
@@ -38,7 +39,7 @@ struct TransformConvBwdWeightToGemm
                        const std::array<IndexType, NDimSpatial + 3>& output_strides)
     {
         const IndexType WoStride = output_strides[4];
-        const auto KStride       = Number<1>{};
+        const auto KStride       = NumberType<1>{};
         return make_naive_tensor_descriptor(make_tuple(N * Ho * Wo, K),
                                             make_tuple(WoStride, KStride));
     }
@@ -76,7 +77,7 @@ struct TransformConvBwdWeightToGemm
                        const IndexType C,
                        const std::array<IndexType, NDimSpatial + 3>& weights_strides)
     {
-        const auto CStride = Number<1>{};
+        const auto CStride = NumberType<1>{};
         const auto KStride = weights_strides[1];
         return make_naive_tensor_descriptor(make_tuple(K, Y * X * C), make_tuple(KStride, CStride));
     }
@@ -91,7 +92,7 @@ struct TransformConvBwdWeightToGemm
                        const std::array<IndexType, NDimSpatial + 3>& output_strides)
     {
         const IndexType WoStride = output_strides[5];
-        const auto KStride       = Number<1>{};
+        const auto KStride       = NumberType<1>{};
         return make_naive_tensor_descriptor(make_tuple(N * Do * Ho * Wo, K),
                                             make_tuple(WoStride, KStride));
     }
@@ -133,7 +134,7 @@ struct TransformConvBwdWeightToGemm
                        const IndexType C,
                        const std::array<IndexType, NDimSpatial + 3>& weights_strides)
     {
-        const auto CStride = Number<1>{};
+        const auto CStride = NumberType<1>{};
         const auto KStride = weights_strides[1];
         return make_naive_tensor_descriptor(make_tuple(K, Z * Y * X * C),
                                             make_tuple(KStride, CStride));

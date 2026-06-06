@@ -28,6 +28,9 @@ set(GROUPED_CONV2D_BWD_DATA_NHWGC
    # xdl_v3
    xdl/device_grouped_conv2d_bwd_data_xdl_v3_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
    xdl/device_grouped_conv2d_bwd_data_xdl_v3_nhwgc_gkyxc_nhwgk_f16_instance.cpp
+   xdl/device_grouped_conv2d_bwd_data_xdl_v3_nhwgc_gkyxc_nhwgk_bf16_large_tensors_instance.cpp
+   xdl/device_grouped_conv2d_bwd_data_xdl_v3_nhwgc_gkyxc_nhwgk_f16_large_tensors_instance.cpp
+   xdl/device_grouped_conv2d_bwd_data_xdl_v3_nhwgc_gkyxc_nhwgk_f32_large_tensors_instance.cpp
 )
 
 add_instance_library(device_grouped_conv2d_bwd_data_nhwgc_instance ${GROUPED_CONV2D_BWD_DATA_NHWGC})

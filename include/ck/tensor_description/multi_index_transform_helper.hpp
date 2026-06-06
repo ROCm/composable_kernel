@@ -55,8 +55,8 @@ template <typename LowLengths>
 __host__ __device__ constexpr auto make_merge_transform(const LowLengths& low_lengths)
 {
     // Magic Division is not supported yet for int64_t
-    using IndexType = decltype(low_lengths.At(Number<0>{}));
-    if constexpr(std::is_same_v<IndexType, long_index_t>)
+    using IndexType = remove_cvref_t<decltype(low_lengths.At(Number<0>{}))>;
+    if constexpr(std::is_same_v<IndexType, long_index_t> || is_long_number_v<IndexType>)
     {
         return make_merge_transform_v1_carry_check(low_lengths);
     }

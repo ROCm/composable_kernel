@@ -1921,11 +1921,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         const ck::index_t split_k = 1)
     {
         bool ds_ovf = false;
-        for(index_t d = 0; d < NumDTensor; d++)
-            ds_ovf |= tensor_exceeds_2gb(ds_g_n_c_wis_lengths[d]);
-        const bool stride_ovf = tensor_exceeds_2gb(a_g_n_k_wos_lengths) ||
-                                tensor_exceeds_2gb(b_g_k_c_xs_lengths) ||
-                                tensor_exceeds_2gb(e_g_n_c_wis_lengths) || ds_ovf;
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+            ds_ovf |= tensor_exceeds_2gb<DDataType>(ds_g_n_c_wis_lengths[i]);
+        });
+        const bool stride_ovf = tensor_exceeds_2gb<ADataType>(a_g_n_k_wos_lengths) ||
+                                tensor_exceeds_2gb<BDataType>(b_g_k_c_xs_lengths) ||
+                                tensor_exceeds_2gb<EDataType>(e_g_n_c_wis_lengths) || ds_ovf;
 
         std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_lengths_i32;
         std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_strides_i32;
@@ -2052,11 +2054,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         const ck::index_t split_k = 1) override
     {
         bool ds_ovf = false;
-        for(index_t d = 0; d < NumDTensor; d++)
-            ds_ovf |= tensor_exceeds_2gb(ds_g_n_c_wis_lengths[d]);
-        const bool stride_ovf = tensor_exceeds_2gb(a_g_n_k_wos_lengths) ||
-                                tensor_exceeds_2gb(b_g_k_c_xs_lengths) ||
-                                tensor_exceeds_2gb(e_g_n_c_wis_lengths) || ds_ovf;
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+            ds_ovf |= tensor_exceeds_2gb<DDataType>(ds_g_n_c_wis_lengths[i]);
+        });
+        const bool stride_ovf = tensor_exceeds_2gb<ADataType>(a_g_n_k_wos_lengths) ||
+                                tensor_exceeds_2gb<BDataType>(b_g_k_c_xs_lengths) ||
+                                tensor_exceeds_2gb<EDataType>(e_g_n_c_wis_lengths) || ds_ovf;
 
         std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_lengths_i32;
         std::array<index_t, NDimSpatial + 3> a_g_n_k_wos_strides_i32;

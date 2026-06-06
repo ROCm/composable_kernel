@@ -68,6 +68,7 @@ class CKGroupedConvFwdOp:
 
     direct_load: Optional[bool] = None
     num_groups_to_merge: Optional[int] = None
+    large_tensor: Optional[bool] = None
 
     def name(self):
         # cpp alias for template instance
