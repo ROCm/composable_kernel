@@ -10,7 +10,7 @@
 #include "hstu_attention_batched_forward_dispatch.hpp"
 #include "hstu_attention_params.hpp"
 
-template void run_batched_forward_causal_softmax_bias_dropout_dispatch<
+template void run_batched_forward_dispatch<
     ck_tile::fp16_t,
     true,
     false,
