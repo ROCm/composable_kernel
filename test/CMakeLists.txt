@@ -18,9 +18,6 @@ set(REGRESSION_TESTS
     test_gemm_splitk
     test_gemm_universal_wmma_fp16
     test_gemm_universal_xdl_fp16
-    test_gemm_universal_streamk_fp16
-    test_gemm_universal_streamk_bf16
-    test_gemm_universal_streamk_fp8
     test_batched_gemm_softmax_gemm_fp16
     test_batched_gemm_softmax_gemm_permute_fp16
     test_batched_gemm_bias_softmax_gemm_permute_fp16
@@ -284,7 +281,6 @@ add_subdirectory(gemm_universal)
 add_subdirectory(gemm_universal_preshuffle)
 add_subdirectory(gemm_ab_scale)
 add_subdirectory(gemm_b_scale)
-add_subdirectory(gemm_universal_streamk)
 add_subdirectory(gemm_reduce)
 add_subdirectory(gemm_universal_reduce)
 add_subdirectory(batched_contraction)

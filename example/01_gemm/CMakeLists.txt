@@ -25,8 +25,6 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16)
 add_example_executable(example_gemm_xdl_fp16_v2 gemm_xdl_fp16_v2.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_v2)
 
-add_example_executable(example_gemm_xdl_fp16_streamk_v3 gemm_xdl_fp16_streamk_v3.cpp)
-add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_streamk_v3)
 add_example_executable(example_gemm_xdl_fp16_v3 gemm_xdl_fp16_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_v3)
 add_example_executable(example_gemm_xdl_fp8_v3 gemm_xdl_fp8_v3.cpp)
@@ -34,10 +32,6 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_v3)
 
 add_example_executable(example_gemm_xdl_fp16_fp8_v3 gemm_xdl_fp16_fp8_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8_v3)
-
-
-add_example_executable(example_gemm_xdl_fp16_fp8_streamk_v3 gemm_xdl_fp16_fp8_streamk_v3.cpp)
-add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_fp8_streamk_v3)
 
 add_example_executable(example_gemm_xdl_bf16_v3 gemm_xdl_bf16_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_bf16_v3)
@@ -80,8 +74,6 @@ endif(USE_BITINT_EXTENSION_INT4)
 add_example_executable(example_gemm_xdl_fp64 gemm_xdl_fp64.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp64)
 
-add_example_executable(example_gemm_xdl_streamk gemm_xdl_streamk.cpp)
-
 list(APPEND gpu_list gfx90a gfx942 gfx950 gfx1250)
 set(target 0)
 foreach(gpu IN LISTS GPU_TARGETS)
@@ -91,19 +83,6 @@ foreach(gpu IN LISTS GPU_TARGETS)
 
         add_example_executable(example_gemm_xdl_lds_direct_load_fp16 gemm_xdl_lds_direct_load_fp16.cpp)
         add_example_dependencies(example_gemm_xdl example_gemm_xdl_lds_direct_load_fp16)
-        set(target 1)
-    endif()
-endforeach()
-
-list(APPEND gpu_list gfx90a gfx942 gfx950 gfx1200 gfx1201 gfx12-generic gfx1250)
-set(target 0)
-foreach(gpu IN LISTS GPU_TARGETS)
-    if(gpu IN_LIST gpu_list AND target EQUAL 0)
-        add_example_executable(example_gemm_xdl_bf16_streamk_v3 gemm_xdl_bf16_streamk_v3.cpp)
-        add_example_dependencies(example_gemm_xdl example_gemm_xdl_bf16_streamk_v3)
-
-        add_example_executable(example_gemm_xdl_fp8_streamk_v3 gemm_xdl_fp8_streamk_v3.cpp)
-        add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_streamk_v3)
         set(target 1)
     endif()
 endforeach()

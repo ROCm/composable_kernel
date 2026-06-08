@@ -162,8 +162,6 @@ Split-K is supported (requires zeroing output buffer if splitK > 1).
 - **DeviceGemmMultipleDLayernorm**: GEMM fused with layernorm
 - **DeviceGemmMultipleDMultipleR**: GEMM fused with reductions and custom global reductions
 - **DeviceGemmReduce**: GEMM fused with reduction
-- **DeviceGemm_Streamk_V2**: Stream K with reduction instead of AtomicAdd
-- **DeviceGemmStreamK**: Stream K using AtomicAdd
 
 ---
 
