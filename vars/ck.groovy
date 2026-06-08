@@ -830,55 +830,19 @@ def cmake_build(Map conf=[:]){
     }
 }
 
-def buildHipClangJob(Map conf=[:]){
+def buildAndTest(Map conf=[:]){
+        def isMainBuild = conf.get("is_main_build", false)
         show_node_info()
         checkoutComposableKernel()
-        def prefixpath = conf.get("prefixpath", "/opt/rocm")
         def dockerOpts = get_docker_options()
         def image
         def retimage
-        (retimage, image) = getDockerImage(conf)
 
         setGithubStatus("${env.STAGE_NAME}", 'pending', "Starting ${env.STAGE_NAME}")
         try {
-            withDockerContainer(image: image, args: dockerOpts) {
-                timeout(time: 20, unit: 'HOURS')
-                {
-                    cmake_build(conf)
-                }
-            }
-            setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
-        }
-        catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
-                throw e
-        }
-        return retimage
-}
-
-def buildHipClangJobAndReboot(Map conf=[:]){
-    try{
-        buildHipClangJob(conf)
-    }
-    catch(e){
-        echo "throwing error exception for the stage"
-        echo 'Exception occurred: ' + e.toString()
-        throw e
-    }
-}
-
-def Build_CK(Map conf=[:]){
-        show_node_info()
-        checkoutComposableKernel()
-        def prefixpath = conf.get("prefixpath", "/opt/rocm")
-        def dockerOpts=get_docker_options()
-        def image
-        def retimage
-
-        setGithubStatus("${env.STAGE_NAME}", 'pending', "Starting ${env.STAGE_NAME}")
-        try {
-            try {
-                (retimage, image) = getDockerImage(conf)
+            (retimage, image) = getDockerImage(conf)
+            if (isMainBuild) {
+                // GPU must be present for the main per-arch build; fail fast if absent
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 2, unit: 'MINUTES'){
                         sh 'rocminfo | tee rocminfo.log'
@@ -891,87 +855,80 @@ def Build_CK(Map conf=[:]){
                     }
                 }
             }
-            catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
-                echo "The job was cancelled or aborted"
-                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
-                throw e
-            }
             withDockerContainer(image: image, args: dockerOpts) {
                 timeout(time: 20, unit: 'HOURS')
                 {
-                    //check whether to run performance tests on this node
-                    def arch = check_arch_name()
                     cmake_build(conf)
-                    if ( params.RUN_INDUCTOR_TESTS && arch == "gfx90a" ){
-                            echo "Run inductor codegen tests"
-                            sh "projects/composablekernel/script/run_inductor_tests.sh"
-                    }
-                    // run performance tests, stash the logs, results will be processed on the master node
-                    dir("projects/composablekernel/script"){
-                        if (params.RUN_PERFORMANCE_TESTS){
-                            if (params.RUN_FULL_QA && (arch == "gfx90a" || arch == "gfx942")){
-                                // run full tests on gfx90a or gfx942
-                                echo "Run full performance tests"
-                                sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} ${arch}"
-                                archiveArtifacts "perf_*.log"
-                                stash includes: "perf_**.log", name: "perf_log_${arch}"
-                            }
-                            else if (!params.RUN_FULL_QA && (arch == "gfx90a" || arch == "gfx942")){
-                                // run standard tests on gfx90a or gfx942
-                                echo "Run performance tests"
-                                sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} ${arch}"
-                                archiveArtifacts "perf_*.log"
-                                stash includes: "perf_**.log", name: "perf_log_${arch}"
-                            }
-                            else if ( arch != "gfx10"){
-                                // run basic tests on gfx11/gfx12/gfx908/gfx950, but not on gfx10, it takes too long
-                                echo "Run gemm performance tests"
-                                sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} ${arch}"
-                                archiveArtifacts "perf_onnx_gemm_*.log"
-                                stash includes: "perf_onnx_gemm_**.log", name: "perf_log_${arch}"
+                    if (isMainBuild) {
+                        //check whether to run performance tests on this node
+                        def arch = check_arch_name()
+                        if ( params.RUN_INDUCTOR_TESTS && arch == "gfx90a" ){
+                                echo "Run inductor codegen tests"
+                                sh "projects/composablekernel/script/run_inductor_tests.sh"
+                        }
+                        // run performance tests, stash the logs, results will be processed on the master node
+                        dir("projects/composablekernel/script"){
+                            if (params.RUN_PERFORMANCE_TESTS){
+                                if (params.RUN_FULL_QA && (arch == "gfx90a" || arch == "gfx942")){
+                                    // run full tests on gfx90a or gfx942
+                                    echo "Run full performance tests"
+                                    sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} ${arch}"
+                                    archiveArtifacts "perf_*.log"
+                                    stash includes: "perf_**.log", name: "perf_log_${arch}"
+                                }
+                                else if (!params.RUN_FULL_QA && (arch == "gfx90a" || arch == "gfx942")){
+                                    // run standard tests on gfx90a or gfx942
+                                    echo "Run performance tests"
+                                    sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} ${arch}"
+                                    archiveArtifacts "perf_*.log"
+                                    stash includes: "perf_**.log", name: "perf_log_${arch}"
+                                }
+                                else if ( arch != "gfx10"){
+                                    // run basic tests on gfx11/gfx12/gfx908/gfx950, but not on gfx10, it takes too long
+                                    echo "Run gemm performance tests"
+                                    sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} ${arch}"
+                                    archiveArtifacts "perf_onnx_gemm_*.log"
+                                    stash includes: "perf_onnx_gemm_**.log", name: "perf_log_${arch}"
+                                }
                             }
                         }
-                    }
-                    if (params.hipTensor_test && arch == "gfx90a" ){
-                        // build and test hipTensor on gfx90a node
-                        sh """#!/bin/bash
-                            rm -rf rocm-libraries
-                            git clone --no-checkout --filter=blob:none https://github.com/ROCm/rocm-libraries.git
-                            cd rocm-libraries
-                            git sparse-checkout init --cone
-                            git sparse-checkout set projects/hiptensor
-                            git checkout "${params.hipTensor_branch}"
-                        """
-                        dir("rocm-libraries/projects/hiptensor"){
+                        if (params.hipTensor_test && arch == "gfx90a" ){
+                            // build and test hipTensor on gfx90a node
                             sh """#!/bin/bash
-                                mkdir -p build
-                                ls -ltr
-                                CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install"
-                                cmake --build build -- -j
-                                ctest --test-dir build
+                                rm -rf rocm-libraries
+                                git clone --no-checkout --filter=blob:none https://github.com/ROCm/rocm-libraries.git
+                                cd rocm-libraries
+                                git sparse-checkout init --cone
+                                git sparse-checkout set projects/hiptensor
+                                git checkout "${params.hipTensor_branch}"
                             """
+                            dir("rocm-libraries/projects/hiptensor"){
+                                sh """#!/bin/bash
+                                    mkdir -p build
+                                    ls -ltr
+                                    CC=hipcc CXX=hipcc cmake -Bbuild . -D CMAKE_PREFIX_PATH="${env.WORKSPACE}/install"
+                                    cmake --build build -- -j
+                                    ctest --test-dir build
+                                """
+                            }
                         }
                     }
                 }
             }
             setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
         }
-        catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e){
+        catch (Exception e){
                 setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
                 throw e
         }
         return retimage
 }
 
-def Build_CK_and_Reboot(Map conf=[:]){
-    try{
-        Build_CK(conf)
-    }
-    catch(e){
-        echo "throwing error exception while building CK"
-        echo 'Exception occurred: ' + e.toString()
-        throw e
-    }
+// Deprecated alias for the build-only entry point unified into buildAndTest.
+// Kept so develop's Jenkinsfile (and PRs branched from it) still resolve against
+// this ck.groovy once it lands on develop. Remove when no open branch calls it.
+def buildHipClangJobAndReboot(Map conf=[:]){
+    return buildAndTest(conf)
 }
 
 def process_results(Map conf=[:]){
@@ -1203,7 +1160,7 @@ def getFaTestsCmds() {
 }
 
 def runClangFormat() {
-    buildHipClangJobAndReboot(
+    buildAndTest(
         setup_args: "NO_CK_BUILD",
         setup_cmd: "",
         build_cmd: "",
@@ -1215,7 +1172,7 @@ def runClangFormat() {
 }
 
 def runClangFormatAndCppcheck() {
-    buildHipClangJobAndReboot(
+    buildAndTest(
         setup_args: "NO_CK_BUILD",
         setup_cmd: "",
         build_cmd: "",
@@ -1232,7 +1189,7 @@ def runClangFormatAndCppcheck() {
 }
 
 def runFullGroupedConvTileTests() {
-    buildHipClangJobAndReboot(
+    buildAndTest(
         setup_args: "NO_CK_BUILD",
         build_type: 'Release',
         execute_cmd: """
@@ -1245,7 +1202,7 @@ def runFullGroupedConvTileTests() {
 }
 
 def runGroupedConvLargeCaseTests() {
-    buildHipClangJobAndReboot(
+    buildAndTest(
         setup_args: "NO_CK_BUILD",
         build_type: 'Release',
         execute_cmd: """
@@ -1258,7 +1215,7 @@ def runGroupedConvLargeCaseTests() {
 }
 
 def runComprehensiveConvDatasetTests() {
-    buildHipClangJobAndReboot(
+    buildAndTest(
         setup_args: "NO_CK_BUILD",
         build_type: 'Release',
         execute_cmd: """
@@ -1277,7 +1234,7 @@ def runComprehensiveConvDatasetTests() {
 }
 
 def runTileEngineBasicTests(String compiler) {
-    buildHipClangJobAndReboot(
+    buildAndTest(
         setup_args: "NO_CK_BUILD",
         build_type: 'Release',
         execute_cmd: """
@@ -1358,7 +1315,7 @@ def runTileEngineGemmTests(String arch, String compiler) {
             ninja -j${nthreads()} benchmark_gemm_universal_all && \
             python3 ../tile_engine/ops/gemm/gemm_universal/gemm_universal_benchmark.py . --problem-sizes "1024,1024,1024" --warmup 5 --repeat 5 --verbose --json results.json"""
     }
-    buildHipClangJobAndReboot(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: execute_cmd)
+    buildAndTest(setup_args: "NO_CK_BUILD", build_type: 'Release', execute_cmd: execute_cmd)
 }
 
 def runBuildCKAndTests(String arch) {
@@ -1376,7 +1333,7 @@ def runBuildCKAndTests(String arch) {
         case "gfx1250":
             gpuTarget = "gfx1250"
             extraSetupArgs = " -DDISABLE_DL_KERNELS=\"ON\""
-            extraBuildArgs = [docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_gfx1250", no_reboot: true]
+            extraBuildArgs = [docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_gfx1250"]
             break
         case "gfx10-1-generic":
         case "gfx10-3-generic":
@@ -1391,16 +1348,16 @@ def runBuildCKAndTests(String arch) {
     }
 
     def setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="${gpuTarget}"${extraSetupArgs} """
-    def buildArgs = [setup_args: setup_args, config_targets: "install", build_type: 'Release', prefixpath: '/usr/local']
+    def buildArgs = [setup_args: setup_args, config_targets: "install", build_type: 'Release', prefixpath: '/usr/local', is_main_build: true]
     if (execute_cmd) {
         buildArgs.execute_cmd = execute_cmd
     }
     buildArgs.putAll(extraBuildArgs)
-    Build_CK_and_Reboot(buildArgs)
+    buildAndTest(buildArgs)
 }
 
 def runBuildInstancesOnly(String compiler) {
-    buildHipClangJobAndReboot(
+    buildAndTest(
         setup_args: "NO_CK_BUILD",
         build_cmd: "",
         build_type: 'Release',
