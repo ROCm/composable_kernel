@@ -17,13 +17,13 @@ void hstu_attention_group_forward_fp16(HstuAttentionGroupFwdParams& param, hipSt
             BOOL_SWITCH(store_lse, kStoreLSE, [&] {
                 if constexpr(kUseSoftmax || !kStoreLSE)
                 {
-                    run_group_forward_causal_softmax_bias_dropout_dispatch<ck_tile::fp16_t,
-                                                                           kUseCausal,
-                                                                           kUseSoftmax,
-                                                                           kStoreLSE,
-                                                                           kHasBias,
-                                                                           false, // kHasDropout
-                                                                           MaxK>(param, stream);
+                    run_group_forward_dispatch<ck_tile::fp16_t,
+                                               kUseCausal,
+                                               kUseSoftmax,
+                                               kStoreLSE,
+                                               kHasBias,
+                                               false, // kHasDropout
+                                               MaxK>(param, stream);
                 }
             });
         });

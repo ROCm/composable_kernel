@@ -27,7 +27,7 @@ HSTU_FORWARD_INSTANCE_TEMPLATE_INC = """
 """
 
 HSTU_FORWARD_INSTANCE_TEMPLATE = """
-{extern}template void run_{mode}_forward_causal_softmax_bias_dropout_dispatch<
+{extern}template void run_{mode}_forward_dispatch<
     {dtype},
     {has_causal},
     {use_softmax},
