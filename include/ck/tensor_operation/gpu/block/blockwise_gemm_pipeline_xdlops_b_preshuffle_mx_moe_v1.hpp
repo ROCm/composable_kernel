@@ -480,16 +480,30 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                         vector_type<ComputeTypeA, KPack> a_thread_vec;
                         vector_type<ComputeTypeB, BKPack> b_thread_vec;
 
-                        static_for<0, KPack, 1>{}([&](auto ik) {
-                            a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                                a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                                    make_tuple(im_major, I0, im_minor, k0, ik))>{}];
-                        });
-                        static_for<0, BKPack, 1>{}([&](auto ik) {
-                            b_thread_vec.template AsType<ComputeTypeB>()(ik) =
-                                b_thread_bufs[scale_comp_buf][Number<b_thread_desc_.CalculateOffset(
-                                    make_tuple(in_major, I0, in_minor, k0, ik))>{}];
-                        });
+                        auto loadA = thread_buf_to_vec_loader<decltype(a_thread_vec),
+                                                              decltype(a_thread_buf),
+                                                              decltype(a_thread_desc_),
+                                                              ComputeTypeA,
+                                                              decltype(im_major),
+                                                              Number<0>,
+                                                              decltype(im_minor),
+                                                              decltype(k0),
+                                                              index_expression::Ik>{a_thread_vec,
+                                                                                    a_thread_buf};
+                        auto loadB =
+                            thread_buf_to_vec_loader<decltype(b_thread_vec),
+                                                     decltype(b_thread_bufs[scale_comp_buf]),
+                                                     decltype(b_thread_desc_),
+                                                     ComputeTypeB,
+                                                     decltype(in_major),
+                                                     Number<0>,
+                                                     decltype(in_minor),
+                                                     decltype(k0),
+                                                     index_expression::Ik>{
+                                b_thread_vec, b_thread_bufs[scale_comp_buf]};
+
+                        static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA));
+                        static_for<0, BKPack, 1>{}(MakeFunctorInvoker(loadB));
 
                         using mfma_input_type_a =
                             typename vector_type<ComputeTypeA,
@@ -630,16 +644,29 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                 vector_type<ComputeTypeA, KPack> a_thread_vec;
                 vector_type<ComputeTypeB, BKPack> b_thread_vec;
 
-                static_for<0, KPack, 1>{}([&](auto ik) {
-                    a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                        a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                            make_tuple(im_major, I0, im_minor, k0, ik))>{}];
-                });
-                static_for<0, BKPack, 1>{}([&](auto ik) {
-                    b_thread_vec.template AsType<ComputeTypeB>()(ik) =
-                        b_thread_bufs[I0][Number<b_thread_desc_.CalculateOffset(
-                            make_tuple(in_major, I0, in_minor, k0, ik))>{}];
-                });
+                auto loadA =
+                    thread_buf_to_vec_loader<decltype(a_thread_vec),
+                                             decltype(a_thread_buf),
+                                             decltype(a_thread_desc_),
+                                             ComputeTypeA,
+                                             decltype(im_major),
+                                             Number<0>,
+                                             decltype(im_minor),
+                                             decltype(k0),
+                                             index_expression::Ik>{a_thread_vec, a_thread_buf};
+                auto loadB =
+                    thread_buf_to_vec_loader<decltype(b_thread_vec),
+                                             decltype(b_thread_bufs[I0]),
+                                             decltype(b_thread_desc_),
+                                             ComputeTypeB,
+                                             decltype(in_major),
+                                             Number<0>,
+                                             decltype(in_minor),
+                                             decltype(k0),
+                                             index_expression::Ik>{b_thread_vec, b_thread_bufs[I0]};
+
+                static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA));
+                static_for<0, BKPack, 1>{}(MakeFunctorInvoker(loadB));
 
                 using mfma_input_type_a =
                     typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops / APackedSize>::type;
@@ -731,16 +758,29 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                 vector_type<ComputeTypeA, KPack> a_thread_vec;
                 vector_type<ComputeTypeB, BKPack> b_thread_vec;
 
-                static_for<0, KPack, 1>{}([&](auto ik) {
-                    a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                        a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                            make_tuple(im_major, I0, im_minor, k0, ik))>{}];
-                });
-                static_for<0, BKPack, 1>{}([&](auto ik) {
-                    b_thread_vec.template AsType<ComputeTypeB>()(ik) =
-                        b_thread_bufs[I1][Number<b_thread_desc_.CalculateOffset(
-                            make_tuple(in_major, I0, in_minor, k0, ik))>{}];
-                });
+                auto loadA =
+                    thread_buf_to_vec_loader<decltype(a_thread_vec),
+                                             decltype(a_thread_buf),
+                                             decltype(a_thread_desc_),
+                                             ComputeTypeA,
+                                             decltype(im_major),
+                                             Number<0>,
+                                             decltype(im_minor),
+                                             decltype(k0),
+                                             index_expression::Ik>{a_thread_vec, a_thread_buf};
+                auto loadB =
+                    thread_buf_to_vec_loader<decltype(b_thread_vec),
+                                             decltype(b_thread_bufs[I1]),
+                                             decltype(b_thread_desc_),
+                                             ComputeTypeB,
+                                             decltype(in_major),
+                                             Number<0>,
+                                             decltype(in_minor),
+                                             decltype(k0),
+                                             index_expression::Ik>{b_thread_vec, b_thread_bufs[I1]};
+
+                static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA));
+                static_for<0, BKPack, 1>{}(MakeFunctorInvoker(loadB));
 
                 using mfma_input_type_a =
                     typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops / APackedSize>::type;
@@ -801,16 +841,29 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                 vector_type<ComputeTypeA, KPack> a_thread_vec;
                 vector_type<ComputeTypeB, BKPack> b_thread_vec;
 
-                static_for<0, KPack, 1>{}([&](auto ik) {
-                    a_thread_vec.template AsType<ComputeTypeA>()(ik) =
-                        a_thread_buf[Number<a_thread_desc_.CalculateOffset(
-                            make_tuple(im_major, I0, im_minor, k0, ik))>{}];
-                });
-                static_for<0, BKPack, 1>{}([&](auto ik) {
-                    b_thread_vec.template AsType<ComputeTypeB>()(ik) =
-                        b_thread_bufs[I0][Number<b_thread_desc_.CalculateOffset(
-                            make_tuple(in_major, I0, in_minor, k0, ik))>{}];
-                });
+                auto loadA =
+                    thread_buf_to_vec_loader<decltype(a_thread_vec),
+                                             decltype(a_thread_buf),
+                                             decltype(a_thread_desc_),
+                                             ComputeTypeA,
+                                             decltype(im_major),
+                                             Number<0>,
+                                             decltype(im_minor),
+                                             decltype(k0),
+                                             index_expression::Ik>{a_thread_vec, a_thread_buf};
+                auto loadB =
+                    thread_buf_to_vec_loader<decltype(b_thread_vec),
+                                             decltype(b_thread_bufs[I0]),
+                                             decltype(b_thread_desc_),
+                                             ComputeTypeB,
+                                             decltype(in_major),
+                                             Number<0>,
+                                             decltype(in_minor),
+                                             decltype(k0),
+                                             index_expression::Ik>{b_thread_vec, b_thread_bufs[I0]};
+
+                static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA));
+                static_for<0, BKPack, 1>{}(MakeFunctorInvoker(loadB));
 
                 using mfma_input_type_a =
                     typename vector_type<ComputeTypeA, xdlops_gemm.K1PerXdlops / APackedSize>::type;

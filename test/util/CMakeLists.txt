@@ -21,3 +21,7 @@ if(result EQUAL 0)
   target_link_libraries(unit_tensor_descriptor_functors PRIVATE utility)
 endif()
 
+add_gtest_executable(unit_index_expression unit_index_expression.cpp)
+if(result EQUAL 0)
+  target_link_libraries(unit_index_expression PRIVATE utility)
+endif()
