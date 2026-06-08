@@ -230,7 +230,7 @@ Additional cmake flags can be used to significantly speed-up the build:
   These instances offer a slightly better performance of fp16 gemms on NAVI2x. But on other architectures faster alternatives are available.
 
 * `CK_USE_FP8_ON_UNSUPPORTED_ARCH` (default is OFF) must be set to ON in order to build instances,
-  such as `gemm_universal`, `gemm_universal_streamk` and `gemm_multiply_multiply` for fp8 data type for GPU targets which do not  have native support for fp8 data type, such as gfx908 or gfx90a. These instances are useful on
+  such as `gemm_universal`, and `gemm_multiply_multiply` for fp8 data type for GPU targets which do not  have native support for fp8 data type, such as gfx908 or gfx90a. These instances are useful on
   architectures like the MI100/MI200 for the functional support only.
 
 ## Using sccache for building
