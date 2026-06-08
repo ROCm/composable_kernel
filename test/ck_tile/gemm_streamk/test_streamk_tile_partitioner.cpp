@@ -64,7 +64,7 @@ TEST(StreamKTilePartitionerBaseConstructor, RemainderAlongK)
     validate_streamk_base_constructor<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
-TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsLessThan128Bytes)
+TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsLessThan256Bytes)
 {
     using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
 
@@ -72,29 +72,29 @@ TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsLessThan128Bytes)
                                         ck_tile::StreamKReductionStrategy::Linear>
         tile_partitioner{Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
 
-    EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 128);
+    EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 256);
 }
 
-TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsEqual128Bytes)
+TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsEqual256Bytes)
 {
-    using Config = StreamKTilePartitionerBaseConfigFlagsSizeEqual128Bytes;
-
-    ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
-                                        ck_tile::StreamKReductionStrategy::Linear>
-        tile_partitioner{Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
-
-    EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 128);
-}
-
-TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsGreaterThan128Bytes)
-{
-    using Config = StreamKTilePartitionerBaseConfigFlagsSizeGreaterThan128Bytes;
+    using Config = StreamKTilePartitionerBaseConfigFlagsSizeEqual256Bytes;
 
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
                                         ck_tile::StreamKReductionStrategy::Linear>
         tile_partitioner{Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
 
     EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 256);
+}
+
+TEST(StreamKTilePartitionerBaseGetFlagsBufferSize, FlagsGreaterThan256Bytes)
+{
+    using Config = StreamKTilePartitionerBaseConfigFlagsSizeGreaterThan256Bytes;
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape,
+                                        ck_tile::StreamKReductionStrategy::Linear>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::MAX_ACTIVE_WGS};
+
+    EXPECT_EQ(tile_partitioner.get_flags_buffer_size(), 512);
 }
 
 TEST(StreamKTilePartitionerBaseGetWorkSpaceSize, AtomicStrategy)
@@ -117,9 +117,9 @@ TEST(StreamKTilePartitionerBaseGetWorkSpaceSize, ReductionStrategy)
 
     ck_tile::index_t expected_partials_size =
         sizeof(float) * Config::M_TILE * Config::N_TILE * Config::MAX_ACTIVE_WGS;
-    // Since MAX_ACTIVE_WGS is 3, the final padded flags array must be 128B to ensure the total byte
-    // size of the flags array is 128B-aligned.
-    ck_tile::index_t expected_flags_size = 128;
+    // Since MAX_ACTIVE_WGS is 3, the final padded flags array must be 256B to ensure the total byte
+    // size of the flags array is 256B-aligned.
+    ck_tile::index_t expected_flags_size = 256;
 
     EXPECT_EQ(tile_partitioner.get_workspace_size(sizeof(float)),
               expected_partials_size + expected_flags_size);
