@@ -343,7 +343,7 @@ pipeline {
                         deleteDir()
                         script {
                             loadCk();
-                            ck.buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd)
+                            ck.buildAndTest(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd)
                         }
                         cleanWs()
                     }
@@ -527,7 +527,7 @@ pipeline {
                         deleteDir()
                         script {
                             loadCk()
-                            ck.buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
+                            ck.buildAndTest(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         }
                         cleanWs()
                     }
@@ -547,7 +547,7 @@ pipeline {
                         deleteDir()
                         script {
                             loadCk()
-                            ck.buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
+                            ck.buildAndTest(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         }
                         cleanWs()
                     }
@@ -567,7 +567,7 @@ pipeline {
                         deleteDir()
                         script {
                             loadCk()
-                            ck.buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
+                            ck.buildAndTest(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         }
                         cleanWs()
                     }
@@ -587,7 +587,7 @@ pipeline {
                         deleteDir()
                         script {
                             loadCk()
-                            ck.buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
+                            ck.buildAndTest(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         }
                         cleanWs()
                     }
