@@ -123,6 +123,15 @@ struct unified_attention_args
     index_t split_stride_lse_acc  = 0;
     index_t nhead_stride_o_acc    = 0;
     index_t nhead_stride_lse_acc  = 0;
+
+    // Paged KV (block_tables) vs contiguous/THD KV. When false the dispatcher
+    // selects the kIsPaged=false kernel instances: block_tables is ignored and
+    // each sequence's KV start comes from `kv_start_len_ptr` (cu_seqlens of the
+    // KV cache, [num_seqs+1]) instead of the per-page indirection. Contiguous
+    // K/V are laid out [total_kv_tokens, num_kv_heads, head] and passed with
+    // the same 4-D cache strides as paged (page dim folded to size 1).
+    bool is_paged = true;
+    const int32_t* kv_start_len_ptr = nullptr;
 };
 
 std::ostream& operator<<(std::ostream& stream,

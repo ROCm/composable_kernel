@@ -170,7 +170,8 @@ namespace ck_tile {
 //      the scalar-promote + LDS-cache fast path on their natural page sizes.
 template <typename Problem_,
           typename Policy_                  = UnifiedAttentionPipelineDefaultPolicy,
-          ck_tile::index_t kPageSize_       = 0>
+          ck_tile::index_t kPageSize_       = 0,
+          bool kIsPaged_                    = true>
 struct UnifiedAttentionPipeline
 {
     using Problem             = ck_tile::remove_cvref_t<Problem_>;
@@ -179,6 +180,12 @@ struct UnifiedAttentionPipeline
     // Compile-time page size (0 = runtime). See class-level comment above.
     static constexpr ck_tile::index_t kPageSize       = kPageSize_;
     static constexpr bool             kHasCePageSize = (kPageSize_ > 0);
+    // Paged KV (block_tables indirection) vs contiguous/THD KV. When false the
+    // K/V tile's logical token index IS its physical row (the per-sequence base
+    // is folded into the K/V base pointer by the kernel), so all paging math —
+    // block_tables fetch, page-table LDS cache, page-index arithmetic — is
+    // compiled out and the load reduces to a plain linear scatter offset.
+    static constexpr bool             kIsPaged       = kIsPaged_;
     using QDataType           = ck_tile::remove_cvref_t<typename Problem::QDataType>;
     using KDataType           = ck_tile::remove_cvref_t<typename Problem::KDataType>;
     using VDataType           = ck_tile::remove_cvref_t<typename Problem::VDataType>;
@@ -856,7 +863,8 @@ struct UnifiedAttentionPipeline
         // miscompute; a runtime fallback was tried earlier and regresses
         // 30% because the compiler emits both refresh_*_offsets paths and
         // the resulting register pressure halves occupancy.
-        constexpr bool kUsePageTableLds = kScalarPromoteKPageIdx || kScalarPromoteVPageIdx;
+        constexpr bool kUsePageTableLds =
+            kIsPaged && (kScalarPromoteKPageIdx || kScalarPromoteVPageIdx);
         constexpr index_t kPageTableLdsOffset =
             GetSmemSize() - GetPageTableLdsBytes();
         auto block_tables_lds = reinterpret_cast<int32_t*>(
@@ -937,12 +945,103 @@ struct UnifiedAttentionPipeline
         constexpr bool kDedupPages =
             kHasCePageSize &&
             (kPageBlockSize % kPageSize == 0 || kPageSize % kPageBlockSize == 0);
-        constexpr bool kPageDividesTile =
-            kHasCePageSize && (kPageBlockSize % kPageSize == 0);
+
+        // Single-page SRD-rebase fast path.
+        //
+        // When the whole K/V tile lives in one physical page
+        // (kPageSize % kPageBlockSize == 0 — the tile is kPageBlockSize-aligned
+        // and the page is a multiple of the tile, so it never straddles a page
+        // boundary), the per-issue byte offset
+        //   (phys_page*kPageSize + within_page) * row_stride
+        // splits cleanly into
+        //   U(tile)  = (phys_page*kPageSize + tile_base_token
+        //               - base_page*kPageSize) * row_stride   [wave-uniform]
+        //   L(i,lane)= (i*Y0_step_N + thread_n_pos) * row_stride [loop-invariant]
+        // with offset(i) = U(tile) + L(i,lane). We fold U into the buffer
+        // descriptor (SRD) base — rebased once per tile — and leave only L in
+        // the scatter offset array. Because the pipeline already rebuilds the
+        // window + SRD every iteration (make_tile_scatter_gather + init_raw
+        // below), the rebase adds *no* extra SRD construction; it only swaps a
+        // different (wave-uniform) base into make_wave_buffer_resource. The
+        // payoff: L is loop-invariant, so the per-lane 64-bit multiply-add that
+        // the ATT profile attributes to the ADDR phase disappears from the tile
+        // loop. L is also bounded by one tile, so it can never overflow int32 —
+        // the rebased path never needs the _long load variant.
+        //
+        // This is the per-tile analogue of the legacy PageBlockNavigator
+        // uniform-base rebase. The earlier per-*issue* SRD rebase was dropped
+        // (see the K/V dispatch comment) for SGPR pressure under the old
+        // ping-pong pipeline; the per-tile form here piggybacks on the existing
+        // per-iteration SRD build, so it does not add that pressure.
+        //
+        // Gated per-K/V to the scalar-promote regime AND single-page geometry.
+        // The single-page geometry (kPageSize % kPageBlockSize == 0) is what lets
+        // ONE wave-uniform base address the whole tile; scalar-promote
+        // (KNRepeat>=2 && KY0_step_N<=page) is the regime in which the residual
+        // per-lane offset is proven to stay within that tile. Outside it the
+        // issue layout is wider (notably V's transposed load, e.g. bf16 d128
+        // where scalar-promote_V is off) and a single base does not cover every
+        // issue — broadening the gate to all single-page faults there — so those
+        // keep the validated per-lane scatter, as do multi-page tiles
+        // (ps < kPageBlockSize, e.g. d128 @ ps16). K and V are gated
+        // independently because their geometries (and thus scalar-promote) differ.
+        constexpr bool kRebaseKSrd =
+            kScalarPromoteKPageIdx && kHasCePageSize && (kPageSize % kPageBlockSize == 0);
+        constexpr bool kRebaseVSrd =
+            kScalarPromoteVPageIdx && kHasCePageSize && (kPageSize % kPageBlockSize == 0);
+
+        // Wave-uniform per-tile base offsets (in elements) folded into the SRD
+        // base at window construction; written by refresh_*_offsets.
+        long_index_t k_srd_base_offset = 0;
+        long_index_t v_srd_base_offset = 0;
 
         auto refresh_k_offsets = [&](index_t k_tile_idx) {
-            if constexpr(kScalarPromoteKPageIdx && kDedupPages)
+            if constexpr(!kIsPaged)
             {
+                // Contiguous (THD) K: no page table. The logical token index is
+                // the physical row directly (the kernel folded the per-sequence
+                // KV start into the K base pointer), so the offset collapses to
+                // logical_token * row_stride — no block_tables, no page split.
+                static_for<0, KNRepeat, 1>{}([&](auto i) {
+                    const index_t logical_token =
+                        split_token_offset + k_tile_idx * kPageBlockSize + k_thread_n_pos +
+                        static_cast<index_t>(i.value) * KY0_step_N;
+                    k_page_offsets(i) = static_cast<long_index_t>(logical_token) * k_row_stride;
+                });
+            }
+            else if constexpr(kRebaseKSrd)
+            {
+                // Wave-uniform: the element offset of the tile's first token
+                // within the K pool. Folded into the SRD base (see window
+                // construction below).
+                const index_t tile_base_token =
+                    split_token_offset + k_tile_idx * kPageBlockSize;
+                const int32_t base_page =
+                    __builtin_amdgcn_readfirstlane(tile_base_token / kPageSize);
+                // Must be wave-uniform: it feeds the SRD base (an SGPR operand
+                // of buffer_load). The LDS read alone does not prove uniformity
+                // to the backend, so force it through readfirstlane.
+                const int32_t phys_page = __builtin_amdgcn_readfirstlane(
+                    block_tables_lds[base_page - split_start_page]);
+                k_srd_base_offset =
+                    (static_cast<long_index_t>(phys_page) * kPageSize +
+                     (tile_base_token - static_cast<long_index_t>(base_page) * kPageSize)) *
+                    k_row_stride;
+                // Loop-invariant per-lane within-tile offset — the only term
+                // left in the scatter array. The compiler hoists it out of the
+                // tile loop.
+                static_for<0, KNRepeat, 1>{}([&](auto i) {
+                    constexpr index_t ii = i.value;
+                    k_page_offsets(i) =
+                        (static_cast<long_index_t>(ii) * KY0_step_N + k_thread_n_pos) *
+                        k_row_stride;
+                });
+            }
+            else if constexpr(kScalarPromoteKPageIdx && kDedupPages)
+            {
+                // Reached only for MULTI-page tiles — single-page took the rebase
+                // branch above — so the tile spans kPageBlockSize/kPageSize pages
+                // and issue i sits in relative page (i*KY0_step_N)/kPageSize.
                 // One uniform readfirstlane for the tile's first page; the
                 // per-issue page index is then base_page + a compile-time
                 // relative offset, so no further readfirstlane is emitted.
@@ -955,15 +1054,13 @@ struct UnifiedAttentionPipeline
                 int32_t phys_page = block_tables_lds[base_page - split_start_page];
                 static_for<0, KNRepeat, 1>{}([&](auto i) {
                     constexpr index_t ii = i.value;
-                    constexpr index_t grp =
-                        kPageDividesTile ? (ii * KY0_step_N) / kPageSize : 0;
+                    constexpr index_t grp = (ii * KY0_step_N) / kPageSize;
                     // Re-read phys_page only when this issue crosses into a new
                     // page (a compile-time decision); otherwise reuse the value
                     // already in the VGPR.
                     if constexpr(ii > 0)
                     {
-                        constexpr index_t grp_prev =
-                            kPageDividesTile ? ((ii - 1) * KY0_step_N) / kPageSize : 0;
+                        constexpr index_t grp_prev = ((ii - 1) * KY0_step_N) / kPageSize;
                         if constexpr(grp != grp_prev)
                             phys_page =
                                 block_tables_lds[base_page + grp - split_start_page];
@@ -1016,9 +1113,42 @@ struct UnifiedAttentionPipeline
             }
         };
         auto refresh_v_offsets = [&](index_t v_tile_idx) {
-            if constexpr(kScalarPromoteVPageIdx && kDedupPages)
+            if constexpr(!kIsPaged)
             {
-                // See refresh_k_offsets for the dedup rationale.
+                // Contiguous (THD) V — see refresh_k_offsets.
+                static_for<0, VNRepeat, 1>{}([&](auto i) {
+                    const index_t logical_token =
+                        split_token_offset + v_tile_idx * kPageBlockSize + v_thread_n_pos +
+                        static_cast<index_t>(i.value) * VY0_step_N;
+                    v_page_offsets(i) = static_cast<long_index_t>(logical_token) * v_row_stride;
+                });
+            }
+            else if constexpr(kRebaseVSrd)
+            {
+                // Single-page SRD rebase — see refresh_k_offsets / the
+                // kRebaseKSrd comment above for the U + L decomposition.
+                const index_t tile_base_token =
+                    split_token_offset + v_tile_idx * kPageBlockSize;
+                const int32_t base_page =
+                    __builtin_amdgcn_readfirstlane(tile_base_token / kPageSize);
+                // Wave-uniform (SRD base SGPR operand) — see refresh_k_offsets.
+                const int32_t phys_page = __builtin_amdgcn_readfirstlane(
+                    block_tables_lds[base_page - split_start_page]);
+                v_srd_base_offset =
+                    (static_cast<long_index_t>(phys_page) * kPageSize +
+                     (tile_base_token - static_cast<long_index_t>(base_page) * kPageSize)) *
+                    v_row_stride;
+                static_for<0, VNRepeat, 1>{}([&](auto i) {
+                    constexpr index_t ii = i.value;
+                    v_page_offsets(i) =
+                        (static_cast<long_index_t>(ii) * VY0_step_N + v_thread_n_pos) *
+                        v_row_stride;
+                });
+            }
+            else if constexpr(kScalarPromoteVPageIdx && kDedupPages)
+            {
+                // Multi-page only (single-page took the rebase branch above);
+                // see refresh_k_offsets for the dedup rationale.
                 const index_t tile_base_token =
                     split_token_offset + v_tile_idx * kPageBlockSize;
                 const int32_t base_page =
@@ -1026,12 +1156,10 @@ struct UnifiedAttentionPipeline
                 int32_t phys_page = block_tables_lds[base_page - split_start_page];
                 static_for<0, VNRepeat, 1>{}([&](auto i) {
                     constexpr index_t ii = i.value;
-                    constexpr index_t grp =
-                        kPageDividesTile ? (ii * VY0_step_N) / kPageSize : 0;
+                    constexpr index_t grp = (ii * VY0_step_N) / kPageSize;
                     if constexpr(ii > 0)
                     {
-                        constexpr index_t grp_prev =
-                            kPageDividesTile ? ((ii - 1) * VY0_step_N) / kPageSize : 0;
+                        constexpr index_t grp_prev = ((ii - 1) * VY0_step_N) / kPageSize;
                         if constexpr(grp != grp_prev)
                             phys_page =
                                 block_tables_lds[base_page + grp - split_start_page];
@@ -1084,6 +1212,26 @@ struct UnifiedAttentionPipeline
 
         auto k_view = k_dram_block_window_tmp.get_bottom_tensor_view();
         auto v_view = v_dram_block_window_tmp.get_bottom_tensor_view();
+
+        // Single-page SRD rebase: fold the wave-uniform per-tile page offset
+        // into the buffer (SRD) base instead of the per-lane scatter offsets.
+        // The SRD is rebased once per tile (see K_mem_load / V_mem_load), so
+        // the scatter array carries only the loop-invariant within-tile offset
+        // (see kRebaseKSrd above). We stash the original pool base here so the
+        // per-tile rebase can recompute base = pool_base + U(tile); the first
+        // tile's base is set right below before the window is built.
+        //
+        // The buffer_size_ bound is intentionally left at the full pool extent:
+        // every loaded token lives inside a valid physical page (the tile never
+        // straddles a page in this regime), so no read exceeds the pool,
+        // exactly as on the per-lane path where the voffset is always in bounds
+        // and the softmax mask handles past-seqlen tokens.
+        [[maybe_unused]] auto* const k_pool_base = k_view.get_buffer_view().p_data_;
+        [[maybe_unused]] auto* const v_pool_base = v_view.get_buffer_view().p_data_;
+        if constexpr(kRebaseKSrd)
+            k_view.get_buffer_view().p_data_ = k_pool_base + k_srd_base_offset;
+        if constexpr(kRebaseVSrd)
+            v_view.get_buffer_view().p_data_ = v_pool_base + v_srd_base_offset;
 
         auto k_dram_window =
             make_tile_scatter_gather(k_view,
@@ -1307,7 +1455,12 @@ struct UnifiedAttentionPipeline
             if(k_block_idx < num_iters_per_split)
             {
                 refresh_k_offsets(k_block_idx);
-                k_dram_window.update_page_idx(k_page_offsets);
+                if constexpr(kRebaseKSrd)
+                    // Per-tile SRD rebase: the scatter offsets (L) are
+                    // loop-invariant, so only the wave-uniform base moves.
+                    k_dram_window.rebase_buffer_base(k_pool_base + k_srd_base_offset);
+                else
+                    k_dram_window.update_page_idx(k_page_offsets);
             }
         };
 
@@ -1320,7 +1473,10 @@ struct UnifiedAttentionPipeline
             if(v_block_idx < num_iters_per_split)
             {
                 refresh_v_offsets(v_block_idx);
-                v_dram_window.update_page_idx(v_page_offsets);
+                if constexpr(kRebaseVSrd)
+                    v_dram_window.rebase_buffer_base(v_pool_base + v_srd_base_offset);
+                else
+                    v_dram_window.update_page_idx(v_page_offsets);
             }
         };
 

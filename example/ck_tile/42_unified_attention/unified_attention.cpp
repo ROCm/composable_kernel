@@ -155,12 +155,47 @@ namespace {
 template <KernelVariant V,
           unified_attention_args::data_type_enum DType,
           bool IsMask,
-          index_t PageSize>
+          index_t PageSize,
+          bool IsPaged = true>
 std::pair<bool, float> dispatch_one(const unified_attention_args& args,
                                     const stream_config& config)
 {
     return unified_attention_kernel_dispatch<
-        unified_attention_kernel_traits<V, DType, IsMask, PageSize>>(args, config);
+        unified_attention_kernel_traits<V, DType, IsMask, PageSize,
+                                        /*IsLocal=*/false, IsPaged>>(args, config);
+}
+
+// ---------------------------------------------------------------------------
+// dispatch_nonpaged — contiguous (THD) KV, no block_tables. Selected when the
+// host passes is_paged=false. Only the prefill variants compile a non-paged
+// instance (the contiguous comparison target); everything else returns
+// {false, 0} so the binary stays lean. SWA is not offered on the contiguous
+// path — only causal (is_mask) and full / non-causal (!is_mask).
+// ---------------------------------------------------------------------------
+template <KernelVariant V, unified_attention_args::data_type_enum DType>
+std::pair<bool, float> dispatch_nonpaged(const unified_attention_args& args,
+                                         const stream_config& config,
+                                         bool is_mask)
+{
+    using DT = unified_attention_args::data_type_enum;
+    // Contiguous instances are compiled for bf16/fp8 prefill only (the
+    // comparison targets). fp16 / decode contiguous fall through to {false, 0}
+    // and surface as "no matching kernel" rather than a link error.
+    constexpr bool is_supported_variant =
+        (V == KernelVariant::prefill_d128 || V == KernelVariant::prefill_d64);
+    if constexpr(is_supported_variant &&
+                 (DType == DT::bf16 || DType == DT::fp8))
+    {
+        if(is_mask)
+            return dispatch_one<V, DType, /*IsMask=*/true, /*PageSize=*/0,
+                                /*IsPaged=*/false>(args, config);
+        return dispatch_one<V, DType, /*IsMask=*/false, /*PageSize=*/0,
+                            /*IsPaged=*/false>(args, config);
+    }
+    else
+    {
+        return {false, 0.f};
+    }
 }
 
 // Per-(V, DType) availability of IsLocal=true (Sliding-Window-Attention)
@@ -292,6 +327,15 @@ std::pair<bool, float> dispatch_variant(const unified_attention_args& args,
     // combination opts into IsLocal=true.
     const bool is_local =
         is_mask && (args.window_size_left >= 0 || args.window_size_right > 0);
+
+    // Contiguous (THD) KV: no paging. Route to the non-paged instances before
+    // the paged page-size menu. SWA is not supported on this path yet.
+    if(!args.is_paged)
+    {
+        if(args.data_type == DT::fp16) return dispatch_nonpaged<V, DT::fp16>(args, config, is_mask);
+        if(args.data_type == DT::bf16) return dispatch_nonpaged<V, DT::bf16>(args, config, is_mask);
+        return dispatch_nonpaged<V, DT::fp8>(args, config, is_mask);
+    }
 
     if(args.data_type == DT::fp16)
     {

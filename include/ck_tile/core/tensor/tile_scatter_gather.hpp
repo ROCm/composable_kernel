@@ -1280,6 +1280,19 @@ struct tile_scatter_gather
 
     CK_TILE_HOST_DEVICE void init_raw() { bottom_tensor_view_.init_raw(); }
 
+    // Re-point the buffer-descriptor (SRD) base to `new_base` and rebuild the
+    // hardware buffer resource. Used by the single-page paged regime to fold
+    // the wave-uniform per-tile page offset into the SRD base (rebased once per
+    // tile) instead of the per-lane scatter offset array — which then carries
+    // only the loop-invariant within-tile offset. `new_base` must be
+    // wave-uniform (it lowers to the SGPR base of buffer_load).
+    template <typename PtrT>
+    CK_TILE_DEVICE void rebase_buffer_base(PtrT new_base)
+    {
+        bottom_tensor_view_.get_buffer_view().p_data_ = new_base;
+        init_raw();
+    }
+
     // this is the bottom tensor view
     // [x0', x1', ...] ==> [offset]
     BottomTensorView bottom_tensor_view_;

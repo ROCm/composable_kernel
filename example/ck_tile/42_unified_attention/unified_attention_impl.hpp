@@ -128,9 +128,9 @@ struct variant_config<KernelVariant::prefill_d128>
     static constexpr index_t BlockSize = 32;
     using BlockWarps                   = sequence<8, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
-    template <typename Problem, index_t PageSize = 0>
+    template <typename Problem, index_t PageSize = 0, bool IsPaged = true>
     using Pipeline =
-        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDefaultPolicy, PageSize>;
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDefaultPolicy, PageSize, IsPaged>;
     static constexpr bool kUseDecodeGrid = false;
 };
 
@@ -142,9 +142,9 @@ struct variant_config<KernelVariant::decode_d128_m128>
     static constexpr index_t BlockSize = 32;
     using BlockWarps                   = sequence<4, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
-    template <typename Problem, index_t PageSize = 0>
+    template <typename Problem, index_t PageSize = 0, bool IsPaged = true>
     using Pipeline =
-        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDefaultPolicy, PageSize>;
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDefaultPolicy, PageSize, IsPaged>;
     static constexpr bool kUseDecodeGrid = false;
 };
 
@@ -156,9 +156,9 @@ struct variant_config<KernelVariant::decode_d128_m32>
     static constexpr index_t BlockSize = 32;
     using BlockWarps                   = sequence<1, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
-    template <typename Problem, index_t PageSize = 0>
+    template <typename Problem, index_t PageSize = 0, bool IsPaged = true>
     using Pipeline =
-        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy, PageSize>;
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy, PageSize, IsPaged>;
     static constexpr bool kUseDecodeGrid = true;
 };
 
@@ -170,9 +170,9 @@ struct variant_config<KernelVariant::decode_d128_m16>
     static constexpr index_t BlockSize = 32;
     using BlockWarps                   = sequence<1, 1, 1>;
     using WarpGemmShape                = sequence<16, 16, 32>;
-    template <typename Problem, index_t PageSize = 0>
+    template <typename Problem, index_t PageSize = 0, bool IsPaged = true>
     using Pipeline =
-        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy, PageSize>;
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy, PageSize, IsPaged>;
     static constexpr bool kUseDecodeGrid = true;
 };
 
@@ -184,9 +184,9 @@ struct variant_config<KernelVariant::prefill_d64>
     static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<8, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
-    template <typename Problem, index_t PageSize = 0>
+    template <typename Problem, index_t PageSize = 0, bool IsPaged = true>
     using Pipeline =
-        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDefaultPolicy, PageSize>;
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDefaultPolicy, PageSize, IsPaged>;
     static constexpr bool kUseDecodeGrid = false;
 };
 
@@ -198,9 +198,9 @@ struct variant_config<KernelVariant::decode_d64_m128>
     static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<4, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
-    template <typename Problem, index_t PageSize = 0>
+    template <typename Problem, index_t PageSize = 0, bool IsPaged = true>
     using Pipeline =
-        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDefaultPolicy, PageSize>;
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDefaultPolicy, PageSize, IsPaged>;
     static constexpr bool kUseDecodeGrid = false;
 };
 
@@ -212,9 +212,9 @@ struct variant_config<KernelVariant::decode_d64_m64>
     static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<2, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
-    template <typename Problem, index_t PageSize = 0>
+    template <typename Problem, index_t PageSize = 0, bool IsPaged = true>
     using Pipeline =
-        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDecodePolicy, PageSize>;
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineDecodePolicy, PageSize, IsPaged>;
     static constexpr bool kUseDecodeGrid = true;
 };
 
@@ -226,9 +226,9 @@ struct variant_config<KernelVariant::decode_d64_m16>
     static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<1, 1, 1>;
     using WarpGemmShape                = sequence<16, 16, 32>;
-    template <typename Problem, index_t PageSize = 0>
+    template <typename Problem, index_t PageSize = 0, bool IsPaged = true>
     using Pipeline =
-        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy, PageSize>;
+        UnifiedAttentionPipeline<Problem, UnifiedAttentionPipelineTinyDecodePolicy, PageSize, IsPaged>;
     static constexpr bool kUseDecodeGrid = true;
 };
 
@@ -248,7 +248,8 @@ template <KernelVariant V,
           unified_attention_args::data_type_enum DataType,
           bool IsMasking,
           ck_tile::index_t kPageSize_ = 0,
-          bool IsLocal_               = false>
+          bool IsLocal_               = false,
+          bool IsPaged_               = true>
 struct unified_attention_kernel_traits
 {
     using cfg = variant_config<V>;
@@ -336,7 +337,7 @@ struct unified_attention_kernel_traits
                                         unified_attention_traits>;
 
     using unified_attention_pipeline =
-        typename cfg::template Pipeline<unified_attention_pipeline_problem, kPageSize_>;
+        typename cfg::template Pipeline<unified_attention_pipeline_problem, kPageSize_, IsPaged_>;
 
     using epilogue =
         Default2DEpilogue<Default2DEpilogueProblem<typename dt::acc_dtype,
@@ -407,7 +408,8 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
                                    args.cache_ptr_int32_overflow_possible,
                                    args.window_size_left,
                                    args.window_size_right,
-                                   args.is_top_left);
+                                   args.is_top_left,
+                                   args.kv_start_len_ptr);
 
     dim3 grids;
     if constexpr(UseDecodeGrid)
@@ -475,3 +477,29 @@ std::pair<bool, float> unified_attention_kernel_dispatch(const unified_attention
 
 #define INST_UNIFIED_ATTENTION_DISPATCH(VARIANT_, DTYPE_, IS_MASK_)                          \
     INST_UNIFIED_ATTENTION_DISPATCH_PS(VARIANT_, DTYPE_, IS_MASK_, 0)
+
+// Contiguous (THD) KV instance — IsPaged = false, runtime page size (0),
+// non-SWA. Mirrors INST_UNIFIED_ATTENTION_DISPATCH but flips the IsPaged_
+// trait so the pipeline compiles out all block_tables / page math.
+#define INST_UNIFIED_ATTENTION_DISPATCH_NONPAGED(VARIANT_, DTYPE_, IS_MASK_)                  \
+    template <>                                                                              \
+    std::pair<bool, float> unified_attention_kernel_dispatch<                                \
+        unified_attention_kernel_traits<KernelVariant::VARIANT_,                             \
+                                        unified_attention_args::data_type_enum::DTYPE_,      \
+                                        IS_MASK_,                                            \
+                                        /*kPageSize=*/0,                                     \
+                                        /*IsLocal=*/false,                                   \
+                                        /*IsPaged=*/false>>(const unified_attention_args& args, \
+                                                            const stream_config& config)     \
+    {                                                                                        \
+        using Traits = unified_attention_kernel_traits<                                      \
+            KernelVariant::VARIANT_,                                                         \
+            unified_attention_args::data_type_enum::DTYPE_,                                  \
+            IS_MASK_,                                                                        \
+            /*kPageSize=*/0,                                                                 \
+            /*IsLocal=*/false,                                                               \
+            /*IsPaged=*/false>;                                                              \
+        return std::make_pair(true,                                                          \
+            unified_attention_kernel_launch<typename Traits::kernel,                         \
+                                            Traits::kUseDecodeGrid>(args, config));          \
+    }

@@ -147,6 +147,11 @@ struct UnifiedAttentionKernel
         // Runtime selector for the K/V async-load path in the pipeline. See
         // `unified_attention_args::cache_ptr_int32_overflow_possible`.
         bool cache_ptr_int32_overflow_possible = false;
+
+        // Contiguous (THD) KV only: cu_seqlens of the KV cache, [num_seqs+1].
+        // kv_start_len_ptr[seq] is this sequence's first KV token, folded into
+        // the K/V base pointer. Unused (may be null) when the kernel is paged.
+        const int32_t* kv_start_len_ptr = nullptr;
     };
 
     using Kargs = UnifiedAttentionVarlenKargs;
@@ -195,7 +200,8 @@ struct UnifiedAttentionKernel
                                                   bool cache_ptr_int32_overflow_possible  = false,
                                                   ck_tile::index_t window_size_left       = -1,
                                                   ck_tile::index_t window_size_right      = -1,
-                                                  bool is_top_left                        = false)
+                                                  bool is_top_left                        = false,
+                                                  const int32_t* kv_start_len_ptr         = nullptr)
     {
         // Fuse the Q/K FP8 descales into `scale_s` so the softmax sees a
         // single combined scalar — matches the Triton FP8 reference
@@ -249,7 +255,8 @@ struct UnifiedAttentionKernel
                     split_stride_o_acc,
                     nhead_stride_lse_acc,
                     nhead_stride_o_acc,
-                    cache_ptr_int32_overflow_possible};
+                    cache_ptr_int32_overflow_possible,
+                    kv_start_len_ptr};
 
         return kargs;
     }
@@ -424,15 +431,29 @@ struct UnifiedAttentionKernel
         // actual last row instead makes block N's spill-row result identical
         // to block N+1's -> the duplicate store is idempotent. For ratios
         // that divide kBlockM this reduces to (kBlockQ_dyn-1), a no-op.
-        const index_t last_tile_row_q_off = (kBlockM - 1) / num_queries_per_kv;
-        const index_t swa_right_extra =
+        [[maybe_unused]] const index_t last_tile_row_q_off =
+            (kBlockM - 1) / num_queries_per_kv;
+        [[maybe_unused]] const index_t swa_right_extra =
             (FmhaMask::IsLocal && kargs.window_size_right > 0) ? kargs.window_size_right : 0;
-        index_t _max_seq_prefix_len = amd_wave_read_first_lane(
-            (context_len + q_block_local_idx * kBlockQ_dyn + last_tile_row_q_off + 1 +
-             swa_right_extra));
-
-        if(seq_len < _max_seq_prefix_len)
+        index_t _max_seq_prefix_len;
+        if constexpr(FmhaMask::IsMasking)
         {
+            _max_seq_prefix_len = amd_wave_read_first_lane(
+                (context_len + q_block_local_idx * kBlockQ_dyn + last_tile_row_q_off + 1 +
+                 swa_right_extra));
+
+            if(seq_len < _max_seq_prefix_len)
+            {
+                _max_seq_prefix_len = seq_len;
+            }
+        }
+        else
+        {
+            // Non-causal (mask_type=0): attention is bidirectional, so every
+            // query tile attends to the *entire* KV sequence. The causal
+            // prefix horizon above would clip the KV loop to each tile's
+            // diagonal and silently compute causal results, so for the
+            // unmasked kernel the envelope is the full sequence length.
             _max_seq_prefix_len = seq_len;
         }
 
@@ -512,6 +533,27 @@ struct UnifiedAttentionKernel
         const VDataType* v_ptr = reinterpret_cast<const VDataType*>(kargs.v_ptr) + kv_head_offset;
         ODataType* o_ptr       = reinterpret_cast<ODataType*>(kargs.o_ptr) + o_ptr_offset;
 
+        // Contiguous (THD) KV: fold this sequence's KV start token into the K/V
+        // base pointer (the paged path instead resolves it per tile through
+        // block_tables). After this the pipeline addresses KV tokens linearly
+        // from the sequence base — see UnifiedAttentionPipeline::kIsPaged.
+        if constexpr(!UnifiedAttentionPipeline::kIsPaged)
+        {
+            const long_index_t kv_start_token =
+                static_cast<long_index_t>(kargs.kv_start_len_ptr[seq_idx]);
+            k_ptr += kv_start_token * static_cast<long_index_t>(kargs.stride_k_cache_1);
+            v_ptr += kv_start_token * static_cast<long_index_t>(kargs.stride_v_cache_1);
+        }
+        // Row count bounding the K/V buffer view. Paged: the whole physical
+        // cache (num_blks * page_size). Contiguous: just this sequence's KV
+        // length, so the hardware buffer bound masks the over-read past
+        // seq_len that the last tile would otherwise issue (no page boundary
+        // confines it in the contiguous layout).
+        const long_index_t kv_cache_rows =
+            UnifiedAttentionPipeline::kIsPaged
+                ? static_cast<long_index_t>(kargs.num_blks) * kargs.page_size
+                : static_cast<long_index_t>(seq_len);
+
         index_t query_len_padded = amd_wave_read_first_lane(
             integer_divide_ceil(cur_batch_query_len, kBlockQ_dyn) * kBlockQ_dyn);
         // const bool is_query_len_padded = (cur_batch_query_len % kBlockQ_dyn == 0);
@@ -560,7 +602,7 @@ struct UnifiedAttentionKernel
             // when row * stride exceeds 2^31 (happens at ~66K blocks for d64/GQA-8).
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(static_cast<long_index_t>(kargs.num_blks) * kargs.page_size,
+                make_tuple(kv_cache_rows,
                            static_cast<long_index_t>(kHeadDim)),
                 make_tuple(static_cast<long_index_t>(kargs.stride_k_cache_1),
                            static_cast<long_index_t>(kargs.stride_k_cache_3)),
@@ -581,7 +623,7 @@ struct UnifiedAttentionKernel
         const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 v_ptr,
-                make_tuple(static_cast<long_index_t>(kargs.num_blks) * kargs.page_size,
+                make_tuple(kv_cache_rows,
                            static_cast<long_index_t>(kHeadDim)),
                 make_tuple(static_cast<long_index_t>(kargs.stride_v_cache_1),
                            static_cast<long_index_t>(kargs.stride_v_cache_3)),
