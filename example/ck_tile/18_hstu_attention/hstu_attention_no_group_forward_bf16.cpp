@@ -19,23 +19,21 @@ void hstu_attention_no_group_forward_bf16(HstuAttentionNoGroupFwdParams& param, 
                 if constexpr(kUseSoftmax || !kStoreLSE)
                 {
                     if(param.is_jagged)
-                        run_jagged_forward_causal_softmax_bias_dropout_dispatch<
-                            ck_tile::bf16_t,
-                            kUseCausal,
-                            kUseSoftmax,
-                            kStoreLSE,
-                            kHasBias,
-                            false, // kHasDropout
-                            MaxK>(param, stream);
+                        run_jagged_forward_dispatch<ck_tile::bf16_t,
+                                                    kUseCausal,
+                                                    kUseSoftmax,
+                                                    kStoreLSE,
+                                                    kHasBias,
+                                                    false, // kHasDropout
+                                                    MaxK>(param, stream);
                     else
-                        run_batched_forward_causal_softmax_bias_dropout_dispatch<
-                            ck_tile::bf16_t,
-                            kUseCausal,
-                            kUseSoftmax,
-                            kStoreLSE,
-                            kHasBias,
-                            false, // kHasDropout
-                            MaxK>(param, stream);
+                        run_batched_forward_dispatch<ck_tile::bf16_t,
+                                                     kUseCausal,
+                                                     kUseSoftmax,
+                                                     kStoreLSE,
+                                                     kHasBias,
+                                                     false, // kHasDropout
+                                                     MaxK>(param, stream);
                 }
             });
         });

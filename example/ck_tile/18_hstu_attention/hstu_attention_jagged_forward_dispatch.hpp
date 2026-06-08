@@ -32,7 +32,7 @@ template <typename InOutDataType,
           bool kHasDropout,
           ck_tile::index_t MaxK,
           ck_tile::index_t MTile>
-struct jagged_forward_causal_softmax_bias_dropout_dispatch
+struct jagged_forward_dispatch
 {
     using HstuAttentionTileSetting =
         typename std::conditional_t<kUseSoftmax,
@@ -183,18 +183,17 @@ template <typename InOutDataType,
           bool kHasBias,
           bool kHasDropout,
           ck_tile::index_t MaxK>
-void run_jagged_forward_causal_softmax_bias_dropout_dispatch(HstuAttentionNoGroupFwdParams& param,
-                                                             hipStream_t stream)
+void run_jagged_forward_dispatch(HstuAttentionNoGroupFwdParams& param, hipStream_t stream)
 {
     if(get_hstu_attention_fwd_mtile(param.num_batch, param.num_head, param.max_seqlen_q) == 128)
-        jagged_forward_causal_softmax_bias_dropout_dispatch<InOutDataType,
-                                                            kUseCausal,
-                                                            kUseSoftmax,
-                                                            kStoreLSE,
-                                                            kHasBias,
-                                                            kHasDropout,
-                                                            MaxK,
-                                                            128>::Run(param, stream);
+        jagged_forward_dispatch<InOutDataType,
+                                kUseCausal,
+                                kUseSoftmax,
+                                kStoreLSE,
+                                kHasBias,
+                                kHasDropout,
+                                MaxK,
+                                128>::Run(param, stream);
     else
     {
         const bool disable_fwd_splitkv = []() {
@@ -207,23 +206,23 @@ void run_jagged_forward_causal_softmax_bias_dropout_dispatch(HstuAttentionNoGrou
         if(!disable_fwd_splitkv &&
            shall_use_splitkv(param.num_batch, param.num_head, param.max_seqlen_q))
         {
-            jagged_forward_splitkv_causal_softmax_bias_dropout_dispatch<InOutDataType,
-                                                                        kUseCausal,
-                                                                        kUseSoftmax,
-                                                                        kStoreLSE,
-                                                                        kHasBias,
-                                                                        kHasDropout,
-                                                                        MaxK,
-                                                                        64>::Run(param, stream);
+            jagged_forward_splitkv_dispatch<InOutDataType,
+                                            kUseCausal,
+                                            kUseSoftmax,
+                                            kStoreLSE,
+                                            kHasBias,
+                                            kHasDropout,
+                                            MaxK,
+                                            64>::Run(param, stream);
         }
         else
-            jagged_forward_causal_softmax_bias_dropout_dispatch<InOutDataType,
-                                                                kUseCausal,
-                                                                kUseSoftmax,
-                                                                kStoreLSE,
-                                                                kHasBias,
-                                                                kHasDropout,
-                                                                MaxK,
-                                                                64>::Run(param, stream);
+            jagged_forward_dispatch<InOutDataType,
+                                    kUseCausal,
+                                    kUseSoftmax,
+                                    kStoreLSE,
+                                    kHasBias,
+                                    kHasDropout,
+                                    MaxK,
+                                    64>::Run(param, stream);
     };
 };

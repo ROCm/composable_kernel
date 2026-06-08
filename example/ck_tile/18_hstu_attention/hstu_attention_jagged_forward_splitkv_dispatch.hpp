@@ -36,7 +36,7 @@ template <typename InOutDataType,
           bool kHasDropout,
           ck_tile::index_t MaxK,
           ck_tile::index_t MTile>
-struct jagged_forward_splitkv_causal_softmax_bias_dropout_dispatch
+struct jagged_forward_splitkv_dispatch
 {
     static_assert(MTile == 64, "MTile must be 64 to get to fwd splitkv path!");
 
