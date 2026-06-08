@@ -350,6 +350,28 @@ def _bf16_to_float32(arr: np.ndarray) -> np.ndarray:
     return (arr.astype(np.uint32) << 16).view(np.float32)
 
 
+def _validate_batch_prefill_input_dtypes(
+    api_family: str,
+    data_type: str,
+    Q: np.ndarray,
+    K: np.ndarray,
+    V: np.ndarray,
+) -> None:
+    """Reject mixed Q/KV storage dtypes that CK Tile cannot dispatch yet."""
+    if api_family != "batch_prefill" or data_type not in {"fp16", "bf16"}:
+        return
+
+    kv_uses_byte_storage = K.dtype == np.uint8 or V.dtype == np.uint8
+    if kv_uses_byte_storage:
+        raise ValueError(
+            "CK Tile batch_prefill does not yet support mixed Q/KV dtypes "
+            f"(requested Q/O data_type={data_type}, Q dtype={Q.dtype}, "
+            f"K dtype={K.dtype}, V dtype={V.dtype}). "
+            "The current dispatcher selects kernels from a single data_type token for Q, K, "
+            "and V; use an all-FP8 Q/K/V path such as fp8bf16, or quantize Q before calling."
+        )
+
+
 def cpu_attention_fwd(
     Q: np.ndarray,
     K: np.ndarray,
@@ -811,6 +833,8 @@ class FmhaRunner:
         Returns:
             FmhaResult with output array, timing, TFLOPS
         """
+        _validate_batch_prefill_input_dtypes(api_family, data_type, Q, K, V)
+
         # Map CK dtype to numpy dtype for buffer allocation.
         # bf16 is stored as uint16 (upper 16 bits of float32).
         # fp8 uses uint8 (1 byte per element).
