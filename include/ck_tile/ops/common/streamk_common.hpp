@@ -33,8 +33,12 @@ struct StreamKReductionOps
      */
     CK_TILE_DEVICE void SignalStorePartialDone(const KernelArgs_& kargs, index_t cta_idx) const
     {
-        auto* sk_flags_ptr = static_cast<index_t*>(kargs.workspace_ptr);
-        index_t offset     = cta_idx * sizeof(index_t);
+        // s_store_dword needs a wave-uniform (SGPR) address; kargs-by-ref can leave the pointer
+        // in a VGPR (instantiation-dependent), which the assembler rejects. Pull the (uniform)
+        // operands into SGPRs first.
+        auto* sk_flags_ptr = reinterpret_cast<index_t*>(
+            amd_wave_read_first_lane(reinterpret_cast<uintptr_t>(kargs.workspace_ptr)));
+        index_t offset = amd_wave_read_first_lane(cta_idx) * sizeof(index_t);
 
         // Depending on the architecture, the GLC flag will bypass the appropriate
         // cache level(s) to ensure the write is visible to other workgroups. See the
@@ -55,9 +59,11 @@ struct StreamKReductionOps
      */
     CK_TILE_DEVICE void WaitStorePartialDone(const KernelArgs_& kargs, index_t cta_idx) const
     {
-        auto* sk_flags_ptr = static_cast<index_t*>(kargs.workspace_ptr);
+        // s_load_dword needs a wave-uniform (SGPR) address (see SignalStorePartialDone).
+        auto* sk_flags_ptr = reinterpret_cast<index_t*>(
+            amd_wave_read_first_lane(reinterpret_cast<uintptr_t>(kargs.workspace_ptr)));
         index_t result;
-        index_t offset = cta_idx * sizeof(index_t);
+        index_t offset = amd_wave_read_first_lane(cta_idx) * sizeof(index_t);
 
         do
         {
