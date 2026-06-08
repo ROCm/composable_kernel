@@ -23,6 +23,11 @@ Target selection (--target):
   pipelines_smoke   Kernel types matching 'Pipelines'
                     -> includes test_gemm_streamk_reduction_cases.inc
                        and test_gemm_streamk_atomic_cases.inc
+
+Variant selection (--variant):
+  wmma              Only WMMA kernel types (suffix contains 'Wmma')
+  non-wmma          Only non-WMMA kernel types
+  all               Both WMMA and non-WMMA kernel types (default)
 """
 
 import argparse
@@ -53,12 +58,32 @@ TYPED_TEST_SUITE({class_name}, {type_alias});
 #undef TEST_SUITE_NAME
 """
 
+CPP_TEMPLATE_WMMA = """\
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
+#include "test_gemm_streamk_wmma_base.hpp"
+
+template <typename Tuple>
+class {class_name} : public TestCkTileStreamKWmma<Tuple>
+{{
+}};
+
+#define TEST_SUITE_NAME {class_name}
+
+TYPED_TEST_SUITE({class_name}, {type_alias});
+
+{inc_includes}
+
+#undef TEST_SUITE_NAME
+"""
+
 # --------------------------------------------------------------------------- #
 # Target definitions: filter predicate and .inc files
 # --------------------------------------------------------------------------- #
 TARGETS = {
     "extended": {
-        "filter": lambda suffix: "Atomic" in suffix or suffix == "Pipelines",
+        "filter": lambda suffix: "Atomic" in suffix or "Pipelines" in suffix,
         "inc_files": ["test_gemm_streamk_extended_cases.inc"],
     },
     "atomic_smoke": {
@@ -74,7 +99,7 @@ TARGETS = {
         "inc_files": ["test_gemm_streamk_reduction_cases.inc"],
     },
     "pipelines_smoke": {
-        "filter": lambda suffix: suffix == "Pipelines",
+        "filter": lambda suffix: "Pipelines" in suffix,
         "inc_files": [
             "test_gemm_streamk_reduction_cases.inc",
             "test_gemm_streamk_atomic_cases.inc",
@@ -102,6 +127,7 @@ KNOWN_TOKENS = [
     ("CompV3", "compv3"),
     ("Pipelines", "pipelines"),
     ("Regression", "regression"),
+    ("Wmma", "wmma"),
 ]
 
 
@@ -126,7 +152,9 @@ def suffix_to_file_tag(suffix: str) -> str:
     return "_".join(parts)
 
 
-def parse_types_header(header_path: str, target: str) -> list[dict]:
+def parse_types_header(
+    header_path: str, target: str, variant: str = "all"
+) -> list[dict]:
     """Return a list of dicts with keys: type_alias, class_name, file_tag, suffix."""
     target_def = TARGETS[target]
     # Pattern matches lines like: using KernelTypesStreamKFp16PersistentAtomicCompV3 = ...
@@ -136,13 +164,18 @@ def parse_types_header(header_path: str, target: str) -> list[dict]:
         for line in f:
             match = pattern.search(line)
             if match:
-                # If the match is: using KernelTypesStreamKFp16PersistentAtomicCompV3 = ...
-                # type_alias is KernelTypesStreamKFp16PersistentAtomicCompV3
-                # suffix is Fp16PersistentAtomicCompV3
                 type_alias = match.group(1)
                 suffix = match.group(2)
                 if not target_def["filter"](suffix):
                     continue
+
+                is_wmma = "Wmma" in suffix
+
+                if variant == "wmma" and not is_wmma:
+                    continue
+                if variant == "non-wmma" and is_wmma:
+                    continue
+
                 entries.append(
                     {
                         "type_alias": type_alias,
@@ -171,6 +204,12 @@ def parse_args() -> argparse.Namespace:
         choices=list(TARGETS.keys()),
         help="Which target to generate files for",
     )
+    parser.add_argument(
+        "--variant",
+        default="all",
+        choices=["wmma", "non-wmma", "all"],
+        help="Which variant to generate: wmma, non-wmma, or all (default: all)",
+    )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(
         "--list_files",
@@ -186,8 +225,15 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    entries = parse_types_header(args.types_header, args.target)
+    entries = parse_types_header(args.types_header, args.target, args.variant)
     if not entries:
+        if args.variant != "all":
+            # No matching types for this variant is not an error
+            if args.list_files:
+                os.makedirs(os.path.dirname(args.list_files) or ".", exist_ok=True)
+                with open(args.list_files, "w") as f:
+                    pass  # empty file
+            return
         print(
             f"ERROR: no KernelTypesStreamK* definitions found for target "
             f"'{args.target}' in {args.types_header}",
@@ -207,7 +253,11 @@ def main() -> None:
         os.makedirs(args.output_dir, exist_ok=True)
         for entry in entries:
             path = output_path(args.output_dir, entry)
-            content = CPP_TEMPLATE.format(
+            # Use WMMA template if "Wmma" is in the type alias
+            template = (
+                CPP_TEMPLATE_WMMA if "Wmma" in entry["type_alias"] else CPP_TEMPLATE
+            )
+            content = template.format(
                 class_name=entry["class_name"],
                 type_alias=entry["type_alias"],
                 inc_includes=inc_includes,

@@ -202,4 +202,74 @@ using KernelTypesStreamKRegression = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,        I256,        I256,        I32,         I32,       I32,       I16,     Persistent,      CompV3,   Atomic>,
     std::tuple<    Col,     Col,     Row,       BF16,      BF16,        F32,       BF16,        I256,        I256,        I32,         I32,       I32,       I16,     Persistent,      CompV3,   Atomic>
 >;
+// ========================== WMMA Variants ==========================
+
+// Linear WMMA - Persistent
+using KernelTypesStreamKFp16PersistentLinearCompV3Wmma = ::testing::Types<
+//                ALayout  BLayout  CLayout   ADataType  BDataType  AccDataType  CDataType  M_MacroTile  N_MacroTile  K_MacroTile  M_WaveTile  N_WaveTile  K_WaveTile  Persistent    Pipeline  ReductionStrategy
+
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     Persistent,   CompV3,   Linear>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     Persistent,   CompV3,   Linear>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     Persistent,   CompV3,   Linear>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     Persistent,   CompV3,   Linear>
+>;
+
+using KernelTypesStreamKBf16PersistentLinearCompV3Wmma = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,         I256,        I256,        I32,         I16,       I16,       I16,    Persistent,   CompV3,   Linear>
+>;
+
+// Linear WMMA - NonPersistent
+using KernelTypesStreamKFp16NonPersistentLinearCompV3Wmma = ::testing::Types<
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     NonPersistent,   CompV3,   Linear>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     NonPersistent,   CompV3,   Linear>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     NonPersistent,   CompV3,   Linear>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     NonPersistent,   CompV3,   Linear>
+>;
+
+using KernelTypesStreamKBf16NonPersistentLinearCompV3Wmma = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,         I256,        I256,        I32,         I16,       I16,       I16,    NonPersistent,   CompV3,   Linear>
+>;
+
+// Tree WMMA - Persistent
+using KernelTypesStreamKFp16PersistentTreeCompV3Wmma = ::testing::Types<
+//                ALayout  BLayout  CLayout   ADataType  BDataType  AccDataType  CDataType  M_MacroTile  N_MacroTile  K_MacroTile  M_WaveTile  N_WaveTile  K_WaveTile  Persistent    Pipeline  ReductionStrategy
+
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     Persistent,   CompV3,   Tree>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     Persistent,   CompV3,   Tree>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     Persistent,   CompV3,   Tree>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     Persistent,   CompV3,   Tree>
+>;
+
+using KernelTypesStreamKBf16PersistentTreeCompV3Wmma = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,         I256,        I256,        I32,         I16,       I16,       I16,    Persistent,   CompV3,   Tree>
+>;
+
+// Tree WMMA - NonPersistent
+using KernelTypesStreamKFp16NonPersistentTreeCompV3Wmma = ::testing::Types<
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     NonPersistent,   CompV3,   Tree>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     NonPersistent,   CompV3,   Tree>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     NonPersistent,   CompV3,   Tree>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     NonPersistent,   CompV3,   Tree>
+>;
+
+using KernelTypesStreamKBf16NonPersistentTreeCompV3Wmma = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,         I256,        I256,        I32,         I16,       I16,       I16,    NonPersistent,   CompV3,   Tree>
+>;
+
+// Pipelines WMMA
+using KernelTypesStreamKPipelinesWmma = ::testing::Types<
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     Persistent,      Mem,      Atomic>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     NonPersistent,   Mem,      Tree>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     Persistent,      Mem,      Linear>,
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     Persistent,      CompV4,   Atomic>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     NonPersistent,   CompV4,   Tree>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,         I256,        I256,        I32,         I16,       I16,       I16,     Persistent,      CompV4,   Linear>
+>;
+
+// Regression Wmma
+
+using KernelTypesStreamKRegressionWmma = ::testing::Types<
+    std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       BF16,        I256,        I256,        I32,         I16,       I16,       I16,     Persistent,      CompV3,   Atomic>,
+    std::tuple<    Col,     Col,     Row,       BF16,      BF16,        F32,       BF16,        I256,        I256,        I32,         I16,       I16,       I16,     Persistent,      CompV3,   Atomic>
+>;
 // clang-format on

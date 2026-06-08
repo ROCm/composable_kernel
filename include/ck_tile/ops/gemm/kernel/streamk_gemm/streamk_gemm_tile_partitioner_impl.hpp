@@ -60,7 +60,7 @@ CK_TILE_HOST_DEVICE index_t
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_flags_buffer_size()
     const noexcept
 {
-    constexpr index_t alignment  = 128;
+    constexpr index_t alignment  = 256;
     const index_t required_bytes = sizeof(index_t) * sk_ctas_;
     const index_t padded_bytes   = ck_tile::integer_least_multiple(required_bytes, alignment);
     return padded_bytes;

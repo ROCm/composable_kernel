@@ -43,7 +43,7 @@ struct StreamKTilePartitionerBase
 
     /**
      * @brief Calculates the total space needed for the flags buffer whose total byte size is
-     * 128B-aligned.
+     * 256B-aligned.
      *
      * @return index_t The number of bytes needed for the flags buffer.
      */

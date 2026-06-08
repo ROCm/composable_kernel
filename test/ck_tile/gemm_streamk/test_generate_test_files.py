@@ -71,6 +71,15 @@ class TestSuffixToFileTag(unittest.TestCase):
     def test_regression_token(self):
         suffix = "Regression"
         expected_tag = "regression"
+
+    def test_wmma_token(self):
+        suffix = "Wmma"
+        expected_tag = "wmma"
+        self.assertEqual(suffix_to_file_tag(suffix), expected_tag)
+
+    def test_wmma_combined_suffix(self):
+        suffix = "Fp16PersistentLinearCompV3Wmma"
+        expected_tag = "fp16_persistent_linear_compv3_wmma"
         self.assertEqual(suffix_to_file_tag(suffix), expected_tag)
 
     def test_unknown_token(self):
@@ -230,6 +239,67 @@ class TestParseTypesHeader(unittest.TestCase):
                 }
             ]
             self.validate_entries(entries, expected)
+
+
+class TestVariantFiltering(unittest.TestCase):
+    MOCK_CONTENT = (
+        "using KernelTypesStreamKFp16PersistentLinearCompV3 = ...\n"
+        "using KernelTypesStreamKFp16PersistentLinearCompV3Wmma = ...\n"
+        "using KernelTypesStreamKBf16NonPersistentLinearCompV3 = ...\n"
+        "using KernelTypesStreamKBf16NonPersistentLinearCompV3Wmma = ...\n"
+    )
+
+    def test_variant_all(self):
+        """Default variant returns both WMMA and non-WMMA types."""
+        with patch("builtins.open", mock_open(read_data=self.MOCK_CONTENT)):
+            entries = parse_types_header("fake.hpp", "linear_smoke", "all")
+            aliases = [e["type_alias"] for e in entries]
+            self.assertEqual(len(entries), 4)
+            self.assertIn("KernelTypesStreamKFp16PersistentLinearCompV3", aliases)
+            self.assertIn("KernelTypesStreamKFp16PersistentLinearCompV3Wmma", aliases)
+
+    def test_variant_wmma(self):
+        """WMMA variant returns only WMMA types."""
+        with patch("builtins.open", mock_open(read_data=self.MOCK_CONTENT)):
+            entries = parse_types_header("fake.hpp", "linear_smoke", "wmma")
+            aliases = [e["type_alias"] for e in entries]
+            self.assertEqual(len(entries), 2)
+            self.assertTrue(all("Wmma" in a for a in aliases))
+
+    def test_variant_non_wmma(self):
+        """Non-WMMA variant excludes WMMA types."""
+        with patch("builtins.open", mock_open(read_data=self.MOCK_CONTENT)):
+            entries = parse_types_header("fake.hpp", "linear_smoke", "non-wmma")
+            aliases = [e["type_alias"] for e in entries]
+            self.assertEqual(len(entries), 2)
+            self.assertTrue(all("Wmma" not in a for a in aliases))
+
+    def test_pipelines_wmma_variant(self):
+        """Pipelines target with wmma variant matches PipelinesWmma."""
+        mock = (
+            "using KernelTypesStreamKPipelines = ...\n"
+            "using KernelTypesStreamKPipelinesWmma = ...\n"
+        )
+        with patch("builtins.open", mock_open(read_data=mock)):
+            entries = parse_types_header("fake.hpp", "pipelines_smoke", "wmma")
+            self.assertEqual(len(entries), 1)
+            self.assertEqual(
+                entries[0]["type_alias"], "KernelTypesStreamKPipelinesWmma"
+            )
+
+    def test_extended_includes_wmma(self):
+        """Extended target includes WMMA variants of Atomic and Pipelines."""
+        mock = (
+            "using KernelTypesStreamKFp16PersistentAtomic = ...\n"
+            "using KernelTypesStreamKFp16PersistentAtomicWmma = ...\n"
+            "using KernelTypesStreamKPipelines = ...\n"
+            "using KernelTypesStreamKPipelinesWmma = ...\n"
+        )
+        with patch("builtins.open", mock_open(read_data=mock)):
+            entries = parse_types_header("fake.hpp", "extended", "wmma")
+            aliases = [e["type_alias"] for e in entries]
+            self.assertEqual(len(entries), 2)
+            self.assertTrue(all("Wmma" in a for a in aliases))
 
 
 class TestOutputPath(unittest.TestCase):

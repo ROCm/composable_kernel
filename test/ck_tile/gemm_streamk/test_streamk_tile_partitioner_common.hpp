@@ -221,7 +221,7 @@ struct StreamKTilePartitionerBaseConfigDP2TileSK : public StreamKTilePartitioner
     static constexpr ck_tile::index_t N = 4;
     static constexpr ck_tile::index_t K = 16;
     // The minimum number of bytes needed for the flags array is MAX_ACTIVE_WGS * 4B = 3 * 4B = 12B.
-    // To ensure the total byte size of the array is 128B-aligned, the flags array must be 128B.
+    // To ensure the total byte size of the array is 256B-aligned, the flags array must be 256B.
     static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 3;
 
     static constexpr ck_tile::index_t M_TILE = 4;
@@ -233,15 +233,15 @@ struct StreamKTilePartitionerBaseConfigDP2TileSK : public StreamKTilePartitioner
                                              ck_tile::sequence<UNUSED, UNUSED, UNUSED>>;
 };
 
-struct StreamKTilePartitionerBaseConfigFlagsSizeEqual128Bytes
+struct StreamKTilePartitionerBaseConfigFlagsSizeEqual256Bytes
     : public StreamKTilePartitionerBaseConfig
 {
     static constexpr ck_tile::index_t M = 28;
     static constexpr ck_tile::index_t N = 4;
     static constexpr ck_tile::index_t K = 32;
-    // The minimum number of bytes needed for the flags array is MAX_ACTIVE_WGS * 4B = 32 * 4B =
-    // 128B. So, the number of bytes for the flags array should be 128B.
-    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 32;
+    // The minimum number of bytes needed for the flags array is MAX_ACTIVE_WGS * 4B = 64 * 4B =
+    // 256B. So, the number of bytes for the flags array should be 256B.
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 64;
 
     static constexpr ck_tile::index_t M_TILE = 4;
     static constexpr ck_tile::index_t N_TILE = 4;
@@ -252,16 +252,16 @@ struct StreamKTilePartitionerBaseConfigFlagsSizeEqual128Bytes
                                              ck_tile::sequence<UNUSED, UNUSED, UNUSED>>;
 };
 
-struct StreamKTilePartitionerBaseConfigFlagsSizeGreaterThan128Bytes
+struct StreamKTilePartitionerBaseConfigFlagsSizeGreaterThan256Bytes
     : public StreamKTilePartitionerBaseConfig
 {
     static constexpr ck_tile::index_t M = 28;
     static constexpr ck_tile::index_t N = 4;
     static constexpr ck_tile::index_t K = 33;
-    // The minimum number of bytes needed for the flags array is MAX_ACTIVE_WGS * 4B = 33 * 4B =
-    // 132B. So, the number of bytes for the flags array should be 2 * 128B = 256B to ensure the
-    // total byte size of the array is 128B-aligned.
-    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 33;
+    // The minimum number of bytes needed for the flags array is MAX_ACTIVE_WGS * 4B = 65 * 4B =
+    // 260B. So, the number of bytes for the flags array should be 2 * 256B = 512B to ensure the
+    // total byte size of the array is 256B-aligned.
+    static constexpr ck_tile::index_t MAX_ACTIVE_WGS = 65;
 
     static constexpr ck_tile::index_t M_TILE = 4;
     static constexpr ck_tile::index_t N_TILE = 4;
