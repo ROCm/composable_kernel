@@ -7,6 +7,7 @@
 #include "ck/tensor_description/tensor_adaptor.hpp"
 #include "ck/tensor_operation/gpu/thread/threadwise_tensor_slice_transfer.hpp"
 #include "ck/tensor_operation/gpu/warp/dpp_gemm.hpp"
+#include "ck/utility/thread_buf_to_vec_loader.hpp"
 
 namespace ck {
 
@@ -289,12 +290,28 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
                     vector_type<ABDataType, KPack> a_thread_vec;
                     vector_type<ABDataType, KPack> b_thread_vec;
 
-                    static_for<0, KPack, 1>{}([&](auto i) {
-                        a_thread_vec.template AsType<ABDataType>()(i) = a_thread_buf
-                            [Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
-                        b_thread_vec.template AsType<ABDataType>()(i) = b_thread_buf
-                            [Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{}];
-                    });
+                    auto loadA = thread_buf_to_vec_loader<
+                        decltype(a_thread_vec),
+                        decltype(a_thread_buf),
+                        decltype(a_thread_desc_),
+                        ABDataType,
+                        Number<0>,
+                        Number<0>,
+                        Number<0>,
+                        index_expression::Add<index_expression::Ik, decltype(k)>>{a_thread_vec,
+                                                                                  a_thread_buf};
+                    auto loadB = thread_buf_to_vec_loader<
+                        decltype(b_thread_vec),
+                        decltype(b_thread_buf),
+                        decltype(b_thread_desc_),
+                        ABDataType,
+                        Number<0>,
+                        Number<0>,
+                        Number<0>,
+                        index_expression::Add<index_expression::Ik, decltype(k)>>{b_thread_vec,
+                                                                                  b_thread_buf};
+
+                    static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA, loadB));
 
                     using dpp_input_type =
                         typename vector_type<ABDataType, dpp_gemm.K1PerDpp>::type;
