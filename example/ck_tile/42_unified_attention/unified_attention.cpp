@@ -68,6 +68,21 @@ static bool ua_prefill_fallback_enabled()
     return enabled;
 }
 
+// Diagnostic A/B knob: force every dispatch onto the PageSize=0 runtime
+// (non-strength-reduced) address path even when a compile-time-pinned
+// page-size instance exists. Lets us measure the address-op win of the
+// ps16/32/64/128 menu (esp. the new ps128 decode instances) on identical
+// shapes without recompiling. OFF by default (uses the pinned instances).
+//   AITER_UA_FORCE_RUNTIME_PS=1  -> always dispatch PageSize=0
+static bool ua_force_runtime_ps_enabled()
+{
+    static const bool enabled = [] {
+        const char* e = std::getenv("AITER_UA_FORCE_RUNTIME_PS");
+        return e != nullptr && e[0] != '\0' && e[0] != '0';
+    }();
+    return enabled;
+}
+
 KernelConfig select_config(const unified_attention_args& args)
 {
     KernelConfig cfg;
@@ -221,6 +236,9 @@ template <KernelVariant V,
 std::pair<bool, float> dispatch_page_size(const unified_attention_args& args,
                                           const stream_config& config)
 {
+    if(ua_force_runtime_ps_enabled())
+        return dispatch_one<V, DType, IsMask, 0>(args, config);
+
     if constexpr(V == KernelVariant::prefill_d128 ||
                  V == KernelVariant::prefill_d64)
     {
@@ -232,11 +250,31 @@ std::pair<bool, float> dispatch_page_size(const unified_attention_args& args,
             default: return dispatch_one<V, DType, IsMask, 0>(args, config);
         }
     }
+    else if constexpr((V == KernelVariant::decode_d128_m128 ||
+                       V == KernelVariant::decode_d128_m32 ||
+                       V == KernelVariant::decode_d128_m16) &&
+                      DType == unified_attention_args::data_type_enum::bf16)
+    {
+        // page_size=128 decode menu (d128, bf16). Even though the decode tiers
+        // skip the 8-warp Tier-0/Tier-2 scalar-promote gate, pinning page_size
+        // at compile time still collapses every `/ page_size`, `% page_size`,
+        // `* page_size` in the per-tile address chain to a shift/mask (the
+        // div-by-128 -> `shr 7`), which the profile flagged as the dominant
+        // SALU cost. Compiled only for ps=128 here so we can A/B the decode
+        // address-op win and compare to the legacy split-KV kernel (which
+        // requires page_size % 128 == 0) on equal footing. Other page sizes
+        // and dtypes fall through to the runtime-page-size catch-all.
+        switch(args.page_blk_size)
+        {
+            case 128: return dispatch_one<V, DType, IsMask, 128>(args, config);
+            default:  return dispatch_one<V, DType, IsMask, 0>(args, config);
+        }
+    }
     else
     {
-        // Decode variants stay on the runtime-page-size path — they don't
-        // benefit from the Tier-0/Tier-2 gate (too few warps for the scalar-
-        // promote payoff) and the binary-size cost isn't justified.
+        // Remaining decode variants stay on the runtime-page-size path — they
+        // don't benefit from the Tier-0/Tier-2 gate (too few warps for the
+        // scalar-promote payoff) and the binary-size cost isn't justified yet.
         return dispatch_one<V, DType, IsMask, 0>(args, config);
     }
 }

@@ -407,6 +407,14 @@ class FmhaFwdPipeline:
             n += "_nqscale"
 
         n += "_" + self.F_kv_memory_layout + "_" + self.F_kv_lookup_table
+        # StreamLLM sink token. These batch-prefill pipelines have no sink
+        # dimension (always no-sink), but the aiter JIT filter
+        # (cmdGenFunc_mha_batch_prefill, PR #2794) appends `_nsink*`/`_sink*`
+        # to the kernel filter. Without a sink token in the generated name the
+        # fnmatch matches zero kernels → empty dispatcher. The C++ inner
+        # dispatch never keys on has_sink, so emitting `_nsink` here is purely
+        # to satisfy the filter and is semantically correct (no-sink).
+        n += "_nsink"
         return n
 
 

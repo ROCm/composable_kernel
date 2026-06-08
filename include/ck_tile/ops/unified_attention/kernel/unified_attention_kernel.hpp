@@ -447,8 +447,33 @@ struct UnifiedAttentionKernel
         index_t num_blocks = total_num_kv_blocks;
         if(kargs.num_splits > 1)
         {
-            const index_t blocks_per_split =
-                ck_tile::max(index_t(1), (total_num_kv_blocks + kargs.num_splits - 1) / kargs.num_splits);
+            // The split PARTITION (blocks_per_split + start) must be identical
+            // across every query tile of this sequence. With a GQA pack where
+            // kBlockM % num_queries_per_kv != 0 (e.g. d=128, qpkv=6) the tile's
+            // last 1-2 MFMA rows spill into the *next* query tile's first token,
+            // so that token is co-owned: query tile N (spill row) and tile N+1
+            // (real row) both store the same (token, split) workspace slot.
+            //
+            // Deriving blocks_per_split from the *per-tile causal* horizon
+            // (total_num_kv_blocks, which grows with q_block_local_idx) makes
+            // split s cover a different KV-block range in tile N vs tile N+1.
+            // The two co-owned stores then hold partials computed over different
+            // ranges and race non-deterministically -> a ~1-row error on the
+            // tile-boundary token (observed only under split-KV + causal +
+            // non-dividing GQA ratio; MHA and ratios that divide kBlockM are
+            // immune because no token is shared across tiles).
+            //
+            // Fix: partition over the causal-INDEPENDENT full sequence block
+            // count so split s maps to the same blocks in every tile, then clamp
+            // only the END by the per-tile causal horizon. The extra blocks an
+            // earlier tile would skip are fully masked per-pixel for the shared
+            // token, so both co-owned stores compute the identical partial and
+            // the duplicate store is idempotent again. For num_splits == 1 this
+            // path is not taken, so the non-split behaviour is unchanged.
+            const index_t full_num_kv_blocks =
+                amd_wave_read_first_lane((seq_len + kPageBlockSize - 1) / kPageBlockSize);
+            const index_t blocks_per_split = ck_tile::max(
+                index_t(1), (full_num_kv_blocks + kargs.num_splits - 1) / kargs.num_splits);
             num_blocks_start = ck_tile::min(blocks_per_split * i_split, total_num_kv_blocks);
             num_blocks       = ck_tile::min(blocks_per_split * (i_split + 1), total_num_kv_blocks);
             if(num_blocks_start >= num_blocks)
