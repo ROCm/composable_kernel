@@ -564,7 +564,16 @@ struct UnifiedAttentionPipeline
         decltype(make_static_distributed_tensor<QDataType>(
             Policy::template MakeQRegTileDistribution<Problem>())) q_tile;
 
-        union kv_tile_type
+        // NOTE: k_tile / v_tile were historically a *union* to save VGPRs. But
+        // occupancy here is LDS-bound (48KB/WG -> 1 WG/CU regardless), so the
+        // union bought no occupancy yet forced a hard serialization: K_lds_load
+        // writes the same VGPRs the PV MFMA reads (v_tile), so the K ds_read
+        // could not start until the PV MFMA fully retired -> full LDS latency
+        // exposed at the QK-gemm's s_waitcnt_lgkmcnt<0> (ATT: ~half of memwait).
+        // Separate tiles let the K ds_read execute on the LSU *concurrently*
+        // with the PV MFMA (it stays at the same program point, so the
+        // cooperative-load residency slack is preserved -- see fa4_matrix).
+        struct kv_tile_type
         {
             CK_TILE_DEVICE kv_tile_type() {}
 
@@ -2200,7 +2209,15 @@ struct UnifiedAttentionPipeline
 
                 s_waitcnt_lgkmcnt<0>(); // wait the hoisted fa4_vload(pi)
                 gemm(pv_sp, gemm1);     // o_acc += P(pi) @ V(k-1)
-                K_lds_load(k_rd);       // K read overlaps the PV MFMA
+                // K read into its OWN registers (kv_tile no longer a union), so
+                // this ds_read executes on the LSU *during* the PV MFMA above
+                // instead of waiting for it to retire. The sched_barrier pins it
+                // here (program order) so it is NOT hoisted above the PV gemm --
+                // that would race the partner WG's cooperative K load and
+                // corrupt long contexts (the residency hazard documented above).
+                __builtin_amdgcn_sched_barrier(0);
+                K_lds_load(k_rd); // overlaps the PV MFMA (latency hidden)
+                __builtin_amdgcn_sched_barrier(0);
                 s_waitcnt_lgkmcnt<0>();
                 gemm(qk_sp, gemm0); // sp(1-pi).sp_compute = Q @ K(k)
             };
