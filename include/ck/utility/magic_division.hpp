@@ -156,6 +156,85 @@ struct MagicDivision
         uint32_t tmp          = static_cast<uint64_t>(dividend_u32) * multiplier >> 32;
         return (tmp + dividend_u32) >> shift;
     }
+
+    // 64-bit magic number computation for a 32-bit divisor.
+    // Returns a (uint64_t multiplier, uint32_t shift) pair such that:
+    //   floor(dividend / divisor) == (umulhi64(dividend, multiplier) + dividend) >> shift
+    // for any uint64_t dividend, provided divisor >= 1 and divisor <= INT32_MAX.
+    // The ConvBwdDataImplicitGemmOutTransform struct is always constructed on the host,
+    // so the __uint128_t arithmetic below is only ever executed on the host side.
+    __host__ __device__ static constexpr auto CalculateMagicNumbers64(uint32_t divisor)
+    {
+        uint64_t out_multiplier = 0;
+        uint32_t out_shift      = 0;
+
+        if(divisor >= 1 && divisor <= ck::NumericLimits<int32_t>::Max())
+        {
+            uint32_t shift = 0;
+            for(shift = 0; shift < 64; ++shift)
+            {
+                if((uint64_t{1} << shift) >= divisor)
+                {
+                    break;
+                }
+            }
+            out_shift = shift;
+
+// __uint128_t is only available on host (CPU) compilers.
+// On device, this path is never actually invoked at runtime because
+// ConvBwdDataImplicitGemmOutTransform is always constructed on the host.
+#ifndef __HIP_DEVICE_COMPILE__
+            __uint128_t one = 1;
+            out_multiplier  = uint64_t(((one << 64) * ((one << shift) - divisor)) / divisor + 1);
+#endif
+        }
+
+        return make_tuple(out_multiplier, out_shift);
+    }
+
+    __host__ __device__ static constexpr uint64_t CalculateMagicMultiplier64(uint32_t divisor)
+    {
+        auto tmp = CalculateMagicNumbers64(divisor);
+        return tmp[Number<0>{}];
+    }
+
+    __host__ __device__ static constexpr uint32_t CalculateMagicShift64(uint32_t divisor)
+    {
+        auto tmp = CalculateMagicNumbers64(divisor);
+        return tmp[Number<1>{}];
+    }
+
+    // magic division for uint64_t dividend using 64-bit magic multiplier
+    __device__ static constexpr uint64_t
+    DoMagicDivision(uint64_t dividend, uint64_t multiplier, uint32_t shift)
+    {
+        uint64_t tmp = __umul64hi(dividend, multiplier);
+        return (tmp + dividend) >> shift;
+    }
+
+    __host__ static constexpr uint64_t
+    DoMagicDivision(uint64_t dividend, uint64_t multiplier, uint32_t shift)
+    {
+        uint64_t tmp = static_cast<__uint128_t>(dividend) * multiplier >> 64;
+        return (tmp + dividend) >> shift;
+    }
+
+    // magic division for int64_t dividend (dividend must be non-negative)
+    __device__ static constexpr int64_t
+    DoMagicDivision(int64_t dividend_i64, uint64_t multiplier, uint32_t shift)
+    {
+        uint64_t dividend_u64 = static_cast<uint64_t>(dividend_i64);
+        uint64_t tmp          = __umul64hi(dividend_u64, multiplier);
+        return static_cast<int64_t>((tmp + dividend_u64) >> shift);
+    }
+
+    __host__ static constexpr int64_t
+    DoMagicDivision(int64_t dividend_i64, uint64_t multiplier, uint32_t shift)
+    {
+        uint64_t dividend_u64 = static_cast<uint64_t>(dividend_i64);
+        uint64_t tmp          = static_cast<__uint128_t>(dividend_u64) * multiplier >> 64;
+        return static_cast<int64_t>((tmp + dividend_u64) >> shift);
+    }
 };
 
 struct MDiv
