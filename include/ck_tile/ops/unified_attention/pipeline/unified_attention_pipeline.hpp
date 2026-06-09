@@ -224,10 +224,18 @@ struct UnifiedAttentionPipeline
     // ... together with tensor distribution. tensor dist should able to overwrite this
     static constexpr ck_tile::index_t kAlignmentQ =
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentQ<Problem>();
+    // The DRAM-view vector length must match the K/V load distribution's
+    // KVector, which the FA4 decoupling widens to the per-warp-group load count
+    // (GetK/VLoadNumWarps). Passing the same warp count here keeps the global
+    // buffer_load width in lock-step with the async-copy descriptors.
     static constexpr ck_tile::index_t kAlignmentK =
-        kPadHeadDimQ ? 1 : Policy::template GetAlignmentK<Problem>();
+        kPadHeadDimQ ? 1
+                     : Policy::template GetAlignmentK<Problem,
+                                                      Policy::template GetKLoadNumWarps<Problem>()>();
     static constexpr ck_tile::index_t kAlignmentV =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
+        kPadHeadDimV ? 1
+                     : Policy::template GetAlignmentV<Problem,
+                                                      Policy::template GetVLoadNumWarps<Problem>()>();
 
     static constexpr ck_tile::index_t kAlignmentO =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();

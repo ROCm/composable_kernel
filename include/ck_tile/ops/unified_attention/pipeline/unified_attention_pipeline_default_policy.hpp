@@ -63,7 +63,9 @@ struct UnifiedAttentionPipelineDefaultPolicy
     //
     // The selector below picks dwordx4 whenever it tiles cleanly and falls
     // back to dword (matches the historical FP8 path) on the prefill tier.
-    template <typename Problem, index_t ElementSizeInBytes>
+    template <typename Problem,
+              index_t ElementSizeInBytes,
+              index_t NumLoadThreads = Problem::kBlockSize>
     CK_TILE_DEVICE static constexpr index_t GetKVAlignmentBytes()
     {
 #if defined(__gfx950__)
@@ -71,7 +73,13 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t tile_elems =
             Problem::UnifiedAttentionShape::kPageBlockSize *
             Problem::UnifiedAttentionShape::kHeadDim;
-        constexpr index_t block_size = Problem::kBlockSize;
+        // Threads that actually cooperate on this tile's load. Default is the
+        // whole block (kBlockSize), but the FA4 per-warp-group decoupling has a
+        // single 4-warp group fill the tile by itself, so the width budget is
+        // that group's thread count -- which lets the small FP8 prefill tile
+        // (4 KB / 256 thr = 16 B/thr) finally tile cleanly at dwordx4 instead of
+        // falling back to 4x as many dword loads.
+        constexpr index_t block_size = NumLoadThreads;
         // KVector_elems for 16 B/lane = 16 / ElementSizeInBytes.
         // NumIssues * KVector_bytes * kBlockSize == tile_bytes,
         // so the divisibility check is tile_elems * ElementSizeInBytes
@@ -91,23 +99,30 @@ struct UnifiedAttentionPipelineDefaultPolicy
 #endif
     }
 
-    template <typename Problem>
+    // NumWarps = the waves that cooperate on the K/V load (default = the full
+    // block). The FA4 decoupling loads K/V with a single 4-warp group, so the
+    // load-path callers pass that group's warp count to widen the load.
+    template <typename Problem,
+              ck_tile::index_t NumWarps = Problem::UnifiedAttentionShape::NumWarps>
     CK_TILE_DEVICE static constexpr auto GetAlignmentK()
     {
         using namespace ck_tile;
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
+        constexpr index_t NumLoadThreads = NumWarps * get_warp_size();
         constexpr index_t MaxReadSizeInBytes =
-            GetKVAlignmentBytes<Problem, sizeof(KDataType)>();
+            GetKVAlignmentBytes<Problem, sizeof(KDataType), NumLoadThreads>();
         return MaxReadSizeInBytes / sizeof(KDataType);
     }
 
-    template <typename Problem>
+    template <typename Problem,
+              ck_tile::index_t NumWarps = Problem::UnifiedAttentionShape::NumWarps>
     CK_TILE_DEVICE static constexpr auto GetAlignmentV()
     {
         using namespace ck_tile;
         using VDataType = remove_cvref_t<typename Problem::VDataType>;
+        constexpr index_t NumLoadThreads = NumWarps * get_warp_size();
         constexpr index_t MaxReadSizeInBytes =
-            GetKVAlignmentBytes<Problem, sizeof(VDataType)>();
+            GetKVAlignmentBytes<Problem, sizeof(VDataType), NumLoadThreads>();
         return MaxReadSizeInBytes / sizeof(VDataType);
     }
 
@@ -156,7 +171,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t NumWarps   = NumWarpsOverride;
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
 
-        constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
+        constexpr index_t KVector = GetAlignmentK<Problem, NumWarpsOverride>(); // this is for global load
 
         static_assert(WarpSize * KVector >= kKPerBlock && WarpSize * KVector % kKPerBlock == 0);
         constexpr index_t LanesPerK  = kKPerBlock / KVector; // within a wave
@@ -197,7 +212,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t NumWarps   = NumWarpsOverride;
         constexpr index_t WarpSize   = ck_tile::get_warp_size(); // 64
 
-        constexpr index_t KVector = GetAlignmentV<Problem>(); // this is for global load
+        constexpr index_t KVector = GetAlignmentV<Problem, NumWarpsOverride>(); // this is for global load
         // 4
 
         static_assert(WarpSize * KVector >= kKPerBlock && WarpSize * KVector % kKPerBlock == 0);
@@ -418,7 +433,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
 
         [[maybe_unused]] constexpr index_t KPack = GetSmemKPackK<Problem>(); // this is for lds
-        constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
+        constexpr index_t KVector = GetAlignmentK<Problem, NumWarpsOverride>(); // this is for global load
         constexpr index_t kPad =
             kKLdsPadInBytes /
             sizeof(typename Problem::KDataType); // for async-copy, this pad is between warps.
@@ -478,7 +493,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
 
         constexpr index_t KPack   = GetSmemKPackK<Problem>(); // this is for lds
-        constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
+        constexpr index_t KVector = GetAlignmentK<Problem, NumWarpsOverride>(); // this is for global load
         constexpr index_t kPad =
             kKLdsPadInBytes /
             sizeof(typename Problem::KDataType); // for async-copy, this pad is between warps
@@ -602,7 +617,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
 
         [[maybe_unused]] constexpr index_t KPack = GetSmemVPackK<Problem>(); // this is for lds
-        constexpr index_t KVector = GetAlignmentV<Problem>(); // this is for global load
+        constexpr index_t KVector = GetAlignmentV<Problem, NumWarpsOverride>(); // this is for global load
         constexpr index_t kPad =
             kVLdsPadInBytes /
             sizeof(typename Problem::VDataType); // for async-copy, this pad is between warps.
@@ -661,7 +676,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
 
         constexpr index_t KPack   = GetSmemVPackK<Problem>(); // this is for lds
-        constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
+        constexpr index_t KVector = GetAlignmentK<Problem, NumWarpsOverride>(); // this is for global load
         constexpr index_t kPad =
             kVLdsPadInBytes /
             sizeof(typename Problem::VDataType); // for async-copy, this pad is between warps
