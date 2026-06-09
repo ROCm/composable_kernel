@@ -133,6 +133,44 @@ class TestValidateConfig(unittest.TestCase):
         r = validate_config(cfg, SPECS)
         self.assertTrue(r.valid, r.errors)
 
+    def test_batch_prefill_rejects_mixed_activation_fp8_kv_contract(self):
+        cfg = _base_config(
+            family="batch_prefill",
+            dtype="bf16",
+            pipeline="qr_async",
+            mode="group",
+            paged_kv=True,
+            page_size=16,
+            q_data_type="bf16",
+            kv_data_type="fp8",
+            o_data_type="bf16",
+        )
+
+        r = validate_config(cfg, SPECS)
+
+        self.assertFalse(r.valid)
+        self.assertTrue(
+            any("mixed activation/FP8-KV dtype contract" in e for e in r.errors),
+            r.errors,
+        )
+
+    def test_batch_prefill_keeps_all_fp8_bf16_output_contract_valid(self):
+        cfg = _base_config(
+            family="batch_prefill",
+            dtype="fp8bf16",
+            pipeline="qr_async",
+            mode="group",
+            paged_kv=True,
+            page_size=16,
+            q_data_type="fp8",
+            kv_data_type="fp8",
+            o_data_type="bf16",
+        )
+
+        r = validate_config(cfg, SPECS)
+
+        self.assertTrue(r.valid, r.errors)
+
     def test_splitkv_combine_bn1_must_be_32(self):
         cfg = _base_config(family="fwd_splitkv_combine", pipeline="qr")
         cfg["algorithm"]["tile"][3] = 64

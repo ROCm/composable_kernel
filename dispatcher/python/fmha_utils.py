@@ -28,6 +28,13 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
+from fmha_dtype_contract import (
+    FmhaDTypeContract,
+    FmhaDTypeContractKind,
+    dtype_contract_from_components,
+    dtype_contract_from_data_type,
+)
+
 
 # =============================================================================
 # Utility helpers
@@ -350,6 +357,35 @@ def _bf16_to_float32(arr: np.ndarray) -> np.ndarray:
     return (arr.astype(np.uint32) << 16).view(np.float32)
 
 
+def _array_contract_dtype(arr: np.ndarray, fallback: str) -> str:
+    if arr.dtype == np.uint8:
+        return "fp8"
+    if arr.dtype == np.uint16:
+        return "bf16"
+    if arr.dtype == np.float16:
+        return "fp16"
+    if arr.dtype == np.float32:
+        return "fp32"
+    return fallback
+
+
+def get_batch_prefill_dtype_contract(
+    data_type: str,
+    Q: np.ndarray,
+    K: np.ndarray,
+    V: np.ndarray,
+) -> FmhaDTypeContract:
+    """Classify the public batch_prefill dtype contract requested by the caller."""
+    inferred = dtype_contract_from_data_type(data_type)
+    return dtype_contract_from_components(
+        data_type=data_type,
+        q_dtype=_array_contract_dtype(Q, inferred.q_dtype),
+        k_dtype=_array_contract_dtype(K, inferred.k_dtype),
+        v_dtype=_array_contract_dtype(V, inferred.v_dtype),
+        o_dtype=inferred.o_dtype,
+    )
+
+
 def _validate_batch_prefill_input_dtypes(
     api_family: str,
     data_type: str,
@@ -357,18 +393,21 @@ def _validate_batch_prefill_input_dtypes(
     K: np.ndarray,
     V: np.ndarray,
 ) -> None:
-    """Reject mixed Q/KV storage dtypes that CK Tile cannot dispatch yet."""
-    if api_family != "batch_prefill" or data_type not in {"fp16", "bf16"}:
+    """Reject dtype contracts that CK Tile batch_prefill cannot dispatch yet."""
+    if api_family != "batch_prefill":
         return
 
-    kv_uses_byte_storage = K.dtype == np.uint8 or V.dtype == np.uint8
-    if kv_uses_byte_storage:
+    contract = get_batch_prefill_dtype_contract(data_type, Q, K, V)
+    if contract.kind == FmhaDTypeContractKind.MIXED_Q_FP8_KV:
         raise ValueError(
-            "CK Tile batch_prefill does not yet support mixed Q/KV dtypes "
-            f"(requested Q/O data_type={data_type}, Q dtype={Q.dtype}, "
-            f"K dtype={K.dtype}, V dtype={V.dtype}). "
-            "The current dispatcher selects kernels from a single data_type token for Q, K, "
-            "and V; use an all-FP8 Q/K/V path such as fp8bf16, or quantize Q before calling."
+            "CK Tile batch_prefill does not yet support the mixed activation/FP8-KV "
+            "dtype contract "
+            f"(data_type={data_type}, Q={contract.q_dtype}, K={contract.k_dtype}, "
+            f"V={contract.v_dtype}, O={contract.o_dtype}). "
+            "The current dispatcher and generated kernels select Q/K/V types from a single "
+            "data_type token; fp8bf16 means FP8 Q/K/V with BF16 output. Use AITER "
+            "paged_attention_ragged or another fallback for BF16/FP16 Q with FP8 KV until "
+            "CK Tile has mixed Q/KV kernel instances."
         )
 
 
