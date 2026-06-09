@@ -118,13 +118,20 @@ bool profile_grouped_conv_fwd_outelementop_impl(int do_verification,
     in_device_buf.ToDevice(input.mData.data());
     wei_device_buf.ToDevice(weight.mData.data());
 
-    // random scale values
-    auto scale_in = type_convert<float>(
-        type_convert<f8_t>(2.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
-    auto scale_wei = type_convert<float>(
-        type_convert<f8_t>(2.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
-    auto scale_out = type_convert<float>(
-        type_convert<f8_t>(2.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
+    // random scale values (avoid zero)
+    float scale_in, scale_wei, scale_out;
+    auto rand_f8 = []() {
+        float v = 0.f;
+        while(v == 0.f)
+        {
+            v = type_convert<float>(
+                type_convert<f8_t>(2.0f * float(RAND_MAX / 2 - std::rand()) / float(RAND_MAX)));
+        }
+        return v;
+    };
+    scale_in  = rand_f8();
+    scale_wei = rand_f8();
+    scale_out = rand_f8();
 
     OutElementOp out_element_op;
     if constexpr(std::is_same_v<OutElementOp, ck::tensor_operation::element_wise::ScaleScalePass>)
