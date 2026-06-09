@@ -12,8 +12,8 @@
 // an operation means adding a type, updating launch code, and changing the
 // kpack format. A generic buffer keeps the dispatcher open.
 //
-// Capacity limits (kMaxRank=6, kMaxTensors=16, kMaxScalars=16) are sized to
-// the most demanding current operation (FMHA backward: ~12 tensors, ~12
+// Capacity limits (kMaxRank=6, kMaxTensors=20, kMaxScalars=16) are sized to
+// the most demanding current operation (FMHA backward: ~18 tensors, ~12
 // scalars, rank-6 for grouped 3D conv). If a future operation exceeds these,
 // bump the constants - the layout is not versioned, and the 4KB HSA kernarg
 // budget has room. Don't over-provision speculatively.
@@ -38,7 +38,7 @@ namespace rocm_ck {
 
 // When changing these, update the byte-size comments on TensorArg and Args fields.
 constexpr int kMaxRank    = 6;  // grouped 3D conv = GNCDHW = rank 6
-constexpr int kMaxTensors = 16; // FMHA backward uses ~12
+constexpr int kMaxTensors = 20; // FMHA backward uses ~18
 constexpr int kMaxScalars = 16; // FMHA with masking+dropout needs ~12
 
 struct TensorArg
@@ -62,11 +62,11 @@ union ScalarValue
 // Slot ordering matches Signature: tensors[i] <-> Signature::tensors[i].
 struct Args
 {
-    std::array<TensorArg, kMaxTensors> tensors;   // 16 x 80 = 1280 bytes
+    std::array<TensorArg, kMaxTensors> tensors;   // 20 x 80 = 1600 bytes
     std::array<ScalarValue, kMaxScalars> scalars; // 16 x  8 =  128 bytes
 
     index_t batch_count                                 = 0;       //  4 bytes
-    std::array<long_index_t, kMaxTensors> batch_strides = {};      // 16 x 8 = 128 bytes
+    std::array<long_index_t, kMaxTensors> batch_strides = {};      // 20 x 8 = 160 bytes
     void* workspace_ptr                                 = nullptr; //  8 bytes
 };
 

@@ -170,7 +170,7 @@ TEST(Tensor, StoresQuantizeMetadata)
 
 TEST(Signature, DefinesExpectedCapacityLimits)
 {
-    EXPECT_EQ(kMaxTensors, 16);
+    EXPECT_EQ(kMaxTensors, 20);
     EXPECT_EQ(kMaxScalars, 16);
     EXPECT_EQ(kMaxOps, 8);
 }

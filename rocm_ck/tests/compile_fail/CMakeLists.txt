@@ -90,3 +90,30 @@ add_compile_fail_test(tensor_name_too_long  "FixedString.*exceeds capacity")
 
 # -- layout.hpp --
 add_compile_fail_test(layout_auto_stride  "leadingDimStride requires Row or Col")
+
+# -- ops/fmha_bwd/convert_dq_spec.hpp --
+add_compile_fail_test(convert_dq_block_per_cu_negative "block_per_cu must be positive")
+add_compile_fail_test(convert_dq_block_per_cu_zero     "block_per_cu must be positive")
+add_compile_fail_test(convert_dq_fp32                  "only supports FP16 or BF16")
+add_compile_fail_test(convert_dq_group_no_pad          "group mode requires pad_seqlen_q=true")
+add_compile_fail_test(convert_dq_invalid_hdim          "hdim_q must be one of \\{32, 64, 96, 128, 256\\}")
+
+# -- ops/fmha_bwd/dqdkdv_spec.hpp --
+add_compile_fail_test(dqdkdv_bias_grad_no_bias      "has_bias_grad requires bias_type != NONE")
+add_compile_fail_test(dqdkdv_block_per_cu_negative  "block_per_cu must be positive")
+add_compile_fail_test(dqdkdv_block_per_cu_zero      "block_per_cu must be positive")
+add_compile_fail_test(dqdkdv_fp32                   "only supports FP16 or BF16")
+add_compile_fail_test(dqdkdv_group_no_padding       "group mode requires padding")
+add_compile_fail_test(dqdkdv_invalid_hdim_q         "hdim_q must be one of \\{32, 64, 96, 128, 256\\}")
+add_compile_fail_test(dqdkdv_invalid_hdim_v         "hdim_v must be one of \\{32, 64, 96, 128, 256\\}")
+add_compile_fail_test(dqdkdv_invalid_pad_q          "pad_hdim_q must be 0, 1, or 8")
+add_compile_fail_test(dqdkdv_invalid_pad_v          "pad_hdim_v must be 0, 1, or 8")
+
+# -- ops/fmha_bwd/ograd_dot_o_spec.hpp --
+add_compile_fail_test(ograd_dot_o_block_per_cu_negative  "block_per_cu must be positive")
+add_compile_fail_test(ograd_dot_o_block_per_cu_zero      "block_per_cu must be positive")
+add_compile_fail_test(ograd_dot_o_block_size_not_mod64   "block_size must be divisible by warp size \\(64\\)")
+add_compile_fail_test(ograd_dot_o_block_size_zero        "block_size must be positive")
+add_compile_fail_test(ograd_dot_o_fp32                   "only supports FP16 or BF16")
+add_compile_fail_test(ograd_dot_o_group_no_pad           "group mode requires pad_seqlen_q=true")
+add_compile_fail_test(ograd_dot_o_invalid_hdim           "hdim_v must be one of \\{32, 64, 96, 128, 256\\}")
