@@ -66,11 +66,11 @@ TEST(Args, IsTriviallyCopyable) { EXPECT_TRUE(std::is_trivially_copyable_v<Args>
 
 TEST(Args, HasStandardLayout) { EXPECT_TRUE(std::is_standard_layout_v<Args>); }
 
-TEST(Args, Occupies1552Bytes)
+TEST(Args, Occupies1904Bytes)
 {
-    // 16 tensors * 80 + 16 scalars * 8 + batch_count(4) + pad(4)
-    // + 16 batch_strides * 8 + workspace_ptr(8) = 1280 + 128 + 8 + 128 + 8 = 1552
-    EXPECT_EQ(sizeof(Args), 1552);
+    // 20 tensors * 80 + 16 scalars * 8 + batch_count(4) + pad(4)
+    // + 20 batch_strides * 8 + workspace_ptr(8) = 1600 + 128 + 8 + 160 + 8 = 1904
+    EXPECT_EQ(sizeof(Args), 1904);
 }
 
 TEST(Args, AlignsTo8Bytes) { EXPECT_EQ(alignof(Args), 8); }
@@ -88,7 +88,7 @@ TEST(Args, FitsWithin4KBKernargBudget)
 TEST(Args, DefinesExpectedCapacityLimits)
 {
     EXPECT_EQ(kMaxRank, 6);
-    EXPECT_EQ(kMaxTensors, 16);
+    EXPECT_EQ(kMaxTensors, 20);
     EXPECT_EQ(kMaxScalars, 16);
 }
 
