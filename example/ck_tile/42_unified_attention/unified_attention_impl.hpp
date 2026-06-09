@@ -442,6 +442,22 @@ std::pair<bool, float> unified_attention_kernel_dispatch(const unified_attention
 
 } // namespace ck_tile
 
+// Profiling slim-build hook. When a TU is compiled with -DUA_STUB_INSTANCE
+// (injected per-source by the AITER_UA_TRACE_INSTANCES build knob), the
+// instance macros below emit a trivial host stub that returns {false,-1.f}
+// and instantiate NO device kernel. The symbol still exists (so the runtime
+// dispatch switch links), but the kernel is absent from the code object --
+// which is what keeps rocprofv3 ATT disassembly fast when only one instance
+// is wanted. UA_KERNEL_DISPATCH_RESULT picks the real launch vs the stub.
+#ifdef UA_STUB_INSTANCE
+#define UA_KERNEL_DISPATCH_RESULT(TRAITS_) (std::make_pair(false, -1.f))
+#else
+#define UA_KERNEL_DISPATCH_RESULT(TRAITS_)                                                   \
+    std::make_pair(true,                                                                     \
+                   unified_attention_kernel_launch<typename TRAITS_::kernel,                 \
+                                                   TRAITS_::kUseDecodeGrid>(args, config))
+#endif
+
 // One-line instantiation per (V, DataType, IsMasking, PageSize, IsLocal)
 // combination. Each instance .cpp consists of exactly one of these calls.
 // PAGE_SIZE_ = 0 is the legacy runtime-page-size instance (catch-all
@@ -456,18 +472,16 @@ std::pair<bool, float> unified_attention_kernel_dispatch(const unified_attention
                                         unified_attention_args::data_type_enum::DTYPE_,      \
                                         IS_MASK_,                                            \
                                         PAGE_SIZE_,                                          \
-                                        IS_LOCAL_>>(const unified_attention_args& args,      \
-                                                    const stream_config& config)             \
+                                        IS_LOCAL_>>([[maybe_unused]] const unified_attention_args& args, \
+                                                    [[maybe_unused]] const stream_config& config) \
     {                                                                                        \
-        using Traits = unified_attention_kernel_traits<                                      \
+        using Traits [[maybe_unused]] = unified_attention_kernel_traits<                     \
             KernelVariant::VARIANT_,                                                         \
             unified_attention_args::data_type_enum::DTYPE_,                                  \
             IS_MASK_,                                                                        \
             PAGE_SIZE_,                                                                      \
             IS_LOCAL_>;                                                                      \
-        return std::make_pair(true,                                                          \
-            unified_attention_kernel_launch<typename Traits::kernel,                         \
-                                            Traits::kUseDecodeGrid>(args, config));          \
+        return UA_KERNEL_DISPATCH_RESULT(Traits);                                            \
     }
 
 // Backward-compat wrappers — every existing instance .cpp uses one of these
@@ -489,17 +503,15 @@ std::pair<bool, float> unified_attention_kernel_dispatch(const unified_attention
                                         IS_MASK_,                                            \
                                         /*kPageSize=*/0,                                     \
                                         /*IsLocal=*/false,                                   \
-                                        /*IsPaged=*/false>>(const unified_attention_args& args, \
-                                                            const stream_config& config)     \
+                                        /*IsPaged=*/false>>([[maybe_unused]] const unified_attention_args& args, \
+                                                            [[maybe_unused]] const stream_config& config) \
     {                                                                                        \
-        using Traits = unified_attention_kernel_traits<                                      \
+        using Traits [[maybe_unused]] = unified_attention_kernel_traits<                     \
             KernelVariant::VARIANT_,                                                         \
             unified_attention_args::data_type_enum::DTYPE_,                                  \
             IS_MASK_,                                                                        \
             /*kPageSize=*/0,                                                                 \
             /*IsLocal=*/false,                                                               \
             /*IsPaged=*/false>;                                                              \
-        return std::make_pair(true,                                                          \
-            unified_attention_kernel_launch<typename Traits::kernel,                         \
-                                            Traits::kUseDecodeGrid>(args, config));          \
+        return UA_KERNEL_DISPATCH_RESULT(Traits);                                            \
     }
