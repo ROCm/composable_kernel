@@ -41,7 +41,7 @@ struct TransformConvBwdDataToGemm_v1
      * When set to 1, this variable enables a custom transformation of the output tensor
      * in convolution backward data operations.
      */
-    static constexpr bool CustomTensorTransformBwdData = std::is_same_v<IndexType, index_t>;
+    static constexpr bool CustomTensorTransformBwdData = true;
 
     template <index_t N>
     using NumberType =
@@ -825,28 +825,28 @@ struct TransformConvBwdDataToGemm_v1
 
                     const auto out_n_hop_wop_k_grid_desc_final = transform_tensor_descriptor(
                         out_n_hop_wop_k_grid_desc,
-                        make_tuple(make_conv_bwd_data_out_transform(N_,
-                                                                    Ho_,
-                                                                    Wo_,
-                                                                    K_,
-                                                                    YDot_,
-                                                                    XDot_,
-                                                                    HTilde_,
-                                                                    WTilde_,
-                                                                    ConvDilationH_,
-                                                                    ConvDilationW_,
-                                                                    HTildeSlice,
-                                                                    WTildeSlice,
-                                                                    YDotSlice,
-                                                                    XDotSlice,
-                                                                    IHTildeSliceBegin,
-                                                                    IWTildeSliceBegin,
-                                                                    GcdStrideDilationH_,
-                                                                    GcdStrideDilationW_,
-                                                                    AK0 * batch_k_,
-                                                                    AK1,
-                                                                    GemmMPerBlock,
-                                                                    GemmKPerBlock)),
+                        make_tuple(make_conv_bwd_data_out_transform<IndexType>(N_,
+                                                                               Ho_,
+                                                                               Wo_,
+                                                                               K_,
+                                                                               YDot_,
+                                                                               XDot_,
+                                                                               HTilde_,
+                                                                               WTilde_,
+                                                                               ConvDilationH_,
+                                                                               ConvDilationW_,
+                                                                               HTildeSlice,
+                                                                               WTildeSlice,
+                                                                               YDotSlice,
+                                                                               XDotSlice,
+                                                                               IHTildeSliceBegin,
+                                                                               IWTildeSliceBegin,
+                                                                               GcdStrideDilationH_,
+                                                                               GcdStrideDilationW_,
+                                                                               AK0 * batch_k_,
+                                                                               AK1,
+                                                                               GemmMPerBlock,
+                                                                               GemmKPerBlock)),
                         make_tuple(Sequence<0, 1, 2, 3>{}),
                         make_tuple(Sequence<0, 1, 2>{}));
 
