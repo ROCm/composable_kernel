@@ -141,7 +141,11 @@ struct UnifiedAttentionPipelineDefaultPolicy
         return 16 / sizeof(VDataType);
     }
 
-    template <typename Problem>
+    // NumWarpsOverride mirrors MakeVDramTileDistribution: the FA4 "WG1 loads K"
+    // path passes NumThreadPerWarpGroup/WarpSize so warp group 1's waves alone
+    // tile the full K buffer (the partner group reads it from shared LDS).
+    template <typename Problem,
+              ck_tile::index_t NumWarpsOverride = Problem::UnifiedAttentionShape::NumWarps>
     CK_TILE_DEVICE static constexpr auto MakeKDramTileDistribution()
     {
         using namespace ck_tile;
@@ -149,7 +153,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kPageBlockSize;
         constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kHeadDim;
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
+        constexpr index_t NumWarps   = NumWarpsOverride;
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
 
         constexpr index_t KVector = GetAlignmentK<Problem>(); // this is for global load
@@ -158,7 +162,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t LanesPerK  = kKPerBlock / KVector; // within a wave
         constexpr index_t LaneGroups = WarpSize / LanesPerK; // within a wave
         constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
-        static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
+        static_assert(NumIssues == kNPerBlock * kKPerBlock / (NumWarps * WarpSize * KVector));
+        static_cast<void>(kBlockSize);
 
         constexpr index_t N0 = NumIssues;
         constexpr index_t N1 = LaneGroups;
@@ -175,7 +180,13 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                        sequence<0, 1>>{});
     }
 
-    template <typename Problem>
+    // NumWarpsOverride lets the FA4 per-warp-group ("private V") path request a
+    // distribution where only NumWarps waves cooperate on the load (so each
+    // warp group loads the FULL V tile by itself, into its own LDS buffer, and
+    // its own vmcnt proves residency without waiting on the partner group).
+    // Default = the shape's NumWarps (the original block-cooperative load).
+    template <typename Problem,
+              ck_tile::index_t NumWarpsOverride = Problem::UnifiedAttentionShape::NumWarps>
     CK_TILE_DEVICE static constexpr auto MakeVDramTileDistribution()
     {
         using namespace ck_tile;
@@ -183,7 +194,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kPageBlockSize;
         constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kHeadDim;
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
+        constexpr index_t NumWarps   = NumWarpsOverride;
         constexpr index_t WarpSize   = ck_tile::get_warp_size(); // 64
 
         constexpr index_t KVector = GetAlignmentV<Problem>(); // this is for global load
@@ -193,7 +204,10 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t LanesPerK  = kKPerBlock / KVector; // within a wave
         constexpr index_t LaneGroups = WarpSize / LanesPerK; // within a wave
         constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
-        static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
+        // NumWarps-relative form (NumWarps may be < the full block when the FA4
+        // per-warp-group path requests a private-V distribution).
+        static_assert(NumIssues == kNPerBlock * kKPerBlock / (NumWarps * WarpSize * KVector));
+        static_cast<void>(kBlockSize);
 
         constexpr index_t N0 = NumIssues;  // 8
         constexpr index_t N1 = LaneGroups; // 2
@@ -378,7 +392,19 @@ struct UnifiedAttentionPipelineDefaultPolicy
     static constexpr ck_tile::index_t kKLdsPadInBytes = 4 * 4;  // 4 dwords
     static constexpr ck_tile::index_t kVLdsPadInBytes = 4 * 16; // 16 dwords
 
-    template <typename Problem, ck_tile::index_t IBuf = 0>
+    // WarpIdShift handles a sub-block load issued by a NON-zero warp group via
+    // the raw async path. The raw store derives its LDS offset as
+    //   M0 = base + size_per_wave * get_warp_id()   (ABSOLUTE warp id 0..7)
+    // so a NumWarps-wide (e.g. 4-wave) layout only tiles correctly for warp ids
+    // 0..NumWarps-1. When warp group g (>0) alone fills the tile, its waves have
+    // absolute ids [g*NumWarps, (g+1)*NumWarps); shifting the descriptor base by
+    // -WarpIdShift*size_per_wave (WarpIdShift = g*NumWarps) maps them back to
+    // effective ids 0..NumWarps-1, i.e. the exact physical layout a warp-group-0
+    // load would produce -- so the (unshifted) read descriptor reads it directly.
+    template <typename Problem,
+              ck_tile::index_t NumWarpsOverride = Problem::UnifiedAttentionShape::NumWarps,
+              ck_tile::index_t WarpIdShift      = 0,
+              ck_tile::index_t IBuf             = 0>
     CK_TILE_DEVICE static constexpr auto
     MakeKLdsStoreBlockDescriptor(ck_tile::number<IBuf> = ck_tile::number<0>{})
     {
@@ -388,7 +414,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kPageBlockSize;
         constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kHeadDim;
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
+        constexpr index_t NumWarps   = NumWarpsOverride;
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
 
         [[maybe_unused]] constexpr index_t KPack = GetSmemKPackK<Problem>(); // this is for lds
@@ -405,7 +431,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
             WarpSize /
             LanesPerK; // how many groups (within a wave), they may load different N, but same K
         constexpr index_t NumIssues = kNPerBlock / (LaneGroups * NumWarps);
-        static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
+        static_assert(NumIssues == kNPerBlock * kKPerBlock / (NumWarps * WarpSize * KVector));
+        static_cast<void>(kBlockSize);
 
         constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor_with_offset(
             make_tuple(number<NumIssues>{},  // n0
@@ -418,7 +445,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
                        number<WarpSize * KVector + kPad>{},
                        number<KVector>{},
                        number<1>{}),
-            number<IBuf * GetSingleSmemElementSpaceSize<Problem>()>{},
+            number<IBuf * GetSingleSmemElementSpaceSize<Problem>() -
+                   WarpIdShift*(WarpSize * KVector + kPad)>{},
             number<KVector>{},
             number<1>{});
 
@@ -436,7 +464,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
         return k_lds_block_desc_issues_warps_lanes;
     }
 
-    template <typename Problem>
+    template <typename Problem,
+              ck_tile::index_t NumWarpsOverride = Problem::UnifiedAttentionShape::NumWarps>
     CK_TILE_DEVICE static constexpr auto MakeKLdsLoadBlockDescriptor()
     {
         using namespace ck_tile;
@@ -445,7 +474,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kPageBlockSize;
         constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kHeadDim;
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
+        constexpr index_t NumWarps   = NumWarpsOverride;
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
 
         constexpr index_t KPack   = GetSmemKPackK<Problem>(); // this is for lds
@@ -458,7 +487,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t LanesPerK  = kKPerBlock / KVector; // within a wave
         constexpr index_t LaneGroups = WarpSize / LanesPerK; // within a wave
         constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
-        static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
+        static_assert(NumIssues == kNPerBlock * kKPerBlock / (NumWarps * WarpSize * KVector));
+        static_cast<void>(kBlockSize);
 
         constexpr auto k_lds_block_desc_0 =
             make_naive_tensor_descriptor(make_tuple(number<NumIssues>{},          // n0
@@ -553,7 +583,12 @@ struct UnifiedAttentionPipelineDefaultPolicy
         return max(max(SingleKSize, SingleVSize), VLoadDescSize);
     }
 
-    template <typename Problem, ck_tile::index_t IBuf = 0>
+    // NumWarpsOverride mirrors MakeVDramTileDistribution: the FA4 "WG0 loads V"
+    // path passes NumThreadPerWarpGroup/WarpSize (== 4) so warp group 0's waves
+    // alone tile the full V buffer. Default = the shape's NumWarps (cooperative).
+    template <typename Problem,
+              ck_tile::index_t NumWarpsOverride = Problem::UnifiedAttentionShape::NumWarps,
+              ck_tile::index_t IBuf             = 0>
     CK_TILE_DEVICE static constexpr auto
     MakeVLdsStoreBlockDescriptor(ck_tile::number<IBuf> = ck_tile::number<0>{})
     {
@@ -563,7 +598,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kPageBlockSize;
         constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kHeadDim;
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
+        constexpr index_t NumWarps   = NumWarpsOverride;
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
 
         [[maybe_unused]] constexpr index_t KPack = GetSmemVPackK<Problem>(); // this is for lds
@@ -580,7 +615,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
             WarpSize /
             LanesPerK; // how many groups (within a wave), they may load different N, but same K
         constexpr index_t NumIssues = kNPerBlock / (LaneGroups * NumWarps);
-        static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
+        static_assert(NumIssues == kNPerBlock * kKPerBlock / (NumWarps * WarpSize * KVector));
+        static_cast<void>(kBlockSize);
 
         constexpr auto v_lds_block_desc_0 = make_naive_tensor_descriptor_with_offset(
             make_tuple(number<NumIssues>{},  // n0
@@ -611,7 +647,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
         return v_lds_block_desc_issues_warps_lanes;
     }
 
-    template <typename Problem>
+    template <typename Problem,
+              ck_tile::index_t NumWarpsOverride = Problem::UnifiedAttentionShape::NumWarps>
     CK_TILE_DEVICE static constexpr auto MakeVLdsLoadBlockDescriptor()
     {
         using namespace ck_tile;
@@ -620,7 +657,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kPageBlockSize;
         constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kHeadDim;
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
+        constexpr index_t NumWarps   = NumWarpsOverride;
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
 
         constexpr index_t KPack   = GetSmemVPackK<Problem>(); // this is for lds
@@ -633,7 +670,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t LanesPerK  = kKPerBlock / KVector; // within a wave
         constexpr index_t LaneGroups = WarpSize / LanesPerK; // within a wave
         constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
-        static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
+        static_assert(NumIssues == kNPerBlock * kKPerBlock / (NumWarps * WarpSize * KVector));
+        static_cast<void>(kBlockSize);
 
         constexpr auto v_lds_block_desc_0 =
             make_naive_tensor_descriptor(make_tuple(number<NumIssues>{},          // n0
@@ -686,6 +724,63 @@ struct UnifiedAttentionPipelineDefaultPolicy
             GetSingleSmemElementSpaceSize<Problem>() * sizeof(typename Problem::KDataType);
 
         return kv_element_space_size_in_bytes;
+    }
+
+    // FA4 "WG0 loads V" prototype: when the block runs as two warp groups, have
+    // ONLY warp group 0 (waves 0-3) load the full V tile into the shared V LDS
+    // buffer (V's DRAM dist + LDS descriptors use NumThreadPerWarpGroup/WarpSize
+    // == 4 waves so WG0 alone fills the tile). WG1 skips the V DRAM load
+    // entirely. No 2x DRAM, no extra LDS (V stays a shared 2-buffer). This
+    // decouples V's residency from the partner group's cooperative-load shard
+    // (WG0's own vmcnt proves the load) so the V LDS read can later move into
+    // the SOFTMAX phase. K stays block-cooperative across all 8 waves.
+    // Toggle to false to restore the block-cooperative (8-wave) V load.
+    static constexpr bool kFA4WG0LoadsV = true;
+
+    // Symmetric K decoupling: warp group 1 (waves 4-7) alone loads the full K
+    // tile into the shared K LDS buffer; warp group 0 reads it from shared LDS.
+    // Together with kFA4WG0LoadsV this balances DRAM-load work (WG0->V, WG1->K)
+    // and lets each group issue only one tile's load/address instructions.
+    static constexpr bool kFA4WG1LoadsK = true;
+
+    // Number of waves that cooperate on a V DRAM->LDS load. For the 2-warp-group
+    // FA4 path with kFA4WG0LoadsV, this is one warp group's waves (so WG0 alone
+    // fills the tile); otherwise it's the full block (original cooperative load).
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr ck_tile::index_t GetVLoadNumWarps()
+    {
+        constexpr ck_tile::index_t NumWarpGroups =
+            Problem::kBlockSize / NumThreadPerWarpGroup;
+        if constexpr(kFA4WG0LoadsV && NumWarpGroups == 2)
+            return NumThreadPerWarpGroup / ck_tile::get_warp_size();
+        else
+            return Problem::UnifiedAttentionShape::NumWarps;
+    }
+
+    // K analogue of GetVLoadNumWarps (warp group 1 alone fills the K tile).
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr ck_tile::index_t GetKLoadNumWarps()
+    {
+        constexpr ck_tile::index_t NumWarpGroups =
+            Problem::kBlockSize / NumThreadPerWarpGroup;
+        if constexpr(kFA4WG1LoadsK && NumWarpGroups == 2)
+            return NumThreadPerWarpGroup / ck_tile::get_warp_size();
+        else
+            return Problem::UnifiedAttentionShape::NumWarps;
+    }
+
+    // Raw-async warp-id shift for the K store (see MakeKLdsStoreBlockDescriptor):
+    // K is loaded by warp group 1, whose absolute warp ids start at one warp
+    // group's worth of waves, so the store base must shift by that many waves.
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr ck_tile::index_t GetKStoreWarpShift()
+    {
+        constexpr ck_tile::index_t NumWarpGroups =
+            Problem::kBlockSize / NumThreadPerWarpGroup;
+        if constexpr(kFA4WG1LoadsK && NumWarpGroups == 2)
+            return NumThreadPerWarpGroup / ck_tile::get_warp_size(); // WG1's first abs warp id
+        else
+            return 0;
     }
 
     template <typename Problem>

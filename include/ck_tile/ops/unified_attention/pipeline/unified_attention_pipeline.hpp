@@ -488,6 +488,19 @@ struct UnifiedAttentionPipeline
 
         const index_t warp_group_id = get_warp_id() / 4;
 
+        // FA4 "WG0 loads V": warp group 0's 4 waves load the FULL V tile into
+        // the shared V LDS buffer (V descriptors use VLoadNumWarps == 4 waves);
+        // warp group 1 skips the V DRAM load and relies on the inter-phase
+        // barrier for residency. v_load_active gates the async V load issue.
+        constexpr index_t VLoadNumWarps     = Policy::template GetVLoadNumWarps<Problem>();
+        constexpr index_t KLoadNumWarps     = Policy::template GetKLoadNumWarps<Problem>();
+        constexpr index_t NumWarpGroups_     = Problem::kBlockSize / Policy::NumThreadPerWarpGroup;
+        const bool v_load_active =
+            (!Policy::kFA4WG0LoadsV) || (NumWarpGroups_ != 2) || (warp_group_id == 0);
+        // Symmetric: warp group 1 alone loads K (WG0 reads from shared LDS).
+        const bool k_load_active =
+            (!Policy::kFA4WG1LoadsK) || (NumWarpGroups_ != 2) || (warp_group_id == 1);
+
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 = Policy::template GetPVBlockGemm<Problem>();
@@ -531,34 +544,41 @@ struct UnifiedAttentionPipeline
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
         const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
 
+        constexpr index_t KStoreWarpShift = Policy::template GetKStoreWarpShift<Problem>();
         auto k_lds_window_store = generate_tuple(
             [&](auto i_buf) {
                 return make_lds_tile_window<KDataType>(
-                    smem_ptr, Policy::template MakeKLdsStoreBlockDescriptor<Problem>(i_buf));
+                    smem_ptr,
+                    Policy::template MakeKLdsStoreBlockDescriptor<Problem,
+                                                                  KLoadNumWarps,
+                                                                  KStoreWarpShift>(i_buf));
             },
             number<2>{});
 
         auto v_lds_window_store = generate_tuple(
             [&](auto i_buf) {
                 return make_lds_tile_window<KDataType>(
-                    smem_ptr, Policy::template MakeVLdsStoreBlockDescriptor<Problem>(i_buf));
+                    smem_ptr,
+                    Policy::template MakeVLdsStoreBlockDescriptor<Problem, VLoadNumWarps>(i_buf));
             },
             number<2>{});
 
-        statically_indexed_array<decltype(make_tile_window(
-                                     make_lds_tile_window<KDataType>(
-                                         nullptr,
-                                         Policy::template MakeKLdsLoadBlockDescriptor<Problem>()),
-                                     Policy::template MakeKRegTileDistribution<Problem>())),
-                                 2>
+        statically_indexed_array<
+            decltype(make_tile_window(
+                make_lds_tile_window<KDataType>(
+                    nullptr,
+                    Policy::template MakeKLdsLoadBlockDescriptor<Problem, KLoadNumWarps>()),
+                Policy::template MakeKRegTileDistribution<Problem>())),
+            2>
             k_lds_window_load;
 
-        statically_indexed_array<decltype(make_tile_window(
-                                     make_lds_tile_window<VDataType>(
-                                         nullptr,
-                                         Policy::template MakeVLdsLoadBlockDescriptor<Problem>()),
-                                     Policy::template MakeVRegTileDistribution<Problem>())),
-                                 2>
+        statically_indexed_array<
+            decltype(make_tile_window(
+                make_lds_tile_window<VDataType>(
+                    nullptr,
+                    Policy::template MakeVLdsLoadBlockDescriptor<Problem, VLoadNumWarps>()),
+                Policy::template MakeVRegTileDistribution<Problem>())),
+            2>
             v_lds_window_load;
 
         decltype(make_static_distributed_tensor<QDataType>(
@@ -619,7 +639,7 @@ struct UnifiedAttentionPipeline
             k_lds_window_load(idx) = make_tile_window(
                 make_lds_tile_window<KDataType>(
                     static_cast<char*>(smem_ptr) + (idx)*Policy::template GetSmemSizeKV<Problem>(),
-                    Policy::template MakeKLdsLoadBlockDescriptor<Problem>()),
+                    Policy::template MakeKLdsLoadBlockDescriptor<Problem, KLoadNumWarps>()),
                 Policy::template MakeKRegTileDistribution<Problem>());
         });
 
@@ -628,7 +648,8 @@ struct UnifiedAttentionPipeline
                 make_tile_window(make_lds_tile_window<VDataType>(
                                      static_cast<char*>(smem_ptr) +
                                          (idx + 2) * Policy::template GetSmemSizeKV<Problem>(),
-                                     Policy::template MakeVLdsLoadBlockDescriptor<Problem>()),
+                                     Policy::template MakeVLdsLoadBlockDescriptor<Problem,
+                                                                                 VLoadNumWarps>()),
                                  Policy::template MakeVRegTileDistribution<Problem>());
         });
 
@@ -714,8 +735,8 @@ struct UnifiedAttentionPipeline
         // a large negative relative offset that the HW OOB check clamps to 0).
         // A robust fix would either plumb long_index_t through the gather load
         // path or compute a per-batch min-page shift in a pre-pass.
-        const auto k_dist = Policy::template MakeKDramTileDistribution<Problem>();
-        const auto v_dist = Policy::template MakeVDramTileDistribution<Problem>();
+        const auto k_dist = Policy::template MakeKDramTileDistribution<Problem, KLoadNumWarps>();
+        const auto v_dist = Policy::template MakeVDramTileDistribution<Problem, VLoadNumWarps>();
         using KDstrType   = decltype(k_dist);
         using VDstrType   = decltype(v_dist);
         constexpr index_t KNRepeat =
@@ -729,8 +750,19 @@ struct UnifiedAttentionPipeline
             VDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<1>{}] *
             VDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<2>{}];
 
-        const auto k_thread_coord    = k_dist.calculate_index();
-        const auto v_thread_coord    = v_dist.calculate_index();
+        // WG-relative warp index for the gather page-offset computation. When a
+        // single warp group loads a tile (V by WG0 / K by WG1), only that
+        // group's waves issue the load, and their absolute warp ids must be
+        // folded back into [0, NumWarps) so k_thread_n_pos / v_thread_n_pos (the
+        // per-wave token position baked into page_idx) match the group-relative
+        // distribution. For the cooperative case NumWarps == full block, so the
+        // modulo is the identity. The scatter-gather's own get_partition_index
+        // use is harmless here: the gather (token) dim is zeroed and replaced by
+        // page_idx, and the remaining (head-dim) coordinate is lane-based.
+        const auto k_part = ck_tile::array<index_t, 2>{get_warp_id() % KLoadNumWarps, get_lane_id()};
+        const auto v_part = ck_tile::array<index_t, 2>{get_warp_id() % VLoadNumWarps, get_lane_id()};
+        const auto k_thread_coord    = k_dist.calculate_index(k_part);
+        const auto v_thread_coord    = v_dist.calculate_index(v_part);
         const index_t k_thread_n_pos = k_thread_coord[number<0>{}];
         const index_t v_thread_n_pos = v_thread_coord[number<0>{}];
 
@@ -1456,12 +1488,24 @@ struct UnifiedAttentionPipeline
         // num_blocks_start.
         const index_t num_iters_per_split = num_total_loop - num_blocks_start;
         auto K_mem_load = [&](auto k_lds_write_idx) {
-            if(cache_ptr_int32_overflow_possible)
-                async_load_tile_raw_long(k_lds_window_store(k_lds_write_idx), k_dram_window);
-            else
-                async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
+            // FA4 "WG1 loads K": only warp group 1's waves issue the K async load
+            // (its KLoadNumWarps==4 layout fills the full shared K tile). WG0
+            // skips it and reads K from shared LDS (barrier-synchronized).
+            if(k_load_active)
+            {
+                if(cache_ptr_int32_overflow_possible)
+                    async_load_tile_raw_long(k_lds_window_store(k_lds_write_idx), k_dram_window);
+                else
+                    async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
+            }
             k_block_idx++;
-            if(k_block_idx < num_iters_per_split)
+            // Only the K-loading warp group needs K offsets refreshed: with
+            // kFA4WG1LoadsK, WG0 never issues a K load, so computing its page
+            // offsets (incl. the block-table page-index ds_read) is pure waste.
+            // k_block_idx itself stays uniform across all waves so loop control
+            // and buffer parity never diverge. Gating here also means each wave
+            // fetches a page-table index for exactly ONE tile (K *or* V), not both.
+            if(k_load_active && k_block_idx < num_iters_per_split)
             {
                 refresh_k_offsets(k_block_idx);
                 if constexpr(kRebaseKSrd)
@@ -1474,12 +1518,22 @@ struct UnifiedAttentionPipeline
         };
 
         auto V_mem_load = [&](auto v_lds_write_idx) {
-            if(cache_ptr_int32_overflow_possible)
-                async_load_tile_raw_long(v_lds_window_store(v_lds_write_idx), v_dram_window);
-            else
-                async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
+            // FA4 "WG0 loads V": only warp group 0's waves issue the V async
+            // load (its VLoadNumWarps==4 layout fills the full shared V tile).
+            // WG1 skips the load; bookkeeping (v_block_idx / offsets) stays
+            // uniform across all waves so the loop's scalar state never diverges.
+            if(v_load_active)
+            {
+                if(cache_ptr_int32_overflow_possible)
+                    async_load_tile_raw_long(v_lds_window_store(v_lds_write_idx), v_dram_window);
+                else
+                    async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
+            }
             v_block_idx++;
-            if(v_block_idx < num_iters_per_split)
+            // Symmetric to K: only the V-loading warp group (WG0) refreshes V
+            // offsets; WG1 skips it (it never issues a V load). v_block_idx stays
+            // uniform for loop/buffer bookkeeping.
+            if(v_load_active && v_block_idx < num_iters_per_split)
             {
                 refresh_v_offsets(v_block_idx);
                 if constexpr(kRebaseVSrd)
@@ -2165,41 +2219,23 @@ struct UnifiedAttentionPipeline
             auto gemm1 = number<1>{};
 
             // MATRIX phase: deferred PV(k-1) then QK(k). Pure matrix pipe.
-            // Consumes V(1-pi) / K(pi) resident in LDS; the union kv_tile holds
-            // v_tile for the PV then is overwritten with k_tile for the QK
-            // (V_lds → gemm1 → K_lds → gemm0 ordering).
-            // V-read hoist: issue the PV gemm's LDS→register read (v_rd == pi)
-            // EARLY — before the matrix phase's compute — so its ~LDS-latency
-            // overlaps the address-calc VALU of prefetch() (WG0) / the barrier
-            // exit (WG1) instead of being exposed right before the PV MFMA. The
-            // V buffer pi was populated by a prior prefetch and already waited
-            // on (vmcnt<0> at phase entry); prefetch writes K-buf[pi]/V-buf[1-pi]
-            // so there is no aliasing with this read.
-            // V-read hoist: issue the PV gemm's LDS→register read (v_rd == pi)
-            // EARLY — before the matrix phase's compute — so its ~LDS-latency
-            // overlaps the address-calc VALU of prefetch() (WG0) / the barrier
-            // exit (WG1) instead of being exposed right before the PV MFMA. The
-            // V buffer pi was populated by a prior prefetch and already waited
-            // on (vmcnt<0> at phase entry); prefetch writes K-buf[pi]/V-buf[1-pi]
-            // so there is no aliasing with this read.
+            // Consumes V(pi) / K(1-pi) resident in LDS; kv_tile holds v_tile for
+            // the PV and (separately) k_tile for the QK.
             //
-            // NOTE: do NOT also hoist K_lds_load here. The QK gemm reads K-buf
-            // [1-pi], and in the WG1 softmax-first prologue that buffer is not
-            // yet guaranteed resident this early (its async load completes a
-            // phase later) — hoisting K corrupts long-context runs. K stays
-            // issued between the PV and QK MFMAs (its latency hides under PV).
-            // V-read hoist: issue the PV gemm's LDS→register read (v_rd == pi)
-            // EARLY — before the matrix phase's compute — so its ~LDS-latency
-            // overlaps the address-calc VALU of prefetch() (WG0) / the barrier
-            // exit (WG1) instead of being exposed right before the PV MFMA.
+            // V-read into SOFTMAX (Stage B): the PV gemm's V tile (v_rd == pi) is
+            // now read in the *preceding* SOFTMAX phase rather than at the top of
+            // this MATRIX phase, so its ~LDS latency overlaps the full softmax
+            // VALU (exp / rowsum / P-cvt) instead of only the prefetch address
+            // calc. This is safe now that V is loaded by a single warp group
+            // (kFA4WG0LoadsV): WG0 reads V it loaded itself, so its own vmcnt<0>
+            // proves residency (no partner dependency); WG1 reads an already-
+            // barrier-published V buffer. The pre-read lands in v_tile and this
+            // MATRIX phase consumes it directly (see fa4_softmax / the WG0 prime).
             //
-            // NOTE: do NOT also hoist K_lds_load. K/V are loaded COOPERATIVELY
-            // by both warp groups; a wave's vmcnt only drains its OWN async
-            // loads, not the partner group's half, so a cooperatively-filled
-            // buffer is reliably resident only deeper into the phase. The PV
-            // gemm provides exactly that slack for the K read — moving K ahead
-            // of PV races the partner's load completion and corrupts long
-            // contexts. K stays issued between the PV and QK MFMAs.
+            // NOTE: do NOT hoist K_lds_load the same way. The QK gemm reads K-buf
+            // [1-pi] which the partner group (WG1) loads; WG0 has no own-vmcnt
+            // proof of its residency this early, only the barrier deeper in the
+            // phase. K stays issued between the PV and QK MFMAs (latency under PV).
             auto fa4_vload = [&](auto pi) { V_lds_load(pi); };
 
             auto fa4_matrix = [&](auto pi) {
@@ -2207,14 +2243,15 @@ struct UnifiedAttentionPipeline
                 auto qk_sp = number<1>{} - pi; // QK target slot
                 auto k_rd  = number<1>{} - pi;
 
-                s_waitcnt_lgkmcnt<0>(); // wait the hoisted fa4_vload(pi)
+                s_waitcnt_lgkmcnt<0>(); // wait the V pre-read issued in prev SOFTMAX
                 gemm(pv_sp, gemm1);     // o_acc += P(pi) @ V(k-1)
-                // K read into its OWN registers (kv_tile no longer a union), so
-                // this ds_read executes on the LSU *during* the PV MFMA above
-                // instead of waiting for it to retire. The sched_barrier pins it
-                // here (program order) so it is NOT hoisted above the PV gemm --
-                // that would race the partner WG's cooperative K load and
-                // corrupt long contexts (the residency hazard documented above).
+                // K read into its OWN registers (k_tile no longer aliases v_tile),
+                // so this ds_read executes on the LSU *during* the PV MFMA above
+                // rather than waiting for it to retire; the sched_barriers pin it
+                // here. K is now single-warp-group loaded (kFA4WG1LoadsK) so it is
+                // resident at the slot-A barrier, but issuing the read AFTER the
+                // PV gemm call (overlapping the in-flight MFMA) schedules strictly
+                // better than hoisting it ahead of PV — measured ~3-4% faster.
                 __builtin_amdgcn_sched_barrier(0);
                 K_lds_load(k_rd); // overlaps the PV MFMA (latency hidden)
                 __builtin_amdgcn_sched_barrier(0);
@@ -2256,20 +2293,32 @@ struct UnifiedAttentionPipeline
                 if constexpr(cl_p == 0)
                 {
                     // ---- slot A: MATRIX(pi) ‖ (WG1: SOFTMAX) ----
+                    // V tile (buf pi) was pre-read into v_tile in the previous
+                    // SOFTMAX phase (or the WG0 prime for the first tile).
                     ASM_MARKER("fa4 MATRIX Wave0-3");
                     s_waitcnt_vmcnt<0>();
                     __builtin_amdgcn_sched_barrier(0);
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
-                    fa4_vload(pi);  // hoisted V read; latency hidden under prefetch
                     prefetch();
                     fa4_matrix(pi);
 
                     // ---- slot B: SOFTMAX(pi) ‖ (WG1: MATRIX) ----
+                    // Pre-read the next MATRIX's V tile (buf 1-pi == the buffer
+                    // this iteration's prefetch just filled), overlapping the
+                    // softmax VALU below; v_tile survives into the next slot-A
+                    // MATRIX (PV consumes it via lgkmcnt<0>). The V buffer is
+                    // filled cooperatively by WG0's 4 waves, so a wave reads
+                    // slices written by its peers: drain the load (vmcnt<0>) and
+                    // then cross the phase barrier so all 4 waves' writes are
+                    // published BEFORE the read (drain-before-barrier; reading
+                    // after only an own-vmcnt races the peers' slices).
                     ASM_MARKER("fa4 SOFTMAX Wave0-3");
+                    s_waitcnt_vmcnt<0>();
                     __builtin_amdgcn_sched_barrier(0);
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
+                    fa4_vload(number<1>{} - pi);
                     fa4_softmax(pi);
 
                     if(num_total_loop <= ++i_total_loops)
@@ -2281,20 +2330,28 @@ struct UnifiedAttentionPipeline
                     // WG1 is one phase ahead (primed by the FA4 prologue): it
                     // softmaxes the tile it QK'd in its previous MATRIX phase
                     // while WG0 runs the MATRIX of the same tile.
+                    //
+                    // Pre-read this iteration's slot-B MATRIX V tile (buf pi).
+                    // That buffer was filled by WG0 and already drained+published
+                    // by WG0's drain-before-barrier in its prior SOFTMAX slot, so
+                    // the slot-A barrier just crossed guarantees all 4 writer
+                    // waves' slices are visible. The read overlaps the softmax
+                    // VALU below; v_tile survives into the slot-B MATRIX.
                     ASM_MARKER("fa4 SOFTMAX Wave4-7");
                     s_waitcnt_vmcnt<0>();
                     __builtin_amdgcn_sched_barrier(0);
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
+                    fa4_vload(pi);
                     prefetch();
                     fa4_softmax(number<1>{} - pi);
 
                     // ---- slot B: MATRIX(pi) ‖ (WG0: SOFTMAX) ----
+                    // v_tile holds buf pi from the slot-A pre-read above.
                     ASM_MARKER("fa4 MATRIX Wave4-7");
                     __builtin_amdgcn_sched_barrier(0);
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
-                    fa4_vload(pi);  // hoisted V read (overlaps barrier exit)
                     fa4_matrix(pi);
 
                     if(num_total_loop <= ++i_total_loops)
@@ -2508,6 +2565,11 @@ struct UnifiedAttentionPipeline
                     fmha_alu0(number<0>{});
                     fmha_alu_D_upd();
                     fmha_alu1(number<0>{}); // sp(0).p = P(0)
+                    // Prime v_tile for the first MATRIX(0): V buf 0 was loaded by
+                    // WG0 in the pre-stage, so its own vmcnt<0> proves residency.
+                    // (Stage B reads each subsequent tile's V in the prior SOFTMAX.)
+                    s_waitcnt_vmcnt<0>();
+                    V_lds_load(number<0>{});
                     while(core_loop_fa4(number<0>{}))
                         ;
                 }
