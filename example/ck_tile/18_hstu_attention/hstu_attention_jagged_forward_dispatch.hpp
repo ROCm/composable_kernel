@@ -39,7 +39,7 @@ struct jagged_forward_dispatch
                                     HstuAttentionWithSoftmaxFwdTileSetting<MaxK, MTile>,
                                     HstuAttentionNoSoftmaxFwdTileSetting<MaxK, MTile>>::Type;
 
-#ifdef BUILD_HSTU_FOR_GFX95_ONLY
+#ifdef BUILD_HSTU_FOR_GFX95
     static constexpr bool use_trload_pipeline = true;
 #else
     static constexpr bool use_trload_pipeline = false;
