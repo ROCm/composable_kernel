@@ -18,7 +18,7 @@ endif()
 
 if(GPU_TARGETS MATCHES "gfx95" AND NOT GPU_TARGETS MATCHES "gfx94" AND NOT GPU_TARGETS MATCHES "gfx90")
     ## disable slp-vectorize improve pipelines performance on gfx950
-    list(APPEND EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS -DBUILD_HSTU_FOR_GFX95_ONLY -fno-slp-vectorize)
+    list(APPEND EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS -DBUILD_HSTU_FOR_GFX95 -fno-slp-vectorize)
 endif()
 
 target_compile_options(${EXAMPLE_HSTU_ATTENTION} PRIVATE ${EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS})

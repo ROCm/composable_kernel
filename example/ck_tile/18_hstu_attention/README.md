@@ -206,7 +206,7 @@ The build target is `tile_example_hstu_attention` (excluded from `make all` by d
 |---------------------|--------|
 | `ASSUME_HIGHLY_VARIED_SEQLEN=1` | Schedules batch dimension as a non-leading grid dimension (trades occupancy for better load balance when sequence lengths vary widely) |
 
-On `gfx950`-only builds (`-DBUILD_HSTU_FOR_GFX95_ONLY`), SLP vectorization is disabled to
+On `gfx950`-only builds (`-DBUILD_HSTU_FOR_GFX95`), SLP vectorization is disabled to
 improve pipeline performance.
 
 ---

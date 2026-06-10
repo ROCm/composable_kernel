@@ -13,7 +13,7 @@ using WarpTile_16x16x16 = ck_tile::sequence<16, 16, 16>;
 using WarpTile_16x16x32 = ck_tile::sequence<16, 16, 32>;
 using WarpTile_32x32x16 = ck_tile::sequence<32, 32, 16>;
 
-#if !defined(BUILD_HSTU_FOR_GFX95_ONLY)
+#if !defined(BUILD_HSTU_FOR_GFX95)
 template <ck_tile::index_t MaxK, ck_tile::index_t MTile = 0>
 struct HstuAttentionNoSoftmaxFwdBlockTile;
 
@@ -239,7 +239,7 @@ template struct HstuAttentionWithSoftmaxFwdTileSetting<256, 64>;
 template struct HstuAttentionWithSoftmaxFwdTileSetting<256, 128>;
 #endif
 
-#if defined(BUILD_HSTU_FOR_GFX95_ONLY)
+#if defined(BUILD_HSTU_FOR_GFX95)
 template <ck_tile::index_t MaxK, ck_tile::index_t MTile = 0>
 struct HstuAttentionNoSoftmaxFwdBlockTile;
 
