@@ -47,7 +47,7 @@ struct group_forward_splitkv_dispatch
     using HstuAttentionCombineTileSetting =
         typename HstuAttentionFwdSplitKVCombineTileSetting<MaxK>::Type;
 
-#ifdef BUILD_HSTU_FOR_GFX95_ONLY
+#ifdef BUILD_HSTU_FOR_GFX95
     static constexpr bool use_trload_pipeline = true;
 #else
     static constexpr bool use_trload_pipeline = false;

@@ -46,7 +46,7 @@ struct jagged_forward_splitkv_dispatch
                                     HstuAttentionNoSoftmaxFwdTileSetting<MaxK, MTile>>::Type;
     using HstuAttentionCombineTileSetting = HstuAttentionFwdSplitKVCombineTileSetting<MaxK>::Type;
 
-#ifdef BUILD_HSTU_FOR_GFX95_ONLY
+#ifdef BUILD_HSTU_FOR_GFX95
     static constexpr bool use_trload_pipeline = true;
 #else
     static constexpr bool use_trload_pipeline = false;
