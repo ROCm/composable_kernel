@@ -349,6 +349,34 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
     }();
 
     dim3 grids = FmhaBwdDQDKDVKernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_k);
+    // GRID PRUNE (opt-in via ROCM_FLASH_ATTN_GRID_PRUNE=1): for bottom-right causal + sliding
+    // window, K-tiles before the attended band are dead (no query attends them). Launch only
+    // the live tiles [first_live, nc) and offset blockIdx.x by first_live on device.
+    // ONLY for deterministic + uniform-seqlen (max==actual) to stay correct; default OFF.
+    if(const char* e = std::getenv("ROCM_FLASH_ATTN_GRID_PRUNE"))
+    {
+        // GRID PRUNE for sliding-window: launch only live K-tiles. grid.x is a window-derived
+        // UPPER BOUND on per-batch live-tile count (host scalars only -> no D2H sync). Each batch
+        // computes its own first_live on-device (alignment-aware). Overshoot blocks hit the
+        // existing seqlen_k<=i_n0 early-out. Enabled only for bottom-right SWA (left window);
+        // top-left gains ~nothing (live band starts near tile 0) so we skip it.
+        const bool is_br = (args.mask_type ==
+            static_cast<ck_tile::index_t>(ck_tile::GenericAttentionMaskEnum::MASK_FROM_BOTTOM_RIGHT));
+        if(std::atoi(e) != 0 && FmhaBwdDQDKDVKernel::kIsDeterministic &&
+           args.window_size_left >= 0 && args.window_size_right <= 0 && is_br)
+        {
+            constexpr ck_tile::index_t kN0 = FmhaBwdDQDKDVKernel::FmhaPipeline::kN0;
+            const ck_tile::index_t nc = ck_tile::integer_divide_ceil(args.max_seqlen_k, kN0);
+            // per-batch n_live <= ceil((Sq + W)/kN0) + 1 (window width in tiles + slack)
+            const ck_tile::index_t live_bound =
+                ck_tile::integer_divide_ceil(args.max_seqlen_q + args.window_size_left, kN0) + 1;
+            if(live_bound < nc)
+            {
+                grids.x = live_bound;
+                kargs.grid_prune_swa = 1;
+            }
+        }
+    }
     return ck_tile::make_tuple(kargs, grids);
 }
 

@@ -213,6 +213,7 @@ struct FmhaBwdDQDKDVKernel
         ck_tile::long_index_t nhead_stride_dq_acc;
         ck_tile::index_t nhead_stride_dk;
         ck_tile::index_t nhead_stride_dv;
+        ck_tile::index_t grid_prune_swa = 0; // GRID PRUNE flag (1=on); per-batch offset computed on device
     };
 
     struct FmhaBwdCommonBiasKargs
@@ -738,7 +739,44 @@ struct FmhaBwdDQDKDVKernel
         {
             if constexpr(!kUsePersistent)
             {
-                run_(std::move(kargs), blockIdx, blockIdx.x);
+                if constexpr(kIsDeterministic)
+                {
+                    index_t i_tile_n = blockIdx.x;
+                    if constexpr(kHasMask) if(kargs.grid_prune_swa != 0)
+                    {
+                        // GRID PRUNE: skip dead K-tiles for sliding-window. Per-batch, computed
+                        // from this batch's own seqlens (no host sync, CUDA-graph safe). Alignment-
+                        // aware: union-over-queries lower bound is the first query's window start.
+                        //   top-left  : diag(q=0) = 0
+                        //   bottom-right: diag(q=0) = seqlen_k - seqlen_q
+                        const index_t i_batch = blockIdx.z;
+                        index_t sq_b, sk_b;
+                        if constexpr(kIsGroupMode)
+                        {
+                            sq_b = (kargs.cu_seqlen_q_ptr != nullptr)
+                                       ? (kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch])
+                                   : (kargs.seqlen_q_ptr != nullptr)
+                                       ? kargs.seqlen_q_ptr[i_batch]
+                                       : (kargs.seqstart_q_ptr[i_batch + 1] - kargs.seqstart_q_ptr[i_batch]);
+                            sk_b = (kargs.cu_seqlen_k_ptr != nullptr)
+                                       ? (kargs.cu_seqlen_k_ptr[i_batch + 1] - kargs.cu_seqlen_k_ptr[i_batch])
+                                   : (kargs.seqlen_k_ptr != nullptr)
+                                       ? kargs.seqlen_k_ptr[i_batch]
+                                       : (kargs.seqstart_k_ptr[i_batch + 1] - kargs.seqstart_k_ptr[i_batch]);
+                        }
+                        else { sq_b = kargs.seqlen_q; sk_b = kargs.seqlen_k; }
+                        const bool is_top_left =
+                            (kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
+                        const index_t diag0 = is_top_left ? 0 : (sk_b - sq_b);
+                        const index_t lo = max(0, diag0 - kargs.window_size_left);
+                        i_tile_n = (lo / FmhaPipeline::kN0) + blockIdx.x;
+                    }
+                    run_(std::move(kargs), dim3(i_tile_n, blockIdx.y, blockIdx.z), i_tile_n);
+                }
+                else
+                {
+                    run_(std::move(kargs), blockIdx, blockIdx.x);
+                }
             }
             else
             {
