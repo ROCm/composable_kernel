@@ -191,8 +191,9 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
     using DsLayout   = ck_tile::tuple<>;
     using DsDataType = ck_tile::tuple<>;
 
-    static constexpr bool Persistent    = false;
-    static constexpr bool ClusterLaunch = false;
+    static constexpr bool Persistent = false;
+    static constexpr bool ClusterLaunch =
+        ck_tile::tuple_element_or_default_t<Tuple, 16, std::false_type>::value;
 
     static constexpr ck_tile::index_t ScaleBlockSize = 32;
 
@@ -204,6 +205,14 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
+
+        // if cluster launch is enabled, set cluster dim to 2x2x1
+        constexpr ck_tile::index_t kClusterSizeM =
+            std::conditional_t<ClusterLaunch, ck_tile::number<2>, ck_tile::number<1>>{};
+        constexpr ck_tile::index_t kClusterSizeN =
+            std::conditional_t<ClusterLaunch, ck_tile::number<2>, ck_tile::number<1>>{};
+        constexpr ck_tile::index_t kClusterSizeK =
+            std::conditional_t<ClusterLaunch, ck_tile::number<1>, ck_tile::number<1>>{};
 
         constexpr bool kPadM      = PadM;
         constexpr bool kPadN      = PadN;
@@ -222,14 +231,27 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
         static constexpr bool StructuredSparsity = false;
         static constexpr bool NumWaveGroup       = 1;
 
-        constexpr int kBlockPerCu = 1;
+        constexpr int kBlockPerCu                         = 1;
+        constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+        constexpr ck_tile::index_t TileParitionerM01      = 4;
 
-        using GemmShape =
+        using GemmShape = std::conditional_t<
+            ClusterLaunch,
+            ck_tile::ClusterTileGemmShape<
+                ck_tile::sequence<kClusterSizeM, kClusterSizeN, kClusterSizeK>,
+                ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
+                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
+                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>,
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
-                                   ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
+                                   ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>>;
 
-        using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape, 8, 4>;
+        using TilePartitioner =
+            std::conditional_t<ClusterLaunch,
+                               ck_tile::GemmClusterTilePartitioner<GemmShape>,
+                               ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
+                                                                          TileParitionerGroupNum,
+                                                                          TileParitionerM01>>;
 
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
@@ -305,8 +327,17 @@ class TestCkTileMxGemmPipeline : public ::testing::Test
                       << blocks.y << ", " << blocks.z << "}" << std::endl;
         }
 
-        ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        if constexpr(ClusterLaunch)
+        {
+            dim3 clusters = Kernel::ClusterSize();
+            ck_tile::launch_kernel(
+                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, clusters, grids, blocks, 0, kargs));
+        }
+        else
+        {
+            ck_tile::launch_kernel(
+                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        }
     }
 
     public:

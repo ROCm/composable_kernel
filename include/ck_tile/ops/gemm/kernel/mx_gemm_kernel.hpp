@@ -231,6 +231,13 @@ struct MxGemmKernel
             bs_scale_ptr[i] = reinterpret_cast<const int32_t*>(kargs.bs_scale_ptr[i]);
         });
 
+        // cluster launch pads grid to cluster boundaries; skip out-of-bound blocks
+        if constexpr(BaseKernel::ClusterLaunch)
+        {
+            if(block_idx_m >= kargs.M || block_idx_n >= kargs.N)
+                return;
+        }
+
         const auto& as_block_window = BaseKernel::MakeABlockWindows(
             as_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
         const auto& bs_block_window = BaseKernel::MakeBBlockWindows(
