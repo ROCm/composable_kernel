@@ -149,7 +149,14 @@ struct variant_config<KernelVariant::prefill_d128>
     // spills at kv64. Unlocking kv128 needs a VGPR-pressure cut (smaller kBlockM
     // for this tile, or sub-tiling kBlockN so the live score tile stays 32x64),
     // not an LDS change. Stay at 64 until that lands.
-    static constexpr index_t BlockSize = 64;
+    //
+    // UA_PREFILL_D128_BLOCKSIZE: compile-time override of the KV tile so the
+    // VGPR-pressure experiments (kv128 + sub-tiling) can be probed without
+    // editing this line each build. Defaults to the production 64.
+#ifndef UA_PREFILL_D128_BLOCKSIZE
+#define UA_PREFILL_D128_BLOCKSIZE 64
+#endif
+    static constexpr index_t BlockSize = UA_PREFILL_D128_BLOCKSIZE;
     using BlockWarps                   = sequence<8, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
     template <typename Problem, index_t PageSize = 0, bool IsPaged = true>
