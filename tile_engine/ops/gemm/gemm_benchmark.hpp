@@ -77,33 +77,30 @@ struct get_D0DataType<T, std::void_t<typename T::D0DataType>>
     using type = typename T::D0DataType;
 };
 
-/// @brief Function to compare the results of the device and host computations
-template <typename Problem>
+/// @brief Generic compare: all types provided explicitly as template parameters
+template <typename AType, typename BType, typename AccType, typename OutType, typename DType = void>
 bool compare(std::string instanceName,
              ck_tile::index_t K,
              ck_tile::index_t kbatch,
-             ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-             ck_tile::HostTensor<CDataType>& c_m_n_host_result)
+             ck_tile::HostTensor<OutType>& out_dev_result,
+             ck_tile::HostTensor<OutType>& out_host_result)
 {
-    using DDataType = typename get_D0DataType<Problem>::type;
     const float max_accumulated_value =
-        *std::max_element(c_m_n_host_result.mData.begin(), c_m_n_host_result.mData.end());
-    // const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-    // K, kbatch, max_accumulated_value);
+        *std::max_element(out_host_result.mData.begin(), out_host_result.mData.end());
     auto rtol_atol = [&] {
-        if constexpr(std::is_void_v<DDataType>)
+        if constexpr(std::is_void_v<DType>)
         {
-            return calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+            return calculate_rtol_atol<AType, BType, AccType, OutType>(
                 K, kbatch, max_accumulated_value);
         }
         else
         {
-            return calculate_rtol_atol<ADataType, BDataType, DDataType, AccDataType, CDataType>(
+            return calculate_rtol_atol<AType, BType, DType, AccType, OutType>(
                 K, kbatch, max_accumulated_value);
         }
     }();
-    bool pass = ck_tile::check_err(c_m_n_dev_result,
-                                   c_m_n_host_result,
+    bool pass = ck_tile::check_err(out_dev_result,
+                                   out_host_result,
                                    "Error: Incorrect results!",
                                    rtol_atol.at(ck_tile::number<0>{}),
                                    rtol_atol.at(ck_tile::number<1>{}));
@@ -114,4 +111,17 @@ bool compare(std::string instanceName,
     std::cout << "The verification result is:" << (pass ? "correct" : "fail") << std::endl;
 
     return pass;
+}
+
+/// @brief Backward-compatible compare: deduces types from global aliases and Problem trait
+template <typename Problem, typename OutType>
+bool compare(std::string instanceName,
+             ck_tile::index_t K,
+             ck_tile::index_t kbatch,
+             ck_tile::HostTensor<OutType>& out_dev_result,
+             ck_tile::HostTensor<OutType>& out_host_result)
+{
+    using DDataType = typename get_D0DataType<Problem>::type;
+    return compare<ADataType, BDataType, AccDataType, OutType, DDataType>(
+        instanceName, K, kbatch, out_dev_result, out_host_result);
 }

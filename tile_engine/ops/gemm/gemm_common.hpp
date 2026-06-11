@@ -37,10 +37,8 @@ struct KernelTraits
     }
 };
 
-// Create argument parser
-inline auto create_args(int argc, char* argv[])
+inline void add_common_benchmark_args(ck_tile::ArgParser& arg_parser, int default_verify = 2)
 {
-    ck_tile::ArgParser arg_parser;
     arg_parser.insert("m", "3840", "The value for m dimension. Default is 3840.")
         .insert("n", "4096", "The value for n dimension. Default is 4096.")
         .insert("k", "2048", "The value for k dimension. Default is 2048.")
@@ -50,9 +48,9 @@ inline auto create_args(int argc, char* argv[])
         .insert("stride_c", "0", "The stride value for tensor C. Default is 0.")
         .insert("split_k", "1", "The split value for k dimension. Default is 1.")
         .insert("verify",
-                "2",
+                std::to_string(default_verify),
                 "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
-                "for validation on GPU. Default is 2, GPU validation.")
+                "for validation on GPU.")
         .insert("log",
                 "false",
                 "Whether output kernel instance information or not. Possible values are true or "
@@ -90,6 +88,24 @@ inline auto create_args(int argc, char* argv[])
                 "Whether to output results in JSON format only. Possible values are true or false. "
                 "Default is "
                 "false");
+}
+
+// Create argument parser
+inline auto create_args(int argc, char* argv[], int default_verify = 2)
+{
+    ck_tile::ArgParser arg_parser;
+    add_common_benchmark_args(arg_parser, default_verify);
+
+    bool result = arg_parser.parse(argc, argv);
+    return std::make_tuple(result, arg_parser);
+}
+
+template <typename ConfigureArgs>
+inline auto create_args(int argc, char* argv[], int default_verify, ConfigureArgs configure_args)
+{
+    ck_tile::ArgParser arg_parser;
+    add_common_benchmark_args(arg_parser, default_verify);
+    configure_args(arg_parser);
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

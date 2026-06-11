@@ -10,10 +10,22 @@
 #include <algorithm>
 #include <functional>
 #include <tuple>
+#include <utility>
+#include <type_traits>
 
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "gemm_benchmark.hpp"
+
+template <typename T, typename = void>
+struct has_split_k_member : std::false_type
+{
+};
+
+template <typename T>
+struct has_split_k_member<T, std::void_t<decltype(std::declval<T>().split_k_)>> : std::true_type
+{
+};
 
 template <typename Gemm, typename Problem, typename GemmArgs>
 class GemmProfiler
@@ -53,24 +65,12 @@ class GemmProfiler
                         const std::tuple<std::string, float>& kernel_run_result)
     {
         auto [name, avg_time] = kernel_run_result;
-        using DDataType       = typename get_DsDataType<Problem>::type;
 
         KernelInstance<Problem> kernel_instance{name, gemm_problem, {-1.0f, -1.0f, -1.0f}};
 
         // compute performance metric
-        std::size_t flop     = std::size_t(2) * gemm_problem.m_ * gemm_problem.n_ * gemm_problem.k_;
-        std::size_t num_byte = sizeof(ADataType) * gemm_problem.m_ * gemm_problem.k_ +
-                               sizeof(BDataType) * gemm_problem.n_ * gemm_problem.k_ +
-                               sizeof(CDataType) * gemm_problem.m_ * gemm_problem.n_;
-
-        if constexpr(!std::is_void_v<DDataType>)
-        {
-            ck_tile::static_for<0, DDataType::size(), 1>{}([&](auto i) {
-                using DType = ck_tile::remove_cvref_t<std::tuple_element_t<i, DDataType>>;
-                num_byte += sizeof(DType) * gemm_problem.m_ * gemm_problem.n_;
-                flop += gemm_problem.m_ * gemm_problem.n_;
-            });
-        }
+        std::size_t flop     = get_flop_count(gemm_problem);
+        std::size_t num_byte = get_byte_count(gemm_problem);
 
         // update
         kernel_instance.perf_result_.latency_   = avg_time;
@@ -84,14 +84,12 @@ class GemmProfiler
 
         // verify result
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
-        int split_k = 1;
-        if constexpr(std::is_same_v<Problem, GemmProblem>)
-        {
-            split_k = gemm_problem.split_k_;
-        }
         bool verified_correct =
-            !setting_.verify ||
-            compare<Problem>(name, gemm_problem.k_, split_k, c_m_n_dev_result, c_m_n_host_result);
+            !setting_.verify || compare<Problem>(name,
+                                                 gemm_problem.k_,
+                                                 get_verification_split_k(gemm_problem),
+                                                 c_m_n_dev_result,
+                                                 c_m_n_host_result);
 
         if(verified_correct)
         {
@@ -144,28 +142,10 @@ class GemmProfiler
             {
                 if(file.tellp() == 0)
                 {
-                    file << "rocm_version,device_name,"
-                         << "split_k,m,n,k,stride_a,stride_b,stride_c,"
-                         << "dtype_a,dtype_b,dtype_acc,dtype_c," << "layout_a,layout_b,layout_c,"
-                         << "structured_sparsity," << "name,"
-                         << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
+                    write_csv_header(file);
                 }
 
-                const auto& problem = kernel_instance.problem_;
-                const auto& name    = kernel_instance.name_;
-                const auto& perf    = kernel_instance.perf_result_;
-
-                file << get_rocm_version() << "," << ck_tile::get_device_name() << ","
-                     << problem.split_k_ << "," << problem.m_ << "," << problem.n_ << ","
-                     << problem.k_ << "," << problem.stride_a_ << "," << problem.stride_b_ << ","
-                     << problem.stride_c_ << "," << problem.dtype_a_ << "," << problem.dtype_b_
-                     << "," << problem.dtype_acc_ << "," << problem.dtype_c_ << ","
-                     << problem.layout_a_ << "," << problem.layout_b_ << "," << problem.layout_c_
-                     << "," << problem.structured_sparsity_ << "," << name << "," << std::fixed
-                     << std::setprecision(4) << perf.latency_ << "," << std::fixed
-                     << std::setprecision(4) << perf.tflops_ << "," << std::fixed
-                     << std::setprecision(4) << perf.bandwidth_ << "," << get_metric_name(metric)
-                     << "\n";
+                write_csv_row(file, kernel_instance, metric);
 
                 if(!file)
                 {
@@ -183,6 +163,76 @@ class GemmProfiler
     protected:
     virtual ~GemmProfiler() { kernel_instances_.clear(); }
     GemmProfiler(Settings setting) : setting_(setting) {}
+
+    virtual std::size_t get_flop_count(const Problem& gemm_problem) const
+    {
+        using DDataType = typename get_DsDataType<Problem>::type;
+
+        std::size_t flop = std::size_t(2) * gemm_problem.m_ * gemm_problem.n_ * gemm_problem.k_;
+        if constexpr(!std::is_void_v<DDataType>)
+        {
+            ck_tile::static_for<0, DDataType::size(), 1>{}([&](auto i) {
+                using DType = ck_tile::remove_cvref_t<std::tuple_element_t<i, DDataType>>;
+                static_cast<void>(sizeof(DType));
+                flop += gemm_problem.m_ * gemm_problem.n_;
+            });
+        }
+        return flop;
+    }
+
+    virtual std::size_t get_byte_count(const Problem& gemm_problem) const
+    {
+        using DDataType = typename get_DsDataType<Problem>::type;
+
+        std::size_t num_byte = sizeof(ADataType) * gemm_problem.m_ * gemm_problem.k_ +
+                               sizeof(BDataType) * gemm_problem.n_ * gemm_problem.k_ +
+                               sizeof(CDataType) * gemm_problem.m_ * gemm_problem.n_;
+
+        if constexpr(!std::is_void_v<DDataType>)
+        {
+            ck_tile::static_for<0, DDataType::size(), 1>{}([&](auto i) {
+                using DType = ck_tile::remove_cvref_t<std::tuple_element_t<i, DDataType>>;
+                num_byte += sizeof(DType) * gemm_problem.m_ * gemm_problem.n_;
+            });
+        }
+        return num_byte;
+    }
+
+    virtual int get_verification_split_k(const Problem& gemm_problem) const
+    {
+        if constexpr(has_split_k_member<Problem>::value)
+        {
+            return gemm_problem.split_k_;
+        }
+        return 1;
+    }
+
+    virtual void write_csv_header(std::ostream& os) const
+    {
+        os << "rocm_version,device_name," << "split_k,m,n,k,stride_a,stride_b,stride_c,"
+           << "dtype_a,dtype_b,dtype_acc,dtype_c," << "layout_a,layout_b,layout_c,"
+           << "structured_sparsity," << "name,"
+           << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
+    }
+
+    virtual void write_csv_row(std::ostream& os,
+                               const KernelInstance<Problem>& kernel_instance,
+                               Metric metric) const
+    {
+        const auto& problem = kernel_instance.problem_;
+        const auto& name    = kernel_instance.name_;
+        const auto& perf    = kernel_instance.perf_result_;
+
+        os << get_rocm_version() << "," << ck_tile::get_device_name() << ","
+           << get_verification_split_k(problem) << "," << problem.m_ << "," << problem.n_ << ","
+           << problem.k_ << "," << problem.stride_a_ << "," << problem.stride_b_ << ","
+           << problem.stride_c_ << "," << problem.dtype_a_ << "," << problem.dtype_b_ << ","
+           << problem.dtype_acc_ << "," << problem.dtype_c_ << "," << problem.layout_a_ << ","
+           << problem.layout_b_ << "," << problem.layout_c_ << "," << problem.structured_sparsity_
+           << "," << name << "," << std::fixed << std::setprecision(4) << perf.latency_ << ","
+           << std::fixed << std::setprecision(4) << perf.tflops_ << "," << std::fixed
+           << std::setprecision(4) << perf.bandwidth_ << "," << get_metric_name(metric) << "\n";
+    }
 
     Settings setting_;
 
