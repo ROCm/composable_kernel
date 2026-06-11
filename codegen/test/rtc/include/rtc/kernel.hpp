@@ -49,11 +49,24 @@ struct kernel
                 std::size_t local,
                 std::vector<void*> args) const;
 
+    void launch(hipStream_t stream,
+                dim3 grid,
+                dim3 block,
+                const std::vector<kernel_argument>& args) const;
+
     template <class... Ts>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const
     {
         return [=, this](auto&&... xs) {
             launch(stream, global, local, std::vector<kernel_argument>{xs...}, zs...);
+        };
+    }
+
+    template <class... Ts>
+    auto launch(hipStream_t stream, dim3 grid, dim3 block, Ts... zs) const
+    {
+        return [=, this](auto&&... xs) {
+            launch(stream, grid, block, std::vector<kernel_argument>{xs...}, zs...);
         };
     }
 

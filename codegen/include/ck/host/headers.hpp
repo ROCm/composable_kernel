@@ -13,5 +13,7 @@ namespace host {
 
 std::unordered_map<std::string_view, std::string_view> GetHeaders();
 
+std::unordered_map<std::string, std::string> GetTileHeaders();
+
 } // namespace host
 } // namespace ck
