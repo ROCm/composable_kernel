@@ -49,13 +49,13 @@
 //      the next QK within a warp group, so one fp32 buffer is sufficient).
 //      Saves one full fp32 score tile. Requires in-place delta (the sp_delta
 //      decltype would otherwise see a reference member), so it force-enables it.
-// WARNING: NOT correctness-preserving. A full build with this on FAILS
-// prefill_fp8 accuracy (0.6% of elements wrong) while decode passes — the
-// deferred-PV ping-pong genuinely keeps BOTH fp32 score buffers live in steady
-// state (the next tile's QK overlaps the current tile's softmax read of the
-// other slot), so the score double-buffer is load-bearing for correctness, not
-// just latency. Kept default-OFF only as a measured dead end (it would cut
-// kv128 spills 173->126 IF it were correct, which it is not). Do not enable.
+// Correctness-equivalent to baseline (a full build with this on reproduces the
+// baseline output byte-for-byte: identical max-abs-delta on prefill_fp8), but
+// INSUFFICIENT for kv128: it cuts kv128 spills only 173 -> 126, and slightly
+// regresses kv64 VGPR (214 -> 220) because the union already let `p` alias
+// `sp_compute`. Kept default-OFF as a measured dead end: even combined with
+// every other lever tried, kv128 still spills, so the only path that fits is
+// shrinking the score tile itself (sub-tiling kBlockN to 64).
 #ifndef UA_FA4_SHARED_SPCOMPUTE
 #define UA_FA4_SHARED_SPCOMPUTE 0
 #endif
