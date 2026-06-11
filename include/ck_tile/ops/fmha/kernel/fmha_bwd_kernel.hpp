@@ -42,6 +42,26 @@ CK_TILE_HOST inline index_t get_num_cus_override()
     return get_num_cus();
 }
 
+// EXPERIMENT PATCH: override the persistent kernel's grid SHAPE.
+// If ROCM_FLASH_ATTN_GRID_Y and ROCM_FLASH_ATTN_GRID_Z are both set, return a 3D grid
+// dim3(N/(Y*Z), Y, Z) where N = get_num_cus_override(). Otherwise return dim3(N, 1, 1)
+// (default 1D persistent dispatch). Used to test whether 1D vs 3D grid scheduling
+// is the source of any DQDKDV time gap.
+CK_TILE_HOST inline dim3 get_persistent_grid_override()
+{
+    const index_t n = get_num_cus_override();
+    const char* env_y = std::getenv("ROCM_FLASH_ATTN_GRID_Y");
+    const char* env_z = std::getenv("ROCM_FLASH_ATTN_GRID_Z");
+    if(env_y != nullptr && env_z != nullptr)
+    {
+        const int y = std::atoi(env_y);
+        const int z = std::atoi(env_z);
+        if(y > 0 && z > 0 && (n % (y * z)) == 0)
+            return dim3(n / static_cast<index_t>(y * z), static_cast<index_t>(y), static_cast<index_t>(z));
+    }
+    return dim3(n, 1, 1);
+}
+
 // Per-CU state for group-mode deterministic persistent scheduling.
 // Packed into a single array to reduce kargs pointer count (5 pointers → 1).
 // alignas(16): enables aligned 128-bit loads; sizeof == 32 (6×4 + 8 pad).
@@ -1089,7 +1109,7 @@ struct FmhaBwdDQDKDVKernel
         const index_t jobs_per_head =
             kUseQrQtrDorPipeline ? 1 : integer_divide_ceil(seqlen_k_, FmhaPipeline::kN0);
         if constexpr(kUsePersistent)
-            return dim3(get_num_cus_override(), 1, 1);
+            return get_persistent_grid_override();
         else
             return dim3(jobs_per_head, nhead_, batch_size_);
     }
@@ -1182,7 +1202,7 @@ struct FmhaBwdDQDKDVKernel
                     // in a single struct array to minimise kargs pointer count (5 → 1).
                     // Remap block→CU: interleave SEs so consecutive blocks hit different SEs,
                     // spreading dq_acc writes across HBM channels.
-                    const index_t cu_id = blockIdx.x / 8 + (blockIdx.x % 8) * 32;
+                    const index_t cu_id = blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * gridDim.x * gridDim.y; // PATCH: flat blockIdx (works for 1D and 3D grids) for arbitrary CTA_NUM (the original bx/8 + bx%8 * 32 is only bijective for N=256)
 
                     // Load all per-CU fields through a single pointer; pointer dies after loads.
                     const FmhaBwdGroupPersistentCuState* cs = kargs.cu_state_ptr + cu_id;
