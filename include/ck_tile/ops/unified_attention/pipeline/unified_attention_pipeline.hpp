@@ -3,6 +3,26 @@
 
 #pragma once
 
+// EXPERIMENT: move the FA4 V LDS transpose-read out of the SOFTMAX phase and
+// into the MATRIX phase (right before its PV consumer). The default ("Stage B")
+// issues the V ds_read in the *preceding* softmax to hide its latency under the
+// softmax VALU — but the ATT trace shows that read stalls ~69% and sits on the
+// (longer/critical) softmax phase. Moving it to MATRIX, which has barrier slack,
+// takes it off the critical path. =1 to enable.
+#ifndef UA_FA4_PIN_PACK_IN_SOFTMAX
+// Experiment (option 3): fence the fp32->fp8 P-pack (cvt_pk_fp8 tail of
+// fmha_alu1) so it retires inside the SOFTMAX phase instead of sinking past the
+// matrix barrier into the next MATRIX slot. In the MATRIX slot the pack (a VALU
+// op) contends with the co-resident warp group's softmax VALU (the v_max3
+// rowmax tree) on the shared SIMD issue port; pinning it to SOFTMAX trades that
+// cross-wave contention for in-phase exposure on the (longer) softmax phase.
+#define UA_FA4_PIN_PACK_IN_SOFTMAX 0
+#endif
+
+#ifndef UA_FA4_VLOAD_IN_MATRIX
+#define UA_FA4_VLOAD_IN_MATRIX 1
+#endif
+
 // FMHA_MASK PLACEMENT: pick exactly one of:
 //   - both 0 → baseline (mask in K-side memory phase, W0-3 phase 1
 //     / W4-7 phase 2, right after `cl_load(memK)`).
@@ -1338,10 +1358,16 @@ struct UnifiedAttentionPipeline
         // the invariant and keeps any future 2-WG 16x16x32 instance on the
         // baseline.
         using Gemm1WarpTileFA4 = typename UnifiedAttentionShape::Gemm1WarpTile;
+        // Barrier-free QK-C->PV-A FP8 relayout is available for two 32x32 tiles:
+        //   K=16 -> strategy A (within-wave permlane32_swap, see fmha_alu1)
+        //   K=64 -> strategy C (cvt-only; QK-C and PV-A layouts already match
+        //           under the wide v_mfma_f32_32x32x64 MMA, like the ASM kernel)
+        // Both are FA4-safe (no block barrier inside a single group's softmax).
         constexpr bool kFP8RelayoutWithinWave =
             (Gemm1WarpTileFA4::at(number<0>{}) == 32) &&
             (Gemm1WarpTileFA4::at(number<1>{}) == 32) &&
-            (Gemm1WarpTileFA4::at(number<2>{}) == 16);
+            (Gemm1WarpTileFA4::at(number<2>{}) == 16 ||
+             Gemm1WarpTileFA4::at(number<2>{}) == 64);
         // FA4 is now the ONLY 2-warp-group prefill pipeline; the legacy
         // ping-pong baseline was removed. Every compiled 2-WG instance uses
         // the within-wave FP8 P relayout (32x32x16 Gemm1 tile), so kFA4 is
@@ -1894,6 +1920,47 @@ struct UnifiedAttentionPipeline
                     });
 #pragma clang diagnostic pop
                 }
+                else if constexpr(PVWarpTile::at(number<0>{}) == 32 &&
+                                  PVWarpTile::at(number<1>{}) == 32 &&
+                                  PVWarpTile::at(number<2>{}) == 64)
+                {
+                    // ---- (C) cvt-only, no cross-lane swap (32x32x64). ----
+                    //
+                    // Under the wide v_mfma_f32_32x32x64 MMA the QK-C output
+                    // and PV-A input per-thread layouts coincide (the K=64
+                    // CTransposed C-fragment is already in the A-operand order),
+                    // so the relayout is just the fp32->fp8 pack — no permute,
+                    // no LDS roundtrip, no barrier (matches the ASM kernel's
+                    // _softmax_pack_P_fp8). Chained-`old` cvt pattern to match
+                    // cast_tile_pk_fp8_fp32 byte-for-byte (see strategy A note).
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wuninitialized"
+                    int dummy_old;
+                    static_for<0, sp(sp_reg_idx).p.thread_buf_.size(), 4>{}([&](auto idx) {
+                        const float a =
+                            p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 0]);
+                        const float b =
+                            p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 1]);
+                        const float c =
+                            p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 2]);
+                        const float d =
+                            p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 3]);
+
+                        const uint32_t lo =
+                            __builtin_amdgcn_cvt_pk_fp8_f32(a, b, dummy_old, /*hi=*/false);
+                        const uint32_t packed =
+                            __builtin_amdgcn_cvt_pk_fp8_f32(c, d, lo, /*hi=*/true);
+                        sp(sp_reg_idx).p.thread_buf_[idx + 0] =
+                            bit_cast<fp8_t>(static_cast<fp8_raw_t>((packed >> 0) & 0xFFu));
+                        sp(sp_reg_idx).p.thread_buf_[idx + 1] =
+                            bit_cast<fp8_t>(static_cast<fp8_raw_t>((packed >> 8) & 0xFFu));
+                        sp(sp_reg_idx).p.thread_buf_[idx + 2] =
+                            bit_cast<fp8_t>(static_cast<fp8_raw_t>((packed >> 16) & 0xFFu));
+                        sp(sp_reg_idx).p.thread_buf_[idx + 3] =
+                            bit_cast<fp8_t>(static_cast<fp8_raw_t>((packed >> 24) & 0xFFu));
+                    });
+#pragma clang diagnostic pop
+                }
                 else
                 {
                     // ---- (B) LDS roundtrip (16x16x32 and any other
@@ -2251,7 +2318,15 @@ struct UnifiedAttentionPipeline
                 auto qk_sp = number<1>{} - pi; // QK target slot
                 auto k_rd  = number<1>{} - pi;
 
-                s_waitcnt_lgkmcnt<0>(); // wait the V pre-read issued in prev SOFTMAX
+#if UA_FA4_VLOAD_IN_MATRIX
+                // V read moved here from the preceding SOFTMAX. PV(pi) consumes
+                // V buf pi; the buffer was filled + published (drain-before-
+                // barrier) tiles ago, so the slot barrier already guarantees
+                // residency. Issued first so its LDS latency overlaps whatever
+                // the lgkmcnt<0> below would otherwise expose serially.
+                V_lds_load(pi);
+#endif
+                s_waitcnt_lgkmcnt<0>(); // wait the V read (here, or pre-read in prev SOFTMAX)
                 gemm(pv_sp, gemm1);     // o_acc += P(pi) @ V(k-1)
                 // K read into its OWN registers (k_tile no longer aliases v_tile),
                 // so this ds_read executes on the LSU *during* the PV MFMA above
@@ -2277,6 +2352,13 @@ struct UnifiedAttentionPipeline
                 fmha_alu0(sm_sp);
                 fmha_alu_D_upd();
                 fmha_alu1(sm_sp);
+#if UA_FA4_PIN_PACK_IN_SOFTMAX
+                // Pin the fmha_alu1 P-pack (cvt_pk_fp8) inside this SOFTMAX
+                // region: the scheduler may not sink it across this fence into
+                // the following MATRIX slot, where it would contend with the
+                // co-resident group's softmax VALU on the SIMD issue port.
+                __builtin_amdgcn_sched_barrier(0);
+#endif
             };
 
             // One KV tile == one MATRIX + one SOFTMAX phase, separated by two
@@ -2326,7 +2408,9 @@ struct UnifiedAttentionPipeline
                     __builtin_amdgcn_sched_barrier(0);
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
+#if !UA_FA4_VLOAD_IN_MATRIX
                     fa4_vload(number<1>{} - pi);
+#endif
                     fa4_softmax(pi);
 
                     if(num_total_loop <= ++i_total_loops)
@@ -2350,7 +2434,9 @@ struct UnifiedAttentionPipeline
                     __builtin_amdgcn_sched_barrier(0);
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
+#if !UA_FA4_VLOAD_IN_MATRIX
                     fa4_vload(pi);
+#endif
                     prefetch();
                     fa4_softmax(number<1>{} - pi);
 

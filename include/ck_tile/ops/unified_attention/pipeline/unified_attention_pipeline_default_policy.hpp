@@ -371,7 +371,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
         //   bf16/fp16 32x32x16 -> kABKPerLane=8, SubMinDim=4 -> Double.
         //   fp8/bf8   16x16x32 -> kABKPerLane=8, SubMinDim=8 -> Single.
         //   fp8/bf8   32x32x16 -> kABKPerLane=8, SubMinDim=8 -> Single.
-        // The select is a compile-time alias.
+        //   fp8/bf8   32x32x64 -> kABKPerLane=32, SubMinDim=8 -> Quad.
+        // The select (ratio = kABKPerLane / SubMinDim) is a compile-time alias.
         static constexpr index_t kPVWarpGemmM =
             Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{});
         static constexpr index_t kPVWarpGemmK =
@@ -379,9 +380,11 @@ struct UnifiedAttentionPipelineDefaultPolicy
         static constexpr index_t kPVLanesInK = (kPVWarpGemmM == 16) ? 4 : 2;
         static constexpr index_t kPVABKPerLane = kPVWarpGemmK / kPVLanesInK;
         static constexpr index_t kPVSubMinDim = 8 / sizeof(typename Problem::VDataType);
+        static constexpr index_t kPVNumAccessRatio = kPVABKPerLane / kPVSubMinDim;
         static constexpr WGAttrNumAccessEnum PVAttrNumAccess =
-            (kPVABKPerLane == kPVSubMinDim) ? WGAttrNumAccessEnum::Single
-                                            : WGAttrNumAccessEnum::Double;
+            (kPVNumAccessRatio <= 1)   ? WGAttrNumAccessEnum::Single
+            : (kPVNumAccessRatio == 2) ? WGAttrNumAccessEnum::Double
+                                       : WGAttrNumAccessEnum::Quad;
         using WarpGemm =
             WarpGemmDispatcher<typename Problem::PDataType,
                                typename Problem::VDataType,

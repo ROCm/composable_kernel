@@ -3,6 +3,12 @@
 
 #pragma once
 
+// fp8 d128 prefill: use the wide v_mfma_f32_32x32x64_f8f6f4 MMA (vs narrow
+// 32x32x16). Default on; build with -DUA_FP8_WIDE_MMA=0 for the narrow A/B.
+#ifndef UA_FP8_WIDE_MMA
+#define UA_FP8_WIDE_MMA 1
+#endif
+
 #include <type_traits>
 #include <utility>
 
@@ -125,7 +131,25 @@ struct variant_config<KernelVariant::prefill_d128>
 {
     static constexpr index_t HeadSize  = 128;
     static constexpr index_t BlockM    = 256;
-    static constexpr index_t BlockSize = 32;
+    // KV tile (kBlockN). fp8 runs at 64: the larger tile amortizes the
+    // per-tile fixed costs (block barriers, K/V DRAM->LDS latency, address
+    // calc, softmax overhead) over 2x the keys, measured +7-12% across
+    // sq=2k..75600 at hq=hk=5 d128 (MFMA stays matrix-bound, memwait/barrier
+    // per-key roughly halve). 128 falls off an LDS/occupancy cliff (KV double
+    // buffer blows the budget for this 1-WG/CU LDS-bound kernel). bf16/fp16
+    // auto-halve back to 32 via kBf16HalveBlockN below (2-byte element would
+    // double LDS), so this bump is fp8-only by construction.
+    //
+    // 128 STILL cliffs even with the wide 32x32x64 MMA (kFp8WideMma): ~10x
+    // slower at sq=75600 (8.9ms -> 96ms). The limiter is NOT LDS (gfx950 has
+    // 160KB/CU; kv128 uses 128KB and fits) but the 256-VGPR/wave ceiling: the
+    // O-accumulator (kBlockM*kHeadDim) plus the doubled score/P tile
+    // (kBlockM*kBlockN) push vgpr_count to the 256 cap and spill 617 values to
+    // scratch (vgpr_spill_count=617, private_segment=696B) vs 238 VGPRs / 0
+    // spills at kv64. Unlocking kv128 needs a VGPR-pressure cut (smaller kBlockM
+    // for this tile, or sub-tiling kBlockN so the live score tile stays 32x64),
+    // not an LDS change. Stay at 64 until that lands.
+    static constexpr index_t BlockSize = 64;
     using BlockWarps                   = sequence<8, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
     template <typename Problem, index_t PageSize = 0, bool IsPaged = true>
@@ -294,10 +318,24 @@ struct unified_attention_kernel_traits
     // below the original WarpGemm::K. PVAttrNumAccess in GetPVBlockGemm
     // recomputes from the new WarpGemm shape (lanes_in_K * SubMinDim rule)
     // so the smaller-K MFMA tiles cleanly.
+    // fp8 d128 prefill: use the wide CDNA4 MFMA (v_mfma_f32_32x32x64_f8f6f4)
+    // instead of the narrow 32x32x16 — 4x fewer MFMA instructions for the same
+    // FLOPs (the QK contraction over kHeadDim=128 drops from 8 to 2 k-steps).
+    // Gated to fp8/d128/prefill where the contraction tiles (kHeadDim for QK,
+    // BLOCK_SIZE for PV) are multiples of 64; other dtypes have no 32x32x64
+    // MFMA and keep the narrow tile. The barrier-free QK-C->PV-A relayout for
+    // this tile lives in fmha_alu1 (strategy C).
+    static constexpr bool kFp8WideMma =
+        (UA_FP8_WIDE_MMA != 0) &&
+        (DataType == unified_attention_args::data_type_enum::fp8) &&
+        (HEAD_SIZE == 128) && (V == KernelVariant::prefill_d128) &&
+        (BLOCK_SIZE % 64 == 0);
     using unified_attention_warp_gemm_shape = std::conditional_t<
-        (kBf16HalveBlockN && BLOCK_SIZE < WGK_),
-        sequence<WGM_, WGN_, BLOCK_SIZE>,
-        typename cfg::WarpGemmShape>;
+        kFp8WideMma,
+        sequence<WGM_, WGN_, 64>,
+        std::conditional_t<(kBf16HalveBlockN && BLOCK_SIZE < WGK_),
+                           sequence<WGM_, WGN_, BLOCK_SIZE>,
+                           typename cfg::WarpGemmShape>>;
 
     // The 2nd entry of the BlockTile is the static `kBlockQ` exposed via
     // `UnifiedAttentionShape::kBlockQ`. Now that the kernel always reads
