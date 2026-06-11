@@ -122,4 +122,44 @@ void kernel::launch(hipStream_t stream,
     launch_kernel(impl->fun, stream, global, local, kernargs.data(), size);
 }
 
+static void launch_kernel_3d(
+    hipFunction_t fun, hipStream_t stream, dim3 grid, dim3 block, void* kernargs, std::size_t size)
+{
+    assert(grid.x > 0 && grid.y > 0 && grid.z > 0);
+    assert(block.x > 0 && block.y > 0 && block.z > 0);
+    void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER,
+                      kernargs,
+                      HIP_LAUNCH_PARAM_BUFFER_SIZE,
+                      &size,
+                      HIP_LAUNCH_PARAM_END};
+
+    auto status = hipExtModuleLaunchKernel(fun,
+                                           grid.x * block.x,
+                                           grid.y * block.y,
+                                           grid.z * block.z,
+                                           block.x,
+                                           block.y,
+                                           block.z,
+                                           0,
+                                           stream,
+                                           nullptr,
+                                           reinterpret_cast<void**>(&config),
+                                           nullptr,
+                                           nullptr);
+    if(status != hipSuccess)
+        throw std::runtime_error("Failed to launch kernel: " + hip_error(status));
+}
+
+void kernel::launch(hipStream_t stream,
+                    dim3 grid,
+                    dim3 block,
+                    const std::vector<kernel_argument>& args) const
+{
+    assert(impl != nullptr);
+    std::vector<char> kernargs = pack_args(args);
+    std::size_t size           = kernargs.size();
+
+    launch_kernel_3d(impl->fun, stream, grid, block, kernargs.data(), size);
+}
+
 } // namespace rtc
