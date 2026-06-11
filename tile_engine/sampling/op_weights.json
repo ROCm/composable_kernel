@@ -2,10 +2,18 @@
   "version": "1.0",
   "description": "Op weights for Daily Tier budget allocation (RFC section 3.4)",
   "weights": {
-    "gemm_universal": 0.30,
-    "gemm_preshuffle": 0.25,
-    "gemm_multi_d": 0.20,
-    "grouped_gemm": 0.15,
-    "gemm_streamk": 0.10
+    "gemm_universal": 0.0770,
+    "gemm_preshuffle": 0.0770,
+    "gemm_multi_d": 0.0770,
+    "grouped_gemm": 0.0769,
+    "gemm_streamk": 0.0769,
+    "batched_contraction": 0.0769,
+    "batched_gemm": 0.0769,
+    "gemm_multi_abd": 0.0769,
+    "mx_gemm": 0.0769,
+    "gemm_rowcolquant": 0.0769,
+    "gemm_tensor_quant": 0.0769,
+    "grouped_gemm_rowcolquant": 0.0769,
+    "grouped_gemm_tensorquant": 0.0769
   }
 }
