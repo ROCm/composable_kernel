@@ -18,9 +18,9 @@ namespace ck_tile {
 
 // clang-format off
 // Reference implementation of HSTUAttention forward problem, which does the following from input tensors:
-// S[num_batch, num_head, seqlen, seqlen] = Q[num_batch, seqlen, num_head, hdim_qk] @ key^T[num_batch, seqlen, num_head, hdim_v]
+// S[num_batch, num_head, seqlen, seqlen] = Q[num_batch, seqlen, num_head, hdim_qk] @ K[num_batch, seqlen, num_head, hdim_v]
 // P[num_batch, num_head, seqlen, seqlen] = SiLU(Masking(S[num_batch, num_head, seqlen, seqlen]))
-// O[num_batch, num_head, seqlen, hdim_v] = P[num_batch, num_head, seqlen, seqlen] @ value^T[num_batch, num_head, seqlen, hdim_v]
+// O[num_batch, num_head, seqlen, hdim_v] = P[num_batch, num_head, seqlen, seqlen] @ V^T[num_batch, num_head, seqlen, hdim_v]
 // The process is very similar to the generic attention, the difference is that SiLU is used rather than Softmax, and hstu masking 
 // is much more complicated than the lower-triangular + disagonal-window based causal mask
 // clang-format on
