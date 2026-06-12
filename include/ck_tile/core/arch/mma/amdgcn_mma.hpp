@@ -131,7 +131,7 @@ namespace ck_tile::core::arch::mma {
  * ------------------------------------------
  *  Compression and packed data types
  * ------------------------------------------
- * For sparse intrisics we have 4:2 compression of the A matrix, meaning one element of the packed
+ * For sparse intrinsics we have 4:2 compression of the A matrix, meaning one element of the packed
  * (compressed) A matrix represents two elements of the original (uncompressed) A matrix
  * (kCompressionRatio = 2). In a similar vein, for packed datatypes (pk_fp4_t, pk_int4_t,
  * pk_fp6x16_t), each datatype element represents multiple logical / mathematical elements of the
