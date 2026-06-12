@@ -1788,10 +1788,26 @@ struct UnifiedAttentionPipeline
                 //   (A) Cross-lane in-register swap via
                 //       `__builtin_amdgcn_ds_bpermute` between paired
                 //       lanes (lane ^ 32). Cheap (one ds_bpermute_b32
-                //       per PV K-iter, no LDS traffic, no barrier),
-                //       but ONLY works for the 32x32x16 MFMA shape:
-                //       it assumes kABMLane=32 / kABKLane=2 with the
-                //       paired-lane bit at position 5.
+                //       per PV K-iter, no LDS traffic, no barrier).
+                //       Works for the 32x32 MFMA shapes (both K=16 and
+                //       K=64): both have kAMLane=32 / kABKLane=2 and an
+                //       identical 32x32 C-output distribution, so the
+                //       QK-C -> PV-A relayout is the SAME paired-lane
+                //       (bit-5) swap-of-half regardless of K. (The wider
+                //       K=64 A-operand only changes kABKPerLane 8->32,
+                //       i.e. the per-lane chunk COUNT, not the per-chunk
+                //       swap pattern -- the 8-fp8 loop below just runs
+                //       more iterations. Verified byte-identical to the
+                //       narrow path on hw.)
+                //
+                //       NOTE: an earlier "cvt-only, layouts coincide"
+                //       fast path for K=64 was WRONG -- QK-C holds one kv
+                //       across many query rows while PV-A needs one query
+                //       across many kv (a transpose), so skipping the
+                //       swap silently corrupts P. The error was masked by
+                //       near-uniform softmax (transposing a flat P barely
+                //       moves the row-sum) and only surfaced as a few
+                //       large-delta output lanes.
                 //
                 //   (B) Layout-agnostic LDS roundtrip via
                 //       store_tile(QK-C dist) + s_barrier +
@@ -1801,11 +1817,11 @@ struct UnifiedAttentionPipeline
                 //       On 4-warp decode_m128 this measured ~2-3x
                 //       worse end-to-end than (A).
                 //
-                // We pick (A) for the 32x32x16 tiers (all of prefill,
-                // decode_m{32,64,128}) and (B) for the 16x16x32 m16
-                // tiny-decode tier where (A) doesn't apply. This
-                // keeps the previously-tuned 32x32x16 perf intact
-                // while enabling FP8 on the m16 tier.
+                // We pick (A) for the 32x32 tiers -- 32x32x16 (decode
+                // m{32,64,128}) and 32x32x64 (wide-MMA prefill) -- and
+                // (B) for the 16x16x32 m16 tiny-decode tier where (A)
+                // doesn't apply. This keeps the previously-tuned 32x32x16
+                // perf intact while enabling FP8 on the m16 tier.
                 //
                 // For strategy (A) the cvt and the cross-lane swap are
                 // fused into a single 8-fp8-per-iter loop so that the
@@ -1815,9 +1831,10 @@ struct UnifiedAttentionPipeline
                 using PVWarpTile = typename UnifiedAttentionShape::Gemm1WarpTile;
                 if constexpr(PVWarpTile::at(number<0>{}) == 32 &&
                              PVWarpTile::at(number<1>{}) == 32 &&
-                             PVWarpTile::at(number<2>{}) == 16)
+                             (PVWarpTile::at(number<2>{}) == 16 ||
+                              PVWarpTile::at(number<2>{}) == 64))
                 {
-                    // ---- (A) Fused cvt + cross-lane swap (32x32x16). ----
+                    // ---- (A) Fused cvt + cross-lane swap (32x32x16 / 32x32x64). ----
                     //
                     // Per 8-fp8 K-chunk:
                     //   1. cvt 8 fp32 -> 2 packed uint32 (lo_pack = slot[0..3],
@@ -1834,9 +1851,10 @@ struct UnifiedAttentionPipeline
                     //   sub=1 | slot[0..3] | N=4..7   | K=8..11 BAD
                     //   sub=1 | slot[4..7] | N=12..15 | K=12..15 OK
                     static_assert(sp(sp_reg_idx).p.thread_buf_.size() % 8 == 0,
-                                  "FP8 32x32x16 + Single cross-lane permute "
+                                  "FP8 32x32 (K=16/K=64) cross-lane permute "
                                   "expects PV per-thread buffer in chunks of 8 "
-                                  "fp8 (one warp-gemm K iteration).");
+                                  "fp8 (one 32x32x16 warp-gemm K iteration worth "
+                                  "of the swap-of-half pattern).");
 
                     // On gfx950 the paired-lane (l^32) swap is a single VALU
                     // op (v_permlane32_swap_b32), so the lane-id / ds_bpermute
@@ -1917,47 +1935,6 @@ struct UnifiedAttentionPipeline
                             bit_cast<fp8_t>(static_cast<fp8_raw_t>((out_hi >> 16) & 0xFFu));
                         p.thread_buf_[k_base + 7] =
                             bit_cast<fp8_t>(static_cast<fp8_raw_t>((out_hi >> 24) & 0xFFu));
-                    });
-#pragma clang diagnostic pop
-                }
-                else if constexpr(PVWarpTile::at(number<0>{}) == 32 &&
-                                  PVWarpTile::at(number<1>{}) == 32 &&
-                                  PVWarpTile::at(number<2>{}) == 64)
-                {
-                    // ---- (C) cvt-only, no cross-lane swap (32x32x64). ----
-                    //
-                    // Under the wide v_mfma_f32_32x32x64 MMA the QK-C output
-                    // and PV-A input per-thread layouts coincide (the K=64
-                    // CTransposed C-fragment is already in the A-operand order),
-                    // so the relayout is just the fp32->fp8 pack — no permute,
-                    // no LDS roundtrip, no barrier (matches the ASM kernel's
-                    // _softmax_pack_P_fp8). Chained-`old` cvt pattern to match
-                    // cast_tile_pk_fp8_fp32 byte-for-byte (see strategy A note).
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wuninitialized"
-                    int dummy_old;
-                    static_for<0, sp(sp_reg_idx).p.thread_buf_.size(), 4>{}([&](auto idx) {
-                        const float a =
-                            p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 0]);
-                        const float b =
-                            p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 1]);
-                        const float c =
-                            p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 2]);
-                        const float d =
-                            p_compute_element_func(sp(sp_reg_idx).sp_compute.thread_buf_[idx + 3]);
-
-                        const uint32_t lo =
-                            __builtin_amdgcn_cvt_pk_fp8_f32(a, b, dummy_old, /*hi=*/false);
-                        const uint32_t packed =
-                            __builtin_amdgcn_cvt_pk_fp8_f32(c, d, lo, /*hi=*/true);
-                        sp(sp_reg_idx).p.thread_buf_[idx + 0] =
-                            bit_cast<fp8_t>(static_cast<fp8_raw_t>((packed >> 0) & 0xFFu));
-                        sp(sp_reg_idx).p.thread_buf_[idx + 1] =
-                            bit_cast<fp8_t>(static_cast<fp8_raw_t>((packed >> 8) & 0xFFu));
-                        sp(sp_reg_idx).p.thread_buf_[idx + 2] =
-                            bit_cast<fp8_t>(static_cast<fp8_raw_t>((packed >> 16) & 0xFFu));
-                        sp(sp_reg_idx).p.thread_buf_[idx + 3] =
-                            bit_cast<fp8_t>(static_cast<fp8_raw_t>((packed >> 24) & 0xFFu));
                     });
 #pragma clang diagnostic pop
                 }
