@@ -8,11 +8,11 @@
 
 void hstu_attention_group_forward_fp16(HstuAttentionGroupFwdParams& param, hipStream_t stream)
 {
-    const bool has_bias   = (param.bias_ptr != nullptr);
     const bool use_causal = param.use_causal;
     const bool store_lse  = (param.use_softmax && param.is_training);
 
-    BOOL_SWITCH_3(has_bias, kHasBias, use_causal, kUseCausal, param.use_softmax, kUseSoftmax, [&] {
+    constexpr bool kHasBias = false;
+    BOOL_SWITCH_2(use_causal, kUseCausal, param.use_softmax, kUseSoftmax, [&] {
         HDIM_SWITCH(param.hdim_qk, param.hdim_v, MaxK, [&] {
             BOOL_SWITCH(store_lse, kStoreLSE, [&] {
                 if constexpr(kUseSoftmax || !kStoreLSE)
