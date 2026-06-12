@@ -115,22 +115,12 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
-              typename QElementFunction,
-              typename BiasElementFunction,
-              typename SAccElementFunction,
-              typename PComputeElementFunction,
-              typename OAccElementFunction,
               typename HstuMask>
     CK_TILE_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*kQKHeaddim tile
-               const QElementFunction& q_element_func,
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*kQKHeaddim tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*kQKHeaddim tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               const BiasElementFunction& bias_element_func,
-               const SAccElementFunction& s_acc_element_func,
-               const PComputeElementFunction& p_compute_element_func,
-               const OAccElementFunction& o_acc_element_func,
                index_t seqlen_k_start,
                index_t seqlen_k_end,
                HstuMask& mask,
@@ -181,7 +171,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
         if(seqlen_k_end <= seqlen_k_start)
         {
             clear_tile(o_acc);
-            o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
 
             return o_acc;
         };
@@ -302,8 +291,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
         clear_tile(o_acc);
 
-        q_tile = tile_elementwise_in(q_element_func, q_tile);
-
         auto seqlen_k_curr = seqlen_k_start;
 
         using v_tile_type = decltype(load_tile(v_dram_window));
@@ -329,8 +316,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
                 // execute current unroll of gemm_0
                 gemm_0(sacc_tile, q_tile, k_lds_windows[number<i_n0 % NumKVLdsBuffers>{}]);
 
-                sacc_tile = tile_elementwise_in(s_acc_element_func, sacc_tile);
-
                 auto tmp_tile = cast_tile<CompDataType>(sacc_tile);
 
                 set_slice_tile(pcomp_tile,
@@ -347,8 +332,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
                 const auto bias_tile = load_tile(bias_dram_window);
 
                 tile_elementwise_inout(
-                    [&scale_s, &bias_element_func](auto& x, const auto& y) {
-                        x = x * scale_s + type_convert<CompDataType>(bias_element_func(y));
+                    [&scale_s](auto& x, const auto& y) {
+                        x = x * scale_s + type_convert<CompDataType>(y);
                     },
                     pcomp_tile,
                     bias_tile);
@@ -420,7 +405,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
                     randval_lds_ptr, seqlen_k_curr, pcomp_tile, null_randval_window);
             }
 
-            auto p = cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, pcomp_tile));
+            auto p = cast_tile<PDataType>(pcomp_tile);
 
             // STAGE 3, Gemm_1 ( O = P@V )
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
@@ -458,45 +443,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
             };
         } while(seqlen_k_curr < seqlen_k_end);
 
-        o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
-
         return o_acc;
-    }
-
-    template <typename QDramBlockWindowTmp,
-              typename KDramBlockWindowTmp,
-              typename VDramBlockWindowTmp,
-              typename BiasDramBlockWindowTmp,
-              typename HstuMask>
-    CK_TILE_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*kQKHeaddim tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*KSubQKHeaddim tile
-               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
-               const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
-               index_t seqlen_k_start,
-               index_t seqlen_k_end,
-               HstuMask mask,
-               float scale_s, // scaling value exerted on the immediate Q@K result
-               float scale_p, // scaling value exerted on the SiLU result
-               void* smem_ptr,
-               DropoutType& dropout) const
-    {
-        return operator()(q_dram_block_window_tmp,
-                          identity{},
-                          k_dram_block_window_tmp,
-                          v_dram_block_window_tmp,
-                          bias_dram_block_window_tmp,
-                          identity{},
-                          identity{},
-                          identity{},
-                          identity{},
-                          seqlen_k_start,
-                          seqlen_k_end,
-                          mask,
-                          scale_s,
-                          scale_p,
-                          smem_ptr,
-                          dropout);
     }
 };
 

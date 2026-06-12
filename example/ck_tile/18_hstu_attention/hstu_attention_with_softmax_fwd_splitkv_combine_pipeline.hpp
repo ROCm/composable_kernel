@@ -63,17 +63,11 @@ struct HstuAttentionWithSoftmaxFwdSplitKVCombinePipeline
 
     template <typename LSEaccDramBlockWindowTmp,
               typename OAccDramBlockWindowTmp,
-              typename LSEDramBlockWindow,
-              typename OAccElementFunction,
-              typename LSEaccElementFunction,
-              typename LSEElementFunction>
+              typename LSEDramBlockWindow>
     CK_TILE_DEVICE auto
     operator()(const LSEaccDramBlockWindowTmp& lse_acc_dram_block_window_tmp, // kM tile
                const OAccDramBlockWindowTmp& o_acc_dram_block_window_tmp,     // kM*kOHeaddim tile
                LSEDramBlockWindow& lse_dram_block_window,                     // kM tile
-               const OAccElementFunction& o_acc_element_func,
-               const LSEaccElementFunction& lse_acc_element_func,
-               const LSEElementFunction& lse_element_func,
                index_t o_acc_split_stride,
                index_t num_splits,
                void* smem_ptr) const
@@ -109,8 +103,6 @@ struct HstuAttentionWithSoftmaxFwdSplitKVCombinePipeline
                              Policy::template MakeLSEaccDramTileDistribution<Problem>());
 
         auto lse_acc = load_tile(lse_acc_dram_window);
-
-        lse_acc = tile_elementwise_in(lse_acc_element_func, lse_acc);
 
         using lse_acc_type       = decltype(lse_acc);
         constexpr auto lse_spans = lse_acc_type::get_distributed_spans();
@@ -173,7 +165,7 @@ struct HstuAttentionWithSoftmaxFwdSplitKVCombinePipeline
         // in case kStoreLSE is false, LSEDramBlockWindow is null
         if constexpr(!is_null_tile_window_v<LSEDramBlockWindow>)
         {
-            store_tile(lse_dram_block_window, tile_elementwise_in(lse_element_func, lse_logsum));
+            store_tile(lse_dram_block_window, lse_logsum);
         }
 
         // calculate scale value (used for adjusting the o_acc) for all splits for all rows in
@@ -240,32 +232,8 @@ struct HstuAttentionWithSoftmaxFwdSplitKVCombinePipeline
             });
         };
 
-        o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
-
         return o_acc;
     }
-
-    template <typename LSEaccDramBlockWindow,
-              typename OAccDramBlockWindowTmp,
-              typename LSEDramBlockWindow>
-    CK_TILE_DEVICE auto
-    operator()(const LSEaccDramBlockWindow& lse_acc_dram_block_window_tmp,
-               const OAccDramBlockWindowTmp& o_acc_dram_block_window_tmp, // kM*kOHeaddim tile
-               LSEDramBlockWindow& lse_dram_block_window,                 // kM tile
-               ck_tile::index_t o_acc_split_stride,
-               index_t num_splits,
-               void* smem_ptr) const
-    {
-        return operator()(lse_acc_dram_block_window_tmp,
-                          o_acc_dram_block_window_tmp,
-                          lse_dram_block_window,
-                          identity{},
-                          identity{},
-                          identity{},
-                          o_acc_split_stride,
-                          num_splits,
-                          smem_ptr);
-    };
 };
 
 } // namespace ck_tile
