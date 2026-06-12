@@ -34,23 +34,6 @@ inline const std::vector<rtc::src_file>& get_headers_for_test()
     return headers;
 }
 
-inline std::vector<rtc::src_file> create_tile_headers_for_test()
-{
-    auto headers = ck::host::GetTileHeaders();
-    std::vector<rtc::src_file> result;
-    std::transform(headers.begin(), headers.end(), std::back_inserter(result), [](auto& p) {
-        // Legacy workaround: hipRTC requires a whitespace before the content (reason unknown)
-        return rtc::src_file{p.first, " " + std::move(p.second)};
-    });
-    return result;
-}
-
-inline const std::vector<rtc::src_file>& get_tile_headers_for_test()
-{
-    static const std::vector<rtc::src_file> headers = create_tile_headers_for_test();
-    return headers;
-}
-
 template <typename V>
 std::size_t GetSize(V mLens, V mStrides)
 {

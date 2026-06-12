@@ -15,6 +15,8 @@ configure_file(${CK_ROOT}/include/ck/config.h.in ${CK_ROOT}/include/ck/config.h)
 find_package(ROCM)
 include(ROCMInstallTargets)
 include(ROCMTest)
+list(APPEND CMAKE_PREFIX_PATH /opt/rocm $ENV{ROCM_PATH})
+find_package(hiprtc REQUIRED)
 
 rocm_setup_version(VERSION 1.0)
 
@@ -23,23 +25,14 @@ include(Embed)
 file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS
     ${CK_ROOT}/include/ck/*.hpp)
 
-add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include SANITIZE)
-
-# Embed CK Tile headers (ck_tile/*.hpp) for FMHA RTC API
-file(GLOB_RECURSE CK_TILE_KERNEL_FILES CONFIGURE_DEPENDS
-    ${CK_ROOT}/include/ck_tile/*.hpp)
-add_embed_library(ck_tile_headers ${CK_TILE_KERNEL_FILES} RELATIVE ${CK_ROOT}/include SANITIZE)
-# Embed codegen device headers (wrapper.hpp for FMHA RTC)
-file(GLOB_RECURSE CK_CODEGEN_DEVICE_FILES CONFIGURE_DEPENDS
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/ck/host/device_fmha_fwd/fmha_fwd_wrapper.hpp)
-add_embed_library(ck_codegen_headers ${CK_CODEGEN_DEVICE_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/include SANITIZE)
+add_embed_library(ck_headers ${KERNEL_FILES} RELATIVE ${CK_ROOT}/include)
 
 add_compile_options(-std=c++20)
 
 file(GLOB SOURCES CONFIGURE_DEPENDS src/*.cpp)
 # TODO: Use object library
 add_library(ck_host STATIC ${SOURCES})
-target_link_libraries(ck_host PRIVATE ck_headers ck_tile_headers ck_codegen_headers)
+target_link_libraries(ck_host PRIVATE ck_headers hiprtc::hiprtc)
 
 set_target_properties(ck_host PROPERTIES 
     LINKER_LANGUAGE CXX
@@ -53,12 +46,12 @@ add_executable(ck-template-driver driver/main.cpp)
 target_link_libraries(ck-template-driver ck_host)
 
 rocm_install_targets(
-    TARGETS ck_host ck_headers ck_tile_headers ck_codegen_headers
+    TARGETS ck_host ck_headers
     EXPORT ck_host_targets
     INCLUDE include
 )
 rocm_export_targets(
-    TARGETS ck_host ck_headers ck_tile_headers ck_codegen_headers
+    TARGETS ck_host ck_headers
     EXPORT ck_host_targets
     NAMESPACE composable_kernel::
 )
