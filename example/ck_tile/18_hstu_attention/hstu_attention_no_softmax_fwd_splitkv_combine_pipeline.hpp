@@ -55,10 +55,9 @@ struct HstuAttentionNoSoftmaxFwdSplitKVCombinePipeline
         return Policy::template GetSmemSize<Problem>();
     }
 
-    template <typename OAccDramBlockWindowTmp, typename OAccElementFunction>
+    template <typename OAccDramBlockWindowTmp>
     CK_TILE_DEVICE auto
     operator()(const OAccDramBlockWindowTmp& o_acc_dram_block_window_tmp, // M0*kOHeaddim tile
-               const OAccElementFunction& o_acc_element_func,
                ck_tile::index_t o_acc_split_stride,
                ck_tile::index_t num_splits) const
     {
@@ -88,19 +87,8 @@ struct HstuAttentionNoSoftmaxFwdSplitKVCombinePipeline
             tile_elementwise_inout([](auto& x, const auto& y) { x = x + y; }, o_acc, o_acc_tile);
         };
 
-        o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
-
         return o_acc;
     }
-
-    template <typename OAccDramBlockWindowTmp>
-    CK_TILE_DEVICE auto
-    operator()(const OAccDramBlockWindowTmp& o_acc_dram_block_window_tmp, // kM*kOHeaddim tile
-               ck_tile::index_t o_acc_split_stride,
-               ck_tile::index_t num_splits) const
-    {
-        return operator()(o_acc_dram_block_window_tmp, identity{}, o_acc_split_stride, num_splits);
-    };
 };
 
 } // namespace ck_tile
