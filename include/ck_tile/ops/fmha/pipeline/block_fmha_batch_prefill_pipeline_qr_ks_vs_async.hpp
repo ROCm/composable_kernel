@@ -1049,6 +1049,17 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         (void)q_element_func; // ??? rocm-6.x if use q element func will have scratch on hdim=64/32
         // auto q_tile = q;      // tile_elementwise_in(q_element_func, q);
 
+        // PER_TOKEN_HEAD: v_descale is a per-head SCALAR (loop-invariant). Instead of
+        // routing GEMM1 through a separate per-iteration o_acc_unscaled accumulator and
+        // applying v_descale every k-tile, accumulate P*V directly into o_acc and fold
+        // the per-head v_descale once into the final O normalization (epilogue). This
+        // removes a 128x128 fp32 accumulator (VGPR pressure) and a per-iter
+        // clear + (o_acc += o_unscaled * v_descale) elementwise pass (VALU) from the
+        // critical path, which dominates at this VALU-bound shape. The scalar is read at
+        // its original in-loop site below and stashed here. KV_BLOCKSCALE (per-page
+        // v_descale that varies per tile) keeps the original path unchanged.
+        [[maybe_unused]] float v_descale_head = 1.0f;
+
         index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
@@ -1091,10 +1102,13 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             }
             else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
             {
-                // V scale is per-head only; load scalar from v_descale_ptr[kv_head_idx].
+                // V scale is per-head only; load the scalar at its original in-loop site
+                // and stash it for the final O normalization (folded in the epilogue).
+                // It is loop-invariant, so re-reading each iteration is harmless.
                 // K scale is per-token-per-head and is applied as a vector after GEMM0
                 // (see PER_TOKEN_HEAD branch below).
-                v_descale = v_descale_ptr[block_indices.kv_head_idx * nhead_stride_v_descale];
+                v_descale_head =
+                    v_descale_ptr[block_indices.kv_head_idx * nhead_stride_v_descale];
             }
 
             // Prefetch V physical pages early - overlaps with GEMM0 computation
@@ -1622,23 +1636,41 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
             }();
 
             // STAGE 3, KV gemm
-            // KV_BLOCKSCALE: accumulate P*V into temporary tile before applying v_descale
+            // KV_BLOCKSCALE: accumulate P*V into a temporary tile before applying the
+            // per-page v_descale. PER_TOKEN_HEAD accumulates directly into o_acc and folds
+            // its per-head scalar v_descale into the final O normalization (epilogue),
+            // identical in result to the no-quant path.
             auto o_acc_unscaled = decltype(o_acc){};
-            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE ||
-                         QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
             {
                 clear_tile(o_acc_unscaled);
             }
 
-            // Select GEMM1 target: o_acc_unscaled for KV_BLOCKSCALE (needs v_descale), o_acc
-            // otherwise
+            // Select GEMM1 target: o_acc_unscaled for KV_BLOCKSCALE (needs per-page
+            // v_descale), o_acc otherwise.
             auto& gemm1_acc = [&]() -> auto& {
-                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE ||
-                             QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
                     return o_acc_unscaled;
                 else
                     return o_acc;
             }();
+
+            // Instruction-scheduling lever: raise wave issue priority for the GEMM1
+            // (P*V) MFMA cluster, which immediately follows the softmax VALU/TRANS
+            // path. At this VALU-bound shape (~11:1 VALU:MFMA) the trailing softmax
+            // ALU ops otherwise steal issue slots from GEMM1's MFMA; bumping priority
+            // here lets the MFMA cluster run ahead and hide more softmax VALU under
+            // MFMA latency. Pure scheduling hint - no math change, occupancy
+            // unchanged. (Raising GEMM0 priority was measured to be neutral/slightly
+            // negative, so only GEMM1 is prioritized.) Gated to PER_TOKEN_HEAD so
+            // every other config (bf16, KV_BLOCKSCALE, no-quant) stays byte-identical
+            // to the pre-optimization baseline.
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+            {
+                __builtin_amdgcn_sched_barrier(0);
+                __builtin_amdgcn_s_setprio(1);
+                __builtin_amdgcn_sched_barrier(0);
+            }
 
             if constexpr(k1_loops > 1)
             {
@@ -1779,14 +1811,24 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                         sequence<(LdsSeq.at(number<k0_loops + k1_loops - 1>{})) * kN1, 0>{},
                         sequence<(LdsSeq.at(number<k0_loops + k1_loops - 1>{}) + 1) * kN1, kK1>{}));
             }
+            // Restore default issue priority leaving the GEMM1 MFMA cluster so the
+            // next iteration's softmax VALU/TRANS runs at normal priority. Gated to
+            // PER_TOKEN_HEAD to match the entering bracket above.
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+            {
+                __builtin_amdgcn_sched_barrier(0);
+                __builtin_amdgcn_s_setprio(0);
+                __builtin_amdgcn_sched_barrier(0);
+            }
 
-            // KV_BLOCKSCALE: apply v_descale and accumulate o_acc_unscaled into o_acc
+            // KV_BLOCKSCALE: apply per-page v_descale and accumulate o_acc_unscaled into o_acc
             // Note: No division by scale_p needed because:
             // 1. P was scaled by 2^shift through exp2 shift trick
             // 2. rowsum l was also scaled by 2^shift
             // 3. Final O = sum(P*V) / l, so the 2^shift cancels out
-            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE ||
-                         QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+            // PER_TOKEN_HEAD folds its per-head scalar v_descale into the final O
+            // normalization (see epilogue) instead of here.
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::KV_BLOCKSCALE)
             {
                 tile_elementwise_inout(
                     [&v_descale](auto& o, auto& o_unscaled) { o += o_unscaled * v_descale; },
@@ -1834,12 +1876,21 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
         sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
             constexpr auto i_idx = make_tuple(idx0);
             const auto tmp       = [&]() {
-                if constexpr(FmhaMask::IsMasking)
-                {
-                    return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
-                }
+                const auto inv_l = [&]() {
+                    if constexpr(FmhaMask::IsMasking)
+                    {
+                        return l[i_idx] == 0.f ? 0.f : 1 / l[i_idx];
+                    }
+                    else
+                        return 1 / l[i_idx];
+                }();
+                // PER_TOKEN_HEAD: fold the per-head scalar v_descale into the 1/l
+                // normalization (mathematically exact: v_descale is loop-invariant, so
+                // O = v_descale * sum(P*V_fp8) / l).
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::PER_TOKEN_HEAD)
+                    return inv_l * v_descale_head;
                 else
-                    return 1 / l[i_idx];
+                    return inv_l;
             }();
             sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
                 constexpr auto i_j_idx = make_tuple(idx0, idx1);
