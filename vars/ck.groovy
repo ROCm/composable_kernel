@@ -526,19 +526,6 @@ def build_client_examples(String arch){
     return cmd
 }
 
-def build_client_examples_and_codegen_tests(String arch){
-    def cmd = """ cd ../codegen && rm -rf build && mkdir build && cd build && \
-                cmake -DCMAKE_PREFIX_PATH=/opt/rocm -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" .. && \
-                make -j64 check && \
-                cd ../../client_example && rm -rf build && mkdir build && cd build && \
-                cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/projects/composablekernel/install;/opt/rocm" \
-                -DGPU_TARGETS="${arch}" \
-                -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
-                -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
-                -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
-    return cmd
-}
-
 def build_and_run_fmha(String arch){
     def cmd = """ cmake -G Ninja -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/projects/composablekernel/install;/opt/rocm" \
                 -DGPU_TARGETS="${arch}" \
@@ -865,6 +852,12 @@ def buildAndTest(Map conf=[:]){
                         if ( params.RUN_INDUCTOR_TESTS && arch == "gfx90a" ){
                                 echo "Run inductor codegen tests"
                                 sh "projects/composablekernel/script/run_inductor_tests.sh"
+                        }
+                        if ( params.RUN_CODEGEN_TESTS && arch == "gfx90a" ){
+                                echo "Run hiprtc codegen tests"
+                                sh """ cd projects/composablekernel/codegen && rm -rf build && mkdir build && cd build && \
+                                        cmake -DCMAKE_PREFIX_PATH=/opt/rocm -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" .. && \
+                                        make -j64 check """
                         }
                         // run performance tests, stash the logs, results will be processed on the master node
                         dir("projects/composablekernel/script"){
@@ -1352,7 +1345,7 @@ def runBuildCKAndTests(String arch) {
         case "gfx90a":
             gpuTarget = "gfx90a"
             extraSetupArgs = " -DCK_CXX_STANDARD=\"17\""
-            execute_cmd = build_client_examples_and_codegen_tests(gpuTarget)
+            execute_cmd = build_client_examples(gpuTarget)
             break
         case "gfx1250":
             gpuTarget = "gfx1250"
