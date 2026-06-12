@@ -348,6 +348,24 @@ pipeline {
                         cleanWs()
                     }
                 }
+                stage('CRLF Check') {
+                    agent{ label rocmnode("nogpu") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_cmd = """cd .. && \
+                                find . -type f \\( -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.h.in' -o -name '*.hpp.in' -o -name '*.cpp.in' -o -name '*.inc' -o -name '*.cl' \\) \
+                                -not -path '*/build/*' -not -path '*/include/rapidjson/*' \
+                                -print0 | xargs -0 -P 8 -n 64 script/check_no_crlf.sh"""
+                    }
+                    steps{
+                        deleteDir()
+                        script {
+                            loadCk();
+                            ck.buildAndTest(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd)
+                        }
+                        cleanWs()
+                    }
+                }
             }
         }
          stage("Run Downstream Tests")
