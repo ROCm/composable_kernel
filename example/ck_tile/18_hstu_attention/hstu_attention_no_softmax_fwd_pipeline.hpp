@@ -69,7 +69,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
     // used by NRepetitions2DEpilogue
     static constexpr index_t kGemm1SingleRepN =
-        Policy::template GetKVBlockGemmSingleRepN<Problem>();
+        Policy::template GetPVTBlockGemmSingleRepN<Problem>();
 
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Traits::kBlockPerCu != -1)
@@ -164,7 +164,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
         // Block GEMM
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
-        constexpr auto gemm_1 = Policy::template GetKVBlockGemm<Problem>();
+        constexpr auto gemm_1 = Policy::template GetPVTBlockGemm<Problem>();
 
         // SaccBlockTile size is [kM0, kN0Sub]
         // PcompBlockTile size is [kM0, kN0]

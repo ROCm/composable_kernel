@@ -46,9 +46,9 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     };
 
     template <typename Problem, bool kUseTrLoad = false>
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetKVWarpGemmKPerThreadSize()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetPVTWarpGemmKPerThreadSize()
     {
-        using BlockGemm       = remove_cvref_t<decltype(GetKVBlockGemm<Problem, kUseTrLoad>())>;
+        using BlockGemm       = remove_cvref_t<decltype(GetPVTBlockGemm<Problem, kUseTrLoad>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
 
@@ -108,7 +108,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
     {
-        if constexpr(GetKVWarpGemmKPerThreadSize<Problem, kUseTrLoad>() >= 8)
+        if constexpr(GetPVTWarpGemmKPerThreadSize<Problem, kUseTrLoad>() >= 8)
             return 8;
         else
             return 4;
@@ -181,7 +181,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         {
             constexpr index_t N1     = GetAlignmentV<Problem>();
             constexpr index_t N0     = kNPerBlock / N1;
-            constexpr index_t kKPack = GetKVWarpGemmKPerThreadSize<Problem>();
+            constexpr index_t kKPack = GetPVTWarpGemmKPerThreadSize<Problem>();
 
             return N0 * (N1 * kKPerBlock + kKPack);
         }
@@ -632,14 +632,14 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetKVBlockGemmSingleRepN()
+    CK_TILE_HOST_DEVICE static constexpr auto GetPVTBlockGemmSingleRepN()
     {
         return Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<1>{}) *
                Problem::HstuAttentionTileSetting::Gemm1BlockWarps::at(number<1>{});
     };
 
     template <typename Problem, bool kUseTrLoad = false>
-    CK_TILE_HOST_DEVICE static constexpr auto GetKVBlockGemm()
+    CK_TILE_HOST_DEVICE static constexpr auto GetPVTBlockGemm()
     {
         using GemmProblem = BlockGemmProblem<
             typename Problem::QKVDataType,
@@ -726,7 +726,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem, bool kUseTrLoad = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentO()
     {
-        using BlockGemm       = remove_cvref_t<decltype(GetKVBlockGemm<Problem, kUseTrLoad>())>;
+        using BlockGemm       = remove_cvref_t<decltype(GetPVTBlockGemm<Problem, kUseTrLoad>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
 
