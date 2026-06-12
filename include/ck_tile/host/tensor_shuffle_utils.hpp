@@ -164,9 +164,10 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t,
                         number<BlockedXDLNPerWarp>)
 {
     assert(t.get_lengths().size() == 2);
-    int n_      = t.get_lengths()[1];
-    int k_      = t.get_lengths()[0];
-    int NRepeat = gemmConfig.N_Tile / gemmConfig.N_Warp_Tile / gemmConfig.N_Warp;
+    int n_ = t.get_lengths()[1];
+    int k_ = t.get_lengths()[0];
+    constexpr ck_tile::index_t NRepeat =
+        GemmConfig::N_Tile / GemmConfig::N_Warp_Tile / GemmConfig::N_Warp;
     if(ck_tile::is_gfx12_supported())
     {
         constexpr int divisor = 2;
@@ -185,7 +186,8 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t,
     }
     else
     {
-        assert(NRepeat % BlockedXDLNPerWarp == 0);
+        static_assert(NRepeat % BlockedXDLNPerWarp == 0,
+                      "wrong! NRepeat must be a multiple of BlockedXDLNPerWarp");
         constexpr int KLane = ck_tile::get_warp_size() / GemmConfig::N_Warp_Tile;
         constexpr int ItemsPerAccess =
             std::min(detail::b_contiguous_items_per_access<GemmConfig, T>::value,
