@@ -68,7 +68,11 @@ auto preShuffleScale(ck_tile::HostTensor<dtype>& src, const bool kLast)
     HostTensor<dtype> shuffled(HostTensorDescriptor({static_cast<std::size_t>(MNPadded * K)},
                                                     {static_cast<std::size_t>(1)}));
 
-    assert(K % (KXdlPack * XdlKThread) == 0);
+    if(K % (KXdlPack * XdlKThread) != 0)
+    {
+        throw std::runtime_error("wrong! K must be a multiple of (KXdlPack * XdlKThread)");
+    }
+
     const index_t K0 = K / KXdlPack / XdlKThread;
 
     for(index_t n = 0; n < MNPadded; ++n)
@@ -120,7 +124,10 @@ auto preShuffleScalePermuteN(const HostTensor<dtype>& src, const bool kLast)
     HostTensor<dtype> shuffled(HostTensorDescriptor({static_cast<std::size_t>(MNPadded * K)},
                                                     {static_cast<std::size_t>(1)}));
 
-    assert(K % (KXdlPack * XdlKThread) == 0);
+    if(K % (KXdlPack * XdlKThread) != 0)
+    {
+        throw std::runtime_error("wrong! K must be a multiple of (KXdlPack * XdlKThread)");
+    }
     const index_t K0 = K / KXdlPack / XdlKThread;
 
     for(index_t n = 0; n < MNPadded; ++n)
