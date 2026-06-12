@@ -15,60 +15,6 @@ extern template void run_jagged_forward_dispatch<
     true,
     true,
     false,
-    true,
-    false,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    true,
-    true,
-    false,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    true,
-    false,
-    false,
-    true,
-    false,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    false,
-    true,
-    false,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    true,
-    true,
-    false,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    false,
-    false,
-    false,
-    true,
-    false,
-    64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    false,
     false,
     false,
     64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
@@ -117,60 +63,6 @@ extern template void run_jagged_forward_dispatch<
     false,
     false,
     64>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    false,
-    true,
-    false,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    true,
-    true,
-    false,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    true,
-    false,
-    false,
-    true,
-    false,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    false,
-    true,
-    false,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    true,
-    true,
-    false,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    false,
-    false,
-    false,
-    true,
-    false,
-    96>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
 
 extern template void run_jagged_forward_dispatch<
     ck_tile::bf16_t,
@@ -231,60 +123,6 @@ extern template void run_jagged_forward_dispatch<
     true,
     true,
     false,
-    true,
-    false,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    true,
-    true,
-    false,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    true,
-    false,
-    false,
-    true,
-    false,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    false,
-    true,
-    false,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    true,
-    true,
-    false,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    false,
-    false,
-    false,
-    true,
-    false,
-    128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    false,
     false,
     false,
     128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
@@ -333,60 +171,6 @@ extern template void run_jagged_forward_dispatch<
     false,
     false,
     128>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    false,
-    true,
-    false,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    true,
-    true,
-    true,
-    true,
-    false,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    true,
-    false,
-    false,
-    true,
-    false,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    false,
-    true,
-    false,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    true,
-    true,
-    false,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
-
-extern template void run_jagged_forward_dispatch<
-    ck_tile::bf16_t,
-    false,
-    false,
-    false,
-    true,
-    false,
-    256>(HstuAttentionNoGroupFwdParams& param, hipStream_t stream);
 
 extern template void run_jagged_forward_dispatch<
     ck_tile::bf16_t,
