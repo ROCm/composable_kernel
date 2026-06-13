@@ -572,38 +572,9 @@ struct GroupedConvolutionForwardKernel
     using GemmDsLayout                  = remove_cvref_t<typename EpiloguePipeline_::DsLayout>;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
-    // For wavelet, LaunchBlockSize > BlockSize (extra load-only waves). Use
-    // LaunchBlockSize for the kernel launch; non-wavelet pipelines fall back to BlockSize.
-    template <typename T, typename = void>
-    struct has_launch_block_size : std::false_type
-    {
-    };
-    template <typename T>
-    struct has_launch_block_size<T, std::void_t<decltype(T::LaunchBlockSize)>> : std::true_type
-    {
-    };
-    static constexpr index_t kBlockSize = []() {
-        if constexpr(has_launch_block_size<Pipeline>::value)
-            return Pipeline::LaunchBlockSize;
-        else
-            return Pipeline::BlockSize;
-    }();
-
-    // SFINAE helper: detect Pipeline::IsWavelet (load/math wave specialization).
-    template <typename T, typename = void>
-    struct has_is_wavelet : std::false_type
-    {
-    };
-    template <typename T>
-    struct has_is_wavelet<T, std::void_t<decltype(T::IsWavelet)>> : std::true_type
-    {
-    };
-    static constexpr bool kIsWavelet = []() {
-        if constexpr(has_is_wavelet<Pipeline>::value)
-            return Pipeline::IsWavelet;
-        else
-            return false;
-    }();
+    // Wavelet pipelines launch extra load waves (LaunchBlockSize > BlockSize); others use
+    // BlockSize. See GroupedConvLaunchBlockSize in grouped_convolution_utils.hpp.
+    static constexpr index_t kBlockSize = GroupedConvLaunchBlockSize<Pipeline>;
 
     using InDataType    = remove_cvref_t<typename Pipeline::ADataType>;
     using WeiDataType   = remove_cvref_t<typename Pipeline::BDataType>;
@@ -1375,14 +1346,11 @@ struct GroupedConvolutionForwardKernel
         const auto& c_block_tile =
             Pipeline{}.template operator()(a_block_window, b_block_window, num_loop, smem_ptr_0);
 
-        // Run Epilogue Pipeline with k_batch dispatching
-        if constexpr(kIsWavelet)
-        {
-            // Wavelet: only math waves hold accumulators and run the epilogue.
-            // Load waves run a matching barrier sequence to avoid LDS-sync deadlock.
-            // Forward has no split-K (IsSplitKSupported == false), so only the
-            // memory_operation_enum::set path is reachable.
-            if(Pipeline::IsMathWave())
+        // Run the epilogue with k_batch dispatch, wrapped for wavelet load/math waves.
+        // Forward has no split-K (IsSplitKSupported == false), so the atomic_add branch
+        // compiles out and only the set path is reachable.
+        RunWaveletAwareEpilogue<Pipeline, EpiloguePipeline>([&]() {
+            if(k_batch == 1)
             {
                 auto c_block_window = MakeCBlockWindow<memory_operation_enum::set>(
                     c_ptr, c_desc, block_idx_m, block_idx_n);
@@ -1393,32 +1361,19 @@ struct GroupedConvolutionForwardKernel
             }
             else
             {
-                EpiloguePipeline::RunBarrierStub();
-            }
-        }
-        else if(k_batch == 1)
-        {
-            auto c_block_window = MakeCBlockWindow<memory_operation_enum::set>(
-                c_ptr, c_desc, block_idx_m, block_idx_n);
+                if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                               is_any_of<OutDataType, fp16_t, bf16_t>::value) &&
+                             IsSplitKSupported)
+                {
+                    auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
+                        c_ptr, c_desc, block_idx_m, block_idx_n);
 
-            EpiloguePipeline{elfunc}
-                .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-                    c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
-        }
-        else
-        {
-            if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                           is_any_of<OutDataType, fp16_t, bf16_t>::value) &&
-                         IsSplitKSupported)
-            {
-                auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
-                    c_ptr, c_desc, block_idx_m, block_idx_n);
-
-                EpiloguePipeline{elfunc}
-                    .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-                        c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
+                    EpiloguePipeline{elfunc}
+                        .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                            c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
+                }
             }
-        }
+        });
     }
 
     CK_TILE_DEVICE void CallExplicitGemm(GroupedConvFwdKernelArgsSpecialized& kargs) const

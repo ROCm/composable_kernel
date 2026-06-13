@@ -456,21 +456,9 @@ struct GroupedConvolutionBackwardWeightKernel
     using GemmDsLayout                  = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
-    // For wavelet, LaunchBlockSize > BlockSize. Use LaunchBlockSize for kernel launch.
-    template <typename T, typename = void>
-    struct has_launch_block_size : std::false_type
-    {
-    };
-    template <typename T>
-    struct has_launch_block_size<T, std::void_t<decltype(T::LaunchBlockSize)>> : std::true_type
-    {
-    };
-    static constexpr index_t kBlockSize = []() {
-        if constexpr(has_launch_block_size<GemmPipeline>::value)
-            return GemmPipeline::LaunchBlockSize;
-        else
-            return GemmPipeline::BlockSize;
-    }();
+    // Wavelet pipelines launch extra load waves (LaunchBlockSize > BlockSize); others use
+    // BlockSize. See GroupedConvLaunchBlockSize in grouped_convolution_utils.hpp.
+    static constexpr index_t kBlockSize = GroupedConvLaunchBlockSize<GemmPipeline>;
 
     using OutDataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using InDataType  = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -1061,22 +1049,6 @@ struct GroupedConvolutionBackwardWeightKernel
             {block_idx_k, block_idx_m});
     }
 
-    // SFINAE helper: detect GemmPipeline::IsWavelet
-    template <typename T, typename = void>
-    struct has_is_wavelet : std::false_type
-    {
-    };
-    template <typename T>
-    struct has_is_wavelet<T, std::void_t<decltype(T::IsWavelet)>> : std::true_type
-    {
-    };
-    static constexpr bool kIsWavelet = []() {
-        if constexpr(has_is_wavelet<GemmPipeline>::value)
-            return GemmPipeline::IsWavelet;
-        else
-            return false;
-    }();
-
     /**
      * @brief Runs single GEMM problem cooperatively by whole workgroup.
      *
@@ -1109,38 +1081,8 @@ struct GroupedConvolutionBackwardWeightKernel
         const auto& c_block_tile = GemmPipeline{}.template operator()(
             a_block_window, b_block_window, num_loop, smem_ptr_0);
 
-        if constexpr(kIsWavelet)
-        {
-            // Wavelet: math waves run the epilogue, load waves run matching barriers
-            if(GemmPipeline::IsMathWave())
-            {
-                if(kargs.k_batch == 1)
-                {
-                    auto c_block_window = MakeCBlockWindow<memory_operation_enum::set>(
-                        c_ptr, kargs, block_idx_m, block_idx_n);
-                    EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-                }
-                else
-                {
-                    if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                                   is_any_of<WeiDataType, fp16_t, bf16_t>::value))
-                    {
-                        auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
-                            c_ptr, kargs, block_idx_m, block_idx_n);
-                        EpiloguePipeline{}(
-                            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-                    }
-                }
-            }
-            else
-            {
-                // Load waves: match epilogue barrier count to avoid deadlock
-                EpiloguePipeline::RunBarrierStub();
-            }
-        }
-        else
-        {
-            // Standard (non-wavelet) path
+        // Run the epilogue with split-K dispatch, wrapped for wavelet load/math waves.
+        RunWaveletAwareEpilogue<GemmPipeline, EpiloguePipeline>([&]() {
             if(kargs.k_batch == 1)
             {
                 auto c_block_window = MakeCBlockWindow<memory_operation_enum::set>(
@@ -1159,7 +1101,7 @@ struct GroupedConvolutionBackwardWeightKernel
                     EpiloguePipeline{}(c_block_window, c_block_tile, d_block_window, smem_ptr_0);
                 }
             }
-        }
+        });
     }
 
     CK_TILE_DEVICE void CallExplicitGemm(GroupedConvBwdWeightKernelArgsSpecialized& kargs) const

@@ -21,6 +21,71 @@ enum class GroupedConvDirection
     BACKWARD_WEIGHT
 };
 
+// Wavelet pipeline support shared by all three grouped-conv directions. The wavelet GEMM
+// pipeline launches extra load-only waves (LaunchBlockSize > BlockSize) and splits the
+// workgroup into math waves (hold accumulators, run the epilogue) and load waves (run a
+// matching barrier sequence). Non-wavelet pipelines expose neither member; these helpers
+// detect that via SFINAE so each kernel dispatches without duplicating the machinery.
+namespace impl {
+template <typename T, typename = void>
+struct has_launch_block_size : std::false_type
+{
+};
+template <typename T>
+struct has_launch_block_size<T, std::void_t<decltype(T::LaunchBlockSize)>> : std::true_type
+{
+};
+
+template <typename T, typename = void>
+struct has_is_wavelet : std::false_type
+{
+};
+template <typename T>
+struct has_is_wavelet<T, std::void_t<decltype(T::IsWavelet)>> : std::true_type
+{
+};
+} // namespace impl
+
+// Block size to launch with: wavelet pipelines need LaunchBlockSize (load + math waves);
+// all others fall back to BlockSize.
+template <typename Pipeline>
+inline constexpr index_t GroupedConvLaunchBlockSize = []() {
+    if constexpr(impl::has_launch_block_size<Pipeline>::value)
+        return Pipeline::LaunchBlockSize;
+    else
+        return Pipeline::BlockSize;
+}();
+
+// True when the pipeline uses wavelet load/math wave specialization.
+template <typename Pipeline>
+inline constexpr bool is_wavelet_pipeline = []() {
+    if constexpr(impl::has_is_wavelet<Pipeline>::value)
+        return Pipeline::IsWavelet;
+    else
+        return false;
+}();
+
+// Run the CShuffle epilogue with wavelet load/math wave dispatch. For wavelet pipelines only
+// the math waves run @p epilogue_body (which writes the C tile); load waves run a matching
+// barrier sequence (RunBarrierStub) to avoid an LDS-sync deadlock. Non-wavelet pipelines run
+// @p epilogue_body directly. The body is direction-specific (split-K dispatch, window
+// construction), so it is passed in rather than shared.
+template <typename GemmPipeline, typename EpiloguePipeline, typename EpilogueBody>
+CK_TILE_DEVICE void RunWaveletAwareEpilogue(EpilogueBody&& epilogue_body)
+{
+    if constexpr(is_wavelet_pipeline<GemmPipeline>)
+    {
+        if(GemmPipeline::IsMathWave())
+            epilogue_body();
+        else
+            EpiloguePipeline::RunBarrierStub();
+    }
+    else
+    {
+        epilogue_body();
+    }
+}
+
 /// @brief The Grouped Conv kernel host arguments.
 ///
 /// @par Overview

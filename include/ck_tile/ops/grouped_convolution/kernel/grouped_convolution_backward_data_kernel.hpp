@@ -529,7 +529,9 @@ struct GroupedConvolutionBackwardDataKernel
     using GemmDsLayout                  = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
-    static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
+    // Wavelet pipelines launch extra load waves (LaunchBlockSize > BlockSize); others use
+    // BlockSize. See GroupedConvLaunchBlockSize in grouped_convolution_utils.hpp.
+    static constexpr index_t kBlockSize = GroupedConvLaunchBlockSize<GemmPipeline>;
 
     using OutDataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using WeiDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -934,29 +936,31 @@ struct GroupedConvolutionBackwardDataKernel
 
         const index_t k_batch = amd_wave_read_first_lane(kargs.k_batch);
 
-        // Run Epilogue Pipeline with k_batch dispatch
-        if(k_batch == 1)
-        {
-            auto c_block_window = MakeCBlockWindow<memory_operation_enum::set>(
-                c_ptr, kargs, group_id, block_idx_m, block_idx_n);
-
-            EpiloguePipeline{}
-                .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-                    c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
-        else
-        {
-            if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                           is_any_of<InDataType, fp16_t, bf16_t>::value))
+        // Run the epilogue with split-K dispatch, wrapped for wavelet load/math waves.
+        RunWaveletAwareEpilogue<GemmPipeline, EpiloguePipeline>([&]() {
+            if(k_batch == 1)
             {
-                auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
+                auto c_block_window = MakeCBlockWindow<memory_operation_enum::set>(
                     c_ptr, kargs, group_id, block_idx_m, block_idx_n);
 
                 EpiloguePipeline{}
                     .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
                         c_block_window, c_block_tile, d_block_window, smem_ptr_0);
             }
-        }
+            else
+            {
+                if constexpr(!(GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                               is_any_of<InDataType, fp16_t, bf16_t>::value))
+                {
+                    auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
+                        c_ptr, kargs, group_id, block_idx_m, block_idx_n);
+
+                    EpiloguePipeline{}
+                        .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+                }
+            }
+        });
     }
 
     CK_TILE_DEVICE index_t FindGroupId(const GroupedConvBwdDataKernelArgsSpecialized& kargs,
