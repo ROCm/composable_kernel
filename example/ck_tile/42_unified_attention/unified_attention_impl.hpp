@@ -140,16 +140,23 @@ struct variant_config<KernelVariant::prefill_d128>
     // auto-halve back to 32 via kBf16HalveBlockN below (2-byte element would
     // double LDS), so this bump is fp8-only by construction.
     //
-    // 128 STILL cliffs even with the wide 32x32x64 MMA (kFp8WideMma): ~10x
-    // slower at sq=75600 (8.9ms -> 96ms). The limiter is NOT LDS (gfx950 has
-    // 160KB/CU; kv128 uses 128KB and fits) but the 256-VGPR/wave ceiling: the
-    // O-accumulator (kBlockM*kHeadDim) plus the doubled score/P tile
-    // (kBlockM*kBlockN) push vgpr_count to the 256 cap and spill 617 values to
-    // scratch (vgpr_spill_count=617, private_segment=696B) vs 238 VGPRs / 0
-    // spills at kv64. Unlocking kv128 needs a VGPR-pressure cut (smaller kBlockM
-    // for this tile, or sub-tiling kBlockN so the live score tile stays 32x64),
-    // not an LDS change. Stay at 64 until that lands.
-    static constexpr index_t BlockSize = 64;
+    // kv128 was historically a ~10x cliff: the 256-VGPR/wave ceiling, hit by the
+    // O-accumulator (kBlockM*kHeadDim) plus the DOUBLED score/P tile
+    // (kBlockM*kBlockN), spilled hundreds of values to scratch. Two changes remove
+    // that pressure so kv128 is now the fastest fp8 prefill tile:
+    //   * single-sp (auto-enabled for kPageBlockSize>=128 in the pipeline):
+    //     single-buffers the score/P tile -> removes ~122 of the spills.
+    //   * cooperative K/V load (default policy): all 8 waves share each tile's
+    //     load so no wave owns a 1/4 shard -> removes the remaining ~4 spills.
+    // Net: kv128 fp8 prefill is 0-spill / 253-VGPR and ~+15% over the old kv64
+    // tile at the canonical b1/sq75600/hq=hk=5/d128 shape.
+    //
+    // UA_PREFILL_D128_BLOCKSIZE: compile-time KV-tile override (set to 64 to
+    // restore the legacy tile for A/B).
+#ifndef UA_PREFILL_D128_BLOCKSIZE
+#define UA_PREFILL_D128_BLOCKSIZE 128
+#endif
+    static constexpr index_t BlockSize = UA_PREFILL_D128_BLOCKSIZE;
     using BlockWarps                   = sequence<8, 1, 1>;
     using WarpGemmShape                = sequence<32, 32, 16>;
     template <typename Problem, index_t PageSize = 0, bool IsPaged = true>

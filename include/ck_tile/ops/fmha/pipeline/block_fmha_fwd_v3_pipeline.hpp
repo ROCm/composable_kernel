@@ -237,6 +237,46 @@ CK_TILE_DEVICE fp32x2_t pk_mul_f32(fp32x2_t lhs, fp32x2_t rhs)
                  : [lhs] "v"(lhs), [rhs] "v"(rhs));
     return result;
 }
+
+// Packed fused multiply-add: result = a * b + c, two f32 lanes per instruction.
+// Used for the softmax score shift (sp_delta = sp_compute * scale_s + (-scale_s *
+// rowmax)). Because each thread holds exactly one rowmax (m.thread_buf_.size()==1),
+// the addend `c` is uniform across the thread's score elements, so the caller
+// broadcasts the scale and addend scalars into both lanes. Halves the 64 scalar
+// v_fma_f32 of the shift to 32 v_pk_fma_f32, matching the hand-tuned ASM softmax.
+CK_TILE_DEVICE fp32x2_t pk_fma_f32(fp32x2_t a, fp32x2_t b, fp32x2_t c)
+{
+    fp32x2_t result;
+    asm volatile("v_pk_fma_f32 %[result], %[a], %[b], %[c]"
+                 : [result] "=v"(result)
+                 : [a] "v"(a), [b] "v"(b), [c] "v"(c));
+    return result;
+}
+
+// Packed add: result = a + b, two f32 lanes per instruction. Used to fold a
+// row's score-probabilities into a 2-wide partial sum (v_pk_add_f32) before a
+// single scalar combine, halving the scalar v_add_f32 dependency chain of the
+// row-sum reduction.
+CK_TILE_DEVICE fp32x2_t pk_add_f32(fp32x2_t a, fp32x2_t b)
+{
+    fp32x2_t result;
+    asm volatile("v_pk_add_f32 %[result], %[a], %[b]"
+                 : [result] "=v"(result)
+                 : [a] "v"(a), [b] "v"(b));
+    return result;
+}
+
+// Schraudolph 2^x bit-trick finisher. The caller has already produced the affine
+// `bits = x * 2^23 + (127*2^23 - C)` in a float; v_cvt_u32_f32 rounds that float to
+// the integer it represents, and that integer bit-pattern reinterpreted as f32 is
+// ~= 2^x. Replaces the quarter-rate v_exp_f32 with a full-rate v_cvt_u32_f32.
+// The u32 (not i32) cvt floors the negative-overflow tail at +0.0 (NaN-safe).
+CK_TILE_DEVICE float exp2_schraudolph_u32(float bits)
+{
+    uint32_t u;
+    asm volatile("v_cvt_u32_f32 %[u], %[bits]" : [u] "=v"(u) : [bits] "v"(bits));
+    return bit_cast<float>(u);
+}
 } // namespace detail
 
 /// NOTICE: This pipeline is a work in progress and is awaiting upcoming compiler fixes and

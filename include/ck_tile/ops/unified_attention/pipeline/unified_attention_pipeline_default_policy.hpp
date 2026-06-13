@@ -753,13 +753,26 @@ struct UnifiedAttentionPipelineDefaultPolicy
     // (WG0's own vmcnt proves the load) so the V LDS read can later move into
     // the SOFTMAX phase. K stays block-cooperative across all 8 waves.
     // Toggle to false to restore the block-cooperative (8-wave) V load.
-    static constexpr bool kFA4WG0LoadsV = true;
+    // Default 0 (cooperative): all 8 waves load their 1/8 V shard. The 2-WG
+    // role split (WG0->V only) makes each loading wave own a 1/4 shard, whose
+    // larger addressing live-set spills VGPRs at kv128; cooperative loading is a
+    // strict win (kv128: 4->0 spills, +12%; kv64: +1.5%). Set to 1 to restore
+    // the WG0->V load-role specialization.
+#ifndef UA_FA4_WG0_LOADS_V
+#define UA_FA4_WG0_LOADS_V 0
+#endif
+    static constexpr bool kFA4WG0LoadsV = UA_FA4_WG0_LOADS_V;
 
     // Symmetric K decoupling: warp group 1 (waves 4-7) alone loads the full K
     // tile into the shared K LDS buffer; warp group 0 reads it from shared LDS.
     // Together with kFA4WG0LoadsV this balances DRAM-load work (WG0->V, WG1->K)
     // and lets each group issue only one tile's load/address instructions.
-    static constexpr bool kFA4WG1LoadsK = true;
+    // K analogue of kFA4WG0LoadsV; default 0 (cooperative). Set to 1 to restore
+    // the WG1->K load-role specialization.
+#ifndef UA_FA4_WG1_LOADS_K
+#define UA_FA4_WG1_LOADS_K 0
+#endif
+    static constexpr bool kFA4WG1LoadsK = UA_FA4_WG1_LOADS_K;
 
     // Number of waves that cooperate on a V DRAM->LDS load. For the 2-warp-group
     // FA4 path with kFA4WG0LoadsV, this is one warp group's waves (so WG0 alone

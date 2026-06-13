@@ -19,10 +19,6 @@
 #define UA_FA4_PIN_PACK_IN_SOFTMAX 0
 #endif
 
-#ifndef UA_FA4_VLOAD_IN_MATRIX
-#define UA_FA4_VLOAD_IN_MATRIX 1
-#endif
-
 // FMHA_MASK PLACEMENT: pick exactly one of:
 //   - both 0 → baseline (mask in K-side memory phase, W0-3 phase 1
 //     / W4-7 phase 2, right after `cl_load(memK)`).
@@ -79,6 +75,58 @@
 //     is neutralised to 0 so the non-compute baseline is uniformly prio 0.
 #ifndef UA_DYNAMIC_SETPRIO
 #define UA_DYNAMIC_SETPRIO 0
+#endif
+
+// UA_FA4_PACKED_SHIFT: emit the softmax score-shift (sp_delta = sp_compute *
+// scale_s - scale_s * rowmax) as packed v_pk_fma_f32 (2 f32/instr) instead of 64
+// scalar v_fma_f32. Bit-identical: each thread holds one rowmax
+// (m.thread_buf_.size()==1) so the FMA addend is uniform across the thread's
+// score elements and is broadcast into both packed lanes. Mirrors the hand-tuned
+// ASM softmax (v_pk_fma_f32 for the rebase). Halves the shift instruction count.
+#ifndef UA_FA4_PACKED_SHIFT
+#define UA_FA4_PACKED_SHIFT 1
+#endif
+
+// UA_FA4_EXP2_APPROX: replace the per-element softmax exp (quarter-rate
+// v_exp_f32) with the Schraudolph 2^x bit-trick (full-rate). The score-shift FMA
+// in fmha_alu0 absorbs the 2^23 scale and the Schraudolph bias, so fmha_alu1 only
+// needs a single v_cvt_u32_f32 per element instead of v_exp_f32. The per-row
+// max-delta rescale keeps the exact v_exp_f32 (only 1/row, not on the hot path).
+// This is an APPROXIMATION (~1e-3 rel error per element) -- it mirrors the ASM
+// softmax fast SKU and is only applied on the non-masked, no-softcap path
+// (compile-time gate below). Numerics-changing => default OFF; validate accuracy
+// before enabling.
+#ifndef UA_FA4_EXP2_APPROX
+#define UA_FA4_EXP2_APPROX 0
+#endif
+
+// Schraudolph 2^x bit-trick constants: bits = round(2^23 * x + (127*2^23 - 486411))
+// reinterpreted as f32 ~= 2^x. Min-error offset matches the hand-tuned ASM softmax.
+#define UA_EXP2_SCHRAUDOLPH_SCALE 8388608.0f    // 2^23
+#define UA_EXP2_SCHRAUDOLPH_BIAS 1064866805.0f  // 127*2^23 - 486411
+
+// UA_FA4_PACKED_ROWSUM: reduce a thread's row-sum of probabilities with packed
+// v_pk_add_f32 into a 2-wide partial, then a single scalar combine, instead of the
+// scalar v_add_f32 dependency chain that block_tile_reduce emits. Halves the
+// in-thread adds and shortens the latency chain feeding the cross-lane permlane.
+// Reassociates the sum (rounding differs at the ULP level) -- safe within the fp8
+// /bf16 attention tolerances.
+//
+// MEASURED LOSER (-13%): a serial v_pk_add_f32 accumulation is a 32-deep latency
+// chain that is WORSE than block_tile_reduce's log-depth tree, and the dead scalar
+// reduce is not DCE'd. Kept gated off for documentation; do not enable.
+#ifndef UA_FA4_PACKED_ROWSUM
+#define UA_FA4_PACKED_ROWSUM 0
+#endif
+
+// UA_FA4_PACKED_ALU1_RESCALE: pack the 6-register o_acc partial rescale in
+// fmha_alu1 (elementwise *= o_acc_scale) with v_pk_mul_f32, matching the packed
+// rescale in fmha_alu_D_upd. Independent elementwise scale (no dependency chain),
+// and it halves the number of asm-volatile scheduling boundaries (6 scalar
+// v_mul_f32 -> 3 v_pk_mul_f32). Bit-identical; measured +4% on the canonical
+// fp8 prefill shape.
+#ifndef UA_FA4_PACKED_ALU1_RESCALE
+#define UA_FA4_PACKED_ALU1_RESCALE 1
 #endif
 
 // CONDITIONAL_RESCALE (PLAN_conditional_rescale Part 2)
@@ -638,11 +686,38 @@ struct UnifiedAttentionPipeline
             decltype(make_static_distributed_tensor<PDataType>(
                 Policy::template MakePRegTileDistribution<Problem>())) p;
         };
-        statically_indexed_array<sp_compute_type, 2> sp;
+        // Collapse the deferred-PV score/P double buffer to a single shared slot
+        // for the large (kv128) score tile. The 2-slot fp32 score/P tile is the
+        // dominant kv128 VGPR consumer (~122 spills at kPageBlockSize=128);
+        // single-buffering it fits under the 256-VGPR ceiling with 0 spills. This
+        // is correctness-neutral: the deferred-PV PV(pi)-read and QK(1-pi)-write
+        // now alias the same VGPRs -- a register WAR hazard the compiler resolves
+        // by serializing PV->QK (pure-VGPR, no LDS/barrier). Small tiles
+        // (kPageBlockSize<=64, decode) keep the double buffer: single-buffering
+        // there would force that serialization for no spill benefit. The accessor
+        // ignores the slot index so every sp(number<I>{}) call site compiles.
+        // UA_FA4_SINGLE_SP forces it on regardless (probing).
+#ifndef UA_FA4_SINGLE_SP
+#define UA_FA4_SINGLE_SP 0
+#endif
+        static constexpr bool kUseSingleSp = (UA_FA4_SINGLE_SP != 0) || (kPageBlockSize >= 128);
+        struct sp_holder_t
+        {
+            sp_compute_type s_;
+            CK_TILE_DEVICE constexpr sp_compute_type& operator()(index_t) { return s_; }
+        };
+        std::conditional_t<kUseSingleSp,
+                           sp_holder_t,
+                           statically_indexed_array<sp_compute_type, 2>>
+            sp;
 
         decltype(gemm_1.MakeCBlockTile()) o_acc;
-        constexpr index_t fmha_alu_D_reg_cnt = 6; // threshold to decide how many fmha_alu_D_upd()
-                                                  // instructions should we move to fmha_alu1()
+        // threshold to decide how many fmha_alu_D_upd() o_acc-rescale registers are
+        // moved into fmha_alu1(); overridable for split-ratio sweeps.
+#ifndef UA_FA4_ALU_D_REG_CNT
+#define UA_FA4_ALU_D_REG_CNT 6
+#endif
+        constexpr index_t fmha_alu_D_reg_cnt = UA_FA4_ALU_D_REG_CNT;
         static_assert(fmha_alu_D_reg_cnt <= o_acc.thread_buf_.size());
 
         decltype(block_tile_reduce<SMPLComputeDataType>(
@@ -1522,9 +1597,11 @@ struct UnifiedAttentionPipeline
         // num_blocks_start.
         const index_t num_iters_per_split = num_total_loop - num_blocks_start;
         auto K_mem_load = [&](auto k_lds_write_idx) {
-            // FA4 "WG1 loads K": only warp group 1's waves issue the K async load
-            // (its KLoadNumWarps==4 layout fills the full shared K tile). WG0
-            // skips it and reads K from shared LDS (barrier-synchronized).
+            // K async load. With kFA4WG1LoadsK only WG1's 4 waves issue it (its
+            // KLoadNumWarps==4 layout fills the full shared K tile) and WG0 reads K
+            // from shared LDS; with the cooperative load (kFA4WG1LoadsK=false) all 8
+            // waves load their 1/8 shard. Cooperative keeps each wave's load shard
+            // (and addressing live-set) small enough to avoid the kv128 VGPR spills.
             if(k_load_active)
             {
                 if(cache_ptr_int32_overflow_possible)
@@ -1533,12 +1610,8 @@ struct UnifiedAttentionPipeline
                     async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
             }
             k_block_idx++;
-            // Only the K-loading warp group needs K offsets refreshed: with
-            // kFA4WG1LoadsK, WG0 never issues a K load, so computing its page
-            // offsets (incl. the block-table page-index ds_read) is pure waste.
-            // k_block_idx itself stays uniform across all waves so loop control
-            // and buffer parity never diverge. Gating here also means each wave
-            // fetches a page-table index for exactly ONE tile (K *or* V), not both.
+            // Only the K-loading warp group(s) refresh K offsets; k_block_idx stays
+            // uniform across all waves so loop control and buffer parity never diverge.
             if(k_load_active && k_block_idx < num_iters_per_split)
             {
                 refresh_k_offsets(k_block_idx);
@@ -1552,10 +1625,9 @@ struct UnifiedAttentionPipeline
         };
 
         auto V_mem_load = [&](auto v_lds_write_idx) {
-            // FA4 "WG0 loads V": only warp group 0's waves issue the V async
-            // load (its VLoadNumWarps==4 layout fills the full shared V tile).
-            // WG1 skips the load; bookkeeping (v_block_idx / offsets) stays
-            // uniform across all waves so the loop's scalar state never diverges.
+            // V async load, symmetric to K_mem_load: with kFA4WG0LoadsV only WG0's 4
+            // waves issue it; cooperative (=false) spreads it over all 8 waves.
+            // v_block_idx stays uniform across all waves for loop / buffer bookkeeping.
             if(v_load_active)
             {
                 if(cache_ptr_int32_overflow_possible)
@@ -1564,9 +1636,6 @@ struct UnifiedAttentionPipeline
                     async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
             }
             v_block_idx++;
-            // Symmetric to K: only the V-loading warp group (WG0) refreshes V
-            // offsets; WG1 skips it (it never issues a V load). v_block_idx stays
-            // uniform for loop/buffer bookkeeping.
             if(v_load_active && v_block_idx < num_iters_per_split)
             {
                 refresh_v_offsets(v_block_idx);
@@ -1588,7 +1657,23 @@ struct UnifiedAttentionPipeline
         decltype(m) m_old;
         SMPLComputeDataType o_acc_scale; // rescale o_acc in fmha_alu1() & fmha_alu_D_upd()
         /// TODO: remove the sp_delta and use sp_compute directly
-        statically_indexed_array<decltype(sp(number<0>{}).sp_compute), 2> sp_delta;
+        // sp_delta follows sp: single slot for the kv128 tile, double otherwise.
+        struct sp_delta_holder_t
+        {
+            decltype(sp(number<0>{}).sp_compute) d_;
+            CK_TILE_DEVICE constexpr decltype(d_)& operator()(index_t) { return d_; }
+        };
+        std::conditional_t<kUseSingleSp,
+                           sp_delta_holder_t,
+                           statically_indexed_array<decltype(sp(number<0>{}).sp_compute), 2>>
+            sp_delta;
+
+        // Schraudolph exp2 approximation is only applied on the packed-shift,
+        // non-masked path (the masked/causal path keeps the exact v_exp_f32, like
+        // the ASM softmax). When active, fmha_alu0 folds the 2^23 scale + bias into
+        // the shift FMA so fmha_alu1 finishes the exp with a single v_cvt_u32_f32.
+        constexpr bool kUseExp2Approx =
+            (UA_FA4_EXP2_APPROX != 0) && (UA_FA4_PACKED_SHIFT != 0) && !FmhaMask::IsMasking;
 
         auto fmha_alu0 = [&](auto sp_reg_idx) {
             m_old = m; // m{j-1}
@@ -1646,6 +1731,37 @@ struct UnifiedAttentionPipeline
             auto& m_shift = m;
 #endif
 
+#if UA_FA4_PACKED_SHIFT
+            // Packed score shift: each thread holds exactly one rowmax, so the FMA
+            // addend (-scale_s * rowmax) is uniform across the thread's score
+            // elements. Broadcast scale_s and the addend into both packed lanes and
+            // emit v_pk_fma_f32 (2 f32/instr) over sp_compute.thread_buf_ pairs.
+            // Bit-identical to the scalar fma_impl_vsv sweep below. The
+            // one-rowmax-per-thread invariant is asserted on `m` above.
+            static_assert(sp(sp_reg_idx).sp_compute.thread_buf_.size() % 2 == 0,
+                          "packed shift needs an even score-register count");
+            {
+                // Schraudolph fold: bits = S*(scale_s*2^23) + (-scale_s*2^23*max +
+                // bias) = 2^23*scale_s*(S-max) + bias, finished by v_cvt_u32_f32 in
+                // fmha_alu1. Exact path: sp_delta = scale_s*(S-max).
+                const float eff_scale =
+                    kUseExp2Approx ? (scale_s * UA_EXP2_SCHRAUDOLPH_SCALE) : scale_s;
+                const float addend =
+                    kUseExp2Approx
+                        ? (-eff_scale * m_shift.thread_buf_[0] + UA_EXP2_SCHRAUDOLPH_BIAS)
+                        : (-scale_s * m_shift.thread_buf_[0]);
+                const fp32x2_t scale_pair{eff_scale, eff_scale};
+                const fp32x2_t addend_pair{addend, addend};
+                static_for<0, sp(sp_reg_idx).sp_compute.thread_buf_.size(), 2>{}([&](auto idx) {
+                    fp32x2_t in;
+                    in.x        = sp(sp_reg_idx).sp_compute.thread_buf_[idx];
+                    in.y        = sp(sp_reg_idx).sp_compute.thread_buf_[idx + 1];
+                    auto out    = detail::pk_fma_f32(in, scale_pair, addend_pair);
+                    sp_delta(sp_reg_idx).thread_buf_[idx]     = out.x;
+                    sp_delta(sp_reg_idx).thread_buf_[idx + 1] = out.y;
+                });
+            }
+#else
             constexpr auto p_spans =
                 std::decay_t<decltype(sp(sp_reg_idx).sp_compute)>::get_distributed_spans();
             sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
@@ -1655,19 +1771,32 @@ struct UnifiedAttentionPipeline
                         sp(sp_reg_idx).sp_compute(i_j_idx), scale_s, -scale_s * m_shift(i_j_idx));
                 });
             });
+#endif
             /// TODO: move some fmha_alu1() code here if necessary
         };
 
         auto fmha_alu1 = [&](auto sp_reg_idx) {
             constexpr auto p_spans =
                 std::decay_t<decltype(sp(sp_reg_idx).sp_compute)>::get_distributed_spans();
-            sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
-                sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    sp(sp_reg_idx).sp_compute(i_j_idx) =
-                        ck_tile::exp2(sp_delta(sp_reg_idx)(i_j_idx));
+            if constexpr(kUseExp2Approx)
+            {
+                // fmha_alu0 already produced the Schraudolph bits; finish with a
+                // single full-rate v_cvt_u32_f32 per element (no v_exp_f32).
+                static_for<0, sp(sp_reg_idx).sp_compute.thread_buf_.size(), 1>{}([&](auto idx) {
+                    sp(sp_reg_idx).sp_compute.thread_buf_[idx] =
+                        detail::exp2_schraudolph_u32(sp_delta(sp_reg_idx).thread_buf_[idx]);
                 });
-            });
+            }
+            else
+            {
+                sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                    sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                        sp(sp_reg_idx).sp_compute(i_j_idx) =
+                            ck_tile::exp2(sp_delta(sp_reg_idx)(i_j_idx));
+                    });
+                });
+            }
 
             auto rowsum_p = block_tile_reduce<SMPLComputeDataType>(
                 sp(sp_reg_idx).sp_compute,
@@ -1676,6 +1805,24 @@ struct UnifiedAttentionPipeline
                 SMPLComputeDataType{0}); // rowsum(Pcompute{j})
             static_assert(rowsum_p.thread_buf_.size() == 1,
                           "assuming that each thread holds 1 rowsum value");
+#if UA_FA4_PACKED_ROWSUM
+            // Packed in-thread row-sum: accumulate pairs with v_pk_add_f32 into a
+            // 2-wide partial, then one scalar combine. Overwrites the scalar
+            // block_tile_reduce result above (its adds are dead -> DCE'd) before the
+            // cross-lane reduce consumes thread_buf_[0].
+            static_assert(sp(sp_reg_idx).sp_compute.thread_buf_.size() % 2 == 0,
+                          "packed rowsum needs an even score-register count");
+            {
+                fp32x2_t acc{SMPLComputeDataType{0}, SMPLComputeDataType{0}};
+                static_for<0, sp(sp_reg_idx).sp_compute.thread_buf_.size(), 2>{}([&](auto idx) {
+                    fp32x2_t v;
+                    v.x = sp(sp_reg_idx).sp_compute.thread_buf_[idx];
+                    v.y = sp(sp_reg_idx).sp_compute.thread_buf_[idx + 1];
+                    acc = detail::pk_add_f32(acc, v);
+                });
+                rowsum_p.thread_buf_[0] = acc.x + acc.y;
+            }
+#endif
 #if defined(__gfx950__)
             if constexpr(kWarpGemmM == 32)
             {
@@ -1727,9 +1874,25 @@ struct UnifiedAttentionPipeline
             // the guard away (unconditional rescale) on the decode path.
             if(!kCondRescale || need_rescale)
 #endif
+#if UA_FA4_PACKED_ALU1_RESCALE
+            {
+                static_assert(fmha_alu_D_reg_cnt % 2 == 0,
+                              "packed alu1 rescale needs an even reg count");
+                const fp32x2_t pk_scale{o_acc_scale, o_acc_scale};
+                static_for<0, fmha_alu_D_reg_cnt, 2>{}([&](auto idx) {
+                    fp32x2_t in;
+                    in.x        = o_acc.thread_buf_[idx];
+                    in.y        = o_acc.thread_buf_[idx + 1];
+                    auto out    = detail::pk_mul_f32(in, pk_scale);
+                    o_acc.thread_buf_[idx]     = out.x;
+                    o_acc.thread_buf_[idx + 1] = out.y;
+                });
+            }
+#else
             static_for<0, fmha_alu_D_reg_cnt, 1>{}([&](auto idx) {
                 o_acc.thread_buf_[idx] = detail::mul_impl_vv(o_acc.thread_buf_[idx], o_acc_scale);
             });
+#endif
 
             /// Note: The compiler keeps sinking the conversion instructions because the
             /// result 'p' is only consumed later. To anchor them here, we rewrite
@@ -2272,38 +2435,21 @@ struct UnifiedAttentionPipeline
 
             // MATRIX phase: deferred PV(k-1) then QK(k). Pure matrix pipe.
             // Consumes V(pi) / K(1-pi) resident in LDS; kv_tile holds v_tile for
-            // the PV and (separately) k_tile for the QK.
-            //
-            // V-read into SOFTMAX (Stage B): the PV gemm's V tile (v_rd == pi) is
-            // now read in the *preceding* SOFTMAX phase rather than at the top of
-            // this MATRIX phase, so its ~LDS latency overlaps the full softmax
-            // VALU (exp / rowsum / P-cvt) instead of only the prefetch address
-            // calc. This is safe now that V is loaded by a single warp group
-            // (kFA4WG0LoadsV): WG0 reads V it loaded itself, so its own vmcnt<0>
-            // proves residency (no partner dependency); WG1 reads an already-
-            // barrier-published V buffer. The pre-read lands in v_tile and this
-            // MATRIX phase consumes it directly (see fa4_softmax / the WG0 prime).
-            //
-            // NOTE: do NOT hoist K_lds_load the same way. The QK gemm reads K-buf
-            // [1-pi] which the partner group (WG1) loads; WG0 has no own-vmcnt
-            // proof of its residency this early, only the barrier deeper in the
-            // phase. K stays issued between the PV and QK MFMAs (latency under PV).
-            auto fa4_vload = [&](auto pi) { V_lds_load(pi); };
-
+            // the PV and (separately) k_tile for the QK. Both LDS reads (V then K)
+            // live in this phase: V up front (overlaps the lgkmcnt drain), K
+            // issued between the PV and QK MFMAs so its read overlaps the PV MFMA.
             auto fa4_matrix = [&](auto pi) {
                 auto pv_sp = pi;               // PV source: P(pi) from prev SOFTMAX
                 auto qk_sp = number<1>{} - pi; // QK target slot
                 auto k_rd  = number<1>{} - pi;
 
-#if UA_FA4_VLOAD_IN_MATRIX
-                // V read moved here from the preceding SOFTMAX. PV(pi) consumes
-                // V buf pi; the buffer was filled + published (drain-before-
-                // barrier) tiles ago, so the slot barrier already guarantees
-                // residency. Issued first so its LDS latency overlaps whatever
-                // the lgkmcnt<0> below would otherwise expose serially.
+                // V LDS read lives HERE in the MATRIX phase. PV(pi) consumes V
+                // buf pi; that buffer was filled + published (drain-before-
+                // barrier) by WG0 in a previous slot, so the slot barrier we just
+                // crossed already guarantees residency. Issued first so its LDS
+                // latency overlaps the lgkmcnt<0> below.
                 V_lds_load(pi);
-#endif
-                s_waitcnt_lgkmcnt<0>(); // wait the V read (here, or pre-read in prev SOFTMAX)
+                s_waitcnt_lgkmcnt<0>(); // wait the V LDS read just issued
                 gemm(pv_sp, gemm1);     // o_acc += P(pi) @ V(k-1)
                 // K read into its OWN registers (k_tile no longer aliases v_tile),
                 // so this ds_read executes on the LSU *during* the PV MFMA above
@@ -2348,46 +2494,64 @@ struct UnifiedAttentionPipeline
             // iteration, so the double buffer never aliases).
             auto iteration = [&](auto pi) {
                 bool result = true;
-                auto K_pf = pi;               // next-tile K buffer
-                auto V_pf = number<1>{} - pi; // next-tile V buffer
+                auto K_pf = pi;               // next-tile K buffer (WG1 fills it)
+                auto V_pf = number<1>{} - pi; // next-tile V buffer (WG0 fills it)
 
+                // Load roles are warp-group-specialized: WG0 issues the V async
+                // load, WG1 issues the K async load (the other group's call is a
+                // no-op that only advances bookkeeping). Both groups READ both
+                // tiles from the shared LDS double buffer.
                 auto prefetch = [&] {
                     if(i_total_loops + 1 < num_total_loop)
-                        K_mem_load(K_pf);
-                    V_mem_load(V_pf);
+                        K_mem_load(K_pf); // real on WG1, no-op on WG0
+                    V_mem_load(V_pf);     // real on WG0, no-op on WG1
+                };
+
+                auto barrier = [] {
+                    __builtin_amdgcn_sched_barrier(0); // pin: nothing crosses the
+                    __builtin_amdgcn_s_barrier();      // block barrier (keeps the
+                    __builtin_amdgcn_sched_barrier(0); // cooperative load converged)
                 };
 
                 if constexpr(cl_p == 0)
                 {
-                    // ---- slot A: MATRIX(pi) ‖ (WG1: SOFTMAX) ----
-                    // V tile (buf pi) was pre-read into v_tile in the previous
-                    // SOFTMAX phase (or the WG0 prime for the first tile).
-                    ASM_MARKER("fa4 MATRIX Wave0-3");
-                    s_waitcnt_vmcnt<0>();
-                    __builtin_amdgcn_sched_barrier(0);
-                    __builtin_amdgcn_s_barrier();
-                    __builtin_amdgcn_sched_barrier(0);
-                    prefetch();
-                    fa4_matrix(pi);
+                    // ================= WG0 : MATRIX(pi) then SOFTMAX(pi) ========
+                    // WG0 is the V loader. Each slot drains its own outstanding V
+                    // loads (vmcnt<0>) BEFORE the barrier, so the barrier publishes
+                    // all 4 WG0 waves' cooperative writes to the readers (itself +
+                    // WG1) that cross it next.
 
-                    // ---- slot B: SOFTMAX(pi) ‖ (WG1: MATRIX) ----
-                    // Pre-read the next MATRIX's V tile (buf 1-pi == the buffer
-                    // this iteration's prefetch just filled), overlapping the
-                    // softmax VALU below; v_tile survives into the next slot-A
-                    // MATRIX (PV consumes it via lgkmcnt<0>). The V buffer is
-                    // filled cooperatively by WG0's 4 waves, so a wave reads
-                    // slices written by its peers: drain the load (vmcnt<0>) and
-                    // then cross the phase barrier so all 4 waves' writes are
-                    // published BEFORE the read (drain-before-barrier; reading
-                    // after only an own-vmcnt races the peers' slices).
-                    ASM_MARKER("fa4 SOFTMAX Wave0-3");
-                    s_waitcnt_vmcnt<0>();
-                    __builtin_amdgcn_sched_barrier(0);
-                    __builtin_amdgcn_s_barrier();
-                    __builtin_amdgcn_sched_barrier(0);
-#if !UA_FA4_VLOAD_IN_MATRIX
-                    fa4_vload(number<1>{} - pi);
+                    // ---- slot A: MATRIX(pi) ‖ WG1 SOFTMAX ----
+                    ASM_MARKER("fa4 MATRIX Wave0-3");
+                    s_waitcnt_vmcnt<0>(); // V for THIS matrix has arrived -> publish
+                    // UA_FA4_PREFETCH_EARLY (default OFF): issue the next-tile
+                    // cooperative load BEFORE the slot barrier to start it a
+                    // barrier-wait earlier (~+1% at kv128 fp8 contiguous). UNSAFE
+                    // as a global default: it corrupts the bf16 / paged (ps16)
+                    // paths (different buffer layout / page-table ordering -- the
+                    // write-before-barrier races the prior reader), so it stays
+                    // off until that ordering is made safe per-path.
+#ifndef UA_FA4_PREFETCH_EARLY
+#define UA_FA4_PREFETCH_EARLY 0
 #endif
+#if UA_FA4_PREFETCH_EARLY
+                    prefetch();
+                    barrier();
+#else
+                    barrier();
+                    prefetch();           // issue K(pi)+V(1-pi) for tile k+1
+#endif
+                    fa4_matrix(pi);       // V_lds_load(pi); PV; K_lds_load(1-pi); QK
+
+                    // ---- slot B: SOFTMAX(pi) ‖ WG1 MATRIX ----
+                    // No VMEM drain here: slot A's vmcnt<0> already published every
+                    // V load, so the ONLY load outstanding now is the slot-A next-
+                    // tile prefetch, which no reader touches for ~2 phases. Draining
+                    // it here just landed it a phase early. The barrier still stays:
+                    // it's the phase sync and publishes this phase's LDS (sp/P tiles)
+                    // via the lgkm side, not VMEM.
+                    ASM_MARKER("fa4 SOFTMAX Wave0-3");
+                    barrier();
                     fa4_softmax(pi);
 
                     if(num_total_loop <= ++i_total_loops)
@@ -2395,35 +2559,25 @@ struct UnifiedAttentionPipeline
                 }
                 else
                 {
-                    // ---- slot A: SOFTMAX ‖ (WG0: MATRIX) ----
-                    // WG1 is one phase ahead (primed by the FA4 prologue): it
-                    // softmaxes the tile it QK'd in its previous MATRIX phase
-                    // while WG0 runs the MATRIX of the same tile.
-                    //
-                    // Pre-read this iteration's slot-B MATRIX V tile (buf pi).
-                    // That buffer was filled by WG0 and already drained+published
-                    // by WG0's drain-before-barrier in its prior SOFTMAX slot, so
-                    // the slot-A barrier just crossed guarantees all 4 writer
-                    // waves' slices are visible. The read overlaps the softmax
-                    // VALU below; v_tile survives into the slot-B MATRIX.
+                    // ================= WG1 : SOFTMAX then MATRIX(pi) ============
+                    // WG1 is the K loader, primed one phase ahead of WG0.
+
+                    // ---- slot A: SOFTMAX ‖ WG0 MATRIX ----
                     ASM_MARKER("fa4 SOFTMAX Wave4-7");
-                    s_waitcnt_vmcnt<0>();
-                    __builtin_amdgcn_sched_barrier(0);
-                    __builtin_amdgcn_s_barrier();
-                    __builtin_amdgcn_sched_barrier(0);
-#if !UA_FA4_VLOAD_IN_MATRIX
-                    fa4_vload(pi);
-#endif
+                    s_waitcnt_vmcnt<0>(); // K for WG0's matrix has arrived -> publish
+#if UA_FA4_PREFETCH_EARLY
                     prefetch();
+                    barrier();
+#else
+                    barrier();
+                    prefetch();           // issue K(pi)+V(1-pi) for tile k+1
+#endif
                     fa4_softmax(number<1>{} - pi);
 
-                    // ---- slot B: MATRIX(pi) ‖ (WG0: SOFTMAX) ----
-                    // v_tile holds buf pi from the slot-A pre-read above.
+                    // ---- slot B: MATRIX(pi) ‖ WG0 SOFTMAX ----
                     ASM_MARKER("fa4 MATRIX Wave4-7");
-                    __builtin_amdgcn_sched_barrier(0);
-                    __builtin_amdgcn_s_barrier();
-                    __builtin_amdgcn_sched_barrier(0);
-                    fa4_matrix(pi);
+                    barrier();            // <-- no drain here (see note below)
+                    fa4_matrix(pi);       // V_lds_load(pi); PV; K_lds_load(1-pi); QK
 
                     if(num_total_loop <= ++i_total_loops)
                         result = false;
