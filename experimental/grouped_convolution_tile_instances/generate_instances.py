@@ -281,17 +281,21 @@ STREAMK_REDUCTION_STRATEGY = {
 }
 
 
-def parse_native_bwd_weight_instance(args, instance_id, problem_name):
-    """Parse a native CK Tile instance string (GroupedConvolutionBackwardWeightKernel<...>).
+def parse_native_instance(args, instance_id, problem_name, has_streamk, has_two_stage):
+    """Parse a native CK Tile grouped-conv instance string for any direction
+    (GroupedConvolution{Forward,BackwardData,BackwardWeight}Kernel<...>).
 
-    Fields (0-indexed after splitting on commas inside <>):
+    Fields (0-indexed after splitting on commas inside <>), shared by all directions:
     0: NDimSpatial, 1: ConvSpec, 2: InLayout, 3: WeiLayout, 4: DsLayout, 5: OutLayout,
     6: VecA, 7: VecB, 8: VecC, 9: NumGroupsToMerge, 10: SplitImage, 11: ExplicitGemm,
     12: MPerBlock, 13: NPerBlock, 14: KPerBlock, 15: MWarp, 16: NWarp, 17: KWarp,
     18: MWarpTile, 19: NWarpTile, 20: KWarpTile, 21: ADataType, 22: BDataType,
     23: PipelineName, 24: Scheduler, 25: DoubleSmemBuffer, 26: NumWaveGroups,
     27: AccDataType, 28: EDataType, 29: DsDataType, 30: CDEElementwiseOp,
-    31: IsStreamK, [32: ReductionStrategy, 33: PersistentDP]
+    [31: IsStreamK, 32: ReductionStrategy, 33: PersistentDP]  (backward_weight only)
+
+    has_streamk: direction carries the trailing StreamK fields (backward_weight only).
+    has_two_stage: direction has a two-stage path (backward_weight only); else False.
     """
     spec = args[1]
     tile_size = [int(args[12]), int(args[13]), int(args[14])]
@@ -314,10 +318,14 @@ def parse_native_bwd_weight_instance(args, instance_id, problem_name):
     split_image = int(args[10]) != 0
     explicit_gemm = int(args[11]) != 0
 
-    is_streamk = int(args[31]) != 0
+    is_two_stage = (
+        has_two_stage
+        and get_dtype(problem_name) != "float"
+        and scalar_per_vector[2] == 1
+    )
+    is_streamk = has_streamk and int(args[31]) != 0
     streamk_reduction_strategy = None
     streamk_persistent = False
-    is_two_stage = get_dtype(problem_name) != "float" and scalar_per_vector[2] == 1
     if is_streamk:
         is_two_stage = False
         reduction_int = int(args[32])
@@ -347,59 +355,21 @@ def parse_native_bwd_weight_instance(args, instance_id, problem_name):
     )
 
 
-def parse_native_fwd_instance(args, instance_id, _):
-    """Parse a native CK Tile forward conv instance string
-    (GroupedConvolutionForwardKernel<...>).
+def parse_native_bwd_weight_instance(args, instance_id, problem_name):
+    return parse_native_instance(
+        args, instance_id, problem_name, has_streamk=True, has_two_stage=True
+    )
 
-    Same field layout as backward_weight (fields 0-30) but with no trailing
-    StreamK fields. Forward has no two-stage path, so two_stage is always False.
-    """
-    spec = args[1]
-    tile_size = [int(args[12]), int(args[13]), int(args[14])]
-    warps = [int(args[15]), int(args[16]), int(args[17])]
-    warp_tile = [int(args[18]), int(args[19]), int(args[20])]
 
-    pipeline_name = args[23]
-    if pipeline_name not in PIPELINE_NAME_TO_VERSION:
-        raise RuntimeError(
-            f"Unknown pipeline name '{pipeline_name}' in native instance {instance_id}"
-        )
-    pipeline_version = PIPELINE_NAME_TO_VERSION[pipeline_name]
-
-    scheduler = args[24]
-    double_smem_buffer = int(args[25]) != 0
-    num_wave_groups = int(args[26])
-
-    scalar_per_vector = [int(args[6]), int(args[7]), int(args[8])]
-    num_groups_to_merge = int(args[9])
-    split_image = int(args[10]) != 0
-    explicit_gemm = int(args[11]) != 0
-
-    return ConvInstanceTemplateParams(
-        spec,
-        tile_size,
-        warps,
-        warp_tile,
-        double_smem_buffer,
-        num_wave_groups,
-        False,  # forward has no two-stage path
-        pipeline_version,
-        scheduler,
-        scalar_per_vector,
-        num_groups_to_merge,
-        split_image,
-        explicit_gemm,
-        instance_id,
-        streamk_enabled=False,
-        streamk_reduction_strategy=None,
-        streamk_persistent=False,
+def parse_native_fwd_instance(args, instance_id, problem_name):
+    return parse_native_instance(
+        args, instance_id, problem_name, has_streamk=False, has_two_stage=False
     )
 
 
 def parse_native_bwd_data_instance(args, instance_id, problem_name):
-    """Parse a native CK Tile backward data instance string."""
-    raise NotImplementedError(
-        "Native backward data instance parsing is not yet implemented."
+    return parse_native_instance(
+        args, instance_id, problem_name, has_streamk=False, has_two_stage=False
     )
 
 
