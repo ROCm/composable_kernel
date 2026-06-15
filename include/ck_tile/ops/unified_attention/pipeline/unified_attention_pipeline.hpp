@@ -1150,6 +1150,24 @@ struct UnifiedAttentionPipeline
         long_index_t k_srd_base_offset = 0;
         long_index_t v_srd_base_offset = 0;
 
+        // Cross-stagger phys_page carry. K runs exactly one tile ahead of V and
+        // they share the same logical->physical page map (same block_tables),
+        // so V can reuse the phys_page K already read + broadcast instead of
+        // issuing its own block_tables_lds read + readfirstlane -- the dominant
+        // WG1 addr-phase stall in the paged path. Keyed by tile parity (R=2):
+        // refresh_k writes ring[tile&1], refresh_v reads ring[tile&1]. Since K
+        // is at most one tile ahead, the slot V reads (tile N) is only rewritten
+        // for tile N+2, strictly after V has consumed it; and because the ring
+        // is keyed by tile (not by call order) the value stays valid even on the
+        // loop tail where refresh_k stops early. Only valid when both K and V
+        // take the single-page rebase path AND every wave refreshes both tiles
+        // (cooperative load); under the WG-specialized load roles a wave sees
+        // only one of K/V, so V must still read its own page.
+        constexpr bool kCarryKVPhys = kRebaseKSrd && kRebaseVSrd &&
+                                      !Policy::kFA4WG1LoadsK && !Policy::kFA4WG0LoadsV;
+        int32_t kv_phys_ring0 = 0;
+        int32_t kv_phys_ring1 = 0;
+
         auto refresh_k_offsets = [&](index_t k_tile_idx) {
             if constexpr(!kIsPaged)
             {
@@ -1178,6 +1196,16 @@ struct UnifiedAttentionPipeline
                 // to the backend, so force it through readfirstlane.
                 const int32_t phys_page = __builtin_amdgcn_readfirstlane(
                     block_tables_lds[base_page - split_start_page]);
+                // Publish for the staggered V refresh (see kCarryKVPhys). The
+                // parity branch is on a wave-uniform value, so it lowers to a
+                // scalar select and the ring stays in SGPRs.
+                if constexpr(kCarryKVPhys)
+                {
+                    if(k_tile_idx & 1)
+                        kv_phys_ring1 = phys_page;
+                    else
+                        kv_phys_ring0 = phys_page;
+                }
                 k_srd_base_offset =
                     (static_cast<long_index_t>(phys_page) * kPageSize +
                      (tile_base_token - static_cast<long_index_t>(base_page) * kPageSize)) *
@@ -1287,8 +1315,16 @@ struct UnifiedAttentionPipeline
                 const int32_t base_page =
                     __builtin_amdgcn_readfirstlane(tile_base_token / kPageSize);
                 // Wave-uniform (SRD base SGPR operand) — see refresh_k_offsets.
-                const int32_t phys_page = __builtin_amdgcn_readfirstlane(
-                    block_tables_lds[base_page - split_start_page]);
+                // Reuse the phys_page K already broadcast for this same logical
+                // tile (kCarryKVPhys) to elide V's own block-table LDS read +
+                // readfirstlane; fall back to the read under WG-specialized loads.
+                const int32_t phys_page = [&]() -> int32_t {
+                    if constexpr(kCarryKVPhys)
+                        return (v_tile_idx & 1) ? kv_phys_ring1 : kv_phys_ring0;
+                    else
+                        return __builtin_amdgcn_readfirstlane(
+                            block_tables_lds[base_page - split_start_page]);
+                }();
                 v_srd_base_offset =
                     (static_cast<long_index_t>(phys_page) * kPageSize +
                      (tile_base_token - static_cast<long_index_t>(base_page) * kPageSize)) *
@@ -1396,12 +1432,29 @@ struct UnifiedAttentionPipeline
                                      k_page_offsets);
         k_dram_window.init_raw();
 
-        auto v_dram_window =
-            make_tile_scatter_gather(v_view,
-                                     v_dram_block_window_tmp.get_window_lengths(),
-                                     {0, 0},
-                                     v_dist,
-                                     v_page_offsets);
+        // For the single-page rebase regime the V per-lane scatter array is
+        // bit-identical to K's: same kv_cache strides (k_row_stride ==
+        // v_row_stride), same DRAM distribution (GetAlignmentK == GetAlignmentV
+        // for fp8, so KY0_step_N == VY0_step_N and the thread positions match),
+        // and the only per-tile divergence is the wave-uniform SRD base
+        // (k/v_srd_base_offset), already folded into the view above. Feed the
+        // SAME loop-invariant offset array to both windows so the backend can
+        // coalesce the otherwise-duplicated page_idx_ storage. Gated on
+        // KNRepeat == VNRepeat so the array types match (always true here since
+        // both rebase flags imply the shared fp8 geometry).
+        constexpr bool kShareKVScatter =
+            kRebaseKSrd && kRebaseVSrd && (KNRepeat == VNRepeat);
+        auto v_dram_window = make_tile_scatter_gather(
+            v_view,
+            v_dram_block_window_tmp.get_window_lengths(),
+            {0, 0},
+            v_dist,
+            [&]() -> const auto& {
+                if constexpr(kShareKVScatter)
+                    return k_page_offsets;
+                else
+                    return v_page_offsets;
+            }());
         v_dram_window.init_raw();
 
         // prefetch K tile

@@ -277,12 +277,32 @@ std::pair<bool, float> dispatch_page_size(const unified_attention_args& args,
     if constexpr(V == KernelVariant::prefill_d128 ||
                  V == KernelVariant::prefill_d64)
     {
-        switch(args.page_blk_size)
+        // page_blk_size == kPageBlockSize (128): exactly one physical page per KV
+        // tile -> the kRebaseKSrd single-page fast path (1 readfirstlane + 1 LDS
+        // block-table read + SRD rebase per tile), the lowest-overhead paged
+        // addressing. Pinned only for fp8 prefill_d128 (the only ps128 prefill
+        // instance that exists); other dtypes/variants keep the runtime page size.
+        if constexpr(V == KernelVariant::prefill_d128 &&
+                     DType == unified_attention_args::data_type_enum::fp8)
         {
-            case 16: return dispatch_one<V, DType, IsMask, 16>(args, config);
-            case 32: return dispatch_one<V, DType, IsMask, 32>(args, config);
-            case 64: return dispatch_one<V, DType, IsMask, 64>(args, config);
-            default: return dispatch_one<V, DType, IsMask, 0>(args, config);
+            switch(args.page_blk_size)
+            {
+                case 16:  return dispatch_one<V, DType, IsMask, 16>(args, config);
+                case 32:  return dispatch_one<V, DType, IsMask, 32>(args, config);
+                case 64:  return dispatch_one<V, DType, IsMask, 64>(args, config);
+                case 128: return dispatch_one<V, DType, IsMask, 128>(args, config);
+                default:  return dispatch_one<V, DType, IsMask, 0>(args, config);
+            }
+        }
+        else
+        {
+            switch(args.page_blk_size)
+            {
+                case 16: return dispatch_one<V, DType, IsMask, 16>(args, config);
+                case 32: return dispatch_one<V, DType, IsMask, 32>(args, config);
+                case 64: return dispatch_one<V, DType, IsMask, 64>(args, config);
+                default: return dispatch_one<V, DType, IsMask, 0>(args, config);
+            }
         }
     }
     else if constexpr((V == KernelVariant::decode_d128_m128 ||
