@@ -10,6 +10,7 @@
 #include "ck_tile/ops/flatmm/block/flatmm_uk_config.hpp"
 #include "ck_tile/ops/flatmm/kernel/flatmm_kernel.hpp"
 #include "ck_tile/ops/flatmm/kernel/grouped_flatmm_kernel.hpp"
+#include "ck_tile/ops/flatmm/kernel/grouped_mx_flatmm_kernel.hpp"
 #include "ck_tile/ops/flatmm/kernel/mixed_prec_flatmm_kernel.hpp"
 #include "ck_tile/ops/flatmm/kernel/moe_flatmm_kernel.hpp"
 #include "ck_tile/ops/flatmm/kernel/mx_flatmm_kernel.hpp"

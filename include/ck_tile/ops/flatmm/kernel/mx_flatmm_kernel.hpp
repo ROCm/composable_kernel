@@ -68,7 +68,8 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
             hipDeviceProp_t prop;
             int deviceId = 0; // default device
 
-            constexpr int block_size = MXFlatmmKernel::BlockSize().x;
+            // `BlockSize()` calls runtime `is_wave32()`, so it cannot be constexpr.
+            const int block_size     = MXFlatmmKernel::BlockSize().x;
             int dync_smem_size       = 0;
             int maxActiveBlocksPerCU = 0;
 
@@ -394,6 +395,19 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
 
         do
         {
+            // Drain the prior tile's in-flight LDS reads (the epilogue's final
+            // `ds_read`) before the next tile's pipeline issues
+            // `async_load_tile_` writes into the same shared smem. On gfx1250
+            // async writes (`asynccnt`) are not ordered against in-flight
+            // `ds_read`s (`dscnt`), so without this barrier the next tile's
+            // prefetch races and clobbers bytes a lagging wave is still reading.
+            //
+            // This barrier is redundant on the very first tile of the persistent loop, where no
+            // prior tile's reads are in flight. It is important on
+            // every call of the non-persistent path: `GroupedMXFlatmmKernel`
+            // (Persistent=false) invokes this `operator()` once per tile while
+            // reusing the same workgroup smem.
+            block_sync_lds();
             const auto [iM, iN] =
                 TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(partition_idx);
             const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);

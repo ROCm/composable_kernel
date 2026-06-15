@@ -580,10 +580,31 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         // __builtin_amdgcn_sched_barrier(0);
     }
 
-    template <typename... Args>
-    CK_TILE_DEVICE auto operator()(Args&&... args) const
+    // Compile-time-templated entry point: caller picks (HasHotLoop, TailNum)
+    // explicitly; defaults fall back to the class-static members.
+    // AElementFunction is retained only for signature parity with the non-MX
+    // pipelines; it is unused here because MX does not transform A pre-bit_cast.
+    template <bool HasHotLoop_             = HasHotLoop,
+              ck_tile::TailNumber TailNum_ = TailNum,
+              typename ADramBlockWindowTmp,
+              typename AElementFunction,
+              typename BFlatBlockWindowTmp,
+              typename ScaleADramBlockWindowTmp,
+              typename ScaleBDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const AElementFunction& /*a_element_func*/,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   const ScaleADramBlockWindowTmp& scale_a_block_window_tmp,
+                                   const ScaleBDramBlockWindowTmp& scale_b_block_window_tmp,
+                                   index_t num_loop,
+                                   void* p_smem) const
     {
-        auto c_warp_tensors = Run_(std::forward<Args>(args)...);
+        auto c_warp_tensors = Run_<HasHotLoop_, TailNum_>(a_dram_block_window_tmp,
+                                                          b_flat_dram_block_window_tmp,
+                                                          scale_a_block_window_tmp,
+                                                          scale_b_block_window_tmp,
+                                                          num_loop,
+                                                          p_smem);
 
         // Block GEMM Acc register tile
         using CWarpDstr = typename WG::CWarpDstr;
@@ -602,7 +623,41 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         return c_block_tile;
     }
 
+    // Runtime-dispatching entry point: computes (has_hot_loop, tail_num) from
+    // num_loop and dispatches into the compile-time-templated operator() above
+    // via TailHandler. All 4 (HasHotLoop, TailNum) variants are compiled in and
+    // the right one is selected per tile.
     template <typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename ScaleADramBlockWindowTmp,
+              typename ScaleBDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   const ScaleADramBlockWindowTmp& scale_a_block_window_tmp,
+                                   const ScaleBDramBlockWindowTmp& scale_b_block_window_tmp,
+                                   index_t num_loop,
+                                   void* p_smem) const
+    {
+        const bool has_hot_loop            = Underlying::BlockHasHotloop(num_loop);
+        const ck_tile::TailNumber tail_num = Underlying::GetBlockLoopTailNum(num_loop);
+
+        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
+            return operator()<hot_loop_.value, tail_num_.value>(
+                a_dram_block_window_tmp,
+                [](const ADataType& a) { return a; },
+                b_flat_dram_block_window_tmp,
+                scale_a_block_window_tmp,
+                scale_b_block_window_tmp,
+                num_loop,
+                p_smem);
+        };
+
+        return Underlying::template TailHandler<true>(RunPipeline, has_hot_loop, tail_num);
+    }
+
+    template <bool HasHotLoop_             = HasHotLoop,
+              ck_tile::TailNumber TailNum_ = TailNum,
+              typename ADramBlockWindowTmp,
               typename BFlatBlockWindowTmp,
               typename ScaleADramBlockWindowTmp,
               typename ScaleBDramBlockWindowTmp>
@@ -815,7 +870,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
         __builtin_amdgcn_sched_barrier(0);
 
         // Prefetch A1
-        if constexpr(HasHotLoop || TailNum == TailNumber::Even)
+        if constexpr(HasHotLoop_ || TailNum_ == TailNumber::Even)
         {
             async_load_tile_(a_store_lds_window_pong, a_dram_window);
             move_tile_window(a_dram_window, {0, sizeof(ADataType) * kKPerBlock / APackedSize});
@@ -1087,7 +1142,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
             HotLoopScheduler();
         };
 
-        if constexpr(HasHotLoop)
+        if constexpr(HasHotLoop_)
         {
             index_t iCounter = (num_loop - 1) / 2;
             do
@@ -1097,7 +1152,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
             } while(iCounter > 0);
         }
         // TAIL
-        if constexpr(TailNum == TailNumber::Even)
+        if constexpr(TailNum_ == TailNumber::Even)
         {
             // prefetch B(loopK)
             static_ford<sequence<KIterPerWarp, NIterPerWarp>>{}([&](auto kn) {
@@ -1204,7 +1259,7 @@ struct MXFlatmmPipelineAGmemBGmemCRegV1 : FlatmmPipelineAGmemBGmemCRegV1<Problem
                 });
             LastHotLoopScheduler();
         }
-        else if constexpr(TailNum == TailNumber::Odd)
+        else if constexpr(TailNum_ == TailNumber::Odd)
         {
             // GEMM loopK
             static_for_product<number<KPackIterPerWarp>,
