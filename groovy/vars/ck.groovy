@@ -383,6 +383,9 @@ def check_arch_name(){
     }
 }
 
+// Kept for backward compatibility with open PRs that call this via ck.groovy
+// wrappers. New code should use pullImage(), which classifies failures as
+// NodeFault/TransientFault instead of collapsing them to "Unable to locate image".
 def getDockerImage(Map conf=[:]){
     def image
     if ( conf.get("docker_name", "") != "" ){
@@ -408,6 +411,127 @@ def getDockerImage(Map conf=[:]){
         error "Unable to locate image: ${image}"
     }
     return [retimage, image]
+}
+
+// ---------------------------------------------------------------------------
+// Node-health retry. See docs/node_health_ci_resilience.md
+// ---------------------------------------------------------------------------
+
+// Cheap host-level probes — exit status is the answer, no log parsing.
+def daemonUp() {
+    echo "Preflight: checking docker daemon"
+    sh(returnStatus:true, script:'docker info >/dev/null 2>&1') == 0
+}
+def driverUp() {
+    echo "Preflight: checking amdgpu driver"
+    sh(returnStatus:true, script:'test -e /sys/module/amdgpu/version') == 0
+}
+def devicesUp() {
+    echo "Preflight: checking GPU devices"
+    sh(returnStatus:true, script:'test -e /dev/kfd && ls /dev/dri/renderD* >/dev/null 2>&1') == 0
+}
+def cacheWritable() { sh(returnStatus:true, script:'D=${SCCACHE_DIR:-/.cache/sccache}; mkdir -p "$D/probe" 2>/dev/null') == 0 }
+def diskOk(String path='/var/jenkins/workspace', int minGb=5) {
+    echo "Preflight: checking disk space on ${path} (minimum ${minGb}GB)"
+    sh(returnStdout:true, script:"df --output=avail -BG ${path} | tail -1 | tr -dc '0-9'").trim().toInteger() >= minGb
+}
+
+// In-container probe: image must already be pulled and authenticated before calling.
+def gpuUsable(String image) { sh(returnStatus:true, script:"docker run --rm --device=/dev/kfd --device=/dev/dri ${image} rocminfo 2>/dev/null | grep -q gfx") == 0 }
+
+// Fail fast with a NodeFault if this agent is unfit to build. Host-only — no image
+// required. Image/registry/container faults are classified in the body by pullImage
+// and the in-container GPU check, where the correct conf is available.
+def preflight() {
+    echo "Preflight: starting node health checks on ${env.NODE_NAME}"
+    if (!daemonUp())  throw new org.ck.NodeFault('docker-daemon-down')
+    if (!driverUp())  throw new org.ck.NodeFault('driver-not-loaded')
+    if (!devicesUp()) throw new org.ck.NodeFault('gpu-devices-missing')
+    if (!diskOk())    throw new org.ck.NodeFault('disk-space-low')
+    echo "Preflight: all checks passed on ${env.NODE_NAME}"
+    // sccache cache-dir writability is not checked here: sccache runs inside
+    // the container, so /.cache/sccache on the host is always root-owned and
+    // a host-level mkdir probe would always fail (false NodeFault on every node).
+}
+
+// Like getDockerImage but classifies failures: dead daemon -> NodeFault,
+// missing image -> config error (no retry), any other pull failure -> TransientFault.
+// Preserves getDockerImage's credentials, plugin pull, and [retimage, image] return.
+def pullImage(Map conf=[:]) {
+    def image = conf.get("docker_name", "") ?: getDockerImageName()
+    echo "Pulling image: ${image}"
+
+    if (!daemonUp()) throw new org.ck.NodeFault('docker-daemon-down')
+
+    def retimage = docker.image("${image}")
+    try {
+        withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
+            retimage.pull()
+        }
+    }
+    catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) {
+        throw e                                                          // abort — never reclassify
+    }
+    catch (Exception e) {
+        if (!daemonUp()) throw new org.ck.NodeFault('docker-daemon-down')  // daemon died mid-pull
+        def exists
+        withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
+            exists = sh(returnStatus:true, script:"docker manifest inspect --insecure ${image} >/dev/null 2>&1") == 0
+        }
+        if (!exists) error("image not found: ${image}")                 // config error: no retry
+        throw new org.ck.TransientFault('registry-pull')                // image exists, pull failed: glitch
+    }
+    return [retimage, image]
+}
+
+// Build a label expression that excludes already-tried nodes.
+def exclude(String label, List nodes) {
+    if (!nodes) return label
+    return "(${label}) && " + nodes.collect { "!${it}" }.join(" && ")
+}
+
+// Retry body on the SAME node for TransientFault only. NodeFault and anything
+// untyped propagate immediately so the outer loop can move to a different node.
+def runInPlace(Closure body, int maxAttempts) {
+    int attempt = 0
+    while (true) {
+        try { body(); return }
+        catch (org.ck.TransientFault e) {
+            attempt++
+            if (attempt < maxAttempts) {
+                echo "transient fault, retry ${attempt}/${maxAttempts}: ${e.message}"
+                continue
+            }
+            throw e
+        }
+    }
+}
+
+// Allocate a healthy node, preflight it, run body. NodeFaults (or glitches that
+// outlast in-place retries) reroute to a different node. Aborts and real build
+// failures propagate without retry.
+def runOnHealthyNode(String label, Closure body) {
+    int transientRetries = 2   // glitch retries on the SAME node before moving on
+    int nodeAttempts     = 3   // how many DIFFERENT nodes to try before giving up
+
+    def excluded = []
+    for (int attempt = 0; attempt < nodeAttempts; attempt++) {
+        def attemptNode = null
+        try {
+            node(exclude(label, excluded)) {
+                attemptNode = env.NODE_NAME
+                echo "Node attempt ${attempt + 1}/${nodeAttempts} on ${attemptNode}"
+                preflight()
+                runInPlace(body, transientRetries)
+            }
+            return
+        }
+        catch (org.ck.NodeFault e)      { echo "Node attempt ${attempt + 1}/${nodeAttempts} failed (node fault on ${attemptNode}): ${e.message}";               excluded << attemptNode }
+        catch (org.ck.TransientFault e) { echo "Node attempt ${attempt + 1}/${nodeAttempts} failed (glitch outlasted retries on ${attemptNode}): ${e.message}"; excluded << attemptNode }
+        // FlowInterruptedException (abort) and real build errors: propagate, no retry.
+        // buildAndTest sets failure status for real failures; abort needs no status update.
+    }
+    error("exhausted ${nodeAttempts} nodes: ${excluded.join(', ')}")
 }
 
 // Build and push a docker image, capturing its digest into the specified env var.
@@ -827,14 +951,14 @@ def buildAndTest(Map conf=[:]){
 
         setGithubStatus("${env.STAGE_NAME}", 'pending', "Starting ${env.STAGE_NAME}")
         try {
-            (retimage, image) = getDockerImage(conf)
+            (retimage, image) = pullImage(conf)
             if (isMainBuild) {
                 // GPU must be present for the main per-arch build; fail fast if absent
                 withDockerContainer(image: image, args: dockerOpts) {
                     timeout(time: 2, unit: 'MINUTES'){
                         sh 'rocminfo | tee rocminfo.log'
                         if ( !runShell('grep -n "gfx" rocminfo.log') ){
-                            throw new Exception ("GPU not found")
+                            throw new org.ck.NodeFault("GPU not found")
                         }
                         else{
                             echo "GPU is OK"
@@ -911,8 +1035,7 @@ def buildAndTest(Map conf=[:]){
             setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
         }
         catch (Exception e){
-                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
-                throw e
+                throw e   // runOnHealthyNode sets failure status — not here
         }
         return retimage
 }
@@ -1152,33 +1275,42 @@ def getFaTestsCmds() {
     ]
 }
 
-def runClangFormat() {
-    buildAndTest(
-        setup_args: "NO_CK_BUILD",
-        setup_cmd: "",
-        build_cmd: "",
-        execute_cmd: """cd .. && \
-            find . -type f \\( -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.h.in' -o -name '*.hpp.in' -o -name '*.cpp.in' -o -name '*.cl' \\) \
-            -not -path '*/build/*' -not -path '*/include/rapidjson/*' | \
-            xargs -P 8 -I{} sh -c 'clang-format-18 -style=file {} | diff -u - {} || (echo "ERROR: {} needs formatting" && exit 1)'"""
-    )
-}
+// All static checks in one container on a single node: clang-format (always),
+// cppcheck (when RUN_CPPCHECK), then the ASCII-only and CRLF checks. Combined
+// into a single buildAndTest, driven by one Jenkinsfile stage, to keep the
+// declarative pipeline's WorkflowScript under the JVM 64KB method-size limit and
+// to avoid per-check checkout/container overhead.
+//
+// Every check runs from projects/composablekernel (cmake_build runs execute_cmd
+// from .../build, so the single leading `cd ..` lands there); no check changes
+// directory, so chaining them with && is equivalent to the previous separate
+// invocations. Checks run sequentially and fail fast on the first failure.
+def runStaticChecks() {
+    def formatFiles = "find . -type f \\( -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.h.in' -o -name '*.hpp.in' -o -name '*.cpp.in' -o -name '*.cl' \\) -not -path '*/build/*' -not -path '*/include/rapidjson/*'"
+    def checkFiles  = "find . -type f \\( -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.h.in' -o -name '*.hpp.in' -o -name '*.cpp.in' -o -name '*.inc' -o -name '*.cl' \\) -not -path '*/build/*' -not -path '*/include/rapidjson/*'"
 
-def runClangFormatAndCppcheck() {
-    buildAndTest(
-        setup_args: "NO_CK_BUILD",
-        setup_cmd: "",
-        build_cmd: "",
-        execute_cmd: """cd .. && \
-            find . -type f \\( -name '*.h' -o -name '*.hpp' -o -name '*.cpp' -o -name '*.h.in' -o -name '*.hpp.in' -o -name '*.cpp.in' -o -name '*.cl' \\) \
-            -not -path '*/build/*' -not -path '*/include/rapidjson/*' | \
-            xargs -P 8 -I{} sh -c 'clang-format-18 -style=file {} | diff -u - {} || (echo "ERROR: {} needs formatting" && exit 1)' && \
-            /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
+    def checks = []
+    checks << """${formatFiles} | xargs -P 8 -I{} sh -c 'clang-format-18 -style=file {} | diff -u - {} || (echo "ERROR: {} needs formatting" && exit 1)'"""
+    if (params.RUN_CPPCHECK) {
+        checks << """/cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
             -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 \
             -D __gfx908__ -D __gfx90a__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
             -U __gfx803__ -U __gfx900__ -U __gfx906__ -U CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4 \
             --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"""
+    }
+    checks << """${checkFiles} -print0 | xargs -0 -P 8 -n 64 script/check_ascii_only.sh"""
+    checks << """${checkFiles} -print0 | xargs -0 -P 8 -n 64 script/check_no_crlf.sh"""
+
+    buildAndTest(
+        setup_args: "NO_CK_BUILD",
+        setup_cmd: "",
+        build_cmd: "",
+        execute_cmd: "cd .. && " + checks.join(" && ")
     )
+
+    if (params.RUN_CPPCHECK) {
+        archiveArtifacts "build/ck_cppcheck.log"
+    }
 }
 
 def runFullGroupedConvTileTests() {
