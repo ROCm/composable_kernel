@@ -627,4 +627,122 @@ load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_
     return out_tensor;
 }
 
+/**
+ * @brief Mixed-precision transpose load: converts input data type to output data type while
+ * transposing.
+ *
+ * This function enables transposing from one data type (e.g., fp8) to another (e.g., fp16) in a
+ * single operation. The input tile distribution encoding must be valid for the input data type,
+ * and the output distribution will be generated based on the output data type.
+ *
+ * @tparam DistributedTensor_     The output tensor type with desired output data type.
+ * @tparam BottomTensorView_      The input tensor view (may have different data type than output).
+ * @tparam WindowLengths_         The type representing the window lengths.
+ * @tparam TileDistribution_      The type representing the tile distribution for input.
+ * @tparam NumCoord_              The number of coordinates (dimensions).
+ * @tparam Policy                 The transpose policy (should validate against input type).
+ *
+ * @note
+ * - Input and output must have compatible element space sizes (total byte count per Y-space).
+ * - Type conversion is performed element-by-element during the copy.
+ * - The validation uses the input data type for quad pattern checking.
+ * - The output distribution is generated based on the output data type.
+ */
+template <
+    typename DistributedTensor_,
+    typename BottomTensorView_,
+    typename WindowLengths_,
+    typename TileDistribution_,
+    index_t NumCoord_,
+    index_t UnaryOpSize_,
+    typename PassThroughPack_,
+    typename Policy = DefaultTranspose<typename BottomTensorView_::DataType>,
+    typename        = std::enable_if_t<TransposeTileDistrChecker<TileDistribution_,
+                                                                 typename BottomTensorView_::DataType,
+                                                                 Policy>::distr_encoding_valid,
+                                       Policy>>
+CK_TILE_DEVICE void load_tile_transpose_convert_with_offset(
+    DistributedTensor_& out_tensor,
+    const tile_window_with_static_distribution<BottomTensorView_,
+                                               WindowLengths_,
+                                               TileDistribution_,
+                                               NumCoord_>& __restrict__ tile_window,
+    const index_t offset,
+    number<UnaryOpSize_>            = {},
+    PassThroughPack_ elementwise_op = {})
+{
+    using SrcDataType = typename BottomTensorView_::DataType;
+    using DstDataType = typename DistributedTensor_::DataType;
+
+    auto trans_tensor           = tile_window.template load_transpose_with_offset<Policy>(offset);
+    constexpr auto input_distr  = TileDistribution_{};
+    constexpr auto output_distr = typename DistributedTensor_::StaticTileDistribution{};
+
+    constexpr auto y_in_desc  = input_distr.get_ys_to_d_descriptor();
+    constexpr auto y_out_desc = output_distr.get_ys_to_d_descriptor();
+
+    constexpr auto y_in_lengths  = to_sequence(y_in_desc.get_lengths());
+    constexpr auto y_out_lengths = to_sequence(y_out_desc.get_lengths());
+
+    constexpr auto y_in_element_space_size  = y_in_desc.get_element_space_size();
+    constexpr auto y_out_element_space_size = y_out_desc.get_element_space_size();
+
+    // For mixed precision: input and output element space sizes must be the same.
+    static_assert(
+        y_in_element_space_size == y_out_element_space_size,
+        "For mixed precision transpose, input and output element space sizes must match!");
+
+    // Ensure total element counts are consistent and divisible by the input vector length.
+    constexpr index_t total_elems_in =
+        reduce_on_sequence(y_in_lengths, multiplies<>{}, number<1>{});
+    constexpr index_t total_elems_out =
+        reduce_on_sequence(y_out_lengths, multiplies<>{}, number<1>{});
+    static_assert(total_elems_in == total_elems_out,
+                  "For mixed precision transpose, input/output element counts must match!");
+    static_assert(total_elems_in % number<UnaryOpSize_>{} == 0,
+                  "Input vector length must evenly divide total elements.");
+
+    constexpr index_t num_of_access = total_elems_in / number<UnaryOpSize_>{};
+
+    // Read as input type, convert to output type
+    using SrcDataVec = ext_vector_t<SrcDataType, number<UnaryOpSize_>{}>;
+    using DstDataVec = ext_vector_t<DstDataType, number<UnaryOpSize_>{}>;
+
+    static_for<0, num_of_access, 1>{}([&](auto i) {
+        elementwise_op(out_tensor.get_thread_buffer().template get_as<DstDataVec>()(i),
+                       trans_tensor.get_thread_buffer().template get_as<SrcDataVec>()[i]);
+    });
+}
+
+/**
+ * @brief Mixed-precision transpose load with zero offset.
+ *
+ * Convenience wrapper for load_tile_transpose_convert_with_offset with offset=0.
+ */
+template <
+    typename DistributedTensor_,
+    typename BottomTensorView_,
+    typename WindowLengths_,
+    typename TileDistribution_,
+    index_t NumCoord_,
+    index_t UnaryOpSize_,
+    typename PassThroughPack_,
+    typename Policy = DefaultTranspose<typename BottomTensorView_::DataType>,
+    typename        = std::enable_if_t<TransposeTileDistrChecker<TileDistribution_,
+                                                                 typename BottomTensorView_::DataType,
+                                                                 Policy>::distr_encoding_valid,
+                                       Policy>>
+CK_TILE_DEVICE void load_tile_transpose_convert(
+    DistributedTensor_& out_tensor,
+    const tile_window_with_static_distribution<BottomTensorView_,
+                                               WindowLengths_,
+                                               TileDistribution_,
+                                               NumCoord_>& __restrict__ tile_window,
+    number<UnaryOpSize_>            = {},
+    PassThroughPack_ elementwise_op = {})
+{
+    load_tile_transpose_convert_with_offset(
+        out_tensor, tile_window, 0, number<UnaryOpSize_>{}, elementwise_op);
+}
+
 } // namespace ck_tile
