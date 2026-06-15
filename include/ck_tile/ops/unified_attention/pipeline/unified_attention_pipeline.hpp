@@ -2535,23 +2535,8 @@ struct UnifiedAttentionPipeline
                     // ---- slot A: MATRIX(pi) ‖ WG1 SOFTMAX ----
                     ASM_MARKER("fa4 MATRIX Wave0-3");
                     s_waitcnt_vmcnt<0>(); // V for THIS matrix has arrived -> publish
-                    // UA_FA4_PREFETCH_EARLY (default OFF): issue the next-tile
-                    // cooperative load BEFORE the slot barrier to start it a
-                    // barrier-wait earlier (~+1% at kv128 fp8 contiguous). UNSAFE
-                    // as a global default: it corrupts the bf16 / paged (ps16)
-                    // paths (different buffer layout / page-table ordering -- the
-                    // write-before-barrier races the prior reader), so it stays
-                    // off until that ordering is made safe per-path.
-#ifndef UA_FA4_PREFETCH_EARLY
-#define UA_FA4_PREFETCH_EARLY 0
-#endif
-#if UA_FA4_PREFETCH_EARLY
-                    prefetch();
-                    barrier();
-#else
                     barrier();
                     prefetch();           // issue K(pi)+V(1-pi) for tile k+1
-#endif
                     fa4_matrix(pi);       // V_lds_load(pi); PV; K_lds_load(1-pi); QK
 
                     // ---- slot B: SOFTMAX(pi) ‖ WG1 MATRIX ----
@@ -2576,18 +2561,18 @@ struct UnifiedAttentionPipeline
                     // ---- slot A: SOFTMAX ‖ WG0 MATRIX ----
                     ASM_MARKER("fa4 SOFTMAX Wave4-7");
                     s_waitcnt_vmcnt<0>(); // K for WG0's matrix has arrived -> publish
-#if UA_FA4_PREFETCH_EARLY
-                    prefetch();
                     barrier();
-#else
-                    barrier();
-                    prefetch();           // issue K(pi)+V(1-pi) for tile k+1
-#endif
                     fa4_softmax(number<1>{} - pi);
 
                     // ---- slot B: MATRIX(pi) ‖ WG0 SOFTMAX ----
+                    // Prefetch tile k+1 from WG1's MATRIX slot (not its SOFTMAX
+                    // slot above): the async K/V DRAM load issues while the partner
+                    // group (WG0) runs SOFTMAX, so the load-issue overhead overlaps
+                    // that softmax. Trade-off: the load lands one phase later than
+                    // WG0's, shrinking the latency-hide window -- watch vmwait.
                     ASM_MARKER("fa4 MATRIX Wave4-7");
-                    barrier();            // <-- no drain here (see note below)
+                    barrier();
+                    prefetch();           // issue K(pi)+V(1-pi) for tile k+1
                     fa4_matrix(pi);       // V_lds_load(pi); PV; K_lds_load(1-pi); QK
 
                     if(num_total_loop <= ++i_total_loops)
