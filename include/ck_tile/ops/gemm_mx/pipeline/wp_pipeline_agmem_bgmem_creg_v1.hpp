@@ -62,8 +62,20 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
 
     // The preshuffled layout fixes A/B vector widths at 32 bytes
     // C keeps the regular vector size.
-    static constexpr index_t GetVectorSizeA() { return 32; }
-    static constexpr index_t GetVectorSizeB() { return 32; }
+    // GetVectorSize{A,B} are templated on IsWave32Host to match the other GEMM pipelines and
+    // satisfy UniversalGemmKernel::IsSupportedArgument, which calls these as
+    // GemmPipeline::template GetVectorSize{A,B}<is_wave32()>(). The preshuffled width is fixed
+    // regardless of wave size, so the parameter does not change the result.
+    template <bool IsWave32Host = false>
+    static constexpr index_t GetVectorSizeA()
+    {
+        return 32;
+    }
+    template <bool IsWave32Host = false>
+    static constexpr index_t GetVectorSizeB()
+    {
+        return 32;
+    }
     static constexpr index_t GetVectorSizeC() { return Problem::VectorSizeC; }
 
     static constexpr bool kPadM = Problem::kPadM;

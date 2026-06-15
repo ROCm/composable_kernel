@@ -26,7 +26,10 @@ struct BaseMXGemmPipelineAgBgCrCompAsync
 
     CK_TILE_HOST_DEVICE static constexpr bool BlockHasHotloop(index_t num_loop)
     {
-        return num_loop > PrefetchStages;
+        // The prologue puts PrefetchStages + PrefillStages tiles in flight (2 LDS buffers + 1
+        // register prefill) before the main loop, so the loop only runs when there is work
+        // beyond them; otherwise the tail drains the in-flight tiles.
+        return num_loop > PrefetchStages + PrefillStages;
     }
 
     CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)

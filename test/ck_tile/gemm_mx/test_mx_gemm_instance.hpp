@@ -130,6 +130,12 @@ float mx_gemm_calc(const MXGemmHostArgs<ScaleM, ScaleN>& args, const ck_tile::st
                                         args.scale_m,
                                         args.scale_n);
 
+    if(!Kernel::IsSupportedArgument(kargs))
+    {
+        throw std::runtime_error(
+            "MX GEMM: unsupported shape/configuration (set CK_TILE_LOGGING=1 for details).");
+    }
+
     const auto kernel = ck_tile::make_kernel<Kernel::kBlockPerCu>(
         Kernel{}, Kernel::GridSize(kargs), Kernel::BlockSize(), 0, kargs);
 
