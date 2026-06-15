@@ -131,6 +131,16 @@ struct MXfp8_GemmConfig16_Preshuffle : MxGemmConfig
     static constexpr bool Preshuffle         = true;
 };
 
+// Variant with M/N padding enabled. Used to cover shapes where M/N are not multiples of
+// the respective block tiles (MX_GemmConfig16 has M_Tile = 64, N_Tile = 128). K is still
+// required to be a multiple of K_Tile -- the MX comp-async pipeline does not support K padding
+// (see MXGemmKernel::IsSupportedArgument).
+struct MXfp8_GemmConfig16_PadMN : MX_GemmConfig16
+{
+    static constexpr bool kPadM = true;
+    static constexpr bool kPadN = true;
+};
+
 struct MXfp8_GemmConfig16_PermuteN : MXfp8_GemmConfig16_Preshuffle
 {
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
