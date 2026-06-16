@@ -1135,12 +1135,26 @@ struct UnifiedAttentionPipeline
             (static_cast<long_index_t>(num_total_loop) * kPageBlockSize + page_size - 1) /
             page_size);
         const index_t split_window_pages = split_end_page - split_start_page;
+        // Sliding LDS page-table window. The cache holds at most kPageTableLdsEntries
+        // pages; `lds_window_base` is the absolute page index of LDS entry 0, so a
+        // refresh that needs absolute page p reads block_tables_lds[p -
+        // lds_window_base]. When the whole per-split window fits (the common case,
+        // split_window_pages <= kPageTableLdsEntries) the initial load below covers
+        // [split_start_page, split_end_page) and slide_page_table() (defined after
+        // the refresh lambdas) never fires -- behaviour is bit-identical to the old
+        // single-shot load. When it does NOT fit (long context / small page /
+        // few splits, e.g. decode sk=131072 page=16 -> 8192 > 4096 pages), the
+        // window slides forward as the monotonically-advancing tile loop consumes
+        // it, lifting the old `split_window_pages <= kPageTableLdsEntries` ceiling
+        // on max KV length.
+        index_t lds_window_base = split_start_page;
         if constexpr (kUsePageTableLds)
         {
-            assert(split_window_pages <= kPageTableLdsEntries);
-
+            const index_t init_pages =
+                split_window_pages < kPageTableLdsEntries ? split_window_pages
+                                                          : static_cast<index_t>(kPageTableLdsEntries);
             const index_t tid = get_thread_local_1d_id();
-            for (index_t i = tid; i < split_window_pages; i += Problem::kBlockSize)
+            for (index_t i = tid; i < init_pages; i += Problem::kBlockSize)
             {
                 block_tables_lds[i] = block_tables_ptr_[block_table_offset + split_start_page + i];
             }
@@ -1354,7 +1368,7 @@ struct UnifiedAttentionPipeline
                 // of buffer_load). The LDS read alone does not prove uniformity
                 // to the backend, so force it through readfirstlane.
                 const int32_t phys_page = __builtin_amdgcn_readfirstlane(
-                    block_tables_lds[base_page - split_start_page]);
+                    block_tables_lds[base_page - lds_window_base]);
                 // Publish for the staggered V refresh (see kCarryKVPhys). The
                 // parity branch is on a wave-uniform value, so it lowers to a
                 // scalar select and the ring stays in SGPRs.
@@ -1393,7 +1407,7 @@ struct UnifiedAttentionPipeline
                     __builtin_amdgcn_readfirstlane(tile_base_token / kPageSize);
                 // Shift by split_start_page to convert absolute -> window index
                 // (see "Per-split window" comment above the cache load).
-                int32_t phys_page = block_tables_lds[base_page - split_start_page];
+                int32_t phys_page = block_tables_lds[base_page - lds_window_base];
                 static_for<0, KNRepeat, 1>{}([&](auto i) {
                     constexpr index_t ii = i.value;
                     constexpr index_t grp = (ii * KY0_step_N) / kPageSize;
@@ -1405,7 +1419,7 @@ struct UnifiedAttentionPipeline
                         constexpr index_t grp_prev = ((ii - 1) * KY0_step_N) / kPageSize;
                         if constexpr(grp != grp_prev)
                             phys_page =
-                                block_tables_lds[base_page + grp - split_start_page];
+                                block_tables_lds[base_page + grp - lds_window_base];
                     }
                     const index_t logical_token =
                         tile_base_token + ii * KY0_step_N + k_thread_n_pos;
@@ -1429,7 +1443,7 @@ struct UnifiedAttentionPipeline
                                                  static_cast<index_t>(i.value) * KY0_step_N;
                     const int32_t i_base_page  = __builtin_amdgcn_readfirstlane(
                         i_base_token / page_size);
-                    const int32_t phys_page    = block_tables_lds[i_base_page - split_start_page];
+                    const int32_t phys_page    = block_tables_lds[i_base_page - lds_window_base];
                     const index_t logical_token = i_base_token + k_thread_n_pos;
                     const index_t within_page   = logical_token - i_base_page * page_size;
                     k_page_offsets(i) =
@@ -1460,7 +1474,7 @@ struct UnifiedAttentionPipeline
                     int32_t pp[G];
                     static_for<0, G, 1>{}([&](auto g) {
                         pp[g.value] =
-                            block_tables_lds[i_base_page + g.value - split_start_page];
+                            block_tables_lds[i_base_page + g.value - lds_window_base];
                     });
                     const index_t g_lane      = k_thread_n_pos / kPageSize;   // [0, G)
                     const index_t within_page = k_thread_n_pos - g_lane * kPageSize;
@@ -1487,7 +1501,7 @@ struct UnifiedAttentionPipeline
                     const index_t within_page   = logical_token - logical_page * page_size;
                     const index_t phys_page =
                         kFallbackUsesLdsK
-                            ? block_tables_lds[logical_page - split_start_page]
+                            ? block_tables_lds[logical_page - lds_window_base]
                             : block_tables_ptr_[block_table_offset + logical_page];
                     k_page_offsets(i) =
                         (static_cast<long_index_t>(phys_page) * page_size + within_page) *
@@ -1536,7 +1550,7 @@ struct UnifiedAttentionPipeline
                         return (v_tile_idx & 1) ? kv_phys_ring1 : kv_phys_ring0;
                     else
                         return __builtin_amdgcn_readfirstlane(
-                            block_tables_lds[base_page - split_start_page]);
+                            block_tables_lds[base_page - lds_window_base]);
                 }();
                 v_srd_base_offset =
                     (static_cast<long_index_t>(phys_page) * kPageSize +
@@ -1557,7 +1571,7 @@ struct UnifiedAttentionPipeline
                     split_token_offset + v_tile_idx * kPageBlockSize;
                 const int32_t base_page =
                     __builtin_amdgcn_readfirstlane(tile_base_token / kPageSize);
-                int32_t phys_page = block_tables_lds[base_page - split_start_page];
+                int32_t phys_page = block_tables_lds[base_page - lds_window_base];
                 static_for<0, VNRepeat, 1>{}([&](auto i) {
                     constexpr index_t ii = i.value;
                     constexpr index_t grp = (ii * VY0_step_N) / kPageSize;
@@ -1566,7 +1580,7 @@ struct UnifiedAttentionPipeline
                         constexpr index_t grp_prev = ((ii - 1) * VY0_step_N) / kPageSize;
                         if constexpr(grp != grp_prev)
                             phys_page =
-                                block_tables_lds[base_page + grp - split_start_page];
+                                block_tables_lds[base_page + grp - lds_window_base];
                     }
                     const index_t logical_token =
                         tile_base_token + ii * VY0_step_N + v_thread_n_pos;
@@ -1586,7 +1600,7 @@ struct UnifiedAttentionPipeline
                     const int32_t i_base_page  = __builtin_amdgcn_readfirstlane(
                         i_base_token / page_size);
                     // Window-relative index; see K-path comment for rationale.
-                    const int32_t phys_page    = block_tables_lds[i_base_page - split_start_page];
+                    const int32_t phys_page    = block_tables_lds[i_base_page - lds_window_base];
                     const index_t logical_token = i_base_token + v_thread_n_pos;
                     const index_t within_page   = logical_token - i_base_page * page_size;
                     v_page_offsets(i) =
@@ -1604,7 +1618,7 @@ struct UnifiedAttentionPipeline
                     const index_t within_page   = logical_token - logical_page * page_size;
                     const index_t phys_page =
                         kFallbackUsesLdsV
-                            ? block_tables_lds[logical_page - split_start_page]
+                            ? block_tables_lds[logical_page - lds_window_base]
                             : block_tables_ptr_[block_table_offset + logical_page];
                     v_page_offsets(i) =
                         (static_cast<long_index_t>(phys_page) * page_size + within_page) *
@@ -1877,6 +1891,57 @@ struct UnifiedAttentionPipeline
         // relative iteration count is therefore num_total_loop minus
         // num_blocks_start.
         const index_t num_iters_per_split = num_total_loop - num_blocks_start;
+
+        // Slide the LDS page-table window forward (see lds_window_base at the
+        // cache load). MUST be called by ALL waves at a CTA convergence barrier,
+        // BEFORE the iteration's prefetch/refresh consumes the window. The slide
+        // predicate is a pure function of the wave-uniform tile bookkeeping
+        // (k_block_idx / v_block_idx) + compile-time page geometry, so every wave
+        // evaluates it identically and the two internal s_barriers stay matched
+        // across both warp groups (no divergence -> no deadlock). It is a
+        // never-taken uniform branch whenever the whole per-split window already
+        // fits in LDS (split_window_pages <= kPageTableLdsEntries), so the common
+        // path keeps the original single-shot-load codegen and pays nothing.
+        auto slide_page_table = [&]() {
+            if constexpr(kUsePageTableLds)
+            {
+                // Loop-invariant early-out: when the whole per-split window was
+                // loaded up front it never needs to move. split_window_pages is
+                // constant across the loop, so this hoists to a single predicted
+                // branch and the per-tile divides below are NOT emitted on the hot
+                // (fits-in-LDS) path -> bit-identical steady state to pre-slide.
+                if(split_window_pages <= kPageTableLdsEntries)
+                    return;
+                const index_t lo_tile = k_block_idx < v_block_idx ? k_block_idx : v_block_idx;
+                // +2: the next-tile prefetch (refresh) issued after this barrier
+                // advances the bookkeeping index by one before reading the window.
+                const index_t hi_tile =
+                    (k_block_idx > v_block_idx ? k_block_idx : v_block_idx) + 2;
+                const index_t need_lo = static_cast<index_t>(
+                    (split_token_offset + static_cast<long_index_t>(lo_tile) * kPageBlockSize) /
+                    page_size);
+                const index_t need_hi = static_cast<index_t>(
+                    (split_token_offset + static_cast<long_index_t>(hi_tile) * kPageBlockSize +
+                     (page_size - 1)) /
+                    page_size);
+                if(need_lo < lds_window_base ||
+                   need_hi >= lds_window_base + kPageTableLdsEntries)
+                {
+                    __builtin_amdgcn_s_barrier(); // all waves done with the old window
+                    const index_t avail = split_end_page - need_lo;
+                    const index_t cnt   = avail < kPageTableLdsEntries
+                                              ? avail
+                                              : static_cast<index_t>(kPageTableLdsEntries);
+                    const index_t tid = get_thread_local_1d_id();
+                    for(index_t i = tid; i < cnt; i += Problem::kBlockSize)
+                        block_tables_lds[i] = block_tables_ptr_[block_table_offset + need_lo + i];
+                    lds_window_base = need_lo;
+                    s_waitcnt_lgkmcnt<0>();
+                    __builtin_amdgcn_s_barrier(); // publish the new window
+                }
+            }
+        };
+
         auto K_mem_load = [&](auto k_lds_write_idx) {
             // K async load. With kFA4WG1LoadsK only WG1's 4 waves issue it (its
             // KLoadNumWarps==4 layout fills the full shared K tile) and WG0 reads K
@@ -2813,6 +2878,7 @@ struct UnifiedAttentionPipeline
                     ASM_MARKER("fa4 MATRIX Wave0-3");
                     s_waitcnt_vmcnt<0>(); // V for THIS matrix has arrived -> publish
                     barrier();
+                    slide_page_table(); // slot-A barrier: all 8 warps converged, pre-prefetch
                     if constexpr(!kPrefetchInSoftmax)
                         prefetch();       // issue K(pi)+V(1-pi) for tile k+1
                     fa4_matrix(pi);       // V_lds_load(pi); PV; K_lds_load(1-pi); QK
@@ -2842,6 +2908,7 @@ struct UnifiedAttentionPipeline
                     ASM_MARKER("fa4 SOFTMAX Wave4-7");
                     s_waitcnt_vmcnt<0>(); // K for WG0's matrix has arrived -> publish
                     barrier();
+                    slide_page_table(); // slot-A barrier: all 8 warps converged, pre-prefetch
                     if constexpr(kPrefetchInSoftmax)
                         prefetch();       // bf16/fp16: kick the next-tile load here
                     fa4_softmax(number<1>{} - pi);
@@ -2980,6 +3047,7 @@ struct UnifiedAttentionPipeline
                 s_waitcnt_vmcnt<0>();
                 __builtin_amdgcn_s_barrier();
 
+                slide_page_table(); // keep the page-table window covering the next prefetch
                 V_mem_load(number<1>{}); // prefetch V1 -> buf 1 (overlaps with compute)
 
                 V_lds_load(number<0>{}); // V0 from LDS -> kv_tile.v_tile
@@ -3003,6 +3071,7 @@ struct UnifiedAttentionPipeline
                     s_waitcnt_vmcnt<0>();
                     __builtin_amdgcn_s_barrier();
 
+                    slide_page_table();
                     // Prefetch next iteration's K/V (overlaps with all compute below)
                     // K/V use separate LDS regions so no conflict with current reads
                     if(i_total_loops + 1 < num_total_loop)
@@ -3030,6 +3099,7 @@ struct UnifiedAttentionPipeline
                     s_waitcnt_vmcnt<0>();
                     __builtin_amdgcn_s_barrier();
 
+                    slide_page_table();
                     // Prefetch next iteration's K/V
                     if(i_total_loops + 1 < num_total_loop)
                         K_mem_load(number<0>{}); // next K -> K buf 0
