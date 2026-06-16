@@ -2396,6 +2396,12 @@ def _expand_batch_prefill(
             bp_specs = get_batch_prefill_pipelines(dtype, hq, receipt)
             for tc in tiles:
                 bk1 = _bp_bk1(tc.bm0, tc.bn0, tc.bk0, hq)
+
+                # qr_async stages K into LDS through a bk1-major descriptor while the gemm0
+                # loop reads bk0 chunks, therefore the pipeline requires bk0 == bk1
+                if tc.bk0 != bk1:
+                    continue
+
                 for spec in bp_specs:
                     mm = _MASK_MAP.get(spec.mask, spec.mask)
                     mb = _BIAS_MAP.get(spec.bias, spec.bias)
