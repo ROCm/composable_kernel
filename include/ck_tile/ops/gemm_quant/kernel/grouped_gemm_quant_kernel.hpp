@@ -366,6 +366,7 @@ struct QuantGroupedGemmKernel
                               {b_ptr},
                               aq_ptr,
                               bq_ptr,
+                              {},
                               c_ptr,
                               smem_ptr,
                               kargs,
