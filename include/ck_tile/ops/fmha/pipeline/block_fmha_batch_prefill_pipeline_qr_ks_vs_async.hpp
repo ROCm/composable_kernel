@@ -460,6 +460,18 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
+        // K is staged into LDS through a single K-major descriptor whose depth is parameterized
+        // by kK1 (see MakeKLdsStoreBlockDescriptor / GetSingleSmemElementSpaceSize in the custom
+        // policy), while the gemm0 (QK^T) main loop advances the K DRAM window by kK0 and reads
+        // kK0-deep K chunks from that same LDS buffer. The two only agree when kK0 == kK1; with
+        // kK0 != kK1 the async copy mis-strides K into LDS and gemm0 reads past the per-buffer
+        // chunk into neighboring buffers/padding, silently corrupting the result. Enforce the
+        // invariant so illegal tiles (e.g. bk0=64, bk1=32) fail to compile instead of producing
+        // garbage at runtime.
+        static_assert(kK0 == kK1,
+                      "qr_ks_vs_async stages K through a bk1-major LDS descriptor; bk0 must "
+                      "equal bk1.");
+
         constexpr auto LdsSeq = Policy::template GetLdsBufferSequence<Problem>();
 
         // K tile in LDS
