@@ -19,6 +19,18 @@
 #define UA_FA4_PIN_PACK_IN_SOFTMAX 0
 #endif
 
+// UA_FA4_PREFETCH_IN_SOFTMAX: issue the next-tile K/V async DRAM prefetch from
+// the SOFTMAX phase instead of the MATRIX phase. Gated to the 2-byte (bf16/fp16)
+// path in the loop (fp8 keeps the matrix-phase prefetch it was tuned for). The
+// bf16 prefetch is double the VMEM bytes and its buffer_load-to-LDS issue was
+// landing in the (lgkm-stalled) MATRIX phase; moving the *issue* to the VALU-
+// bound SOFTMAX phase keeps MATRIX pure-matrix. Residency is unchanged: the next
+// MATRIX still drains the load via s_waitcnt_vmcnt<0> + block barrier before any
+// K/V LDS read, so this only moves WHERE the async load is kicked off.
+#ifndef UA_FA4_PREFETCH_IN_SOFTMAX
+#define UA_FA4_PREFETCH_IN_SOFTMAX 1
+#endif
+
 // FMHA_MASK PLACEMENT: pick exactly one of:
 //   - both 0 → baseline (mask in K-side memory phase, W0-3 phase 1
 //     / W4-7 phase 2, right after `cl_load(memK)`).
@@ -356,26 +368,49 @@ struct UnifiedAttentionPipeline
         using KDist = decltype(Policy::template MakeKDramTileDistribution<Problem>());
         using VDist = decltype(Policy::template MakeVDramTileDistribution<Problem>());
         constexpr ck_tile::index_t KNRepeat =
-            KDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<0>{}];
+            Policy::kKNContigLoad
+                ? KDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<2>{}]
+                : KDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<0>{}];
         constexpr ck_tile::index_t VNRepeat =
             VDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<0>{}];
         constexpr ck_tile::index_t KY0_step_N =
-            KDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<1>{}] *
-            KDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<2>{}];
+            Policy::kKNContigLoad
+                ? 1
+                : KDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<1>{}] *
+                      KDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<2>{}];
         constexpr ck_tile::index_t VY0_step_N =
             VDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<1>{}] *
             VDist::DstrEncode::hs_lengthss_[ck_tile::number<0>{}][ck_tile::number<2>{}];
         constexpr ck_tile::index_t kPageSizeCap =
             kHasCePageSize ? kPageSize : ck_tile::index_t{16};
-        // Gate kept in lock-step with kScalarPromote{K,V}PageIdx in
-        // operator(): both decide whether a given kernel instance needs the
+        // Gate kept in lock-step with kKNeedsPageTableLds / kScalarPromoteVPageIdx
+        // in operator(): both decide whether a given kernel instance needs the
         // Tier-2 LDS-resident page-table cache, and any divergence means the
         // runtime path writes/reads at an offset for which no LDS was
         // reserved (silently corrupting the K/V double-buffers above it).
-        constexpr bool kHasTier0K =
+        //
+        // Warp-major K reads its per-wave page index straight from global, so it
+        // never needs the cache — must match kRebaseKSrdWarpMajor in operator().
+        constexpr ck_tile::index_t kTokensPerWarpK =
+            kPageBlockSize / Policy::template GetKLoadNumWarps<Problem>();
+        constexpr bool kKRebaseWarpMajor = Policy::kKNContigLoad && kIsPaged &&
+                                           kHasCePageSize && (kTokensPerWarpK <= kPageSize);
+        // Mirror of kFallbackUsesLdsK / kMultiPageDedupK in operator(): the
+        // multi-page K fallback opt-ins also consume the Tier-2 LDS cache.
+        constexpr bool kScalarPromoteK =
             (KNRepeat >= 2) && (KY0_step_N <= kPageSizeCap);
-        constexpr bool kHasTier0V =
+        constexpr bool kFallbackLdsK = Policy::kKFallbackLds && kIsPaged &&
+            kHasCePageSize && !kScalarPromoteK && !kKRebaseWarpMajor;
+        constexpr bool kMultiPageDedupK = Policy::kKMultiPageDedup && kIsPaged &&
+            kHasCePageSize && !kScalarPromoteK && !kKRebaseWarpMajor &&
+            (KY0_step_N % kPageSize == 0);
+        constexpr bool kHasTier0K =
+            (kScalarPromoteK && !kKRebaseWarpMajor) || kFallbackLdsK || kMultiPageDedupK;
+        constexpr bool kScalarPromoteV =
             (VNRepeat >= 2) && (VY0_step_N <= kPageSizeCap);
+        constexpr bool kFallbackLdsV =
+            Policy::kKFallbackLds && kIsPaged && kHasCePageSize && !kScalarPromoteV;
+        constexpr bool kHasTier0V = kScalarPromoteV || kFallbackLdsV;
         if constexpr (kHasTier0K || kHasTier0V)
             return kPageTableLdsEntries * sizeof(ck_tile::index_t);
         else
@@ -853,13 +888,22 @@ struct UnifiedAttentionPipeline
         const auto v_dist = Policy::template MakeVDramTileDistribution<Problem, VLoadNumWarps>();
         using KDstrType   = decltype(k_dist);
         using VDstrType   = decltype(v_dist);
+        // Warp-major K load (issue-fastest) reorders H0 to
+        // <NumWarps, LaneGroups, NumIssues>, so the issue (Y0) dim is H0[2] (the
+        // finest N factor) with per-issue token stride 1; KNRepeat is its extent.
+        // The default layout keeps issue at H0[0] with stride H0[1]*H0[2]
+        // (= LaneGroups*NumWarps).
         constexpr index_t KNRepeat =
-            KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<0>{}];
+            Policy::kKNContigLoad
+                ? KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<2>{}]
+                : KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<0>{}];
         constexpr index_t VNRepeat =
             VDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<0>{}];
         constexpr index_t KY0_step_N =
-            KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<1>{}] *
-            KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<2>{}];
+            Policy::kKNContigLoad
+                ? 1
+                : KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<1>{}] *
+                      KDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<2>{}];
         constexpr index_t VY0_step_N =
             VDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<1>{}] *
             VDstrType::DstrEncode::hs_lengthss_[number<0>{}][number<2>{}];
@@ -984,6 +1028,38 @@ struct UnifiedAttentionPipeline
         constexpr bool kScalarPromoteVPageIdx =
             (VNRepeat >= 2) && (VY0_step_N <= kVPageSizeCap);
 
+        // Warp-major ("contiguous-page") K rebase: each wave owns the contiguous
+        // block [warp*tpw, (warp+1)*tpw) with tpw = kPageBlockSize / KLoadNumWarps.
+        // When tpw <= page_size that block sits in ONE page, so we fold a per-wave
+        // page base into the SRD (the per-wave analogue of the single-page rebase)
+        // and read the page index straight from global — no Tier-2 LDS cache, no
+        // per-lane block-table path. Defined here (ahead of the LDS-cache gate) so
+        // the cache sizing can exclude K when it takes this path.
+        constexpr index_t kTokensPerWarp = kPageBlockSize / KLoadNumWarps;
+        constexpr bool kRebaseKSrdWarpMajor =
+            Policy::kKNContigLoad && kIsPaged && kHasCePageSize &&
+            (kTokensPerWarp <= kPageSize);
+
+        // Multi-page K (KY0_step_N > page, e.g. ps16/ps32) currently drops to the
+        // per-lane *global* fallback — the cliff seen at ps64->ps32. Two opt-in
+        // paths route it through the LDS page-table cache instead:
+        //   kFallbackUsesLdsK : keep per-lane structure, read from LDS not global
+        //                       (isolates read-latency as the cause).
+        //   kMultiPageDedupK  : resolve the G = KY0_step_N/page wave-uniform pages
+        //                       per issue + per-lane select (cuts the 64 per-lane
+        //                       reads to G scalar reads — the actual fix).
+        constexpr bool kFallbackUsesLdsK = Policy::kKFallbackLds && kIsPaged &&
+            kHasCePageSize && !kScalarPromoteKPageIdx && !kRebaseKSrdWarpMajor;
+        constexpr bool kMultiPageDedupK = Policy::kKMultiPageDedup && kIsPaged &&
+            kHasCePageSize && !kScalarPromoteKPageIdx && !kRebaseKSrdWarpMajor &&
+            (KY0_step_N % kPageSize == 0);
+        // Same fix on the V path: ps16/ps32 V also has VY0_step_N > page, so its
+        // fallback was still doing per-lane *global* block_tables reads (the
+        // residual VMEM/wait gap vs ps64). Route them through the shared LDS
+        // cache too.
+        constexpr bool kFallbackUsesLdsV = Policy::kKFallbackLds && kIsPaged &&
+            kHasCePageSize && !kScalarPromoteVPageIdx;
+
 
         // Tier 2 — LDS-resident page-table cache.
         //
@@ -1018,8 +1094,14 @@ struct UnifiedAttentionPipeline
         // miscompute; a runtime fallback was tried earlier and regresses
         // 30% because the compiler emits both refresh_*_offsets paths and
         // the resulting register pressure halves occupancy.
+        // Warp-major K reads its (per-wave, uniform) page index straight from
+        // global, so it never consumes the Tier-2 LDS cache; only count K when it
+        // actually takes a cache-backed path. (V is unchanged in this prototype.)
+        constexpr bool kKNeedsPageTableLds = (kScalarPromoteKPageIdx && !kRebaseKSrdWarpMajor) ||
+                                             kFallbackUsesLdsK || kMultiPageDedupK;
+        constexpr bool kVNeedsPageTableLds = kScalarPromoteVPageIdx || kFallbackUsesLdsV;
         constexpr bool kUsePageTableLds =
-            kIsPaged && (kScalarPromoteKPageIdx || kScalarPromoteVPageIdx);
+            kIsPaged && (kKNeedsPageTableLds || kVNeedsPageTableLds);
         constexpr index_t kPageTableLdsOffset =
             GetSmemSize() - GetPageTableLdsBytes();
         auto block_tables_lds = reinterpret_cast<int32_t*>(
@@ -1140,10 +1222,29 @@ struct UnifiedAttentionPipeline
         // keep the validated per-lane scatter, as do multi-page tiles
         // (ps < kPageBlockSize, e.g. d128 @ ps16). K and V are gated
         // independently because their geometries (and thus scalar-promote) differ.
+        // Single-page SRD-rebase eligibility. The *geometric* precondition is only
+        // "the whole KV tile sits in one page": kPageSize % kPageBlockSize == 0
+        // (tile-aligned starts) means [tile_base, tile_base+kPageBlockSize) never
+        // straddles a page, so ONE wave-uniform base addresses the tile.
+        //
+        // Historically the rebase was gated behind kScalarPromote* (:= NRepeat>=2
+        // && step<=page). That is the SEPARATE "multiple issues share a page index"
+        // optimization, and conflating the two wrongly excluded the trivial
+        // NRepeat==1 single-issue tile -- bf16/fp16 d128 @ ps128 (tile N=32 in a
+        // 128-page, NRepeat=1) -- forcing it onto the per-lane multi-page fallback
+        // (~500 addr cyc/warp in the ATT trace; the contiguous->paged cliff). A
+        // single issue spanning step<=page is trivially within one page, so admit
+        // it explicitly. Kept minimal: only the NRepeat==1 arm is added, so the
+        // validated NRepeat>=2 behaviour is untouched.
+        constexpr bool kSinglePageGeom =
+            kHasCePageSize && (kPageSize % kPageBlockSize == 0);
         constexpr bool kRebaseKSrd =
-            kScalarPromoteKPageIdx && kHasCePageSize && (kPageSize % kPageBlockSize == 0);
+            kSinglePageGeom &&
+            (kScalarPromoteKPageIdx || (KNRepeat == 1 && KY0_step_N <= kPageSize));
         constexpr bool kRebaseVSrd =
-            kScalarPromoteVPageIdx && kHasCePageSize && (kPageSize % kPageBlockSize == 0);
+            kSinglePageGeom &&
+            (kScalarPromoteVPageIdx || (VNRepeat == 1 && VY0_step_N <= kPageSize));
+
 
         // Wave-uniform per-tile base offsets (in elements) folded into the SRD
         // base at window construction; written by refresh_*_offsets.
@@ -1163,23 +1264,81 @@ struct UnifiedAttentionPipeline
         // take the single-page rebase path AND every wave refreshes both tiles
         // (cooperative load); under the WG-specialized load roles a wave sees
         // only one of K/V, so V must still read its own page.
-        constexpr bool kCarryKVPhys = kRebaseKSrd && kRebaseVSrd &&
+        // Disabled under warp-major K: K then resolves a PER-WAVE phys_page that
+        // does not match V's tile-uniform single-page base, so the cross-stagger
+        // carry would feed V the wrong page.
+        constexpr bool kCarryKVPhys = kRebaseKSrd && kRebaseVSrd && !kRebaseKSrdWarpMajor &&
                                       !Policy::kFA4WG1LoadsK && !Policy::kFA4WG0LoadsV;
         int32_t kv_phys_ring0 = 0;
         int32_t kv_phys_ring1 = 0;
 
-        auto refresh_k_offsets = [&](index_t k_tile_idx) {
+        auto refresh_k_offsets = [&](index_t k_tile_idx, auto is_init) {
+            (void)is_init;
             if constexpr(!kIsPaged)
             {
                 // Contiguous (THD) K: no page table. The logical token index is
                 // the physical row directly (the kernel folded the per-sequence
                 // KV start into the K base pointer), so the offset collapses to
                 // logical_token * row_stride — no block_tables, no page split.
+                if constexpr(decltype(is_init)::value)
+                {
+                    static_for<0, KNRepeat, 1>{}([&](auto i) {
+                        const index_t logical_token =
+                            split_token_offset + k_tile_idx * kPageBlockSize + k_thread_n_pos +
+                            static_cast<index_t>(i.value) * KY0_step_N;
+                        k_page_offsets(i) =
+                            static_cast<long_index_t>(logical_token) * k_row_stride;
+                    });
+                }
+                else
+                {
+                    // Steady state: k_tile_idx only ever advances by +1/tile, so
+                    // every repeat's byte offset moves by the SAME loop-invariant
+                    // kPageBlockSize*row_stride. Incrementing kills the per-tile
+                    // 64-bit v_mad_i64_i32 + most of the v_lshl_add address chain
+                    // that the ATT trace showed exposed in the bf16 matrix phase.
+                    const long_index_t k_tile_stride =
+                        static_cast<long_index_t>(kPageBlockSize) *
+                        static_cast<long_index_t>(k_row_stride);
+                    static_for<0, KNRepeat, 1>{}(
+                        [&](auto i) { k_page_offsets(i) += k_tile_stride; });
+                }
+            }
+            else if constexpr(kRebaseKSrdWarpMajor)
+            {
+                // Per-wave page rebase (warp-major load). Wave `warp` owns the
+                // contiguous block [warp*tpw, (warp+1)*tpw) ⊆ one page, so fold the
+                // wave's page base into the SRD and keep the per-lane scatter
+                // (lanegroup + issue*step) loop-invariant — the multi-page analogue
+                // of kRebaseKSrd, with a base that differs per wave.
+                // warp_n_base must be wave-UNIFORM (it feeds the SRD base, an SGPR
+                // operand of buffer_load). k_thread_n_pos = warp*tpw + lanegroup is
+                // per-lane, but warp*tpw is constant within the wave, so promote it
+                // through readfirstlane; lane_within keeps the per-lane remainder.
+                const index_t warp_n_base =
+                    __builtin_amdgcn_readfirstlane(k_thread_n_pos / kTokensPerWarp) *
+                    kTokensPerWarp; // = warp*tpw, scalar
+                const index_t lane_within = k_thread_n_pos - warp_n_base; // within-page lane pos
+                const index_t wave_base_token =
+                    split_token_offset + k_tile_idx * kPageBlockSize + warp_n_base;
+                const int32_t base_page =
+                    __builtin_amdgcn_readfirstlane(wave_base_token / kPageSize);
+                // Read the page index straight from global. Under warp-major each
+                // wave needs exactly ONE phys_page per tile (the per-lane spread is
+                // within-page), so this is a single wave-uniform scalar load — not
+                // the per-lane vector gather the Tier-2 LDS cache was built to
+                // avoid. Reading directly means no LDS cache, hence no
+                // kPageTableLdsEntries cap on context length.
+                const int32_t phys_page = __builtin_amdgcn_readfirstlane(
+                    block_tables_ptr_[block_table_offset + base_page]);
+                k_srd_base_offset =
+                    (static_cast<long_index_t>(phys_page) * kPageSize +
+                     (wave_base_token - static_cast<long_index_t>(base_page) * kPageSize)) *
+                    k_row_stride;
                 static_for<0, KNRepeat, 1>{}([&](auto i) {
-                    const index_t logical_token =
-                        split_token_offset + k_tile_idx * kPageBlockSize + k_thread_n_pos +
-                        static_cast<index_t>(i.value) * KY0_step_N;
-                    k_page_offsets(i) = static_cast<long_index_t>(logical_token) * k_row_stride;
+                    constexpr index_t ii = i.value;
+                    k_page_offsets(i) =
+                        (static_cast<long_index_t>(ii) * KY0_step_N + lane_within) * k_row_stride;
                 });
             }
             else if constexpr(kRebaseKSrd)
@@ -1278,33 +1437,87 @@ struct UnifiedAttentionPipeline
                         k_row_stride;
                 });
             }
+            else if constexpr(kMultiPageDedupK)
+            {
+                // MULTI-page tile, per-lane spread KY0_step_N > page_size (e.g.
+                // ps16/ps32). Within one issue the spread still covers only
+                // G = KY0_step_N/page_size distinct, page-aligned pages, so
+                // resolve those G wave-uniform phys_pages from the LDS cache (one
+                // readfirstlane each) and select per-lane by k_thread_n_pos/page,
+                // instead of 64 per-lane *global* block_tables reads. The tile is
+                // page-aligned (kPageBlockSize % page == 0) and each issue base
+                // (tile_base + i*KY0_step_N) is page-aligned (KY0_step_N % page ==
+                // 0), so g_lane = k_thread_n_pos/page lands the lane in
+                // pp[g_lane] exactly.
+                constexpr index_t G = KY0_step_N / kPageSize;
+                const index_t tile_base_token =
+                    split_token_offset + k_tile_idx * kPageBlockSize;
+                static_for<0, KNRepeat, 1>{}([&](auto i) {
+                    constexpr index_t ii = i.value;
+                    const index_t i_base_token = tile_base_token + ii * KY0_step_N;
+                    const int32_t i_base_page =
+                        __builtin_amdgcn_readfirstlane(i_base_token / kPageSize);
+                    int32_t pp[G];
+                    static_for<0, G, 1>{}([&](auto g) {
+                        pp[g.value] =
+                            block_tables_lds[i_base_page + g.value - split_start_page];
+                    });
+                    const index_t g_lane      = k_thread_n_pos / kPageSize;   // [0, G)
+                    const index_t within_page = k_thread_n_pos - g_lane * kPageSize;
+                    int32_t phys_page = pp[0];
+                    static_for<1, G, 1>{}([&](auto g) {
+                        if(g_lane == static_cast<index_t>(g.value))
+                            phys_page = pp[g.value];
+                    });
+                    k_page_offsets(i) =
+                        (static_cast<long_index_t>(phys_page) * kPageSize + within_page) *
+                        k_row_stride;
+                });
+            }
             else
             {
                 static_for<0, KNRepeat, 1>{}([&](auto i) {
-                    // Byte-identical to the pre-optimisation path.
+                    // Byte-identical to the pre-optimisation path, except the
+                    // phys_page read is routed to the LDS cache under the
+                    // kFallbackUsesLdsK probe (per-lane structure unchanged).
                     const index_t logical_token = split_token_offset +
                                                   k_tile_idx * kPageBlockSize + k_thread_n_pos +
                                                   static_cast<index_t>(i.value) * KY0_step_N;
                     const index_t logical_page  = logical_token / page_size;
                     const index_t within_page   = logical_token - logical_page * page_size;
                     const index_t phys_page =
-                        block_tables_ptr_[block_table_offset + logical_page];
+                        kFallbackUsesLdsK
+                            ? block_tables_lds[logical_page - split_start_page]
+                            : block_tables_ptr_[block_table_offset + logical_page];
                     k_page_offsets(i) =
                         (static_cast<long_index_t>(phys_page) * page_size + within_page) *
                         k_row_stride;
                 });
             }
         };
-        auto refresh_v_offsets = [&](index_t v_tile_idx) {
+        auto refresh_v_offsets = [&](index_t v_tile_idx, auto is_init) {
+            (void)is_init;
             if constexpr(!kIsPaged)
             {
                 // Contiguous (THD) V — see refresh_k_offsets.
-                static_for<0, VNRepeat, 1>{}([&](auto i) {
-                    const index_t logical_token =
-                        split_token_offset + v_tile_idx * kPageBlockSize + v_thread_n_pos +
-                        static_cast<index_t>(i.value) * VY0_step_N;
-                    v_page_offsets(i) = static_cast<long_index_t>(logical_token) * v_row_stride;
-                });
+                if constexpr(decltype(is_init)::value)
+                {
+                    static_for<0, VNRepeat, 1>{}([&](auto i) {
+                        const index_t logical_token =
+                            split_token_offset + v_tile_idx * kPageBlockSize + v_thread_n_pos +
+                            static_cast<index_t>(i.value) * VY0_step_N;
+                        v_page_offsets(i) =
+                            static_cast<long_index_t>(logical_token) * v_row_stride;
+                    });
+                }
+                else
+                {
+                    const long_index_t v_tile_stride =
+                        static_cast<long_index_t>(kPageBlockSize) *
+                        static_cast<long_index_t>(v_row_stride);
+                    static_for<0, VNRepeat, 1>{}(
+                        [&](auto i) { v_page_offsets(i) += v_tile_stride; });
+                }
             }
             else if constexpr(kRebaseVSrd)
             {
@@ -1390,7 +1603,9 @@ struct UnifiedAttentionPipeline
                     const index_t logical_page  = logical_token / page_size;
                     const index_t within_page   = logical_token - logical_page * page_size;
                     const index_t phys_page =
-                        block_tables_ptr_[block_table_offset + logical_page];
+                        kFallbackUsesLdsV
+                            ? block_tables_lds[logical_page - split_start_page]
+                            : block_tables_ptr_[block_table_offset + logical_page];
                     v_page_offsets(i) =
                         (static_cast<long_index_t>(phys_page) * page_size + within_page) *
                         v_row_stride;
@@ -1398,8 +1613,8 @@ struct UnifiedAttentionPipeline
             }
         };
 
-        refresh_k_offsets(k_block_idx);
-        refresh_v_offsets(v_block_idx);
+        refresh_k_offsets(k_block_idx, std::true_type{});
+        refresh_v_offsets(v_block_idx, std::true_type{});
 
         auto k_view = k_dram_block_window_tmp.get_bottom_tensor_view();
         auto v_view = v_dram_block_window_tmp.get_bottom_tensor_view();
@@ -1419,7 +1634,7 @@ struct UnifiedAttentionPipeline
         // and the softmax mask handles past-seqlen tokens.
         [[maybe_unused]] auto* const k_pool_base = k_view.get_buffer_view().p_data_;
         [[maybe_unused]] auto* const v_pool_base = v_view.get_buffer_view().p_data_;
-        if constexpr(kRebaseKSrd)
+        if constexpr(kRebaseKSrd || kRebaseKSrdWarpMajor)
             k_view.get_buffer_view().p_data_ = k_pool_base + k_srd_base_offset;
         if constexpr(kRebaseVSrd)
             v_view.get_buffer_view().p_data_ = v_pool_base + v_srd_base_offset;
@@ -1442,8 +1657,10 @@ struct UnifiedAttentionPipeline
         // coalesce the otherwise-duplicated page_idx_ storage. Gated on
         // KNRepeat == VNRepeat so the array types match (always true here since
         // both rebase flags imply the shared fp8 geometry).
+        // Not shareable under warp-major K: K's scatter array uses the per-wave
+        // within-page layout, V keeps the default interleaved layout.
         constexpr bool kShareKVScatter =
-            kRebaseKSrd && kRebaseVSrd && (KNRepeat == VNRepeat);
+            kRebaseKSrd && kRebaseVSrd && !kRebaseKSrdWarpMajor && (KNRepeat == VNRepeat);
         auto v_dram_window = make_tile_scatter_gather(
             v_view,
             v_dram_block_window_tmp.get_window_lengths(),
@@ -1678,10 +1895,10 @@ struct UnifiedAttentionPipeline
             // uniform across all waves so loop control and buffer parity never diverge.
             if(k_load_active && k_block_idx < num_iters_per_split)
             {
-                refresh_k_offsets(k_block_idx);
-                if constexpr(kRebaseKSrd)
+                refresh_k_offsets(k_block_idx, std::false_type{});
+                if constexpr(kRebaseKSrd || kRebaseKSrdWarpMajor)
                     // Per-tile SRD rebase: the scatter offsets (L) are
-                    // loop-invariant, so only the wave-uniform base moves.
+                    // loop-invariant, so only the (per-wave) base moves.
                     k_dram_window.rebase_buffer_base(k_pool_base + k_srd_base_offset);
                 else
                     k_dram_window.update_page_idx(k_page_offsets);
@@ -1702,7 +1919,7 @@ struct UnifiedAttentionPipeline
             v_block_idx++;
             if(v_load_active && v_block_idx < num_iters_per_split)
             {
-                refresh_v_offsets(v_block_idx);
+                refresh_v_offsets(v_block_idx, std::false_type{});
                 if constexpr(kRebaseVSrd)
                     v_dram_window.rebase_buffer_base(v_pool_base + v_srd_base_offset);
                 else
@@ -2493,6 +2710,13 @@ struct UnifiedAttentionPipeline
         // baseline's i_total_loops*kPageBlockSize convention.
         [[maybe_unused]] index_t fa4_sm_tile = num_blocks_start;
 
+        // Gate the prefetch-in-softmax experiment to the 2-byte path: fp8 keeps
+        // the matrix-phase prefetch it was tuned against; bf16/fp16 move the
+        // async DRAM-load *issue* into the softmax phase (residency still
+        // enforced by the next MATRIX's vmcnt drain + barrier — see macro note).
+        constexpr bool kPrefetchInSoftmax =
+            (UA_FA4_PREFETCH_IN_SOFTMAX != 0) && !std::is_same_v<KDataType, fp8_t>;
+
         [[maybe_unused]] auto core_loop_fa4 = [&](auto cl_p) {
             auto gemm0 = number<0>{};
             auto gemm1 = number<1>{};
@@ -2589,7 +2813,8 @@ struct UnifiedAttentionPipeline
                     ASM_MARKER("fa4 MATRIX Wave0-3");
                     s_waitcnt_vmcnt<0>(); // V for THIS matrix has arrived -> publish
                     barrier();
-                    prefetch();           // issue K(pi)+V(1-pi) for tile k+1
+                    if constexpr(!kPrefetchInSoftmax)
+                        prefetch();       // issue K(pi)+V(1-pi) for tile k+1
                     fa4_matrix(pi);       // V_lds_load(pi); PV; K_lds_load(1-pi); QK
 
                     // ---- slot B: SOFTMAX(pi) ‖ WG1 MATRIX ----
@@ -2601,6 +2826,8 @@ struct UnifiedAttentionPipeline
                     // via the lgkm side, not VMEM.
                     ASM_MARKER("fa4 SOFTMAX Wave0-3");
                     barrier();
+                    if constexpr(kPrefetchInSoftmax)
+                        prefetch();       // bf16/fp16: kick the next-tile load here
                     fa4_softmax(pi);
 
                     if(num_total_loop <= ++i_total_loops)
@@ -2615,6 +2842,8 @@ struct UnifiedAttentionPipeline
                     ASM_MARKER("fa4 SOFTMAX Wave4-7");
                     s_waitcnt_vmcnt<0>(); // K for WG0's matrix has arrived -> publish
                     barrier();
+                    if constexpr(kPrefetchInSoftmax)
+                        prefetch();       // bf16/fp16: kick the next-tile load here
                     fa4_softmax(number<1>{} - pi);
 
                     // ---- slot B: MATRIX(pi) ‖ WG0 SOFTMAX ----
@@ -2625,7 +2854,8 @@ struct UnifiedAttentionPipeline
                     // WG0's, shrinking the latency-hide window -- watch vmwait.
                     ASM_MARKER("fa4 MATRIX Wave4-7");
                     barrier();
-                    prefetch();           // issue K(pi)+V(1-pi) for tile k+1
+                    if constexpr(!kPrefetchInSoftmax)
+                        prefetch();       // issue K(pi)+V(1-pi) for tile k+1
                     fa4_matrix(pi);       // V_lds_load(pi); PV; K_lds_load(1-pi); QK
 
                     if(num_total_loop <= ++i_total_loops)

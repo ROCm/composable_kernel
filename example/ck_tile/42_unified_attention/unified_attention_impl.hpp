@@ -319,8 +319,20 @@ struct unified_attention_kernel_traits
     static constexpr bool kBf16HalveBlockN =
         (DataType != unified_attention_args::data_type_enum::fp8) &&
         (cfg::BlockSize / 2 >= WGN_);
-    static constexpr index_t BLOCK_SIZE =
-        kBf16HalveBlockN ? cfg::BlockSize / 2 : cfg::BlockSize;
+    // prefill_d128 bf16/fp16 still pins the 256-VGPR ceiling with ~30 spills at
+    // the halved N=64 tile: the 2-byte score/P tile (kBlockM*kBlockN = 256*64)
+    // plus the O-accumulator overruns the VGPR file. fp8 (1-byte) fits the same
+    // tile at 2 spills, so this is bf16/fp16-specific. Quarter the tile to N=32
+    // (still >= WGN=32, so the QK gemm N axis is satisfied) to drain the score/P
+    // live set. The narrow 32x32x16 bf16 MFMA is already the widest-K bf16 tile
+    // on gfx950 (no 32x32x{32,64}_bf16 exists; the wide f8f6f4 32x32x64 is
+    // fp8/fp6/fp4 only), so shrinking kBlockN is the only register lever here.
+    static constexpr bool kBf16QuarterBlockN =
+        (DataType != unified_attention_args::data_type_enum::fp8) &&
+        (V == KernelVariant::prefill_d128) && (cfg::BlockSize / 4 >= WGN_);
+    static constexpr index_t BLOCK_SIZE = kBf16QuarterBlockN ? cfg::BlockSize / 4
+                                          : kBf16HalveBlockN  ? cfg::BlockSize / 2
+                                                              : cfg::BlockSize;
     // Swap WarpGemm::K down to BLOCK_SIZE when the halved kBlockN dropped
     // below the original WarpGemm::K. PVAttrNumAccess in GetPVBlockGemm
     // recomputes from the new WarpGemm shape (lanes_in_K * SubMinDim rule)

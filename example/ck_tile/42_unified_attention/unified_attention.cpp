@@ -282,8 +282,14 @@ std::pair<bool, float> dispatch_page_size(const unified_attention_args& args,
         // block-table read + SRD rebase per tile), the lowest-overhead paged
         // addressing. Pinned only for fp8 prefill_d128 (the only ps128 prefill
         // instance that exists); other dtypes/variants keep the runtime page size.
-        if constexpr(V == KernelVariant::prefill_d128 &&
-                     DType == unified_attention_args::data_type_enum::fp8)
+        // prefill_d128 now compiles a constexpr ps128 instance for every dtype
+        // (fp8 + bf16 + fp16), so page_blk_size==128 always strength-reduces the
+        // per-tile div/mod/mul-by-128 to shifts/masks instead of falling into the
+        // PageSize=0 runtime catch-all (which left real 32-bit integer divides in
+        // the bf16/fp16 address chain -> ~54% slower at block-size 128). prefill_d64
+        // keeps the {16,32,64} menu (no ps128 instance, 128-token pages are a d128
+        // concern). The fp8/bf16/fp16 switches are now identical, so share one.
+        if constexpr(V == KernelVariant::prefill_d128)
         {
             switch(args.page_blk_size)
             {
