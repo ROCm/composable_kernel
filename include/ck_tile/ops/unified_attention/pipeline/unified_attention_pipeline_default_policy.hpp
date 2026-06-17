@@ -19,41 +19,16 @@ struct UnifiedAttentionPipelineDefaultPolicy
     static constexpr ck_tile::index_t NumThreadPerWarpGroup =
         NumWarpPerGroup * ck_tile::get_warp_size();
 
-    // Warp-major ("contiguous-page") K DRAM load layout. The default load
-    // interleaves tokens across warps (warp = the finest N factor), so a single
-    // wave-wide load issue spans LaneGroups*NumWarps tokens and, for page_size <
-    // that span, straddles several physical pages — forcing the per-lane page
-    // path. When enabled, warp becomes the *coarse* N factor: warp w owns the
-    // contiguous token block [w*tpw, (w+1)*tpw) with tpw = kPageBlockSize /
-    // NumWarps. With tpw <= page_size each wave's load lands entirely in one
-    // page, so the single-page SRD rebase (per wave) applies and update_page_idx
-    // / the per-lane block-table path are retired. The matching K LDS store/load
-    // descriptors below reorder their N merge to keep the QK gemm read correct.
-#ifndef UA_K_NCONTIG_LOAD
-#define UA_K_NCONTIG_LOAD 0
-#endif
-    static constexpr bool kKNContigLoad = UA_K_NCONTIG_LOAD;
+    // Route the multi-page K fallback (KY0_step_N > page, e.g. ps16/ps32) through
+    // the LDS-resident block-table cache instead of per-lane global block_tables
+    // reads (the ps64->ps32 cliff was that per-lane global read latency).
+    static constexpr bool kKFallbackLds = true;
 
-    // Route the multi-page K fallback (KY0_step_N > page, e.g. ps16/ps32)
-    // through the LDS-resident block-table cache instead of per-lane *global*
-    // block_tables reads. The ps64->ps32 perf cliff was the per-lane *global*
-    // read latency on the critical path; LDS-resolving the same per-lane reads
-    // recovers ~+10.5% (ps16/ps32 1405->1555 TFLOP/s at sq=16384). Measured to
-    // beat the wave-uniform dedup variant below, whose per-lane select chain
-    // regresses ps16 (G=4). ON by default.
-#ifndef UA_K_FALLBACK_LDS
-#define UA_K_FALLBACK_LDS 1
-#endif
-    static constexpr bool kKFallbackLds = UA_K_FALLBACK_LDS;
-
-    // Generalized within-issue dedup for the multi-page K path: when the per-lane
-    // spread (KY0_step_N) exceeds page_size it still covers only G = KY0_step_N /
-    // page_size distinct pages per issue, so resolve those G wave-uniform LDS
-    // reads and select per-lane instead of 64 per-lane global reads.
-#ifndef UA_K_MULTIPAGE_DEDUP
-#define UA_K_MULTIPAGE_DEDUP 0
-#endif
-    static constexpr bool kKMultiPageDedup = UA_K_MULTIPAGE_DEDUP;
+    // Inert (warp-major K load / within-issue dedup were not adopted). Kept as
+    // false constants because the page-offset gating in operator() still names
+    // them; both fold their guarded paths out.
+    static constexpr bool kKNContigLoad   = false;
+    static constexpr bool kKMultiPageDedup = false;
 
     // TODO: GetAlignment*() currently didn't consider if need padding or not
     //       so in pipeline still need check padding requirement
@@ -222,36 +197,13 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t K0 = LanesPerK;
         constexpr index_t K1 = KVector;
 
-        if constexpr(kKNContigLoad)
-        {
-            // Warp-major N, issue-fastest: H0 = <NumWarps, LaneGroups, NumIssues>,
-            //   token = warp*(LaneGroups*NumIssues) + lanegroup*NumIssues + issue
-            //         = warp*tpw + lanegroup*NumIssues + issue,  tpw = 128/NumWarps.
-            // warp (P0)      -> H0[0]            (coarse N factor, owns one page)
-            // lanegroup (P1) -> H0[1], K0 (P1)   (mid N factor + head-dim lanes)
-            // issue (Y0)     -> H0[2]            (FINEST N factor, per-issue advance = 1)
-            // KVector  (Y1)  -> H1[1]
-            // Making issue (an m0-level / per-async-instruction dimension) the
-            // fastest-varying token bit keeps consecutive GEMM-read tokens off the
-            // bank-aligned lanegroup stride (128 B) — see MakeKLdsLoadBlockDescriptor.
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<N2, N1, N0>, sequence<K0, K1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<0>, sequence<1, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<2, 1>>{});
-        }
-        else
-        {
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
-                                           tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
-                                           tuple<sequence<2>, sequence<1, 0>>,
-                                           sequence<1, 2>,
-                                           sequence<0, 1>>{});
-        }
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<2>, sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<0, 1>>{});
     }
 
     // NumWarpsOverride lets the FA4 per-warp-group ("private V") path request a
@@ -581,36 +533,16 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                          number<KPack>{},
                                          number<1>{});
 
-        // The physical LDS layout (per-warp padded blocks) is identical for both
-        // load layouts; only the logical-token reconstruction (the N merge order)
-        // differs. Default interleaves (issue, lanegroup, warp); warp-major makes
-        // warp the high bits so token = warp*(NumIssues*LaneGroups) +
-        // issue*LaneGroups + lanegroup, matching MakeKDramTileDistribution's
-        // warp-major encoding. desc_0 dim order is <issue(0), warp(1), lanegroup(2)>.
-        constexpr auto k_lds_block_desc = [&] {
-            if constexpr(kKNContigLoad)
-                // Warp-major, issue-fastest: token = warp*(LaneGroups*NumIssues) +
-                // lanegroup*NumIssues + issue. desc_0 dim order is
-                // <issue(0), warp(1), lanegroup(2)>, so the N merge picks
-                // (warp, lanegroup, issue) = dims <1, 2, 0>.
-                return transform_tensor_descriptor(
-                    k_lds_block_desc_0,
-                    make_tuple(make_merge_transform(make_tuple(
-                                   number<NumWarps>{}, number<LaneGroups>{}, number<NumIssues>{})),
-                               make_merge_transform(
-                                   make_tuple(number<kKPerBlock / KPack>{}, number<KPack>{}))),
-                    make_tuple(sequence<1, 2, 0>{}, sequence<3, 4>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}));
-            else
-                return transform_tensor_descriptor(
-                    k_lds_block_desc_0,
-                    make_tuple(make_merge_transform(make_tuple(
-                                   number<NumIssues>{}, number<LaneGroups>{}, number<NumWarps>{})),
-                               make_merge_transform(
-                                   make_tuple(number<kKPerBlock / KPack>{}, number<KPack>{}))),
-                    make_tuple(sequence<0, 2, 1>{}, sequence<3, 4>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}));
-        }();
+        // N merge reconstructs token = issue*(LaneGroups*NumWarps) +
+        // lanegroup*NumWarps + warp from desc_0 dims <issue(0), warp(1), lanegroup(2)>.
+        constexpr auto k_lds_block_desc = transform_tensor_descriptor(
+            k_lds_block_desc_0,
+            make_tuple(make_merge_transform(make_tuple(
+                           number<NumIssues>{}, number<LaneGroups>{}, number<NumWarps>{})),
+                       make_merge_transform(
+                           make_tuple(number<kKPerBlock / KPack>{}, number<KPack>{}))),
+            make_tuple(sequence<0, 2, 1>{}, sequence<3, 4>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
 
         return k_lds_block_desc;
     }
@@ -826,110 +758,23 @@ struct UnifiedAttentionPipelineDefaultPolicy
         return kv_element_space_size_in_bytes;
     }
 
-    // FA4 "WG0 loads V" prototype: when the block runs as two warp groups, have
-    // ONLY warp group 0 (waves 0-3) load the full V tile into the shared V LDS
-    // buffer (V's DRAM dist + LDS descriptors use NumThreadPerWarpGroup/WarpSize
-    // == 4 waves so WG0 alone fills the tile). WG1 skips the V DRAM load
-    // entirely. No 2x DRAM, no extra LDS (V stays a shared 2-buffer). This
-    // decouples V's residency from the partner group's cooperative-load shard
-    // (WG0's own vmcnt proves the load) so the V LDS read can later move into
-    // the SOFTMAX phase. K stays block-cooperative across all 8 waves.
-    // Toggle to false to restore the block-cooperative (8-wave) V load.
-    // Default 0 (cooperative): all 8 waves load their 1/8 V shard. The 2-WG
-    // role split (WG0->V only) makes each loading wave own a 1/4 shard, whose
-    // larger addressing live-set spills VGPRs at kv128; cooperative loading is a
-    // strict win (kv128: 4->0 spills, +12%; kv64: +1.5%). Set to 1 to restore
-    // the WG0->V load-role specialization.
-#ifndef UA_FA4_WG0_LOADS_V
-#define UA_FA4_WG0_LOADS_V 0
-#endif
-    static constexpr bool kFA4WG0LoadsV = UA_FA4_WG0_LOADS_V;
-
-    // Symmetric K decoupling: warp group 1 (waves 4-7) alone loads the full K
-    // tile into the shared K LDS buffer; warp group 0 reads it from shared LDS.
-    // Together with kFA4WG0LoadsV this balances DRAM-load work (WG0->V, WG1->K)
-    // and lets each group issue only one tile's load/address instructions.
-    // K analogue of kFA4WG0LoadsV; default 0 (cooperative). Set to 1 to restore
-    // the WG1->K load-role specialization.
-#ifndef UA_FA4_WG1_LOADS_K
-#define UA_FA4_WG1_LOADS_K 0
-#endif
-    static constexpr bool kFA4WG1LoadsK = UA_FA4_WG1_LOADS_K;
-
-    // Design A (decode deep async ring). Number of K/V LDS landing buffers for
-    // the single-warp-group (decode) path: raising it from 2 keeps N-1 KV-tile
-    // DRAM loads in flight so the loop can stage `vmcnt` partial waits instead of
-    // a full per-tile drain (the memory-bound long-context decode regime). Must
-    // be EVEN (the deferred-PV score double-buffer keeps 2-way parity, which is
-    // only compile-time resolvable across the N-unroll when N is even) and >= 2.
-    // Default 2 == the original 2-buffer serial pipeline, bit-identical. The
-    // 2-warp-group FA4 (prefill) path always uses 2 regardless. LDS cost is
-    // 2*N*GetSmemSizeKV, so larger N may cost occupancy on the LDS-bound decode
-    // tiers -- sweep per tier.
-#ifndef UA_DECODE_STAGES
-#define UA_DECODE_STAGES 2
-#endif
-    static constexpr ck_tile::index_t kDecodeStages = UA_DECODE_STAGES;
-    static_assert(kDecodeStages >= 2 && (kDecodeStages % 2 == 0),
-                  "UA_DECODE_STAGES must be an even integer >= 2");
-
-    // Ring depth actually used by a given kernel instance: the deep ring is a
-    // decode-only (single-warp-group) lever; the FA4 prefill path keeps 2.
-    template <typename Problem>
-    CK_TILE_DEVICE static constexpr ck_tile::index_t GetRingStages()
-    {
-        constexpr ck_tile::index_t NumWarpGroups =
-            Problem::kBlockSize / NumThreadPerWarpGroup;
-        return (NumWarpGroups == 1) ? kDecodeStages : 2;
-    }
-
-    // Number of waves that cooperate on a V DRAM->LDS load. For the 2-warp-group
-    // FA4 path with kFA4WG0LoadsV, this is one warp group's waves (so WG0 alone
-    // fills the tile); otherwise it's the full block (original cooperative load).
+    // K and V are loaded cooperatively by the full block (all NumWarps waves).
     template <typename Problem>
     CK_TILE_DEVICE static constexpr ck_tile::index_t GetVLoadNumWarps()
     {
-        constexpr ck_tile::index_t NumWarpGroups =
-            Problem::kBlockSize / NumThreadPerWarpGroup;
-        if constexpr(kFA4WG0LoadsV && NumWarpGroups == 2)
-            return NumThreadPerWarpGroup / ck_tile::get_warp_size();
-        else
-            return Problem::UnifiedAttentionShape::NumWarps;
+        return Problem::UnifiedAttentionShape::NumWarps;
     }
-
-    // K analogue of GetVLoadNumWarps (warp group 1 alone fills the K tile).
     template <typename Problem>
     CK_TILE_DEVICE static constexpr ck_tile::index_t GetKLoadNumWarps()
     {
-        constexpr ck_tile::index_t NumWarpGroups =
-            Problem::kBlockSize / NumThreadPerWarpGroup;
-        if constexpr(kFA4WG1LoadsK && NumWarpGroups == 2)
-            return NumThreadPerWarpGroup / ck_tile::get_warp_size();
-        else
-            return Problem::UnifiedAttentionShape::NumWarps;
-    }
-
-    // Raw-async warp-id shift for the K store (see MakeKLdsStoreBlockDescriptor):
-    // K is loaded by warp group 1, whose absolute warp ids start at one warp
-    // group's worth of waves, so the store base must shift by that many waves.
-    template <typename Problem>
-    CK_TILE_DEVICE static constexpr ck_tile::index_t GetKStoreWarpShift()
-    {
-        constexpr ck_tile::index_t NumWarpGroups =
-            Problem::kBlockSize / NumThreadPerWarpGroup;
-        if constexpr(kFA4WG1LoadsK && NumWarpGroups == 2)
-            return NumThreadPerWarpGroup / ck_tile::get_warp_size(); // WG1's first abs warp id
-        else
-            return 0;
+        return Problem::UnifiedAttentionShape::NumWarps;
     }
 
     template <typename Problem>
     CK_TILE_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        // kRingStages K buffers + kRingStages V buffers. Decode uses
-        // kDecodeStages (>=2), FA4 prefill stays 2 -> the default (N==2)
-        // reproduces the original 4*GetSmemSizeKV budget exactly.
-        return 2 * GetRingStages<Problem>() * GetSmemSizeKV<Problem>();
+        // 2 K buffers + 2 V buffers (double-buffered async KV prefetch).
+        return 4 * GetSmemSizeKV<Problem>();
     }
 };
 
