@@ -1440,7 +1440,16 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         if constexpr(!LargeTensors)
         {
             if(arg.stride_overflow)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout
+                        << "Unsupported! stride_overflow is set but LargeTensors is not enabled!"
+                        << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                        << std::endl;
+                }
                 return false;
+            }
         }
 
         // check device
@@ -2022,6 +2031,10 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
 
         // clang-format off
         str << "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3";
+
+        if(get_warp_size() != 64) {
+            str << "_WmmaPorted";
+        }
 
         if constexpr(DirectLoad) {
             str << "_DirectLoad";
