@@ -8,9 +8,41 @@
 #include <ck_tile/core/config.hpp>
 #include <ck_tile/core/numeric/integer.hpp>
 
+#include "hstu_attention_tile_setting_define.hpp"
+
 namespace ck_tile {
 
 namespace detail {
+
+template <typename T>
+struct is_hstu_attention_fwd_tile_setting : std::false_type
+{
+};
+
+template <typename BlockTile_,
+          typename Gemm0BlockWarps_,
+          typename Gemm0WarpTile_,
+          typename Gemm1BlockWarps_,
+          typename Gemm1WarpTile_>
+struct is_hstu_attention_fwd_tile_setting<HstuAttentionFwdTileSettingClass<BlockTile_,
+                                                                           Gemm0BlockWarps_,
+                                                                           Gemm0WarpTile_,
+                                                                           Gemm1BlockWarps_,
+                                                                           Gemm1WarpTile_>>
+    : std::true_type
+{
+};
+
+template <typename T>
+struct is_hstu_attention_fwd_splitkv_combine_tile_setting : std::false_type
+{
+};
+
+template <index_t kM_, index_t NumWarps_, index_t kOHeaddim_>
+struct is_hstu_attention_fwd_splitkv_combine_tile_setting<
+    HstuAttentionFwdSplitKVCombineTileSettingClass<kM_, NumWarps_, kOHeaddim_>> : std::true_type
+{
+};
 
 template <typename DataType, index_t ElemPerThread>
 CK_TILE_HOST_DEVICE static constexpr auto GetMaxVectorSize()
@@ -72,7 +104,7 @@ template <typename InOutDataType_,
           bool kHasCausal_,
           bool kUseSoftmax_,
           bool kStoreLSE_,
-          typename AttentionTileSetting_>
+          typename TileSetting_>
 struct HstuAttentionFwdPipelineProblem
 {
     using InOutDataType   = remove_cvref_t<InOutDataType_>;
@@ -96,16 +128,18 @@ struct HstuAttentionFwdPipelineProblem
     static constexpr bool kUseSoftmax       = kUseSoftmax_;
     static constexpr bool kStoreLSE         = kStoreLSE_;
 
+    static_assert(detail::is_hstu_attention_fwd_tile_setting<remove_cvref_t<TileSetting_>>::value,
+                  "TileSetting_ must be an instance of HstuAttentionFwdTileSettingClass!");
     static_assert(!kUseGroup || (kUseGroup && kIsJagged),
                   "Group HSTU is only used with jagged mode!");
     static_assert(!kStoreLSE || (kStoreLSE && kUseSoftmax),
                   "Storing Lse is only necessary when softmax is used!");
 
-    using HstuAttentionTileSetting = remove_cvref_t<AttentionTileSetting_>;
+    using HstuAttentionTileSetting = remove_cvref_t<TileSetting_>;
 
-    static constexpr index_t kNumGemm0Warps = AttentionTileSetting_::NumGemm0Warps;
-    static constexpr index_t kNumGemm1Warps = AttentionTileSetting_::NumGemm1Warps;
-    static constexpr index_t kBlockSize     = AttentionTileSetting_::NumWarps * get_warp_size();
+    static constexpr index_t kNumGemm0Warps = TileSetting_::NumGemm0Warps;
+    static constexpr index_t kNumGemm1Warps = TileSetting_::NumGemm1Warps;
+    static constexpr index_t kBlockSize     = TileSetting_::NumWarps * get_warp_size();
 
     CK_TILE_HOST_DEVICE static constexpr auto GetQDramTileAccessMaxVectorSize()
     {
@@ -141,7 +175,7 @@ template <typename OaccDataType_,
           bool kIsJagged_,
           bool kUseSoftmax_,
           bool kStoreLSE_,
-          typename CombineTileSetting_,
+          typename TileSetting_,
           index_t kMaxSplits_ = 0>
 struct HstuAttentionFwdSplitKVCombinePipelineProblem
 {
@@ -149,15 +183,20 @@ struct HstuAttentionFwdSplitKVCombinePipelineProblem
     using ODataType    = remove_cvref_t<ODataType_>;
     using LSEDataType  = remove_cvref_t<LSEDataType_>;
 
+    static_assert(
+        detail::is_hstu_attention_fwd_splitkv_combine_tile_setting<
+            remove_cvref_t<TileSetting_>>::value,
+        "TileSetting_ must be an instance of HstuAttentionFwdSplitKVCombineTileSettingClass!");
+
     static constexpr bool kIsJagged   = kIsJagged_;
     static constexpr bool kUseSoftmax = kUseSoftmax_;
     static constexpr bool kStoreLSE   = kStoreLSE_;
 
-    static constexpr index_t kM           = CombineTileSetting_::kM;
-    static constexpr index_t NumWarps     = CombineTileSetting_::NumWarps;
-    static constexpr index_t kOHeaddim    = CombineTileSetting_::kOHeaddim;
-    static constexpr index_t kSubOHeaddim = CombineTileSetting_::kSubOHeaddim;
-    static constexpr index_t kBlockSize   = CombineTileSetting_::NumWarps * get_warp_size();
+    static constexpr index_t kM           = TileSetting_::kM;
+    static constexpr index_t NumWarps     = TileSetting_::NumWarps;
+    static constexpr index_t kOHeaddim    = TileSetting_::kOHeaddim;
+    static constexpr index_t kSubOHeaddim = TileSetting_::kSubOHeaddim;
+    static constexpr index_t kBlockSize   = TileSetting_::NumWarps * get_warp_size();
     static constexpr index_t kMaxSplits   = kMaxSplits_;
 
     static_assert((kMaxSplits == 0) || (kM * kMaxSplits >= kBlockSize), "Check failed!");
