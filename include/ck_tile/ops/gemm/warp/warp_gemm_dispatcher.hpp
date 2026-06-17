@@ -269,7 +269,10 @@ struct Dispatcher<A,
                   AttrNumAccessB,
                   IsScale16> : WmmaTag
 {
-    using Type = WarpGemmWmma_f32_32x32x128_f8f6f4<A, B, TransposeC, AttrNumAccessA, AttrNumAccessB>;
+    using Type =
+        std::conditional_t<IsScale16,
+                           WarpGemmWmma_f32_32x32x128_f8f6f4_scale16<A, B, TransposeC, AttrNumAccessA, AttrNumAccessB>,
+                           WarpGemmWmma_f32_32x32x128_f8f6f4<A, B, TransposeC, AttrNumAccessA, AttrNumAccessB>>;
 };
 
 template<bool TransposeC, WGAttrNumAccessEnum AttrNumAccess> struct Dispatcher<fp8_t, fp8_t, half_t, 16, 16,  64, TransposeC, false, false, AttrNumAccess, AttrNumAccess> : WmmaTag { using Type =WarpGemmWmma_f16_16x16x64_f8_f8<TransposeC, AttrNumAccess>; };

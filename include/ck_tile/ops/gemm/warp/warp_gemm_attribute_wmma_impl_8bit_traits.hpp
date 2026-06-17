@@ -1238,4 +1238,115 @@ struct WmmaTraits<gfx125_t, AType, BType, float, 32, 32, 128>
     }
 };
 
+// 32x32x128 f8f6f4 scale16 specialization - GFX125
+// Decomposes the 32x32 tile into a 2x2 grid of 16x16x128 scale16 intrinsic calls.
+// a_scale/b_scale are per-lane int64_t registers (lane L already holds row L's K-scales); the
+// same register value is passed to every sub-call, and SCALE_OPSEL = m.value / n.value selects
+// which 16-lane group (lanes 0-15 vs 16-31) the hardware reads each sub-tile's scale from.
+template <typename AType, typename BType>
+struct WmmaTraits<gfx125_t, AType, BType, float, 32, 32, 128, WmmaScale16Tag>
+    : WmmaTraitsBase<gfx12_t, AType, BType, float, 128, true, 32, 32>
+{
+    using Base             = WmmaTraitsBase<gfx12_t, AType, BType, float, 128, true, 32, 32>;
+    using ArchType         = gfx125_t;
+    using MXTypeEnableType = WmmaScale16Tag;
+
+    using AVecType = typename Base::AVecType;
+    using BVecType = typename Base::BVecType;
+    using CVecType = typename Base::CVecType;
+
+    using ATraits = MXDataTypeTrait<AType>;
+    using BTraits = MXDataTypeTrait<BType>;
+
+    using Base::kCMBlock;
+    using Base::kCNBlock;
+
+    // scale16 register layout -> sequence<4,2,16>
+    static constexpr index_t kAK1PerLane = 16;
+    static constexpr index_t kAK0PerLane = Base::kK / (kAK1PerLane * Base::kABKLane);
+    static constexpr index_t kBK1PerLane = 16;
+    static constexpr index_t kBK0PerLane = Base::kK / (kBK1PerLane * Base::kABKLane);
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType&, const BVecType&, const CVecType&)
+    {
+        static_assert(sizeof...(Params) < 0,
+                      "32x32x128 scale16 WmmaTraits requires int64_t scale arguments");
+        return CVecType{0};
+    }
+
+    template <typename... Params>
+    CK_TILE_DEVICE static CVecType wmma_intrinsic(const AVecType& a_vec,
+                                                  const int64_t& a_scale,
+                                                  const BVecType& b_vec,
+                                                  const int64_t& b_scale,
+                                                  const CVecType& c_vec)
+    {
+#ifdef __gfx125__
+        constexpr index_t kASliceSize = sizeof(AVecType) / sizeof(AType) / kCMBlock;
+        constexpr index_t kBSliceSize = sizeof(BVecType) / sizeof(BType) / kCNBlock;
+
+        using ASliceType = ext_vector_t<AType, kASliceSize>;
+        using BSliceType = ext_vector_t<BType, kBSliceSize>;
+        using CSliceType = fp32x8_t;
+
+        using a_buf = thread_buffer<ASliceType, kCMBlock>;
+        using b_buf = thread_buffer<BSliceType, kCNBlock>;
+        using c_buf = thread_buffer<CSliceType, kCMBlock * kCNBlock>;
+
+        static_assert(sizeof(CVecType) == sizeof(c_buf),
+                      "CVecType and c_buf must have the same size");
+        static_assert(sizeof(AVecType) == sizeof(a_buf),
+                      "AVecType and a_buf must have the same size");
+        static_assert(sizeof(BVecType) == sizeof(b_buf),
+                      "BVecType and b_buf must have the same size");
+
+        auto&& a_buffer = bit_cast<a_buf>(a_vec);
+        auto&& b_buffer = bit_cast<b_buf>(b_vec);
+        auto&& c_result = bit_cast<c_buf>(c_vec);
+
+        using P = WarpGemmParamsParser<Params...>;
+
+        // SCALE_OPSEL selects which 16-lane half provides the scale:
+        //   SCALE_OPSEL=0 -> lanes 0..15, SCALE_OPSEL=1 -> lanes 16..31
+        // Sub-iteration m: A-scale from lane group m; sub-iteration n: B-scale from lane group n.
+        static_for<0, kCNBlock, 1>{}([&](auto n) {
+            static_for<0, kCMBlock, 1>{}([&](auto m) {
+                constexpr index_t c_idx = n * kCMBlock + m;
+
+                const auto& a_slice = a_buffer.template get_as<ASliceType>()[m];
+                const auto& b_slice = b_buffer.template get_as<BSliceType>()[n];
+                auto& c_slice       = c_result.template get_as<CSliceType>()[number<c_idx>{}];
+
+                c_slice = __builtin_amdgcn_wmma_scale16_f32_16x16x128_f8f6f4(
+                    ATraits::OpDataType,
+                    ATraits::to_wmma_vec(bit_cast<typename ATraits::VecType>(a_slice)),
+                    BTraits::OpDataType,
+                    BTraits::to_wmma_vec(bit_cast<typename BTraits::VecType>(b_slice)),
+                    0,
+                    c_slice,
+                    m.value,    // OPSEL[0]  - select A scale lane group
+                    P::scale_a, // OPSEL_HI[0]
+                    a_scale,
+                    n.value,    // OPSEL[1]  - select B scale lane group
+                    P::scale_b, // OPSEL_HI[1]
+                    b_scale,
+                    0,  // NEG
+                    0); // NEG_HI
+            });
+        });
+
+        return bit_cast<CVecType>(c_result);
+
+#else
+        ck_tile::ignore = a_vec;
+        ck_tile::ignore = a_scale;
+        ck_tile::ignore = b_vec;
+        ck_tile::ignore = b_scale;
+        ck_tile::ignore = c_vec;
+        return CVecType{0};
+#endif
+    }
+};
+
 } // namespace ck_tile

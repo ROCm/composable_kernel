@@ -223,6 +223,10 @@ template <typename AType, typename BType>
 using WarpGemmAttributeWmmaImpl_f32_32x32x128_f8f6f4 =
     WarpGemmAttributeWmmaImpl<WmmaTraits<gfx125_t, AType, BType, float, 32, 32, 128>>;
 
+template <typename AType, typename BType>
+using WarpGemmAttributeWmmaImpl_f32_32x32x128_f8f6f4_scale16 = WarpGemmAttributeWmmaImpl<
+    WmmaTraits<gfx125_t, AType, BType, float, 32, 32, 128, WmmaScale16Tag>>;
+
 template <typename Arch,
           typename AType,
           typename BType,

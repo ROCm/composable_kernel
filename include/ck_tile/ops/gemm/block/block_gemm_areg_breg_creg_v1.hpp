@@ -338,8 +338,19 @@ struct BlockGemmARegBRegCRegV1
                 merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                 merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
-            index_t scale_a = a_scale_tensor.get_y_sliced_thread_data(
-                sequence<mIter, scale_k_idx, 0>{}, sequence<1, 1, 1>{})[0];
+            // Extract scale value(s) for this M-iteration.
+            // For scale32: 1 int32_t element (4 packed e8m0 bytes).
+            // For scale16: 2 int32_t elements packed into int64_t (8 packed e8m0 bytes).
+            // The scale thread buffer spans the whole block-K (scale_k_idx ranges over
+            // [0, KIterPerWarp)), so divide by KIterPerWarp, not one sub-tile's KPerSubTile.
+            constexpr index_t scale_k_len =
+                AScaleBlockTensor::get_thread_buffer_size() / (MIterPerWarp * KIterPerWarp);
+            static_assert(scale_k_len == 1 || scale_k_len == 2,
+                          "scale_k_len must be 1 (scale32, int32_t) or 2 (scale16, int64_t)");
+            auto scale_a_slice = a_scale_tensor.get_y_sliced_thread_data(
+                sequence<mIter, scale_k_idx * scale_k_len, 0>{}, sequence<1, scale_k_len, 1>{});
+            auto scale_a =
+                bit_cast<std::conditional_t<scale_k_len == 2, int64_t, int32_t>>(scale_a_slice);
 
             static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                 // read B warp tensor from B block tensor
@@ -348,8 +359,10 @@ struct BlockGemmARegBRegCRegV1
                     merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
                     merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 
-                index_t scale_b = b_scale_tensor.get_y_sliced_thread_data(
-                    sequence<nIter, scale_k_idx, 0>{}, sequence<1, 1, 1>{})[0];
+                auto scale_b_slice = b_scale_tensor.get_y_sliced_thread_data(
+                    sequence<nIter, scale_k_idx * scale_k_len, 0>{}, sequence<1, scale_k_len, 1>{});
+                auto scale_b =
+                    bit_cast<std::conditional_t<scale_k_len == 2, int64_t, int32_t>>(scale_b_slice);
 
                 // read C warp tensor from C block tensor
                 using c_iter_idx =

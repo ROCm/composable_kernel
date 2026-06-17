@@ -11,6 +11,22 @@
 
 namespace ck_tile {
 
+namespace detail {
+// Resolves a problem/trait type's microscaling block size: yields T::ScaleBlockSize
+// when the member exists, otherwise falls back to the legacy default of 32 (so
+// problems that predate the ScaleBlockSize member keep compiling unchanged).
+template <typename T, typename = void>
+struct scale_block_size_or_default
+{
+    static constexpr index_t value = 32;
+};
+template <typename T>
+struct scale_block_size_or_default<T, std::void_t<decltype(T::ScaleBlockSize)>>
+{
+    static constexpr index_t value = T::ScaleBlockSize;
+};
+} // namespace detail
+
 enum class MultiCastDirection
 {
     kM,
@@ -375,24 +391,36 @@ struct GemmPipelineAgBgCrCompTDMDefaultPolicy
         constexpr index_t kMPerBlock = TileShape::kM;
         constexpr index_t kKPerBlock = TileShape::kK;
 
-        constexpr index_t ScaleSize = 32;
+        constexpr index_t ScaleSize = detail::scale_block_size_or_default<Problem>::value;
+        // PackSize = number of e8m0 bytes per int32_t element (always 4).
+        // scale32: 1 int32_t per thread (4 bytes); scale16: 2 int32_t per thread (8 bytes ->
+        // int64_t).
+        constexpr index_t PackSize = 4;
 
-        // for gfx1250 mx gemm supports 32x32x128
-        static_assert(TileShape::WarpTile::at(Base::I0) == 32);
+        // WarpM: unique M-lanes per warp (equals WarpTile::M for WMMA).
+        // For scale32, WarpM == WaveSize (all lanes are unique in M).
+        // For scale16, WarpM < WaveSize: the remaining WaveSize/WarpM lanes
+        // repeat the same M-rows (they cover different N columns), so they
+        // must be replicated in the RS rather than treated as distinct M-positions.
+        constexpr index_t WarpM        = TileShape::WarpTile::at(Base::I0);
+        constexpr index_t NWithinWarp  = get_warp_size() / WarpM;
+        constexpr index_t MIterPerWarp = kMPerBlock / MWarps / WarpM;
+        static_assert(WarpM == 16 || WarpM == 32,
+                      "scale tile distribution supports only WarpTile::M of 16 or 32");
+        static_assert(get_warp_size() % WarpM == 0, "WarpTile::M must divide the wavefront size");
 
-        constexpr index_t MIterPerWarp = kMPerBlock / MWarps / TileShape::WarpTile::at(Base::I0);
-
+        // H0 = <MIterPerWarp, MWarps, WarpM> matching A block distribution order.
+        // M-index = mIter * (MWarps * WarpM) + m_warp * WarpM + lane_m
+        // P1 (lane_id) decomposes as: lane_id = n_within_warp + NWithinWarp * lane_m
+        // so P1[0]=NWithinWarp (least sig, replication) and P1[1]=WarpM (most sig, M-position).
         return make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<NWarps>,
-                tuple<sequence<MIterPerWarp, MWarps, get_warp_size()>,
-                      sequence<kKPerBlock / ScaleSize / 4, 1>>, // 4 is because scale tensor is
-                                                                // int32_t data type, each int32_t
-                                                                // exists 4 fp8 scale values
-                tuple<sequence<1, 0>, sequence<1>>,
-                tuple<sequence<1, 0>, sequence<2>>,
-                sequence<1, 2, 2>,
-                sequence<0, 0, 1>>{});
+            tile_distribution_encoding<sequence<NWarps, NWithinWarp>,
+                                       tuple<sequence<MIterPerWarp, MWarps, WarpM>,
+                                             sequence<kKPerBlock / ScaleSize / PackSize, 1>>,
+                                       tuple<sequence<1, 0>, sequence<0, 1>>,
+                                       tuple<sequence<1, 0>, sequence<1, 2>>,
+                                       sequence<1, 2, 2>,
+                                       sequence<0, 0, 1>>{});
     }
 
     template <typename Problem>
@@ -406,24 +434,30 @@ struct GemmPipelineAgBgCrCompTDMDefaultPolicy
         constexpr index_t kNPerBlock = TileShape::kN;
         constexpr index_t kKPerBlock = TileShape::kK;
 
-        constexpr index_t ScaleSize = 32;
+        constexpr index_t ScaleSize = detail::scale_block_size_or_default<Problem>::value;
+        constexpr index_t PackSize  = 4;
 
-        // for gfx1250 mx gemm supports 32x32x128
-        static_assert(TileShape::WarpTile::at(Base::I1) == 32);
+        // WarpN: unique N-lanes per warp (equals WarpTile::N for WMMA).
+        // For scale16, WaveSize/WarpN lanes repeat the same N-rows (covering
+        // different M columns) and must be replicated in RS.
+        constexpr index_t WarpN        = TileShape::WarpTile::at(Base::I1);
+        constexpr index_t MWithinWarp  = get_warp_size() / WarpN;
+        constexpr index_t NIterPerWarp = kNPerBlock / NWarps / WarpN;
+        static_assert(WarpN == 16 || WarpN == 32,
+                      "scale tile distribution supports only WarpTile::N of 16 or 32");
+        static_assert(get_warp_size() % WarpN == 0, "WarpTile::N must divide the wavefront size");
 
-        constexpr index_t NIterPerWarp = kNPerBlock / NWarps / TileShape::WarpTile::at(Base::I1);
-
+        // H0 = <NIterPerWarp, NWarps, WarpN> matching B block distribution order.
+        // N-index = nIter * (NWarps * WarpN) + n_warp * WarpN + lane_n
+        // P1 (lane_id) decomposes as: lane_id = m_within_warp + MWithinWarp * lane_n
         return make_static_tile_distribution(
-            tile_distribution_encoding<
-                sequence<MWarps>,
-                tuple<sequence<NIterPerWarp, NWarps, get_warp_size()>,
-                      sequence<kKPerBlock / ScaleSize / 4, 1>>, // 4 is because scale tensor is
-                                                                // int32_t data type, each int32_t
-                                                                // exists 4 fp8 scale values
-                tuple<sequence<0, 1>, sequence<1>>,
-                tuple<sequence<0, 1>, sequence<2>>,
-                sequence<1, 2, 2>,
-                sequence<0, 0, 1>>{});
+            tile_distribution_encoding<sequence<MWarps, MWithinWarp>,
+                                       tuple<sequence<NIterPerWarp, NWarps, WarpN>,
+                                             sequence<kKPerBlock / ScaleSize / PackSize, 1>>,
+                                       tuple<sequence<0, 1>, sequence<0, 1>>,
+                                       tuple<sequence<0, 1>, sequence<1, 2>>,
+                                       sequence<1, 2, 2>,
+                                       sequence<0, 0, 1>>{});
     }
 
     template <typename Problem>
@@ -434,6 +468,7 @@ struct GemmPipelineAgBgCrCompTDMDefaultPolicy
 
         constexpr auto pipeline_tune_params = GetPipelineSubTileNum<Problem>();
         constexpr index_t sub_tile_num      = pipeline_tune_params.value;
+        constexpr index_t kScaleBlockSize   = detail::scale_block_size_or_default<Problem>::value;
 
 #if defined(__gfx125__)
         // Compute WGAttrNumAccess for a single operand (A or B).
@@ -473,7 +508,8 @@ struct GemmPipelineAgBgCrCompTDMDefaultPolicy
             }
         };
 
-        // Probe the default warp gemm to get instruction K-pack sizes
+        // Probe the default warp gemm to get instruction K-pack sizes.
+        // For scale16, probe the scale16 type directly; otherwise use the standard dispatcher.
         using WarpGemmProbe      = WarpGemmDispatcher<typename Problem::ADataType,
                                                       typename Problem::BDataType,
                                                       typename Problem::CDataType,
@@ -482,7 +518,10 @@ struct GemmPipelineAgBgCrCompTDMDefaultPolicy
                                                       WarpTile::at(Base::I2),
                                                       Problem::TransposeC,
                                                       false,
-                                                      false>;
+                                                      false,
+                                                      WGAttrNumAccessEnum::Default,
+                                                      WGAttrNumAccessEnum::Default,
+                                                      (kScaleBlockSize == 16)>;
         constexpr index_t k_warp = WarpTile::at(Base::I2);
 
         constexpr auto a_wg_attr_num_access =
@@ -506,7 +545,8 @@ struct GemmPipelineAgBgCrCompTDMDefaultPolicy
                                             false,
                                             false,
                                             a_wg_attr_num_access,
-                                            b_wg_attr_num_access>;
+                                            b_wg_attr_num_access,
+                                            (kScaleBlockSize == 16)>;
 
         using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
                                                                     typename Problem::BDataType,
