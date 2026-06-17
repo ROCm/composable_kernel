@@ -99,6 +99,14 @@ struct MxGemmKernel
     static constexpr int MThreadPerXdl = BlockGemmShape::WarpTile::at(number<0>{});
     static constexpr int NThreadPerXdl = BlockGemmShape::WarpTile::at(number<1>{});
 
+    static constexpr int BlockScaleSize = MxGemmPipeline::ScaleBlockSize;
+    static_assert(BlockScaleSize == 16 || BlockScaleSize == 32, "unsupported BlockScaleSize");
+    // Scale tensor element type is always int32_t (4 packed e8m0 bytes).
+    // For scale16, each thread needs 8 bytes = 2 int32_t elements.
+    // For scale32, each thread needs 4 bytes = 1 int32_t element.
+    static constexpr int ScalePackSize = 4;
+    using ScalePtrType                 = const int32_t*;
+
     using KernelArgs = MxGemmKernelArgs<NumATensor, NumBTensor, NumDTensor>;
 
     CK_TILE_HOST static constexpr KernelArgs
@@ -136,25 +144,41 @@ struct MxGemmKernel
 
     template <typename KernelArgs>
     CK_TILE_DEVICE static auto
-    MakeScaleABlockWindow(const std::array<const int32_t*, NumATensor>& as_scale_ptr,
+    MakeScaleABlockWindow(const std::array<ScalePtrType, NumATensor>& as_scale_ptr,
                           const KernelArgs& kargs,
                           index_t block_idx_m)
     {
-        static constexpr int BlockScaleSize = 32;
-        const auto&& scale_packs_m          = integer_divide_ceil(kargs.M, MThreadPerXdl);
-        const auto&& scale_packs_k =
-            kargs.K / BlockScaleSize / 4; // 4 is because scale tensor is
-                                          // int32_t data type, each int32_t
-                                          // exists 4 fp8 scale values
+        const auto&& scale_packs_m = integer_divide_ceil(kargs.M, MThreadPerXdl);
+        const auto&& scale_packs_k = kargs.K / BlockScaleSize / ScalePackSize;
 
-        const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(scale_packs_m, scale_packs_k, MThreadPerXdl));
-        const auto scale_a_desc = transform_tensor_descriptor(
-            scale_a_naive_desc,
-            make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
-                       make_pass_through_transform(scale_packs_k)),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
+        // Scale16: descriptor order [packs_m, MThreadPerXdl, packs_k] -- K contiguous per M-row,
+        //          no pre-shuffle needed (natural row-major layout matches).
+        // Scale32: descriptor order [packs_m, packs_k, MThreadPerXdl] -- original layout,
+        //          requires pre-shuffle to match.
+        const auto scale_a_naive_desc = [&]() {
+            if constexpr(BlockScaleSize == 16)
+                return make_naive_tensor_descriptor_packed(
+                    make_tuple(scale_packs_m, MThreadPerXdl, scale_packs_k));
+            else
+                return make_naive_tensor_descriptor_packed(
+                    make_tuple(scale_packs_m, scale_packs_k, MThreadPerXdl));
+        }();
+        const auto scale_a_desc = [&]() {
+            if constexpr(BlockScaleSize == 16)
+                return transform_tensor_descriptor(
+                    scale_a_naive_desc,
+                    make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
+                               make_pass_through_transform(scale_packs_k)),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            else
+                return transform_tensor_descriptor(
+                    scale_a_naive_desc,
+                    make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
+                               make_pass_through_transform(scale_packs_k)),
+                    make_tuple(sequence<0, 2>{}, sequence<1>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+        }();
         const auto& scale_a_tensor_view = generate_tuple(
             [&](auto i) {
                 return make_tensor_view<address_space_enum::global>(as_scale_ptr[i], scale_a_desc);
@@ -164,8 +188,9 @@ struct MxGemmKernel
             [&](auto i) {
                 return make_tile_window(
                     scale_a_tensor_view[i],
-                    make_tuple(number<TilePartitioner::MPerBlock>{},
-                               number<TilePartitioner::KPerBlock / (BlockScaleSize * 4)>{}),
+                    make_tuple(
+                        number<TilePartitioner::MPerBlock>{},
+                        number<TilePartitioner::KPerBlock / (BlockScaleSize * ScalePackSize)>{}),
                     {block_idx_m, 0});
             },
             number<NumATensor>{});
@@ -175,25 +200,37 @@ struct MxGemmKernel
 
     template <typename KernelArgs>
     CK_TILE_DEVICE static auto
-    MakeScaleBBlockWindow(const std::array<const int32_t*, NumBTensor>& bs_scale_ptr,
+    MakeScaleBBlockWindow(const std::array<ScalePtrType, NumBTensor>& bs_scale_ptr,
                           const KernelArgs& kargs,
                           index_t block_idx_n)
     {
-        static constexpr int BlockScaleSize = 32;
-        const auto&& scale_packs_n          = integer_divide_ceil(kargs.N, NThreadPerXdl);
-        const auto&& scale_packs_k =
-            kargs.K / BlockScaleSize / 4; // 4 is because scale tensor is
-                                          // int32_t data type, each int32_t
-                                          // exists 4 fp8 scale values
+        const auto&& scale_packs_n = integer_divide_ceil(kargs.N, NThreadPerXdl);
+        const auto&& scale_packs_k = kargs.K / BlockScaleSize / ScalePackSize;
 
-        const auto scale_b_naive_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(scale_packs_n, scale_packs_k, NThreadPerXdl));
-        const auto scale_b_desc = transform_tensor_descriptor(
-            scale_b_naive_desc,
-            make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
-                       make_pass_through_transform(scale_packs_k)),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
+        const auto scale_b_naive_desc = [&]() {
+            if constexpr(BlockScaleSize == 16)
+                return make_naive_tensor_descriptor_packed(
+                    make_tuple(scale_packs_n, NThreadPerXdl, scale_packs_k));
+            else
+                return make_naive_tensor_descriptor_packed(
+                    make_tuple(scale_packs_n, scale_packs_k, NThreadPerXdl));
+        }();
+        const auto scale_b_desc = [&]() {
+            if constexpr(BlockScaleSize == 16)
+                return transform_tensor_descriptor(
+                    scale_b_naive_desc,
+                    make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
+                               make_pass_through_transform(scale_packs_k)),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+            else
+                return transform_tensor_descriptor(
+                    scale_b_naive_desc,
+                    make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
+                               make_pass_through_transform(scale_packs_k)),
+                    make_tuple(sequence<0, 2>{}, sequence<1>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{}));
+        }();
         const auto& scale_b_tensor_view = generate_tuple(
             [&](auto i) {
                 return make_tensor_view<address_space_enum::global>(bs_scale_ptr[i], scale_b_desc);
@@ -203,8 +240,9 @@ struct MxGemmKernel
             [&](auto i) {
                 return make_tile_window(
                     scale_b_tensor_view[i],
-                    make_tuple(number<TilePartitioner::NPerBlock>{},
-                               number<TilePartitioner::KPerBlock / (BlockScaleSize * 4)>{}),
+                    make_tuple(
+                        number<TilePartitioner::NPerBlock>{},
+                        number<TilePartitioner::KPerBlock / (BlockScaleSize * ScalePackSize)>{}),
                     {block_idx_n, 0});
             },
             number<NumBTensor>{});
@@ -221,14 +259,14 @@ struct MxGemmKernel
                                        const index_t block_idx_m,
                                        const index_t block_idx_n)
     {
-        std::array<const int32_t*, NumATensor> as_scale_ptr;
+        std::array<ScalePtrType, NumATensor> as_scale_ptr;
         static_for<0, NumATensor, 1>{}([&](auto i) {
-            as_scale_ptr[i] = reinterpret_cast<const int32_t*>(kargs.as_scale_ptr[i]);
+            as_scale_ptr[i] = reinterpret_cast<ScalePtrType>(kargs.as_scale_ptr[i]);
         });
 
-        std::array<const int32_t*, NumBTensor> bs_scale_ptr;
+        std::array<ScalePtrType, NumBTensor> bs_scale_ptr;
         static_for<0, NumBTensor, 1>{}([&](auto i) {
-            bs_scale_ptr[i] = reinterpret_cast<const int32_t*>(kargs.bs_scale_ptr[i]);
+            bs_scale_ptr[i] = reinterpret_cast<ScalePtrType>(kargs.bs_scale_ptr[i]);
         });
 
         // cluster launch pads grid to cluster boundaries; skip out-of-bound blocks

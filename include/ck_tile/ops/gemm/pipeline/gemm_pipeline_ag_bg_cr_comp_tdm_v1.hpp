@@ -129,6 +129,9 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
     using I1        = number<1>;
     using I2        = number<2>;
 
+    // Exposed for the kernel (scale descriptor sizing); V2 inherits this.
+    static constexpr index_t ScaleBlockSize = Problem::ScaleBlockSize;
+
     static constexpr index_t BlockSize = Problem::kBlockSize;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
@@ -676,14 +679,16 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 IsBRowMajor ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
 
-            constexpr index_t ScaleSize = 32;
+            constexpr index_t ScaleSize = Problem::ScaleBlockSize;
+            // scale32: 4 e8m0 bytes packed per int32_t; scale16: 8 per int64_t
+            constexpr index_t ScalePackSize = 4;
 
             using AScaleDramTileWindowStep = typename AScaleDramWindow::BottomTensorIndex;
             using BScaleDramTileWindowStep = typename BScaleDramWindow::BottomTensorIndex;
             constexpr AScaleDramTileWindowStep a_scale_dram_tile_window_step =
-                make_array(0, KPerBlock / ScaleSize / 4);
+                make_array(0, KPerBlock / ScaleSize / ScalePackSize);
             constexpr BScaleDramTileWindowStep b_scale_dram_tile_window_step =
-                make_array(0, KPerBlock / ScaleSize / 4);
+                make_array(0, KPerBlock / ScaleSize / ScalePackSize);
 
             constexpr auto ALdsTileDistr = decltype(make_static_tile_distribution(
                 BlockGemm::MakeABlockDistributionEncode())){};
@@ -1334,7 +1339,8 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
                 [&](auto i) -> decltype(auto) { return b_lds_windows[i].template at<1>(); },
                 number<num_lds_buffers>{});
 
-            constexpr index_t ScaleSize = 32;
+            constexpr index_t ScaleSize     = Problem::ScaleBlockSize;
+            constexpr index_t ScalePackSize = 4;
 
             const auto& scale_a_window_tmp = scale_a_dram_block_window_tmp[number<0>{}];
             const auto& scale_b_window_tmp = scale_b_dram_block_window_tmp[number<0>{}];
@@ -1343,7 +1349,7 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
                 Policy::template MakeScaleADramTileDistribution<Problem>();
             auto scale_a_dram_window = make_tile_window(
                 scale_a_window_tmp.get_bottom_tensor_view(),
-                make_tuple(number<MPerBlock>{}, number<KPerBlock / ScaleSize / 4>{}),
+                make_tuple(number<MPerBlock>{}, number<KPerBlock / ScaleSize / ScalePackSize>{}),
                 scale_a_window_tmp.get_window_origin(),
                 scale_a_distribution);
 
@@ -1351,7 +1357,7 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
                 Policy::template MakeScaleBDramTileDistribution<Problem>();
             auto scale_b_dram_window = make_tile_window(
                 scale_b_window_tmp.get_bottom_tensor_view(),
-                make_tuple(number<NPerBlock>{}, number<KPerBlock / ScaleSize / 4>{}),
+                make_tuple(number<NPerBlock>{}, number<KPerBlock / ScaleSize / ScalePackSize>{}),
                 scale_b_window_tmp.get_window_origin(),
                 scale_b_distribution);
 

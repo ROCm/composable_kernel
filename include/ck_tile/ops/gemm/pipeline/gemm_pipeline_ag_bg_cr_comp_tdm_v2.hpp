@@ -868,7 +868,8 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
 
             ////////////// scale setup /////////////////
 
-            constexpr index_t ScaleSize = 32;
+            constexpr index_t ScaleSize     = Problem::ScaleBlockSize;
+            constexpr index_t ScalePackSize = 4;
 
             const auto& scale_a_window_tmp = scale_a_dram_block_window_tmp[number<0>{}];
             const auto& scale_b_window_tmp = scale_b_dram_block_window_tmp[number<0>{}];
@@ -877,7 +878,7 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                 Policy::template MakeScaleADramTileDistribution<Problem>();
             auto scale_a_dram_window = make_tile_window(
                 scale_a_window_tmp.get_bottom_tensor_view(),
-                make_tuple(number<MPerBlock>{}, number<KPerBlock / ScaleSize / 4>{}),
+                make_tuple(number<MPerBlock>{}, number<KPerBlock / ScaleSize / ScalePackSize>{}),
                 scale_a_window_tmp.get_window_origin(),
                 scale_a_distribution);
 
@@ -885,7 +886,7 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
                 Policy::template MakeScaleBDramTileDistribution<Problem>();
             auto scale_b_dram_window = make_tile_window(
                 scale_b_window_tmp.get_bottom_tensor_view(),
-                make_tuple(number<NPerBlock>{}, number<KPerBlock / ScaleSize / 4>{}),
+                make_tuple(number<NPerBlock>{}, number<KPerBlock / ScaleSize / ScalePackSize>{}),
                 scale_b_window_tmp.get_window_origin(),
                 scale_b_distribution);
 
@@ -894,9 +895,9 @@ struct GemmPipelineAgBgCrCompTDMV2 : public GemmPipelineAgBgCrCompTDMV1<Problem,
             using BScaleDramTileWindowStep =
                 typename decltype(scale_b_dram_window)::BottomTensorIndex;
             constexpr AScaleDramTileWindowStep a_scale_dram_tile_window_step =
-                make_array(0, KPerBlock / ScaleSize / 4);
+                make_array(0, KPerBlock / ScaleSize / ScalePackSize);
             constexpr BScaleDramTileWindowStep b_scale_dram_tile_window_step =
-                make_array(0, KPerBlock / ScaleSize / 4);
+                make_array(0, KPerBlock / ScaleSize / ScalePackSize);
 
             using AScaleBlockTile = decltype(make_static_distributed_tensor<
                                              typename decltype(scale_a_dram_window)::DataType>(
