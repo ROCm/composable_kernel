@@ -660,27 +660,16 @@ struct UnifiedAttentionKernel
                 return FmhaMask{cur_batch_query_len, seq_len};
         }();
 
-        // Step D: Sliding-Window-Attention tile-range clip.
-        // The per-pixel mask check inside the pipeline already returns the
-        // correct (zeroed) score for tokens outside the SWA window, so
-        // skipping this block is correctness-preserving. The point of the
-        // clip is to skip entire KV tiles that fall completely outside the
-        // window — for long-context decode that's the difference between
-        // O(seq_k / kPageBlockSize) and O(window / kPageBlockSize)
-        // iterations. The intersection with the current split's
-        // [num_blocks_start, num_blocks) is taken so split-KV stays correct.
-        // Step D: Sliding-Window-Attention KV-tile clip.
-        //
-        // This is REQUIRED for correctness, not just an optimisation. The
-        // online-softmax pipeline interleaves `m` / `l` updates with prefetch
-        // and warp-group barriers; an all-(-inf) tile (one wholly outside the
-        // SWA window) feeds NaN/garbage into the `m` accumulator at the
-        // barrier boundary, corrupting subsequent tiles. Skipping these
-        // tiles entirely keeps every iterated tile either fully-inside the
-        // window or a true edge tile that the per-pixel mask can clean up.
-        //
-        // The intersection with the current split's [num_blocks_start,
-        // num_blocks) is taken so split-KV stays correct.
+        // Step D: Sliding-Window-Attention KV-tile clip — skip entire KV tiles
+        // that fall completely outside the window. REQUIRED for correctness, not
+        // just an optimisation: the online-softmax pipeline interleaves m/l
+        // updates with prefetch and warp-group barriers, so an all-(-inf) tile
+        // (wholly outside the window) would feed NaN/garbage into the m
+        // accumulator at a barrier boundary and corrupt later tiles. For
+        // long-context decode it is also the difference between
+        // O(seq_k/kPageBlockSize) and O(window/kPageBlockSize) iterations. The
+        // intersection with the current split's [num_blocks_start, num_blocks)
+        // keeps split-KV correct.
         if constexpr(FmhaMask::IsMasking && FmhaMask::IsLocal)
         {
             const auto sw_range = mask.GetTileRangeAlongX(

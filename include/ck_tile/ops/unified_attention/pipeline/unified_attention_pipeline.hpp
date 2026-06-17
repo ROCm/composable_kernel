@@ -3,180 +3,94 @@
 
 #pragma once
 
-// EXPERIMENT: move the FA4 V LDS transpose-read out of the SOFTMAX phase and
-// into the MATRIX phase (right before its PV consumer). The default ("Stage B")
-// issues the V ds_read in the *preceding* softmax to hide its latency under the
-// softmax VALU — but the ATT trace shows that read stalls ~69% and sits on the
-// (longer/critical) softmax phase. Moving it to MATRIX, which has barrier slack,
-// takes it off the critical path. =1 to enable.
+// ===========================================================================
+// Tuning knobs & experiment toggles.
+// See the "Tuning knobs & failed experiments" table in this folder's README.md
+// for the rationale and measured results behind each default. These MUST be set
+// BEFORE including unified_attention_core_loop_scheduler.hpp: that header's
+// per-phase __builtin_amdgcn_sched_group_barrier hints are gated on the same
+// macros and must stay in lock-step with the code motion in this file.
+// ===========================================================================
+
+// OFF (measured loser): pin the fp32->fp8 P-pack tail of fmha_alu1 to the
+// SOFTMAX phase instead of letting it sink into the next MATRIX slot.
 #ifndef UA_FA4_PIN_PACK_IN_SOFTMAX
-// Experiment (option 3): fence the fp32->fp8 P-pack (cvt_pk_fp8 tail of
-// fmha_alu1) so it retires inside the SOFTMAX phase instead of sinking past the
-// matrix barrier into the next MATRIX slot. In the MATRIX slot the pack (a VALU
-// op) contends with the co-resident warp group's softmax VALU (the v_max3
-// rowmax tree) on the shared SIMD issue port; pinning it to SOFTMAX trades that
-// cross-wave contention for in-phase exposure on the (longer) softmax phase.
 #define UA_FA4_PIN_PACK_IN_SOFTMAX 0
 #endif
 
-// UA_FA4_PREFETCH_IN_SOFTMAX: issue the next-tile K/V async DRAM prefetch from
-// the SOFTMAX phase instead of the MATRIX phase. Gated to the 2-byte (bf16/fp16)
-// path in the loop (fp8 keeps the matrix-phase prefetch it was tuned for). The
-// bf16 prefetch is double the VMEM bytes and its buffer_load-to-LDS issue was
-// landing in the (lgkm-stalled) MATRIX phase; moving the *issue* to the VALU-
-// bound SOFTMAX phase keeps MATRIX pure-matrix. Residency is unchanged: the next
-// MATRIX still drains the load via s_waitcnt_vmcnt<0> + block barrier before any
-// K/V LDS read, so this only moves WHERE the async load is kicked off.
+// ON (bf16/fp16 only): issue the next-tile K/V async prefetch from the SOFTMAX
+// phase so the MATRIX phase stays pure-matrix. Residency is unchanged (the next
+// MATRIX still drains the load before any K/V LDS read); this only moves WHERE
+// the load is kicked off. fp8 keeps the matrix-phase prefetch it was tuned for.
 #ifndef UA_FA4_PREFETCH_IN_SOFTMAX
 #define UA_FA4_PREFETCH_IN_SOFTMAX 1
 #endif
 
-// FMHA_MASK PLACEMENT: pick exactly one of:
-//   - both 0 → baseline (mask in K-side memory phase, W0-3 phase 1
-//     / W4-7 phase 2, right after `cl_load(memK)`).
-//   - MOVE_FMHA_MASK_TO_COMPUTE=1: hoist mask onto the compute phase
-//     (W0-3 phase 0 / W4-7 phase 1), right after `fmha_alu1`.
-//     Experiment 1.5 finding: bf16 −0.33%, **fp8 +8.8% regression**
-//     because the FP8 cvt+bperm cluster inside `fmha_alu1` makes the
-//     compute phase already-saturated; adding T_mask oversubscribes
-//     it and the empirical cost is ~2× the bare instruction count.
-//   - MOVE_FMHA_MASK_TO_GEMM1=1: place mask at the START of the
-//     gemm1 phase (W0-3 phase 2 / W4-7 phase 3), right before
-//     `cl_calc(xdl_SP_p23_reg_idx, gemm1)`. This is the latest legal
-//     placement: `cl_calc(p23, gemm1)` ends with `fmha_alu0(p01_idx)`
-//     which READS `sp[p01_idx].sp_compute` to compute `m_latest`, so
-//     mask MUST run before that. Phase 3 (V-mem on W0-3, gemm1 on
-//     W4-7) is too late and silently corrupts the row-max.
-//
-//     For W4-7 the `++i_total_loops` also defers from end of phase 2
-//     to start of phase 3 (after mask, before cl_calc) so mask sees
-//     the same i_total_loops value as gemm0 of this iter.
-//
-//     Per-barrier algebra (mask added to gemm1 phase = T_D on both
-//     warp groups, removed from K-mem = T_K on both):
-//       - B1 wait = |T_C − (T_D + T_mask)|. With baseline T_C > T_D
-//         on FP8, the gap closes — DECREASES by T_mask.
-//       - B2 wait = |(T_K − T_mask) − T_C| — DECREASES by T_mask.
-//       - B3 wait = |(T_D + T_mask) − (T_K − T_mask)|
-//                 = |T_D − T_K + 2·T_mask| — DECREASES by 2·T_mask.
-//       - Net: −4·T_mask total wait (vs −2·T_mask for compute), and
-//         gemm1 phase has no FP8 cvt+bperm so it should absorb the
-//         mask without the FP8 oversubscription that hit compute.
-//
-// Must be defined BEFORE including unified_attention_core_loop_scheduler.hpp
-// — that header's `__builtin_amdgcn_sched_group_barrier` per-phase
-// hints are gated on these macros and need to stay in lockstep with
-// the code motion in this file.
+// OFF (measured losers): alternative placements of the FMHA mask within the FA4
+// phases. Default (both 0) = mask in the K-side memory phase. _TO_COMPUTE
+// oversubscribes the fp8 compute phase (+8.8% regression); _TO_GEMM1 is the
+// latest legal placement (must precede the fmha_alu0 that reads sp_compute) but
+// did not win. At most one may be 1.
 #define MOVE_FMHA_MASK_TO_COMPUTE 0
 #define MOVE_FMHA_MASK_TO_GEMM1   0
 #if MOVE_FMHA_MASK_TO_COMPUTE && MOVE_FMHA_MASK_TO_GEMM1
 #error "MOVE_FMHA_MASK_TO_COMPUTE and MOVE_FMHA_MASK_TO_GEMM1 are mutually exclusive"
 #endif
 
-// UA_DYNAMIC_SETPRIO (warp-group-balance plan A2, HipKittens-style)
-//   0 (default): static per-warp-group priority, set once at loop entry
-//     (W0-3 → s_setprio(0), W4-7 → s_setprio(1)). Baseline, bit-identical.
-//   1: dynamic priority around the gemm MFMA cluster. `cl_calc` raises
-//     s_setprio(1) for the duration of the gemm (QK/PV MFMAs + trailing
-//     fmha_alu0) and drops back to s_setprio(0) after. The two warp groups
-//     are offset by two phases and co-resident (one wave of each group per
-//     SIMD), so the group currently in the compute cluster outbids the
-//     group currently issuing memory for the shared VALU/MFMA issue port —
-//     targeting the ARBITER_NOT_WIN stall that gates the compute side
-//     (W0-3: 37.8% of its stalls). Under the macro the static W4-7=1 entry
-//     is neutralised to 0 so the non-compute baseline is uniformly prio 0.
+// OFF (measured loser): dynamic s_setprio around the gemm MFMA cluster (vs the
+// default static per-warp-group priority set once at loop entry).
 #ifndef UA_DYNAMIC_SETPRIO
 #define UA_DYNAMIC_SETPRIO 0
 #endif
 
-// UA_FA4_PACKED_SHIFT: emit the softmax score-shift (sp_delta = sp_compute *
-// scale_s - scale_s * rowmax) as packed v_pk_fma_f32 (2 f32/instr) instead of 64
-// scalar v_fma_f32. Bit-identical: each thread holds one rowmax
-// (m.thread_buf_.size()==1) so the FMA addend is uniform across the thread's
-// score elements and is broadcast into both packed lanes. Mirrors the hand-tuned
-// ASM softmax (v_pk_fma_f32 for the rebase). Halves the shift instruction count.
-//
-// MEASURED REGRESSION, default OFF. Together with UA_FA4_PACKED_ALU1_RESCALE this
-// costs ~3% on the canonical fp8 prefill shape (GPU2, same-session 3-run median:
-// packed 1825 TF/s vs scalar 1877 TF/s). The softmax score-shift is hidden under
-// the ping-pong overlap, so collapsing the FMAs does not shorten the critical
-// path; it only perturbs the scheduler and loses. (An earlier "+4.5%" reading was
-// a confounded GPU0 measurement.) Kept gated off for documentation; do not enable.
+// OFF (measured ~-3% together with UA_FA4_PACKED_ALU1_RESCALE): emit the softmax
+// score-shift as packed v_pk_fma_f32 instead of scalar v_fma_f32. Bit-identical,
+// but the shift is hidden under the ping-pong overlap so collapsing it only
+// perturbs the scheduler and loses.
 #ifndef UA_FA4_PACKED_SHIFT
 #define UA_FA4_PACKED_SHIFT 0
 #endif
 
-// UA_FA4_EXP2_APPROX: replace the per-element softmax exp (quarter-rate
-// v_exp_f32) with the Schraudolph 2^x bit-trick (full-rate). The score-shift FMA
-// in fmha_alu0 absorbs the 2^23 scale and the Schraudolph bias, so fmha_alu1 only
-// needs a single v_cvt_u32_f32 per element instead of v_exp_f32. The per-row
-// max-delta rescale keeps the exact v_exp_f32 (only 1/row, not on the hot path).
-// This is an APPROXIMATION (~1e-3 rel error per element) -- it mirrors the ASM
-// softmax fast SKU and is only applied on the non-masked, no-softcap path
-// (compile-time gate below). Numerics-changing => default OFF; validate accuracy
-// before enabling.
+// OFF (approximation, ~1e-3 rel error): replace the quarter-rate v_exp_f32
+// softmax with the full-rate Schraudolph 2^x bit-trick. Numerics-changing ->
+// validate accuracy before enabling; only legal on the non-masked, no-softcap
+// path (compile-time gate below).
 #ifndef UA_FA4_EXP2_APPROX
 #define UA_FA4_EXP2_APPROX 0
 #endif
 
-// Schraudolph 2^x bit-trick constants: bits = round(2^23 * x + (127*2^23 - 486411))
-// reinterpreted as f32 ~= 2^x. Min-error offset matches the hand-tuned ASM softmax.
+// Schraudolph 2^x constants: bits = round(2^23*x + (127*2^23 - 486411)) as f32.
 #define UA_EXP2_SCHRAUDOLPH_SCALE 8388608.0f    // 2^23
 #define UA_EXP2_SCHRAUDOLPH_BIAS 1064866805.0f  // 127*2^23 - 486411
 
-// UA_FA4_PACKED_ROWSUM: reduce a thread's row-sum of probabilities with packed
-// v_pk_add_f32 into a 2-wide partial, then a single scalar combine, instead of the
-// scalar v_add_f32 dependency chain that block_tile_reduce emits. Halves the
-// in-thread adds and shortens the latency chain feeding the cross-lane permlane.
-// Reassociates the sum (rounding differs at the ULP level) -- safe within the fp8
-// /bf16 attention tolerances.
-//
-// MEASURED LOSER (-13%): a serial v_pk_add_f32 accumulation is a 32-deep latency
-// chain that is WORSE than block_tile_reduce's log-depth tree, and the dead scalar
-// reduce is not DCE'd. Kept gated off for documentation; do not enable.
+// OFF (measured -13%): reduce a thread's probability row-sum with packed
+// v_pk_add_f32. The serial packed chain is deeper-latency than block_tile_reduce's
+// log-depth tree, and the dead scalar reduce is not DCE'd.
 #ifndef UA_FA4_PACKED_ROWSUM
 #define UA_FA4_PACKED_ROWSUM 0
 #endif
 
-// UA_FA4_PACKED_ALU1_RESCALE: pack the 6-register o_acc partial rescale in
-// fmha_alu1 (elementwise *= o_acc_scale) with v_pk_mul_f32, matching the packed
-// rescale in fmha_alu_D_upd. Independent elementwise scale (no dependency chain),
-// and it halves the number of asm-volatile scheduling boundaries (6 scalar
-// v_mul_f32 -> 3 v_pk_mul_f32). Bit-identical.
-//
-// MEASURED REGRESSION, default OFF -- see the note on UA_FA4_PACKED_SHIFT above:
-// the two together cost ~3% (1877 -> 1825 TF/s, GPU2) because the rescale is
-// hidden under the ping-pong overlap. (An earlier "+4%" reading was a confounded
-// GPU0 measurement.) Kept gated off for documentation; do not enable.
+// OFF (measured ~-3% together with UA_FA4_PACKED_SHIFT): pack the o_acc partial
+// rescale in fmha_alu1 with v_pk_mul_f32. Bit-identical, but the rescale is hidden
+// under the overlap so it does not shorten the critical path.
 #ifndef UA_FA4_PACKED_ALU1_RESCALE
 #define UA_FA4_PACKED_ALU1_RESCALE 0
 #endif
 
-// CONDITIONAL_RESCALE (PLAN_conditional_rescale Part 2)
-//   0 (default): always-rescale online softmax — the o_acc/l accumulators are
-//     renormalised to the true running max `m` every KV tile (the expensive
-//     128-VGPR `v_pk_mul_f32` rescale tail in fmha_alu_D_upd + the 6-reg
-//     partial in fmha_alu1). Bit-identical to the pre-Part-2 kernel.
-//   1: FA4-style conditional (skipped) rescale. Carry the accumulators in the
-//     frame of a *committed* max `m_commit` that only advances (with a rescale)
-//     when the true max pulls ahead by more than τ = log2 of the safe exp2
-//     bound. Between commits the shifted scores stay ≤ τ (exp2 ≤ 2^τ, fp32-
-//     safe) so o_acc/l just accumulate — the rescale multiplies are skipped.
-//     The decision is made wave-uniformly (ballot: rescale if ANY lane needs
-//     it) so the guard is a scalar branch with no divergence. Mathematically
-//     exact (the m_commit frame cancels in o_acc/l; LSE uses m_commit), so no
-//     end-of-loop correction is needed. Only applied on the 2-warp-group
-//     prefill path (see kCondRescale); decode keeps always-rescale. Part-1's
-//     --headroom instrument predicts ~85% (prefill) of rescales are skippable.
-// Defined BEFORE the includes so unified_attention_core_loop_scheduler.hpp can
-// gate its per-phase sched_group_barrier VALU hints on it (the gemm1+D_upd
-// phase reserves ~36 VALU slots for the rescale tail that this skips).
+// ON (FA4 prefill only): conditional (skipped) online-softmax rescale. Carry the
+// o_acc/l accumulators in the frame of a committed max `m_commit` that advances
+// (with a rescale) only when the true max pulls ahead by more than τ; between
+// commits the shifted scores stay <= τ (exp2 <= 2^τ, fp32-safe) so the rescale
+// multiplies are skipped. The decision is wave-uniform (ballot) so it is a scalar
+// branch with no divergence. Mathematically exact (m_commit cancels in o_acc/l;
+// LSE uses m_commit). Decode keeps always-rescale (see kCondRescale). Defined
+// before the includes so the core-loop scheduler can drop the rescale's VALU slot
+// reservation in lock-step.
 #if !defined(CONDITIONAL_RESCALE)
 #define CONDITIONAL_RESCALE 1
 #endif
-// τ in scaled-logit (log2) units. exp2(τ) bounds the un-rescaled scores; 8 =>
-// max intermediate exp2 == 256, comfortably inside fp32 range even summed over
-// thousands of keys. FA4 uses the same log2(256)=8.
+// τ in scaled-logit (log2) units; exp2(τ) bounds the un-rescaled scores. 8 =>
+// max intermediate exp2 == 256, fp32-safe even summed over thousands of keys.
 #if !defined(CONDITIONAL_RESCALE_TAU)
 #define CONDITIONAL_RESCALE_TAU 8.0f
 #endif
@@ -666,6 +580,12 @@ struct UnifiedAttentionPipeline
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
         const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
 
+        // Design A deep async ring depth (decode: kDecodeStages; FA4: 2). The K
+        // buffers occupy LDS slots [0, kRingStages); the V buffers follow at
+        // [kRingStages, 2*kRingStages) -- the V store descriptor's K-buffer base
+        // (KBufCount template arg) must therefore equal kRingStages too.
+        constexpr index_t kRingStages = Policy::template GetRingStages<Problem>();
+
         constexpr index_t KStoreWarpShift = Policy::template GetKStoreWarpShift<Problem>();
         auto k_lds_window_store = generate_tuple(
             [&](auto i_buf) {
@@ -675,15 +595,17 @@ struct UnifiedAttentionPipeline
                                                                   KLoadNumWarps,
                                                                   KStoreWarpShift>(i_buf));
             },
-            number<2>{});
+            number<kRingStages>{});
 
         auto v_lds_window_store = generate_tuple(
             [&](auto i_buf) {
                 return make_lds_tile_window<KDataType>(
                     smem_ptr,
-                    Policy::template MakeVLdsStoreBlockDescriptor<Problem, VLoadNumWarps>(i_buf));
+                    Policy::template MakeVLdsStoreBlockDescriptor<Problem,
+                                                                  VLoadNumWarps,
+                                                                  kRingStages>(i_buf));
             },
-            number<2>{});
+            number<kRingStages>{});
 
         statically_indexed_array<
             decltype(make_tile_window(
@@ -691,7 +613,7 @@ struct UnifiedAttentionPipeline
                     nullptr,
                     Policy::template MakeKLdsLoadBlockDescriptor<Problem, KLoadNumWarps>()),
                 Policy::template MakeKRegTileDistribution<Problem>())),
-            2>
+            kRingStages>
             k_lds_window_load;
 
         statically_indexed_array<
@@ -700,7 +622,7 @@ struct UnifiedAttentionPipeline
                     nullptr,
                     Policy::template MakeVLdsLoadBlockDescriptor<Problem, VLoadNumWarps>()),
                 Policy::template MakeVRegTileDistribution<Problem>())),
-            2>
+            kRingStages>
             v_lds_window_load;
 
         decltype(make_static_distributed_tensor<QDataType>(
@@ -783,8 +705,10 @@ struct UnifiedAttentionPipeline
         bool need_rescale = true;
 #endif
 
-        // initialize k_lds_window and v_lds_window
-        static_for<0, 2, 1>{}([&](auto idx) {
+        // initialize k_lds_window and v_lds_window. K buffers occupy LDS slots
+        // [0, kRingStages); V buffers follow at [kRingStages, 2*kRingStages),
+        // matching the V store descriptor's KBufCount==kRingStages base.
+        static_for<0, kRingStages, 1>{}([&](auto idx) {
             k_lds_window_load(idx) = make_tile_window(
                 make_lds_tile_window<KDataType>(
                     static_cast<char*>(smem_ptr) + (idx)*Policy::template GetSmemSizeKV<Problem>(),
@@ -792,11 +716,12 @@ struct UnifiedAttentionPipeline
                 Policy::template MakeKRegTileDistribution<Problem>());
         });
 
-        static_for<0, 2, 1>{}([&](auto idx) {
+        static_for<0, kRingStages, 1>{}([&](auto idx) {
             v_lds_window_load(idx) =
                 make_tile_window(make_lds_tile_window<VDataType>(
                                      static_cast<char*>(smem_ptr) +
-                                         (idx + 2) * Policy::template GetSmemSizeKV<Problem>(),
+                                         (idx + kRingStages) *
+                                             Policy::template GetSmemSizeKV<Problem>(),
                                      Policy::template MakeVLdsLoadBlockDescriptor<Problem,
                                                                                  VLoadNumWarps>()),
                                  Policy::template MakeVRegTileDistribution<Problem>());
@@ -2967,6 +2892,12 @@ struct UnifiedAttentionPipeline
             gemm(xdl_SP_p23_reg_idx, /*gemm_idx=*/number<1>{});
         };
 
+        // Set by the N-deep decode ring (kRingStages>2) when it finalizes the
+        // last tile's deferred PV *inline* (it must, because that tile's V lives
+        // in LDS ring slot r%kRingStages, not the parity slot fmha_post_process
+        // assumes). Suppresses the shared post-process below in that case.
+        bool decode_ring_final_pv_done = false;
+
         // pre-stage
         {
             ASM_MARKER("before pre-stage");
@@ -3020,12 +2951,19 @@ struct UnifiedAttentionPipeline
                     goto label_main_loops_exit;
                 }
 
-                if(2 < num_total_loop)
+                // K2 prefetch into buf0 (the freed K0 slot). Only the 2-buffer
+                // pipeline does this here; the N-deep ring (kRingStages>2) fills
+                // K2..K(N-1) into their own distinct slots inside the decode
+                // block below, so it must NOT pre-issue K2 into buf0.
+                if constexpr(kRingStages == 2)
                 {
-                    K_mem_load(number<0>{}); // mem_K2
+                    if(2 < num_total_loop)
+                    {
+                        K_mem_load(number<0>{}); // mem_K2
 
-                    s_waitcnt_vmcnt<K_mem_su_ld_insts + V_mem_su_ld_insts>();
-                    __builtin_amdgcn_s_barrier();
+                        s_waitcnt_vmcnt<K_mem_su_ld_insts + V_mem_su_ld_insts>();
+                        __builtin_amdgcn_s_barrier();
+                    }
                 }
 
                 ASM_MARKER("end pre-stage");
@@ -3043,6 +2981,8 @@ struct UnifiedAttentionPipeline
                 //   K1 in LDS (K buf 1) if num_total_loop >= 2
                 //   K2 loading to LDS (K buf 0) if num_total_loop >= 3
 
+                if constexpr(kRingStages == 2)
+                {
                 // Step 1: consume V0, K1 -> produce PV(0), QK(1)
                 s_waitcnt_vmcnt<0>();
                 __builtin_amdgcn_s_barrier();
@@ -3118,6 +3058,93 @@ struct UnifiedAttentionPipeline
                     fmha_alu0(number<1>{});
                     fmha_alu_D_upd();
                     i_total_loops++;
+                }
+                } // end if constexpr(kRingStages == 2)
+                else
+                {
+                    // ===== Design A: N-deep async KV ring (decode) =====
+                    // The pre-stage left: K_r0 consumed, K_r1 -> slot 1,
+                    // V_r0 -> slot 0, and sp(0)=QK(r0) (alu1 pending). Fill the
+                    // rest of the ring so K_r1..K_r(N-1) and V_r0..V_r(N-2) are
+                    // all in flight (N-1 of each); slot(tile t) = t % N. Loads
+                    // issued past the split end harmlessly reload the last tile
+                    // into slots that are never consumed (K/V_mem_load stop
+                    // advancing their DRAM window at the end), so no bound
+                    // guards are needed and the in-flight count -- hence the
+                    // vmcnt threshold below -- stays constant for every stage.
+                    static_for<2, kRingStages, 1>{}(
+                        [&](auto m) { K_mem_load(number<m % kRingStages>{}); });
+                    static_for<1, kRingStages - 1, 1>{}(
+                        [&](auto m) { V_mem_load(number<m % kRingStages>{}); });
+
+                    // With the ring full, only the two oldest in-flight tiles
+                    // (the K_r / V_(r-1) consumed this stage) must be resident;
+                    // the other N-2 of each stay in flight -> deeper HBM overlap
+                    // than the 2-buffer path's full vmcnt<0> drain. (N==2 would
+                    // reduce to vmcnt<0>, i.e. the original; that case is handled
+                    // by the branch above.)
+                    constexpr index_t kRingVmcnt =
+                        (kRingStages - 2) * (K_mem_su_ld_insts + V_mem_su_ld_insts);
+
+                    // Unroll by N so every LDS ring slot is a compile-time index.
+                    // Stage s processes relative tile r = r_base + s, r_base ≡ 1
+                    // (mod N): read K_r from slot (s+1)%N and V_(r-1) from slot s;
+                    // refill the two slots freed last stage (K_(r-1) slot s,
+                    // V_(r-2) slot (s-1)%N) at the top -- different LDS buffers
+                    // than the ones read below, so the async prefetch has no WAR
+                    // and overlaps this stage's PV+QK. sp keeps its 2-way
+                    // deferred-PV parity (N is even).
+                    while(i_total_loops < num_total_loop)
+                    {
+                        static_for<0, kRingStages, 1>{}([&](auto s) {
+                            constexpr index_t k_rd  = (s + 1) % kRingStages;
+                            constexpr index_t v_rd  = s % kRingStages;
+                            constexpr index_t k_pf  = s % kRingStages;
+                            constexpr index_t v_pf  = (s + kRingStages - 1) % kRingStages;
+                            constexpr index_t sp_pv = s % 2;
+                            constexpr index_t sp_qk = (s + 1) % 2;
+
+                            if(i_total_loops < num_total_loop)
+                            {
+                                s_waitcnt_vmcnt<kRingVmcnt>();
+                                __builtin_amdgcn_s_barrier();
+
+                                slide_page_table();
+                                K_mem_load(number<k_pf>{}); // K_(r+N-1) -> freed K slot
+                                V_mem_load(number<v_pf>{}); // V_(r+N-2) -> freed V slot
+
+                                V_lds_load(number<v_rd>{}); // V_(r-1)
+                                s_waitcnt_lgkmcnt<0>();
+                                fmha_alu1(number<sp_pv>{}); // finalize sp(r-1) -> P
+                                gemm(number<sp_pv>{}, /*gemm_idx=*/number<1>{}); // PV
+
+                                K_lds_load(number<k_rd>{}); // K_r
+                                s_waitcnt_lgkmcnt<0>();
+                                gemm(number<sp_qk>{}, /*gemm_idx=*/number<0>{}); // QK -> sp(r)
+                                fmha_mask(number<sp_qk>{});
+                                fmha_alu0(number<sp_qk>{});
+                                fmha_alu_D_upd();
+                                i_total_loops++;
+
+                                // Last tile: its PV would be deferred to a stage
+                                // that never runs. Finalize it now -- V_r lives in
+                                // the compile-time slot (s+1)%N (== k_rd). Drain
+                                // first so V_r (left in flight by the staged wait)
+                                // is resident; this also tells the shared epilogue
+                                // not to re-run the (parity-indexed) post-process.
+                                if(i_total_loops >= num_total_loop)
+                                {
+                                    s_waitcnt_vmcnt<0>();
+                                    __builtin_amdgcn_s_barrier();
+                                    V_lds_load(number<k_rd>{}); // V_r
+                                    s_waitcnt_lgkmcnt<0>();
+                                    fmha_alu1(number<sp_qk>{});
+                                    gemm(number<sp_qk>{}, /*gemm_idx=*/number<1>{}); // PV
+                                    decode_ring_final_pv_done = true;
+                                }
+                            }
+                        });
+                    }
                 }
             }
             else
@@ -3203,8 +3230,11 @@ struct UnifiedAttentionPipeline
             if(!(num_iters % 2))
                 fa4_epi(number<1>{});
         }
-        else
+        else if(!decode_ring_final_pv_done)
         {
+            // (The N-deep decode ring already finalized the last tile's PV
+            // inline -- see decode_ring_final_pv_done -- because its V sits in
+            // an LDS ring slot, not the parity slot this post-process assumes.)
             if(num_iters % 2)
             {
                 fmha_post_process(number<1>{});

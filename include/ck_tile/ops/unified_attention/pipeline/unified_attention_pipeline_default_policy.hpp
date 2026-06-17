@@ -687,6 +687,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
     // alone tile the full V buffer. Default = the shape's NumWarps (cooperative).
     template <typename Problem,
               ck_tile::index_t NumWarpsOverride = Problem::UnifiedAttentionShape::NumWarps,
+              ck_tile::index_t KBufCount        = 2,
               ck_tile::index_t IBuf             = 0>
     CK_TILE_DEVICE static constexpr auto
     MakeVLdsStoreBlockDescriptor(ck_tile::number<IBuf> = ck_tile::number<0>{})
@@ -728,7 +729,7 @@ struct UnifiedAttentionPipelineDefaultPolicy
                        number<WarpSize * KVector + kPad>{},
                        number<KVector>{},
                        number<1>{}),
-            number<(IBuf + 2) * GetSingleSmemElementSpaceSize<Problem>()>{},
+            number<(IBuf + KBufCount) * GetSingleSmemElementSpaceSize<Problem>()>{},
             number<KVector>{},
             number<1>{});
 
@@ -855,6 +856,33 @@ struct UnifiedAttentionPipelineDefaultPolicy
 #endif
     static constexpr bool kFA4WG1LoadsK = UA_FA4_WG1_LOADS_K;
 
+    // Design A (decode deep async ring). Number of K/V LDS landing buffers for
+    // the single-warp-group (decode) path: raising it from 2 keeps N-1 KV-tile
+    // DRAM loads in flight so the loop can stage `vmcnt` partial waits instead of
+    // a full per-tile drain (the memory-bound long-context decode regime). Must
+    // be EVEN (the deferred-PV score double-buffer keeps 2-way parity, which is
+    // only compile-time resolvable across the N-unroll when N is even) and >= 2.
+    // Default 2 == the original 2-buffer serial pipeline, bit-identical. The
+    // 2-warp-group FA4 (prefill) path always uses 2 regardless. LDS cost is
+    // 2*N*GetSmemSizeKV, so larger N may cost occupancy on the LDS-bound decode
+    // tiers -- sweep per tier.
+#ifndef UA_DECODE_STAGES
+#define UA_DECODE_STAGES 2
+#endif
+    static constexpr ck_tile::index_t kDecodeStages = UA_DECODE_STAGES;
+    static_assert(kDecodeStages >= 2 && (kDecodeStages % 2 == 0),
+                  "UA_DECODE_STAGES must be an even integer >= 2");
+
+    // Ring depth actually used by a given kernel instance: the deep ring is a
+    // decode-only (single-warp-group) lever; the FA4 prefill path keeps 2.
+    template <typename Problem>
+    CK_TILE_DEVICE static constexpr ck_tile::index_t GetRingStages()
+    {
+        constexpr ck_tile::index_t NumWarpGroups =
+            Problem::kBlockSize / NumThreadPerWarpGroup;
+        return (NumWarpGroups == 1) ? kDecodeStages : 2;
+    }
+
     // Number of waves that cooperate on a V DRAM->LDS load. For the 2-warp-group
     // FA4 path with kFA4WG0LoadsV, this is one warp group's waves (so WG0 alone
     // fills the tile); otherwise it's the full block (original cooperative load).
@@ -898,7 +926,10 @@ struct UnifiedAttentionPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return 4 * GetSmemSizeKV<Problem>();
+        // kRingStages K buffers + kRingStages V buffers. Decode uses
+        // kDecodeStages (>=2), FA4 prefill stays 2 -> the default (N==2)
+        // reproduces the original 4*GetSmemSizeKV budget exactly.
+        return 2 * GetRingStages<Problem>() * GetSmemSizeKV<Problem>();
     }
 };
 
