@@ -1025,8 +1025,12 @@ def buildAndTest(Map conf=[:]){
             }
             setGithubStatus("${env.STAGE_NAME}", 'success', "Stage ${env.STAGE_NAME} passed")
         }
+        catch (org.ck.NodeFault e)      { throw e }   // reroute handled by runOnHealthyNode
+        catch (org.ck.TransientFault e) { throw e }   // retry handled by runOnHealthyNode
+        catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException e) { throw e }  // abort: no status update
         catch (Exception e){
-                throw e   // runOnHealthyNode sets failure status — not here
+                setGithubStatus("${env.STAGE_NAME}", 'failure', "Stage ${env.STAGE_NAME} failed")
+                throw e
         }
         return retimage
 }
