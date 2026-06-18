@@ -65,7 +65,7 @@ struct WarpGemmAttributeMfma
     static constexpr auto AttrNumAccessB  = AttrNumAccessB_;
     static constexpr auto AttrNumAccessBV = get_wgattr_num_access<AttrNumAccessB>::value;
 
-    static constexpr bool UsePackNumAccess = AttrNumAccessA != AttrNumAccessB;
+    static constexpr bool UsePackNumAccess = (AttrNumAccessA != AttrNumAccessB);
 
     using ADataType = typename Impl::ADataType;
     using BDataType = typename Impl::BDataType;
@@ -93,6 +93,7 @@ struct WarpGemmAttributeMfma
     {
         static_assert(kKPerThread % AttrNumAccessV_ == 0,
                       "kKPerThread must be divisible by NumAccess");
+
         if constexpr(AttrNumAccessV_ == 1)
         {
             return tile_distribution_encoding<
@@ -205,7 +206,7 @@ struct WarpGemmAttributeMfmaIterateK
     static constexpr auto AttrNumAccessB  = AttrNumAccessB_;
     static constexpr auto AttrNumAccessBV = get_wgattr_num_access<AttrNumAccessB>::value;
 
-    static constexpr bool UsePackNumAccess = AttrNumAccessA != AttrNumAccessB;
+    static constexpr bool UsePackNumAccess = (AttrNumAccessA != AttrNumAccessB);
 
     using ADataType = typename Impl::ADataType;
     using BDataType = typename Impl::BDataType;

@@ -177,6 +177,17 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
     static constexpr auto is_a_load_tr_v = bool_constant<PipelineImplBase::is_a_load_tr>{};
     static constexpr auto is_b_load_tr_v = bool_constant<PipelineImplBase::is_b_load_tr>{};
 
+#if defined(__gfx950__)
+    static_assert(!(std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor> &&
+                    !PipelineImplBase::is_a_load_tr),
+                  "A=ColumnMajor requires transpose load (ds_read_tr), but it is disabled for "
+                  "this K warp tile size. Use a smaller K warp tile (e.g. 32x32x64 MFMA).");
+    static_assert(!(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor> &&
+                    !PipelineImplBase::is_b_load_tr),
+                  "B=RowMajor requires transpose load (ds_read_tr), but it is disabled for "
+                  "this K warp tile size. Use a smaller K warp tile (e.g. 32x32x64 MFMA).");
+#endif
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
     {
         // clang-format off
@@ -444,13 +455,13 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 b_copy_lds_window1, b_async_tile_windows[number<0>{}], b_dram_tile_window_step);
 
             // tile distribution for the register tiles
-            constexpr auto ALdsTileDistr =
-                make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
-            constexpr auto BLdsTileDistr =
-                make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode());
+            using ALdsTileDistr =
+                decltype(make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode()));
+            using BLdsTileDistr =
+                decltype(make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode()));
 
-            using ALdsTile = decltype(make_static_distributed_tensor<ADataType>(ALdsTileDistr));
-            using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
+            using ALdsTile = decltype(make_static_distributed_tensor<ADataType>(ALdsTileDistr{}));
+            using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr{}));
 
             // register tiles; double buffering -> a register tile corresponds to a LDS tile window
             ALdsTile a_block_tile0, a_block_tile1;
@@ -497,37 +508,36 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
                 move_tile_window(scale_b_dram_window, scale_b_dram_tile_window_step);
             };
 
-            /// TODO: enable transpose
-            // constexpr auto a_lds_input_tile_distr = [ALdsTileDistr]() {
-            //     if constexpr(is_a_load_tr_v)
-            //         return make_static_tile_distribution(
-            //             typename InputTileDistributionTraits<
-            //                 typename decltype(ALdsTileDistr)::DstrEncode,
-            //                 typename Problem::ADataType>::TransposedDstrEncode{});
-            //     else
-            //         return ALdsTileDistr;
-            // }();
-            // constexpr auto b_lds_input_tile_distr = [BLdsTileDistr]() {
-            //     if constexpr(is_b_load_tr_v)
-            //         return make_static_tile_distribution(
-            //             typename InputTileDistributionTraits<
-            //                 typename decltype(BLdsTileDistr)::DstrEncode,
-            //                 typename Problem::BDataType>::TransposedDstrEncode{});
-            //     else
-            //         return BLdsTileDistr;
-            // }();
+            constexpr auto a_lds_input_tile_distr = []() {
+                if constexpr(is_a_load_tr_v)
+                    return make_static_tile_distribution(
+                        typename InputTileDistributionTraits<
+                            typename ALdsTileDistr::DstrEncode,
+                            typename Problem::ADataType>::TransposedDstrEncode{});
+                else
+                    return ALdsTileDistr{};
+            }();
+            constexpr auto b_lds_input_tile_distr = []() {
+                if constexpr(is_b_load_tr_v)
+                    return make_static_tile_distribution(
+                        typename InputTileDistributionTraits<
+                            typename BLdsTileDistr::DstrEncode,
+                            typename Problem::BDataType>::TransposedDstrEncode{});
+                else
+                    return BLdsTileDistr{};
+            }();
 
             // LDS tile windows for reading;
             // they share the data pointer with the LDS windows for storing
             // but also associate with a distribution to produce a register tile when reading
             auto a_lds_ld_window0 =
-                make_tile_window(a_lds_block0, a_lds_shape, {0, 0}, ALdsTileDistr);
+                make_tile_window(a_lds_block0, a_lds_shape, {0, 0}, a_lds_input_tile_distr);
             auto a_lds_ld_window1 =
-                make_tile_window(a_lds_block1, a_lds_shape, {0, 0}, ALdsTileDistr);
+                make_tile_window(a_lds_block1, a_lds_shape, {0, 0}, a_lds_input_tile_distr);
             auto b_lds_ld_window0 =
-                make_tile_window(b_lds_block0, b_lds_shape, {0, 0}, BLdsTileDistr);
+                make_tile_window(b_lds_block0, b_lds_shape, {0, 0}, b_lds_input_tile_distr);
             auto b_lds_ld_window1 =
-                make_tile_window(b_lds_block1, b_lds_shape, {0, 0}, BLdsTileDistr);
+                make_tile_window(b_lds_block1, b_lds_shape, {0, 0}, b_lds_input_tile_distr);
 
             static_assert(!(is_tile_window_linear_v<decltype(a_lds_ld_window0)>) &&
                               !(is_tile_window_linear_v<decltype(a_lds_ld_window1)>) &&
@@ -551,7 +561,6 @@ struct MXGemmPipelineAgBgCrCompAsync : public BaseMXGemmPipelineAgBgCrCompAsync<
 
             // Load scales for iteration 0 (ping)
             load_scales_from_dram(scale_a_tile_ping, scale_b_tile_ping);
-
             // Load scales for iteration 1 (pong) if needed
             if(num_loop > 1)
             {

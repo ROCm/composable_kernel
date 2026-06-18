@@ -131,6 +131,27 @@ struct MXfp8_GemmConfig16_Preshuffle : MxGemmConfig
     static constexpr bool Preshuffle         = true;
 };
 
+struct MxGemmConfig32 : MxGemmConfig
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 64;
+};
+
+struct MXfp4_GemmConfig32 : MxGemmConfig32
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 256;
+};
+
+struct MXfp8_GemmConfig32 : MxGemmConfig32
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 256;
+};
+
 // Variant with M/N padding enabled. Used to cover shapes where M/N are not multiples of
 // the respective block tiles (MX_GemmConfig16 has M_Tile = 64, N_Tile = 128). K is still
 // required to be a multiple of K_Tile -- the MX comp-async pipeline does not support K padding

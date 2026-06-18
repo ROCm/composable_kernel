@@ -767,6 +767,11 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
     CK_TILE_DEVICE void operator()(KernelArgs<ScaleM, ScaleN> kargs,
                                    int partition_idx = get_block_id()) const
     {
+#if !defined(__gfx950__)
+        static_assert(sizeof(MXGemmPipeline) == 0, "CKTile MX GEMM kernels require gfx950.");
+        ignore = kargs;
+        ignore = partition_idx;
+#else
         const int total_work_tile_cnt =
             amd_wave_read_first_lane(TilePartitioner::GridSize(kargs.M, kargs.N));
 
@@ -851,6 +856,7 @@ struct MXGemmKernel : UniversalGemmKernel<TilePartitioner_, MXGemmPipeline_, Epi
             }
             partition_idx += gridDim.x;
         } while(UsePersistentKernel && partition_idx < total_work_tile_cnt);
+#endif
     }
 };
 
