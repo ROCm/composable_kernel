@@ -1368,6 +1368,7 @@ struct GroupedConvolutionBackwardWeightKernel
     {
         if constexpr(IsStreamK)
         {
+#if !defined(__gfx1250__)
             if constexpr(GemmPipeline_::Async)
             {
 #if defined(__gfx950__)
@@ -1378,6 +1379,7 @@ struct GroupedConvolutionBackwardWeightKernel
             {
                 RunStreamK(kargs);
             }
+#endif
         }
         else if constexpr(GroupedConvTraitsType_::ExplicitGemm)
         {

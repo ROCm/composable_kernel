@@ -16,7 +16,7 @@ Based on the GEMM codegen pattern.
 """
 
 import argparse
-import json
+import importlib
 import logging
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
@@ -42,32 +42,20 @@ except ImportError:
     ArchFilter = None
     OperatorType = None
 
-# Import tile configurations and shared validation rules from grouped_config_rules
-# (single source of truth)
-try:
-    from grouped_config_rules import (
-        COMMON_TILES,
-        TILE_TO_WAVE,
-        TILE_TO_WARP,
-        VARIANT_PIPELINES,
-        BWD_WEIGHT_TILES,
-        COMPV4_COMPATIBLE_TILES,
-        # Shared validation functions
-        check_vectors,
-        check_warp_coverage,
-        check_bwd_data_vec_coverage,
-        is_valid_pipeline_for_variant,
-        is_streamk_valid_for_variant,
-    )
-    HAS_TILE_CONFIGS = True
-except ImportError:
-    HAS_TILE_CONFIGS = False
-    COMMON_TILES = []
-    TILE_TO_WAVE = {}
-    TILE_TO_WARP = {}
-    VARIANT_PIPELINES = {}
-    BWD_WEIGHT_TILES = []
-    COMPV4_COMPATIBLE_TILES = []
+# Shared per-config validation helpers used by GroupedConvKernelConfig below.
+# The full set of rule helpers (tiles, waves, vecs, pipelines, ...) is consumed
+# inside each rule set's get_configs() entry point, not here.
+from grouped_conv.grouped_config_rules_full import (
+    check_vectors,
+    is_valid_pipeline_for_variant,
+    is_streamk_valid_for_variant,
+)
+from grouped_conv.grouped_config_rules_default import (
+    check_wmma_instance,
+    check_wmma_native_warp_tile,
+    get_warp_size,
+    check_tile_coverage,
+)
 
 
 # ============================================================================
@@ -163,7 +151,7 @@ def deduce_block_per_cu(pipeline: str, double_smem_buffer: bool) -> int:
     # Pipelines that mandate double LDS (no user choice)
     _ALWAYS_DOUBLE = {"compv4", "comp_async"}
     # Pipelines that mandate single LDS (no user choice)
-    _ALWAYS_SINGLE = {"compv1", "compv2", "basic_v1", "basic_v2", "basic_async_v1"}
+    _ALWAYS_SINGLE = {"compv1", "compv2", "basic_v1", "basic_v2", "basic_async_v1", "wavelet"}
 
     if pipeline in _ALWAYS_DOUBLE:
         return 1
@@ -203,6 +191,10 @@ class GroupedConvKernelConfig:
 
     # Double buffering
     double_smem_buffer: bool = False
+
+    # Optional dtype tag — when set, this config is only generated for this dtype.
+    # Used by get_default_configs() when wave/warp pairs are dtype-specific.
+    datatype: Optional[str] = None
 
     def __post_init__(self):
         if self.vector_sizes is not None:
@@ -259,6 +251,7 @@ class GroupedConvKernelConfig:
             GroupedConvVariant.FORWARD: "fwd",
             GroupedConvVariant.BACKWARD_DATA: "bwd_data",
             GroupedConvVariant.BACKWARD_WEIGHT: "bwd_weight",
+            GroupedConvVariant.FORWARD_DEPTHWISE: "fwd",
         }[self.variant]
 
         # Core identity: variant, dtype, layout, dims
@@ -325,7 +318,7 @@ class GroupedConvKernelConfig:
     def is_valid_for_arch(self, arch: Optional[str] = None) -> bool:
         """Check if configuration is valid for target architecture.
 
-        Uses shared validation rules from grouped_config_rules.py.
+        Uses shared validation rules from grouped_config_rules_default.py.
         """
         target_arch = arch if arch is not None else self.arch
 
@@ -353,34 +346,6 @@ class GroupedConvKernelConfig:
             )
             return False
 
-        # Reject tile dims that exceed single-warp vector load coverage
-        t = self.tile
-        if not check_warp_coverage(
-            t.tile_m, t.tile_n, t.tile_k,
-            self.vector_size_a, self.vector_size_b,
-            variant=variant_str,
-        ):
-            log.warning(
-                f"Rejecting config: tile exceeds warp coverage "
-                f"(tile={t.tile_m}x{t.tile_n}x{t.tile_k}, "
-                f"vec_a={self.vector_size_a}, vec_b={self.vector_size_b})"
-            )
-            return False
-
-        # Bwd_data only: vector width must not exceed elements per thread
-        if self.variant == GroupedConvVariant.BACKWARD_DATA:
-            if not check_bwd_data_vec_coverage(
-                t.tile_m, t.tile_n, t.tile_k,
-                t.warp_m, t.warp_n, t.warp_k,
-                self.vector_size_a, self.vector_size_b,
-            ):
-                log.warning(
-                    f"Rejecting bwd_data config: vec exceeds tile coverage "
-                    f"(tile={t.tile_m}x{t.tile_n}x{t.tile_k}, "
-                    f"vec_a={self.vector_size_a}, vec_b={self.vector_size_b})"
-                )
-                return False
-
         # Check warp configuration (from arch_specs)
         try:
             from arch_specs_generated import WARP_SUPPORTED_COMBINATIONS
@@ -388,11 +353,40 @@ class GroupedConvKernelConfig:
             supported = WARP_SUPPORTED_COMBINATIONS.get(target_arch)
             if supported is None:
                 return False  # Unknown architecture
-            warp_cfg = [t.warp_m, t.warp_n, t.warp_k]
+            warp_cfg = [self.tile.warp_m, self.tile.warp_n, self.tile.warp_k]
             if warp_cfg not in supported:
                 return False
         except ImportError:
             pass  # Allow if arch_specs not available
+
+        warp_size = get_warp_size(target_arch)
+        t = self.tile
+
+        # WMMA-specific constraints for warp_size=32 targets (gfx11/gfx12)
+        if not check_wmma_instance(
+            warp_size=warp_size,
+            k_per_block=t.tile_k,
+            k_warp=t.warp_k,
+            k_per_xdl=t.warp_tile_k,
+            m_per_xdl=t.warp_tile_m,
+            dtype=self.datatype if self.datatype is not None else "float",
+        ):
+            return False
+        
+        block_size = warp_size * t.warp_k * t.warp_m * t.warp_n
+        if not check_tile_coverage(
+            tile_m=t.tile_m, tile_n=t.tile_n, tile_k=t.tile_k,
+            vec_a = self.vector_size_a, vec_b = self.vector_size_b, pipeline_version=tr.pipeline,
+            block_size=block_size,
+        ):
+            return False
+
+        # Native warp-tile constraint: stream-K unsupported on warp_size=32
+        if not check_wmma_native_warp_tile(
+            warp_size=warp_size,
+            streamk_enabled=tr.streamk_config.streamk_enabled,
+        ):
+            return False
 
         return True
 
@@ -470,6 +464,7 @@ class GroupedConvTypeMappings:
         "compv6": "GemmPipeline::COMPUTE_V6",
         "comp_async": "GemmPipeline::COMPUTE_ASYNC",
         "basic_async_v1": "GemmPipeline::BASIC_ASYNC_V1",
+        "wavelet": "GemmPipeline::WAVELET",
     }
 
     SCHEDULER_TO_CK = {
@@ -691,7 +686,16 @@ struct {kernel_name}_Config {{
         # whose TailHandler takes (run_func, has_hot_loop) and invokes
         # run_func(bool_constant<...>) -- 1 lambda arg. Other pipelines pass
         # (run_func, has_hot_loop, tail_number) and invoke 2-arg run_func.
-        if tr.pipeline in ("compv1", "basic_v1", "basic_async_v1"):
+        if tr.pipeline == "wavelet":
+            # The wavelet pipeline has no Base*/TailHandler. Its operator()
+            # consumes num_loop at runtime, so there is no compile-time hot-loop
+            # / tail dispatch -- launch the kernel once directly. (The Run lambda
+            # ignores has_hot_loop_/tail_number_ for the conv kernel.)
+            tail_handler_call = "Run(has_hot_loop, tail_num);"
+            run_lambda_signature = (
+                "[&](const auto has_hot_loop_, const auto tail_number_)"
+            )
+        elif tr.pipeline in ("compv1", "basic_v1", "basic_async_v1"):
             tail_handler_call = "BaseGemmPipeline::TailHandler(Run, has_hot_loop);"
             run_lambda_signature = "[&](const auto has_hot_loop_)"
         else:
@@ -859,6 +863,9 @@ constexpr const char* CONV_{direction_prefix}_KERNEL_NAME = {ns_name}::CONV_{dir
     # (from conv_configs.hpp PipelineTypeTraits -- basic_v1/mem/compv3)
     # CompV4/V5/V6/comp_async/basic_async_v1 use their own default policies.
     _CONV_POLICY_PIPELINES = {"basic_v1", "basic_v2", "compv1", "compv2", "mem", "compv3"}
+    # Number of additional load waves for the Wavelet pipeline
+    # (matches TilePipelineType<GemmPipeline::WAVELET> in conv_tile_tuning_params.hpp)
+    _WAVELET_NUM_LOAD_WAVES = 4
 
     _SPECIALIZATION_TO_CK = {
         "default": "ConvolutionSpecialization::Default",
@@ -886,6 +893,7 @@ constexpr const char* CONV_{direction_prefix}_KERNEL_NAME = {ns_name}::CONV_{dir
             "compv6": "GemmPipelineAgBgCrCompV6",
             "comp_async": "GemmPipelineAgBgCrCompAsync",
             "basic_async_v1": "GemmPipelineAGmemBGmemCRegAsyncV1",
+            "wavelet": "GemmPipelineAgBgCrWavelet",
         }
         return pipelines.get(pipeline, "GemmPipelineAgBgCrCompV3")
 
@@ -896,6 +904,8 @@ constexpr const char* CONV_{direction_prefix}_KERNEL_NAME = {ns_name}::CONV_{dir
         as a second template argument for conv-specific LDS banking.
         """
         base = self._get_pipeline(pipeline)
+        if pipeline == "wavelet":
+            return f"{base}<{problem_type}, GroupedConvUniversalPipelineAgBgCrPolicy, {self._WAVELET_NUM_LOAD_WAVES}>"
         if pipeline in self._CONV_POLICY_PIPELINES:
             return f"{base}<{problem_type}, GroupedConvUniversalPipelineAgBgCrPolicy>"
         return f"{base}<{problem_type}>"
@@ -918,6 +928,9 @@ constexpr const char* CONV_{direction_prefix}_KERNEL_NAME = {ns_name}::CONV_{dir
             "compv6": "BaseGemmPipelineAgBgCrCompV6",
             "comp_async": "BaseGemmPipelineAgBgCrCompAsync",
             "basic_async_v1": "BaseGemmPipelineAGmemBGmemCRegV1",
+            # The wavelet pipeline has no separate Base class; it exposes the
+            # BlockHasHotloop / GetBlockLoopTailNum statics directly.
+            "wavelet": "GemmPipelineAgBgCrWavelet",
         }
         return pipelines.get(pipeline, "BaseGemmPipelineAgBgCrCompV3")
 
@@ -1669,6 +1682,7 @@ class GroupedConvDispatcherWrapperGenerator:
         "compv6": "Pipeline::CompV6",
         "preshufflev1": "Pipeline::PreShuffleV1",
         "preshufflev2": "Pipeline::PreShuffleV2",
+        "wavelet": "Pipeline::Wavelet",
     }
 
     SCHEDULER_TO_DISPATCHER = {
@@ -1803,298 +1817,61 @@ using {launcher_alias} = {kernel_name}_Launcher;
 """
 
 
-# ============================================================================
-# Configuration Parser
-# ============================================================================
-
-
-def load_depthwise_configs_from_json(
-    data: dict,
-    arch: str = "gfx942",
-    instance_id: Optional[int] = None,
-) -> List[DepthwiseConvKernelConfig]:
-    """Load depthwise convolution configs from parsed JSON data.
-
-    Args:
-        data: Parsed JSON config data
-        arch: Target GPU architecture
-        instance_id: If specified, load only the instance with this ID
-
-    Returns:
-        List of DepthwiseConvKernelConfig objects
-    """
-    ndim_spatial = data["ndim_spatial"]
-    layout = data["layout"]
-    datatype = data["datatype"]
-
-    instances = data["instances"]
-    if instance_id is not None:
-        instances = [inst for inst in instances if inst["id"] == instance_id]
-        if not instances:
-            raise ValueError(f"Instance ID {instance_id} not found in depthwise config")
-
-    configs = []
-    for inst in instances:
-        config = DepthwiseConvKernelConfig(
-            tile_h=inst["tile_h"],
-            tile_w=inst["tile_w"],
-            filt=inst["filt"],
-            str_h=inst["str_h"],
-            str_w=inst["str_w"],
-            pad_h=inst["pad_h"],
-            pad_w=inst["pad_w"],
-            nbatch=inst["nbatch"],
-            sub_h=inst["sub_h"],
-            sub_w=inst["sub_w"],
-            in_vec=inst["in_vec"],
-            out_vec=inst["out_vec"],
-            ndim_spatial=ndim_spatial,
-            arch=arch,
-            layout=layout,
-            datatype=datatype,
-        )
-        configs.append(config)
-
-    log.info(
-        f"Loaded {len(configs)} depthwise configs "
-        f"(layout={layout}, dtype={datatype})"
-    )
-    return configs
-
-
-def load_configs_from_json(
-    config_path: Path,
-    arch: str = "gfx942",
-    instance_id: Optional[int] = None,
-) -> List[Union[GroupedConvKernelConfig, DepthwiseConvKernelConfig]]:
-    """Load kernel configurations from a JSON config file.
-
-    Args:
-        config_path: Path to JSON config file
-        arch: Target GPU architecture
-        instance_id: If specified, load only the instance with this ID
-
-    Returns:
-        List of GroupedConvKernelConfig objects
-    """
-    with open(config_path, "r") as f:
-        data = json.load(f)
-
-    variant_map = {
-        "forward": GroupedConvVariant.FORWARD,
-        "fwd": GroupedConvVariant.FORWARD,
-        "forward_depthwise": GroupedConvVariant.FORWARD_DEPTHWISE,
-        "bwd_data": GroupedConvVariant.BACKWARD_DATA,
-        "bwd_weight": GroupedConvVariant.BACKWARD_WEIGHT,
-    }
-    variant = variant_map.get(data["variant"])
-    if variant is None:
-        raise ValueError(f"Unknown variant: {data['variant']}")
-
-    if variant == GroupedConvVariant.FORWARD_DEPTHWISE:
-        return load_depthwise_configs_from_json(data, arch, instance_id)
-
-    ndim_spatial = data["ndim_spatial"]
-    layout = data["layout"]
-    datatype = data["datatype"]
-
-    instances = data["instances"]
-    if instance_id is not None:
-        instances = [inst for inst in instances if inst["id"] == instance_id]
-        if not instances:
-            raise ValueError(f"Instance ID {instance_id} not found in {config_path}")
-
-    configs = []
-    for inst in instances:
-        # Map specialization to pipeline constraints
-        # Specializations like filter1x1_stride1_pad0 don't change the pipeline config
-        # but are tracked in the trait for kernel naming and runtime checks
-
-        trait = GroupedConvTraitConfig(
-            pipeline=inst["pipeline"],
-            scheduler=inst["scheduler"],
-            epilogue=inst["epilogue"],
-            pad_m=True,
-            pad_n=True,
-            pad_k=True,
-            double_smem_buffer=inst.get("double_smem_buffer", False),
-            num_groups_to_merge=inst.get("num_groups_to_merge", 1),
-            split_image=inst.get("split_image", False),
-            explicit_gemm=inst.get("explicit_gemm", False),
-            two_stage=inst.get("two_stage", False),
-            specialization=inst.get("specialization", "default"),
-            streamk_config=StreamKConfig(
-                streamk_enabled=inst.get("streamk_enabled", False),
-                strategy=StreamKReductionStrategy(inst.get("streamk_reduction_strategy", "TREE")),
-                streamk_persistent=inst.get("streamk_persistent", False)
-            ) if inst.get("streamk_enabled", False) else StreamKConfig()
-        )
-
-        # compv2/basic_v2 (GemmPipelineAGmemBGmemCRegV2) is not compatible with
-        # CK Tile's GroupedConvolutionBackwardWeightKernel. The builder maps
-        # PipelineVersion::V2 to GemmPipelineAgBgCrMem (i.e. "mem"), not to
-        # GemmPipelineAGmemBGmemCRegV2. Skip if any config somehow has compv2.
-        if variant == GroupedConvVariant.BACKWARD_WEIGHT and trait.pipeline in ("compv2", "basic_v2"):
-            log.info(f"Skipping instance {inst['id']}: compv2/basic_v2 pipeline not compatible with CK Tile bwd_weight")
-            continue
-
-        config = GroupedConvKernelConfig(
-            tile=TileConfig(
-                tile_m=inst["tile_m"],
-                tile_n=inst["tile_n"],
-                tile_k=inst["tile_k"],
-                warp_m=inst["warp_m"],
-                warp_n=inst["warp_n"],
-                warp_k=inst["warp_k"],
-                warp_tile_m=inst["warp_tile_m"],
-                warp_tile_n=inst["warp_tile_n"],
-                warp_tile_k=inst["warp_tile_k"],
-            ),
-            trait=trait,
-            variant=variant,
-            ndim_spatial=ndim_spatial,
-            arch=arch,
-            layout=layout,
-            vector_size_a=inst["vector_size_a"],
-            vector_size_b=inst["vector_size_b"],
-            vector_size_c=inst["vector_size_c"],
-            num_wave_groups=inst.get("num_wave_groups", 1),
-        )
-        configs.append(config)
-
-    log.info(
-        f"Loaded {len(configs)} configs from {config_path} "
-        f"(variant={data['variant']}, layout={layout}, dtype={datatype})"
-    )
-    return configs
+# Each rule set maps to a (module, entry-point) pair with the uniform
+# get_configs(arch, variants, ndims, datatypes) signature; get_default_configs
+# imports the module and calls the named function, so no rule-set-specific logic
+# lives in the codegen. Builder-derived sets (profiler/tests) and subset sets
+# (tiny) reuse a shared module's entry points rather than thin wrapper modules.
+_RULE_SET_MODULES = {
+    "default":    ("grouped_conv.grouped_config_rules_default",    "get_configs"),
+    "full":       ("grouped_conv.grouped_config_rules_full",       "get_configs"),
+    "full-tests": ("grouped_conv.grouped_config_rules_full_tests", "get_configs"),
+    "profiler":   ("grouped_conv.grouped_config_rules_builder",    "get_configs_profiler"),
+    "tests":      ("grouped_conv.grouped_config_rules_builder",    "get_configs_tests"),
+    "tiny":       ("grouped_conv.grouped_config_rules_full_tests", "get_tiny_configs"),
+}
 
 
 def get_default_configs(
     arch: str = "gfx942",
     variants: Optional[List[GroupedConvVariant]] = None,
     ndims: Optional[List[int]] = None,
-) -> List[GroupedConvKernelConfig]:
+    datatypes: Optional[List[str]] = None,
+    rule_set: str = "profiler",
+) -> List[Union[GroupedConvKernelConfig, DepthwiseConvKernelConfig]]:
     """Get default grouped convolution configurations for target architecture.
 
-    Uses tile configurations from grouped_conv_instance_builder.py as single source of truth.
-    """
-    configs = []
+    Delegates to the selected rule set's uniform ``get_configs`` entry point.
 
+    Args:
+        arch: Target GPU architecture (e.g., "gfx942", "gfx950").
+        variants: Conv variants to generate. Defaults to [FORWARD].
+        ndims: Spatial dimensions to generate (2 or 3). Defaults to [2].
+        datatypes: Data type strings (e.g., ["fp16", "bf16", "fp32"]).
+        rule_set: "profiler"/"tests" (CK Builder profiler/tests instance sets
+                  generated in memory from the .conf configs, the build sets),
+                  "full" (full rule-derived per-(variant,ndim,datatype) set),
+                  "full-tests" (~20% stratified subset of "full"), "tiny"
+                  (minimal >=10-config subset of "full-tests"), or "default"
+                  (original heuristic rules).
+    """
     if variants is None:
         variants = [GroupedConvVariant.FORWARD]
     if ndims is None:
         ndims = [2]
+    if datatypes is None:
+        datatypes = ["fp16"]
 
-    # Import tile configs from instance builder (single source of truth)
-    if not HAS_TILE_CONFIGS or not COMMON_TILES:
-        log.warning("grouped_config_rules not available, using fallback tile configs")
-        # Fallback to minimal set if grouped_config_rules unavailable
-        fwd_bwd_data_tiles = [
-            (128, 128, 32, 2, 2, 32, 32, 16),
-            (64, 64, 32, 1, 4, 16, 16, 16),
-            (16, 64, 64, 1, 4, 16, 16, 32),
-        ]
-        bwd_weight_tiles = [(16, 64, 64, 1, 4, 16, 16, 32)]
-    else:
-        # Build tile list from COMMON_TILES with wave/warp mappings
-        fwd_bwd_data_tiles = []
-        for tile_m, tile_n, tile_k in COMMON_TILES:
-            tile_key = (tile_m, tile_n, tile_k)
-            if tile_key in TILE_TO_WAVE and tile_key in TILE_TO_WARP:
-                wave_m, wave_n, wave_k = TILE_TO_WAVE[tile_key]
-                warp_m, warp_n, warp_k = TILE_TO_WARP[tile_key]
-                fwd_bwd_data_tiles.append(
-                    (tile_m, tile_n, tile_k, wave_m, wave_n, warp_m, warp_n, warp_k)
-                )
-
-        # Backward weight: use BWD_WEIGHT_TILES from config rules
-        bwd_weight_tiles = []
-        for tile_m, tile_n, tile_k in BWD_WEIGHT_TILES:
-            tile_key = (tile_m, tile_n, tile_k)
-            if tile_key in TILE_TO_WAVE and tile_key in TILE_TO_WARP:
-                wave_m, wave_n, wave_k = TILE_TO_WAVE[tile_key]
-                warp_m, warp_n, warp_k = TILE_TO_WARP[tile_key]
-                bwd_weight_tiles.append(
-                    (tile_m, tile_n, tile_k, wave_m, wave_n, warp_m, warp_n, warp_k)
-                )
-
-    for variant in variants:
-        # Select tile configs based on variant
-        if variant == GroupedConvVariant.BACKWARD_WEIGHT:
-            tile_configs = bwd_weight_tiles
-            # Backward weight supports compv3 and mem pipelines
-            # (compv4/compv5 have transpose_tile2d issues)
-            pipelines = [("compv3", "cshuffle"), ("mem", "default")]
-            # Also generate two-stage variants (fp32 workspace + elementwise convert)
-            two_stage_flags = [False, True]
-        elif variant == GroupedConvVariant.BACKWARD_DATA:
-            tile_configs = fwd_bwd_data_tiles
-            # Backward data supports compv3 and mem pipelines
-            # (compv4/compv5 have get_length issues in bwd_data kernel)
-            pipelines = [("compv3", "cshuffle"), ("mem", "default")]
-            two_stage_flags = [False]
-        else:
-            tile_configs = fwd_bwd_data_tiles
-            # Only forward grouped convolution supports both compv3 and compv4
-            pipelines = [("compv3", "cshuffle"), ("compv4", "cshuffle")]
-            two_stage_flags = [False]
-        for ndim in ndims:
-            for pipeline, epilogue in pipelines:
-                for (
-                    tile_m,
-                    tile_n,
-                    tile_k,
-                    warp_m,
-                    warp_n,
-                    warp_tile_m,
-                    warp_tile_n,
-                    warp_tile_k,
-                ) in tile_configs:
-                    # Skip tiles incompatible with compv4
-                    if pipeline == "compv4" and HAS_TILE_CONFIGS:
-                        tile_key = (tile_m, tile_n, tile_k)
-                        if tile_key not in COMPV4_COMPATIBLE_TILES:
-                            continue  # Skip this tile for compv4
-
-                    for two_stage in two_stage_flags:
-                        adj_tile_k = tile_k * 2 if pipeline == "compv4" else tile_k
-
-                        trait = GroupedConvTraitConfig(
-                            pipeline=pipeline,
-                            scheduler="intrawave",
-                            epilogue=epilogue,
-                            double_smem_buffer=(pipeline == "compv4"),
-                            pad_m=True,
-                            pad_n=True,
-                            pad_k=True,
-                            two_stage=two_stage,
-                        )
-
-                        if not trait.is_valid():
-                            continue
-
-                        config = GroupedConvKernelConfig(
-                            tile=TileConfig(
-                                tile_m=tile_m,
-                                tile_n=tile_n,
-                                tile_k=adj_tile_k,
-                                warp_m=warp_m,
-                                warp_n=warp_n,
-                                warp_k=1,
-                                warp_tile_m=warp_tile_m,
-                                warp_tile_n=warp_tile_n,
-                                warp_tile_k=warp_tile_k,
-                            ),
-                            trait=trait,
-                            variant=variant,
-                            ndim_spatial=ndim,
-                            arch=arch,
-                        )
-
-                        if config.is_valid_for_arch():
-                            configs.append(config)
-
-    return configs
+    entry = _RULE_SET_MODULES.get(rule_set)
+    if entry is None:
+        raise ValueError(
+            f"Unknown rule_set: {rule_set!r} "
+            f"(expected one of {sorted(_RULE_SET_MODULES)})"
+        )
+    module_name, func_name = entry
+    rules_module = importlib.import_module(module_name)
+    get_configs = getattr(rules_module, func_name)
+    return get_configs(arch, variants, ndims, datatypes)
 
 
 def get_arch_filter():
@@ -2166,7 +1943,7 @@ class UnifiedGroupedConvCodegen:
             except ValueError as e:
                 log.warning(f"Could not create arch filter: {e}")
 
-    def _get_configs(self) -> List[GroupedConvKernelConfig]:
+    def _get_configs(self) -> List[GroupedConvKernelConfig | DepthwiseConvKernelConfig]:
         """Get configurations for this codegen's datatype and ndim_spatial."""
         return get_default_configs(
             arch=self.gpu_target,
@@ -2176,6 +1953,7 @@ class UnifiedGroupedConvCodegen:
                 GroupedConvVariant.BACKWARD_WEIGHT,
             ],
             ndims=[self.ndim_spatial],
+            datatypes=[self.datatype],
         )
 
     def _get_operator_type(
@@ -2241,12 +2019,12 @@ class UnifiedGroupedConvCodegen:
 
         # Generate kernel header
         content = kernel_gen.generate(config)
-        filepath.write_text(content)
+        filepath.write_text(content, encoding="utf-8")
         self.generated_files.append(filepath)
 
         wrapper_content = wrapper_gen.generate(config, filepath, self.output_dir)
         wrapper_path = self.wrapper_dir / f"dispatcher_wrapper_{kernel_name}.hpp"
-        wrapper_path.write_text(wrapper_content)
+        wrapper_path.write_text(wrapper_content, encoding="utf-8")
         self.generated_wrappers.append(wrapper_path)
 
         # Generate .cpp compilation unit for per-kernel parallel builds
@@ -2262,7 +2040,7 @@ namespace ck_tile {{ namespace generated {{
     volatile bool _{kernel_name.replace("-", "_")}_loaded = true;
 }} }}
 """
-        cpp_filepath.write_text(cpp_content)
+        cpp_filepath.write_text(cpp_content, encoding="utf-8")
 
         return filepath, wrapper_path
 
@@ -2304,17 +2082,23 @@ namespace ck_tile {{ namespace generated {{
         for datatype in datatypes:
             for config in configs:
                 if isinstance(config, DepthwiseConvKernelConfig):
-                    # Depthwise configs skip arch filter validation (not applicable)
+                    # Depthwise configs carry their own dtype — only emit for match
+                    if config.datatype != datatype:
+                        continue
                     valid_tasks.append((config, datatype, GroupedConvVariant.FORWARD_DEPTHWISE))
-                elif self.is_config_valid(config, datatype):
-                    valid_tasks.append((config, datatype, config.variant))
-                else:
-                    rejected_count += 1
-                    log.debug(
-                        f"Rejected config for {self.gpu_target}: "
-                        f"{config.tile.tile_m}x{config.tile.tile_n}x{config.tile.tile_k} "
-                        f"variant={config.variant.value}"
-                    )
+                elif isinstance(config, GroupedConvKernelConfig):
+                    # GEMM configs may carry a dtype tag — skip mismatches
+                    if config.datatype and config.datatype != datatype:
+                        continue
+                    if self.is_config_valid(config, datatype):
+                        valid_tasks.append((config, datatype, config.variant))
+                    else:
+                        rejected_count += 1
+                        log.debug(
+                            f"Rejected config for {self.gpu_target}: "
+                            f"{config.tile.tile_m}x{config.tile.tile_n}x{config.tile.tile_k} "
+                            f"variant={config.variant.value}"
+                        )
 
         if rejected_count > 0:
             log.info(
@@ -2421,7 +2205,7 @@ namespace ck_tile {{ namespace generated {{
 // Default launcher alias (uses first kernel)
 {launcher_alias}
 """
-            header_path.write_text(content)
+            header_path.write_text(content, encoding="utf-8")
             if kernel_headers:
                 log.info(f"Generated: {header_name} ({len(kernel_headers)} kernels)")
 
@@ -2517,7 +2301,7 @@ inline std::size_t get_grouped_conv_kernel_count() {{ return {len(fwd_kernels) +
 }}  // namespace ck_tile
 """
         reg_path = self.wrapper_dir / "register_all_grouped_conv_kernels.hpp"
-        reg_path.write_text(content)
+        reg_path.write_text(content, encoding="utf-8")
         log.info(f"Generated registration header: {reg_path}")
 
 
@@ -2542,7 +2326,7 @@ def main():
         "-d",
         type=str,
         nargs="+",
-        default=["fp16"],
+        default=["fp16", "bf16", "fp32"],
         choices=["fp16", "bf16", "fp32"],
         help="Data types to generate",
     )
@@ -2551,7 +2335,7 @@ def main():
         "-v",
         type=str,
         nargs="+",
-        default=["forward"],
+        default=["forward", "bwd_data", "bwd_weight"],
         choices=["forward", "bwd_data", "bwd_weight"],
         help="Grouped convolution variants",
     )
@@ -2560,7 +2344,7 @@ def main():
         "-n",
         type=int,
         nargs="+",
-        default=[2],
+        default=[2, 3],
         choices=[1, 2, 3],
         help="Spatial dimensions",
     )
@@ -2569,7 +2353,7 @@ def main():
         "-a",
         type=str,
         default="gfx942",
-        choices=["gfx90a", "gfx942", "gfx950", "gfx1201"],
+        choices=["gfx90a", "gfx942", "gfx950", "gfx1201", "gfx1250"],
         help="Target GPU architecture",
     )
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
@@ -2578,21 +2362,13 @@ def main():
         action="store_true",
         help="List configurations without generating",
     )
-
-    # JSON config file
     parser.add_argument(
-        "--config-file",
-        type=Path,
-        default=None,
-        help="Path to JSON config file. "
-             "Overrides --variant, --ndim, and individual tile/pipeline args.",
-    )
-    parser.add_argument(
-        "--instance-id",
-        type=int,
-        default=None,
-        help="Generate only the instance with this ID from the config file. "
-             "Requires --config-file.",
+        "--rule-set",
+        "-r",
+        type=str,
+        default="default",
+        choices=["default", "full", "full-tests", "profiler", "tests", "tiny"],
+        help="Rule-set used in the instance generation",
     )
 
     # Individual kernel configuration (when not using predefined configs)
@@ -2617,6 +2393,7 @@ def main():
             "compv5",
             "compv6",
             "comp_async",
+            "wavelet",
         ],
         help="Pipeline type",
     )
@@ -2693,21 +2470,8 @@ def main():
     }
     requested_variants = [variant_map[v] for v in args.variant]
 
-    # Validate --instance-id requires --config-file
-    if args.instance_id is not None and args.config_file is None:
-        parser.error("--instance-id requires --config-file")
-
-    # Check if user specified a JSON config file
-    if args.config_file is not None:
-        filtered_configs = load_configs_from_json(
-            args.config_file, arch=args.arch, instance_id=args.instance_id
-        )
-        # Extract datatype from JSON config for code generation
-        with open(args.config_file, "r") as f:
-            config_data = json.load(f)
-        args.datatype = [config_data["datatype"]]
-    elif args.tile_m is not None or args.tile_n is not None or args.pipeline is not None:
-        # Build custom config from CLI arguments
+    # Build custom config from CLI arguments
+    if args.tile_m is not None or args.tile_n is not None or args.pipeline is not None:
         tile = TileConfig(
             tile_m=args.tile_m or 128,
             tile_n=args.tile_n or 128,
@@ -2750,24 +2514,26 @@ def main():
                 streamk_persistent=args.streamk_persistent,
             ) if args.streamk_enabled else StreamKConfig()
         )
-        config = GroupedConvKernelConfig(
-            tile=tile,
-            trait=trait,
-            variant=requested_variants[0]
-            if requested_variants
-            else GroupedConvVariant.FORWARD,
-            ndim_spatial=args.ndim[0] if args.ndim else 2,
-            arch=args.arch,
-            vector_size_a=args.vector_a,
-            vector_size_b=args.vector_b,
-            vector_size_c=args.vector_c,
-            num_wave_groups=args.num_wave_groups,
-        )
-        filtered_configs = [config]
+
+        filtered_configs = []
+        for var in requested_variants:
+            config = GroupedConvKernelConfig(
+                tile=tile,
+                trait=trait,
+                variant=var,
+                ndim_spatial=args.ndim[0] if args.ndim else 2,
+                arch=args.arch,
+                vector_size_a=args.vector_a,
+                vector_size_b=args.vector_b,
+                vector_size_c=args.vector_c,
+                num_wave_groups=args.num_wave_groups,
+            )
+            filtered_configs.append(config)
     else:
         # Get predefined configurations for target arch with requested variants and ndims
         filtered_configs = get_default_configs(
-            arch=args.arch, variants=requested_variants, ndims=args.ndim
+            arch=args.arch, variants=requested_variants, ndims=args.ndim, datatypes=args.datatype,
+            rule_set=args.rule_set,
         )
 
     if args.list_configs:
@@ -2802,8 +2568,7 @@ def main():
     # Generate (disable arch filter when using pre-validated JSON configs)
     codegen = UnifiedGroupedConvCodegen(
         output_dir=args.output,
-        gpu_target=args.arch,
-        enable_arch_filter=(args.config_file is None),
+        gpu_target=args.arch
     )
     results = codegen.generate_all(
         configs=filtered_configs, datatypes=args.datatype, parallel=True

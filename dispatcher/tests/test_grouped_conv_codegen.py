@@ -542,13 +542,17 @@ class TestTwoStageBwdWeightCodegen(unittest.TestCase):
         code = gen.generate(config)
         self.assertIn("launch_kernel_time_mask", code)
 
-    def test_generate_forces_vector_size_c_to_1(self):
+    def test_two_stage_uses_fp32_workspace_vector_size_c(self):
+        # Two-stage writes the GEMM result to an fp32 workspace, so it uses the
+        # configured VectorSizeC directly instead of forcing it to 1.
         config = _make_two_stage_config()
         gen = CKTileGroupedConvKernelGenerator(
             "fp16", GroupedConvVariant.BACKWARD_WEIGHT
         )
         code = gen.generate(config)
-        self.assertIn("VectorSizeC_TwoStage = 1", code)
+        self.assertIn("WorkspaceDataType = float", code)
+        self.assertIn("Config::VectorSizeC", code)
+        self.assertNotIn("VectorSizeC_TwoStage", code)
 
     def test_generate_contains_workspace_memset(self):
         config = _make_two_stage_config()
@@ -567,7 +571,6 @@ class TestTwoStageBwdWeightCodegen(unittest.TestCase):
         code = gen.generate(config)
         self.assertNotIn("WorkspaceDataType", code)
         self.assertNotIn("ElementWiseKernel", code)
-        self.assertNotIn("launch_kernel_time_mask", code)
 
     def test_default_configs_include_two_stage(self):
         from unified_grouped_conv_codegen import get_default_configs

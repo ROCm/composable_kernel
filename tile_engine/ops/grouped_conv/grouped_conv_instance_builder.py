@@ -27,11 +27,11 @@ sys.path.insert(0, str(_DISPATCHER_ROOT / "python"))
 sys.path.insert(0, str(_DISPATCHER_ROOT / "codegen"))
 
 from grouped_conv_utils import GroupedConvKernelConfig  # noqa: E402
-from grouped_config_rules import COMPV4_COMPATIBLE_TILES  # noqa: E402
+from grouped_conv.grouped_config_rules_default import COMPV4_COMPATIBLE_TILES  # noqa: E402
 
-# Import tile configurations from grouped_config_rules (single source of truth)
+# Import tile configurations from grouped_config_rules_default (single source of truth)
 try:
-    from grouped_config_rules import (
+    from grouped_conv.grouped_config_rules_default import (
         COMMON_TILES,
         TILE_TO_WAVE,
         TILE_TO_WARP,
@@ -41,7 +41,7 @@ try:
     )
 except ImportError as e:
     raise ImportError(
-        f"Failed to import grouped_config_rules from dispatcher/codegen: {e}\n"
+        f"Failed to import grouped_conv.grouped_config_rules_default from dispatcher/codegen: {e}\n"
         "This is the single source of truth for tile configurations."
     )
 

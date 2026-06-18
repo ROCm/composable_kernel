@@ -683,7 +683,7 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
             };
 
             auto ReadCompFunc = [&]() {
-                static_for<0, KRepeat - 1, 1>{}([&]() {
+                static_for<0, KRepeat - 1, 1>{}([&](auto) {
                     __syncthreads();
                     block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
 

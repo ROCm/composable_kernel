@@ -31,7 +31,7 @@ run_grouped_conv_backward_data_tile_algs(const ckt::Args<SIGNATURE>& args,
                                          const ckt::Inputs<SIGNATURE>& inputs,
                                          const ckt::Outputs<SIGNATURE>& outputs,
                                          const ck_tile::stream_config& s_conf,
-                                         bool do_verification)
+                                         bool do_verification = true)
 {
     using DataType = DeduceDataType<SIGNATURE>;
 
