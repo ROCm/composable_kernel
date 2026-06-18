@@ -92,7 +92,7 @@ def main():
     # =========================================================================
     print("\n--- Step 1: Kernel Configuration Patterns ---")
 
-    # Tile constraint (TileGemmShape, see grouped_config_rules.COMMON_TILES):
+    # Tile constraint (TileGemmShape, see grouped_config_rules_default.get_tiles_for_variant):
     #   tile_m == wave_m * warp_tile_m   AND   LDS fits the pipeline limit
     #   (compv4 limit = 32768 B, default = 65536 B)
 

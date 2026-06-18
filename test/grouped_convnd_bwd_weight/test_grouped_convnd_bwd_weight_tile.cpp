@@ -9,7 +9,11 @@
 
 #include "ck_tile/builder/testing/conv/ck_tile.hpp"
 #include "ck_tile/host/device_prop.hpp"
+#ifdef CK_TILE_DISPATCHER
+#include "profiler/grouped_convolution_backward_weight_tile_dispatcher_algs.hpp"
+#else
 #include "profiler/grouped_convolution_backward_weight_tile_algs.hpp"
+#endif
 
 static ck::index_t args_mask      = 0xffff;
 static ck::index_t instance_index = -1;

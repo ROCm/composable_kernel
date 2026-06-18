@@ -34,7 +34,7 @@ sys.path.insert(0, str(_TILE_ENGINE_GROUPED_CONV / "problems"))
 from validation_holdout import VALIDATION_PROBLEMS  # noqa: E402
 from predict import Predictor  # noqa: E402
 from feature_engine_grouped_conv import GroupedConvFeatureEngine  # noqa: E402
-from grouped_config_rules import COMMON_TILES, TILE_TO_WAVE, iter_pipeline_variants  # noqa: E402
+from grouped_conv.grouped_config_rules_default import COMMON_TILES, TILE_TO_WAVE, iter_pipeline_variants  # noqa: E402
 
 
 # Generate kernel pool (suffix-aware; sourced from grouped_config_rules)

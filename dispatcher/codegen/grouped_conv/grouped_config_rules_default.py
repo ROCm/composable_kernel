@@ -4,15 +4,12 @@
 # SPDX-License-Identifier: MIT
 
 """
-Single Source of Truth for Grouped Convolution Tile Configurations
+"default" rule set for Grouped Convolution Tile Configurations.
 
-This module defines all valid tile configurations for grouped convolution kernels.
-Both codegen and instance_builder import from here to ensure consistency.
+This is the original, hand-curated heuristic rule set (small deterministic
+per-tile wave/warp/vector maps + hardcoded pipelines). It is preserved here
+verbatim and selected via ``get_default_configs(rule_set="default")``.
 
-Architecture:
-  grouped_conv_tile_configs.py  (SOURCE OF TRUTH)
-      ├── Used by unified_grouped_conv_codegen.py
-      └── Used by grouped_conv_instance_builder.py
 """
 
 from typing import Dict, List, Tuple
@@ -146,6 +143,8 @@ PIPELINE_VARIANTS: List[Tuple[str, str, int, int]] = [
     ("mem", "interwave", 1, 0),
     ("mem", "interwave", 0, 1),
     ("mem", "interwave", 1, 1),
+    # wavelet: intrawave only, single LDS (DoubleSmemBuffer=false hardcoded)
+    ("wavelet", "intrawave", 0, 0),
 ]
 
 
@@ -178,6 +177,7 @@ VARIANT_PIPELINES: Dict[str, List[str]] = {
         "compv6",
         "comp_async",
         "basic_async_v1",
+        "wavelet",
     ],
     "bwd_data": [
         "basic_v1",
@@ -188,6 +188,7 @@ VARIANT_PIPELINES: Dict[str, List[str]] = {
         "compv6",
         "comp_async",
         "basic_async_v1",
+        "wavelet",
     ],
     "bwd_weight": [
         "basic_v1",
@@ -198,6 +199,7 @@ VARIANT_PIPELINES: Dict[str, List[str]] = {
         "compv6",
         "comp_async",
         "basic_async_v1",
+        "wavelet",
     ],
 }
 
@@ -263,7 +265,7 @@ def check_vectors(vec_a: int, vec_b: int, vec_c: int) -> bool:
 def check_warp_coverage(
     tile_m: int, tile_n: int, tile_k: int,
     vec_a: int, vec_b: int,
-    variant: str = "forward",
+    variant: str = "forward", warp_size: int = 64,
 ) -> bool:
     """Check tile dims don't exceed single-warp vector load coverage.
 
@@ -272,9 +274,72 @@ def check_warp_coverage(
       Backward data:        tile_k is the A-tile dim
     """
     a_tile_dim = tile_k if variant == "bwd_data" else tile_m
-    if a_tile_dim > WARP_SIZE * vec_a:
+    if a_tile_dim > warp_size * vec_a:
         return False
-    if tile_n > WARP_SIZE * vec_b:
+    if tile_n > warp_size * vec_b:
+        return False
+    return True
+
+def check_tile_coverage(
+    tile_m: int, tile_n: int, tile_k: int,
+    vec_a: int, vec_b: int, pipeline_version: str,
+    block_size: int = 64,
+) -> bool:
+    """Check if each thread has some data to read.
+
+    Return false when there is more threads than data to read.
+    """
+    if pipeline_version == "compv6":
+        # V6 pipeline computes A/B_Buffer_Load_Inst_Num as integer division;
+        # if either is 0 the scheduler divides by zero at compile time. 
+        # tile_k=32 compv6 instances are valid as long as both load-instruction counts stay >= 1.
+        if (tile_m * tile_k) // (block_size * vec_a) < 1:
+            return False
+        if (tile_n * tile_k) // (block_size * vec_b) < 1:
+            return False
+    return True
+
+
+def get_warp_size(gpu_target: str) -> int:
+    """Return warp size for the given GPU target.
+
+    Accepts either a family prefix (gfx9, gfx11, gfx12) or a full arch string
+    (gfx942, gfx950, gfx1201, ...). gfx9xx => 64, everything else => 32.
+    """
+    if gpu_target.startswith("gfx9"):
+        return 64
+    return 32
+
+
+def check_wmma_instance(
+    warp_size: int,
+    k_per_block: int,
+    k_warp: int,
+    k_per_xdl: int,
+    m_per_xdl: int,
+    dtype: str,
+) -> bool:
+    """Check WMMA-specific constraints for warp_size=32 targets (gfx11/gfx12).
+
+    Returns False (skip instance) when any constraint is violated.
+    """
+    if warp_size != 32:
+        return True
+    if k_per_xdl < 32 and dtype != "float":
+        return False
+    if k_warp * k_per_xdl > k_per_block:
+        return False
+    if m_per_xdl == 32:
+        return False
+    return True
+
+
+def check_wmma_native_warp_tile(warp_size: int, streamk_enabled: bool) -> bool:
+    """Check native instance warp_tile constraints for warp_size=32 targets.
+
+    Returns False (skip instance) when streamk is enabled.
+    """
+    if warp_size == 32 and streamk_enabled:
         return False
     return True
 
@@ -282,10 +347,10 @@ def check_warp_coverage(
 def check_bwd_data_vec_coverage(
     tile_m: int, tile_n: int, tile_k: int,
     warp_m: int, warp_n: int, warp_k: int,
-    vec_a: int, vec_b: int,
+    vec_a: int, vec_b: int, warp_size: int = 64,
 ) -> bool:
     """Bwd_data: vector width must not exceed elements per thread per tile slice."""
-    block_size = WARP_SIZE * warp_m * warp_n * warp_k
+    block_size = warp_size * warp_m * warp_n * warp_k
     if vec_a > (tile_m * tile_k) // block_size:
         return False
     if vec_b > (tile_n * tile_k) // block_size:
@@ -384,6 +449,100 @@ def get_tile_full_config(tile_m: int, tile_n: int, tile_k: int) -> dict:
 # =============================================================================
 # Summary Statistics
 # =============================================================================
+
+
+def get_configs(
+    arch: str,
+    variants: List,
+    ndims: List[int],
+    datatypes: List[str] = None,
+) -> List:
+    """Build all available configs for the "default" (hand-curated) rule set.
+
+    Unified rule-set entry point used by
+    ``unified_grouped_conv_codegen.get_default_configs``. Small deterministic
+    per-tile wave/warp maps + hardcoded pipelines, ported verbatim from the
+    initial rule-based codegen. Configs are dtype-agnostic (``datatype`` left as
+    None) so ``generate_all`` compiles each for every requested datatype,
+    matching the original behavior. ``datatypes`` is accepted for interface
+    uniformity but not used by this rule set.
+    """
+    from unified_grouped_conv_codegen import (
+        GroupedConvVariant,
+        GroupedConvTraitConfig,
+        GroupedConvKernelConfig,
+        TileConfig,
+    )
+
+    def _expand(tile_list):
+        out = []
+        for tm, tn, tk in tile_list:
+            key = (tm, tn, tk)
+            if key in TILE_TO_WAVE and key in TILE_TO_WARP:
+                wm, wn, _wk = TILE_TO_WAVE[key]
+                wtm, wtn, wtk = TILE_TO_WARP[key]
+                out.append((tm, tn, tk, wm, wn, wtm, wtn, wtk))
+        return out
+
+    fwd_bwd_data_tiles = _expand(COMMON_TILES)
+    bwd_weight_tiles = _expand(BWD_WEIGHT_TILES)
+
+    configs: List = []
+
+    for variant in variants:
+        if variant == GroupedConvVariant.BACKWARD_WEIGHT:
+            tile_configs = bwd_weight_tiles
+            pipelines = [("compv3", "cshuffle"), ("mem", "default")]
+            two_stage_flags = [False, True]
+        elif variant == GroupedConvVariant.BACKWARD_DATA:
+            tile_configs = fwd_bwd_data_tiles
+            pipelines = [("compv3", "cshuffle"), ("mem", "default")]
+            two_stage_flags = [False]
+        else:
+            tile_configs = fwd_bwd_data_tiles
+            pipelines = [("compv3", "cshuffle"), ("compv4", "cshuffle")]
+            two_stage_flags = [False]
+
+        for ndim in ndims:
+            for pipeline, epilogue in pipelines:
+                for (tm, tn, tk, wm, wn, wtm, wtn, wtk) in tile_configs:
+                    if pipeline == "compv4" and (tm, tn, tk) not in COMPV4_COMPATIBLE_TILES:
+                        continue
+                    for two_stage in two_stage_flags:
+                        adj_tk = tk * 2 if pipeline == "compv4" else tk
+                        trait = GroupedConvTraitConfig(
+                            pipeline=pipeline,
+                            scheduler="intrawave",
+                            epilogue=epilogue,
+                            double_smem_buffer=(pipeline == "compv4"),
+                            pad_m=True,
+                            pad_n=True,
+                            pad_k=True,
+                            two_stage=two_stage,
+                        )
+                        if not trait.is_valid():
+                            continue
+                        config = GroupedConvKernelConfig(
+                            tile=TileConfig(
+                                tile_m=tm,
+                                tile_n=tn,
+                                tile_k=adj_tk,
+                                warp_m=wm,
+                                warp_n=wn,
+                                warp_k=1,
+                                warp_tile_m=wtm,
+                                warp_tile_n=wtn,
+                                warp_tile_k=wtk,
+                            ),
+                            trait=trait,
+                            variant=variant,
+                            ndim_spatial=ndim,
+                            arch=arch,
+                        )
+                        if config.is_valid_for_arch():
+                            configs.append(config)
+
+    return configs
 
 
 def print_summary():

@@ -1,7 +1,15 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-if(GPU_TARGETS MATCHES "gfx9")
+if(GPU_TARGETS MATCHES "gfx9|gfx1250")
+  # Map GPU_TARGETS to gpu_target family for generate_instances.py
+  if(GPU_TARGETS MATCHES "gfx12")
+    set(GPU_TARGET_FAMILY "gfx12")
+  elseif(GPU_TARGETS MATCHES "gfx11")
+    set(GPU_TARGET_FAMILY "gfx11")
+  else()
+    set(GPU_TARGET_FAMILY "gfx9")
+  endif()
   # Generate instances using python script if instance directories don't exist
   set(INSTANCES_DIR ${CMAKE_CURRENT_BINARY_DIR})
   if(NOT EXISTS ${INSTANCES_DIR}/forward OR
@@ -9,7 +17,7 @@ if(GPU_TARGETS MATCHES "gfx9")
      NOT EXISTS ${INSTANCES_DIR}/backward_data)
     find_package(Python3 COMPONENTS Interpreter Development)
     execute_process(
-      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_instances.py --mode=tests --instances_dir=${CMAKE_CURRENT_BINARY_DIR}
+      COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/generate_instances.py --mode=tests --instances_dir=${CMAKE_CURRENT_BINARY_DIR} --gpu_target=${GPU_TARGET_FAMILY}
       RESULT_VARIABLE ret
       OUTPUT_VARIABLE output
       ERROR_VARIABLE error

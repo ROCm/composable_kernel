@@ -303,7 +303,40 @@ cmake                                                                           
   ..
 ```
 
-By default, the Dispatcher generates a smaller `tests` set of kernels. To generate a full `profiler` set of 
-kernels, use CMake flag `-D DISPATCHER_CONFIG_SET=profiler` at the configuration step.
+The Dispatcher codegen selects which kernel instances to generate via the rule set chosen with the CMake
+flag `-D DISPATCHER_RULE_SET=<rule-set>` at the configuration step. The following rule sets are available:
+
+| Rule set | Description |
+|---|---|
+| `profiler` (default) | The CK Builder profiler instance set, generated in memory directly from the `.conf` configurations in `experimental/grouped_convolution_tile_instances/configs` (no JSON conversion, nothing committed). This is the exact reference instance set. |
+| `tests` | The CK Builder tests instance set, generated in memory from the `tests` subset of the `.conf` configurations. |
+| `full` | The full rule-derived set (all per-(variant, ndim, datatype) instances), generated from the curated rule tables. |
+| `full-tests` | A smaller, stratified ~20% subset of the `full` rule set, for faster builds. |
+| `tiny` | A minimal subset of the `full-tests` rule set (at least 10 configs, with every feature category represented for both 2D and 3D), for quick development/iteration builds. |
+| `default` | The original heuristic rules (datatype-agnostic). |
+
+For example, to generate the full `profiler` set of kernels:
+```bash
+cmake -D DISPATCHER_RULE_SET=profiler <other options> ..
+```
 
 To build only the CK Tile profiler, one can use an additional flag `-DCK_PROFILER_OP_FILTER="_tile"`.
+
+All together, we have a CMake configure command
+
+```bash
+cmake                                                                                             \
+  -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
+  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc                                                       \
+  -D CMAKE_BUILD_TYPE=Release                                                                     \
+  -D GPU_TARGETS="gfx942"                                                                         \
+  -D CK_EXPERIMENTAL_BUILDER=ON                                                                   \
+  -D CK_TILE_DISPATCHER=ON                                                                        \
+  -D CMAKE_CXX_STANDARD=20                                                                        \
+  -D DISPATCHER_RULE_SET=full                                                                 \
+  -D CK_PROFILER_OP_FILTER="_tile"                                                                \
+  -G Ninja                                                                                        \
+  ..
+```
+
+to generate a full set of kernel instances for comprehensive benchmarking. Changing the the rule set allows increase/decrease the number of instances available for the profiler.

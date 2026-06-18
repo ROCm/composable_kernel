@@ -15,7 +15,7 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
   target_compile_options(tile_example_grouped_conv_bwd_weight PRIVATE ${EXAMPLE_CONV_COMPILE_OPTIONS})
 
   # StreamK requires cross-CU coherence (StreamKCoherency), CDNA only.
-  if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950")
+  if(GPU_TARGETS MATCHES "gfx90a|gfx942|gfx950|gfx1250")
     add_executable(tile_example_grouped_conv_bwd_weight_streamk grouped_convolution_backward_weight_streamk.cpp)
     target_compile_options(tile_example_grouped_conv_bwd_weight_streamk PRIVATE ${EXAMPLE_CONV_COMPILE_OPTIONS})
   endif()

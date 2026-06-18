@@ -5,19 +5,17 @@
 # Generates dispatcher-based kernels for the CK Profiler (all directions).
 #
 # This script:
-# 1. Reads JSON config files
-# 2. Calls load_configs_from_json + UnifiedGroupedConvCodegen.generate_all() for each JSON
+# 1. Generates GEMM + depthwise configs from tile_math rules via get_default_configs()
+# 2. Calls UnifiedGroupedConvCodegen.generate_all() to emit C++ kernel headers
 # 3. Generates include_all_grouped_conv_<variant>_kernels.hpp
 # 4. Generates chunked register_*_chunk_N.cpp files + register_all_grouped_conv_kernels.cpp
 #
 # Usage:
 #   python3 generate_profiler_kernels.py \
 #     --variant {fwd,bwd_data,bwd_weight} \
-#     --config-dir <path-to-json-configs> \
-#     --codegen <path-to-unified_grouped_conv_codegen.py> \
 #     --output-dir <generated-kernel-output-dir> \
 #     --arch gfx950 \
-#     [--config-set tests|profiler]
+#     [--mode tests|profiler]
 
 import argparse
 import sys
@@ -55,26 +53,18 @@ VARIANT_CONFIG = {
     },
 }
 
+VARIANT_MAP = {
+    "fwd": "FORWARD",
+    "bwd_data": "BACKWARD_DATA",
+    "bwd_weight": "BACKWARD_WEIGHT",
+}
 
-def generate_kernels_from_config(config_file, output_dir, arch):
-    """Generate kernels for a single JSON config via direct Python API."""
-    import json
-    from unified_grouped_conv_codegen import UnifiedGroupedConvCodegen, load_configs_from_json
 
-    try:
-        configs = load_configs_from_json(config_file, arch=arch)
-        # Extract datatype from JSON config (matches old --config-file behavior)
-        with open(config_file, "r") as f:
-            config_data = json.load(f)
-        datatype = config_data["datatype"]
-        # The JSON configs are valid for all architectures.
-        # Hence, disable the arch_filter.
-        codegen = UnifiedGroupedConvCodegen(output_dir=output_dir, gpu_target=arch, enable_arch_filter=False)
-        codegen.generate_all(configs, datatypes=[datatype])
-        return True
-    except Exception as e:
-        print(f"ERROR generating from {config_file}: {e}", file=sys.stderr)
-        return False
+def _ensure_codegen_importable():
+    """Ensure the codegen directory is on sys.path."""
+    codegen_dir = str(Path(__file__).resolve().parent.parent / "codegen")
+    if codegen_dir not in sys.path:
+        sys.path.insert(0, codegen_dir)
 
 
 def collect_kernel_headers(output_dir, glob_pattern):
@@ -106,47 +96,58 @@ def main():
         description="Generate dispatcher-based kernels for CK Profiler."
     )
     parser.add_argument("--variant", required=True, choices=list(VARIANT_CONFIG.keys()))
-    parser.add_argument("--config-dir", required=True)
-    parser.add_argument("--codegen", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--arch", default="gfx950")
-    parser.add_argument("--config-set", default="tests", choices=["tests", "profiler"])
+    parser.add_argument("--rule-set", default="tests",
+                        choices=["profiler", "tests", "full", "full-tests", "tiny", "default"],
+                        help="Rule set: 'profiler'/'tests' (CK Builder "
+                             "profiler/tests instance sets generated in memory "
+                             "from the .conf configs), 'full' (full rule-derived "
+                             "per-(variant,ndim,datatype) set), 'full-tests' "
+                             "(~20% stratified subset of 'full'), 'tiny' "
+                             "(minimal >=10-config subset of 'full-tests'), or "
+                             "'default' (original hand-curated heuristics)")
 
     args = parser.parse_args()
     cfg = VARIANT_CONFIG[args.variant]
 
-    config_dir = Path(args.config_dir) / args.config_set
-    codegen_path = Path(args.codegen)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Add the codegen directory to sys.path so unified_grouped_conv_codegen
-    # and its siblings are importable regardless of working directory.
-    codegen_dir = str(codegen_path.parent.resolve())
-    if codegen_dir not in sys.path:
-        sys.path.insert(0, codegen_dir)
+    _ensure_codegen_importable()
+    from unified_grouped_conv_codegen import (
+        UnifiedGroupedConvCodegen,
+        GroupedConvVariant,
+        get_default_configs,
+    )
 
-    if not config_dir.exists():
-        print(f"ERROR: Config directory not found: {config_dir}", file=sys.stderr)
+    variant_enum = GroupedConvVariant[VARIANT_MAP[args.variant]]
+    datatypes = ["fp16", "bf16", "fp32"]
+
+    # --- Step 1: Generate configs from rules ---
+    print(f"Generating configs from rules (variant={args.variant}, "
+          f"arch={args.arch}, rule_set={args.rule_set})...")
+
+    configs = get_default_configs(
+        arch=args.arch,
+        variants=[variant_enum],
+        ndims=[2, 3],
+        datatypes=datatypes,
+        rule_set=args.rule_set,
+    )
+    print(f"Generated {len(configs)} configs from rules")
+
+    if not configs:
+        print("ERROR: No configs generated from rules", file=sys.stderr)
         sys.exit(1)
 
-    json_configs = sorted(config_dir.glob("*.json"))
-    if not json_configs:
-        print(f"ERROR: No JSON config files in {config_dir}", file=sys.stderr)
-        sys.exit(1)
+    # --- Step 2: Generate kernel headers ---
+    codegen = UnifiedGroupedConvCodegen(
+        output_dir=output_dir, gpu_target=args.arch, enable_arch_filter=False,
+    )
+    codegen.generate_all(configs, datatypes=datatypes)
 
-    print(f"Found {len(json_configs)} config files in {config_dir}")
-
-    success = True
-    for config_file in json_configs:
-        print(f"Generating from {config_file.name}...")
-        if not generate_kernels_from_config(config_file, output_dir, args.arch):
-            success = False
-
-    if not success:
-        print("ERROR: Some kernel generations failed", file=sys.stderr)
-        sys.exit(1)
-
+    # --- Step 3: Collect headers and generate registration ---
     headers = collect_kernel_headers(output_dir, cfg["glob_pattern"])
     print(f"Found {len(headers)} generated kernel headers")
 

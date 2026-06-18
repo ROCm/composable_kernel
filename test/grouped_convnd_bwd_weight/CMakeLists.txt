@@ -25,13 +25,34 @@ elseif(DL_KERNELS)
    target_link_device_conv_libraries_if_exist(test_grouped_convnd_bwd_weight PRIVATE utility device_conv_operations)
 endif()
 
-if(GPU_TARGETS MATCHES "gfx9")
-  if(CK_EXPERIMENTAL_BUILDER)
+if(GPU_TARGETS MATCHES "gfx9|gfx1250")
+  if(CK_EXPERIMENTAL_BUILDER AND NOT CK_TILE_DISPATCHER)
     add_gtest_executable(test_grouped_convnd_bwd_weight_tile test_grouped_convnd_bwd_weight_tile.cpp)
     target_compile_options(test_grouped_convnd_bwd_weight_tile PRIVATE -Wno-global-constructors -Wno-undef -Wno-c++20-compat)
     target_link_libraries(test_grouped_convnd_bwd_weight_tile PRIVATE gtest_main getopt::getopt utility)
     if(TARGET device_grouped_conv_bwd_weight_tile_instances)
         target_link_libraries(test_grouped_convnd_bwd_weight_tile PRIVATE device_grouped_conv_bwd_weight_tile_instances)
+    endif()
+  elseif(CK_TILE_DISPATCHER)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    if(NOT TARGET ck_dispatcher_grouped_conv_bwd_weight)
+      add_subdirectory(
+        ${PROJECT_SOURCE_DIR}/dispatcher/library
+        ${CMAKE_CURRENT_BINARY_DIR}/dispatcher_library
+      )
+    endif()
+    add_gtest_executable(test_grouped_convnd_bwd_weight_tile test_grouped_convnd_bwd_weight_tile.cpp)
+    target_compile_options(test_grouped_convnd_bwd_weight_tile PRIVATE
+      -Wno-global-constructors -Wno-undef -Wno-c++20-compat
+      -Wno-undefined-func-template -Wno-float-equal
+      -Wno-ctad-maybe-unsupported -Wno-old-style-cast
+      -Wno-lifetime-safety-intra-tu-suggestions)
+    target_include_directories(test_grouped_convnd_bwd_weight_tile PRIVATE
+      ${PROJECT_SOURCE_DIR}/dispatcher/include
+      ${PROJECT_SOURCE_DIR}/experimental/builder/include)
+    target_link_libraries(test_grouped_convnd_bwd_weight_tile PRIVATE gtest_main getopt::getopt utility)
+    if(TARGET ck_dispatcher_grouped_conv_bwd_weight)
+      target_link_libraries(test_grouped_convnd_bwd_weight_tile PRIVATE ck_dispatcher_grouped_conv_bwd_weight)
     endif()
   endif()
 endif()
