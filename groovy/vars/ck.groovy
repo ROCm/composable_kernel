@@ -970,7 +970,7 @@ def buildAndTest(Map conf=[:]){
                 timeout(time: 20, unit: 'HOURS')
                 {
                     cmake_build(conf)
-                    if (isMainBuild) {
+                    if (isMainBuild && !conf.get("setup_args","").contains("gfx1250")) {
                         //check whether to run performance tests on this node
                         def arch = check_arch_name()
                         if ( params.RUN_INDUCTOR_TESTS && arch == "gfx90a" ){
