@@ -288,7 +288,20 @@ template<> struct Dispatcher<int8_t, int8_t, int32_t, 16, 16, 32, false> { using
 template<> struct Dispatcher<int8_t, int8_t, int32_t, 16, 16, 32,  true> { using Type = WarpGemmMfma_i32_16x16x32_i8_i8_CTransposed; };
 // WMMA cases
 template<bool TransposeC, WGAttrNumAccessEnum AttrNumAccess> struct Dispatcher<int8_t, int8_t, int32_t, 16, 16, 16, TransposeC, false, false, AttrNumAccess, AttrNumAccess> : WmmaTag { using Type = WarpGemmWmma_i32_16x16x16_i8_i8<TransposeC>; };
+#if defined(__gfx125__)
 template<bool TransposeC, WGAttrNumAccessEnum AttrNumAccess> struct Dispatcher<int8_t, int8_t, int32_t, 16, 16, 64, TransposeC, false, false, AttrNumAccess, AttrNumAccess> : WmmaTag { using Type = WarpGemmWmma_i32_16x16x64_i8_i8<TransposeC>; };
+#else
+template<WGAttrNumAccessEnum AttrNumAccessA, WGAttrNumAccessEnum AttrNumAccessB>
+struct Dispatcher<int8_t, int8_t, int32_t, 16, 16, 64, false, false, false, AttrNumAccessA, AttrNumAccessB, false, std::enable_if_t<AttrNumAccessA != AttrNumAccessB>>
+{ using Type = WarpGemmMfma_i32_16x16x64_i8_i8<AttrNumAccessA, AttrNumAccessB>; };
+template<WGAttrNumAccessEnum AttrNumAccess>
+struct Dispatcher<int8_t, int8_t, int32_t, 16, 16, 64, false, false, false, AttrNumAccess, AttrNumAccess, false, std::enable_if_t<AttrNumAccess != EDefault>>
+{ using Type = WarpGemmMfma_i32_16x16x64_i8_i8<AttrNumAccess>; };
+
+template<WGAttrNumAccessEnum AttrNumAccess>
+struct Dispatcher<int8_t, int8_t, int32_t, 16, 16, 64, true, false, false, AttrNumAccess, AttrNumAccess, false, std::enable_if_t<AttrNumAccess != EDefault>>
+{ using Type = WarpGemmMfma_i32_16x16x64_i8_i8_CTransposed<AttrNumAccess>; };
+#endif
 template<bool TransposeC, WGAttrNumAccessEnum AttrNumAccess> struct Dispatcher<uint8_t, uint8_t, int32_t, 16, 16, 64, TransposeC, false, false, AttrNumAccess, AttrNumAccess> : WmmaTag { using Type = WarpGemmWmma_i32_16x16x64_u8_u8<TransposeC>; };
 
 template <typename AType, typename BType, typename AccType,
