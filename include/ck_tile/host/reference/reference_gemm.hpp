@@ -146,7 +146,6 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
 {
     constexpr auto A_TENSOR_M_DIM = 0;
     constexpr auto A_TENSOR_K_DIM = 1;
-    constexpr auto B_TENSOR_K_DIM = 0;
     constexpr auto B_TENSOR_N_DIM = 1;
 
     const std::size_t M = a_m_k.get_length(A_TENSOR_M_DIM);
@@ -163,7 +162,8 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
         {
             const ADataType pk_val  = a_element_op(a_m_k(index));
             const fp32x2_t fp32_val = pk_val.to_fp32x2();
-            self(index)             = (index[A_TENSOR_K_DIM] & 1) ? fp32_val.hi : fp32_val.lo;
+            std::size_t flat_off    = a_m_k.mDesc.GetOffsetFromMultiIndex(index);
+            self(index)             = (flat_off & 1) ? fp32_val.hi : fp32_val.lo;
         }
         else
         {
@@ -176,7 +176,8 @@ CK_TILE_HOST void reference_gemm_abquant(const HostTensor<ADataType>& a_m_k,
         {
             const BDataType pk_val  = b_element_op(b_k_n(index));
             const fp32x2_t fp32_val = pk_val.to_fp32x2();
-            self(index)             = (index[B_TENSOR_K_DIM] & 1) ? fp32_val.hi : fp32_val.lo;
+            std::size_t flat_off    = b_k_n.mDesc.GetOffsetFromMultiIndex(index);
+            self(index)             = (flat_off & 1) ? fp32_val.hi : fp32_val.lo;
         }
         else if constexpr(std::is_same_v<BDataType, fp8_t>)
         {
@@ -486,19 +487,18 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
             AccDataType v_b;
             if constexpr(std::is_same_v<ADataType, pk_fp4_t>)
             {
-                // HostTensor automatically handles packed indexing: a_m_k(m,k) divides offset by
-                // PackedSize So a_m_k(m,0) and a_m_k(m,1) return the same packed byte
                 const pk_fp4_t pk_val   = a_m_k(m, k);
                 const fp32x2_t fp32_val = pk_val.to_fp32x2(1.0f);
-                const float unpacked    = (k % 2 == 1) ? fp32_val.hi : fp32_val.lo;
+                std::size_t flat_off    = a_m_k.mDesc.GetOffsetFromMultiIndex(m, k);
+                const float unpacked    = (flat_off % 2 == 1) ? fp32_val.hi : fp32_val.lo;
                 v_a = ck_tile::type_convert<AccDataType>(a_element_op(unpacked));
             }
             else if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
-                // HostTensor automatically handles packed indexing
                 const pk_int4_t pk_val  = a_m_k(m, k);
                 const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
-                const float unpacked    = (k % 2 == 1) ? fp32_val.hi : fp32_val.lo;
+                std::size_t flat_off    = a_m_k.mDesc.GetOffsetFromMultiIndex(m, k);
+                const float unpacked    = (flat_off % 2 == 1) ? fp32_val.hi : fp32_val.lo;
                 v_a = ck_tile::type_convert<AccDataType>(a_element_op(unpacked));
             }
             else if constexpr(std::is_same_v<ADataType, pk_fp4_t>)
@@ -516,18 +516,18 @@ CK_TILE_HOST void reference_gemm(const HostTensor<ADataType>& a_m_k,
             }
             if constexpr(std::is_same_v<BDataType, pk_fp4_t>)
             {
-                // HostTensor automatically handles packed indexing
                 const pk_fp4_t pk_val   = b_k_n(k, n);
                 const fp32x2_t fp32_val = pk_val.to_fp32x2(1.0f);
-                const float unpacked    = (k % 2 == 1) ? fp32_val.hi : fp32_val.lo;
+                std::size_t flat_off    = b_k_n.mDesc.GetOffsetFromMultiIndex(k, n);
+                const float unpacked    = (flat_off % 2 == 1) ? fp32_val.hi : fp32_val.lo;
                 v_b = ck_tile::type_convert<AccDataType>(b_element_op(unpacked));
             }
             else if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             {
-                // HostTensor automatically handles packed indexing
                 const pk_int4_t pk_val  = b_k_n(k, n);
                 const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(pk_val);
-                const float unpacked    = (k % 2 == 1) ? fp32_val.hi : fp32_val.lo;
+                std::size_t flat_off    = b_k_n.mDesc.GetOffsetFromMultiIndex(k, n);
+                const float unpacked    = (flat_off % 2 == 1) ? fp32_val.hi : fp32_val.lo;
                 v_b = ck_tile::type_convert<AccDataType>(b_element_op(unpacked));
             }
             else if constexpr(std::is_same_v<BDataType, pk_fp4_t>)
@@ -695,13 +695,13 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
         {
             if constexpr(std::is_same_v<ADataType, pk_fp4_t>)
             {
-                auto a_f4x2         = a_m_k(m, k);
-                std::size_t raw_off = m * a_m_k.get_stride(0) + k * a_m_k.get_stride(1);
+                auto a_f4x2  = a_m_k(m, k);
+                auto a_scale = ck_tile::type_convert<AccDataType>(scale_a(m, k / ScaleBlockSize));
+                std::size_t flat_offset = a_m_k.mDesc.GetOffsetFromMultiIndex(m, k);
                 auto a_val =
-                    (raw_off % 2 == 0)
+                    (flat_offset % 2 == 0)
                         ? ck_tile::type_convert<AccDataType>(a_f4x2.template unpack<>(number<0>{}))
                         : ck_tile::type_convert<AccDataType>(a_f4x2.template unpack<>(number<1>{}));
-                auto a_scale = ck_tile::type_convert<AccDataType>(scale_a(m, k / ScaleBlockSize));
                 a_m_k_scaled(m, k) = a_val * a_scale;
             }
             else if constexpr(std::is_same_v<ADataType, pk_fp6x16_t>)
@@ -727,13 +727,13 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
         {
             if constexpr(std::is_same_v<BDataType, pk_fp4_t>)
             {
-                auto b_f4x2         = b_k_n(k, n);
-                std::size_t raw_off = k * b_k_n.get_stride(0) + n * b_k_n.get_stride(1);
+                auto b_f4x2  = b_k_n(k, n);
+                auto b_scale = ck_tile::type_convert<AccDataType>(scale_b(k / ScaleBlockSize, n));
+                std::size_t flat_offset = b_k_n.mDesc.GetOffsetFromMultiIndex(k, n);
                 auto b_val =
-                    (raw_off % 2 == 0)
+                    (flat_offset % 2 == 0)
                         ? ck_tile::type_convert<AccDataType>(b_f4x2.template unpack<>(number<0>{}))
                         : ck_tile::type_convert<AccDataType>(b_f4x2.template unpack<>(number<1>{}));
-                auto b_scale = ck_tile::type_convert<AccDataType>(scale_b(k / ScaleBlockSize, n));
                 b_k_n_scaled(k, n) = b_val * b_scale;
             }
             else if constexpr(std::is_same_v<BDataType, pk_fp6x16_t>)
