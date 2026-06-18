@@ -36,11 +36,12 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     static_assert(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>,
                   "BLayout must be ColumnMajor!");
     static_assert(
-        is_any_of<AComputeDataType, fp8_t, bf8_t, pk_fp4_t, pk_fp6x16_t, fp16_t, bf16_t>::value);
+        is_any_of<AComputeDataType, fp8_t, bf8_t, pk_fp4_t, pk_fp6x16_t, fp16_t, bf16_t, int8_t>::
+            value);
     static_assert(
-        is_any_of<BComputeDataType, fp8_t, bf8_t, pk_fp4_t, pk_fp6x16_t, fp16_t, bf16_t>::value);
+        is_any_of<BComputeDataType, fp8_t, bf8_t, pk_fp4_t, pk_fp6x16_t, fp16_t, bf16_t, int8_t>::
+            value);
     static_assert(std::is_same_v<AComputeDataType, BComputeDataType>);
-    static_assert(std::is_same_v<CDataType, float>);
 
     static constexpr auto WGAccess =
         std::is_same_v<ComputeDataType, fp8_t> || std::is_same_v<ComputeDataType, bf8_t>

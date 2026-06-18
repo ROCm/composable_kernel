@@ -103,8 +103,6 @@ struct BlockGemmARegBRegCRegEightWavesV1
     using BWarpTensor = typename WarpGemm::BWarpTensor;
     using CWarpTensor = typename WarpGemm::CWarpTensor;
 
-    static_assert(std::is_same_v<typename WarpGemm::CDataType, float>);
-
     static constexpr auto a_warp_y_lengths =
         to_sequence(AWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
     static constexpr auto b_warp_y_lengths =

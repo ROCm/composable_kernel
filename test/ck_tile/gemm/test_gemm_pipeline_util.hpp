@@ -63,11 +63,18 @@ constexpr ck_tile::index_t get_k_warp_tile()
     return 16;
 #endif
 #else
-    if constexpr(PipelineType == GemmPipelineType::CompAsyncEightWaves && sizeof(PrecType) == 1)
-        return 128;
-    else if constexpr(PipelineType == GemmPipelineType::CompAsyncEightWaves &&
-                      sizeof(PrecType) == 2)
-        return 32;
+    if constexpr(PipelineType == GemmPipelineType::CompAsyncEightWaves)
+        if constexpr(std::is_same_v<PrecType, ck_tile::int8_t>)
+            return 64;
+        else if constexpr(ck_tile::is_any_of<PrecType,
+                                             ck_tile::fp8_t,
+                                             ck_tile::pk_fp4_t,
+                                             ck_tile::bf8_t>::value)
+            return 128;
+        else if constexpr(ck_tile::is_any_of<PrecType, ck_tile::fp16_t, ck_tile::bf16_t>::value)
+            return 32;
+        else
+            static_assert(false, "CompAsyncEightWaves: unsupported type");
     // CompAsyncConfig16x16x128
     else if constexpr(PipelineType == GemmPipelineType::CompAsync && M_Warp_Tile == 16)
         return 128;
