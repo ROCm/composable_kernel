@@ -874,20 +874,30 @@ template <
     typename WindowLengths_,
     typename TileDistribution_,
     index_t NumCoord,
-    typename Policy = DefaultTranspose<typename BottomTensorView_::DataType>,
-    typename        = std::enable_if_t<TransposeTileDistrChecker<TileDistribution_,
-                                                                 typename BottomTensorView_::DataType,
-                                                                 Policy>::distr_encoding_valid,
-                                       Policy>>
+    typename Policy             = DefaultTranspose<typename BottomTensorView_::DataType>,
+    index_t i_access_unsupport_ = -1,
+    bool oob_conditional_check  = true,
+    bool static_move_ys         = false,
+    typename                    = std::enable_if_t<TransposeTileDistrChecker<TileDistribution_,
+                                                                             typename BottomTensorView_::DataType,
+                                                                             Policy>::distr_encoding_valid,
+                                                   Policy>>
 CK_TILE_DEVICE void load_tile_transpose_with_offset(
     DistributedTensor_& out_tensor,
     const tile_window_with_static_distribution<BottomTensorView_,
                                                WindowLengths_,
                                                TileDistribution_,
                                                NumCoord>& __restrict__ tile_window,
-    index_t offset)
+    index_t offset,
+    number<i_access_unsupport_>          = {},
+    bool_constant<oob_conditional_check> = {},
+    bool_constant<static_move_ys>        = {})
 {
-    auto trans_tensor           = tile_window.template load_transpose_with_offset<Policy>(offset);
+    auto trans_tensor =
+        tile_window.template load_transpose_with_offset<Policy,
+                                                        number<i_access_unsupport_>{},
+                                                        bool_constant<oob_conditional_check>{},
+                                                        bool_constant<static_move_ys>{}>(offset);
     constexpr auto input_distr  = TileDistribution_{};
     constexpr auto output_distr = typename DistributedTensor_::StaticTileDistribution{};
 

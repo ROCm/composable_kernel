@@ -196,6 +196,7 @@ struct tensor_view
     async_get_vectorized_elements(CK_TILE_LDS_ADDR DataType_* smem,
                                   index_t offset,
                                   index_t wave_offset,
+                                  bool is_valid,
                                   number<IMM>                          = {},
                                   bool_constant<oob_conditional_check> = {}) const
     {
@@ -203,7 +204,7 @@ struct tensor_view
                                           offset / PackedSize,
                                           wave_offset,
                                           number<IMM / PackedSize>{},
-                                          true,
+                                          is_valid,
                                           bool_constant<oob_conditional_check>{});
     }
 

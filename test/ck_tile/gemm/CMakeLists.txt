@@ -60,6 +60,41 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
         list(APPEND CK_TILE_GEMM_TEST_TARGETS
             test_ck_tile_gemm_pipeline_comp_async_eight_waves
         )
+
+        add_gtest_executable(test_ck_tile_gemm_pipeline_compv3_async_rrr test_gemm_pipeline_compv3_async_rrr.cpp)
+        target_compile_options(test_ck_tile_gemm_pipeline_compv3_async_rrr PRIVATE ${EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS})
+
+        list(APPEND CK_TILE_GEMM_TEST_TARGETS
+            test_ck_tile_gemm_pipeline_compv3_async_rrr
+        )
+
+        add_gtest_executable(test_ck_tile_gemm_pipeline_compv3_async_rcr test_gemm_pipeline_compv3_async_rcr.cpp)
+        target_compile_options(test_ck_tile_gemm_pipeline_compv3_async_rcr PRIVATE ${EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS})
+
+        list(APPEND CK_TILE_GEMM_TEST_TARGETS
+            test_ck_tile_gemm_pipeline_compv3_async_rcr
+        )
+
+        add_gtest_executable(test_ck_tile_gemm_pipeline_compv3_async_ccr test_gemm_pipeline_compv3_async_ccr.cpp)
+        target_compile_options(test_ck_tile_gemm_pipeline_compv3_async_ccr PRIVATE ${EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS})
+
+        list(APPEND CK_TILE_GEMM_TEST_TARGETS
+            test_ck_tile_gemm_pipeline_compv3_async_ccr
+        )
+
+        add_gtest_executable(test_ck_tile_gemm_pipeline_compv3_async_crr test_gemm_pipeline_compv3_async_crr.cpp)
+        target_compile_options(test_ck_tile_gemm_pipeline_compv3_async_crr PRIVATE ${EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS})
+
+        list(APPEND CK_TILE_GEMM_TEST_TARGETS
+            test_ck_tile_gemm_pipeline_compv3_async_crr
+        )
+
+        add_gtest_executable(test_ck_tile_gemm_pipeline_compv3_async_persistent test_gemm_pipeline_compv3_async_persistent.cpp)
+        target_compile_options(test_ck_tile_gemm_pipeline_compv3_async_persistent PRIVATE ${EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS})
+
+        list(APPEND CK_TILE_GEMM_TEST_TARGETS
+            test_ck_tile_gemm_pipeline_compv3_async_persistent
+        )
     endif()
 
     if(GPU_TARGETS MATCHES "gfx11|gfx12")
