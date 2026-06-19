@@ -15,6 +15,8 @@
 #include "block_gemm_areg_bsmem_creg_v2_hack_1.hpp"
 #include "block_gemm_areg_bsmem_trload_creg_v2_hack_1.hpp"
 
+#include "hstu_attention_kernel_util.hpp"
+
 namespace ck_tile {
 
 struct HstuAttentionFwdPipelineQRKSVSPolicy
@@ -153,7 +155,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr index_t kKVector   = GetAlignmentK<Problem>();
 
         // for hdim96 and hdim160
-        if constexpr(kKPerBlock < Problem::HstuAttentionTileSetting::kSubQKHeaddim)
+        if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
         {
             return kKPerBlock * kNPerBlock;
         }
@@ -211,7 +213,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             GetSingleSmemElementSpaceSize<Problem, kPipelineUseTrLoad>();
 
         // for hdim96 and hdim160, use simplest layout
-        if constexpr(kKPerBlock < Problem::HstuAttentionTileSetting::kSubQKHeaddim)
+        if constexpr(!detail::IsPerfectHeaddimSize(kKPerBlock))
         {
             constexpr index_t KSingleSmemElementSpaceSize = kNPerBlock * kKPerBlock;
 
@@ -347,7 +349,7 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
         constexpr index_t kKVector = GetAlignmentK<Problem>();
         constexpr index_t OtherK   = kKPerBlock / kKVector;
 
-        if constexpr(kKPerBlock == Problem::HstuAttentionTileSetting::kSubQKHeaddim)
+        if constexpr(detail::IsPerfectHeaddimSize(kKPerBlock))
         // for kKPerBlock=32,64,128,256
         {
             static_assert((OtherK & (OtherK - 1)) == 0, "Check failed!");

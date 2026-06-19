@@ -107,6 +107,11 @@ CK_TILE_DEVICE static void scale_tile_in_pack(InOutDstrTensor& in_out_dstr_tenso
     };
 };
 
+CK_TILE_DEVICE static constexpr bool IsPerfectHeaddimSize(index_t kHeaddim)
+{
+    return kHeaddim > 0 && ((kHeaddim & (kHeaddim - 1)) == 0);
+};
+
 } // namespace detail
 
 } // namespace ck_tile
