@@ -249,7 +249,6 @@ CK Tile convolution kernels can be profiled with the same API as the old CK kern
 The CK Tile kernel instances for profiling are generated from configuration files via python codegen scripts.
 There are currently two ways of running the code generation
 
-- [CK Builder based codegen](../experimental/grouped_convolution_tile_instances/README.md)
 - [CK Dispatcher based codegen](../dispatcher/codegen/README.md)
 
 Both mechanism generate identical sets of instances. However, the CK Builder based codegen will be depracated 
@@ -308,7 +307,7 @@ flag `-D DISPATCHER_RULE_SET=<rule-set>` at the configuration step. The followin
 
 | Rule set | Description |
 |---|---|
-| `profiler` (default) | The CK Builder profiler instance set, generated in memory directly from the `.conf` configurations in `experimental/grouped_convolution_tile_instances/configs` (no JSON conversion, nothing committed). This is the exact reference instance set. |
+| `profiler` (default) | The CK Builder profiler instance set, generated in memory based on instance factory (no JSON conversion, nothing committed). This is the exact reference instance set. |
 | `tests` | The CK Builder tests instance set, generated in memory from the `tests` subset of the `.conf` configurations. |
 | `full` | The full rule-derived set (all per-(variant, ndim, datatype) instances), generated from the curated rule tables. |
 | `full-tests` | A smaller, stratified ~20% subset of the `full` rule set, for faster builds. |

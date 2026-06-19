@@ -826,7 +826,6 @@ endif()
 
 if (CK_EXPERIMENTAL_BUILDER)
   add_subdirectory(experimental/builder)
-  add_subdirectory(experimental/grouped_convolution_tile_instances)
 endif()
 
 if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY AND NOT HIPTENSOR_REQ_LIBS_ONLY)

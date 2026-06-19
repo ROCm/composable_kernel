@@ -10,8 +10,6 @@
 #include "ck_tile/host/device_prop.hpp"
 #ifdef CK_TILE_DISPATCHER
 #include "profiler/grouped_convolution_backward_weight_tile_dispatcher_algs.hpp"
-#else
-#include "profiler/grouped_convolution_backward_weight_tile_algs.hpp"
 #endif
 #include "profiler/tile_profiler_utils.hpp"
 
