@@ -1745,7 +1745,7 @@ class GroupedConvDispatcherWrapperGenerator:
             host_args_type = "GroupedConvBwdWeightHostArgs"
             conv_type_str = "bwd_weight"
 
-        layout = config.layout if is_depthwise else "nhwgc"
+        layout = config.layout
 
         # Algorithm key fields differ between implicit GEMM and depthwise algorithms
         if is_depthwise:

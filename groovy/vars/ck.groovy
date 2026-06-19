@@ -1339,10 +1339,10 @@ def runFullGroupedConvTileTests() {
         setup_args: "NO_CK_BUILD",
         build_type: 'Release',
         execute_cmd: """
-            python3 ../experimental/grouped_convolution_tile_instances/generate_instances.py --mode=profiler && \
-            cmake .. --preset dev-gfx90a -D CK_EXPERIMENTAL_BUILDER=ON && \
-            make -j64 test_grouped_convnd_fwd_tile test_grouped_convnd_bwd_weight_tile && \
+            cmake .. --preset dev-gfx90a -D CK_TILE_DISPATCHER=ON -DDISPATCHER_RULE_SET=tests && \
+            make -j64 test_grouped_convnd_fwd_tile test_grouped_convnd_bwd_weight_tile test_grouped_convnd_bwd_data_tile && \
             ./bin/test_grouped_convnd_bwd_weight_tile && \
+            ./bin/test_grouped_convnd_bwd_data_tile && \
             ./bin/test_grouped_convnd_fwd_tile"""
     )
 }

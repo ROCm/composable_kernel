@@ -163,7 +163,7 @@ def parse_kernel_metadata(kname):
     return {
         "ndim": ndim,
         "dtype": dtype,
-        "layout": "nhwgc",
+        "layout": "ndhwgc" if "_ndhwgc_" in kname else "nhwgc",
         "tile_m": tile_m, "tile_n": tile_n, "tile_k": tile_k,
         "wave_m": wave_m, "wave_n": wave_n, "wave_k": wave_k,
         "warp_m": warp_m, "warp_n": warp_n, "warp_k": warp_k,

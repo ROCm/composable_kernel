@@ -850,13 +850,19 @@ struct GroupedConvolutionBackwardDataKernel
             // Check access per C
             if(ConvC % GroupedConvTraitsType_::VectorSizeB != 0)
             {
-                CK_TILE_ERROR("Conv C is not a multiple of vector load size for input image!");
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("Conv C is not a multiple of vector load size for input image!");
+                }
                 return false;
             }
         }
         else
         {
-            CK_TILE_ERROR("Not supported input layout!");
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Not supported input layout!");
+            }
             return false;
         }
 
@@ -867,13 +873,19 @@ struct GroupedConvolutionBackwardDataKernel
         {
             if(ConvC % GroupedConvTraitsType_::VectorSizeC != 0)
             {
-                CK_TILE_ERROR("Conv C is not a multiple of vector load size for weight!");
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR("Conv C is not a multiple of vector load size for weight!");
+                }
                 return false;
             }
         }
         else
         {
-            CK_TILE_ERROR("Not supported weight layout!");
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Not supported weight layout!");
+            }
             return false;
         }
 
@@ -883,13 +895,20 @@ struct GroupedConvolutionBackwardDataKernel
         {
             if(ConvK % GroupedConvTraitsType_::VectorSizeA != 0)
             {
-                CK_TILE_ERROR("Conv K is not a multiple of vector store size for output image!");
+                if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+                {
+                    CK_TILE_ERROR(
+                        "Conv K is not a multiple of vector store size for output image!");
+                }
                 return false;
             }
         }
         else
         {
-            CK_TILE_ERROR("Not supported output layout!");
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Not supported output layout!");
+            }
             return false;
         }
 
