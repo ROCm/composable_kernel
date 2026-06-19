@@ -29,15 +29,14 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr index_t kM0           = HstuAttentionTileSetting::kM0;
-    static constexpr index_t kN0           = HstuAttentionTileSetting::kN0;
-    static constexpr index_t kN0Sub        = HstuAttentionTileSetting::kN0Sub;
-    static constexpr index_t kN1           = HstuAttentionTileSetting::kN1;
-    static constexpr index_t kK1           = HstuAttentionTileSetting::kK1;
-    static constexpr index_t kQKHeaddim    = HstuAttentionTileSetting::kQKHeaddim;
-    static constexpr index_t kSubQKHeaddim = HstuAttentionTileSetting::kSubQKHeaddim;
+    static constexpr index_t kM0        = HstuAttentionTileSetting::kM0;
+    static constexpr index_t kN0        = HstuAttentionTileSetting::kN0;
+    static constexpr index_t kN0Sub     = HstuAttentionTileSetting::kN0Sub;
+    static constexpr index_t kN1        = HstuAttentionTileSetting::kN1;
+    static constexpr index_t kK1        = HstuAttentionTileSetting::kK1;
+    static constexpr index_t kQKHeaddim = HstuAttentionTileSetting::kQKHeaddim;
 
-    static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
+    static_assert(kQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
     static_assert(Problem::kUseSoftmax == true, "This pipeline only works with using softmax");
 

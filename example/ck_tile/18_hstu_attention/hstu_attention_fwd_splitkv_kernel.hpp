@@ -552,7 +552,7 @@ struct HstuAttentionFwdSplitKVKernel
                 num_tile_in_seqlen += 1;
         };
 
-        if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kSubQKHeaddim)
+        if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kQKHeaddim)
         {
 #if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
             return dim3(batch_size_,
@@ -586,7 +586,7 @@ struct HstuAttentionFwdSplitKVKernel
             return ck_tile::make_tuple(quotient, modulus);
         };
 
-        if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kSubQKHeaddim)
+        if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kQKHeaddim)
         {
             const index_t num_tile_n1 =
                 ck_tile::integer_divide_ceil(kargs.hdim_v, HstuAttentionPipeline::kN1);
