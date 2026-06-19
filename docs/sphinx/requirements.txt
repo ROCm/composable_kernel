@@ -260,6 +260,8 @@ sphinxcontrib-applehelp==2.0.0
     # via sphinx
 sphinxcontrib-bibtex==2.6.5
     # via -r requirements.in
+sphinxcontrib-datatemplates==0.11.0
+    # via -r requirements.in
 sphinxcontrib-devhelp==2.0.0
     # via sphinx
 sphinxcontrib-htmlhelp==2.1.0
@@ -270,6 +272,8 @@ sphinxcontrib-mermaid==2.0.2
     # via -r requirements.in
 sphinxcontrib-qthelp==2.0.0
     # via sphinx
+sphinxcontrib-runcmd==0.2.0
+    # via sphinxcontrib-datatemplates
 sphinxcontrib-serializinghtml==2.0.0
     # via sphinx
 sqlalchemy==2.0.50

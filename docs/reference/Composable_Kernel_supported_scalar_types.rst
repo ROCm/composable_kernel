@@ -2,6 +2,8 @@
   :description: Composable Kernel supported scalar types
   :keywords: composable kernel, scalar, data types, support, CK, ROCm
 
+.. _composablekernel-supported-scalar-types:
+
 ***************************************************
 Composable Kernel supported scalar data types
 ***************************************************
