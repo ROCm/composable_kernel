@@ -39,7 +39,8 @@ static constexpr inline auto is_row_major(Layout layout_)
 
 template <typename PrecType,
           ck_tile::index_t M_Warp_Tile,
-          GemmPipelineType PipelineType = GemmPipelineType::CompV3>
+          GemmPipelineType PipelineType = GemmPipelineType::CompV3,
+          bool IsAsync                  = false>
 constexpr ck_tile::index_t get_k_warp_tile()
 {
 #if CK_TILE_USE_WMMA
@@ -63,7 +64,7 @@ constexpr ck_tile::index_t get_k_warp_tile()
     return 16;
 #endif
 #else
-    if constexpr(PipelineType == GemmPipelineType::CompAsyncEightWaves)
+    if constexpr(PipelineType == GemmPipelineType::CompAsyncEightWaves || IsAsync)
         if constexpr(std::is_same_v<PrecType, ck_tile::int8_t>)
             return 64;
         else if constexpr(ck_tile::is_any_of<PrecType,
@@ -74,7 +75,7 @@ constexpr ck_tile::index_t get_k_warp_tile()
         else if constexpr(ck_tile::is_any_of<PrecType, ck_tile::fp16_t, ck_tile::bf16_t>::value)
             return 32;
         else
-            static_assert(false, "CompAsyncEightWaves: unsupported type");
+            static_assert(false, "CompAsyncEightWaves / Async pipeline: unsupported type");
     // CompAsyncConfig16x16x128
     else if constexpr(PipelineType == GemmPipelineType::CompAsync && M_Warp_Tile == 16)
         return 128;
@@ -162,6 +163,8 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompAsyncEightWaves, Problem>
 
     static constexpr auto GetName() { return "GemmPipelineAgBgCrCompAsyncEightWaves"; }
 };
+template <typename T>
+using has_async = decltype(T::Async);
 
 template <typename Problem>
 struct GemmPipelineTypeSelector<GemmPipelineType::CompTDMV1, Problem>
@@ -220,6 +223,17 @@ template <typename Tuple, typename Derived>
 class TestCkTileGemmPipeline : public ::testing::Test
 {
     public:
+    static constexpr bool IsAsync_v = [] {
+        if constexpr(ck_tile::is_detected<has_async, Derived>{})
+        {
+            return Derived::Async;
+        }
+        else
+        {
+            return false;
+        }
+    }();
+
     using ALayout                      = std::tuple_element_t<0, Tuple>;
     using BLayout                      = std::tuple_element_t<1, Tuple>;
     using CLayout                      = std::tuple_element_t<2, Tuple>;
@@ -237,8 +251,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
     static constexpr ck_tile::index_t M_Warp_Tile = std::tuple_element_t<10, Tuple>{};
     static constexpr ck_tile::index_t N_Warp_Tile = std::tuple_element_t<11, Tuple>{};
     static constexpr ck_tile::index_t K_Warp_Tile =
-        ck_tile::max(get_k_warp_tile<ADataType, M_Warp_Tile, PipelineType>(),
-                     get_k_warp_tile<BDataType, N_Warp_Tile, PipelineType>());
+        ck_tile::max(get_k_warp_tile<ADataType, M_Warp_Tile, PipelineType, IsAsync_v>(),
+                     get_k_warp_tile<BDataType, N_Warp_Tile, PipelineType, IsAsync_v>());
 
     using AComputeDataType = ADataType;
     using BComputeDataType =
@@ -298,6 +312,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr ck_tile::index_t TileParitionerGroupNum = 8;
         constexpr ck_tile::index_t TileParitionerM01      = 4;
 
+        constexpr ck_tile::index_t VectorSize = 16;
+
         // ===============================================
 
         using GemmShape = std::conditional_t<
@@ -318,18 +334,23 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                           TileParitionerGroupNum,
                                                                           TileParitionerM01>>;
 
-        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
-                                                                     kPadN,
-                                                                     kPadK,
-                                                                     DoubleSmemBuffer,
-                                                                     ALayout,
-                                                                     BLayout,
-                                                                     CLayout,
-                                                                     TransposeC,
-                                                                     StructuredSparsity,
-                                                                     Persistent,
-                                                                     NumWaveGroup,
-                                                                     preshuffle>;
+        using GemmUniversalTraits =
+            ck_tile::TileGemmUniversalTraits<kPadM,
+                                             kPadN,
+                                             kPadK,
+                                             DoubleSmemBuffer,
+                                             ALayout,
+                                             BLayout,
+                                             CLayout,
+                                             TransposeC,
+                                             StructuredSparsity,
+                                             Persistent,
+                                             NumWaveGroup,
+                                             preshuffle,
+                                             VectorSize,
+                                             ck_tile::DataCachePrefetchKind::None,
+                                             ck_tile::DataCachePrefetchKind::None,
+                                             IsAsync_v>;
 
         using UniversalGemmProblem =
             ck_tile::UniversalGemmPipelineProblem<ADataType,
@@ -422,12 +443,12 @@ class TestCkTileGemmPipeline : public ::testing::Test
         }
         // for TDM it used tdm_epilogue which don't support split-k
         if constexpr(PipelineType == GemmPipelineType::CompV4 ||
-                     PipelineType == GemmPipelineType::CompAsyncEightWaves ||
+                     PipelineType == GemmPipelineType::CompAsyncEightWaves || IsAsync_v ||
                      PipelineType == GemmPipelineType::CompTDMV1 ||
                      PipelineType == GemmPipelineType::CompTDMV2 ||
                      std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
-            // Only do k_batch = 1 when pipeline is CompV4, or BDataType is I4
+            // Only do k_batch = 1 when pipeline is CompV4, BDataType is I4 or async pipeline
             k_batches_ = {1};
         }
         else

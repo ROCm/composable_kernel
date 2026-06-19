@@ -280,11 +280,12 @@ struct GemmPipelineAgBgCrImplBase
         // A DRAM tile window for load
         auto a_copy_dram_window = generate_tuple(
             [&](auto idx) {
-                return make_tile_window(
-                    dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
-                    make_tuple(YPerTile{}, XPerTile{}),
-                    dram_block_window_tmp[number<idx>{}].get_window_origin() + offset,
-                    Policy::template MakeADramTileDistribution<Problem>());
+                return make_tile_window(Policy::template MakeADramTensorView<Problem>(
+                                            dram_block_window_tmp[number<idx>{}]),
+                                        make_tuple(YPerTile{}, XPerTile{}),
+                                        dram_block_window_tmp[number<idx>{}].get_window_origin() +
+                                            offset,
+                                        Policy::template MakeADramTileDistribution<Problem>());
             },
             number<DramBlockWindowTmp::size()>{});
         return std::move(a_copy_dram_window);
@@ -302,7 +303,7 @@ struct GemmPipelineAgBgCrImplBase
         using XPerTile = std::conditional_t<is_col_major, number<MPerBlock>, number<KPerBlock>>;
         // A DRAM tile window for load
         auto a_copy_dram_window =
-            make_tile_window(dram_block_window_tmp.get_bottom_tensor_view(),
+            make_tile_window(Policy::template MakeADramTensorView<Problem>(dram_block_window_tmp),
                              make_tuple(YPerTile{}, XPerTile{}),
                              dram_block_window_tmp.get_window_origin() + offset,
                              Policy::template MakeADramTileDistribution<Problem>());
@@ -323,11 +324,12 @@ struct GemmPipelineAgBgCrImplBase
         // A DRAM tile window for load
         auto a_copy_dram_window = generate_tuple(
             [&](auto idx) {
-                return make_tile_window(
-                    dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
-                    make_tuple(YPerTile{}, XPerTile{}),
-                    dram_block_window_tmp[number<idx>{}].get_window_origin() + offset,
-                    Policy::template MakeBDramTileDistribution<Problem>());
+                return make_tile_window(Policy::template MakeBDramTensorView<Problem>(
+                                            dram_block_window_tmp[number<idx>{}]),
+                                        make_tuple(YPerTile{}, XPerTile{}),
+                                        dram_block_window_tmp[number<idx>{}].get_window_origin() +
+                                            offset,
+                                        Policy::template MakeBDramTileDistribution<Problem>());
             },
             number<DramBlockWindowTmp::size()>{});
         return std::move(a_copy_dram_window);
@@ -345,7 +347,7 @@ struct GemmPipelineAgBgCrImplBase
         using XPerTile = std::conditional_t<is_row_major, number<NPerBlock>, number<KPerBlock>>;
         // A DRAM tile window for load
         auto a_copy_dram_window =
-            make_tile_window(dram_block_window_tmp.get_bottom_tensor_view(),
+            make_tile_window(Policy::template MakeBDramTensorView<Problem>(dram_block_window_tmp),
                              make_tuple(YPerTile{}, XPerTile{}),
                              dram_block_window_tmp.get_window_origin() + offset,
                              Policy::template MakeBDramTileDistribution<Problem>());

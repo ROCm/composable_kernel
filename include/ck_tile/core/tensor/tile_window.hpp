@@ -813,11 +813,16 @@ struct tile_window_with_static_distribution
                                 bool_constant<oob_conditional_check>{});
                     else
                     {
+                        bool is_valid = coordinate_has_valid_offset_assuming_top_index_is_valid(
+                            this->get_bottom_tensor_view().get_tensor_descriptor(),
+                            bottom_tensor_thread_coord);
+
                         this->get_bottom_tensor_view()
                             .template async_get_vectorized_elements<vector_t>(
                                 smem,
                                 bottom_tensor_thread_coord.get_offset() + offset,
                                 dram_ys_offset,
+                                is_valid,
                                 number<0>{},
                                 bool_constant<oob_conditional_check>{});
                     }
@@ -1340,36 +1345,50 @@ struct tile_window_with_static_distribution
         });
     }
 
-    template <typename Policy, index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
+    template <typename Policy,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true,
+              bool static_move_ys         = false>
     CK_TILE_DEVICE auto load_transpose(number<i_access_unsupport_>          = {},
-                                       bool_constant<oob_conditional_check> = {}) const
+                                       bool_constant<oob_conditional_check> = {},
+                                       bool_constant<static_move_ys>        = {}) const
     {
         return this->template load_transpose_with_offset<Policy>(
-            0, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
+            0,
+            number<i_access_unsupport_>{},
+            bool_constant<oob_conditional_check>{},
+            bool_constant<static_move_ys>{});
     }
 
-    template <typename Policy, index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
+    template <typename Policy,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true,
+              bool static_move_ys         = false>
     CK_TILE_DEVICE auto load_transpose_with_offset(index_t offset,
                                                    number<i_access_unsupport_>          = {},
-                                                   bool_constant<oob_conditional_check> = {}) const
+                                                   bool_constant<oob_conditional_check> = {},
+                                                   bool_constant<static_move_ys>        = {}) const
     {
         constexpr auto tile_dstr = typename Base::TileDstr{};
         auto dst_tensor = make_static_distributed_tensor<typename Base::DataType>(tile_dstr);
         this->template load_transpose_with_offset<Policy>(offset,
                                                           dst_tensor,
                                                           number<i_access_unsupport_>{},
-                                                          bool_constant<oob_conditional_check>{});
+                                                          bool_constant<oob_conditional_check>{},
+                                                          bool_constant<static_move_ys>{});
         return dst_tensor;
     }
 
     template <typename Policy,
               typename DistributedTensor,
               index_t i_access_unsupport_ = -1,
-              bool oob_conditional_check  = true>
+              bool oob_conditional_check  = true,
+              bool static_move_ys         = false>
     CK_TILE_DEVICE void load_transpose_with_offset(index_t offset,
                                                    DistributedTensor& dst_tensor,
                                                    number<i_access_unsupport_>          = {},
-                                                   bool_constant<oob_conditional_check> = {}) const
+                                                   bool_constant<oob_conditional_check> = {},
+                                                   bool_constant<static_move_ys>        = {}) const
     {
         using Traits   = typename Base::Traits;
         using vector_t = typename Traits::vector_t;
@@ -1391,11 +1410,30 @@ struct tile_window_with_static_distribution
                 // data index [y0, y1, ...]
                 constexpr auto idx_ys_start = SFC_Ys::get_index(iAccess);
 
+                const auto ys_offset = [&]() {
+                    if constexpr(static_move_ys)
+                    {
+                        constexpr auto idx_off_ys = SFC_Ys::get_step_between(number<0>{}, iAccess);
+                        constexpr auto adapter_ys_offset = make_tensor_adaptor_coordinate(
+                            StaticTileDistribution_{}.get_ps_ys_to_xs_adaptor(),
+                            container_concat(array<index_t, Base::NDimP>{0},
+                                             to_array<index_t, idx_off_ys.size()>(idx_off_ys)));
+                        const auto coord_ys_offset = make_tensor_coordinate(
+                            this->get_bottom_tensor_view().get_tensor_descriptor(),
+                            adapter_ys_offset.get_bottom_index());
+                        return coord_ys_offset.get_offset();
+                    }
+                    else
+                    {
+                        return 0;
+                    }
+                }();
+
                 // read from bottom tensor
                 const vector_t vec_value =
                     this->get_bottom_tensor_view()
                         .template get_transpose_vectorized_elements<vector_t>(
-                            bottom_tensor_thread_coord, offset);
+                            bottom_tensor_thread_coord, offset + ys_offset);
                 // write into distributed tensor
                 static_for<0, Traits::ScalarPerVector, Traits::PackedSize>{}([&](auto j) {
                     constexpr auto orig_idx_ys = generate_tuple(
@@ -1416,7 +1454,7 @@ struct tile_window_with_static_distribution
                             .template get_as<typename Base::DataType>()[j / Traits::PackedSize];
                 });
                 // move thread coordinate
-                if constexpr(iCoordAccess != (NumAccessPerCoord - 1))
+                if constexpr(!static_move_ys && iCoordAccess != (NumAccessPerCoord - 1))
                 {
                     constexpr auto idx_diff_ys = SFC_Ys::get_forward_step(iAccess);
 

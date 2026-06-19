@@ -301,8 +301,25 @@ struct BlockUniversalGemmAsBsCr
                                           bool_constant<ALoadTranspose> = {},
                                           bool_constant<BLoadTranspose> = {})
         {
-            load_and_convert_tile<UnaryOpSize_, ALoadTranspose>(a_warp_tile_, a_block_window);
-            load_and_convert_tile<UnaryOpSize_, BLoadTranspose>(b_warp_tile_, b_block_window);
+            constexpr auto NEG1 = number<-1>{};
+            if constexpr(Traits::Problem::Async && ALoadTranspose)
+            {
+                load_tile_transpose_with_offset(
+                    a_warp_tile_, a_block_window, 0, NEG1, true_type{}, true_type{});
+            }
+            else
+            {
+                load_and_convert_tile<UnaryOpSize_, ALoadTranspose>(a_warp_tile_, a_block_window);
+            }
+            if constexpr(Traits::Problem::Async && BLoadTranspose)
+            {
+                load_tile_transpose_with_offset(
+                    b_warp_tile_, b_block_window, 0, NEG1, true_type{}, true_type{});
+            }
+            else
+            {
+                load_and_convert_tile<UnaryOpSize_, BLoadTranspose>(b_warp_tile_, b_block_window);
+            }
         }
 
         // C += A * B

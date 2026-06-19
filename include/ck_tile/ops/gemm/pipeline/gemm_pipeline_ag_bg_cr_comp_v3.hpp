@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
 
@@ -97,7 +97,7 @@ struct BaseGemmPipelineAgBgCrCompV3
 // LocalPreFillStages: 1
 // LocalPreFetchStages: 1
 // LocalSharedMemoryBuffer: 1
-template <typename Problem, typename Policy = UniversalGemmPipelineAgBgCrPolicy>
+template <typename Problem, typename Policy = GemmPipelineAgBgCrDefaultPolicy>
 struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
@@ -134,7 +134,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr bool Async = false;
+    static constexpr bool Async = Problem::Async;
 
     template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeA()
@@ -260,6 +260,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
         CK_TILE_DEVICE static constexpr auto HotLoopScheduler()
         {
+            if constexpr(Problem::Async)
+            {
+                return;
+            }
+
             constexpr index_t MPerXDL = BlockGemm::WarpGemm::kM;
             constexpr index_t NPerXDL = BlockGemm::WarpGemm::kN;
             constexpr index_t KPerXDL = BlockGemm::WarpGemm::WarpGemmAttribute::Impl::kK;
@@ -471,7 +476,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // A/B tiles in LDS
             auto&& [a_lds_block, b_lds_block] = Base::GetABLdsTensorViews(p_smem);
 
-            // Tile distribution for load from lds
+            // A DRAM tile window(s) for load
             constexpr auto a_lds_load_tile_distr =
                 make_static_tile_distribution(BlockGemm::MakeABlockDistributionEncode());
             constexpr auto b_lds_load_tile_distr =
@@ -480,13 +485,13 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // A DRAM tile window for load
             // A LDS tile window for store
             // A LDS tile for block GEMM
-            auto&& [a_copy_dram_window, a_copy_lds_window, a_lds_gemm_window] =
+            auto&& [a_tile_windows, a_copy_lds_window, a_lds_gemm_window] =
                 Base::GetAWindows(a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
 
             // B DRAM tile window for load
             // B LDS tile window for store
             // B LDS tile for block GEMM
-            auto&& [b_copy_dram_window, b_copy_lds_window, b_lds_gemm_window] =
+            auto&& [b_tile_windows, b_copy_lds_window, b_lds_gemm_window] =
                 Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
 
             // Block GEMM
@@ -501,46 +506,29 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
 
-            // -----------------------------------------------------------------------------------------
-            // Gemm pipeline start
-            // initialize C
-            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
-
-            // Load tile - during value loading, an elementwise function is executed for each A0,
-            // A1, ... AN. The values A0, A1, ... AN are read by the same thread.
-            auto elementwise_As_res =
-                load_tile_with_elementwise(a_copy_dram_window, a_element_func);
-
-            // Move each A - the enhanced function move_tile_window is executed, which takes a tuple
-            // as input.
-            move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-
-            // Load tile - during value loading, an elementwise function is executed for each B0,
-            // B1, ... BN. The values B0, B1, ... BN are read by the same thread.
-            auto elementwise_Bs_res =
-                load_tile_with_elementwise(b_copy_dram_window, b_element_func);
-
-            // Move each B - the enhanced function move_tile_window is executed, which takes a tuple
-            // as input.
-            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
-
             // Pre-compute LDS store window coordinates once (avoids ~96 VALU per
             // store_tile()/LocalPrefill call inside the K-loop).
+            using ElementwiseAsRes =
+                decltype(load_tile_with_elementwise(a_tile_windows, a_element_func));
+            ElementwiseAsRes a_global_tile;
             constexpr auto a_store_dstr = []() {
                 if constexpr(is_a_col_major && !is_a_load_tr_v())
                     return decltype(make_static_distributed_tensor<ADataType>(
                         Policy::template MakeShuffledARegTileDistribution<
                             Problem>()))::get_tile_distribution();
                 else
-                    return remove_cvref_t<decltype(elementwise_As_res)>::get_tile_distribution();
+                    return remove_cvref_t<ElementwiseAsRes>::get_tile_distribution();
             }();
+            using ElementwiseBsRes =
+                decltype(load_tile_with_elementwise(b_tile_windows, b_element_func));
+            ElementwiseBsRes b_global_tile;
             constexpr auto b_store_dstr = []() {
                 if constexpr(is_b_row_major && !is_b_load_tr_v())
                     return decltype(make_static_distributed_tensor<BDataType>(
                         Policy::template MakeShuffledBRegTileDistribution<
                             Problem>()))::get_tile_distribution();
                 else
-                    return remove_cvref_t<decltype(elementwise_Bs_res)>::get_tile_distribution();
+                    return remove_cvref_t<ElementwiseBsRes>::get_tile_distribution();
             }();
 
             auto a_lds_store_window =
@@ -548,48 +536,143 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             auto b_lds_store_window =
                 Base::MakeDistributedLdsStoreWindow(b_copy_lds_window, b_store_dstr);
 
-            auto store_a_to_lds = [&](const auto& src) {
-                if constexpr(is_a_col_major && !is_a_load_tr_v())
-                {
-                    auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                        Policy::template MakeShuffledARegTileDistribution<Problem>());
-                    transpose_tile2d(a_shuffle_tmp, src);
-                    Base::LocalStore(a_lds_store_window, a_shuffle_tmp);
-                }
-                else
-                {
-                    Base::LocalStore(a_lds_store_window, src);
-                }
-            };
-            auto store_b_to_lds = [&](const auto& src) {
-                if constexpr(is_b_row_major && !is_b_load_tr_v())
-                {
-                    auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
-                        Policy::template MakeShuffledBRegTileDistribution<Problem>());
-                    transpose_tile2d(b_shuffle_tmp, src);
-                    Base::LocalStore(b_lds_store_window, b_shuffle_tmp);
-                }
-                else
-                {
-                    Base::LocalStore(b_lds_store_window, src);
-                }
+            // -----------------------------------------------------------------------------------------
+            // Lambdas
+            enum
+            {
+                PrefillBefore = 1,
+                PrefillAfter  = 2,
+                PrefillAlways = PrefillBefore | PrefillAfter,
             };
 
-            // LDS write 0
-            store_a_to_lds(elementwise_As_res);
-            store_b_to_lds(elementwise_Bs_res);
+            constexpr auto PrefetchCondition = Problem::Async ? PrefillAfter : PrefillBefore;
 
-            // global read 1
+            auto global_prefetch = [&](auto& lds_tile,
+                                       auto& dram_tile,
+                                       auto& window_step,
+                                       auto& element_func,
+                                       auto& global_tile,
+                                       auto prefetch_location) {
+                if constexpr(prefetch_location & PrefetchCondition)
+                {
+                    if constexpr(Problem::Async)
+                    {
+                        // global -> lds
+                        async_load_tile(
+                            lds_tile, dram_tile[I0{}], number<-1>{}, true_type{}, true_type{});
+                        move_tile_window(dram_tile[I0{}], window_step);
+                    }
+                    else
+                    {
+                        // global -> vgpr
+                        global_tile = load_tile_with_elementwise(dram_tile, element_func);
+                        move_tile_window(dram_tile, window_step);
+                    }
+                }
+            };
 
-            elementwise_As_res = load_tile_with_elementwise(a_copy_dram_window, a_element_func);
-            move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+            auto local_prefill = [&](auto sync_before) {
+                if constexpr(!Problem::Async)
+                {
+                    if constexpr(sync_before)
+                    {
+                        block_sync_lds();
+                    }
+                    // vgpr -> lds
+                    if constexpr(is_a_col_major && !is_a_load_tr_v())
+                    {
+                        auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                            Policy::template MakeShuffledARegTileDistribution<Problem>());
+                        transpose_tile2d(a_shuffle_tmp, a_global_tile);
+                        Base::LocalStore(a_lds_store_window, a_shuffle_tmp);
+                    }
+                    else
+                    {
+                        Base::LocalStore(a_lds_store_window, a_global_tile);
+                    }
+                    if constexpr(is_b_row_major && !is_b_load_tr_v())
+                    {
+                        auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                            Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                        transpose_tile2d(b_shuffle_tmp, b_global_tile);
+                        Base::LocalStore(b_lds_store_window, b_shuffle_tmp);
+                    }
+                    else
+                    {
+                        Base::LocalStore(b_lds_store_window, b_global_tile);
+                    }
+                }
+            };
 
-            elementwise_Bs_res = load_tile_with_elementwise(b_copy_dram_window, b_element_func);
-            move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+            auto sync_after_local_prefetch = [&]() {
+                if constexpr(Problem::Async)
+                {
+                    block_sync_lds();
+                }
+            };
 
-            block_sync_lds();
+            // -----------------------------------------------------------------------------------------
+            // Gemm pipeline start
+            // initialize C
+            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
+
+            // global read 0
+            global_prefetch(a_copy_lds_window,
+                            a_tile_windows,
+                            a_dram_tile_window_step,
+                            a_element_func,
+                            a_global_tile,
+                            number<PrefillAlways>{});
+            global_prefetch(b_copy_lds_window,
+                            b_tile_windows,
+                            b_dram_tile_window_step,
+                            b_element_func,
+                            b_global_tile,
+                            number<PrefillAlways>{});
+
+            local_prefill(false_type{});
+
+            // global read 1 (default)
+            global_prefetch(a_copy_lds_window,
+                            a_tile_windows,
+                            a_dram_tile_window_step,
+                            a_element_func,
+                            a_global_tile,
+                            number<PrefillBefore>{});
+            global_prefetch(b_copy_lds_window,
+                            b_tile_windows,
+                            b_dram_tile_window_step,
+                            b_element_func,
+                            b_global_tile,
+                            number<PrefillBefore>{});
+
+            if constexpr(Problem::Async)
+            {
+                block_sync_lds_direct_load();
+            }
+            else
+            {
+                block_sync_lds();
+            }
+
             block_gemm.LocalPrefetch(
                 a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
+
+            sync_after_local_prefetch();
+
+            // global read 1 (async)
+            global_prefetch(a_copy_lds_window,
+                            a_tile_windows,
+                            a_dram_tile_window_step,
+                            a_element_func,
+                            a_global_tile,
+                            number<PrefillAfter>{});
+            global_prefetch(b_copy_lds_window,
+                            b_tile_windows,
+                            b_dram_tile_window_step,
+                            b_element_func,
+                            b_global_tile,
+                            number<PrefillAfter>{});
 
             __builtin_amdgcn_sched_barrier(0);
 
@@ -599,31 +682,56 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 index_t i = 0;
                 do
                 {
-                    block_sync_lds();
+                    local_prefill(true_type{});
 
-                    store_a_to_lds(elementwise_As_res);
-                    store_b_to_lds(elementwise_Bs_res);
-
-                    elementwise_As_res =
-                        load_tile_with_elementwise(a_copy_dram_window, a_element_func);
-                    move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-
-                    elementwise_Bs_res =
-                        load_tile_with_elementwise(b_copy_dram_window, b_element_func);
-                    move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
+                    global_prefetch(a_copy_lds_window,
+                                    a_tile_windows,
+                                    a_dram_tile_window_step,
+                                    a_element_func,
+                                    a_global_tile,
+                                    number<PrefillBefore>{});
+                    global_prefetch(b_copy_lds_window,
+                                    b_tile_windows,
+                                    b_dram_tile_window_step,
+                                    b_element_func,
+                                    b_global_tile,
+                                    number<PrefillBefore>{});
 
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
 
-                    block_sync_lds();
+                    if constexpr(Problem::Async)
+                    {
+                        block_sync_lds_direct_load();
+                    }
+                    else
+                    {
+                        block_sync_lds();
+                    }
 
                     block_gemm.LocalPrefetch(
                         a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
+
+                    sync_after_local_prefetch();
+
+                    global_prefetch(a_copy_lds_window,
+                                    a_tile_windows,
+                                    a_dram_tile_window_step,
+                                    a_element_func,
+                                    a_global_tile,
+                                    number<PrefillAfter>{});
+                    global_prefetch(b_copy_lds_window,
+                                    b_tile_windows,
+                                    b_dram_tile_window_step,
+                                    b_element_func,
+                                    b_global_tile,
+                                    number<PrefillAfter>{});
+
                     HotLoopScheduler();
-                    __builtin_amdgcn_sched_barrier(0);
 
                     i += 1;
                 } while(i < (num_loop - 1));
             }
+
             // tail
             if constexpr(TailNum == TailNumber::Odd)
             {
@@ -634,16 +742,23 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             else
             {
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-                block_sync_lds();
 
-                store_a_to_lds(elementwise_As_res);
-                store_b_to_lds(elementwise_Bs_res);
-                block_sync_lds();
+                local_prefill(true_type{});
+
+                if constexpr(Problem::Async)
+                {
+                    block_sync_lds_direct_load();
+                }
+                else
+                {
+                    block_sync_lds();
+                }
+
                 block_gemm.LocalPrefetch(
                     a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
+
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
             }
-            // __builtin_amdgcn_sched_barrier(0);
             return c_block_tile;
         }
     };
@@ -662,6 +777,12 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                                    index_t num_loop,
                                    void* p_smem) const
     {
+        static_assert(!Problem::Async ||
+                      (AsDramBlockWindowTmp::size() == 1 && BsDramBlockWindowTmp::size() == 1 &&
+                       std::is_same_v<AElementFunction, element_wise::PassThrough> &&
+                       std::is_same_v<BElementFunction, element_wise::PassThrough> &&
+                       sizeof(ADataType) == sizeof(BDataType) && APackedSize == BPackedSize));
+
         const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
         const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
 
@@ -696,6 +817,10 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                                    TailNumber tail_number,
                                    void* p_smem) const
     {
+        static_assert(!Problem::Async ||
+                      (AsDramBlockWindowTmp::size() == 1 && BsDramBlockWindowTmp::size() == 1 &&
+                       sizeof(ADataType) == sizeof(BDataType) && APackedSize == BPackedSize));
+
         const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
             constexpr bool hot_loop    = hot_loop_.value;
             constexpr auto tail_num    = tail_num_.value;
