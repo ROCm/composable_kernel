@@ -2001,7 +2001,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
                                              smem,
                                              bytes,
                                              v_offset,
-                                             src_wave_addr_offset,
+                                             amd_wave_read_first_lane(src_wave_addr_offset),
                                              /*imm*/ IMM,
                                              static_cast<index_t>(coherence));
 #ifdef __clang__
