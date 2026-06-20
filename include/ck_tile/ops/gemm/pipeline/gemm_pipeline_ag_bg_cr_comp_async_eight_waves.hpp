@@ -183,12 +183,10 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
             // Hot loop scheduler
             // ------------------
             auto hot_loop_scheduler = [&]() {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x008, MIterPerWarp, 0); // MFMA
                 s_waitcnt_lgkm<4>();
                 __builtin_amdgcn_sched_group_barrier(0x004, 1, 0); // lgkmcnt / SALU
-                static_for<0, MFMA_INST - 3, 1>{}([&](auto) {
+                static_for<0, MFMA_INST - MIterPerWarp, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_barrier(0);
