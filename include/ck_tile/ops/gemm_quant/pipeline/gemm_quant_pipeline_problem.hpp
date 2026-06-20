@@ -25,7 +25,8 @@ template <typename ADataType_,
           GemmPipelineScheduler Scheduler_ = GemmPipelineScheduler::Intrawave,
           bool HasHotLoop_                 = true,
           TailNumber TailNum_              = TailNumber::Full,
-          CastPolicy BCastPolicy_          = CastPolicy::AfterLDSRead>
+          CastPolicy BCastPolicy_          = CastPolicy::AfterLDSRead,
+          bool Async_                      = false>
 struct GemmQuantPipelineProblemBase
     : public GemmPipelineProblemBase<
           ADataType_,
@@ -111,8 +112,7 @@ struct GemmQuantPipelineProblemBase
             : BCastPolicy_;
 #endif
 
-    // async pipelines not supported for blockscale yet
-    static constexpr bool Async = false;
+    static constexpr bool Async = Async_;
 
     static_assert(BlockGemmShape::kM % AQuantGroupSize::kM == 0);
     static_assert(BlockGemmShape::kK % AQuantGroupSize::kK == 0);
