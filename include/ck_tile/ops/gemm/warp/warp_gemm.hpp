@@ -439,11 +439,14 @@ using WarpGemmMfma_f32_16x16x128_f8f6f4_CTransposed =
         WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4<A, B>,
         AttrNumAccess>>;
 
-template <typename A, typename B, WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+template <typename A,
+          typename B,
+          WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Single,
+          WGAttrNumAccessEnum AttrNumAccessB = AttrNumAccessA>
 using WarpGemmMfma_f32_32x32x64_f8f6f4 =
     WarpGemmImpl<WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_32x32x64_f8f6f4<A, B>,
-                                       AttrNumAccess,
-                                       AttrNumAccess>>;
+                                       AttrNumAccessA,
+                                       AttrNumAccessB>>;
 
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfma_f32_32x32x64_fp8_fp8 =
