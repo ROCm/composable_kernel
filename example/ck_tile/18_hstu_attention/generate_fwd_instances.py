@@ -42,7 +42,7 @@ HSTU_FORWARD_INSTANCE_FNAME = (
     "{store_lse_or_not_str}_{has_or_no_bias_str}_{has_or_no_dropout_str}_{max_k_str}.cpp"
 )
 
-HSTU_INSTANCE_REF_FNAME = "hstu_attention_{mode}_{function}_{dtype}_instances_ref.hpp"
+HSTU_FORWARD_INSTANCE_REF_FNAME = "hstu_attention_{mode}_forward_{dtype}_instances_ref.hpp"
 
 BOOL_MAP = {True: "true", False: "false"}
 
@@ -144,9 +144,8 @@ def create_forward_instances(instance_dir: Path, headdims: List) -> None:
 def create_forward_instances_ref(instance_dir: Path, headdims: List) -> None:
     for mode in ["batched", "jagged", "group"]:
         for dtype in ["fp16", "bf16"]:
-            ref_fname = HSTU_INSTANCE_REF_FNAME.format(
+            ref_fname = HSTU_FORWARD_INSTANCE_REF_FNAME.format(
                 mode=mode,
-                function="forward",
                 dtype=dtype,
             )
             ref_fname_path = instance_dir / ref_fname
