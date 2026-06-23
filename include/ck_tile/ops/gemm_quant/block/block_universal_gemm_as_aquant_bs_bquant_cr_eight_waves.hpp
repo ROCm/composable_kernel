@@ -255,6 +255,8 @@ struct ABQuantBlockUniversalGemmAsBsCrAsync : public BlockGemmQuantBase
                           "C block tensor data type!");
             constexpr auto warp_size = get_warp_size();
 
+            s_nop();
+
             auto q_block_tensor = aq_block_tensor;
             if constexpr(Traits::NQPerBlock / NWarp == 1)
             {

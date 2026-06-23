@@ -383,7 +383,6 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
 
         auto calc_gemm = [&](index_t i) {
             __builtin_amdgcn_sched_barrier(0);
-            s_nop();
             block_gemm(
                 c_block_tile, a_block_tile, b_block_tiles, aq_block_tile[i], bq_block_tile[i]);
             scheduler_func();
@@ -392,6 +391,7 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
         auto main_body = [&](auto tic, auto toc) {
             __builtin_amdgcn_sched_barrier(0);
             __builtin_amdgcn_s_setprio(1);
+            __builtin_amdgcn_sched_barrier(0);
 
             calc_gemm(tic);
 
