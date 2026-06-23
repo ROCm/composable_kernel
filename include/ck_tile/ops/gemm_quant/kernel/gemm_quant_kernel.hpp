@@ -1856,7 +1856,7 @@ struct QuantGemmMultiDKernel
             });
             suitable = suitable && std::is_same_v<tensor_layout::gemm::RowMajor, CLayout>;
             return suitable;
-        };
+        }();
         if constexpr(offset_ptrs_by_tile_coords)
         {
             a_ptr += static_cast<std::ptrdiff_t>(i_m) * kargs.stride_A;
