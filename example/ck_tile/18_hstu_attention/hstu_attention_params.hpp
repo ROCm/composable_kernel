@@ -130,3 +130,27 @@ struct HstuAttentionGroupFwdParams
     uint64_t philox_seed;
     uint64_t philox_offset;
 };
+
+struct HstuGenerateRandUniformNumbersParams
+{
+    bool is_jagged;
+
+    void* rand_val_ptr;
+
+    ck_tile::index_t num_batches;
+    ck_tile::index_t seqlen_q;       // batched mode only
+    ck_tile::index_t seqlen_k;       // batched mode only
+    const void* seq_q_offsets_ptr;      // jagged mode only
+    const void* seq_k_offsets_ptr;      // jagged mode only
+    ck_tile::index_t max_seqlen_q;      // jagged mode only
+
+    ck_tile::index_t num_heads;
+
+    ck_tile::index_t stride_seqlen_q;
+    ck_tile::index_t stride_seqlen_k;
+    ck_tile::index_t stride_nhead;
+    ck_tile::index_t stride_batch;   // batched mode only
+
+    uint64_t philox_seed;
+    uint64_t philox_offset;
+};
