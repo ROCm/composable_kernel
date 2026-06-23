@@ -25,7 +25,7 @@ ENV HIP_PLATFORM=amd
 
 # Add rocm repository
 RUN set -xe && \
-    apt-get update && apt-get install -y --allow-unauthenticated apt-utils wget gnupg2 curl cmake git vim nano zip
+    apt-get update && apt-get install -y apt-utils wget gnupg2 curl cmake git vim nano zip
 
 RUN if [ "$compiler_version" = "therock" ]; then \
         rm -rf /opt/rocm && mkdir /opt/rocm && \
@@ -60,7 +60,7 @@ RUN set -x && \
     tar -xzf sccache.tar.gz --strip-components=1 -C ${SCCACHE_INSTALL_LOCATION} && \
     chmod +x ${SCCACHE_INSTALL_LOCATION}/sccache && \
 # Install dependencies
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
     build-essential \
     jq \
     libelf-dev \
