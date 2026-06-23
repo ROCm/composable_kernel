@@ -114,8 +114,7 @@ struct tile_distribution
         }
         else if constexpr(NDimP == 2)
         {
-            return array<index_t, 2>{get_warp_id(bool_constant<save_warp_id_in_sgpr>{}),
-                                     get_lane_id()};
+            return array<index_t, 2>{get_warp_id(), get_lane_id()};
         }
     }
 
