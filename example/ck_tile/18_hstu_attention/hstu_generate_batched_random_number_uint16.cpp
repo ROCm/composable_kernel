@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <ck_tile/host/kernel_launch.hpp>
+
 #include "hstu_attention_params.hpp"
 #include "hstu_rand_uniform_kernel.hpp"
 
@@ -13,16 +15,15 @@ void hstu_generate_batched_random_number_uint16(HstuGenerateRandUniformNumbersPa
     const auto kargs = HstuRandUniformKernel_::MakeKargs(param.rand_val_ptr,
                                                          param.seqlen_q,
                                                          param.seqlen_k,
-                                                         param.num_heads,
-                                                         param.num_batches,
-                                                         param.stride_seqlen_q,
-                                                         param.stride_seqlen_k,
+                                                         param.num_head,
+                                                         param.num_batch,
+                                                         param.stride_seqlen,
                                                          param.stride_nhead,
                                                          param.stride_batch,
                                                          {param.philox_seed, param.philox_offset});
 
     dim3 kGridSize = HstuRandUniformKernel_::GridSize(
-        param.num_batches, param.num_heads, param.seqlen_q, param.seqlen_k);
+        param.num_batch, param.num_head, param.seqlen_q, param.seqlen_k);
     dim3 kBlockSize                        = HstuRandUniformKernel_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = HstuRandUniformKernel_::kBlockPerCu;
 

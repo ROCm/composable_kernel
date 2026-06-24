@@ -35,6 +35,7 @@ struct reference_no_group_hstu_attention_fwd
     static void Run(bool is_cross_attention,
                     bool use_softmax,
                     bool store_lse,
+                    bool has_dropout,
                     const HostTensor<InOutDataType>& q_batch_seq_nhead_hdim,
                     const HostTensor<InOutDataType>& k_batch_seq_nhead_hdim,
                     const HostTensor<InOutDataType>& v_batch_seq_nhead_hdim,
@@ -53,8 +54,10 @@ struct reference_no_group_hstu_attention_fwd
                     int contextual_seqlen,    // define masking length at the begin of query token
                                               // sequence to be included for attention
                     int window_size,          // define the diagonal local window size
-                    int min_full_attn_seqlen) // define masking length at the end of query token
+                    int min_full_attn_seqlen, // define masking length at the end of query token
                                               // sequence which is included for full attention
+                    float p_drop,
+                    HostTensor<uint8_t>& rand_val_batch_seq_nhead_seq)
     {
         if constexpr(kIsJagged)
         {
@@ -127,6 +130,17 @@ struct reference_no_group_hstu_attention_fwd
 
             return x / (one + std::exp(-x));
         };
+
+        float rp_undrop             = 1;
+        uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
+
+        if(has_dropout)
+        {
+            float p_undrop = 1.0f - p_drop;
+            p_undrop_in_uint8_t =
+                uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
+            rp_undrop = 1.0 / p_undrop;
+        }
 
         auto f = [&](auto i_batch, auto i_head) {
             int seqlen_q  = kIsJagged ? (seq_q_offsets[i_batch + 1] - seq_q_offsets[i_batch])
@@ -302,6 +316,25 @@ struct reference_no_group_hstu_attention_fwd
                         }
                     };
 
+                    if(has_dropout)
+                    {
+                        for(int sk = 0; sk < seqlen_kv; sk++)
+                        {
+                            uint8_t rand_val;
+
+                            if constexpr(kIsJagged)
+                                rand_val = rand_val_batch_seq_nhead_seq(
+                                    0, seq_q_offsets[i_batch] + sq, i_head, sk);
+                            else
+                                rand_val = rand_val_batch_seq_nhead_seq(i_batch, sq, i_head, sk);
+
+                            if(rand_val <= p_undrop_in_uint8_t)
+                                locals[sk] *= ck_tile::type_convert<CompDataType>(rp_undrop);
+                            else
+                                locals[sk] = ck_tile::type_convert<CompDataType>(0.0f);
+                        }
+                    };
+
                     // second Gemm
                     for(int k = 0; k < hdim_v; k++)
                     {
@@ -352,6 +385,7 @@ struct reference_group_hstu_attention_fwd
     Run(bool is_cross_attention,
         bool use_softmax,
         bool store_lse,
+        bool has_dropout,
         const HostTensor<InOutDataType>& q_batch_seq_nhead_hdim,
         const HostTensor<InOutDataType>& k_batch_seq_nhead_hdim,
         const HostTensor<InOutDataType>& v_batch_seq_nhead_hdim,
@@ -373,7 +407,9 @@ struct reference_group_hstu_attention_fwd
         const std::vector<int>& group_contextual_seqlens,    // contextual seqlen list by groups
         const std::vector<int>& group_window_sizes,          // window_size list by groups
         const std::vector<int>& group_min_full_attn_seqlens, // min_full_attn_seqlen list by groups
-        const std::vector<float>& group_attn_scales)         // attn scale list by group
+        const std::vector<float>& group_attn_scales,         // attn scale list by group
+        float p_drop,
+        HostTensor<uint8_t>& rand_val_batch_seq_nhead_seq)
     {
         // check the number of batches
         assert(!seq_offsets.empty() && seq_offsets.size() == num_batch + 1);
@@ -427,6 +463,17 @@ struct reference_group_hstu_attention_fwd
 
             return x / (one + std::exp(-x));
         };
+
+        float rp_undrop             = 1;
+        uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
+
+        if(has_dropout)
+        {
+            float p_undrop = 1.0f - p_drop;
+            p_undrop_in_uint8_t =
+                uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
+            rp_undrop = 1.0 / p_undrop;
+        }
 
         auto f = [&](auto i_batch, auto i_head) {
             int i_group   = i_batch / num_batch_per_group;
@@ -589,6 +636,22 @@ struct reference_group_hstu_attention_fwd
                         {
                             lse_batch_seq_nhead(0, seq_q_offsets[i_batch] + sq, i_head) =
                                 std::log(l) + m;
+                        }
+                    };
+
+                    if(has_dropout)
+                    {
+                        for(int sk = 0; sk < seqlen_kv; sk++)
+                        {
+                            uint8_t rand_val;
+
+                            rand_val = rand_val_batch_seq_nhead_seq(
+                                0, seq_q_offsets[i_batch] + sq, i_head, sk);
+
+                            if(rand_val <= p_undrop_in_uint8_t)
+                                locals[sk] *= ck_tile::type_convert<CompDataType>(rp_undrop);
+                            else
+                                locals[sk] = ck_tile::type_convert<CompDataType>(0.0f);
                         }
                     };
 

@@ -956,6 +956,8 @@ struct HstuAttentionFwdKernel
         auto dropout = [&, i_nhead_ = i_nhead, i_batch_ = i_batch]() {
             if constexpr(kHasDropout)
             {
+                // no need to save rand_val since we have separate kernel to generate them for the
+                // host
                 return BlockDropout{i_batch_,
                                     i_nhead_,
                                     kargs.num_head,

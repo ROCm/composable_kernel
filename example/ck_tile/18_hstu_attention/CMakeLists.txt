@@ -3,10 +3,11 @@ set(EXAMPLE_HSTU_ATTENTION "tile_example_hstu_attention")
 # to be included in "make all/install/check"
 message("adding example ${EXAMPLE_HSTU_ATTENTION}")
 file(GLOB INSTANCE_SRCS instances/*.cpp)
-set(INTERFACES_SRCS  hstu_attention_no_group_forward_bf16.cpp  hstu_attention_no_group_forward_fp16.cpp hstu_attention_group_forward_bf16.cpp hstu_attention_group_forward_fp16.cpp)
+set(INTERFACE_SRCS  hstu_attention_no_group_forward_bf16.cpp  hstu_attention_no_group_forward_fp16.cpp hstu_attention_group_forward_bf16.cpp hstu_attention_group_forward_fp16.cpp)
+file(GLOB OTHER_INTERFACE_SRCS "hstu_generate_*_random_number_*.cpp")
 add_executable(${EXAMPLE_HSTU_ATTENTION} EXCLUDE_FROM_ALL example_hstu_attention_fwd.cpp)
 target_include_directories(${EXAMPLE_HSTU_ATTENTION} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${EXAMPLE_HSTU_ATTENTION} PRIVATE ${INTERFACES_SRCS}  ${INSTANCE_SRCS})
+target_sources(${EXAMPLE_HSTU_ATTENTION} PRIVATE ${INTERFACE_SRCS}  ${INSTANCE_SRCS} ${OTHER_INTERFACE_SRCS})
 
 set(EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS)
 

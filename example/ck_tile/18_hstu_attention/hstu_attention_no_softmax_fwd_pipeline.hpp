@@ -268,6 +268,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
         auto null_randval_window = [&]() {
             if constexpr(kHasDropout)
             {
+                // need to make a tile window from this null_randval_dram since the null_tile_window
+                // does not have store_tile() over-loaded, will cause compiling issue when used
+                // inside BlockDropout::Run()
                 const auto null_randval_dram = [&]() {
                     const auto null_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                         static_cast<uint8_t*>(nullptr),

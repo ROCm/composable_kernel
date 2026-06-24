@@ -747,7 +747,22 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSizeDropout()
     {
-        return 0;
+        if constexpr(Problem::kHasDropout)
+        {
+            using BlockGemm          = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+            constexpr auto config    = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+            using WG                 = remove_cvref_t<decltype(config.template at<0>())>;
+            constexpr index_t MWarps = config.template at<1>();
+            constexpr index_t kMPerStep = MWarps * WG::kM;
+            // assume all warps are assigned on dim-M
+            constexpr index_t kNPerStep = WG::kN;
+
+            return (kMPerStep + 1) * kNPerStep * sizeof(uint8_t);
+        }
+        else
+        {
+            return 0;
+        }
     };
 
     template <typename Problem, bool kPipelineUseTrLoad = false>
