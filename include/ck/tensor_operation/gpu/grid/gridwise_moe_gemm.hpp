@@ -278,17 +278,19 @@ struct GridwiseMoeGemm : public GridwiseGemm_xdl_cshuffle_base<
     using Base::NumDTensor;
     static constexpr auto BlockSizeNumber = Number<BlockSize>{};
 
-    // Clamp limit for swiglustep_and_mul: silu(g).clamp(max=L) * u.clamp(+-L), L hardcoded to 7.0
+    // MiniMax-M3 / GPT-OSS OAI SwiGLU: clamp first, then
+    // gate * sigmoid(alpha * gate) * (up + beta). Values match model config.
     static constexpr float kSwiGluClamp = 7.0f;
+    static constexpr float kSwiGluAlpha = 1.702f;
+    static constexpr float kSwiGluBeta  = 1.0f;
 
-    // Helper: apply SwiGLU-step activation (silu + symmetric clamp) and return gate*up.
     // Used by all four swiglustep_and_mul epilogue paths (quant/non-quant x pipeline-A/B).
     __host__ __device__ static constexpr float apply_swiglustep_activation(float gate, float up)
     {
-        tensor_operation::element_wise::Silu{}(gate, gate);
         gate = math::min(gate, kSwiGluClamp);
         up   = math::min(math::max(up, -kSwiGluClamp), kSwiGluClamp);
-        return gate * up;
+        const float sigmoid = 1.0f / (1.0f + math::exp(-kSwiGluAlpha * gate));
+        return gate * sigmoid * (up + kSwiGluBeta);
     }
 
     using mfma_selector = MfmaSelector<ComputeTypeA, MPerXdl, NPerXdl, ComputeTypeB>;
