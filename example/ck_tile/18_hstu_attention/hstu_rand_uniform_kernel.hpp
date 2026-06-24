@@ -4,7 +4,9 @@
 #pragma once
 
 #include <ck_tile/core.hpp>
+#include <ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp>
 #include <ck_tile/ops/fmha/block/block_dropout.hpp>
+#include <ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2_custom_policy.hpp>
 #include <ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v2.hpp>
 #include <ck_tile/ops/gemm/block/block_gemm_problem.hpp>
 
@@ -149,7 +151,7 @@ struct HstuRandUniformKernel
                      std::get<0>(drop_seed_offset),
                      std::get<1>(drop_seed_offset)},
                     reinterpret_cast<const int32_t*>(seq_q_offsets_ptr),
-                    reinterpret_cast<const int32_t*>(seq_q_offsets_ptr)};
+                    reinterpret_cast<const int32_t*>(seq_k_offsets_ptr)};
 
         return kargs;
     }

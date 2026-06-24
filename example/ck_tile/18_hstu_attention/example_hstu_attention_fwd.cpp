@@ -70,6 +70,7 @@ auto create_args(int argc, char* argv[])
         .insert("max_target", "0", "max target, can be ignored, or else must be equal/bigger than the maximum of all targets")
         .insert("softmax", "0", "use softmax or not")
         .insert("training", "0", "the foward is for training, lse should be saved if softmax is used")
+        .insert("p_drop", "0", "probability for dropping out the attention values")
         .insert("causal", "1", "enable causal mask or not")
         .insert("local_len", "5", "length of the diagonal window for enabling masking, value 0 to disable") 
         .insert("g_local_lens", "5,", "list of all group's length of the diagonal window for enabling masking, value 0 to disable") 
@@ -126,6 +127,7 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
 
     float alpha          = arg_parser.get_float("alpha");
     float attn_scale     = arg_parser.get_float("attn_scale");
+    float p_drop         = arg_parser.get_float("p_drop");
     int seed             = arg_parser.get_int("seed");
     bool use_normal_dist = arg_parser.get_int("norm_dist");
     bool measure_perf    = static_cast<bool>(arg_parser.get_int("perf"));
@@ -408,7 +410,7 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
         params.window_size     = window_size;
         params.contextual_seqlen    = contextual_seqlen;
         params.min_full_attn_seqlen = min_full_attn_seqlen;
-        params.p_drop               = 0.0f; // dropout is not supported at present
+        params.p_drop               = p_drop;
         params.philox_seed          = 0UL;
         params.philox_offset        = 0UL;
     }
@@ -455,9 +457,53 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
         params.window_size     = window_size;
         params.contextual_seqlen    = contextual_seqlen;
         params.min_full_attn_seqlen = min_full_attn_seqlen;
-        params.p_drop               = 0.0f; // dropout is not supported at present
+        params.p_drop               = p_drop;
         params.philox_seed          = 0UL;
         params.philox_offset        = 0UL;
+    };
+
+    bool has_dropout = (params.p_drop > 0.0f);
+    ck_tile::HostTensor<uint8_t> rand_vals_host(
+        has_dropout ? std::array<ck_tile::index_t, 4>{batches_for_alloc,
+                                                      phy_seqlen_q,
+                                                      num_head,
+                                                      max_seqlen_kv}
+                    : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
+
+    ck_tile::DeviceMem rand_vals_dev(rand_vals_host.get_element_space_size_in_bytes());
+
+    HstuGenerateRandUniformNumbersParams rv_params;
+
+    if(has_dropout)
+    {
+        if(is_jagged)
+        {
+            rv_params.is_jagged         = true;
+            rv_params.rand_val_ptr      = rand_vals_dev.GetDeviceBuffer();
+            rv_params.num_batch         = num_batch;
+            rv_params.seq_q_offsets_ptr = seq_offsets_q_dev.GetDeviceBuffer();
+            rv_params.seq_k_offsets_ptr = seq_offsets_kv_dev.GetDeviceBuffer();
+            rv_params.max_seqlen_q      = max_seqlen_q;
+            rv_params.num_head          = num_head;
+            rv_params.stride_seqlen     = rand_vals_host.get_strides()[1];
+            rv_params.stride_nhead      = rand_vals_host.get_strides()[2];
+            rv_params.philox_seed       = 0;
+            rv_params.philox_offset     = 0;
+        }
+        else
+        {
+            rv_params.is_jagged     = false;
+            rv_params.rand_val_ptr  = rand_vals_dev.GetDeviceBuffer();
+            rv_params.num_batch     = num_batch;
+            rv_params.num_head      = num_head;
+            rv_params.seqlen_q      = phy_seqlen_q;
+            rv_params.seqlen_k      = phy_seqlen_kv;
+            rv_params.stride_seqlen = rand_vals_host.get_strides()[1];
+            rv_params.stride_nhead  = rand_vals_host.get_strides()[2];
+            rv_params.stride_batch  = rand_vals_host.get_strides()[0];
+            rv_params.philox_seed   = 0;
+            rv_params.philox_offset = 0;
+        };
     };
 
     hipStream_t stream;
@@ -479,6 +525,18 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
 
     if(do_validation)
     {
+        if(has_dropout)
+        {
+            // call a separate kernel to generate the random numbers, the generated random numbers
+            // should be same as the random numbers implictly used by the fwd/bwd path for dropping
+            if(is_jagged)
+                hstu_generate_jagged_random_number_uint8(rv_params, stream);
+            else
+                hstu_generate_batched_random_number_uint8(rv_params, stream);
+
+            rand_vals_dev.FromDevice(rand_vals_host.data());
+        }
+
         using GemmAccDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType;
 
         BOOL_SWITCH_2(is_jagged, kIsJagged, use_causal, kUseCausal, [&] {
@@ -489,6 +547,7 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
                                                            kUseCausal>::Run(is_cross_attention,
                                                                             use_softmax,
                                                                             store_lse,
+                                                                            has_dropout,
                                                                             q_host,
                                                                             k_host,
                                                                             v_host,
@@ -505,7 +564,9 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
                                                                             num_targets,
                                                                             contextual_seqlen,
                                                                             window_size,
-                                                                            min_full_attn_seqlen);
+                                                                            min_full_attn_seqlen,
+                                                                            p_drop,
+                                                                            rand_vals_host);
         });
 
         ck_tile::HostTensor<InOutDataType> o_host(
@@ -599,6 +660,7 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
     bool is_training     = static_cast<bool>(arg_parser.get_int("training"));
     bool use_causal      = static_cast<bool>(arg_parser.get_int("causal"));
     float alpha          = arg_parser.get_float("alpha");
+    float p_drop         = arg_parser.get_float("p_drop");
     int seed             = arg_parser.get_int("seed");
     bool use_normal_dist = arg_parser.get_int("norm_dist");
     bool measure_perf    = static_cast<bool>(arg_parser.get_int("perf"));
@@ -924,7 +986,7 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
     params.use_softmax        = use_softmax;
     params.is_training        = is_training;
     params.use_causal         = use_causal;
-    params.p_drop             = 0.0f; // dropout is not supported at present
+    params.p_drop             = p_drop;
     params.philox_seed        = 0UL;
     params.philox_offset      = 0UL;
     params.group_max_seqlen_q_ptr         = group_max_seqlens_q_dev.GetDeviceBuffer();
@@ -932,6 +994,33 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
     params.group_window_size_ptr          = group_window_sizes_dev.GetDeviceBuffer();
     params.group_min_full_attn_seqlen_ptr = group_min_full_attn_seqlens_dev.GetDeviceBuffer();
     params.group_attn_scale_ptr           = group_attn_scales_dev.GetDeviceBuffer();
+
+    bool has_dropout = (params.p_drop > 0.0f);
+    ck_tile::HostTensor<uint8_t> rand_vals_host(
+        has_dropout ? std::array<ck_tile::index_t, 4>{batches_for_alloc,
+                                                      phy_seqlen_q,
+                                                      num_head,
+                                                      max_max_seqlen_kv}
+                    : std::array<ck_tile::index_t, 4>{1, 1, 1, 1});
+
+    ck_tile::DeviceMem rand_vals_dev(rand_vals_host.get_element_space_size_in_bytes());
+
+    HstuGenerateRandUniformNumbersParams rv_params;
+
+    if(has_dropout)
+    {
+        rv_params.is_jagged         = true;
+        rv_params.rand_val_ptr      = rand_vals_dev.GetDeviceBuffer();
+        rv_params.num_batch         = num_batch;
+        rv_params.seq_q_offsets_ptr = seq_offsets_q_dev.GetDeviceBuffer();
+        rv_params.seq_k_offsets_ptr = seq_offsets_kv_dev.GetDeviceBuffer();
+        rv_params.max_seqlen_q      = max_max_seqlen_q;
+        rv_params.num_head          = num_head;
+        rv_params.stride_seqlen     = rand_vals_host.get_strides()[1];
+        rv_params.stride_nhead      = rand_vals_host.get_strides()[2];
+        rv_params.philox_seed       = 0;
+        rv_params.philox_offset     = 0;
+    };
 
     hipStream_t stream;
 
@@ -952,6 +1041,14 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
 
     if(do_validation)
     {
+        if(has_dropout)
+        {
+            // call a separate kernel to generate the random numbers, the generated random numbers
+            // should be same as the random numbers implictly used by the fwd/bwd path for dropping
+            hstu_generate_jagged_random_number_uint8(rv_params, stream);
+            rand_vals_dev.FromDevice(rand_vals_host.data());
+        }
+
         using GemmAccDataType = typename HstuAttentionFwdTypeConfig<InOutDataType>::GemmAccDataType;
 
         BOOL_SWITCH(use_causal, kUseCausal, [&] {
@@ -962,6 +1059,7 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
                 kUseCausal>::Run(is_cross_attention,
                                  use_softmax,
                                  store_lse,
+                                 has_dropout,
                                  q_host,
                                  k_host,
                                  v_host,
@@ -980,7 +1078,9 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
                                  group_contextual_seqlens,
                                  group_window_sizes,
                                  group_min_full_attn_seqlens,
-                                 group_attn_scales);
+                                 group_attn_scales,
+                                 p_drop,
+                                 rand_vals_host);
         });
 
         ck_tile::HostTensor<InOutDataType> o_host(

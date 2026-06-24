@@ -800,7 +800,6 @@ struct HstuAttentionFwdSplitKVKernel
         if(seqlen_q_in_ctrl <= i_m0)
             return;
 
-        // for simplicity, batch stride we just modify the pointer
         const QKVDataType* q_ptr = reinterpret_cast<const QKVDataType*>(kargs.q_ptr) +
                                    static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_q +
                                    batch_offset_q;
@@ -960,6 +959,8 @@ struct HstuAttentionFwdSplitKVKernel
         auto dropout = [&, i_nhead_ = i_nhead, i_batch_ = i_batch]() {
             if constexpr(kHasDropout)
             {
+                // no need to save rand_val since we have separate kernel to generate them for the
+                // host
                 return BlockDropout{i_batch_,
                                     i_nhead_,
                                     kargs.num_head,
