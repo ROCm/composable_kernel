@@ -2,9 +2,10 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
-## (Unreleased) Composable Kernel 1.3.0
+## Composable Kernel 1.2.0 for ROCm 7.13
 
 ### Added
+
 * Added overload of load_tile_transpose that takes reference to output tensor as output parameter
 * Use data type from LDS tensor view when determining tile distribution for transpose in the GEMM pipeline
 * Added eightwarps support for abquant mode in blockscale GEMM.
