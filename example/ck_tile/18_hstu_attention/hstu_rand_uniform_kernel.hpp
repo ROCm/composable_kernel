@@ -94,7 +94,9 @@ struct HstuRandUniformKernel
 
     struct HstuRandUniformJaggedKargs : HstuRandUniformCommonKargs
     {
-        const int32_t* seqstart_q_ptr;
+        const int32_t* seq_q_offsets_ptr;
+        // provide seqlen_k for each batch, aligned with jagged k/v tensor lay-out
+        const int32_t* seq_k_offsets_ptr;
     };
 
     using Kargs =
@@ -133,12 +135,12 @@ struct HstuRandUniformKernel
               ck_tile::index_t num_batches,
               ck_tile::index_t stride_seqlen_q,
               ck_tile::index_t stride_nhead,
-              const void* seqstart_q_ptr,
-              const void* seqstart_k_ptr,
+              const void* seq_q_offsets_ptr,
+              const void* seq_k_offsets_ptr,
               std::tuple<uint64_t, uint64_t> drop_seed_offset)
     {
         Kargs kargs{{rand_val_ptr,
-                     -1,  // seqlen_q will be update in the kernel
+                     -1, // seqlen_q will be update in the kernel
                      -1, // seqlen_k will be update in the kernel
                      num_heads,
                      num_batches,
@@ -146,8 +148,8 @@ struct HstuRandUniformKernel
                      stride_nhead,
                      std::get<0>(drop_seed_offset),
                      std::get<1>(drop_seed_offset)},
-                    reinterpret_cast<const int32_t*>(seqstart_q_ptr),
-                    reinterpret_cast<const int32_t*>(seqstart_q_ptr)};
+                    reinterpret_cast<const int32_t*>(seq_q_offsets_ptr),
+                    reinterpret_cast<const int32_t*>(seq_q_offsets_ptr)};
 
         return kargs;
     }
@@ -233,21 +235,21 @@ struct HstuRandUniformKernel
         if constexpr(kIsJagged)
         {
             // get starting offset for each batch
-            const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
+            const long_index_t query_start = kargs.seq_q_offsets_ptr[i_batch];
 
             batch_offset_randval = query_start * kargs.stride_seqlen_q;
 
             // get real # queries & # keys under group mode
-            const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
-            kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+            const auto adjusted_seq_q_offsets_ptr = kargs.seq_q_offsets_ptr + i_batch;
+            kargs.seqlen_q = adjusted_seq_q_offsets_ptr[1] - adjusted_seq_q_offsets_ptr[0];
 
             if(kargs.seqlen_q <= i_m0)
             {
                 return;
             }
 
-            const auto adjusted_seqstart_k_ptr = kargs.seqstart_k_ptr + i_batch;
-            kargs.seqlen_k = adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
+            const auto adjusted_seq_k_offsets_ptr = kargs.seq_k_offsets_ptr + i_batch;
+            kargs.seqlen_k = adjusted_seq_k_offsets_ptr[1] - adjusted_seq_k_offsets_ptr[0];
         }
         else
         {

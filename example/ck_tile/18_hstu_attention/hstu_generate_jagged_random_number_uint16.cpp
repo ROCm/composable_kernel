@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#include "hstu_attention_params.hpp"
+#include "hstu_rand_uniform_kernel.hpp"
+
 void hstu_generate_jagged_random_number_uint16(HstuGenerateRandUniformNumbersParams& param,
-                                                hipStream_t stream)
+                                               hipStream_t stream)
 {
     // only work for jagged mode
     using HstuRandUniformKernel_ = HstuRandUniformKernel<uint16_t, true>;
 
     const auto kargs = HstuRandUniformKernel_::MakeKargs(param.rand_val_ptr,
-                                                         param.seqlen_q,
-                                                         param.seqlen_k,
                                                          param.num_heads,
                                                          param.num_batches,
                                                          param.stride_seqlen_q,
-                                                         param.stride_seqlen_k,
                                                          param.stride_nhead,
-                                                         param.seqstart_q_ptr,
-                                                         param.seqstart_k_ptr,
+                                                         param.seq_q_offsets_ptr,
+                                                         param.seq_k_offsets_ptr,
                                                          {param.philox_seed, param.philox_offset});
 
     dim3 kGridSize = HstuRandUniformKernel_::GridSize(
-        param.num_batches, param.num_heads, param.seqlen_q, param.seqlen_k);
+        param.num_batches, param.num_heads, param.max_seqlen_q, param.seqlen_k);
     dim3 kBlockSize                        = HstuRandUniformKernel_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = HstuRandUniformKernel_::kBlockPerCu;
 

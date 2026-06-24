@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#include "hstu_attention_params.hpp"
+#include "hstu_rand_uniform_kernel.hpp"
+
 void hstu_generate_batched_random_number_uint16(HstuGenerateRandUniformNumbersParams& param,
                                                 hipStream_t stream)
 {
