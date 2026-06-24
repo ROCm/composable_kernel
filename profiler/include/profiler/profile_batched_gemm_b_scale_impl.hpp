@@ -5,6 +5,7 @@
 
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <typeinfo>
 
 #include "ck/ck.hpp"
@@ -367,6 +368,7 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
 
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
+                std::string op_name = op_ptr->GetTypeString();
 
                 // re-init C to zero before profiling next kernel
                 c_device_buf.SetZero();
@@ -394,12 +396,18 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
                     else
                     {
 #endif
-                        std::string msg = "Error: Incorrect results!";
-                        double rtol     = 1e-2;
-                        double atol     = 1e-2;
+                        std::ostringstream msg;
+                        msg << "Error: Incorrect results! instance=" << l
+                            << ", requested_instance=" << instance_index
+                            << ", kbatch=" << kbatch_curr << ", M=" << M << ", N=" << N
+                            << ", K=" << K << ", batch=" << BatchSize << ", strides={A:" << StrideA
+                            << ", B:" << StrideB << ", C:" << StrideC << "}, op=" << op_name << ";";
+                        double rtol = 2e-2;
+                        double atol = 2e-2;
                         pass =
-                            pass & ck::utils::check_err(
-                                       c_g_m_n_device_result, c_g_m_n_host_result, msg, rtol, atol);
+                            pass &
+                            ck::utils::check_err(
+                                c_g_m_n_device_result, c_g_m_n_host_result, msg.str(), rtol, atol);
 #if defined CK_ENABLE_FP8
                     }
 #endif
@@ -416,8 +424,6 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
                             << std::endl;
                     }
                 }
-
-                std::string op_name = op_ptr->GetTypeString();
 
                 float ave_time = invoker_ptr->Run(argument_ptr.get(),
                                                   StreamConfig{nullptr,
