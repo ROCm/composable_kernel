@@ -468,6 +468,16 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
                                    args.is_top_left,
                                    args.kv_start_len_ptr);
 
+    // Tell the kernel which grid layout it is running under. The decode grid
+    // puts num_splits in blockIdx.y; the 2D grid puts it in blockIdx.z. This
+    // flag disambiguates them uniformly even when num_splits == 1 (where
+    // gridDim.y would otherwise alias the 2D layout).
+    kargs.use_decode_grid = UseDecodeGrid;
+    // Number of 8-head groups in the swizzled decode grid; must match the value
+    // GridSizeDecode used to fold head_group into blockIdx.z.
+    kargs.num_head_groups =
+        Kernel::DecodeHeadGroups(args.num_head_q / args.num_queries_per_kv);
+
     dim3 grids;
     if constexpr(UseDecodeGrid)
     {

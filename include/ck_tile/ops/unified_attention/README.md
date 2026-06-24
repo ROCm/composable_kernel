@@ -34,11 +34,30 @@ Concrete shape/dtype **instances** (the JIT-compiled translation units) live in
 
 One CTA computes one `(kv_head, q_block, split)` tuple:
 
-- **Decode grid** `dim3(num_kv_heads, num_seqs, num_splits)` (`gridDim.y > 1`):
-  direct mapping, no binary search, no padding CTAs.
-- **Prefill grid** `dim3(num_kv_heads * total_num_q_blocks, 1, num_splits)`:
+- **Decode grid** `dim3(g8, num_splits, num_head_groups * num_seqs)` (selected via
+  the `kargs.use_decode_grid` flag), XCD-swizzled for balance + KV streaming:
+  `x = head-in-group`, `y = split`, `z = head_group + num_head_groups * seq`, with
+  `kv_head = head_group * g8 + x`. No binary search, no padding CTAs. The WG
+  dispatcher round-robins blocks over `#XCD = 8` by `linear_blockIdx % 8`, and `x`
+  is the fastest dim, so:
+  - **`num_kv_heads % 8 == 0`** → `g8 = 8`, `num_head_groups = num_kv_heads / 8`.
+    Each XCD owns exactly one head per group and sweeps all its `num_splits` (and
+    the next group's head) before advancing — balanced for *any* `num_splits`, and
+    every XCD streams a single head's KV in order (L2-friendly).
+  - **otherwise** → `g8 = num_kv_heads`, `num_head_groups = 1` (head-in-x
+    fallback). The dispatcher round-robins the GLOBAL linear workgroup id `% 8`,
+    so balance needs the *total* grid `N = num_kv_heads * num_splits * num_seqs`
+    to be `≡ 0 (mod 8)` (else `N mod 8` XCDs run one extra full block while the
+    rest idle at the tail). `num_seqs` is a runtime batch value, so the host
+    (`_pick_num_splits`) makes the batch-independent factor divisible:
+    `num_splits` a multiple of `8 / gcd(num_kv_heads, 8)` ⇒ `num_kv_heads *
+    num_splits ≡ 0 (mod 8)` ⇒ `N ≡ 0` for any batch. Verified per-XCD with
+    rocprofv3 `SQ_WAVES` (see decode_pipeline_research_plan.md §15).
+  `split` is second-fastest either way, so adjacent splits of a head co-schedule
+  and share L2.
+- **Prefill / 2D grid** `dim3(num_kv_heads * total_num_q_blocks, 1, num_splits)`:
   `blockIdx.x` is folded; a binary search over `query_start_len_ptr` recovers the
-  sequence, and out-of-range q-blocks early-return.
+  sequence, and out-of-range q-blocks early-return. The split lives in `blockIdx.z`.
 
 `num_queries_per_kv` (GQA ratio) is a **runtime** value: `kBlockQ_dyn = kBlockM /
 num_queries_per_kv`, so one compiled binary serves MHA and any GQA-N that divides
@@ -119,8 +138,9 @@ out.
 
 ## Split-KV
 
-`num_splits > 1` partitions the KV range across CTAs in `blockIdx.z`; each writes
-fp32 `o_acc`/`lse` workspaces that a separate combine kernel merges. The
+`num_splits > 1` partitions the KV range across CTAs along the split grid dim
+(decode grid: `blockIdx.y`, 2D grid: `blockIdx.z`); each writes fp32
+`o_acc`/`lse` workspaces that a separate combine kernel merges. The
 partition is computed over the **causal-independent full-sequence** block count
 (not the per-tile causal horizon) so a token co-owned by adjacent q-tiles maps to
 the same split in both — otherwise non-dividing-GQA + causal races on the shared

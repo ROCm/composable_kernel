@@ -8,6 +8,18 @@
 #include "ck_tile/ops/fmha/pipeline/block_fmha_fwd_v3_pipeline.hpp"
 #include "ck_tile/ops/unified_attention/pipeline/unified_attention_core_loop_scheduler.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
+// UA_DECODE_INTERLEAVE (decode_pipeline_research_plan.md §13 — HK 4-wave borrow)
+//   0 (default): serial-decode loop fully drains vmcnt<0> each iter, then issues
+//     the next KV prefetch -> only ~1 KV tile is ever in flight (the MLP cap E0
+//     measured on the bandwidth-bound decode loop).
+//   1: issue the next tile's K+V async prefetch BEFORE the consume-wait and relax
+//     the wait to a partial vmcnt that keeps that prefetch streaming under the
+//     QK/PV compute -> ~2 KV tiles in flight, no extra LDS (still 2 ring buffers).
+//   Decode-only (NumWarpGroups==1); the FA4 prefill ping-pong path is untouched.
+#ifndef UA_DECODE_INTERLEAVE
+#define UA_DECODE_INTERLEAVE 0
+#endif
+
 #define ENABLE_ASM_MARKER 1
 #if ENABLE_ASM_MARKER
 #define ASM_MARKER(marker)               \
@@ -1690,11 +1702,22 @@ struct UnifiedAttentionPipeline
                 // V0 loading to buf 0, K1 in buf 1, K2 loading to buf 0.
 
                 // Step 1: consume V0, K1 -> produce PV(0), QK(1)
+#if UA_DECODE_INTERLEAVE
+                // Issue the V1 prefetch BEFORE the consume-wait, then drain only
+                // down to the two newest tiles (K2 from pre-stage + V1) so both
+                // stream HBM->LDS under this step's compute. V0/K1 (older) are
+                // guaranteed complete by the partial threshold.
+                slide_page_table();
+                V_mem_load(number<1>{}); // prefetch V1 -> buf 1
+                s_waitcnt_vmcnt<K_mem_su_ld_insts + V_mem_su_ld_insts>();
+                __builtin_amdgcn_s_barrier();
+#else
                 s_waitcnt_vmcnt<0>();
                 __builtin_amdgcn_s_barrier();
 
                 slide_page_table(); // keep the page-table window covering the next prefetch
                 V_mem_load(number<1>{}); // prefetch V1 -> buf 1 (overlaps with compute)
+#endif
 
                 V_lds_load(number<0>{}); // V0 from LDS -> kv_tile.v_tile
                 s_waitcnt_lgkmcnt<0>();
@@ -1713,6 +1736,24 @@ struct UnifiedAttentionPipeline
                 while(i_total_loops < num_total_loop)
                 {
                     // Even step: V from buf 1, K from buf 0, QK -> sp(0)
+#if UA_DECODE_INTERLEAVE
+                    // Issue next K(buf1)/V(buf0) BEFORE the wait so they overlap
+                    // this step's compute; drain only to the just-issued tile.
+                    // The consumed tiles (V buf1, K buf0) are older -> complete.
+                    slide_page_table();
+                    if(i_total_loops + 1 < num_total_loop)
+                    {
+                        K_mem_load(number<1>{}); // next K -> K buf 1
+                        V_mem_load(number<0>{}); // next V -> V buf 0
+                        s_waitcnt_vmcnt<K_mem_su_ld_insts + V_mem_su_ld_insts>();
+                    }
+                    else
+                    {
+                        // Terminal step: no real next tile, just drain.
+                        s_waitcnt_vmcnt<0>();
+                    }
+                    __builtin_amdgcn_s_barrier();
+#else
                     s_waitcnt_vmcnt<0>();
                     __builtin_amdgcn_s_barrier();
 
@@ -1721,6 +1762,7 @@ struct UnifiedAttentionPipeline
                     if(i_total_loops + 1 < num_total_loop)
                         K_mem_load(number<1>{}); // next K -> K buf 1
                     V_mem_load(number<0>{}); // next V -> V buf 0
+#endif
 
                     V_lds_load(number<1>{}); // V from V buf 1 -> kv_tile.v_tile
                     s_waitcnt_lgkmcnt<0>();
@@ -1740,6 +1782,20 @@ struct UnifiedAttentionPipeline
                         break;
 
                     // Odd step: V from buf 0, K from buf 1, QK -> sp(1)
+#if UA_DECODE_INTERLEAVE
+                    slide_page_table();
+                    if(i_total_loops + 1 < num_total_loop)
+                    {
+                        K_mem_load(number<0>{}); // next K -> K buf 0
+                        V_mem_load(number<1>{}); // next V -> V buf 1
+                        s_waitcnt_vmcnt<K_mem_su_ld_insts + V_mem_su_ld_insts>();
+                    }
+                    else
+                    {
+                        s_waitcnt_vmcnt<0>();
+                    }
+                    __builtin_amdgcn_s_barrier();
+#else
                     s_waitcnt_vmcnt<0>();
                     __builtin_amdgcn_s_barrier();
 
@@ -1748,6 +1804,7 @@ struct UnifiedAttentionPipeline
                     if(i_total_loops + 1 < num_total_loop)
                         K_mem_load(number<0>{}); // next K -> K buf 0
                     V_mem_load(number<1>{}); // next V -> V buf 1
+#endif
 
                     V_lds_load(number<0>{}); // V from V buf 0 -> kv_tile.v_tile
                     s_waitcnt_lgkmcnt<0>();

@@ -132,10 +132,9 @@ struct UnifiedAttentionKernel
 
         ck_tile::index_t num_seqs; // number of batches for q
 
-        // KV-segment parallelism (split-KV within unified attention).
-        // Each CTA derives its own `i_split` from `blockIdx.z` — the host
-        // launches a single 3D grid with z = num_splits and the kernel
-        // dispatches all splits in parallel.
+        // KV-segment parallelism (split-KV within unified attention). Each CTA
+        // derives its own `i_split` from the grid: the decode grid carries the
+        // split in blockIdx.y (see GridSizeDecode), the 2D grid in blockIdx.z.
         ck_tile::index_t num_splits = 1;
         void* lse_acc_ptr = nullptr;     // [nhead, num_splits, total_q] float
         void* o_acc_ptr = nullptr;       // [nhead, num_splits, total_q, hdim_v] float
@@ -152,6 +151,19 @@ struct UnifiedAttentionKernel
         // kv_start_len_ptr[seq] is this sequence's first KV token, folded into
         // the K/V base pointer. Unused (may be null) when the kernel is paged.
         const int32_t* kv_start_len_ptr = nullptr;
+
+        // Grid-layout selector (set by the launch helper, NOT by MakeKargs —
+        // these trailing fields must stay AFTER the MakeKargs-initialized members
+        // so positional aggregate init leaves them at their defaults).
+        // True  -> XCD-swizzled decode grid dim3(g8, num_splits, groups*num_seqs)
+        // False -> 2D grid dim3(nKV*q_blocks, 1, num_splits) [split in z]
+        // Uniform across the grid, so the operator() branch has no divergence
+        // cost and stays correct even when num_splits == 1.
+        bool use_decode_grid = false;
+
+        // Number of 8-head groups in the decode grid (see DecodeHeadGroups).
+        // 1 for the head-in-x fallback / 2D grid; set by the launch helper.
+        ck_tile::index_t num_head_groups = 1;
     };
 
     using Kargs = UnifiedAttentionVarlenKargs;
@@ -317,11 +329,37 @@ struct UnifiedAttentionKernel
                             EpiloguePipeline::GetSmemSize());
     }
 
+    // Number of XCDs the WG dispatcher round-robins over (gfx9 MI300/MI350).
+    static constexpr ck_tile::index_t kNumXCD = 8;
+
+    // How many 8-head groups the decode grid splits the KV heads into. When
+    // num_kv_heads is a multiple of #XCDs each XCD gets a private head per group
+    // (g8 = 8 heads as the fast dim); otherwise there is a single group and the
+    // fast dim is num_kv_heads (head-in-x fallback; the dispatcher round-robins
+    // the global linear WG id % 8, so balance then relies on the host picking
+    // num_splits so the total grid num_kv_heads*num_splits*num_seqs % 8 == 0 —
+    // it uses num_splits a multiple of 8/gcd(num_kv_heads,8), batch-independent).
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t
+    DecodeHeadGroups(ck_tile::index_t num_kv_heads)
+    {
+        return (num_kv_heads % kNumXCD == 0) ? (num_kv_heads / kNumXCD) : 1;
+    }
+
     CK_TILE_HOST static constexpr auto GridSizeDecode(ck_tile::index_t num_kv_heads,
                                                       ck_tile::index_t num_seqs,
                                                       ck_tile::index_t num_splits = 1)
     {
-        return dim3(num_kv_heads, num_seqs, num_splits);
+        // XCD-swizzled decode grid:
+        //   x = head-in-group (g8 -> one per XCD; == 8 when nKV % 8 == 0),
+        //   y = split,
+        //   z = head_group + num_head_groups * seq  (group varies before seq).
+        // With nKV % 8 == 0 this gives XCD `hg` the blocks (group0,hg,all splits)
+        // then (group1,hg,all splits) ... so each XCD streams one head's KV in
+        // order before advancing to its next head -> balanced AND L2-friendly.
+        // Disambiguated from the 2D grid by kargs.use_decode_grid (not gridDim.y).
+        const ck_tile::index_t num_head_groups = DecodeHeadGroups(num_kv_heads);
+        const ck_tile::index_t g8              = num_kv_heads / num_head_groups;
+        return dim3(g8, num_splits, num_head_groups * num_seqs);
     }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
@@ -340,9 +378,9 @@ struct UnifiedAttentionKernel
         const index_t kBlockQ_dyn = kBlockM / num_queries_per_kv;
 
         // Split-KV: each CTA handles one (kv_head, q_block, split) tuple. The
-        // split index lives in z — when num_splits == 1 (the only z value)
-        // this is just `0` and costs nothing.
-        const index_t i_split = blockIdx.z;
+        // split index's grid dimension differs by layout (decode: y, 2D: z),
+        // so it is assigned inside each branch below.
+        index_t i_split;
 
         index_t kv_head_idx;
         index_t seq_idx;
@@ -350,21 +388,33 @@ struct UnifiedAttentionKernel
         index_t cur_batch_in_all_start_index;
         index_t cur_batch_query_len;
 
-        if(gridDim.y > 1)
+        if(kargs.use_decode_grid)
         {
-            // Decode grid: dim3(num_kv_heads, num_seqs, num_splits)
-            // Direct mapping, no binary search, no padding CTAs.
-            kv_head_idx              = blockIdx.x;
-            seq_idx                  = blockIdx.y;
-            q_block_local_idx        = 0;
-            cur_batch_in_all_start_index = kargs.query_start_len_ptr[seq_idx];
-            const index_t stop       = kargs.query_start_len_ptr[seq_idx + 1];
-            cur_batch_query_len      = amd_wave_read_first_lane(stop - cur_batch_in_all_start_index);
+            // XCD-swizzled decode grid: dim3(g8, num_splits, groups*num_seqs).
+            //   x  = head-in-group (one per XCD when nKV % 8 == 0),
+            //   y  = split,
+            //   z  = head_group + num_head_groups * seq.
+            // Direct mapping, no binary search, no padding CTAs. group/seq are
+            // uniform across the block (built from blockIdx.z + a kargs scalar),
+            // so the integer div/mod is a single scalar op with no divergence.
+            const index_t g8              = gridDim.x;
+            const index_t num_head_groups = kargs.num_head_groups;
+            const index_t hg              = blockIdx.x;
+            const index_t z               = blockIdx.z;
+            const index_t head_group      = z % num_head_groups;
+            seq_idx                       = z / num_head_groups;
+            kv_head_idx                   = head_group * g8 + hg;
+            i_split                       = blockIdx.y;
+            q_block_local_idx             = 0;
+            cur_batch_in_all_start_index  = kargs.query_start_len_ptr[seq_idx];
+            const index_t stop            = kargs.query_start_len_ptr[seq_idx + 1];
+            cur_batch_query_len  = amd_wave_read_first_lane(stop - cur_batch_in_all_start_index);
         }
         else
         {
             // Standard 1D grid (x-folded) with binary search; z-dim carries
-            // the split index just like in the decode branch.
+            // the split index.
+            i_split = blockIdx.z;
             ck_tile::index_t pid = blockIdx.x;
 
             const auto [kv_head_idx_, q_block_global_idx] = GetTileIndex(pid, kargs);
@@ -462,8 +512,9 @@ struct UnifiedAttentionKernel
             amd_wave_read_first_lane((max_seq_prefix_len + kPageBlockSize - 1) / kPageBlockSize);
 
         // KV-segment parallelism: split KV range across workgroups.
-        // `i_split` came from blockIdx.z above; with num_splits == 1 it's 0
-        // and these min/max bounds reduce to [0, total_num_kv_blocks).
+        // `i_split` was assigned above (decode grid: blockIdx.y, 2D grid:
+        // blockIdx.z); with num_splits == 1 it's 0 and these min/max bounds
+        // reduce to [0, total_num_kv_blocks).
         index_t num_blocks_start = 0;
         index_t num_blocks = total_num_kv_blocks;
         if(kargs.num_splits > 1)
