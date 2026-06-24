@@ -199,18 +199,12 @@ struct HstuAttentionFwdSplitKVKernel
         ck_tile::index_t nhead_stride_bias;
     };
 
-    struct HstuAttentionFwdDropoutSeedOffset
-    {
-        uint64_t drop_seed;
-        uint64_t drop_offset;
-    };
-
     struct HstuAttentionFwdSoftmaxKargs
     {
         void* lse_acc_ptr;
     };
 
-    struct HstuAttentionFwdCommonDropoutKargs : HstuAttentionFwdDropoutSeedOffset
+    struct HstuAttentionFwdCommonDropoutKargs
     {
         void init_dropout(float p_drop, uint64_t seed, uint64_t offset)
         {
@@ -222,6 +216,10 @@ struct HstuAttentionFwdSplitKVKernel
             this->drop_seed   = seed;
             this->drop_offset = offset;
         }
+
+        // used for generating random numbers
+        uint64_t drop_seed;
+        uint64_t drop_offset;
 
         float rp_undrop             = 1;
         uint8_t p_undrop_in_uint8_t = std::numeric_limits<uint8_t>::max();
