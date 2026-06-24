@@ -129,15 +129,25 @@ namespace ck_tile::core::arch::mma {
  * case, we have M = kCMBlock * M2 * M1 * M0 instead.
  *
  * ------------------------------------------
- *  Compression and packed data types
+ * Packed data types
  * ------------------------------------------
- * For sparse intrinsics we have 4:2 compression of the A matrix, meaning one element of the packed
- * (compressed) A matrix represents two elements of the original (uncompressed) A matrix
- * (kCompressionRatio = 2). In a similar vein, for packed datatypes (pk_fp4_t, pk_int4_t,
- * pk_fp6x16_t), each datatype element represents multiple logical / mathematical elements of the
- * original A / B matrix. In these cases, we follow the convention that the layout parameters always
- * describe logical / mathematical uncompressed matrix elements, while the registers and tile
- * distribution encodings always describe compressed / packed *Datatype* elements.
+ * For packed datatypes (pk_fp4_t, pk_int4_t, pk_fp6x16_t, pk_bf6x16_t), each datatype element
+ * represents multiple logical / mathematical elements of the original A / B matrix. The layout
+ * parameters and tile distribution encodings always describe logical / mathematical matrix elements
+ * (completely ignoring the packed datatype abstraction). The packedness of the datatype *ONLY*
+ * requires consideration when indexing into the A / B fragment vectors (registers).
+ *
+ * ------------------------------------------
+ *  Compression (sparse intrinsics)
+ * ------------------------------------------
+ * For sparse intrisics we have 4:2 compression of the A matrix, meaning 2 elements of the
+ * compressed A matrix represent 4 elements of the original (uncompressed) A matrix
+ * (kCompressionRatio = 2). The layout parameters always describe uncompressed A matrix elements.
+ * The A fragment vectors (registers) and tile distribution encodings by default describe compressed
+ * elements. The tile distribution encoding calculator does have an option to describe the A matrix
+ * mapping in terms of uncompressed elements, which is used for WarpGemm / MmaPipeline level tile
+ * distribution encodings, since the MmaPipeline expects to ingest uncompressed A matrices, and the
+ * compression is handled internally.
  */
 
 /**

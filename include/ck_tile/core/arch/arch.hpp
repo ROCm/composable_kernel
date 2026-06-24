@@ -41,6 +41,15 @@
 #define CK_TILE_LGKMCNT(cnt) \
     ([]() { static_assert(!((cnt) >> 4), "LGKM only has 4 bits"); }(), ((cnt) << 8))
 
+// When USE_NEW_UNIFIED_FRAMEWORK is 1, we replace all WarpGemms with MmaPipelines from the new
+// unified framework. This means WarpGemmDispatcher will use the UnificationDispatcher instead of
+// the regular Dispatcher. Furthermore, named WarpGemms like WarpGemmMfmaF32F32F32M16N16K4 will also
+// get rerouted to the UnificationDispatcher. The latter is necessary because some pipelines bypass
+// the WarpGemmDispatcher in favor of directly using named WarpGemms.
+#ifndef USE_NEW_UNIFIED_FRAMEWORK
+#define USE_NEW_UNIFIED_FRAMEWORK 0
+#endif
+
 namespace ck_tile {
 
 template <typename, bool>
@@ -391,6 +400,71 @@ constexpr auto get_compiler_target()
     {
         return amdgcn_target<>{};
     }
+}
+
+/**
+ * @brief Returns the amdgcn_target of the target GPU architecture, as defined at configuration
+ * time.
+ * @note This is a workaround because there are a lot of cases in CK Tile where the host code
+ * inspects Device constructions like WarpGemm, and we need to get the version that *will* be used
+ * on the device. This is a big kludge and we need to figure out a better solution. Also this util
+ * will always pick the *first* cmakelists target arch, so there will be issues when compiling for
+ * multiple target architectures.
+ */
+// Note: The trivial template and always_false_v are necessary to avoid triggering the first static
+// assert. Without this trick the static assert would be triggered regardless of the value of "id".
+template <typename = void>
+static constexpr auto getCMakeCompilerTarget()
+{
+    using ck_tile::core::arch::amdgcn_target_id;
+#ifdef CK_CMAKE_GPU_TARGET_IDS
+    constexpr uint32_t ids[] = {CK_CMAKE_GPU_TARGET_IDS};
+    constexpr amdgcn_target_id id =
+        static_cast<amdgcn_target_id>(ids[0]); // We pick the *first* target arch. TODO.
+
+    if constexpr(id == amdgcn_target_id::GFX908 || id == amdgcn_target_id::GFX90A ||
+                 id == amdgcn_target_id::GFX942 || id == amdgcn_target_id::GFX950)
+    {
+        return make_amdgcn_gfx9_target<id>();
+    }
+    else if constexpr(id == amdgcn_target_id::GFX1030 || id == amdgcn_target_id::GFX1031 ||
+                      id == amdgcn_target_id::GFX1032 || id == amdgcn_target_id::GFX1033 ||
+                      id == amdgcn_target_id::GFX1034 || id == amdgcn_target_id::GFX1035 ||
+                      id == amdgcn_target_id::GFX1036 || id == amdgcn_target_id::GFX103_GENERIC)
+    {
+        return make_amdgcn_gfx10_3_target<id>();
+    }
+    else if constexpr(id == amdgcn_target_id::GFX1100 || id == amdgcn_target_id::GFX1101 ||
+                      id == amdgcn_target_id::GFX1102 || id == amdgcn_target_id::GFX1103 ||
+                      id == amdgcn_target_id::GFX1150 || id == amdgcn_target_id::GFX1151 ||
+                      id == amdgcn_target_id::GFX1152 || id == amdgcn_target_id::GFX1153 ||
+                      id == amdgcn_target_id::GFX11_GENERIC)
+    {
+        return make_amdgcn_gfx11_target<id>();
+    }
+    else if constexpr(id == amdgcn_target_id::GFX1200 || id == amdgcn_target_id::GFX1201 ||
+                      id == amdgcn_target_id::GFX12_GENERIC)
+    {
+        return make_amdgcn_gfx12_target<id>();
+    }
+    else if constexpr(id == amdgcn_target_id::GFX1250)
+    {
+        return make_amdgcn_gfx12_target<id>(); // TODO: This should not be a GFX12 target.
+    }
+    else
+    {
+#if USE_NEW_UNIFIED_FRAMEWORK // Avoid hard errors for third parties including arch.hpp
+        static_assert(always_false_v<decltype(id)>,
+                      "CK_CMAKE_GPU_TARGET_IDS[0] is HOST or UNKNOWN!\n");
+#endif
+        return amdgcn_target<>{}; // By default, return HOST target.
+    }
+#else
+#if USE_NEW_UNIFIED_FRAMEWORK
+    static_assert(false, "The CK_CMAKE_GPU_TARGET_IDS macro was not made available!\n");
+#endif
+    return amdgcn_target<>{}; // By default, return HOST target.
+#endif
 }
 
 // Cleanup

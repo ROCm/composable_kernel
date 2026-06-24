@@ -71,32 +71,17 @@ concept ScaleMfmaDataTypeToFlag = requires(DataTypeToFlag dataTypeToFlag) {
 
 } // namespace scale::detail
 
+// No real flags for now, scale and opsel are handled in higher level and passed down directly.
+// OPSEL is now passed as a template arg to exec(), see mma_pipeline.hpp
+// We will soon get rid of these flags entirely in favor of variadic template packs passed down to
+// the intrinsics directly, see WarpGemmParamsParser<>.
 struct DefaultScaleMfmaCtrlFlags
 {
-    static constexpr int32_t OPSEL_A = 0;
-    static constexpr int32_t OPSEL_B = 0;
 };
 
-CK_TILE_HOST_DEVICE void print_flags(DefaultScaleMfmaCtrlFlags const& ctrlFlags)
+CK_TILE_HOST_DEVICE void print_flags([[maybe_unused]] DefaultScaleMfmaCtrlFlags const& ctrlFlags)
 {
-    printf("CtrlFlags      OPSEL_A / OPSEL_B        : %d / %d\n",
-           ctrlFlags.OPSEL_A,
-           ctrlFlags.OPSEL_B);
+    printf("CtrlFlags: (empty)\n");
 }
-
-#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-
-/**
- * @concept ScaleMfmaCtrlFlags
- * @brief  Expresses the interface of required members for each CtrlFlags type on Gfx9
- */
-template <typename CtrlFlags>
-concept ScaleMfmaCtrlFlags = requires(CtrlFlags ctrlFlags) {
-    // Flag members for scale MFMA instructions
-    { CtrlFlags::OPSEL_A } -> std::convertible_to<int32_t>;
-    { CtrlFlags::OPSEL_B } -> std::convertible_to<int32_t>;
-};
-
-#endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
 } // namespace ck_tile::core::arch::mma

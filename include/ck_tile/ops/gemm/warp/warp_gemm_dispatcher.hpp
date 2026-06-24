@@ -4,11 +4,13 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher_unification.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_wmma_gemm.hpp"
 
 namespace ck_tile {
 
+#if !USE_NEW_UNIFIED_FRAMEWORK
 namespace impl {
 namespace warp_gemm_dispatcher {
 
@@ -335,6 +337,7 @@ struct Dispatcher<AType, BType, AccType, M, N, K, TransposeC, SA, SS,
 // clang-format on
 } // namespace warp_gemm_dispatcher
 } // namespace impl
+#endif // if !USE_NEW_UNIFIED_FRAMEWORK
 
 template <typename AType,
           typename BType,
@@ -348,7 +351,11 @@ template <typename AType,
           WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Default,
           WGAttrNumAccessEnum AttrNumAccessB = AttrNumAccessA,
           bool IsScale16                     = false>
-using WarpGemmDispatcher = typename impl::warp_gemm_dispatcher::Dispatcher< //
+#if USE_NEW_UNIFIED_FRAMEWORK
+using WarpGemmDispatcher = typename impl::warp_gemm_dispatcher::UnificationDispatcher<
+#else
+using WarpGemmDispatcher = typename impl::warp_gemm_dispatcher::Dispatcher<
+#endif
     AType,
     BType,
     AccType,

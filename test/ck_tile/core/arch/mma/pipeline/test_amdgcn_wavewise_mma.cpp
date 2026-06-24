@@ -37,33 +37,33 @@ struct WaveWisePipelineKernel
                                                    WaveTileM,
                                                    WaveTileN,
                                                    WaveTileK,
-                                                   MmaOpFamily::DENSE,
                                                    AccumPolicy,
                                                    TransposeC,
+                                                   1, // SwizzleFactor
+                                                   1, // AttrNumAccessAV
+                                                   1, // AttrNumAccessBV
                                                    CompilerTarget>;
 
-        using AVecType = typename Pipeline::AVecType;
-        using BVecType = typename Pipeline::BVecType;
-        using CVecType = typename Pipeline::CVecType;
+        using ATensor = typename Pipeline::AWarpTensor;
+        using BTensor = typename Pipeline::BWarpTensor;
+        using CTensor = typename Pipeline::CWarpTensor;
 
         const uint32_t lane = threadIdx.x;
 
-        AVecType a;
-        BVecType b;
-        CVecType c;
-        __builtin_memcpy(&a,
-                         static_cast<const uint8_t*>(a_per_lane) + lane * sizeof(AVecType),
-                         sizeof(AVecType));
-        __builtin_memcpy(&b,
-                         static_cast<const uint8_t*>(b_per_lane) + lane * sizeof(BVecType),
-                         sizeof(BVecType));
-        __builtin_memset(&c, 0, sizeof(CVecType));
+        ATensor a;
+        BTensor b;
+        CTensor c;
+        __builtin_memcpy(
+            &a, static_cast<const uint8_t*>(a_per_lane) + lane * sizeof(ATensor), sizeof(ATensor));
+        __builtin_memcpy(
+            &b, static_cast<const uint8_t*>(b_per_lane) + lane * sizeof(BTensor), sizeof(BTensor));
+        __builtin_memset(&c, 0, sizeof(CTensor));
 
         if constexpr(MmaOpTraits<typename Pipeline::MmaOp>::IsSupported)
         {
             Pipeline::exec(a, b, c);
             __builtin_memcpy(
-                static_cast<uint8_t*>(c_per_lane) + lane * sizeof(CVecType), &c, sizeof(CVecType));
+                static_cast<uint8_t*>(c_per_lane) + lane * sizeof(CTensor), &c, sizeof(CTensor));
         }
     }
 };
@@ -95,9 +95,11 @@ struct WaveWisePipelineFactory
                                          WaveTileM,
                                          WaveTileN,
                                          WaveTileK,
-                                         MmaOpFamily::DENSE,
                                          AccumPolicy,
-                                         false,
+                                         false, // CTranspose
+                                         1,     // SwizzleFactor
+                                         1,     // AttrNumAccessAV
+                                         1,     // AttrNumAccessBV
                                          Target>;
     };
 };
