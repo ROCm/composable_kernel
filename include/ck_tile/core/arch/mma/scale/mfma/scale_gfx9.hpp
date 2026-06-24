@@ -38,6 +38,7 @@ struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 16u, 16u, 128u, CtrlFlags, CompilerTarge
     static constexpr const char* instruction_name =
         "__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4";
 
+    template <index_t opselA, index_t opselB>
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int scale_A, int scale_B)
     {
@@ -47,9 +48,9 @@ struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 16u, 16u, 128u, CtrlFlags, CompilerTarge
             cVec,
             scale::detail::ScaleDataTypeToFlag_v<fp8_t>,
             scale::detail::ScaleDataTypeToFlag_v<fp8_t>,
-            static_cast<int>(CtrlFlags::OPSEL_A),
+            opselA,
             scale_A,
-            static_cast<int>(CtrlFlags::OPSEL_B),
+            opselB,
             scale_B)};
     }
 };
@@ -76,6 +77,7 @@ struct amdgcn_mma<bf8_t, bf8_t, fp32_t, 16u, 16u, 128u, CtrlFlags, CompilerTarge
     static constexpr const char* instruction_name =
         "__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4";
 
+    template <index_t opselA, index_t opselB>
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int scale_A, int scale_B)
     {
@@ -85,9 +87,9 @@ struct amdgcn_mma<bf8_t, bf8_t, fp32_t, 16u, 16u, 128u, CtrlFlags, CompilerTarge
             cVec,
             scale::detail::ScaleDataTypeToFlag_v<bf8_t>,
             scale::detail::ScaleDataTypeToFlag_v<bf8_t>,
-            static_cast<int>(CtrlFlags::OPSEL_A),
+            opselA,
             scale_A,
-            static_cast<int>(CtrlFlags::OPSEL_B),
+            opselB,
             scale_B)};
     }
 };
@@ -114,6 +116,7 @@ struct amdgcn_mma<pk_fp4_t, pk_fp4_t, fp32_t, 16u, 16u, 128u, CtrlFlags, Compile
     static constexpr const char* instruction_name =
         "__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4";
 
+    template <index_t opselA, index_t opselB>
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int scale_A, int scale_B)
     {
@@ -126,9 +129,9 @@ struct amdgcn_mma<pk_fp4_t, pk_fp4_t, fp32_t, 16u, 16u, 128u, CtrlFlags, Compile
             cVec,
             scale::detail::ScaleDataTypeToFlag_v<pk_fp4_t>,
             scale::detail::ScaleDataTypeToFlag_v<pk_fp4_t>,
-            static_cast<int>(CtrlFlags::OPSEL_A),
+            opselA,
             scale_A,
-            static_cast<int>(CtrlFlags::OPSEL_B),
+            opselB,
             scale_B)};
     }
 };
@@ -154,6 +157,7 @@ struct amdgcn_mma<pk_fp6x16_t, pk_fp6x16_t, fp32_t, 16u, 16u, 128u, CtrlFlags, C
     static constexpr const char* instruction_name =
         "__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4";
 
+    template <index_t opselA, index_t opselB>
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int scale_A, int scale_B)
     {
@@ -163,9 +167,9 @@ struct amdgcn_mma<pk_fp6x16_t, pk_fp6x16_t, fp32_t, 16u, 16u, 128u, CtrlFlags, C
             cVec,
             scale::detail::ScaleDataTypeToFlag_v<pk_fp6x16_t>,
             scale::detail::ScaleDataTypeToFlag_v<pk_fp6x16_t>,
-            static_cast<int>(CtrlFlags::OPSEL_A),
+            opselA,
             scale_A,
-            static_cast<int>(CtrlFlags::OPSEL_B),
+            opselB,
             scale_B)};
     }
 };
@@ -191,7 +195,8 @@ struct amdgcn_mma<pk_bf6x16_t, pk_bf6x16_t, fp32_t, 16u, 16u, 128u, CtrlFlags, C
 {
     static constexpr const char* instruction_name =
         "__builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4";
-        
+    
+    template <index_t opselA, index_t opselB>
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int scale_A, int scale_B)
     {
@@ -201,9 +206,9 @@ struct amdgcn_mma<pk_bf6x16_t, pk_bf6x16_t, fp32_t, 16u, 16u, 128u, CtrlFlags, C
             cVec,
             scale::detail::ScaleDataTypeToFlag_v<pk_bf6x16_t>,
             scale::detail::ScaleDataTypeToFlag_v<pk_bf6x16_t>,
-            static_cast<int>(CtrlFlags::OPSEL_A),
+            opselA,
             scale_A,
-            static_cast<int>(CtrlFlags::OPSEL_B),
+            opselB,
             scale_B)};
     }
 };
@@ -231,6 +236,7 @@ struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 32u, 32u, 64u, CtrlFlags, CompilerTarget
     static constexpr const char* instruction_name =
         "__builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4";
 
+    template <index_t opselA, index_t opselB>
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int scale_A, int scale_B)
     {
@@ -240,9 +246,9 @@ struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 32u, 32u, 64u, CtrlFlags, CompilerTarget
             cVec,
             scale::detail::ScaleDataTypeToFlag_v<fp8_t>,
             scale::detail::ScaleDataTypeToFlag_v<fp8_t>,
-            static_cast<int>(CtrlFlags::OPSEL_A),
+            opselA,
             scale_A,
-            static_cast<int>(CtrlFlags::OPSEL_B),
+            opselB,
             scale_B)};
     }
 };
@@ -269,6 +275,7 @@ struct amdgcn_mma<bf8_t, bf8_t, fp32_t, 32u, 32u, 64u, CtrlFlags, CompilerTarget
     static constexpr const char* instruction_name =
         "__builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4";
 
+    template <index_t opselA, index_t opselB>
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int scale_A, int scale_B)
     {
@@ -278,9 +285,9 @@ struct amdgcn_mma<bf8_t, bf8_t, fp32_t, 32u, 32u, 64u, CtrlFlags, CompilerTarget
             cVec,
             scale::detail::ScaleDataTypeToFlag_v<bf8_t>,
             scale::detail::ScaleDataTypeToFlag_v<bf8_t>,
-            static_cast<int>(CtrlFlags::OPSEL_A),
+            opselA,
             scale_A,
-            static_cast<int>(CtrlFlags::OPSEL_B),
+            opselB,
             scale_B)};
     }
 };
@@ -307,6 +314,7 @@ struct amdgcn_mma<pk_fp4_t, pk_fp4_t, fp32_t, 32u, 32u, 64u, CtrlFlags, Compiler
     static constexpr const char* instruction_name =
         "__builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4";
 
+    template <index_t opselA, index_t opselB>
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int scale_A, int scale_B)
     {
@@ -319,9 +327,9 @@ struct amdgcn_mma<pk_fp4_t, pk_fp4_t, fp32_t, 32u, 32u, 64u, CtrlFlags, Compiler
             cVec,
             scale::detail::ScaleDataTypeToFlag_v<pk_fp4_t>,
             scale::detail::ScaleDataTypeToFlag_v<pk_fp4_t>,
-            static_cast<int>(CtrlFlags::OPSEL_A),
+            opselA,
             scale_A,
-            static_cast<int>(CtrlFlags::OPSEL_B),
+            opselB,
             scale_B)};
     }
 };
@@ -347,6 +355,7 @@ struct amdgcn_mma<pk_fp6x16_t, pk_fp6x16_t, fp32_t, 32u, 32u, 64u, CtrlFlags, Co
     static constexpr const char* instruction_name =
         "__builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4";
 
+    template <index_t opselA, index_t opselB>
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int scale_A, int scale_B)
     {
@@ -356,9 +365,9 @@ struct amdgcn_mma<pk_fp6x16_t, pk_fp6x16_t, fp32_t, 32u, 32u, 64u, CtrlFlags, Co
             cVec,
             scale::detail::ScaleDataTypeToFlag_v<pk_fp6x16_t>,
             scale::detail::ScaleDataTypeToFlag_v<pk_fp6x16_t>,
-            static_cast<int>(CtrlFlags::OPSEL_A),
+            opselA,
             scale_A,
-            static_cast<int>(CtrlFlags::OPSEL_B),
+            opselB,
             scale_B)};
     }
 };
@@ -385,6 +394,7 @@ struct amdgcn_mma<pk_bf6x16_t, pk_bf6x16_t, fp32_t, 32u, 32u, 64u, CtrlFlags, Co
     static constexpr const char* instruction_name =
         "__builtin_amdgcn_mfma_scale_f32_32x32x64_f8f6f4";
 
+    template <index_t opselA, index_t opselB>
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int scale_A, int scale_B)
     {
@@ -394,9 +404,9 @@ struct amdgcn_mma<pk_bf6x16_t, pk_bf6x16_t, fp32_t, 32u, 32u, 64u, CtrlFlags, Co
             cVec,
             scale::detail::ScaleDataTypeToFlag_v<pk_bf6x16_t>,
             scale::detail::ScaleDataTypeToFlag_v<pk_bf6x16_t>,
-            static_cast<int>(CtrlFlags::OPSEL_A),
+            opselA,
             scale_A,
-            static_cast<int>(CtrlFlags::OPSEL_B),
+            opselB,
             scale_B)};
     }
 };

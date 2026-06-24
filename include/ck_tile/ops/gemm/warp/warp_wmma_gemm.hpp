@@ -10,7 +10,16 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl_highprec_traits.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_wmma_impl_8bit_traits.hpp"
 
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher_unification.hpp"
+
 namespace ck_tile {
+
+// For the pipelines that do not use the dispatcher but instead directly used named WarpGemms,
+// redefine them in terms of the new unification dispatcher. Only did so for named WarpGemms that
+// are already (or seem likely to be) used directly.
+#if USE_NEW_UNIFIED_FRAMEWORK
+// None of the named WMMA warpgemms are used directly so nothing defined yet.
+#else
 
 template <bool kTransC = false, WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Default>
 using WarpGemmWmma_f32_16x16x4_f32 =
@@ -248,5 +257,7 @@ using WarpGemmWmma_f32_32x32x128_f8f6f4_scale16 = WarpGemmImpl<
                           kTransC,
                           AttrNumAccessA,
                           AttrNumAccessB>>;
+
+#endif // if USE_NEW_UNIFIED_FRAMEWORK
 
 } // namespace ck_tile

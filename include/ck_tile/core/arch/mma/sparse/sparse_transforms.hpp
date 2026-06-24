@@ -131,15 +131,18 @@ static CK_TILE_DEVICE int32_t extract_fragment_idx(const SparseIdxPack<NumIdxWor
 
 /**
  * @class SparseCompressTransform
- * @brief Performs 2:4 structured sparsity compression to the vector v and produces an index mask.
- * @note  Returns a tuple of two. The first element is the vector v with the same scalar type but
- *        its size halved. The second element is the index mask.
+ * @brief Performs 2:4 structured sparsity compression on a static_distributed_tensor representing A
+ *        and produces an index mask.
+ * @note  Returns a tuple of two. The first element is an ext_vector containing all the compressed
+ *        elements. The second element is the index mask.
  */
 template <index_t CompressionRatio>
 struct SparseCompressTransform
 {
+    // This function takes A in uncompressed form as a big ext_vector, and returns a
+    // compressed ext_vector.
     template <typename VecType>
-    CK_TILE_DEVICE static decltype(auto) exec(VecType& v)
+    CK_TILE_DEVICE static decltype(auto) execExtVec(VecType& v)
     {
         using VecTraits                         = vector_traits<remove_cvref_t<VecType>>;
         using ScalarT                           = typename VecTraits::scalar_type;
@@ -155,6 +158,22 @@ struct SparseCompressTransform
         auto idx = sparse::detail::compress_a_impl<ScalarT, CompressedSize>(v);
 
         return std::tuple<VecCompressed&, IdxType>(*ck_tile::bit_cast<VecCompressed*>(&v), idx);
+    }
+
+    // This function takes A in uncompressed form as a static_distributed tensor and performs an
+    // in-place compression, returning a compressed ext_vector. It would be a little bit cleaner if
+    // it returned a compressed static_distributed tensor, but this would require access to another
+    // Tile Distr encoding for the compressed one. This would have to be passed down, breaking the
+    // MmaPipeline Base API, or calculated in place, which is a bit annoying. TODO.
+    template <typename ATensor>
+    CK_TILE_DEVICE static decltype(auto) exec(ATensor& a_tensor)
+    {
+        // Properties of ATensor as a big ext vector.
+        using ADataType        = typename ATensor::DataType;
+        constexpr index_t VecN = ATensor::get_thread_buffer_size();
+        using VecType          = ext_vector_t<ADataType, VecN>;
+
+        return execExtVec(a_tensor.get_thread_buffer().template get_as<VecType>().template at<0>());
     }
 };
 

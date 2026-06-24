@@ -4,6 +4,7 @@
 #pragma once
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/mma_op_family.hpp"
+#include "ck_tile/core/arch/mma/mma_traits.hpp"
 
 namespace ck_tile::core::arch::mma {
 
@@ -66,6 +67,91 @@ concept MmaSelectorI = requires(MmaSelector op) {
 };
 
 #endif // CK_TILE_CONCEPTS
+
+/**
+ * @class MmaKSearchSelector
+ * @brief Generic helper for selecting the intrinsic with the largest possible K size that divides
+ * WaveTileKTest. If nothing is supported, a generic unsupported passthrough impl is returned.
+ * @tparam ADataType      Data type of matrix A
+ * @tparam BDataType      Data type of matrix B
+ * @tparam CDataType      Data type of the accumulator
+ * @tparam WaveTileM      WaveTile M dimension size
+ * @tparam WaveTileN      WaveTile N dimension size
+ * @tparam WaveTileKTest  Current WaveTile K dimension size to test
+ * @tparam CompilerTarget The compiler target
+ * @note Here we assume that WaveTileKTest is always a power-of-two integer. The search strategy
+ *       starts from a maximum WaveTileKTest size down to 1u by halving each time.
+ */
+template <typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          uint32_t WaveTileM,
+          uint32_t WaveTileN,
+          uint32_t WaveTileKTest,
+          typename CtrlFlags,
+          typename CompilerTarget, // TODO: c++20 amdgcn_target_arch_id CompilerTarget>
+          MmaOpFamily OpFamily>
+struct MmaKSearchSelector
+{
+    private:
+    static_assert(!(WaveTileKTest & (WaveTileKTest - 1)), "WaveTileKTest must be power of 2.");
+
+    using CandidateOp = amdgcn_mma<ADataType,
+                                   BDataType,
+                                   CDataType,
+                                   WaveTileM,
+                                   WaveTileN,
+                                   WaveTileKTest,
+                                   CtrlFlags,
+                                   CompilerTarget,
+                                   OpFamily>;
+
+    public:
+    // If the candidate is supported (e.g., a backend implementation exists), then select it.
+    // Otherwise, test another smaller WaveTileK. If no existing implementations, we will get
+    // WaveTileK=0u and fall back to the unsupported pass-through implementation.
+    using SelectedOp = std::conditional_t<MmaOpTraits<CandidateOp>::IsSupported,
+                                          CandidateOp,
+                                          typename MmaKSearchSelector<ADataType,
+                                                                      BDataType,
+                                                                      CDataType,
+                                                                      WaveTileM,
+                                                                      WaveTileN,
+                                                                      WaveTileKTest / 2u,
+                                                                      CtrlFlags,
+                                                                      CompilerTarget,
+                                                                      OpFamily>::SelectedOp>;
+};
+
+template <typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          uint32_t WaveTileM,
+          uint32_t WaveTileN,
+          typename CtrlFlags,
+          typename CompilerTarget, // TODO: c++20 amdgcn_target_arch_id CompilerTarget>
+          MmaOpFamily OpFamily>
+struct MmaKSearchSelector<ADataType,
+                          BDataType,
+                          CDataType,
+                          WaveTileM,
+                          WaveTileN,
+                          0u,
+                          CtrlFlags,
+                          CompilerTarget,
+                          OpFamily>
+{
+    // Recursion endpoint: unsupported default implementation.
+    using SelectedOp = amdgcn_mma<ADataType,
+                                  BDataType,
+                                  CDataType,
+                                  1u,
+                                  1u,
+                                  1u,
+                                  CtrlFlags,
+                                  CompilerTarget,
+                                  OpFamily>;
+};
 
 } // namespace ck_tile::core::arch::mma
 

@@ -10,7 +10,59 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_smfmac_impl.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_attribute_smfmac.hpp"
 
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher_unification.hpp"
+
 namespace ck_tile {
+
+// For the pipelines that do not use the dispatcher but instead directly used named WarpGemms,
+// redefine them in terms of the new unification dispatcher. Only did so for named WarpGemms that
+// are already (or seem likely to be) used directly.
+#if USE_NEW_UNIFIED_FRAMEWORK
+// fp16 named WarpGemms (no WMMA or StructuredSparsity)
+// clang-format off
+template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaF16F16F32M32N32K16                                  = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32, 16, false, false, false, NumAccess>::Type;
+template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution           = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32, 16, true, false, false, NumAccess>::Type;
+template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaF16F16F32M16N16K32                                  = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 16, 16, 32, false, false, false, NumAccess>::Type;
+template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution           = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 16, 16, 32, true, false, false, NumAccess>::Type;
+using WarpGemmMfmaF16F16F32M32N32K8                                   = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32,  8, false>::Type;
+using WarpGemmMfmaF16F16F32M32N32K8TransposedCDistribution            = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32,  8,  true>::Type;
+using WarpGemmMfmaF16F16F32M4N64K16                                   = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float,  4, 64, 16, false>::Type;
+using WarpGemmMfmaF16F16F32M64N4K16                                   = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 64,  4, 16, false>::Type;
+using WarpGemmMfmaF16F16F32M16N16K16                                  = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 16, 16, 16, false>::Type;
+using WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution           = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 16, 16, 16,  true>::Type;
+// using WarpGemmMfmaF16F16F32M32N32K8SwizzleA                           = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32,  8, false, true>::Type;
+// using WarpGemmMfmaF16F16F32M32N32K16SwizzleA                          = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32, 16, false, true>::Type;
+// using WarpGemmMfmaF16F16F32M32N32K8SwizzleBTransposedCDistribution    = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32,  8,  true, true>::Type;
+// using WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution   = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32, 16,  true, true>::Type;
+
+// bf16 named WarpGemms (no WMMA or StructuredSparsity)
+using WarpGemmMfmaBf16Bf16F32M32N32K8                                 = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32,  8, false>::Type;
+using WarpGemmMfmaBf16Bf16F32M32N32K8TransposedCDistribution          = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32,  8,  true>::Type;
+template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaBf16Bf16F32M32N32K16                                = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32, 16, false, false, false, NumAccess>::Type;
+template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution         = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32, 16,  true, false, false, NumAccess>::Type;
+template<WGAttrNumAccessEnum NumAccessA = WGAttrNumAccessEnum::Single, WGAttrNumAccessEnum NumAccessB = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaBf16Bf16F32M16N16K32                                = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 32, false, false, false, NumAccessA, NumAccessB>::Type;
+template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution         = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 32,  true, false, false, NumAccess>::Type;
+template<WGAttrNumAccessEnum NumAccessA = WGAttrNumAccessEnum::Single, WGAttrNumAccessEnum NumAccessB = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaBf16Bf16F32M16N16K64                                = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 64, false, false, false, NumAccessA, NumAccessB>::Type;
+using WarpGemmMfmaBf16Bf16F32M4N64K16                                 = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float,  4, 64, 16, false>::Type;
+using WarpGemmMfmaBf16Bf16F32M64N4K16                                 = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 64,  4, 16, false>::Type;
+using WarpGemmMfmaBf16Bf16F32M16N16K16                                = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 16, false>::Type;
+using WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution         = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 16,  true>::Type;
+// using WarpGemmMfmaBf16Bf16F32M32N32K8SwizzleA                         = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32,  8, false, true>::Type;
+// using WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleA                        = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32, 16, false, true>::Type;
+// using WarpGemmMfmaBf16Bf16F32M32N32K8SwizzleBTransposedCDistribution  = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32,  8,  true, true>::Type;
+// using WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32, 16,  true, true>::Type;
+//clang-format on
+
+#else // #if USE_NEW_UNIFIED_FRAMEWORK
 
 // fp32
 
@@ -563,4 +615,6 @@ using WarpGemmMfmaI8I8I32M32N32K32SwizzleBTransposedCDistribution =
         WarpGemmAttributeMfmaImpl_i32_32x32x16_i8<WGAttrCtlEnum::Default_>,
         2,
         swizzle_factor>>;
+
+#endif // #if USE_NEW_UNIFIED_FRAMEWORK
 } // namespace ck_tile

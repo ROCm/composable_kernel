@@ -3,6 +3,7 @@
 #pragma once
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_params.hpp"
 
 #include "amdgcn_mma.hpp"
 #include "mma_selector.hpp"
@@ -98,16 +99,14 @@ constexpr bool operator==(MmaPipelineOptionFlags::Type lhs, const MmaPipelineOpt
  * @tparam Flags_  Compile-time bitmask of @ref MmaPipelineOptionFlag controlling
  *                 pipeline behavior (e.g., C transposition, A compression).
  * @tparam Derived The concrete CRTP-derived pipeline class. Must expose:
- *                 - Type aliases: @c InternalAVecT, @c InternalBVecT, @c InternalCVecT,
- *                   @c CVecType, @c MmaOp
- *                 - Transform aliases: @c ATransform, @c BTransform, @c CTransform,
- *                   @c DTransform
+ *                 - Type aliases: @c AWarpTensor, @c BWarpTensor, @c CWarpTensor, @c MmaOp
+ *                 - Transform aliases: @c ATransform, @c BTransform, @c CTransform, @c DTransform
  *                 - A static @c execImpl(std::tuple<A,B,C>&) method.
  *
  * @par The pipeline performs the following steps in @c exec():
- *      1. Apply pre-transforms and format input buffers (A, B, C).
+ *      1. Apply pre-transforms to input buffers (A, B, C).
  *      2. Delegate to @c Derived::execImpl for the actual mma loop.
- *      3. Apply post-transform and format the output buffer (D) back to the user type.
+ *      3. Apply post-transform to output buffer (D).
  *      When @c ABSwap is set, the A and B inputs are swapped before step 1.
  */
 // TODO: c++20: use MmaPipelineOptionFlags directly
@@ -116,179 +115,37 @@ struct MmaPipelineBase
 {
     static constexpr auto Flags = MmaPipelineOptionFlags(Flags_);
 
-    private:
-    /**
-     * @brief Reconstruct a tuple with its first element passed through @c formatBuffer
-     *        while preserving all remaining elements unchanged.
-     * @tparam DstT  Target type for the formatted first element.
-     * @tparam SrcT  Forwarding-reference type of the input tuple.
-     * @tparam Is    Index pack for elements 1..N-1 of the tuple.
-     * @param  inputTuple The source tuple whose first element will be formatted.
-     * @return A new tuple with the formatted first element and the remaining elements forwarded.
-     */
-    template <typename DstT, typename SrcT, std::size_t... Is>
-    CK_TILE_DEVICE static auto formatBufferTupleImpl(SrcT&& inputTuple, std::index_sequence<Is...>)
-    {
-        auto&& first_elem = std::get<0>(std::forward<SrcT>(inputTuple));
-        using FirstElemResultType =
-            decltype(formatBuffer<DstT>(std::forward<decltype(first_elem)>(first_elem)));
-        using InputTupleType = ck_tile::remove_cvref_t<SrcT>;
-        return std::tuple<FirstElemResultType, std::tuple_element_t<Is + 1, InputTupleType>...>(
-            formatBuffer<DstT>(std::forward<decltype(first_elem)>(first_elem)),
-            std::get<Is + 1>(std::forward<SrcT>(inputTuple))...);
-    }
-
-    /**
-     * @brief Format (reinterpret-cast) a buffer to the hardware-native vector type @p DstT.
-     *
-     * Three cases are handled:
-     * - **Tuple**: recursively format the first element via @c formatBufferTupleImpl,
-     *   preserving any metadata in the remaining tuple elements.
-     * - **Array / Pointer**: forwarded unchanged.
-     * - **Scalar / Vector**: reinterpret-cast to @p DstT (sizes must match).
-     *
-     * @tparam DstT        The target hardware vector type.
-     * @tparam SrcT        Forwarding-reference type of the input buffer.
-     * @param  inputBuffer The buffer to format.
-     * @return A reference (or value) of type @p DstT corresponding to @p inputBuffer.
-     */
-    template <typename DstT, typename SrcT>
-    CK_TILE_DEVICE static decltype(auto) formatBuffer(SrcT&& inputBuffer)
-    {
-        using DecayedSrcT = ck_tile::remove_cvref_t<SrcT>;
-
-        // If SrcT is a tuple, extract the first element (the vector) and format it
-        // while preserving all remaining elements (metadata)
-        if constexpr(is_std_tuple_v<DecayedSrcT>)
-        {
-            // Create index sequence for all remaining elements (skip first)
-            constexpr std::size_t tuple_size = std::tuple_size_v<DecayedSrcT>;
-            return formatBufferTupleImpl<DstT>(std::forward<SrcT>(inputBuffer),
-                                               std::make_index_sequence<tuple_size - 1>{});
-        }
-        else if constexpr(std::is_array_v<DecayedSrcT> || std::is_pointer_v<DecayedSrcT>)
-        {
-            return std::forward<SrcT>(inputBuffer);
-        }
-        else
-        {
-            static_assert(sizeof(DstT) == sizeof(DecayedSrcT), "Size mismatch in formatBuffer");
-
-            using QualifiedDstT =
-                std::conditional_t<std::is_const_v<DecayedSrcT>, DstT const, DstT>;
-
-            return reinterpret_cast<QualifiedDstT&>(inputBuffer);
-        }
-    }
-
-    protected:
-    /** @brief Query whether a specific @ref MmaPipelineOptionFlag is set. */
-    template <MmaPipelineOptionFlag Flag>
-    constexpr CK_TILE_DEVICE static bool hasFlag()
-    {
-        return Flags.testFlag(Flag);
-    }
-
-    /**
-     * @brief Apply a transform **then** format the result to @p DstT.
-     *        Used for input operands (A, B, C) before the mma loop.
-     */
-    template <typename DstT, typename Transform, typename... Args>
-    CK_TILE_DEVICE static auto preApplyTransform(Args&&... args)
-    {
-        return formatBuffer<DstT>(Transform::exec(std::forward<Args>(args)...));
-    }
-
-    /**
-     * @brief Format a buffer to @p DstT **then** apply a transform.
-     *        Used for the output operand (D) after the mma loop.
-     */
-    template <typename DstT, typename Transform, typename... Args>
-    CK_TILE_DEVICE static auto postApplyTransform(Args&&... args)
-    {
-        return Transform::exec(formatBuffer<DstT>(std::forward<Args>(args)...));
-    }
-
-    /**
-     * @brief Apply the per-operand pre-transforms and buffer formatting to A, B, and C.
-     * @return A @c std::tuple of the transformed (A, B, C, [scaleA, scaleB]) vectors ready for the
-     * mma loop.
-     */
-    template <typename ATransformInputs,
-              typename BTransformInputs,
-              typename CTransformInputs,
-              typename... ExtraArgs>
-    CK_TILE_DEVICE static decltype(auto) applyTransformsToInputs(ATransformInputs&& a,
-                                                                 BTransformInputs&& b,
-                                                                 CTransformInputs&& accum,
-                                                                 ExtraArgs&&... extras)
-    {
-        using InternalAVecT = typename Derived::InternalAVecT;
-        using InternalBVecT = typename Derived::InternalBVecT;
-        using InternalCVecT = typename Derived::InternalCVecT;
-
-        using ATransform = typename Derived::ATransform;
-        using BTransform = typename Derived::BTransform;
-        using CTransform = typename Derived::CTransform;
-
-        return std::make_tuple(
-            preApplyTransform<InternalAVecT, ATransform>(std::forward<ATransformInputs>(a)),
-            preApplyTransform<InternalBVecT, BTransform>(std::forward<BTransformInputs>(b)),
-            preApplyTransform<InternalCVecT, CTransform>(std::forward<CTransformInputs>(accum)),
-            std::forward<ExtraArgs>(extras)...);
-    }
-
-    /**
-     * @brief Apply the post-transform and buffer formatting to the C (accumulator) output.
-     * @param c_result The accumulator to post-process.
-     * @return The final D output in the user-facing vector type.
-     */
-    template <typename CTransformResult>
-    CK_TILE_DEVICE static auto applyTransformToOutput(CTransformResult&& c_result)
-    {
-        static_assert(!is_std_tuple_v<decltype(c_result)>,
-                      "If CTransform returns more than the vector, update this function.");
-
-        using CVecT      = typename Derived::CVecType;
-        using DTransform = typename Derived::DTransform;
-        return postApplyTransform<CVecT, DTransform>(c_result);
-    }
-
-    public:
     /**
      * @brief Entry point: execute the full Mma pipeline (transforms + mma loop + output).
-     * @tparam VecTA Type of the A WaveTile buffer.
-     * @tparam VecTB Type of the B WaveTile buffer.
-     * @tparam VecTC Type of the C (accumulator) WaveTile buffer.
+     * @tparam ATensor Type of the A WaveTile tensor (static_distributed_tensor).
+     * @tparam BTensor Type of the B WaveTile tensor (static_distributed_tensor).
+     * @tparam CTensor Type of the C (accum) WaveTile tensor (static_distributed_tensor).
      * @param  a     Input WaveTile A.
      * @param  b     Input WaveTile B.
      * @param  accum Input/output accumulator WaveTile C.
      * @return The output WaveTile D after accumulation and post-transform.
      */
-    template <typename VecTA, typename VecTB, typename VecTC>
-    CK_TILE_DEVICE static decltype(auto) exec(VecTA&& a, VecTB&& b, VecTC&& accum)
+    template <typename ATensor, typename BTensor, typename CTensor>
+    CK_TILE_DEVICE static decltype(auto) exec(ATensor& a, BTensor& b, CTensor& accum)
     {
         if constexpr(MmaOpTraits<typename Derived::MmaOp>::IsSupported)
         {
-            constexpr bool swap_a_and_b = hasFlag<MmaPipelineOptionFlag::ABSwap>();
-
-            auto transformed_inputs = [&]() {
-                if constexpr(swap_a_and_b)
-                {
-                    return applyTransformsToInputs(
-                        std::forward<VecTB>(b), std::forward<VecTA>(a), std::forward<VecTC>(accum));
-                }
-                else
-                {
-                    return applyTransformsToInputs(
-                        std::forward<VecTA>(a), std::forward<VecTB>(b), std::forward<VecTC>(accum));
-                }
-            }();
-
-            Derived::execImpl(transformed_inputs);
-
-            auto&& [a_result, b_result, c_result] = std::move(transformed_inputs);
-            return applyTransformToOutput(std::move(c_result));
+            if constexpr(Flags & MmaPipelineOptionFlag::ABSwap)
+            {
+                decltype(auto) a_transformed = Derived::ATransform::exec(b);
+                decltype(auto) b_transformed = Derived::BTransform::exec(a);
+                decltype(auto) c_transformed = Derived::CTransform::exec(accum);
+                Derived::execImpl(a_transformed, b_transformed, c_transformed);
+                return Derived::DTransform::exec(c_transformed);
+            }
+            else
+            {
+                decltype(auto) a_transformed = Derived::ATransform::exec(a);
+                decltype(auto) b_transformed = Derived::BTransform::exec(b);
+                decltype(auto) c_transformed = Derived::CTransform::exec(accum);
+                Derived::execImpl(a_transformed, b_transformed, c_transformed);
+                return Derived::DTransform::exec(c_transformed);
+            }
         }
         else
         {
@@ -300,43 +157,70 @@ struct MmaPipelineBase
         }
     }
 
-    template <typename VecTA,
-              typename VecTB,
-              typename VecTC,
+    // Entry point for dense and sparse operations. TODO: Add c_vec = a_vec * b_vec variant.
+    // TODO: Parse params with WarpGemmParamsParser<>
+    template <typename... Params, typename CTensor, typename ATensor, typename BTensor>
+    CK_TILE_DEVICE void operator()(CTensor& c, ATensor& a, const BTensor& b) const
+    {
+        exec(a, b, c);
+    }
+
+    template <index_t opselA,
+              index_t opselB,
+              typename ATensor,
+              typename BTensor,
+              typename CTensor,
               typename ScaleADataType,
               typename ScaleBDataType>
     CK_TILE_DEVICE static decltype(auto)
-    exec(VecTA&& a, VecTB&& b, VecTC&& accum, ScaleADataType&& scale_A, ScaleBDataType&& scale_B)
+    exec(ATensor& a, BTensor& b, CTensor& accum, ScaleADataType& scale_A, ScaleBDataType& scale_B)
     {
+        static_assert(MmaOpTraits<typename Derived::MmaOp>::IsScale,
+                      "This exec variant is intended for scale policy structs");
+
         if constexpr(MmaOpTraits<typename Derived::MmaOp>::IsSupported)
         {
-            static_assert(MmaOpTraits<typename Derived::MmaOp>::IsScale,
-                          "This exec variant is intended for scale policy structs");
-            constexpr bool swap_a_and_b = hasFlag<MmaPipelineOptionFlag::ABSwap>();
-
-            auto transformed_inputs = applyTransformsToInputs(
-                swap_a_and_b ? std::forward<VecTB>(b) : std::forward<VecTA>(a),
-                swap_a_and_b ? std::forward<VecTA>(a) : std::forward<VecTB>(b),
-                std::forward<VecTC>(accum),
-                swap_a_and_b ? std::forward<ScaleBDataType>(scale_B)
-                             : std::forward<ScaleADataType>(scale_A),
-                swap_a_and_b ? std::forward<ScaleADataType>(scale_A)
-                             : std::forward<ScaleBDataType>(scale_B));
-
-            Derived::execImpl(transformed_inputs);
-
-            auto&& [a_result, b_result, c_result, scale_A_result, scale_B_result] =
-                std::move(transformed_inputs);
-            return applyTransformToOutput(std::move(c_result));
+            if constexpr(Flags & MmaPipelineOptionFlag::ABSwap)
+            {
+                // TODO: Figure out which combination of a/b, scale_A/B, and opselA/B needs to be
+                // AB-swapped in order to get correct results. Note that WarpGemmParamsParser
+                // already seems to swap opselA and B.
+                decltype(auto) a_transformed = Derived::ATransform::exec(b);
+                decltype(auto) b_transformed = Derived::BTransform::exec(a);
+                decltype(auto) c_transformed = Derived::CTransform::exec(accum);
+                Derived::template execImpl<opselA, opselB>(
+                    a_transformed, b_transformed, c_transformed, scale_A, scale_B);
+                return Derived::DTransform::exec(c_transformed);
+            }
+            else
+            {
+                decltype(auto) a_transformed = Derived::ATransform::exec(a);
+                decltype(auto) b_transformed = Derived::BTransform::exec(b);
+                decltype(auto) c_transformed = Derived::CTransform::exec(accum);
+                Derived::template execImpl<opselA, opselB>(
+                    a_transformed, b_transformed, c_transformed, scale_A, scale_B);
+                return Derived::DTransform::exec(c_transformed);
+            }
         }
         else
         {
-            // Return the unsupported exec. This should print a runtime warning. (amdgcn_mma.hpp)
-            // Code should not reach here, but HOST/DEVICE compile passes are
-            // weirdly intertwined and instead of having constexpr in the calling
-            // site (tests) we do this. See also changes by this commit.
-            return Derived::MmaOp::exec({}, {}, {});
+            return Derived::MmaOp::exec({}, {}, {}); // Return unsupported exec. See comment above.
         }
+    }
+
+    // Entry point for scale operations. TODO: Add c_vec = a_vec * b_vec variant (+ scaleless
+    // variant?)
+    // TODO: Add support for other scale types.
+    // TODO: Parse params with WarpGemmParamsParser<>
+    template <typename... Params, typename CTensor, typename ATensor, typename BTensor>
+    CK_TILE_DEVICE void operator()(CTensor& c,
+                                   const ATensor& a,
+                                   const BTensor& b,
+                                   const int32_t& a_scale,
+                                   const int32_t& b_scale) const
+    {
+        using P = WarpGemmParamsParser<Params...>;
+        exec<P::op_sel_a, P::op_sel_b>(a, b, c, a_scale, b_scale);
     }
 };
 
