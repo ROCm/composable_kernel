@@ -111,6 +111,9 @@ auto get_elimit<ck_tile::bf16_t>()
     return ck_tile::make_tuple(rtol, atol);
 }
 
+static const uint64_t PHILOX_SEED   = 1UL;
+static const uint64_t PHILOX_OFFSET = 0UL;
+
 template <typename InOutDataType>
 bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jagged)
 {
@@ -411,8 +414,8 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
         params.contextual_seqlen    = contextual_seqlen;
         params.min_full_attn_seqlen = min_full_attn_seqlen;
         params.p_drop               = p_drop;
-        params.philox_seed          = 0UL;
-        params.philox_offset        = 0UL;
+        params.philox_seed          = PHILOX_SEED;
+        params.philox_offset        = PHILOX_OFFSET;
     }
     else
     {
@@ -458,8 +461,8 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
         params.contextual_seqlen    = contextual_seqlen;
         params.min_full_attn_seqlen = min_full_attn_seqlen;
         params.p_drop               = p_drop;
-        params.philox_seed          = 0UL;
-        params.philox_offset        = 0UL;
+        params.philox_seed          = PHILOX_SEED;
+        params.philox_offset        = PHILOX_OFFSET;
     };
 
     bool has_dropout = (params.p_drop > 0.0f);
@@ -487,8 +490,8 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
             rv_params.num_head          = num_head;
             rv_params.stride_seqlen     = rand_vals_host.get_strides()[1];
             rv_params.stride_nhead      = rand_vals_host.get_strides()[2];
-            rv_params.philox_seed       = 0;
-            rv_params.philox_offset     = 0;
+            rv_params.philox_seed       = PHILOX_SEED;
+            rv_params.philox_offset     = PHILOX_OFFSET;
         }
         else
         {
@@ -501,8 +504,8 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
             rv_params.stride_seqlen = rand_vals_host.get_strides()[1];
             rv_params.stride_nhead  = rand_vals_host.get_strides()[2];
             rv_params.stride_batch  = rand_vals_host.get_strides()[0];
-            rv_params.philox_seed   = 0;
-            rv_params.philox_offset = 0;
+            rv_params.philox_seed   = PHILOX_SEED;
+            rv_params.philox_offset = PHILOX_OFFSET;
         };
     };
 
@@ -987,8 +990,8 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
     params.is_training        = is_training;
     params.use_causal         = use_causal;
     params.p_drop             = p_drop;
-    params.philox_seed        = 0UL;
-    params.philox_offset      = 0UL;
+    params.philox_seed        = PHILOX_SEED;
+    params.philox_offset      = PHILOX_OFFSET;
     params.group_max_seqlen_q_ptr         = group_max_seqlens_q_dev.GetDeviceBuffer();
     params.group_contextual_seqlen_ptr    = group_contextual_seqlens_dev.GetDeviceBuffer();
     params.group_window_size_ptr          = group_window_sizes_dev.GetDeviceBuffer();
@@ -1018,8 +1021,8 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
         rv_params.num_head          = num_head;
         rv_params.stride_seqlen     = rand_vals_host.get_strides()[1];
         rv_params.stride_nhead      = rand_vals_host.get_strides()[2];
-        rv_params.philox_seed       = 0;
-        rv_params.philox_offset     = 0;
+        rv_params.philox_seed       = PHILOX_SEED;
+        rv_params.philox_offset     = PHILOX_OFFSET;
     };
 
     hipStream_t stream;
