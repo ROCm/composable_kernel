@@ -100,7 +100,7 @@ def create_forward_instances(instance_dir: Path, headdims: List) -> None:
                     (False, False),
                 ]:
                     for has_bias in [False]:
-                        for has_dropout in [False]:
+                        for has_dropout in [True, False]:
                             for max_k in headdims:
                                 fname = HSTU_FORWARD_INSTANCE_FNAME.format(
                                     mode=mode,
@@ -158,7 +158,7 @@ def create_forward_instances_ref(instance_dir: Path, headdims: List) -> None:
                 file.write(forward_instance_inc)
                 for max_k in headdims:
                     for has_bias in [False]:
-                        for has_dropout in [False]:
+                        for has_dropout in [True, False]:
                             for has_causal in [True, False]:
                                 for use_softmax, store_lse in [
                                     (True, False),

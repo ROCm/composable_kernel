@@ -10,22 +10,24 @@ void hstu_attention_group_forward_bf16(HstuAttentionGroupFwdParams& param, hipSt
 {
     const bool use_causal = param.use_causal;
     bool store_lse        = (param.use_softmax && param.is_training);
+    bool has_dropout      = (param.p_drop > 0.0f);
 
     constexpr bool kHasBias = false;
-    BOOL_SWITCH_2(use_causal, kUseCausal, param.use_softmax, kUseSoftmax, [&] {
-        HDIM_SWITCH(param.hdim_qk, param.hdim_v, MaxK, [&] {
-            BOOL_SWITCH(store_lse, kStoreLSE, [&] {
-                if constexpr(kUseSoftmax || !kStoreLSE)
-                {
-                    run_group_forward_dispatch<ck_tile::bf16_t,
-                                               kUseCausal,
-                                               kUseSoftmax,
-                                               kStoreLSE,
-                                               kHasBias,
-                                               false, // kHasDropout
-                                               MaxK>(param, stream);
-                }
+    BOOL_SWITCH_3(
+        use_causal, kUseCausal, param.use_softmax, kUseSoftmax, has_dropout, kHasDropout, [&] {
+            HDIM_SWITCH(param.hdim_qk, param.hdim_v, MaxK, [&] {
+                BOOL_SWITCH(store_lse, kStoreLSE, [&] {
+                    if constexpr(kUseSoftmax || !kStoreLSE)
+                    {
+                        run_group_forward_dispatch<ck_tile::bf16_t,
+                                                   kUseCausal,
+                                                   kUseSoftmax,
+                                                   kStoreLSE,
+                                                   kHasBias,
+                                                   kHasDropout,
+                                                   MaxK>(param, stream);
+                    }
+                });
             });
         });
-    });
 };
