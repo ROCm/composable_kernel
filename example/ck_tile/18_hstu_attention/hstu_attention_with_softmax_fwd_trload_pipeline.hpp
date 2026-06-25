@@ -119,6 +119,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename LSEorLSEaccDramBlockWindow,
+              typename NullRandValDramWindowTmp,
               typename HstuMask>
     CK_TILE_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,           // M0*kQKHeaddim tile
@@ -126,6 +127,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                const VDramBlockWindowTmp& v_dram_block_window_tmp,           // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,     // M0*N0 tile
                LSEorLSEaccDramBlockWindow& lse_or_lse_acc_dram_block_window, // M0 tile
+               NullRandValDramWindowTmp& null_randval_window_tmp,            // M0*N0 tile
                index_t seqlen_k_start,
                index_t seqlen_k_end,
                HstuMask& mask,
@@ -164,6 +166,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
         constexpr auto gemm_0 = Policy::template GetQKBlockGemm<Problem>();
         constexpr auto gemm_1 =
             Policy::template GetPVTBlockGemm<Problem, true /*kPipelineUseTrLoad*/>();
+
+        using Gemm0Combined = decltype(Policy::template GetQKCombinedBlockGemm<Problem>());
 
         // SaccBlockTile size is [kM0, kN0Sub]
         // PcompBlockTile size is [kM0, kN0]
@@ -303,31 +307,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                              {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
                              Policy::template MakeBiasDramTileDistribution<Problem>());
 
-        auto null_randval_window = [&]() {
-            if constexpr(kHasDropout)
-            {
-                // need to make a tile window from this null_randval_dram since the null_tile_window
-                // does not have store_tile() over-loaded, will cause compiling issue when used
-                // inside BlockDropout::Run()
-                const auto null_randval_dram = [&]() {
-                    const auto null_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                        static_cast<uint8_t*>(nullptr),
-                        make_tuple(1, 1),
-                        make_tuple(1, 1),
-                        number<1>{},
-                        number<1>{});
-
-                    return pad_tensor_view(null_dram_naive,
-                                           make_tuple(number<1>{}, number<1>{}),
-                                           sequence<true, true>{});
-                }();
-
-                return make_tile_window(
-                    null_randval_dram, make_tuple(number<1>{}, number<1>{}), {0, 0});
-            }
-            else
-                return make_null_tile_window(make_tuple(number<1>{}, number<1>{}));
-        }();
+        auto null_randval_window = dropout.template MakeRandvalDramWindow<Gemm0Combined>(
+            null_randval_window_tmp, seqlen_k_start);
 
         clear_tile(o_acc);
         set_tile(m, -numeric<CompDataType>::infinity());
@@ -528,17 +509,21 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                     l(i_idx) = l[i_idx] + rowsum_p[i_idx];
             });
 
-            seqlen_k_curr += kN0;
-
             if constexpr(kHasDropout)
             {
+                __builtin_amdgcn_sched_barrier(0);
+
                 auto randval_lds_ptr =
                     reinterpret_cast<char*>(smem_ptr) +
                     Policy::template GetSmemSizeKV<Problem, true /*kPipelineUseTrLoad*/>();
 
-                dropout.template Run<decltype(gemm_0), CompDataType, uint8_t>(
+                dropout.template Run<Gemm0Combined, CompDataType, uint8_t>(
                     randval_lds_ptr, seqlen_k_curr, pcomp_tile, null_randval_window);
+
+                __builtin_amdgcn_sched_barrier(0);
             }
+
+            seqlen_k_curr += kN0;
 
             auto p = cast_tile<PDataType>(pcomp_tile);
 
