@@ -579,15 +579,22 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t num_tile_in_seqlen =
             ck_tile::integer_divide_ceil(seqlen_, HstuAttentionPipeline::kM0);
 
-        if constexpr(kUseGroup)
+        // when kHasDropout is true, we should not give special consideration to minfull_attn_seqlen
+        // > 0, since BlockDropout requires each workgroup has a kM0 aligned i_m0 position
+        if constexpr(!kHasDropout)
         {
-            num_tile_in_seqlen += 1;
-        }
-        else
-        {
-            if(has_minfull_attn_seqlen)
+            if constexpr(kUseGroup)
+            {
+                // always assume minfull_attn_seqlen > 0 since we don't know its exact value
+                // for each group
                 num_tile_in_seqlen += 1;
-        };
+            }
+            else
+            {
+                if(has_minfull_attn_seqlen)
+                    num_tile_in_seqlen += 1;
+            };
+        }
 
         if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kQKHeaddim)
         {
@@ -763,35 +770,44 @@ struct HstuAttentionFwdKernel
         bool is_tile_in_first_split   = true;
         index_t i_m0;
 
-        if(kargs.min_full_attn_seqlen > 0)
+        // when kHasDropout is true, we should not give special consideration to minfull_attn_seqlen
+        // > 0, since BlockDropout requires each workgroup has a kM0 aligned i_m0 position
+        if constexpr(!kHasDropout)
         {
-            // need consider for cases where min_full_attn_seqlen be bigger than max_uih_len
-            if(kargs.seqlen_q - num_target > kargs.min_full_attn_seqlen)
+            if(kargs.min_full_attn_seqlen > 0)
             {
-                seqlen_in_first_split = kargs.seqlen_q - num_target - kargs.min_full_attn_seqlen;
+                // need consider for cases where min_full_attn_seqlen be bigger than max_uih_len
+                if(kargs.seqlen_q - num_target > kargs.min_full_attn_seqlen)
+                {
+                    seqlen_in_first_split =
+                        kargs.seqlen_q - num_target - kargs.min_full_attn_seqlen;
 
-                index_t num_tile_in_first_split =
-                    __builtin_amdgcn_readfirstlane(ck_tile::integer_divide_ceil(
-                        seqlen_in_first_split, HstuAttentionPipeline::kM0));
+                    index_t num_tile_in_first_split =
+                        __builtin_amdgcn_readfirstlane(ck_tile::integer_divide_ceil(
+                            seqlen_in_first_split, HstuAttentionPipeline::kM0));
 
-                is_tile_in_first_split = (i_tile_m < num_tile_in_first_split);
+                    is_tile_in_first_split = (i_tile_m < num_tile_in_first_split);
 
-                i_m0 = is_tile_in_first_split
-                           ? __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0)
-                           : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_first_split) *
-                                                            HstuAttentionPipeline::kM0) +
-                                 seqlen_in_first_split;
+                    i_m0 =
+                        is_tile_in_first_split
+                            ? __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0)
+                            : __builtin_amdgcn_readfirstlane((i_tile_m - num_tile_in_first_split) *
+                                                             HstuAttentionPipeline::kM0) +
+                                  seqlen_in_first_split;
+                }
+                else
+                {
+                    seqlen_in_first_split  = 0;
+                    is_tile_in_first_split = false;
+
+                    // adjust the min_full_attn_seqlen to be passed to HstuBlockMask constructor
+                    kargs.min_full_attn_seqlen = kargs.seqlen_q - num_target;
+
+                    i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0);
+                };
             }
             else
-            {
-                seqlen_in_first_split  = 0;
-                is_tile_in_first_split = false;
-
-                // adjust the min_full_attn_seqlen to be passed to HstuBlockMask constructor
-                kargs.min_full_attn_seqlen = kargs.seqlen_q - num_target;
-
                 i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0);
-            };
         }
         else
             i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0);
@@ -953,6 +969,36 @@ struct HstuAttentionFwdKernel
             }
         }();
 
+        auto null_randval_window = [&]() {
+            if constexpr(kHasDropout)
+            {
+                // need to make a tile window from this null_randval_dram since the null_tile_window
+                // does not have store_tile() over-loaded, which will cause compiling issue when
+                // used inside BlockDropout::Run(). Also we need this dram window to provide
+                // start_m0_idx used in BlockDropout::Run()
+                const auto null_randval_dram = [&]() {
+                    const auto null_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+                        static_cast<uint8_t*>(nullptr),
+                        make_tuple(seqlen_q_in_ctrl, kargs.seqlen_kv),
+                        make_tuple(kargs.seqlen_kv, 1),
+                        number<1>{},
+                        number<1>{});
+
+                    return pad_tensor_view(null_dram_naive,
+                                           make_tuple(number<HstuAttentionPipeline::kM0>{},
+                                                      number<HstuAttentionPipeline::kN0>{}),
+                                           sequence<true, true>{});
+                }();
+
+                return make_tile_window(null_randval_dram,
+                                        make_tuple(number<HstuAttentionPipeline::kM0>{},
+                                                   number<HstuAttentionPipeline::kN0>{}),
+                                        {i_m0, 0});
+            }
+            else
+                return make_null_tile_window(make_tuple(number<1>{}, number<1>{}));
+        }();
+
         auto dropout = [&, i_nhead_ = i_nhead, i_batch_ = i_batch]() {
             if constexpr(kHasDropout)
             {
@@ -1014,6 +1060,7 @@ struct HstuAttentionFwdKernel
                                                    k_dram_window,
                                                    v_dram_window,
                                                    bias_dram_window,
+                                                   null_randval_window,
                                                    seqlen_k_start,
                                                    seqlen_k_end,
                                                    mask,
@@ -1029,6 +1076,7 @@ struct HstuAttentionFwdKernel
                                                    v_dram_window,
                                                    bias_dram_window,
                                                    lse_dram_window,
+                                                   null_randval_window,
                                                    seqlen_k_start,
                                                    seqlen_k_end,
                                                    mask,
@@ -1067,6 +1115,7 @@ struct HstuAttentionFwdKernel
                                                    k_dram_window,
                                                    v_dram_window,
                                                    bias_dram_window,
+                                                   null_randval_window,
                                                    seqlen_k_start,
                                                    seqlen_k_end,
                                                    mask,
@@ -1082,6 +1131,7 @@ struct HstuAttentionFwdKernel
                                                    v_dram_window,
                                                    bias_dram_window,
                                                    lse_dram_window,
+                                                   null_randval_window,
                                                    seqlen_k_start,
                                                    seqlen_k_end,
                                                    mask,

@@ -633,6 +633,75 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
             return BlockGemmARegBSmemCRegOneWarpV1<GemmProblem, BlockGemmPolicy>{};
     }
 
+    // Same as GetQKBlockGemm but with kN0 (instead of kN0Sub) as the N tile dimension.
+    // This is used as the BlockGemm template argument to BlockDropout::Run() so that
+    // kNPerBlock = kN0, ensuring dropout is applied to the full pcomp_tile [kM0, kN0]
+    // rather than only the first kN0Sub columns.
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetQKCombinedBlockGemm()
+    {
+        using GemmProblem = BlockGemmProblem<
+            typename Problem::QKVDataType,
+            typename Problem::QKVDataType,
+            typename Problem::GemmAccDataType,
+            Problem::kNumGemm0Warps * get_warp_size(),
+            TileGemmShape<sequence<Problem::HstuAttentionTileSetting::kM0,
+                                   Problem::HstuAttentionTileSetting::kN0,
+                                   Problem::HstuAttentionTileSetting::kQKHeaddim>,
+                          typename Problem::HstuAttentionTileSetting::Gemm0BlockWarps,
+                          typename Problem::HstuAttentionTileSetting::Gemm0WarpTile>>;
+
+        auto warp_gemm = [&]() {
+            if constexpr((std::is_same_v<typename Problem::QKVDataType, half_t> ||
+                          std::is_same_v<typename Problem::QKVDataType, bf16_t>) &&
+                         std::is_same_v<typename Problem::GemmAccDataType, float>)
+            {
+                constexpr index_t WarpGemmM =
+                    Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<0>{});
+                constexpr index_t WarpGemmK =
+                    Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<2>{});
+
+#ifdef __gfx950__
+                static_assert((WarpGemmM == 16 && WarpGemmK == 32) ||
+                                  (WarpGemmM == 32 && WarpGemmK == 16),
+                              "Not supported WarpGemm sizes!");
+#else
+                static_assert((WarpGemmM == 16 && (WarpGemmK == 16 || WarpGemmK == 32)) ||
+                                  (WarpGemmM == 32 && (WarpGemmK == 8 || WarpGemmK == 16)),
+                              "Not supported WarpGemm sizes!");
+#endif
+
+                return WarpGemmDispatcher<
+                    typename Problem::QKVDataType,
+                    typename Problem::QKVDataType,
+                    typename Problem::GemmAccDataType,
+                    Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<0>{}),
+                    Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<1>{}),
+                    Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<2>{}),
+                    true,
+                    false,
+                    false,
+                    WGAttrNumAccessEnum::Single>{};
+            }
+            else
+            {
+                static_assert(false, "Not supported data types!");
+            }
+        }();
+
+        using BlockGemmPolicy = BlockGemmARegBSmemCRegV2CustomPolicy<
+            typename Problem::QKVDataType,
+            typename Problem::QKVDataType,
+            typename Problem::GemmAccDataType,
+            typename Problem::HstuAttentionTileSetting::Gemm0BlockWarps,
+            decltype(warp_gemm)>;
+
+        if constexpr(1 < Problem::kNumGemm0Warps)
+            return BlockGemmARegBSmemCRegV2Hack_0<GemmProblem, BlockGemmPolicy>{};
+        else
+            return BlockGemmARegBSmemCRegOneWarpV1<GemmProblem, BlockGemmPolicy>{};
+    }
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetPVTBlockGemmSingleRepN()
     {
