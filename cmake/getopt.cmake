@@ -9,7 +9,7 @@ if(WIN32)
     FetchContent_Declare(
             getopt
             GIT_REPOSITORY https://github.com/apwojcik/getopt.git
-            GIT_TAG main
+            GIT_TAG e8531ed21b44f5a723c1dd700701b2a58ce3ea01
             SYSTEM
         )
 
@@ -26,3 +26,4 @@ if(WIN32)
     target_link_libraries(getopt::getopt INTERFACE wingetopt)
     target_include_directories(getopt::getopt INTERFACE ${getopt_SOURCE_DIR}/src)
 endif()
+
