@@ -6,11 +6,8 @@
 #include "ck_tile/core/arch/mma/mma_op_family.hpp"
 #include "ck_tile/core/config.hpp"
 #include "mfma/mfma_traits.hpp"
-#include "scale/scale_traits.hpp"
-#include "sparse/sparse_traits.hpp"
 #include "wmma/wmma_traits.hpp"
 
-#include <cstdint>
 #include <stdio.h>
 #include <type_traits>
 
@@ -61,7 +58,6 @@ struct MmaOpTraits;
  * @tparam FragM_ Size of the M dimension
  * @tparam FragN_ Size of the N dimension
  * @tparam FragK_ Size of the K dimension
- * @tparam CtrlFlags_ Control flags for the MMA operation
  * @tparam CompilerTarget_ The compiler target
  */
 template <typename ADataType_,
@@ -70,7 +66,6 @@ template <typename ADataType_,
           uint32_t FragM_,
           uint32_t FragN_,
           uint32_t FragK_,
-          typename CtrlFlags_,
           typename CompilerTarget_,
           MmaOpFamily OpFamily_>
 // TODO: c++20 amdgcn_target_arch_id CompilerTarget_>
@@ -80,7 +75,6 @@ struct MmaOpTraits<amdgcn_mma<ADataType_,
                               FragM_,
                               FragN_,
                               FragK_,
-                              CtrlFlags_,
                               CompilerTarget_,
                               OpFamily_>>
 {
@@ -90,12 +84,10 @@ struct MmaOpTraits<amdgcn_mma<ADataType_,
                              FragM_,
                              FragN_,
                              FragK_,
-                             CtrlFlags_,
                              CompilerTarget_,
                              OpFamily_>;
 
     // Capture incoming template parameters not already in amdgcn
-    using CtrlFlags      = CtrlFlags_;
     using CompilerTarget = CompilerTarget_;
     // TODO c++20static constexpr amdgcn_target_arch_id GfxTargetId = CompilerTarget_;
 
@@ -115,7 +107,6 @@ template <typename ADataType_,
           uint32_t FragM_,
           uint32_t FragN_,
           uint32_t FragK_,
-          typename CtrlFlags_,
           typename CompilerTarget_,
           MmaOpFamily OpFamily_>
 CK_TILE_HOST_DEVICE void print(MmaOpTraits<amdgcn_mma<ADataType_,
@@ -124,7 +115,6 @@ CK_TILE_HOST_DEVICE void print(MmaOpTraits<amdgcn_mma<ADataType_,
                                                       FragM_,
                                                       FragN_,
                                                       FragK_,
-                                                      CtrlFlags_,
                                                       CompilerTarget_,
                                                       OpFamily_>> const& traitsObj)
 {
@@ -134,7 +124,6 @@ CK_TILE_HOST_DEVICE void print(MmaOpTraits<amdgcn_mma<ADataType_,
                      FragM_,
                      FragN_,
                      FragK_,
-                     CtrlFlags_,
                      CompilerTarget_,
                      OpFamily_>{});
     printf(

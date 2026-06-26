@@ -39,7 +39,6 @@ TEST(SparseMMATrait, SparseMfmaGfx950Specialization)
                                            16u,
                                            16u,
                                            32u,
-                                           DefaultSparseMfmaCtrlFlags,
                                            CompilerTargetGfx950,
                                            MmaOpFamily::SPARSE>;
 
@@ -60,7 +59,6 @@ TEST(SparseMMATrait, MmaOpTraitsIntegration)
                                       16u,
                                       16u,
                                       32u,
-                                      DefaultSparseMfmaCtrlFlags,
                                       CompilerTargetGfx950,
                                       MmaOpFamily::SPARSE>;
 
@@ -83,7 +81,6 @@ TEST(SparseMMATrait, TestConceptRequirements)
                                       16u,
                                       16u,
                                       32u,
-                                      DefaultSparseMfmaCtrlFlags,
                                       CompilerTargetGfx950,
                                       MmaOpFamily::SPARSE>;
     EXPECT_TRUE(MmaOpI<TestSparseMmma>);
@@ -95,15 +92,8 @@ TEST(SparseMMATrait, TestConceptRequirements)
 TEST(SparseMMATrait, DenseVsSparseDistinction)
 {
     // Dense MFMA from mfma/mfma_gfx9.hpp
-    using DenseMfma = amdgcn_mma<fp16_t,
-                                 fp16_t,
-                                 fp32_t,
-                                 16u,
-                                 16u,
-                                 32u,
-                                 DefaultMfmaCtrlFlags,
-                                 CompilerTargetGfx950,
-                                 MmaOpFamily::DENSE>;
+    using DenseMfma =
+        amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 16u, 32u, CompilerTargetGfx950, MmaOpFamily::DENSE>;
 
     // Sparse MFMA on GFX950
     using SparseMfma = amdgcn_mma<fp16_t,
@@ -112,7 +102,6 @@ TEST(SparseMMATrait, DenseVsSparseDistinction)
                                   16u,
                                   16u,
                                   32u,
-                                  DefaultSparseMfmaCtrlFlags,
                                   CompilerTargetGfx950,
                                   MmaOpFamily::SPARSE>;
 
