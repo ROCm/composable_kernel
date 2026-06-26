@@ -3,16 +3,8 @@
 
 #pragma once
 
-#include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/core/numeric/integer.hpp"
-
-#include <cinttypes>
-#include <stdio.h>
 #include <type_traits>
-#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-#include <concepts>
-#endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
 namespace ck_tile::core::arch::mma {
 
@@ -55,43 +47,5 @@ struct is_mma_op_mfma<MmaOp, std::enable_if_t<std::is_same_v<typename MmaOp::OpT
  */
 template <typename MmaOp>
 static constexpr bool is_mma_op_mfma_v = is_mma_op_mfma<MmaOp>::value;
-
-/**
- * @struct DefaultMfmaCtrlFlags
- * @brief Default MFMA flags, no broadcasting or rotation of inputs
- * @note For f64 MFMA instructions, CBSZ and ABID are ignored and BLGP is repurposed for matrix
- * negation. BLGP bits [0:2] negate the A, B, and C input matrices respectively (ref. ISA docs for
- * MI300 Instinct).
- */
-struct DefaultMfmaCtrlFlags
-{
-    static constexpr int32_t Cbsz = 0; // CBSZ flag, default 0
-    static constexpr int32_t Abid = 0; // ABID flag, default 0
-    static constexpr int32_t Blgp = 0; // BLGP flag, default 0
-};
-
-CK_TILE_HOST_DEVICE void print_flags(DefaultMfmaCtrlFlags const& ctrlFlags)
-{
-    printf("CtrlFlags      Cbsz / Abid / Blgp       : %" PRId32 "  / %" PRId32 " / %" PRId32 "\n",
-           ctrlFlags.Cbsz,
-           ctrlFlags.Abid,
-           ctrlFlags.Blgp);
-}
-
-#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-
-/**
- * @concept CtrlFlagsGfx9I
- * @brief  Expresses the interface of required members for each CtrlFlags type on Gfx9
- */
-template <typename CtrlFlags>
-concept CtrlFlagsGfx9I = requires(CtrlFlags ctrlFlags) {
-    // Flag members for Gfx9 MFMA instructions
-    { CtrlFlags::Cbsz } -> std::convertible_to<int32_t>;
-    { CtrlFlags::Abid } -> std::convertible_to<int32_t>;
-    { CtrlFlags::Blgp } -> std::convertible_to<int32_t>;
-};
-
-#endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
 } // namespace ck_tile::core::arch::mma

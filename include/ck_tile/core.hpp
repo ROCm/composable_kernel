@@ -43,7 +43,6 @@
 #include "ck_tile/core/arch/mma/sparse/sparse.hpp"
 #include "ck_tile/core/arch/mma/sparse/sparse_mma_pipeline.hpp"
 #include "ck_tile/core/arch/mma/sparse/sparse_selector.hpp"
-#include "ck_tile/core/arch/mma/sparse/sparse_traits.hpp"
 #include "ck_tile/core/arch/mma/sparse/sparse_transforms.hpp"
 #include "ck_tile/core/arch/mma/sparse/wmma/selector.hpp"
 #include "ck_tile/core/arch/mma/sparse/wmma/sparse_gfx12.hpp"

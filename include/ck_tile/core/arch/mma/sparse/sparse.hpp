@@ -11,5 +11,4 @@ namespace ck_tile::core::arch::mma {
 #include "ck_tile/core/arch/mma/sparse/mfma/sparse_gfx9.hpp"
 #include "ck_tile/core/arch/mma/sparse/wmma/sparse_gfx12.hpp"
 #include "ck_tile/core/arch/mma/sparse/sparse_transforms.hpp"
-#include "ck_tile/core/arch/mma/sparse/sparse_traits.hpp"
 #include "ck_tile/core/arch/mma/sparse/sparse_selector.hpp"

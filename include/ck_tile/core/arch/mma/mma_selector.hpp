@@ -49,7 +49,6 @@ struct MmaDefaultSelector
                                   WaveTileM,
                                   WaveTileN,
                                   WaveTileK,
-                                  void,
                                   amdgcn_target<>,
                                   MmaOpFamily::UNDEFINED>;
 };
@@ -88,7 +87,6 @@ template <typename ADataType,
           uint32_t WaveTileM,
           uint32_t WaveTileN,
           uint32_t WaveTileKTest,
-          typename CtrlFlags,
           typename CompilerTarget, // TODO: c++20 amdgcn_target_arch_id CompilerTarget>
           MmaOpFamily OpFamily>
 struct MmaKSearchSelector
@@ -102,7 +100,6 @@ struct MmaKSearchSelector
                                    WaveTileM,
                                    WaveTileN,
                                    WaveTileKTest,
-                                   CtrlFlags,
                                    CompilerTarget,
                                    OpFamily>;
 
@@ -118,7 +115,6 @@ struct MmaKSearchSelector
                                                                       WaveTileM,
                                                                       WaveTileN,
                                                                       WaveTileKTest / 2u,
-                                                                      CtrlFlags,
                                                                       CompilerTarget,
                                                                       OpFamily>::SelectedOp>;
 };
@@ -128,7 +124,6 @@ template <typename ADataType,
           typename CDataType,
           uint32_t WaveTileM,
           uint32_t WaveTileN,
-          typename CtrlFlags,
           typename CompilerTarget, // TODO: c++20 amdgcn_target_arch_id CompilerTarget>
           MmaOpFamily OpFamily>
 struct MmaKSearchSelector<ADataType,
@@ -137,20 +132,12 @@ struct MmaKSearchSelector<ADataType,
                           WaveTileM,
                           WaveTileN,
                           0u,
-                          CtrlFlags,
                           CompilerTarget,
                           OpFamily>
 {
     // Recursion endpoint: unsupported default implementation.
-    using SelectedOp = amdgcn_mma<ADataType,
-                                  BDataType,
-                                  CDataType,
-                                  1u,
-                                  1u,
-                                  1u,
-                                  CtrlFlags,
-                                  CompilerTarget,
-                                  OpFamily>;
+    using SelectedOp =
+        amdgcn_mma<ADataType, BDataType, CDataType, 1u, 1u, 1u, CompilerTarget, OpFamily>;
 };
 
 } // namespace ck_tile::core::arch::mma

@@ -55,7 +55,6 @@ struct MmaDefaultSelector<ADataType,
                                   WaveTileM,
                                   WaveTileN,
                                   WaveTileK,
-                                  DefaultScaleMfmaCtrlFlags,
                                   CompilerTarget,
                                   MmaOpFamily::SCALE>;
 };
