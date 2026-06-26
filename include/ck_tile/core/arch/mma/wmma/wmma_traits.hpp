@@ -4,8 +4,6 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
-
-#include <stdio.h>
 #include <type_traits>
 
 namespace ck_tile::core::arch::mma {
@@ -49,26 +47,5 @@ struct is_mma_op_wmma<MmaOp, std::enable_if_t<std::is_same_v<typename MmaOp::OpT
  */
 template <typename MmaOp>
 static constexpr bool is_mma_op_wmma_v = is_mma_op_wmma<MmaOp>::value;
-
-/**
- * @struct DefaultWmmaCtrlFlags
- * @brief Default WMMA control flags for dense and sparse WMMA operations.
- */
-struct DefaultWmmaCtrlFlags
-{
-    constexpr static bool Clamp = false;
-
-    // Only has an effect on gfx11 when the accumulator is 16-bit.
-    // Determines which half of the 32-bit accum register to use for the 16-bit result.
-    // false = low bits [15:0], true = high bits [31:16]
-    constexpr static bool UseHighAccumBits = true;
-};
-
-CK_TILE_HOST_DEVICE void print_flags(DefaultWmmaCtrlFlags const& ctrlFlags)
-{
-    printf("CtrlFlags      Clamp / UseHighAccumBits : %d / %d\n",
-           ctrlFlags.Clamp,
-           ctrlFlags.UseHighAccumBits);
-}
 
 } // namespace ck_tile::core::arch::mma

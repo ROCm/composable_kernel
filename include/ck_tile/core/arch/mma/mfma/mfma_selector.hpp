@@ -53,7 +53,6 @@ struct MmaDefaultSelector<ADataType,
                                                    WaveTileM,
                                                    WaveTileN,
                                                    WaveTileK,
-                                                   DefaultMfmaCtrlFlags,
                                                    CompilerTarget,
                                                    MmaOpFamily::DENSE>::SelectedOp;
 };

@@ -3,85 +3,32 @@
 
 #pragma once
 
-#include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/pk_fp4.hpp"
 #include "ck_tile/core/numeric/pk_f6.hpp"
 
-#include <cstdint>
-#include <stdio.h>
-#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-#include <concepts>
-#endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-
 namespace ck_tile::core::arch::mma {
-
 namespace scale::detail {
 
+// Utility for converting the datatype of the A or B input matrix in a scale intrinsics to the
+// appropriate datatype flag. Note that this is not the same as the flag indicating the scale
+// datatype, see ScaleDataTypeToEnum.
 template <typename T>
-struct ScaleDataTypeToFlag;
-
+inline constexpr int32_t ScaleDataTypeToFlag_v = [] {
+    // sizeof(T) trick to only trigger the static assert for unsupported datatypes.
+    static_assert(sizeof(T) == 0, "Unsupported scale data type");
+    return -1;
+}();
 template <>
-struct ScaleDataTypeToFlag<fp8_t> // e4m3 (4 exponent bits 3 mantissa bits)
-{
-    static constexpr int32_t value = 0;
-};
-
+inline constexpr int32_t ScaleDataTypeToFlag_v<fp8_t> = 0; // e4m3
 template <>
-struct ScaleDataTypeToFlag<bf8_t> // e5m2
-{
-    static constexpr int32_t value = 1;
-};
-
+inline constexpr int32_t ScaleDataTypeToFlag_v<bf8_t> = 1; // e5m2
 template <>
-struct ScaleDataTypeToFlag<pk_fp6x16_t> // e2m3
-{
-    static constexpr int32_t value = 2;
-};
-
+inline constexpr int32_t ScaleDataTypeToFlag_v<pk_fp6x16_t> = 2; // e2m3
 template <>
-struct ScaleDataTypeToFlag<pk_bf6x16_t> // e3m2
-{
-    static constexpr int32_t value = 3;
-};
-
+inline constexpr int32_t ScaleDataTypeToFlag_v<pk_bf6x16_t> = 3; // e3m2
 template <>
-struct ScaleDataTypeToFlag<pk_fp4_t> // e2m1
-{
-    static constexpr int32_t value = 4;
-};
-
-template <typename T>
-inline constexpr int32_t ScaleDataTypeToFlag_v = ScaleDataTypeToFlag<T>::value;
-
-#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-
-/**
- * @concept ScaleMfmaDataTypeToFlag
- * @brief  Expresses the interface of required members for each DataTypeToFlag type on Gfx9
- */
-template <typename DataTypeToFlag>
-concept ScaleMfmaDataTypeToFlag = requires(DataTypeToFlag dataTypeToFlag) {
-    // Flag members for scale MFMA instructions
-    { DataTypeToFlag::value } -> std::convertible_to<int32_t>;
-};
-
-#endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
+inline constexpr int32_t ScaleDataTypeToFlag_v<pk_fp4_t> = 4; // e2m1
 
 } // namespace scale::detail
-
-// No real flags for now, scale and opsel are handled in higher level and passed down directly.
-// OPSEL is now passed as a template arg to exec(), see mma_pipeline.hpp
-// We will soon get rid of these flags entirely in favor of variadic template packs passed down to
-// the intrinsics directly, see WarpGemmParamsParser<>.
-struct DefaultScaleMfmaCtrlFlags
-{
-};
-
-CK_TILE_HOST_DEVICE void print_flags([[maybe_unused]] DefaultScaleMfmaCtrlFlags const& ctrlFlags)
-{
-    printf("CtrlFlags: (empty)\n");
-}
-
 } // namespace ck_tile::core::arch::mma

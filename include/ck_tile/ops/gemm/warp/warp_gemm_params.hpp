@@ -83,6 +83,21 @@ struct SwapReuse_ : bool_constant<Value>
 {
 };
 
+template <index_t Value>
+struct Cbsz : number<Value>
+{
+};
+
+template <index_t Value>
+struct Abid : number<Value>
+{
+};
+
+template <index_t Value>
+struct Blgp : number<Value>
+{
+};
+
 struct WarpGemmDefaultParams
 {
     using clamp      = bool_constant<false>;
@@ -94,6 +109,9 @@ struct WarpGemmDefaultParams
     using swap_reuse = bool_constant<false>; // internal use only
     using scale_a    = number<0>;
     using scale_b    = number<0>;
+    using cbsz       = number<0>;
+    using abid       = number<0>;
+    using blgp       = number<0>;
 };
 
 template <typename T, template <index_t> class Tag>
@@ -151,6 +169,9 @@ class WarpGemmParamsParser
     public:
     static constexpr bool clamp       = extract<Clamp, WarpGemmDefaultParams::clamp>();
     static constexpr bool post_nop    = extract<PostNop, WarpGemmDefaultParams::post_nop>();
+    static constexpr index_t cbsz     = extract<Cbsz, WarpGemmDefaultParams::cbsz>();
+    static constexpr index_t abid     = extract<Abid, WarpGemmDefaultParams::abid>();
+    static constexpr index_t blgp     = extract<Blgp, WarpGemmDefaultParams::blgp>();
     static constexpr bool reuse_a     = swap_reuse ? raw_reuse_b : raw_reuse_a;
     static constexpr bool reuse_b     = swap_reuse ? raw_reuse_a : raw_reuse_b;
     static constexpr index_t op_sel_a = swap_reuse ? raw_op_sel_b : raw_op_sel_a;

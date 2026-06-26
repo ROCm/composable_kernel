@@ -40,7 +40,6 @@ void ScaleMfmaGfx950Specialization_impl()
                                     WaveTileM,
                                     WaveTileN,
                                     WaveTileK,
-                                    DefaultScaleMfmaCtrlFlags,
                                     CompilerTargetGfx950,
                                     MmaOpFamily::SCALE>;
 
@@ -79,10 +78,7 @@ TEST(ScaleMMATrait, ScaleMfmaGfx950Specialization)
     std::cout << "GFX950 scale MFMA specialization is correct" << std::endl;
 }
 
-// TODO: It seems like the ExecSignature concept (and hence MmaOpI) can not be made to work for a
-// templated device function for some reason. Disable test for now and fix this once we are using
-// the variadic template pack for flags...
-#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER && 0
+#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 template <typename AType,
           typename BType,
           typename CType,
@@ -97,7 +93,6 @@ void TestConceptRequirements_impl()
                                     WaveTileM,
                                     WaveTileN,
                                     WaveTileK,
-                                    DefaultScaleMfmaCtrlFlags,
                                     CompilerTargetGfx950,
                                     MmaOpFamily::SCALE>;
 
@@ -107,7 +102,7 @@ void TestConceptRequirements_impl()
 
 TEST(ScaleMMATrait, TestConceptRequirements)
 {
-#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER && 0
+#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
     TestConceptRequirements_impl<fp8_t, fp8_t, fp32_t, 16u, 16u, 128u>();
     TestConceptRequirements_impl<bf8_t, bf8_t, fp32_t, 16u, 16u, 128u>();
     TestConceptRequirements_impl<pk_fp4_t, pk_fp4_t, fp32_t, 16u, 16u, 128u>();
@@ -216,9 +211,7 @@ struct ScalePipelineKernel
             constexpr int32_t replicate_byte = 0x01010101;
             ScaleAType scale_a               = 126u * replicate_byte;
             ScaleBType scale_b               = 129u * replicate_byte;
-            static constexpr index_t opselA  = 0;
-            static constexpr index_t opselB  = 0;
-            Pipeline::template exec<opselA, opselB>(a, b, c, scale_a, scale_b);
+            Pipeline::template exec<OpSelA<0>, OpSelB<0>>(a, b, c, scale_a, scale_b);
             __builtin_memcpy(
                 static_cast<uint8_t*>(c_per_lane) + lane * sizeof(CTensor), &c, sizeof(CTensor));
         }
@@ -399,9 +392,7 @@ TEST(ScaleMMATrait, MmaSelector_Scale_BF8_BF8_F32_32x32x64_Real)
 //             constexpr int32_t replicate_byte = 0x01010101;
 //             ScaleAType scale_a               = 126u * replicate_byte;
 //             ScaleBType scale_b               = 129u * replicate_byte;
-//             static constexpr index_t opselA  = 0;
-//             static constexpr index_t opselB  = 0;
-//             Pipeline::template exec<opselA, opselB>(a, b, c, scale_a, scale_b);
+//             Pipeline::template exec<OpSelA<0>, OpSelB<0>>(a, b, c, scale_a, scale_b);
 //             __builtin_memcpy(
 //                 static_cast<uint8_t*>(c_per_lane) + lane * sizeof(CTensor), &c, sizeof(CTensor));
 //         }
