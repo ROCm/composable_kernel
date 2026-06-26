@@ -1053,7 +1053,7 @@ struct HstuAttentionFwdSplitKVKernel
                 }();
 
                 const auto [global_seqlen_k_start, global_seqlen_k_end] =
-                    mask.GetTileRangeAlongX(i_m0,
+                    mask.template GetTileRangeAlongX<kHasDropout>(i_m0,
                                             number<HstuAttentionPipeline::kM0>{},
                                             number<HstuAttentionPipeline::kN0>{});
 
@@ -1111,7 +1111,7 @@ struct HstuAttentionFwdSplitKVKernel
                 }();
 
                 const auto [global_seqlen_k_start, global_seqlen_k_end] =
-                    mask.GetTileRangeAlongX(i_m0,
+                    mask.template GetTileRangeAlongX<kHasDropout>(i_m0,
                                             number<HstuAttentionPipeline::kM0>{},
                                             number<HstuAttentionPipeline::kN0>{});
 

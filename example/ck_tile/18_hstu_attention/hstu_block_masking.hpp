@@ -77,10 +77,15 @@ struct HstuCrossAttentionBlockMaskWithLocal
     // to get the loop length along X axis, return index:[start, end), end-start=length
     // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
     // i_y is the start offset of the current tile along the seqlen_q dimension
-    template <index_t YTile, index_t XTile>
+    template <bool kHasDropout, index_t YTile, index_t XTile>
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
+        if constexpr(kHasDropout)
+        {
+            return ck_tile::make_tuple(0, seqlen_k);
+        }
+
         // handle two special cases first
         if(!is_tile_in_first_split)
         {
@@ -317,10 +322,15 @@ struct HstuSelfAttentionBlockMaskWithLocal
     // to get the loop length along X axis, return index:[start, end), end-start=length
     // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
     // i_y is the start offset of the current tile along the seqlen_q dimension
-    template <index_t YTile, index_t XTile>
+    template <bool kHasDropout, index_t YTile, index_t XTile>
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
+        if constexpr(kHasDropout)
+        {
+            return ck_tile::make_tuple(0, seqlen);
+        }
+
         // handle two special cases first
         if(!is_tile_in_first_split)
         {
@@ -547,10 +557,15 @@ struct HstuCrossAttentionBlockMaskNoLocal
     // to get the loop length along X axis, return index:[start, end), end-start=length
     // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
     // i_y is the start offset of the current tile along the seqlen_q dimension
-    template <index_t YTile, index_t XTile>
+    template <bool kHasDropout, index_t YTile, index_t XTile>
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
+        if constexpr(kHasDropout)
+        {
+            return ck_tile::make_tuple(0, seqlen_k);
+        }
+
         if constexpr(!IsMasking)
         {
             return ck_tile::make_tuple(0, seqlen_k);
@@ -683,10 +698,15 @@ struct HstuSelfAttentionBlockMaskNoLocal
     // to get the loop length along X axis, return index:[start, end), end-start=length
     // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
     // i_y is the start offset of the current tile along the seqlen_q dimension
-    template <index_t YTile, index_t XTile>
+    template <bool kHasDropout, index_t YTile, index_t XTile>
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
+        if constexpr(kHasDropout)
+        {
+            return ck_tile::make_tuple(0, seqlen);
+        }
+
         if constexpr(!IsMasking)
         {
             return ck_tile::make_tuple(0, seqlen);
