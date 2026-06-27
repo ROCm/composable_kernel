@@ -81,11 +81,6 @@ struct HstuCrossAttentionBlockMaskWithLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
-        if constexpr(kHasDropout)
-        {
-            return ck_tile::make_tuple(0, seqlen_k);
-        }
-
         // handle two special cases first
         if(!is_tile_in_first_split)
         {
@@ -108,6 +103,14 @@ struct HstuCrossAttentionBlockMaskWithLocal
                     return ck_tile::make_tuple(0, x_end);
                 };
             };
+        };
+
+        if constexpr(kHasDropout)
+        {
+            index_t boundary = max_q_uih_len - min_full_attn_seqlen;
+            // the last tile of first split could be a cross-boundary tile
+            if(i_y < boundary && i_y + YTile > boundary)
+                return ck_tile::make_tuple(0, seqlen_k);
         };
 
         // is_tile_in_first_split is true, either min_full_attn_seqlen is 0 or tile is
@@ -326,11 +329,6 @@ struct HstuSelfAttentionBlockMaskWithLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
-        if constexpr(kHasDropout)
-        {
-            return ck_tile::make_tuple(0, seqlen);
-        }
-
         // handle two special cases first
         if(!is_tile_in_first_split)
         {
@@ -353,6 +351,14 @@ struct HstuSelfAttentionBlockMaskWithLocal
                     return ck_tile::make_tuple(0, x_end);
                 };
             };
+        };
+
+        if constexpr(kHasDropout)
+        {
+            index_t boundary = max_uih_len - min_full_attn_seqlen;
+            // the last tile of first split could be a cross-boundary tile
+            if(i_y < boundary && i_y + YTile > boundary)
+                return ck_tile::make_tuple(0, seqlen);
         };
 
         // is_tile_in_first_split is true, either min_full_attn_seqlen is 0 or tile is
@@ -561,11 +567,6 @@ struct HstuCrossAttentionBlockMaskNoLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
-        if constexpr(kHasDropout)
-        {
-            return ck_tile::make_tuple(0, seqlen_k);
-        }
-
         if constexpr(!IsMasking)
         {
             return ck_tile::make_tuple(0, seqlen_k);
@@ -702,11 +703,6 @@ struct HstuSelfAttentionBlockMaskNoLocal
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
-        if constexpr(kHasDropout)
-        {
-            return ck_tile::make_tuple(0, seqlen);
-        }
-
         if constexpr(!IsMasking)
         {
             return ck_tile::make_tuple(0, seqlen);
