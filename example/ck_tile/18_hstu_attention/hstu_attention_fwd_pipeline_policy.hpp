@@ -818,12 +818,16 @@ struct HstuAttentionFwdPipelineQRKSVSPolicy
     {
         if constexpr(Problem::kHasDropout)
         {
-            using BlockGemm          = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
+            using BlockGemm          = remove_cvref_t<decltype(GetQKCombinedBlockGemm<Problem>())>;
             constexpr auto config    = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
             using WG                 = remove_cvref_t<decltype(config.template at<0>())>;
+            constexpr bool IsWG32    = WG::kM == 32;
             constexpr index_t MWarps = config.template at<1>();
-            constexpr index_t kMPerStep = MWarps * WG::kM;
-            // assume all warps are assigned on dim-M
+            using BlockGemmShape     = remove_cvref_t<typename BlockGemm::BlockGemmShape>;
+            constexpr index_t kMPerBlock   = BlockGemmShape::kM;
+            constexpr index_t MIterPerWarp = (!IsWG32 && kMPerBlock > MWarps * WG::kM) ? 2 : 1;
+            constexpr index_t kMPerStep    = MIterPerWarp * MWarps * WG::kM;
+            // assume the all warps are assigned on dim-M
             constexpr index_t kNPerStep = WG::kN;
 
             return (kMPerStep + 1) * kNPerStep * sizeof(uint8_t);
