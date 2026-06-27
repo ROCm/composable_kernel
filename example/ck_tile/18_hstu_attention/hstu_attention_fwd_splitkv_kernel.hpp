@@ -785,6 +785,7 @@ struct HstuAttentionFwdSplitKVKernel
 
                     is_tile_in_first_split = (i_tile_m < num_tile_in_first_split);
 
+                    // be careful i_m0 for second_split could be not aligned on kM0
                     i_m0 =
                         is_tile_in_first_split
                             ? __builtin_amdgcn_readfirstlane(i_tile_m * HstuAttentionPipeline::kM0)
@@ -1053,9 +1054,10 @@ struct HstuAttentionFwdSplitKVKernel
                 }();
 
                 const auto [global_seqlen_k_start, global_seqlen_k_end] =
-                    mask.template GetTileRangeAlongX<kHasDropout>(i_m0,
-                                            number<HstuAttentionPipeline::kM0>{},
-                                            number<HstuAttentionPipeline::kN0>{});
+                    mask.template GetTileRangeAlongX<kHasDropout>(
+                        i_m0,
+                        number<HstuAttentionPipeline::kM0>{},
+                        number<HstuAttentionPipeline::kN0>{});
 
                 const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
                     global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);
@@ -1111,9 +1113,10 @@ struct HstuAttentionFwdSplitKVKernel
                 }();
 
                 const auto [global_seqlen_k_start, global_seqlen_k_end] =
-                    mask.template GetTileRangeAlongX<kHasDropout>(i_m0,
-                                            number<HstuAttentionPipeline::kM0>{},
-                                            number<HstuAttentionPipeline::kN0>{});
+                    mask.template GetTileRangeAlongX<kHasDropout>(
+                        i_m0,
+                        number<HstuAttentionPipeline::kM0>{},
+                        number<HstuAttentionPipeline::kN0>{});
 
                 const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
                     global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);
