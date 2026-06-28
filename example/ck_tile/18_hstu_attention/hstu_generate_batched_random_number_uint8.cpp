@@ -22,8 +22,8 @@ void hstu_generate_batched_random_number_uint8(HstuGenerateRandUniformNumbersPar
                                                          param.stride_batch,
                                                          {param.philox_seed, param.philox_offset});
 
-    dim3 kGridSize = HstuRandUniformKernel_::GridSize(
-        param.num_batch, param.num_head, param.seqlen_q, param.seqlen_k);
+    dim3 kGridSize =
+        HstuRandUniformKernel_::GridSize(param.num_batch, param.num_head, param.seqlen_q);
     dim3 kBlockSize                        = HstuRandUniformKernel_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = HstuRandUniformKernel_::kBlockPerCu;
 

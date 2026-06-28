@@ -1057,10 +1057,10 @@ struct HstuAttentionFwdKernel
                 }();
 
                 const auto [seqlen_k_start, seqlen_k_end] =
-                    mask.template GetTileRangeAlongX<kHasDropout>(
-                        i_m0,
-                        number<HstuAttentionPipeline::kM0>{},
-                        number<HstuAttentionPipeline::kN0>{});
+                    mask.GetTileRangeAlongX(bool_constant<kHasDropout>{},
+                                            i_m0,
+                                            number<HstuAttentionPipeline::kM0>{},
+                                            number<HstuAttentionPipeline::kN0>{});
 
                 if constexpr(!kUseSoftmax)
                 {
@@ -1113,10 +1113,9 @@ struct HstuAttentionFwdKernel
                 }();
 
                 const auto [seqlen_k_start, seqlen_k_end] =
-                    mask.template GetTileRangeAlongX<kHasDropout>(
-                        i_m0,
-                        number<HstuAttentionPipeline::kM0>{},
-                        number<HstuAttentionPipeline::kN0>{});
+                    mask.GetTileRangeAlongX(i_m0,
+                                            number<HstuAttentionPipeline::kM0>{},
+                                            number<HstuAttentionPipeline::kN0>{});
 
                 if constexpr(!kUseSoftmax)
                 {
