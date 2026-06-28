@@ -79,7 +79,7 @@ struct HstuCrossAttentionBlockMaskWithLocal
     // i_y is the start offset of the current tile along the seqlen_q dimension
     template <bool kHasDropout, index_t YTile, index_t XTile>
     CK_TILE_DEVICE constexpr auto
-    GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
+    GetTileRangeAlongX(bool_constant<kHasDropout>, index_t i_y, number<YTile>, number<XTile>) const
     {
         // handle two special cases first
         if(!is_tile_in_first_split)
@@ -327,7 +327,7 @@ struct HstuSelfAttentionBlockMaskWithLocal
     // i_y is the start offset of the current tile along the seqlen_q dimension
     template <bool kHasDropout, index_t YTile, index_t XTile>
     CK_TILE_DEVICE constexpr auto
-    GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
+    GetTileRangeAlongX(bool_constant<kHasDropout>, index_t i_y, number<YTile>, number<XTile>) const
     {
         // handle two special cases first
         if(!is_tile_in_first_split)
@@ -563,7 +563,7 @@ struct HstuCrossAttentionBlockMaskNoLocal
     // to get the loop length along X axis, return index:[start, end), end-start=length
     // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
     // i_y is the start offset of the current tile along the seqlen_q dimension
-    template <bool kHasDropout, index_t YTile, index_t XTile>
+    template <index_t YTile, index_t XTile>
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
@@ -699,7 +699,7 @@ struct HstuSelfAttentionBlockMaskNoLocal
     // to get the loop length along X axis, return index:[start, end), end-start=length
     // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
     // i_y is the start offset of the current tile along the seqlen_q dimension
-    template <bool kHasDropout, index_t YTile, index_t XTile>
+    template <index_t YTile, index_t XTile>
     CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {

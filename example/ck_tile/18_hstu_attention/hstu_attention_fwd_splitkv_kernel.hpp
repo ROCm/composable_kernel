@@ -1060,10 +1060,10 @@ struct HstuAttentionFwdSplitKVKernel
                 }();
 
                 const auto [global_seqlen_k_start, global_seqlen_k_end] =
-                    mask.template GetTileRangeAlongX<kHasDropout>(
-                        i_m0,
-                        number<HstuAttentionPipeline::kM0>{},
-                        number<HstuAttentionPipeline::kN0>{});
+                    mask.GetTileRangeAlongX(bool_constant<kHasDropout>{},
+                                            i_m0,
+                                            number<HstuAttentionPipeline::kM0>{},
+                                            number<HstuAttentionPipeline::kN0>{});
 
                 const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
                     global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);
@@ -1119,10 +1119,9 @@ struct HstuAttentionFwdSplitKVKernel
                 }();
 
                 const auto [global_seqlen_k_start, global_seqlen_k_end] =
-                    mask.template GetTileRangeAlongX<kHasDropout>(
-                        i_m0,
-                        number<HstuAttentionPipeline::kM0>{},
-                        number<HstuAttentionPipeline::kN0>{});
+                    mask.GetTileRangeAlongX(i_m0,
+                                            number<HstuAttentionPipeline::kM0>{},
+                                            number<HstuAttentionPipeline::kN0>{});
 
                 const auto [seqlen_k_start, seqlen_k_end] = CalculateTileRangeAlongXForSplit(
                     global_seqlen_k_start, global_seqlen_k_end, kargs.num_splits, i_split);

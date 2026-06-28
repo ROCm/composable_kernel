@@ -463,7 +463,7 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
         params.p_drop               = p_drop;
         params.philox_seed          = PHILOX_SEED;
         params.philox_offset        = PHILOX_OFFSET;
-    };
+    }
 
     bool has_dropout = (params.p_drop > 0.0f);
     ck_tile::HostTensor<uint8_t> rand_vals_host(
@@ -506,8 +506,8 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
             rv_params.stride_batch  = rand_vals_host.get_strides()[0];
             rv_params.philox_seed   = PHILOX_SEED;
             rv_params.philox_offset = PHILOX_OFFSET;
-        };
-    };
+        }
+    }
 
     hipStream_t stream;
 
@@ -1023,7 +1023,7 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
         rv_params.stride_nhead      = rand_vals_host.get_strides()[2];
         rv_params.philox_seed       = PHILOX_SEED;
         rv_params.philox_offset     = PHILOX_OFFSET;
-    };
+    }
 
     hipStream_t stream;
 

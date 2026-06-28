@@ -156,13 +156,9 @@ struct HstuRandUniformKernel
         return kargs;
     }
 
-    __host__ static constexpr auto GridSize(ck_tile::index_t batch_size_,
-                                            ck_tile::index_t nhead_,
-                                            ck_tile::index_t seqlen_q_,
-                                            ck_tile::index_t seqlen_k_)
+    __host__ static constexpr auto
+    GridSize(ck_tile::index_t batch_size_, ck_tile::index_t nhead_, ck_tile::index_t seqlen_q_)
     {
-        (void)seqlen_k_; // not used at present
-
         // at present, seqlen_k is not splitted by thread-groups
         return dim3(ck_tile::integer_divide_ceil(seqlen_q_, kMPerBlock), nhead_, batch_size_);
     }
