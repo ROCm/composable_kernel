@@ -806,7 +806,7 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
         {
             for(int i_batch = 0; i_batch < num_batch_per_group; i_batch++)
             {
-                int i_global_batch = i_grp * num_batch_per_group * i_batch;
+                int i_global_batch = i_grp * num_batch_per_group + i_batch;
 
                 max_num_target = max(max_num_target, num_targets[i_global_batch]);
             };
