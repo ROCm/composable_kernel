@@ -38,8 +38,6 @@ template <typename InOutDataType,
           ck_tile::index_t MTile>
 struct group_forward_splitkv_dispatch
 {
-    static_assert(MTile == 64, "MTile must be 64 to get to fwd splitkv path!");
-
     using HstuAttentionFwdTileSetting =
         typename std::conditional_t<kUseSoftmax,
                                     HstuAttentionWithSoftmaxFwdTileSetting<MaxK, MTile>,
@@ -246,8 +244,8 @@ struct group_forward_splitkv_dispatch
                                         SplitkvWorkspace& ws,
                                         hipStream_t stream)
     {
-        ws.num_splits =
-            get_suggested_num_splits(param.num_batch, param.num_head, param.max_seqlen_q);
+        ws.num_splits = get_suggested_num_splits(
+            param.num_batch, param.num_head, param.max_seqlen_q, param.max_seqlen_kv);
 
         // assume the workspace for o_acc is in compact shape of [num_batch, max_seqlen, num_head,
         // num_splits, hdim]
