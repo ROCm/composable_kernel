@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
-#include "amdgcn_mma.hpp"
+#include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
 #include "ck_tile/core/arch/mma/mma_op_family.hpp"
 #include "ck_tile/core/config.hpp"
-#include "mfma/mfma_traits.hpp"
-#include "wmma/wmma_traits.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
 
 #include <stdio.h>
 #include <type_traits>

@@ -3,18 +3,17 @@
 
 #pragma once
 
-#include "wmma_traits.hpp"
-
-#include "ck_tile/core/config.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
 #include "ck_tile/core/arch/mma/mma_op_family.hpp"
+#include "ck_tile/core/arch/mma/wmma/wmma_traits.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/bfloat16.hpp"
 #include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/int8.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/numeric/pk_int4.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_params.hpp"

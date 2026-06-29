@@ -1,19 +1,16 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 #pragma once
+
 #include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/core/numeric/vector_type.hpp"
-#include "ck_tile/ops/gemm/warp/warp_gemm_params.hpp"
+#include "ck_tile/core/arch/mma/mma_traits.hpp"
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
 
-#include "amdgcn_mma.hpp"
-#include "mma_selector.hpp"
-#include "mma_traits.hpp"
-#include "mma_transforms.hpp"
-
-#if __clang_major__ >= 23
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
+#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
+#include <concepts>
 #endif
+
 namespace ck_tile::core::arch::mma {
 
 /**
@@ -144,8 +141,6 @@ struct MmaPipelineBase
 
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
-#include <concepts>
-
 /**
  * @concept MmaPipelineI
  * @brief  Expresses the meta-data interface required for a CRTP MmaPipeline.
@@ -156,7 +151,3 @@ concept MmaPipelineInterface = std::derived_from<Derived, MmaPipelineBase<Derive
 #endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
 } // namespace ck_tile::core::arch::mma
-
-#if __clang_major__ >= 23
-#pragma clang diagnostic pop
-#endif

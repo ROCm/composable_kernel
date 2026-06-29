@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
+
 #include <type_traits>
 
 namespace ck_tile::core::arch::mma {

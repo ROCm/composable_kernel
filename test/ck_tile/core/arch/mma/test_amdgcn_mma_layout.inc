@@ -4,13 +4,9 @@
 #pragma once
 
 #include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/core/arch/mma/mfma/mfma.hpp"
-#include "ck_tile/core/arch/mma/mma_traits.hpp"
-#include "ck_tile/core/arch/mma/scale/scale.hpp"
-#include "ck_tile/core/arch/mma/sparse/sparse.hpp"
+#include "ck_tile/core/arch/mma/mma.hpp"
 #include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_calculator.hpp"
 #include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_register_mapper.hpp"
-#include "ck_tile/core/arch/mma/wmma/wmma.hpp"
 #include "ck_tile/core/numeric/bfloat16.hpp"
 #include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/half.hpp"

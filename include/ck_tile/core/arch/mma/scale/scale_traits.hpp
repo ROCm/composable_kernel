@@ -4,8 +4,9 @@
 #pragma once
 
 #include "ck_tile/core/numeric/float8.hpp"
-#include "ck_tile/core/numeric/pk_fp4.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/pk_f6.hpp"
+#include "ck_tile/core/numeric/pk_fp4.hpp"
 
 namespace ck_tile::core::arch::mma {
 namespace scale::detail {
