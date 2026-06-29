@@ -197,7 +197,10 @@ template <typename InOutDataType,
           ck_tile::index_t MaxK>
 void run_batched_forward_dispatch(HstuAttentionNoGroupFwdParams& param, hipStream_t stream)
 {
-    if(get_hstu_attention_fwd_mtile(param.num_batch, param.num_head, param.seqlen_q) == 128)
+    int mtile_size = get_hstu_attention_fwd_mtile(
+        param.num_batch, param.num_head, param.seqlen_q, param.seqlen_kv);
+
+    if(!param.is_cross_attention && mtile_size == 128)
         batched_forward_dispatch<InOutDataType,
                                  kUseCausal,
                                  kUseSoftmax,
@@ -208,6 +211,10 @@ void run_batched_forward_dispatch(HstuAttentionNoGroupFwdParams& param, hipStrea
                                  128>::Run(param, stream);
     else
     {
+        // for cross-attention, we should give more opportunity to use split-kv since the seqlen_kv
+        // is usually much bigger than seqlen_q, so the main-loop along the seqlen_kv have enough
+        // iterations to counter-act the cost brought by splitting
+
         const bool disable_fwd_splitkv = []() {
             const char* env_p = std::getenv("HSTU_DISABLE_SPLITKV");
             if(env_p == nullptr)
@@ -216,25 +223,47 @@ void run_batched_forward_dispatch(HstuAttentionNoGroupFwdParams& param, hipStrea
         }();
 
         if(!disable_fwd_splitkv &&
-           shall_use_splitkv(param.num_batch, param.num_head, param.seqlen_q))
+           shall_use_splitkv(param.num_batch, param.num_head, param.seqlen_q, param.seqlen_kv))
         {
-            batched_forward_splitkv_dispatch<InOutDataType,
-                                             kUseCausal,
-                                             kUseSoftmax,
-                                             kStoreLSE,
-                                             kHasBias,
-                                             kHasDropout,
-                                             MaxK,
-                                             64>::Run(param, stream);
+            if(mtile_size == 128)
+                batched_forward_splitkv_dispatch<InOutDataType,
+                                                 kUseCausal,
+                                                 kUseSoftmax,
+                                                 kStoreLSE,
+                                                 kHasBias,
+                                                 kHasDropout,
+                                                 MaxK,
+                                                 128>::Run(param, stream);
+            else
+                batched_forward_splitkv_dispatch<InOutDataType,
+                                                 kUseCausal,
+                                                 kUseSoftmax,
+                                                 kStoreLSE,
+                                                 kHasBias,
+                                                 kHasDropout,
+                                                 MaxK,
+                                                 64>::Run(param, stream);
         }
         else
-            batched_forward_dispatch<InOutDataType,
-                                     kUseCausal,
-                                     kUseSoftmax,
-                                     kStoreLSE,
-                                     kHasBias,
-                                     kHasDropout,
-                                     MaxK,
-                                     64>::Run(param, stream);
+        {
+            if(mtile_size == 128)
+                batched_forward_dispatch<InOutDataType,
+                                         kUseCausal,
+                                         kUseSoftmax,
+                                         kStoreLSE,
+                                         kHasBias,
+                                         kHasDropout,
+                                         MaxK,
+                                         128>::Run(param, stream);
+            else
+                batched_forward_dispatch<InOutDataType,
+                                         kUseCausal,
+                                         kUseSoftmax,
+                                         kStoreLSE,
+                                         kHasBias,
+                                         kHasDropout,
+                                         MaxK,
+                                         64>::Run(param, stream);
+        }
     };
 };

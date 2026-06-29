@@ -378,6 +378,7 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
         params.seq_q_offsets_ptr  = seq_offsets_q_dev.GetDeviceBuffer();
         params.seq_kv_offsets_ptr = seq_offsets_kv_dev.GetDeviceBuffer();
         params.max_seqlen_q       = max_seqlen_q;
+        params.max_seqlen_kv      = max_seqlen_kv;
         params.q_ptr              = q_dev.GetDeviceBuffer();
         params.k_ptr              = k_dev.GetDeviceBuffer();
         params.v_ptr              = v_dev.GetDeviceBuffer();
@@ -898,6 +899,7 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
     params.seq_q_offsets_ptr  = seq_offsets_q_dev.GetDeviceBuffer();
     params.seq_kv_offsets_ptr = seq_offsets_kv_dev.GetDeviceBuffer();
     params.max_seqlen_q       = max_max_seqlen_q;
+    params.max_seqlen_kv      = max_max_seqlen_kv;
     params.q_ptr              = q_dev.GetDeviceBuffer();
     params.k_ptr              = k_dev.GetDeviceBuffer();
     params.v_ptr              = v_dev.GetDeviceBuffer();
