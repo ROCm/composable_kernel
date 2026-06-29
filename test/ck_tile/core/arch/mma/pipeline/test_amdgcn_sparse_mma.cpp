@@ -1,28 +1,26 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include <cstdint>
-#include <gtest/gtest.h>
-#include <iostream>
-#include <numeric>
+#include "pipeline_tests_helper.hpp"
 
 #include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
 #include "ck_tile/core/arch/mma/mma.hpp"
-#include "ck_tile/core/arch/mma/mma_op_family.hpp"
-#include "ck_tile/core/arch/mma/mma_selector.hpp"
 #include "ck_tile/core/arch/mma/mma_wavewise.hpp"
 #include "ck_tile/core/arch/mma/sparse/sparse_mma_pipeline.hpp"
-#include <hip/hip_runtime.h>
-#include "ck_tile/core/numeric/bfloat16.hpp"
-#include "ck_tile/core/numeric/float8.hpp"
+#include "ck_tile/core/numeric/ext_vector_base.hpp"
 #include "ck_tile/core/numeric/half.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
-#include "ck_tile/host/hip_check_error.hpp"
-#include "ck_tile/core/arch/mma/mma_traits.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/host/hip_check_error.hpp"
+#include "ck_tile/host/kernel_launch.hpp"
+#include "ck_tile/host/stream_config.hpp"
 
-#include "pipeline_tests_helper.hpp"
+#include <gtest/gtest.h>
+#include <hip/hip_runtime.h>
+
+#include <tuple>
+#include <type_traits>
+#include <vector>
 
 using namespace ck_tile;
 using namespace ck_tile::core::arch;

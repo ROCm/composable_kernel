@@ -3,22 +3,29 @@
 
 #pragma once
 
+#include "ck_tile/core/algorithm/coordinate_transform.hpp"
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/container/array.hpp"
-#include "ck_tile/core/container/sequence.hpp"
-#include "ck_tile/core/container/tuple.hpp"
 #include "ck_tile/core/container/container_helper.hpp"
 #include "ck_tile/core/container/meta_data_buffer.hpp"
+#include "ck_tile/core/container/multi_index.hpp"
+#include "ck_tile/core/container/sequence.hpp"
+#include "ck_tile/core/container/tuple.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/tensor/tensor_adaptor.hpp"
+#include "ck_tile/core/tensor/tensor_adaptor_coordinate.hpp"
+#include "ck_tile/core/tensor/tensor_descriptor.hpp"
 #include "ck_tile/core/tensor/tile_distribution_encoding.hpp"
 #include "ck_tile/core/utility/functional.hpp"
+#include "ck_tile/core/utility/to_sequence.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 
-#if __clang_major__ >= 23
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
-#endif
+#include <stdio.h>
+#include <type_traits>
+
 namespace ck_tile {
 
 template <typename Distribution>
@@ -136,11 +143,16 @@ struct tile_distribution
     }
 
     CK_TILE_HOST_DEVICE constexpr const auto& get_ps_ys_to_xs_adaptor() const
+        [[clang::lifetimebound]]
     {
         return ps_ys_to_xs_;
     }
 
-    CK_TILE_HOST_DEVICE constexpr const auto& get_ys_to_d_descriptor() const { return ys_to_d_; }
+    CK_TILE_HOST_DEVICE constexpr const auto& get_ys_to_d_descriptor() const
+        [[clang::lifetimebound]]
+    {
+        return ys_to_d_;
+    }
 
     CK_TILE_HOST_DEVICE static constexpr auto get_static_tile_distribution_encoding()
     {
@@ -708,6 +720,3 @@ CK_TILE_HOST_DEVICE void print(const tile_distribution<PsYs2XsAdaptor_,
 }
 
 } // namespace ck_tile
-#if __clang_major__ >= 23
-#pragma clang diagnostic pop
-#endif
