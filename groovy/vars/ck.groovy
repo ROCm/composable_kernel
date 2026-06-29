@@ -453,8 +453,12 @@ def devicesUp() {
     sh(returnStatus:true, script:'test -e /dev/kfd && ls /dev/dri/renderD* >/dev/null 2>&1') == 0
 }
 def cacheWritable() { sh(returnStatus:true, script:'D=${SCCACHE_DIR:-/.cache/sccache}; mkdir -p "$D/probe" 2>/dev/null') == 0 }
-def diskOk(String path='/var/jenkins/workspace', int minGb=5) {
+def diskOk(String path='/var/jenkins', int minGb=5) {
     echo "Preflight: checking disk space on ${path} (minimum ${minGb}GB)"
+    if (sh(returnStatus:true, script:"test -d ${path}") != 0) {
+        echo "Preflight: disk check path ${path} does not exist, skipping"
+        return true
+    }
     sh(returnStdout:true, script:"df --output=avail -BG ${path} | tail -1 | tr -dc '0-9'").trim().toInteger() >= minGb
 }
 
@@ -464,11 +468,13 @@ def gpuUsable(String image) { sh(returnStatus:true, script:"docker run --rm --de
 // Fail fast with a NodeFault if this agent is unfit to build. Host-only — no image
 // required. Image/registry/container faults are classified in the body by pullImage
 // and the in-container GPU check, where the correct conf is available.
-def preflight() {
+def preflight(boolean requireGpu) {
     echo "Preflight: starting node health checks on ${env.NODE_NAME}"
     if (!daemonUp())  throw new org.ck.NodeFault('docker-daemon-down')
-    if (!driverUp())  throw new org.ck.NodeFault('driver-not-loaded')
-    if (!devicesUp()) throw new org.ck.NodeFault('gpu-devices-missing')
+    if (requireGpu) {
+        if (!driverUp())  throw new org.ck.NodeFault('driver-not-loaded')
+        if (!devicesUp()) throw new org.ck.NodeFault('gpu-devices-missing')
+    }
     if (!diskOk())    throw new org.ck.NodeFault('disk-space-low')
     echo "Preflight: all checks passed on ${env.NODE_NAME}"
     // sccache cache-dir writability is not checked here: sccache runs inside
@@ -543,7 +549,10 @@ def runOnHealthyNode(String label, Closure body) {
             node(exclude(label, excluded)) {
                 attemptNode = env.NODE_NAME
                 echo "Node attempt ${attempt + 1}/${nodeAttempts} on ${attemptNode}"
-                preflight()
+                // Derive GPU requirement from the node label: only "nogpu" stages
+                // skip the driver/device checks. A new non-GPU label would need
+                // adding here (otherwise preflight would wrongly demand a GPU).
+                preflight(!label.contains('nogpu'))
                 runInPlace(body, transientRetries)
             }
             return
