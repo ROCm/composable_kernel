@@ -608,9 +608,7 @@ struct HstuAttentionFwdKernel
 #if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
             return dim3(batch_size_, nhead_, num_tile_in_seqlen);
 #else
-            return dim3(num_tile_in_seqlen),
-                        nhead_,
-                        batch_size_);
+            return dim3(num_tile_in_seqlen, nhead_, batch_size_);
 #endif
         }
     }
