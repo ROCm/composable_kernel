@@ -23,6 +23,7 @@
 #include "hstu_attention_epilogue.hpp"
 
 #include "hstu_attention_group_forward_splitkv_dispatch.hpp"
+#include "hstu_attention_host_util.hpp"
 
 template <typename InOutDataType,
           bool kUseCausal,

@@ -27,6 +27,7 @@
 #include "hstu_attention_fwd_splitkv_kernel.hpp"
 #include "hstu_attention_fwd_splitkv_combine_kernel.hpp"
 #include "hstu_attention_splitkv_helper.hpp"
+#include "hstu_attention_host_util.hpp"
 
 template <typename InOutDataType,
           bool kUseCausal,
