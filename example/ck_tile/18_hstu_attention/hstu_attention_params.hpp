@@ -25,6 +25,8 @@ struct HstuAttentionNoGroupFwdParams
     const void* seq_kv_offsets_ptr; // jagged mode only
     ck_tile::index_t max_seqlen_q;  // jagged mode only
     ck_tile::index_t max_seqlen_kv; // jagged mode only
+    ck_tile::index_t min_seqlen_q;  // jagged mode only
+    ck_tile::index_t min_seqlen_kv; // jagged mode only
 
     const void* q_ptr;
     const void* k_ptr;
@@ -90,6 +92,8 @@ struct HstuAttentionGroupFwdParams
     const void* seq_kv_offsets_ptr;
     ck_tile::index_t max_seqlen_q;  // the maximum of all the groups' max_seqlen_q
     ck_tile::index_t max_seqlen_kv; // the maximum of all the groups' max_seqlen_kv
+    ck_tile::index_t min_seqlen_q;  // jagged mode only
+    ck_tile::index_t min_seqlen_kv; // jagged mode only
 
     const void* q_ptr;
     const void* k_ptr;

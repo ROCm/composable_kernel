@@ -277,6 +277,18 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
         phy_seqlen_kv = max_seqlen_kv;
     };
 
+    int min_seqlen_q  = std::numeric_limits<int>::max();
+    int min_seqlen_kv = std::numeric_limits<int>::max();
+
+    if(is_jagged)
+    {
+        for(int i = 0; i < num_batch; i++)
+        {
+            min_seqlen_q  = min(min_seqlen_q, seq_offsets_q[i + 1] - seq_offsets_q[i]);
+            min_seqlen_kv = min(min_seqlen_kv, seq_offsets_kv[i + 1] - seq_offsets_kv[i]);
+        };
+    };
+
     long total_flops = 0;
 
     // estimate the total flops occurred, ignoring the scaling and SiLu
@@ -379,6 +391,8 @@ bool run_no_group_hstu_forward(const ck_tile::ArgParser& arg_parser, bool is_jag
         params.seq_kv_offsets_ptr = seq_offsets_kv_dev.GetDeviceBuffer();
         params.max_seqlen_q       = max_seqlen_q;
         params.max_seqlen_kv      = max_seqlen_kv;
+        params.min_seqlen_q       = min_seqlen_q;
+        params.min_seqlen_kv      = min_seqlen_kv;
         params.q_ptr              = q_dev.GetDeviceBuffer();
         params.k_ptr              = k_dev.GetDeviceBuffer();
         params.v_ptr              = v_dev.GetDeviceBuffer();
@@ -798,6 +812,15 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
         }
     };
 
+    int min_seqlen_q  = std::numeric_limits<int>::max();
+    int min_seqlen_kv = std::numeric_limits<int>::max();
+
+    for(int i = 0; i < num_batch; i++)
+    {
+        min_seqlen_q  = min(min_seqlen_q, seq_offsets_q[i + 1] - seq_offsets_q[i]);
+        min_seqlen_kv = min(min_seqlen_kv, seq_offsets_kv[i + 1] - seq_offsets_kv[i]);
+    };
+
     long total_flops = 0;
 
     // estimate the total flops occurred, ignoring the scaling and SILu
@@ -900,6 +923,8 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
     params.seq_kv_offsets_ptr = seq_offsets_kv_dev.GetDeviceBuffer();
     params.max_seqlen_q       = max_max_seqlen_q;
     params.max_seqlen_kv      = max_max_seqlen_kv;
+    params.min_seqlen_q       = min_seqlen_q;
+    params.min_seqlen_kv      = min_seqlen_kv;
     params.q_ptr              = q_dev.GetDeviceBuffer();
     params.k_ptr              = k_dev.GetDeviceBuffer();
     params.v_ptr              = v_dev.GetDeviceBuffer();

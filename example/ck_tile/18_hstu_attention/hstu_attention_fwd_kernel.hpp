@@ -14,10 +14,6 @@
 #include "hstu_block_masking.hpp"
 #include "hstu_attention_kernel_util.hpp"
 
-#ifndef HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
-#define HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM 1
-#endif
-
 // S[seqlen_q, seqlen_k] = Q[seqlen_q, hdim_q] @ K[seqlen_k, hdim_q]
 // S'[seqlen_q, seqlen_k] = S[seqlen_q, seqlen_k] * Scale[1]
 // S''[seqlen_q, seqlen_k] = S'[seqlen_q, seqlen_k] + Bias[seqlen_q, seqlen_k]
@@ -101,6 +97,8 @@ struct HstuAttentionFwdKernel
         float scale_s; // scaling value exerted on the immediate Q@K result
         float scale_p; // scaling value exerted on the SiLU result
 
+        bool almost_invariant_seqlen; // should always be true for batched mode
+
         ck_tile::index_t contextual_seqlen;
         ck_tile::index_t window_size;
         ck_tile::index_t min_full_attn_seqlen;
@@ -137,6 +135,8 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t num_head;
         float scale_s; // scaling value exerted on the immediate Q@K result
         float scale_p; // scaling value exerted on the SiLU result
+
+        bool almost_invariant_seqlen;
 
         ck_tile::index_t contextual_seqlen;
         ck_tile::index_t window_size;
@@ -176,6 +176,8 @@ struct HstuAttentionFwdKernel
         ck_tile::index_t num_head;
         float scale_s; // scaling value exerted on the immediate Q@K result
         float scale_p; // scaling value exerted on the SiLU result
+
+        bool almost_invariant_seqlen;
 
         int32_t contextual_seqlen;    // to be set by the per-group contextual_seqlen
         int32_t window_size;          // to be set by the per-group window_size
@@ -356,6 +358,7 @@ struct HstuAttentionFwdKernel
              num_head,
              scale_s,
              attn_scale ? attn_scale : 1.0f / static_cast<float>(seqlen_q),
+             true, // almost_invariant_seqlen
              contextual_seqlen,
              window_size,
              min_full_attn_seqlen}, // args for common karg
@@ -402,6 +405,7 @@ struct HstuAttentionFwdKernel
               ck_tile::index_t num_head,
               float scale_s,
               float attn_scale,
+              bool almost_invariant_seqlen,
               ck_tile::index_t seq_stride_q,
               ck_tile::index_t seq_stride_k,
               ck_tile::index_t seq_stride_v,
@@ -445,6 +449,7 @@ struct HstuAttentionFwdKernel
              num_head,
              scale_s,
              attn_scale ? attn_scale : 1.0f / static_cast<float>(max_seqlen_q),
+             almost_invariant_seqlen,
              contextual_seqlen,
              window_size,
              min_full_attn_seqlen}, // args for common karg
@@ -493,6 +498,7 @@ struct HstuAttentionFwdKernel
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head,
               float scale_s,
+              bool almost_invariant_seqlen,
               ck_tile::index_t seq_stride_q,
               ck_tile::index_t seq_stride_k,
               ck_tile::index_t seq_stride_v,
@@ -534,9 +540,10 @@ struct HstuAttentionFwdKernel
              num_head,
              scale_s,
              1.0f, // to be set according to the per-group attn_scale and max_seqlen
-             0,    // to be set by the per-group contextual_seqlen
-             0,    // to be set by the per-group window_size
-             0,    // to be set by the per-group min_full_attn_seqlen
+             almost_invariant_seqlen,
+             0, // to be set by the per-group contextual_seqlen
+             0, // to be set by the per-group window_size
+             0, // to be set by the per-group min_full_attn_seqlen
              reinterpret_cast<const int32_t*>(group_max_seqlen_q_ptr),
              reinterpret_cast<const int32_t*>(group_contextual_seqlen_ptr),
              reinterpret_cast<const int32_t*>(group_window_size_ptr),
@@ -571,6 +578,7 @@ struct HstuAttentionFwdKernel
                                                 ck_tile::index_t nhead_,
                                                 ck_tile::index_t seqlen_,
                                                 ck_tile::index_t hdim_v_,
+                                                bool almost_invariant_seqlen,
                                                 bool has_minfull_attn_seqlen = false)
     {
         // The Q sequence [0, seqlen) will be split to two parts for allocating workgroups:
@@ -589,27 +597,33 @@ struct HstuAttentionFwdKernel
                 num_tile_in_seqlen += 1;
         };
 
-        if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kQKHeaddim)
+        if(almost_invariant_seqlen)
         {
-#if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
-            return dim3(batch_size_,
-                        nhead_,
-                        num_tile_in_seqlen *
-                            ck_tile::integer_divide_ceil(hdim_v_, HstuAttentionPipeline::kN1));
-#else
-            return dim3(num_tile_in_seqlen *
-                            ck_tile::integer_divide_ceil(hdim_v_, HstuAttentionPipeline::kN1),
-                        nhead_,
-                        batch_size_);
-#endif
+            if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kQKHeaddim)
+            {
+                return dim3(batch_size_,
+                            nhead_,
+                            num_tile_in_seqlen *
+                                ck_tile::integer_divide_ceil(hdim_v_, HstuAttentionPipeline::kN1));
+            }
+            else
+            {
+                return dim3(batch_size_, nhead_, num_tile_in_seqlen);
+            }
         }
         else
         {
-#if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
-            return dim3(batch_size_, nhead_, num_tile_in_seqlen);
-#else
-            return dim3(num_tile_in_seqlen, nhead_, batch_size_);
-#endif
+            if constexpr(HstuAttentionPipeline::kN1 < HstuAttentionPipeline::kQKHeaddim)
+            {
+                return dim3(num_tile_in_seqlen *
+                                ck_tile::integer_divide_ceil(hdim_v_, HstuAttentionPipeline::kN1),
+                            nhead_,
+                            batch_size_);
+            }
+            else
+            {
+                return dim3(num_tile_in_seqlen, nhead_, batch_size_);
+            }
         }
     }
 
@@ -620,52 +634,65 @@ struct HstuAttentionFwdKernel
             const index_t num_tile_n1 =
                 ck_tile::integer_divide_ceil(kargs.hdim_v, HstuAttentionPipeline::kN1);
 
-#if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
-            const index_t i_batch = blockIdx.x;
-            const index_t i_nhead = blockIdx.y;
-            const index_t i_block = blockIdx.z;
-#else
-            const index_t i_block = blockIdx.x;
-            const index_t i_nhead = blockIdx.y;
-            const index_t i_batch = blockIdx.z;
-#endif
+            if(kargs.almost_invariant_seqlen)
+            {
+                const index_t i_batch = blockIdx.x;
+                const index_t i_nhead = blockIdx.y;
+                const index_t i_block = blockIdx.z;
 
-            const auto f = [](index_t dividend, index_t divisor) {
-                index_t quotient = dividend / divisor;
-                index_t modulus  = dividend - quotient * divisor;
-                return ck_tile::make_tuple(quotient, modulus);
-            };
+                const auto f = [](index_t dividend, index_t divisor) {
+                    index_t quotient = dividend / divisor;
+                    index_t modulus  = dividend - quotient * divisor;
+                    return ck_tile::make_tuple(quotient, modulus);
+                };
 
-#if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
-            auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
-            i_tile_m                  = gridDim.z / num_tile_n1 - 1 - i_tile_m;
-#else
-            const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
-#endif
+                auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
+                i_tile_m                  = gridDim.z / num_tile_n1 - 1 - i_tile_m;
 
-            return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+            }
+            else
+            {
+                const index_t i_block = blockIdx.x;
+                const index_t i_nhead = blockIdx.y;
+                const index_t i_batch = blockIdx.z;
+
+                const auto f = [](index_t dividend, index_t divisor) {
+                    index_t quotient = dividend / divisor;
+                    index_t modulus  = dividend - quotient * divisor;
+                    return ck_tile::make_tuple(quotient, modulus);
+                };
+
+                const auto [i_tile_m, i_tile_n] = f(i_block, num_tile_n1);
+
+                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+            }
         }
         else
         {
-#if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
-            const index_t i_batch = blockIdx.x;
-            const index_t i_nhead = blockIdx.y;
-            const index_t i_block = blockIdx.z;
-#else
-            const index_t i_block = blockIdx.x;
-            const index_t i_nhead = blockIdx.y;
-            const index_t i_batch = blockIdx.z;
-#endif
+            if(kargs.almost_invariant_seqlen)
+            {
+                const index_t i_batch = blockIdx.x;
+                const index_t i_nhead = blockIdx.y;
+                const index_t i_block = blockIdx.z;
 
-#if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
-            index_t i_tile_m = i_block;
-            i_tile_m         = gridDim.z - 1 - i_tile_m;
-#else
-            const index_t i_tile_m = i_block;
-#endif
-            const index_t i_tile_n = 0;
+                index_t i_tile_m       = i_block;
+                i_tile_m               = gridDim.z - 1 - i_tile_m;
+                const index_t i_tile_n = 0;
 
-            return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+            }
+            else
+            {
+                const index_t i_block = blockIdx.x;
+                const index_t i_nhead = blockIdx.y;
+                const index_t i_batch = blockIdx.z;
+
+                const index_t i_tile_m = i_block;
+                const index_t i_tile_n = 0;
+
+                return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
+            }
         }
     }
 
