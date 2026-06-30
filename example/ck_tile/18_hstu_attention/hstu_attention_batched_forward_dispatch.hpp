@@ -176,9 +176,13 @@ struct batched_forward_dispatch
                                          param.philox_offset);
         }();
 
-        bool has_minfull_attn_seqlen = (param.min_full_attn_seqlen > 0);
-        dim3 kGridSize               = HstuKernel::GridSize(
-            param.num_batch, param.num_head, param.seqlen_q, param.hdim_v, has_minfull_attn_seqlen);
+        bool has_minfull_attn_seqlen           = (param.min_full_attn_seqlen > 0);
+        dim3 kGridSize                         = HstuKernel::GridSize(param.num_batch,
+                                              param.num_head,
+                                              param.seqlen_q,
+                                              param.hdim_v,
+                                              true /* almost_invariant_seqlen */,
+                                              has_minfull_attn_seqlen);
         dim3 kBlockSize                        = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;
 

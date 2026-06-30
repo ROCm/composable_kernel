@@ -14,10 +14,6 @@
 
 #include "hstu_block_masking.hpp"
 
-#ifndef HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
-#define HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM 1
-#endif
-
 // S[seqlen_q, seqlen_k] = Q[seqlen_q, hdim_q] @ K[seqlen_k, hdim_q]
 // S'[seqlen_q, seqlen_k] = S[seqlen_q, seqlen_k] * Scale[1]
 // S''[seqlen_q, seqlen_k] = S'[seqlen_q, seqlen_k] + Bias[seqlen_q, seqlen_k]
@@ -71,6 +67,8 @@ struct HstuAttentionFwdSplitKVCombineKernel
         ck_tile::index_t num_head;
         ck_tile::index_t num_splits;
         ck_tile::index_t hdim_v;
+
+        bool almost_invariant_seqlen; // should always be true for batched mode
     };
 
     struct HstuAttentionJaggedCombineBaseKargs
@@ -87,6 +85,8 @@ struct HstuAttentionFwdSplitKVCombineKernel
         ck_tile::index_t hdim_v;
 
         ck_tile::index_t seqlen_q;
+
+        bool almost_invariant_seqlen;
     };
 
     struct HstuAttentionCombineSoftmaxKargs
@@ -160,9 +160,10 @@ struct HstuAttentionFwdSplitKVCombineKernel
              seqlen_q,
              num_head,
              num_splits,
-             hdim_v},
-            {}, // place holder for softmax
-            {}, // place holder for LSE
+             hdim_v,
+             true}, // almost_invariant_seqlen
+            {},     // place holder for softmax
+            {},     // place holder for LSE
         };
 
         if constexpr(kUseSoftmax)
@@ -193,7 +194,8 @@ struct HstuAttentionFwdSplitKVCombineKernel
               const void* seq_q_offsets_ptr,
               ck_tile::index_t num_head,
               ck_tile::index_t num_splits, // number of splitted seqlen_kv
-              ck_tile::index_t hdim_v)
+              ck_tile::index_t hdim_v,
+              bool almost_invariant_seqlen)
     {
         Kargs kargs{
             {o_acc_ptr,
@@ -204,7 +206,8 @@ struct HstuAttentionFwdSplitKVCombineKernel
              num_head,
              num_splits,
              hdim_v,
-             0 /* seqlen_q will be updated later*/},
+             0, /* seqlen_q will be updated later*/
+             almost_invariant_seqlen},
             {}, // place holder for softmax
             {}, // place holder for LSE
         };
@@ -223,33 +226,40 @@ struct HstuAttentionFwdSplitKVCombineKernel
         return kargs;
     }
 
-    CK_TILE_HOST static constexpr auto
-    GridSize(ck_tile::index_t batch_size_, ck_tile::index_t nhead_, ck_tile::index_t seqlen_)
+    CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
+                                                ck_tile::index_t nhead_,
+                                                ck_tile::index_t seqlen_,
+                                                bool almost_invariant_seqlen)
     {
         ck_tile::index_t num_tile_in_seqlen =
             ck_tile::integer_divide_ceil(seqlen_, HstuAttentionPipeline::kM);
 
-#if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
-        return dim3(batch_size_, nhead_, num_tile_in_seqlen);
-#else
-        return dim3(num_tile_in_seqlen, nhead_, batch_size_);
-#endif
+        if(almost_invariant_seqlen)
+        {
+            return dim3(batch_size_, nhead_, num_tile_in_seqlen);
+        }
+        else
+        {
+            return dim3(num_tile_in_seqlen, nhead_, batch_size_);
+        }
     }
 
     CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
     {
-        ignore = kargs;
-
-#if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
-        const index_t i_batch  = blockIdx.x;
-        const index_t i_nhead  = blockIdx.y;
-        const index_t i_tile_m = blockIdx.z;
-#else
-        const index_t i_tile_m = blockIdx.x;
-        const index_t i_nhead  = blockIdx.y;
-        const index_t i_batch  = blockIdx.z;
-#endif
-        return ck_tile::make_tuple(i_tile_m, i_nhead, i_batch);
+        if(kargs.almost_invariant_seqlen)
+        {
+            const index_t i_batch  = blockIdx.x;
+            const index_t i_nhead  = blockIdx.y;
+            const index_t i_tile_m = blockIdx.z;
+            return ck_tile::make_tuple(i_tile_m, i_nhead, i_batch);
+        }
+        else
+        {
+            const index_t i_tile_m = blockIdx.x;
+            const index_t i_nhead  = blockIdx.y;
+            const index_t i_batch  = blockIdx.z;
+            return ck_tile::make_tuple(i_tile_m, i_nhead, i_batch);
+        }
     }
 
     CK_TILE_HOST static constexpr auto BlockSize()

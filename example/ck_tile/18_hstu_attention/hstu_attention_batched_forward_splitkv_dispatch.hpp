@@ -316,6 +316,7 @@ struct batched_forward_splitkv_dispatch
                                               param.seqlen_q,
                                               param.hdim_v,
                                               ws.num_splits,
+                                              true, // almost_invariant_seqlen
                                               has_minfull_attn_seqlen);
         dim3 kBlockSize                        = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;
@@ -347,8 +348,9 @@ struct batched_forward_splitkv_dispatch
                                          param.hdim_v);
         }();
 
-        dim3 kGridSize  = HstuKernel::GridSize(param.num_batch, param.num_head, param.seqlen_q);
-        dim3 kBlockSize = HstuKernel::BlockSize();
+        dim3 kGridSize = HstuKernel::GridSize(
+            param.num_batch, param.num_head, param.seqlen_q, true /* almost_invariant_seqlen */);
+        dim3 kBlockSize                        = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;
 
         (void)ck_tile::launch_kernel(
