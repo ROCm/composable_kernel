@@ -50,7 +50,7 @@ get_estimated_cu_coverage_ratio(int num_batches, int num_heads, int max_seqlen_q
 static bool shall_use_splitkv(int num_batches, int num_heads, int max_seqlen_q, int max_seqlen_kv)
 {
     // Please tune the threshold here
-    const float threshold = (max_seqlen_kv >= 2048) ? 1.5f : 0.8f;
+    const float threshold = (max_seqlen_kv >= 8192) ? 3.0f : 0.8f;
 
     if(get_estimated_cu_coverage_ratio(num_batches, num_heads, max_seqlen_q, max_seqlen_kv) <
        threshold)
