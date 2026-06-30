@@ -23,6 +23,7 @@
 #include "hstu_attention_epilogue.hpp"
 
 #include "hstu_attention_jagged_forward_splitkv_dispatch.hpp"
+#include "hstu_attention_host_util.hpp"
 
 template <typename InOutDataType,
           bool kUseCausal,
@@ -124,6 +125,8 @@ struct jagged_forward_dispatch
     template <typename HstuKernel>
     static void RunWithKernel(HstuAttentionNoGroupFwdParams& param, hipStream_t stream)
     {
+        bool almost_invariant_seqlen = is_almost_invariant_seqlen(param);
+
         const auto kargs = [&] {
             return HstuKernel::MakeKargs(param.q_ptr,
                                          param.k_ptr,
@@ -140,6 +143,7 @@ struct jagged_forward_dispatch
                                          param.num_head,
                                          param.scale_s,
                                          param.attn_scale,
+                                         almost_invariant_seqlen,
                                          param.seq_stride_q,
                                          param.seq_stride_k,
                                          param.seq_stride_v,
@@ -166,6 +170,7 @@ struct jagged_forward_dispatch
                                               param.num_head,
                                               param.max_seqlen_q,
                                               param.hdim_v,
+                                              almost_invariant_seqlen,
                                               has_minfull_attn_seqlen);
         dim3 kBlockSize                        = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;

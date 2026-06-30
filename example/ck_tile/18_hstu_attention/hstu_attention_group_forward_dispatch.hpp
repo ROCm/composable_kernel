@@ -124,6 +124,8 @@ struct group_forward_dispatch
     template <typename HstuKernel>
     static void RunWithKernel(HstuAttentionGroupFwdParams& param, hipStream_t stream)
     {
+        bool almost_invariant_seqlen = is_almost_invariant_seqlen(param);
+
         const auto kargs = [&] {
             return HstuKernel::MakeKargs(param.q_ptr,
                                          param.k_ptr,
@@ -144,6 +146,7 @@ struct group_forward_dispatch
                                          param.hdim_v,
                                          param.num_head,
                                          param.scale_s,
+                                         almost_invariant_seqlen,
                                          param.seq_stride_q,
                                          param.seq_stride_k,
                                          param.seq_stride_v,
@@ -162,8 +165,11 @@ struct group_forward_dispatch
                                          param.philox_offset);
         }();
 
-        dim3 kGridSize =
-            HstuKernel::GridSize(param.num_batch, param.num_head, param.max_seqlen_q, param.hdim_v);
+        dim3 kGridSize                         = HstuKernel::GridSize(param.num_batch,
+                                              param.num_head,
+                                              param.max_seqlen_q,
+                                              param.hdim_v,
+                                              almost_invariant_seqlen);
         dim3 kBlockSize                        = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;
 
