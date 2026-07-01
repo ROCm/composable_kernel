@@ -215,8 +215,8 @@ struct QuantGroupedGemmKernel
         using ConstantPointer  = const void CK_TILE_CONSTANT_ADDRESS_SPACE*;
         const auto kernel_func = kentry<1, Kernel, ConstantPointer, index_t>;
         int occupancy;
-        HIP_CHECK_ERROR(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel_func, kBlockSize, 0));
+        HIP_CHECK_ERROR(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+            &occupancy, kernel_func, BlockSize().x, 0));
         const int grid_size = get_available_compute_units(s) * max(occupancy, 1);
         return dim3(grid_size, 1, 1);
     }

@@ -619,7 +619,7 @@ struct StreamKKernel
         const auto kernel              = kentry<min_block_per_cu, Kernel, KernelArgs>;
 
         ck_tile::hip_check_error(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, kBlockSize, 0));
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize().x, 0));
 
         return max(occupancy, 1);
     }

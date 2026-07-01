@@ -198,7 +198,7 @@ struct GroupedGemmKernel
         const auto kernel     = kentry<1, Kernel, ConstantPointer, index_t>;
         int occupancy;
         HIP_CHECK_ERROR(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, kBlockSize, 0));
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize().x, 0));
         // TODO: the below is a temporary fix which is due to kernel metadata
         // .workgroup_processor_mode isn't used correctly in clr for gfx1250. Will removed when clr
         // and compiler team fix this.
