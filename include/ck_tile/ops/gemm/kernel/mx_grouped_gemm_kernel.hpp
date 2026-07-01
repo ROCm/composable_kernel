@@ -116,7 +116,7 @@ struct MxGroupedGemmKernel
         using P_ = GemmPipeline;
         return concat('_', "mx_gemm_grouped", gemm_prec_str<ADataType, BDataType>(),
                       concat('x', P_::MPerBlock, P_::NPerBlock, P_::KPerBlock),
-                      concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
+                      concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB()),
                       concat('x', P_::kPadM, P_::kPadN, P_::kPadK),
                       (UsePersistentKernel ? "Persistent" : "NonPersistent"),
                       (NumDTensor_ == 2 ? "MultiD" : "NoMultiD"),

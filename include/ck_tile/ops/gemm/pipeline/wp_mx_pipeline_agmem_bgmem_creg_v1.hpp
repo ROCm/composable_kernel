@@ -8,15 +8,10 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_base.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_problem.hpp"
-#include "ck_tile/ops/gemm_mx/pipeline/wp_pipeline_agmem_bgmem_creg_v1_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/wp_mx_pipeline_agmem_bgmem_creg_v1_policy.hpp"
+#include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_v2.hpp"
 
 namespace ck_tile {
-
-template <typename GemmConfig>
-struct MXEpilogueTraits
-{
-    static constexpr index_t BlockedXDLNPerWarp = GemmConfig::Preshuffle ? 2 : 1;
-};
 
 // This pipeline extends the existing universal GEMM machinery with preshuffled-B support.
 template <typename Problem, typename PipelinePolicy = MXGemmPipelineAgBgCrPolicy>
@@ -53,9 +48,9 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
     static constexpr index_t BlockSize       = Problem::kBlockSize;
     static constexpr index_t WaveSize        = get_warp_size();
 
-    static constexpr index_t kMPerBlock = BlockGemmShape::kM;
-    static constexpr index_t kNPerBlock = BlockGemmShape::kN;
-    static constexpr index_t kKPerBlock = BlockGemmShape::kK;
+    static constexpr index_t MPerBlock = BlockGemmShape::kM;
+    static constexpr index_t NPerBlock = BlockGemmShape::kN;
+    static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
     static constexpr index_t flatKPerWarp = BlockGemmShape::flatKPerWarp;
     static constexpr index_t flatNPerWarp = BlockGemmShape::flatNPerWarp;
@@ -69,12 +64,12 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
     template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeA()
     {
-        return 32;
+        return PipelinePolicy::template GetVectorSizeA<Problem>();
     }
     template <bool IsWave32Host = false>
     static constexpr index_t GetVectorSizeB()
     {
-        return 32;
+        return PipelinePolicy::template GetVectorSizeB<Problem>();
     }
     static constexpr index_t GetVectorSizeC() { return Problem::VectorSizeC; }
 
@@ -93,21 +88,26 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
     static constexpr index_t MWarp = BlockGemm::MWarp;
     static constexpr index_t NWarp = BlockGemm::NWarp;
 
-    static constexpr index_t MIterPerWarp = kMPerBlock / (MWarp * WarpGemm::kM);
-    static constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
-    static constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
+    static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WarpGemm::kM);
+    static constexpr index_t NIterPerWarp = NPerBlock / (NWarp * WarpGemm::kN);
+    static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
 
     static constexpr index_t KFlatBytesPerBlockPerIter =
         flatKPerWarp * sizeof(BDataType) / BPackedSize;
     static constexpr index_t NFlatPerBlockPerIter = flatNPerWarp;
 
-    static constexpr index_t MPerBlockPerIter = kMPerBlock / MIterPerWarp;
-    static constexpr index_t KPerBlockPerIter = kKPerBlock / KIterPerWarp;
+    static constexpr index_t MPerBlockPerIter = MPerBlock / MIterPerWarp;
+    static constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
 
-    static constexpr index_t ScaleGranularityK = 32;
-    static constexpr index_t MXdlPack          = 2;
-    static constexpr index_t NXdlPack          = 2;
-    static constexpr index_t KXdlPack          = 2;
+    static constexpr index_t ScaleBlockSize = 32;
+    static constexpr index_t MXdlPack       = 2;
+    static constexpr index_t NXdlPack       = 2;
+    static constexpr index_t KXdlPack       = 2;
+
+    // Preshuffle only supports this case as checked by static asserts
+    static constexpr index_t MXdlPackEff = MXdlPack;
+    static constexpr index_t NXdlPackEff = NXdlPack;
+    static constexpr index_t KXdlPackEff = KXdlPack;
 
     static constexpr index_t AK1 = 16 * APackedSize / sizeof(ADataType);
     static constexpr index_t BK1 = 16 * BPackedSize / sizeof(BDataType);
@@ -125,12 +125,12 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
     static constexpr index_t Aload_num_perK = dswrite_num_perK;
     static constexpr index_t Aload_rep      = dswrite_rep;
 
-    static constexpr index_t Bload_num_perK = kNPerBlock * WarpGemm::kK / NWarp / BK1 / WaveSize;
+    static constexpr index_t Bload_num_perK = NPerBlock * WarpGemm::kK / NWarp / BK1 / WaveSize;
     static constexpr index_t Bload_num      = Bload_num_perK * KIterPerWarp;
     static constexpr index_t ScaleBload_num =
-        kNPerBlock * kKPerBlock / NWarp / ScaleGranularityK / NXdlPack / KXdlPack / WaveSize;
+        NPerBlock * KPerBlock / NWarp / ScaleBlockSize / NXdlPack / KXdlPack / WaveSize;
     static constexpr index_t ScaleAload_num =
-        kMPerBlock * kKPerBlock / MWarp / ScaleGranularityK / MXdlPack / KXdlPack / WaveSize;
+        MPerBlock * KPerBlock / MWarp / ScaleBlockSize / MXdlPack / KXdlPack / WaveSize;
 
     static constexpr index_t HalfMIter        = (MIterPerWarp + 1) / 2;
     static constexpr index_t Bload_rep        = (Bload_num_perK + HalfMIter - 1) / HalfMIter;
@@ -181,9 +181,9 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
                 "wrong!");
 
-            static_assert(kMPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}],
+            static_assert(MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<0>{}],
                           "wrong!");
-            static_assert(kKPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+            static_assert(KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                           "wrong!");
 
             static_assert(MWarp == 1);
@@ -194,7 +194,7 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                 a_copy_dram_window_tmp);
             using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
             constexpr ADramTileWindowStep a_dram_tile_window_step =
-                make_array(index_t{0}, index_t{kKPerBlock * sizeof(ADataType) / APackedSize});
+                make_array(index_t{0}, index_t{KPerBlock * sizeof(ADataType) / APackedSize});
 
             __builtin_amdgcn_sched_barrier(0);
 
@@ -208,13 +208,13 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
 
             auto a_store_lds_window_ping =
                 make_tile_window(a_lds_block_ping,
-                                 make_tuple(number<kMPerBlock>{},
-                                            number<kKPerBlock / APackedSize * sizeof(ADataType)>{}),
+                                 make_tuple(number<MPerBlock>{},
+                                            number<KPerBlock / APackedSize * sizeof(ADataType)>{}),
                                  {0, 0});
             auto a_store_lds_window_pong =
                 make_tile_window(a_lds_block_pong,
-                                 make_tuple(number<kMPerBlock>{},
-                                            number<kKPerBlock / APackedSize * sizeof(ADataType)>{}),
+                                 make_tuple(number<MPerBlock>{},
+                                            number<KPerBlock / APackedSize * sizeof(ADataType)>{}),
                                  {0, 0});
 
             auto a_warp_window_ping = make_tile_window(
@@ -306,7 +306,7 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                         impack * scale_a_dram_step_m + ikpack * scale_a_dram_step_k);
                 });
             });
-            move_tile_window(scale_a_dram_window, {0, kKPerBlock / (ScaleGranularityK * KXdlPack)});
+            move_tile_window(scale_a_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPack)});
 
             static_for<0, NPackIterPerWarp, 1>{}([&](auto inpack) {
                 static_for<0, KPackIterPerWarp, 1>{}([&](auto ikpack) {
@@ -315,7 +315,7 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                         inpack * scale_b_dram_step_n + ikpack * scale_b_dram_step_k);
                 });
             });
-            move_tile_window(scale_b_dram_window, {0, kKPerBlock / (ScaleGranularityK * KXdlPack)});
+            move_tile_window(scale_b_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPack)});
             __builtin_amdgcn_sched_barrier(0);
 
             if constexpr(HasHotLoop || TailNum == TailNumber::Even)
@@ -375,10 +375,8 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                 Base::GlobalPrefetchAsync(
                     a_store_lds_window_ping, a_dram_window, a_dram_tile_window_step);
 
-                move_tile_window(scale_a_dram_window,
-                                 {0, kKPerBlock / (ScaleGranularityK * KXdlPack)});
-                move_tile_window(scale_b_dram_window,
-                                 {0, kKPerBlock / (ScaleGranularityK * KXdlPack)});
+                move_tile_window(scale_a_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPack)});
+                move_tile_window(scale_b_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPack)});
 
                 block_gemm.LocalPrefetch(a_load_windows_pong);
                 HotLoopScheduler();
@@ -420,10 +418,8 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
 
                 Base::GlobalPrefetchAsync(
                     a_store_lds_window_pong, a_dram_window, a_dram_tile_window_step);
-                move_tile_window(scale_a_dram_window,
-                                 {0, kKPerBlock / (ScaleGranularityK * KXdlPack)});
-                move_tile_window(scale_b_dram_window,
-                                 {0, kKPerBlock / (ScaleGranularityK * KXdlPack)});
+                move_tile_window(scale_a_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPack)});
+                move_tile_window(scale_b_dram_window, {0, KPerBlock / (ScaleBlockSize * KXdlPack)});
 
                 block_gemm.LocalPrefetch(a_load_windows_ping);
                 HotLoopScheduler();
@@ -710,17 +706,55 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
     template <typename ADramBlockWindowTmp,
               typename BFlatBlockWindowTmp,
               typename ScaleADramBlockWindowTmp,
+              typename ScaleBDramBlockWindowTmp,
+              typename AElementFunction,
+              typename BElementFunction>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_copy_dram_window_tmp,
+                                   const AElementFunction&,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   const BElementFunction&,
+                                   const ScaleADramBlockWindowTmp& scale_a_window,
+                                   const ScaleBDramBlockWindowTmp& scale_b_window,
+                                   index_t num_loop,
+                                   void* __restrict__ p_smem) const
+    {
+        static_assert(std::is_same_v<AElementFunction, element_wise::PassThrough>);
+        static_assert(std::is_same_v<BElementFunction, element_wise::PassThrough>);
+
+        constexpr index_t smem_size = PipelinePolicy::template GetSmemSize<Problem>();
+        const auto smem             = reinterpret_cast<uint8_t*>(p_smem);
+        const bool has_hot_loop     = Base::BlockHasHotloop(num_loop);
+        const auto tail_num         = Base::GetBlockLoopTailNum(num_loop);
+
+        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop_.value, tail_num_.value>(
+                a_copy_dram_window_tmp[number<0>{}],
+                b_flat_dram_block_window_tmp[number<0>{}],
+                scale_a_window[number<0>{}],
+                scale_b_window[number<0>{}],
+                num_loop,
+                smem,
+                smem + smem_size);
+        };
+
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_num);
+    }
+
+    template <typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename ScaleADramBlockWindowTmp,
               typename ScaleBDramBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_copy_dram_window_tmp,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    const ScaleADramBlockWindowTmp& scale_a_window,
                                    const ScaleBDramBlockWindowTmp& scale_b_window,
                                    index_t num_loop,
-                                   void* __restrict__ p_smem_ping,
-                                   void* __restrict__ p_smem_pong) const
+                                   void* __restrict__ p_smem) const
     {
-        const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
-        const auto tail_num     = Base::GetBlockLoopTailNum(num_loop);
+        constexpr index_t smem_size = PipelinePolicy::template GetSmemSize<Problem>();
+        const auto smem             = reinterpret_cast<uint8_t*>(p_smem);
+        const bool has_hot_loop     = Base::BlockHasHotloop(num_loop);
+        const auto tail_num         = Base::GetBlockLoopTailNum(num_loop);
 
         const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
             return PipelineImpl<Scheduler>{}.template operator()<hot_loop_.value, tail_num_.value>(
@@ -729,8 +763,8 @@ struct MXGemmPreshufflePipelineAGmemBGmemCRegV1
                 scale_a_window,
                 scale_b_window,
                 num_loop,
-                p_smem_ping,
-                p_smem_pong);
+                smem,
+                smem + smem_size);
         };
 
         return Base::TailHandler(RunPipeline, has_hot_loop, tail_num);

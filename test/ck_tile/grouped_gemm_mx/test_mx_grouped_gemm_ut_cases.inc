@@ -3,7 +3,7 @@
 
 #pragma once
 
-TYPED_TEST(TestCkTileMxGroupedGemm, Basic)
+TYPED_TEST(TEST_SUITE_NAME, Basic)
 {
     const int group_count = 4;
     const int kbatch      = 1;
@@ -14,8 +14,8 @@ TYPED_TEST(TestCkTileMxGroupedGemm, Basic)
     for(int i = 0; i < group_count; i++)
     {
         Ms.push_back(256 + 256 * i);
-        Ns.push_back(256 + 512 * i);
-        Ks.push_back(512 + 128 * i);
+        Ns.push_back(512 + 512 * i);
+        Ks.push_back(512 + TestFixture::K_Tile * i);
     }
 
     this->Run(Ms, Ns, Ks, kbatch, group_count);

@@ -9,49 +9,8 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm_mx.hpp"
-#include "ck_tile/ops/gemm_mx/kernel/scale_pointer.hpp"
-
-template <typename ScaleM, typename ScaleN>
-struct MXGemmHostArgs : ck_tile::UniversalGemmHostArgs<1, 1, 0>
-{
-    using Base = ck_tile::UniversalGemmHostArgs<1, 1, 0>;
-
-    MXGemmHostArgs(const void* a_ptr,
-                   const void* b_ptr,
-                   void* c_ptr_,
-                   ck_tile::index_t k_batch_,
-                   ck_tile::index_t M_,
-                   ck_tile::index_t N_,
-                   ck_tile::index_t K_,
-                   ck_tile::index_t stride_A_,
-                   ck_tile::index_t stride_B_,
-                   ck_tile::index_t stride_C_,
-                   ScaleM scale_m_,
-                   ScaleN scale_n_)
-        : Base({a_ptr},
-               {b_ptr},
-               {},
-               c_ptr_,
-               k_batch_,
-               M_,
-               N_,
-               K_,
-               {stride_A_},
-               {stride_B_},
-               {},
-               stride_C_),
-          scale_m(scale_m_),
-          scale_n(scale_n_)
-    {
-    }
-
-    ScaleM scale_m;
-    ScaleN scale_n;
-};
 
 // GEMM config with 16x16 warp tile
-
 struct MxGemmConfig
 {
     static constexpr ck_tile::index_t M_Tile = 128;
@@ -78,12 +37,15 @@ struct MxGemmConfig
     static constexpr int TileParitionerM01          = 4;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr bool DoubleSmemBuffer          = false; // comp_async uses double buffer
+    static constexpr bool DoubleSmemBuffer          = true; // comp_async uses double buffer
     static constexpr bool Preshuffle                = false;
     static constexpr ck_tile::index_t BContiguousItemsPerAccess = 16;
 
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN = false;
+
+    using AScaleDataType = ck_tile::e8m0_t;
+    using BScaleDataType = ck_tile::e8m0_t;
 };
 
 struct MX_GemmConfigEightWaves : MxGemmConfig
