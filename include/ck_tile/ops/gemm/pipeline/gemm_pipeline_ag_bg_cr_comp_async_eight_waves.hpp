@@ -248,12 +248,13 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
                                    index_t num_loop,
                                    void* p_smem) const
     {
-        return operator()(ck_tile::make_tuple(a_dram_block_window_tmp),
-                          ck_tile::element_wise::PassThrough{},
-                          ck_tile::make_tuple(b_dram_block_window_tmp),
-                          ck_tile::element_wise::PassThrough{},
-                          num_loop,
-                          p_smem);
+        return PipelineImpl<Scheduler>{}.template operator()<Problem::HasHotLoop, Problem::TailNum>(
+                a_dram_block_window_tmp,
+                ck_tile::element_wise::PassThrough{},
+                b_dram_block_window_tmp,
+                ck_tile::element_wise::PassThrough{},
+                num_loop,
+                p_smem);
     }
 };
 
