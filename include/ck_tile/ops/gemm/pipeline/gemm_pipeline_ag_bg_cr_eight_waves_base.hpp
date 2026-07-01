@@ -389,39 +389,39 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
             scheduler_func();
         };
 
-        auto main_body = [&](auto tic, auto toc) {
+        auto main_body = [&](auto tic, auto) {
             __builtin_amdgcn_sched_barrier(0);
             __builtin_amdgcn_s_setprio(1);
 
             calc_gemm(tic);
 
-            move_tile_window(a_copy_dram_window, a_move_step);
-            block_sync_lds_direct_load();
+            // move_tile_window(a_copy_dram_window, a_move_step);
+            // block_sync_lds_direct_load();
 
             __builtin_amdgcn_sched_barrier(0);
 
-            ADataType* smem_a_tic = reinterpret_cast<ADataType*>(smem01[tic] + lds_offset_a);
-            GlobalPrefetchAsync(smem_a_tic, a_copy_lds_window, a_copy_dram_window);
+            // ADataType* smem_a_tic = reinterpret_cast<ADataType*>(smem01[tic] + lds_offset_a);
+            // GlobalPrefetchAsync(smem_a_tic, a_copy_lds_window, a_copy_dram_window);
 
             __builtin_amdgcn_s_setprio(0);
 
-            move_tile_window(aq_copy_dram_window, aq_move_step);
-            move_tile_window(bq_copy_dram_window, bq_move_step);
-            aq_block_tile[tic] = load_tile(aq_copy_dram_window);
-            move_tile_window(b_copy_dram_window, b_move_step);
-            bq_block_tile[tic] = load_tile(bq_copy_dram_window);
+            // move_tile_window(aq_copy_dram_window, aq_move_step);
+            // move_tile_window(bq_copy_dram_window, bq_move_step);
+            // aq_block_tile[tic] = load_tile(aq_copy_dram_window);
+            // move_tile_window(b_copy_dram_window, b_move_step);
+            // bq_block_tile[tic] = load_tile(bq_copy_dram_window);
 
-            ADataType* smem_a_toc = reinterpret_cast<ADataType*>(smem01[toc] + lds_offset_a);
-            LocalPrefetchA(smem_a_toc, a_block_tile, a_lds_gemm_window);
+            // ADataType* smem_a_toc = reinterpret_cast<ADataType*>(smem01[toc] + lds_offset_a);
+            // LocalPrefetchA(smem_a_toc, a_block_tile, a_lds_gemm_window);
 
-            BDataType* smem_b_tic = reinterpret_cast<BDataType*>(smem01[tic] + lds_offset_b);
-            GlobalPrefetchAsync(smem_b_tic, b_copy_lds_window, b_copy_dram_window);
+            // BDataType* smem_b_tic = reinterpret_cast<BDataType*>(smem01[tic] + lds_offset_b);
+            // GlobalPrefetchAsync(smem_b_tic, b_copy_lds_window, b_copy_dram_window);
 
-            BDataType* smem_b_toc = reinterpret_cast<BDataType*>(smem01[toc] + lds_offset_b);
-            LocalPrefetchB(smem_b_toc, b_block_tiles, b_lds_gemm_window);
+            // BDataType* smem_b_toc = reinterpret_cast<BDataType*>(smem01[toc] + lds_offset_b);
+            // LocalPrefetchB(smem_b_toc, b_block_tiles, b_lds_gemm_window);
 
-            __builtin_amdgcn_sched_barrier(0);
-            block_sync_lds_direct_load<AQ_LOAD_INST + BQ_LOAD_INST + B_LOAD_INST>();
+            // __builtin_amdgcn_sched_barrier(0);
+            // block_sync_lds_direct_load<AQ_LOAD_INST + BQ_LOAD_INST + B_LOAD_INST>();
             __builtin_amdgcn_sched_barrier(0);
         };
 
