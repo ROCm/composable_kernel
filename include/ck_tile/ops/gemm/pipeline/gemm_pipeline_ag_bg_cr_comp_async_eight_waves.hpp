@@ -45,9 +45,6 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
     static constexpr index_t APackedSize = ck_tile::numeric_traits<ADataType>::PackedSize;
     static constexpr index_t BPackedSize = ck_tile::numeric_traits<BDataType>::PackedSize;
 
-    using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
-    using WarpGemm  = typename BlockGemm::WarpGemm;
-
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
     static constexpr auto I2 = number<2>{};
@@ -66,9 +63,9 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
 
     static constexpr index_t kflatKPerWarp = BlockGemmShape::flatKPerWarp;
 
-    static constexpr index_t MIterPerWarp = MPerBlock / (MWarps * WarpGemm::kM);
-    static constexpr index_t NIterPerWarp = NPerBlock / (NWarps * WarpGemm::kN);
-    static constexpr index_t KIterPerWarp = KPerBlock / (KWarps * WarpGemm::kK);
+    static constexpr index_t MXdlPackEff = Policy::template GetMXdlPackEff<Problem>();
+    static constexpr index_t NXdlPackEff = Policy::template GetNXdlPackEff<Problem>();
+    static constexpr index_t KXdlPackEff = Policy::template GetKXdlPackEff<Problem>();
 
     static constexpr bool Async = true;
 
@@ -97,6 +94,8 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
 
     static constexpr auto Scheduler = Problem::Scheduler;
 
+    static constexpr index_t ScaleBlockSize = 32;
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
     {
         // clang-format off
@@ -123,8 +122,6 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
         return Policy::template GetSmemSize<Problem>();
     }
 
-    static constexpr index_t MFMA_INST = MIterPerWarp * NIterPerWarp * KIterPerWarp;
-
     template <GemmPipelineScheduler Scheduler>
     struct PipelineImpl : public PipelineImplBase
     {
@@ -141,6 +138,8 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
                   typename BsDramBlockWindowTmp,
                   typename AElementFunction,
                   typename BElementFunction,
+                  typename ScaleADramBlockWindowTmp,
+                  typename ScaleBDramBlockWindowTmp,
                   typename std::enable_if_t<!is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
                                                 !is_detected<is_tuple, BsDramBlockWindowTmp>::value,
                                             bool>* = nullptr>
@@ -148,9 +147,23 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
                                        const AElementFunction& a_element_func,
                                        const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
+                                       const ScaleADramBlockWindowTmp& scale_a_window,
+                                       const ScaleBDramBlockWindowTmp& scale_b_window,
                                        index_t num_loop,
                                        void* __restrict__ p_smem) const
         {
+            constexpr bool IsScaledGemm = !is_null_tile_window_v<ScaleADramBlockWindowTmp> &&
+                                          !is_null_tile_window_v<ScaleBDramBlockWindowTmp>;
+            using BlockGemm =
+                remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem, IsScaledGemm>())>;
+            using WarpGemm = typename BlockGemm::WarpGemm;
+
+            constexpr index_t MIterPerWarp = MPerBlock / (MWarps * WarpGemm::kM);
+            constexpr index_t NIterPerWarp = NPerBlock / (NWarps * WarpGemm::kN);
+            constexpr index_t KIterPerWarp = KPerBlock / (KWarps * WarpGemm::kK);
+
+            constexpr index_t MFMA_INST = MIterPerWarp * NIterPerWarp * KIterPerWarp;
+
             // TODO: A/B elementwise functions currently not supported
             ignore = a_element_func;
             ignore = b_element_func;
@@ -183,12 +196,10 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
             // Hot loop scheduler
             // ------------------
             auto hot_loop_scheduler = [&]() {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                __builtin_amdgcn_sched_group_barrier(0x008, MIterPerWarp, 0); // MFMA
                 s_waitcnt_lgkm<4>();
                 __builtin_amdgcn_sched_group_barrier(0x004, 1, 0); // lgkmcnt / SALU
-                static_for<0, MFMA_INST - 3, 1>{}([&](auto) {
+                static_for<0, MFMA_INST - MIterPerWarp, 1>{}([&](auto) {
                     __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
                 });
                 __builtin_amdgcn_sched_barrier(0);
@@ -201,9 +212,56 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
                                                             num_loop,
                                                             a_dram_block_window_tmp,
                                                             b_dram_block_window_tmp,
+                                                            scale_a_window,
+                                                            scale_b_window,
                                                             hot_loop_scheduler);
         }
     };
+
+    template <
+        typename AsDramBlockWindowTmp,
+        typename BsDramBlockWindowTmp,
+        typename AElementFunction,
+        typename BElementFunction,
+        typename ScaleADramBlockWindowTmp,
+        typename ScaleBDramBlockWindowTmp,
+        typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
+                                      is_detected<is_tuple, BsDramBlockWindowTmp>::value &&
+                                      is_detected<is_tuple, ScaleADramBlockWindowTmp>::value &&
+                                      is_detected<is_tuple, ScaleBDramBlockWindowTmp>::value,
+                                  bool>* = nullptr>
+    CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const AElementFunction& a_element_func,
+                                   const BsDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const BElementFunction& b_element_func,
+                                   const ScaleADramBlockWindowTmp& scale_a_window,
+                                   const ScaleBDramBlockWindowTmp& scale_b_window,
+                                   index_t num_loop,
+                                   void* p_smem) const
+    {
+        // TODO: A/B windows are tuple of windows, but the implementation doesn't take that into
+        // account yet and just the first element is passed
+        static_assert(AsDramBlockWindowTmp::size() == 1);
+        static_assert(BsDramBlockWindowTmp::size() == 1);
+        static_assert(ScaleADramBlockWindowTmp::size() == 1);
+        static_assert(ScaleBDramBlockWindowTmp::size() == 1);
+
+        const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
+        const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
+        const auto RunPipeline  = [&](auto hot_loop_, auto tail_num_) {
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop_.value, tail_num_.value>(
+                a_dram_block_window_tmp[I0],
+                a_element_func,
+                b_dram_block_window_tmp[I0],
+                b_element_func,
+                scale_a_window[I0],
+                scale_b_window[I0],
+                num_loop,
+                p_smem);
+        };
+
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
+    }
 
     template <typename AsDramBlockWindowTmp,
               typename BsDramBlockWindowTmp,
@@ -219,6 +277,8 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
                                    index_t num_loop,
                                    void* p_smem) const
     {
+        using NullTileWindowType =
+            decltype(make_null_tile_window(make_tuple(number<0>{}, number<0>{})));
         // TODO: A/B windows are tuple of windows, but the implementation doesn't take that into
         // account yet and just the first element is passed
         static_assert(AsDramBlockWindowTmp::size() == 1);
@@ -231,6 +291,8 @@ struct GemmPipelineAgBgCrCompAsyncEightWaves : public BaseGemmPipelineAgBgCrComp
                 a_element_func,
                 b_dram_block_window_tmp[I0],
                 b_element_func,
+                NullTileWindowType{},
+                NullTileWindowType{},
                 num_loop,
                 p_smem);
         };

@@ -26,6 +26,8 @@ struct BlockGemmASmemBSmemCRegV1CustomPolicy
     static constexpr index_t kNWarps = BlockWarps::at(number<1>{});
     static constexpr index_t kKWarps = BlockWarps::at(number<2>{});
 
+    static constexpr bool PackMNIter = false;
+
     using WarpGemm = remove_cvref_t<WarpGemm_>;
 
     template <typename Problem>

@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
-#include "ck_tile/ops/gemm_mx/block/block_mx_asmem_breg_creg.hpp"
+#include "ck_tile/ops/gemm/block/block_mx_asmem_breg_creg.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 
 namespace ck_tile {
@@ -56,6 +56,9 @@ struct MXGemmPipelineAgBgCrPolicy : UniversalGemmPipelineAgBgCrPolicy
     public:
     static constexpr index_t AK1 = DWORDx4 * APackedSize;
     static constexpr index_t BK1 = DWORDx4 * BPackedSize;
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeA() { return AK1; }
+    CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeB() { return BK1; }
 
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
@@ -386,6 +389,8 @@ struct MXGemmPipelineAgBgCrPolicy
     FORWARD_METHOD_(MakeMX_ScaleB_FlatDramTileDistribution);
     FORWARD_METHOD_(GetSmemSizeA);
     FORWARD_METHOD_(GetSmemSize);
+    FORWARD_METHOD_(GetVectorSizeA);
+    FORWARD_METHOD_(GetVectorSizeB);
 
 #undef FORWARD_METHOD_
 

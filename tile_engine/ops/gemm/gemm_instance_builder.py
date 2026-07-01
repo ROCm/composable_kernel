@@ -520,7 +520,7 @@ class GemmKernelBuilder:
             }
         elif self.kernel_name_prefix == "mx_gemm":
             pipeline_impl_map = {
-                "comp_async": "ck_tile::MXGemmPipelineAgBgCrCompAsync",
+                "comp_async": "ck_tile::GemmPipelineAgBgCrCompAsync",
             }
             base_pipeline_map = {}
 
@@ -582,9 +582,6 @@ class GemmKernelBuilder:
 #include <hip/hip_runtime.h>
 #include "ck_tile/ops/gemm/kernel/grouped_gemm_kernel.hpp"
 """
-        elif self.kernel_name_prefix == "mx_gemm":
-            instance_code += """#include "ck_tile/ops/gemm_mx.hpp"
-"""
         return instance_code
 
     def populate_kernel_dtype_layout(self):
@@ -617,9 +614,7 @@ using CDataType = {get_dtype_string(c_type)};"""
         if self.kernel_name_prefix == "mx_gemm":
             instance_code += """
 using ScaleType = ck_tile::e8m0_t;
-using ScaleM = ck_tile::MXScalePointer<ScaleType, 1, 32>;
-using ScaleN = ck_tile::MXScalePointer<ScaleType, 1, 32>;
-using MxGemmHostArgs = ck_tile::MXGemmKernelArgs<ScaleM, ScaleN, 1, 1, 0>;"""
+using MxGemmHostArgs = ck_tile::MxGemmHostArgs<1, 1, 0>;"""
 
         if self.kernel_name_prefix == "gemm_multi_d":
             instance_code += f"""
@@ -684,7 +679,7 @@ struct SelectedKernel {{
     static constexpr bool kPadN = {"true" if pad_n in [True, "true"] else "false"};
     static constexpr bool kPadK = {"true" if pad_k in [True, "true"] else "false"};
     static constexpr bool TransposeC = false;
-    static constexpr bool DoubleSmemBuffer = {"true" if pipeline in ["compv4", "preshufflev2"] else "false"};"""
+    static constexpr bool DoubleSmemBuffer = {"true" if pipeline in ["compv4", "preshufflev2", "comp_async"] else "false"};"""
 
         if self.kernel_name_prefix in [
             "gemm_universal",
@@ -1069,17 +1064,17 @@ struct SelectedKernel {{
             instance_code += f"""
 
         // Kernel type
-        using Kernel = ck_tile::MXGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        using Kernel = ck_tile::MxGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
         // Kernel arguments
-        auto kargs = args;
+        auto kargs = Kernel::MakeKernelArgs(args);
 
-        if(!Kernel::Underlying::IsSupportedArgument(kargs)) {{
+        if(!Kernel::IsSupportedArgument(kargs)) {{
             throw std::runtime_error("Wrong! Arguments not supported! Skipping mx gemm!");
         }}
 
         // Get grid and block sizes
-        const dim3 grids = Kernel::GridSize(kargs);
+        const dim3 grids = Kernel::GridSize(args.M, args.N, args.k_batch);
         const dim3 blocks = Kernel::BlockSize();
 
         if(stream.log_level_ > 0) {{
@@ -1245,7 +1240,15 @@ struct SelectedKernel {{
             WarpTileM,
             WarpTileN,
             WarpTileK,
-            TransposeC>;
+            TransposeC,
+            1,         // NumWaveGroups
+            false,     // FixedVectorSize_
+            1,         // VectorSizeC_
+            1,         // BlockedXDLNPerWarp
+            false,     // DoubleSmemBuffer_
+            ADataType, // AComputeDataType
+            BDataType, // BComputeDataType
+            true>;     // TilesPacked_
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
         return instance_code
