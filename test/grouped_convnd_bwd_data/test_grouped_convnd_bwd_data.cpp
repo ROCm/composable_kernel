@@ -121,6 +121,7 @@ TYPED_TEST(TestGroupedConvndBwdData2d, Test2D)
     // GroupedGemmGroupsNum = 32, ZTilde * YTilde * XTilde = 32, MaxGroupedGemmGroupsNum = 32
     this->conv_params.push_back(
         {2, 2, 2, 16, 16, {4, 8}, {28, 28}, {4, 8}, {1, 1}, {1, 1}, {1, 1}});
+    this->conv_params.push_back({2, 1, 1, 1, 1, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back(
         {2, 2, 2, 192, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back(
