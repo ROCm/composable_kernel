@@ -416,6 +416,15 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
     {
         ignore = b_block_desc;
         ignore = b_block_buf;
+
+        static_assert(sizeof(AccDataType) == 4 && is_floating_point<AccDataType>::value,
+                      "bpreshuffle accumulator anchor requires 32-bit float AccDataType");
+
+        // The empty asm is a read/write VGPR use of the updated accumulator.
+        // It keeps each post-scale accumulator definition visible to the
+        // optimizer, which enables determinism for bitwise-stable repeated launches.
+        auto anchor_accumulator_value = [&](auto& value) { asm volatile("" : "+v"(value)); };
+
         __builtin_amdgcn_sched_barrier(0);
         static_assert(CScaleThreadDesc{}.GetLength(Number<0>{}) == 1,
                       "Pipeline v3 only support scaleblocksliceK=1");
@@ -642,11 +651,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     }
 
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
-                        vector_type<AccDataType, 2> c_scale_thread_vec;
-                        c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
-                            c_scale_thread_buf[m0];
-                        c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
-                            c_scale_thread_buf[m0];
+                        const auto c_scale_thread = c_scale_thread_buf[m0];
 
                         static_for<0, NRepeat, 1>{}([&](auto n0) {
                             constexpr auto mfma_buf_offset =
@@ -712,17 +717,19 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                             constexpr index_t c_offset =
                                 c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                            static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
-                                using pk_fma_type = typename vector_type<AccDataType, 2>::type;
-
-                                c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                                    .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
+                            // Keep the post-scale FMA scalar; the old packed 2-lane update hits
+                            // ROCm 7.2 gfx950 illegal-type legalization/codegen issues.
+                            static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
+                                auto& c_acc_vec =
+                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                        .template AsType<AccDataType>();
+                                const auto c_partial_acc =
                                     c_thread_buf_per_scale
                                         .GetVectorTypeReference(Number<scale_buf_offset>{})
-                                        .template AsType<pk_fma_type>()[t],
-                                    c_scale_thread_vec.template AsType<pk_fma_type>()[Number<0>{}],
-                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                                        .template AsType<pk_fma_type>()[t]);
+                                        .template AsType<AccDataType>()(t);
+                                c_acc_vec(t) = __builtin_elementwise_fma(
+                                    c_partial_acc, c_scale_thread, c_acc_vec(t));
+                                anchor_accumulator_value(c_acc_vec(t));
                             });
                         });
 
@@ -793,11 +800,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             a_blockwise_copy.RunWrite(a_block_desc, a_block_buf.At(I1));
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                vector_type<AccDataType, 2> c_scale_thread_vec;
-                c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
-                    c_scale_thread_buf[m0];
-                c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
-                    c_scale_thread_buf[m0];
+                const auto c_scale_thread = c_scale_thread_buf[m0];
 
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     constexpr auto mfma_buf_offset =
@@ -858,17 +861,18 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
-                        using pk_fma_type = typename vector_type<AccDataType, 2>::type;
-
-                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                            .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
+                    // Keep the post-scale FMA scalar; the old packed 2-lane update hits ROCm 7.2
+                    // gfx950 illegal-type legalization/codegen issues.
+                    static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
+                        auto& c_acc_vec = c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                              .template AsType<AccDataType>();
+                        const auto c_partial_acc =
                             c_thread_buf_per_scale
                                 .GetVectorTypeReference(Number<scale_buf_offset>{})
-                                .template AsType<pk_fma_type>()[t],
-                            c_scale_thread_vec.template AsType<pk_fma_type>()[Number<0>{}],
-                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                                .template AsType<pk_fma_type>()[t]);
+                                .template AsType<AccDataType>()(t);
+                        c_acc_vec(t) =
+                            __builtin_elementwise_fma(c_partial_acc, c_scale_thread, c_acc_vec(t));
+                        anchor_accumulator_value(c_acc_vec(t));
                     });
                 });
 
@@ -909,11 +913,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
             });
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                vector_type<AccDataType, 2> c_scale_thread_vec;
-                c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
-                    c_scale_thread_buf[m0];
-                c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
-                    c_scale_thread_buf[m0];
+                const auto c_scale_thread = c_scale_thread_buf[m0];
 
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     constexpr auto mfma_buf_offset =
@@ -974,17 +974,18 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
-                        using pk_fma_type = typename vector_type<AccDataType, 2>::type;
-
-                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                            .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
+                    // Keep the post-scale FMA scalar; the old packed 2-lane update hits ROCm 7.2
+                    // gfx950 illegal-type legalization/codegen issues.
+                    static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
+                        auto& c_acc_vec = c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                              .template AsType<AccDataType>();
+                        const auto c_partial_acc =
                             c_thread_buf_per_scale
                                 .GetVectorTypeReference(Number<scale_buf_offset>{})
-                                .template AsType<pk_fma_type>()[t],
-                            c_scale_thread_vec.template AsType<pk_fma_type>()[Number<0>{}],
-                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                                .template AsType<pk_fma_type>()[t]);
+                                .template AsType<AccDataType>()(t);
+                        c_acc_vec(t) =
+                            __builtin_elementwise_fma(c_partial_acc, c_scale_thread, c_acc_vec(t));
+                        anchor_accumulator_value(c_acc_vec(t));
                     });
                 });
 
@@ -1021,11 +1022,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
         else
         {
             static_for<0, MRepeat, 1>{}([&](auto m0) {
-                vector_type<AccDataType, 2> c_scale_thread_vec;
-                c_scale_thread_vec.template AsType<AccDataType>()(Number<0>{}) =
-                    c_scale_thread_buf[m0];
-                c_scale_thread_vec.template AsType<AccDataType>()(Number<1>{}) =
-                    c_scale_thread_buf[m0];
+                const auto c_scale_thread = c_scale_thread_buf[m0];
 
                 static_for<0, NRepeat, 1>{}([&](auto n0) {
                     constexpr auto mfma_buf_offset =
@@ -1087,17 +1084,18 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v3<BlockGemmPipelineS
                     constexpr index_t c_offset =
                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    static_for<0, xdlops_gemm.GetRegSizePerXdlops() / 2, 1>{}([&](auto t) {
-                        using pk_fma_type = typename vector_type<AccDataType, 2>::type;
-
-                        c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                            .template AsType<pk_fma_type>()(t) = __builtin_elementwise_fma(
+                    // Keep the post-scale FMA scalar; the old packed 2-lane update hits ROCm 7.2
+                    // gfx950 illegal-type legalization/codegen issues.
+                    static_for<0, xdlops_gemm.GetRegSizePerXdlops(), 1>{}([&](auto t) {
+                        auto& c_acc_vec = c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
+                                              .template AsType<AccDataType>();
+                        const auto c_partial_acc =
                             c_thread_buf_per_scale
                                 .GetVectorTypeReference(Number<scale_buf_offset>{})
-                                .template AsType<pk_fma_type>()[t],
-                            c_scale_thread_vec.template AsType<pk_fma_type>()[Number<0>{}],
-                            c_thread_buf.GetVectorTypeReference(Number<c_offset>{})
-                                .template AsType<pk_fma_type>()[t]);
+                                .template AsType<AccDataType>()(t);
+                        c_acc_vec(t) =
+                            __builtin_elementwise_fma(c_partial_acc, c_scale_thread, c_acc_vec(t));
+                        anchor_accumulator_value(c_acc_vec(t));
                     });
                 });
 
