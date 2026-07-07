@@ -341,17 +341,17 @@ struct CShuffleEpilogue
                           "LDS row stride must be 4B-aligned for bank-word padding logic");
             // calculate how many elements to pad to avoid bank conflict
 #if defined(__gfx950__) || defined(__gfx125__)
-#if defined(__gfx950__)
-            constexpr index_t ElemsPer4B = BytesPerBank / ck_tile::gcd(BytesPerBank, DataTypeSize);
-            constexpr auto ToWords       = [](index_t elems) constexpr {
-                return (elems * DataTypeSize) / BytesPerBank;
-            };
-            constexpr index_t BaseWords  = ToWords(BaseStrideElems);
-            constexpr index_t PadWords   = ((BaseWords % 2) == 0) ? 1 : 0;
-            constexpr auto PaddingAmount = PadWords * ElemsPer4B;
-#else
+// #if defined(__gfx950__)
+//             constexpr index_t ElemsPer4B = BytesPerBank / ck_tile::gcd(BytesPerBank, DataTypeSize);
+//             constexpr auto ToWords       = [](index_t elems) constexpr {
+//                 return (elems * DataTypeSize) / BytesPerBank;
+//             };
+//             constexpr index_t BaseWords  = ToWords(BaseStrideElems);
+//             constexpr index_t PadWords   = ((BaseWords % 2) == 0) ? 1 : 0;
+//             constexpr auto PaddingAmount = PadWords * ElemsPer4B;
+// #else
             constexpr auto PaddingAmount = VectorLen;
-#endif
+// #endif
 
             constexpr auto lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<MPerIterationShuffle / MLdsLayer>{},

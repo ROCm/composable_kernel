@@ -139,6 +139,7 @@ enum struct amd_buffer_coherence_enum
     // Other archs compatiblity
     DEVICE_NT0 = 0,
     SYSTEM_NT0 = 0,
+    GROUP_NT0  = 0,
     DEVICE_NT1 = glc,
     SYSTEM_NT1 = slc,
     DEVICE     = 0, // Required for template parsing (see GFX11 comment re: Two-Phase Lookup)

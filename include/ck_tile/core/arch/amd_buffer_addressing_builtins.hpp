@@ -1247,6 +1247,13 @@ llvm_amdgcn_raw_buffer_store_i16x4(int16x4_t vdata,
                                    index_t soffset,
                                    index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4i16");
 
+CK_TILE_DEVICE_EXTERN void
+llvm_amdgcn_raw_buffer_store_i16x8(int16x8_t vdata,
+                                   int32x4_t rsrc,
+                                   index_t voffset,
+                                   index_t soffset,
+                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v8i16");
+
 // buffer store i32
 CK_TILE_DEVICE_EXTERN void
 llvm_amdgcn_raw_buffer_store_i32(int32_t vdata,
@@ -2246,18 +2253,11 @@ CK_TILE_DEVICE void amd_buffer_store_impl(const thread_buffer<T, N> src_thread_d
         }
         else if constexpr(N == 8)
         {
-            llvm_amdgcn_raw_buffer_store_i16x4(
-                src_thread_data.template get_as<int16x4_t>()[number<0>{}],
+            llvm_amdgcn_raw_buffer_store_i16x8(
+                bit_cast<int16x8_t>(src_thread_data),
                 dst_wave_buffer_resource,
                 dst_thread_addr_offset,
                 dst_wave_addr_offset,
-                static_cast<index_t>(coherence));
-
-            llvm_amdgcn_raw_buffer_store_i16x4(
-                src_thread_data.template get_as<int16x4_t>()[number<1>{}],
-                dst_wave_buffer_resource,
-                dst_thread_addr_offset,
-                dst_wave_addr_offset + 4 * sizeof(bf16_t),
                 static_cast<index_t>(coherence));
         }
     }
