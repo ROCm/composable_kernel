@@ -12,6 +12,8 @@
 #include <sstream>
 #include <vector>
 #include <cmath>
+#include <cstdlib>
+#include <string>
 
 namespace ck_tile {
 namespace dispatcher {
@@ -50,26 +52,46 @@ class GeneratedTileKernelInstance : public KernelInstance
 
     bool supports(const Problem& problem) const override
     {
-        // Check dimension divisibility if padding not enabled
+        // Tile-divisibility gate, mirroring ck_tile::GemmKernel::IsSupportedArgument
+        // exactly. A dimension only needs to be a multiple of its tile size when an
+        // operand whose contiguous (inner) axis is that dimension participates AND
+        // padding for it is disabled. This is layout-dependent:
+        //
+        //   layout RowMajor A -> inner axis K   | layout ColMajor A -> inner axis M
+        //   layout RowMajor B -> inner axis N   | layout ColMajor B -> inner axis K
+        //   layout RowMajor C -> inner axis N   | layout ColMajor C -> inner axis M
+        //
+        // The old check blindly required M % TileM == 0 for every layout, which
+        // wrongly rejected e.g. rcr kernels (RowMajor A & C never gate M) on
+        // M-indivisible problems that Old-TE runs fine. Anything this lets through
+        // is still validated by the kernel's own IsSupportedArgument inside launch(),
+        // so the bridge stays a strict functional equivalent of Old-TE.
         constexpr bool pad_m = SelectedKernel::kPadM;
         constexpr bool pad_n = SelectedKernel::kPadN;
         constexpr bool pad_k = SelectedKernel::kPadK;
 
-        if(pad_m && pad_n && pad_k)
-        {
-            return true; // Padding enabled - supports any size
-        }
-
-        // Check divisibility
         constexpr int tile_m = SelectedKernel::TileM;
         constexpr int tile_n = SelectedKernel::TileN;
         constexpr int tile_k = SelectedKernel::TileK;
 
-        if(!pad_m && problem.M % tile_m != 0)
+        const auto is_row = [](LayoutTag l) { return l == LayoutTag::RowMajor; };
+        const bool row_a  = is_row(key_.signature.layout_a);
+        const bool row_b  = is_row(key_.signature.layout_b);
+        const bool row_c  = is_row(key_.signature.layout_c);
+
+        // Which problem dimensions are actually constrained for this layout combo.
+        const bool require_m = (!row_a) || (!row_c); // ColMajor A or C gate M
+        const bool require_n = row_b || row_c;       // RowMajor B or C gate N
+        const bool require_k = row_a || (!row_b);    // RowMajor A or ColMajor B gate K
+
+        const std::int64_t k_grain =
+            static_cast<std::int64_t>(tile_k) * (problem.k_batch > 0 ? problem.k_batch : 1);
+
+        if(require_m && !pad_m && problem.M % tile_m != 0)
             return false;
-        if(!pad_n && problem.N % tile_n != 0)
+        if(require_n && !pad_n && problem.N % tile_n != 0)
             return false;
-        if(!pad_k && problem.K % tile_k != 0)
+        if(require_k && !pad_k && problem.K % k_grain != 0)
             return false;
 
         return true;
@@ -106,11 +128,11 @@ class GeneratedTileKernelInstance : public KernelInstance
         stream_cfg.stream_id_      = reinterpret_cast<hipStream_t>(stream);
         stream_cfg.time_kernel_    = bench;
         stream_cfg.log_level_      = 0;
-        stream_cfg.cold_niters_    = bench ? 5 : 0;
-        stream_cfg.nrepeat_        = bench ? 10 : 1;
+        stream_cfg.cold_niters_    = bench ? env_int("CK_TILE_BENCH_WARMUP", 50) : 0;
+        stream_cfg.nrepeat_        = bench ? env_int("CK_TILE_BENCH_REPEAT", 100) : 1;
         stream_cfg.is_gpu_timer_   = bench;
-        stream_cfg.flush_cache_    = false;
-        stream_cfg.rotating_count_ = 1;
+        stream_cfg.flush_cache_    = bench && env_bool("CK_TILE_BENCH_FLUSH", true);
+        stream_cfg.rotating_count_ = bench ? env_int("CK_TILE_BENCH_ROTATING", 1000) : 1;
 
         // Call the generated kernel's launch method
         return SelectedKernel::launch(args, stream_cfg);
@@ -134,6 +156,33 @@ class GeneratedTileKernelInstance : public KernelInstance
     }
 
     private:
+    // Read an integer benchmark knob from the environment, falling back to
+    // `fallback` when unset or unparseable.
+    static int env_int(const char* name, int fallback)
+    {
+        const char* v = std::getenv(name);
+        if(v == nullptr || *v == '\0')
+            return fallback;
+        char* end      = nullptr;
+        const long out = std::strtol(v, &end, 10);
+        if(end == v)
+            return fallback;
+        return static_cast<int>(out);
+    }
+
+    // Read a boolean benchmark knob ("0"/"false"/"off", any case => false, else true).
+    static bool env_bool(const char* name, bool fallback)
+    {
+        const char* v = std::getenv(name);
+        if(v == nullptr || *v == '\0')
+            return fallback;
+        std::string s(v);
+        for(char& c : s)
+            if(c >= 'A' && c <= 'Z')
+                c = static_cast<char>(c - 'A' + 'a');
+        return !(s == "0" || s == "false" || s == "off");
+    }
+
     KernelKey key_;
     std::string name_;
 };
