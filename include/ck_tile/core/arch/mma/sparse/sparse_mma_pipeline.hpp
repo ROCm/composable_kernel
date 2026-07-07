@@ -85,14 +85,21 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
     using MmaOp                      = MmaOp_;
     static constexpr bool CTranspose = CTranspose_;
 
-    using ADataType = typename MmaOp::ADataType;
-    using BDataType = typename MmaOp::BDataType;
-    using CDataType = typename MmaOp::CDataType;
-
-    static_assert(!MmaOpTraits<MmaOp>::IsSupported || std::is_same_v<ADataType, ADataType_>);
-    static_assert(!MmaOpTraits<MmaOp>::IsSupported || std::is_same_v<BDataType, BDataType_>);
-    static_assert(!MmaOpTraits<MmaOp>::IsSupported || std::is_same_v<CDataType, CDataType_>);
     static_assert(!CTranspose, "Cannot transpose C in sparse intrinsics.");
+    static_assert(!MmaOpTraits<MmaOp>::IsSupported ||
+                  std::is_same_v<typename MmaOp::ADataType, ADataType_>);
+    static_assert(!MmaOpTraits<MmaOp>::IsSupported ||
+                  std::is_same_v<typename MmaOp::BDataType, BDataType_>);
+    static_assert(!MmaOpTraits<MmaOp>::IsSupported ||
+                  std::is_same_v<typename MmaOp::CDataType, CDataType_>);
+
+    // In the old WarpGemm system, CTranspose swaps ADataType and BDataType at the Attribute and
+    // WarpGemm level, but not at the Impl level.
+    using ADataType =
+        std::conditional_t<CTranspose, typename MmaOp::BDataType, typename MmaOp::ADataType>;
+    using BDataType =
+        std::conditional_t<CTranspose, typename MmaOp::ADataType, typename MmaOp::BDataType>;
+    using CDataType = typename MmaOp::CDataType;
 
     // WaveTile dimensions (Used to be fragment dims but higher level expects these to include k
     // iteration!)
@@ -125,13 +132,45 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
     {
         struct Impl
         {
-            static constexpr index_t kCNLane = MmaOp::kN / MmaOp::kCNBlocks;
-            static constexpr index_t kK      = MmaOp::kK;
+            static constexpr index_t kM = MmaOp::kM;
+            static constexpr index_t kN = MmaOp::kN;
+            static constexpr index_t kK = MmaOp::kK;
+
+            // M size excluding blocks. Dubious for gfx1250, needs attention.
+            static constexpr index_t kAMLane =
+                is_target_id_any_of<CompilerTarget, amdgcn_target_id::GFX1250>()
+                    ? 16
+                    : MmaOp::kM / MmaOp::kCMBlocks;
+
+            // N size exluding blocks.
+            static constexpr index_t kBNLane = MmaOp::kN / MmaOp::kCNBlocks;
+
+            // This value is the size of the middle K dimension, i.e. the second-fastest changing K
+            // dimension of the layout unmerge operations.
+            static constexpr index_t kABKLane = MmaOp::kK / MmaOp::kABKPerLane;
+
+            // Seems like identical definition for MFMA, and does not exist for WMMA.
+            static constexpr index_t kABKPerLane = MmaOp::kABKPerLane;
+
+            static constexpr index_t kCMLane     = MmaOp::kM / MmaOp::kCMBlocks / MmaOp::kCMPerLane;
+            static constexpr index_t kCNLane     = MmaOp::kN / MmaOp::kCNBlocks;
+            static constexpr index_t kCM0PerLane = MmaOp::kCMNumAccess;
+            static constexpr index_t kCM1PerLane = MmaOp::kCMPerLane / MmaOp::kCMNumAccess;
         };
+
+        // Overall handling of AttrNumAccess in CK Tile is a big mess. This definition will probably
+        // work for most MFMA intrinsics but not for WMMA, which in the CK Tile system has a sort of
+        // "canonical" unmerge of the K dimension which happens *before* the "true" attrNumAccess.
+        // Further complicating factor are packNumAccess, differing A/B numAccess values, and the
+        // recent complication of AttrNumAccess by for some reason adding the datatype packedness
+        // into it.
+        static constexpr index_t AttrNumAccessV = AttrNumAccessAV;
     };
     // TODO: TileDistrEncCalc only supports K composition (kIter). Setting UncompressedA to true
     // ensures that we get a tile distribution for the uncompressed A matrix, which is what the
     // higher level caller will show up with (external).
+    // NOTE: TileDistrEncCalc swaps the A and B tile distribution encodings internally in case of
+    // CTranspose!
     using EncCalc           = TileDistrEncCalc<MmaOp,
                                                CTranspose,
                                                SwizzleFactor,
@@ -143,6 +182,7 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
     using BWarpDstrEncoding = typename EncCalc::BWarpDstrEncoding;
     using CWarpDstrEncoding = typename EncCalc::CWarpDstrEncoding;
 
+    // NOTE: ADataType AND AWarpDstr are already swapped here in case of CTranspose!
     using AWarpDstr = remove_cvref_t<decltype(make_static_tile_distribution(AWarpDstrEncoding{}))>;
     using BWarpDstr = remove_cvref_t<decltype(make_static_tile_distribution(BWarpDstrEncoding{}))>;
     using CWarpDstr = remove_cvref_t<decltype(make_static_tile_distribution(CWarpDstrEncoding{}))>;
@@ -185,6 +225,8 @@ struct SparseMmaPipeline : public MmaPipelineBase<SparseMmaPipeline<ADataType_, 
 
     // ATransformResult is a big ext_vector plus idx, B and C are static_distributed tensors. Fix
     // later TODO.
+    // NOTE: Here we have arrived at the Impl level. We known nothing about CTranspose here, we just
+    // perform the intrinsic, potentially multiple times for K composition.
     template <typename... Params, typename ATransformResult, typename BTensor, typename CTensor>
     CK_TILE_DEVICE static void execImpl(ATransformResult& a, BTensor& b, CTensor& c)
     {

@@ -79,13 +79,20 @@ struct ScaleMmaPipeline : public MmaPipelineBase<ScaleMmaPipeline<ADataType_, BD
     using MmaOp                      = MmaOp_; // Expose the selected MmaOp
     static constexpr bool CTranspose = CTranspose_;
 
-    using ADataType = typename MmaOp::ADataType;
-    using BDataType = typename MmaOp::BDataType;
-    using CDataType = typename MmaOp::CDataType;
+    static_assert(!MmaOpTraits<MmaOp>::IsSupported ||
+                  std::is_same_v<typename MmaOp::ADataType, ADataType_>);
+    static_assert(!MmaOpTraits<MmaOp>::IsSupported ||
+                  std::is_same_v<typename MmaOp::BDataType, BDataType_>);
+    static_assert(!MmaOpTraits<MmaOp>::IsSupported ||
+                  std::is_same_v<typename MmaOp::CDataType, CDataType_>);
 
-    static_assert(!MmaOpTraits<MmaOp>::IsSupported || std::is_same_v<ADataType, ADataType_>);
-    static_assert(!MmaOpTraits<MmaOp>::IsSupported || std::is_same_v<BDataType, BDataType_>);
-    static_assert(!MmaOpTraits<MmaOp>::IsSupported || std::is_same_v<CDataType, CDataType_>);
+    // In the old WarpGemm system, CTranspose swaps ADataType and BDataType at the Attribute and
+    // WarpGemm level, but not at the Impl level.
+    using ADataType =
+        std::conditional_t<CTranspose, typename MmaOp::BDataType, typename MmaOp::ADataType>;
+    using BDataType =
+        std::conditional_t<CTranspose, typename MmaOp::ADataType, typename MmaOp::BDataType>;
+    using CDataType = typename MmaOp::CDataType;
 
     // WaveTile dimensions (Used to be fragment dims but higher level expects these to include k
     // iteration!)
@@ -121,9 +128,42 @@ struct ScaleMmaPipeline : public MmaPipelineBase<ScaleMmaPipeline<ADataType_, BD
     {
         struct Impl
         {
-            static constexpr index_t kCNLane = MmaOp::kN / MmaOp::kCNBlocks;
-            static constexpr index_t kK      = MmaOp::kK;
+            static constexpr index_t kM = MmaOp::kM;
+            static constexpr index_t kN = MmaOp::kN;
+            static constexpr index_t kK = MmaOp::kK;
+
+            // M size excluding blocks. Dubious for gfx1250, needs attention.
+            static constexpr index_t kAMLane =
+                is_target_id_any_of<CompilerTarget, amdgcn_target_id::GFX1250>()
+                    ? 16
+                    : MmaOp::kM / MmaOp::kCMBlocks;
+
+            // N size exluding blocks.
+            static constexpr index_t kBNLane = MmaOp::kN / MmaOp::kCNBlocks;
+
+            // This value is the size of the middle K dimension, i.e. the second-fastest changing K
+            // dimension of the layout unmerge operations.
+            static constexpr index_t kABKLane = MmaOp::kK / MmaOp::kABKPerLane;
+
+            // Seems like identical definition for MFMA, and does not exist for WMMA.
+            static constexpr index_t kABKPerLane = MmaOp::kABKPerLane;
+
+            static constexpr index_t kCMLane     = MmaOp::kM / MmaOp::kCMBlocks / MmaOp::kCMPerLane;
+            static constexpr index_t kCNLane     = MmaOp::kN / MmaOp::kCNBlocks;
+            static constexpr index_t kCM0PerLane = MmaOp::kCMNumAccess;
+            static constexpr index_t kCM1PerLane = MmaOp::kCMPerLane / MmaOp::kCMNumAccess;
+
+            // TODO: We probably want a separate pipeline for the scale16 intrinsics.
+            static constexpr index_t kScaleGranularity = 32;
         };
+
+        // Overall handling of AttrNumAccess in CK Tile is a big mess. This definition will probably
+        // work for most MFMA intrinsics but not for WMMA, which in the CK Tile system has a sort of
+        // "canonical" unmerge of the K dimension which happens *before* the "true" attrNumAccess.
+        // Further complicating factor are packNumAccess, differing A/B numAccess values, and the
+        // recent complication of AttrNumAccess by for some reason adding the datatype packedness
+        // into it.
+        static constexpr index_t AttrNumAccessV = AttrNumAccessAV;
     };
 
     // Unsupported MmaOps with nonTrivial AttrNumAccess lead to issues in calculator.
@@ -133,7 +173,9 @@ struct ScaleMmaPipeline : public MmaPipelineBase<ScaleMmaPipeline<ADataType_, BD
         MmaOpTraits<MmaOp>::IsSupported ? AttrNumAccessBV : 1;
 
     // TODO: TileDistrEncCalc only supports K composition (kIter) and always gives post-compression
-    // A layout. No Swizzle support yet.
+    // A layout.
+    // NOTE: TileDistrEncCalc swaps the A and B tile distribution encodings internally in case of
+    // CTranspose!
     using EncCalc           = TileDistrEncCalc<MmaOp,
                                                CTranspose,
                                                SwizzleFactor,
@@ -150,15 +192,10 @@ struct ScaleMmaPipeline : public MmaPipelineBase<ScaleMmaPipeline<ADataType_, BD
 
     // Full static distributed tensor types including composition. This is the baseline input and
     // output format for all exec and transform functions.
+    // NOTE: ADataType AND AWarpDstr are already swapped here in case of CTranspose!
     using AWarpTensor = static_distributed_tensor<ADataType, AWarpDstr>;
     using BWarpTensor = static_distributed_tensor<BDataType, BWarpDstr>;
     using CWarpTensor = static_distributed_tensor<CDataType, CWarpDstr>;
-
-    // We use these thread_buffer types internally in a number of places, because it allows us to
-    // directly select the ext_vectors for individual MmaOp calls.
-    using AThreadBufType = thread_buffer<typename MmaOp::AVecType, FragsM * FragsK>;
-    using BThreadBufType = thread_buffer<typename MmaOp::BVecType, FragsN * FragsK>;
-    using CThreadBufType = thread_buffer<typename MmaOp::CVecType, FragsM * FragsN>;
 
     // Transforms
     using ATransform = typename MmaTransforms::ATransform;
@@ -175,6 +212,8 @@ struct ScaleMmaPipeline : public MmaPipelineBase<ScaleMmaPipeline<ADataType_, BD
     static_assert(WaveTileK % MmaOp::kK == 0u, "WaveTileK must be a multiple of MmaOp::kK");
 
     // TODO: Why does this even need to be a template? The types should be known.
+    // NOTE: Here we have arrived at the Impl level. We known nothing about CTranspose here, we just
+    // perform the intrinsic, potentially multiple times for K composition.
     template <typename... Params,
               typename ATensor,
               typename BTensor,
@@ -184,10 +223,10 @@ struct ScaleMmaPipeline : public MmaPipelineBase<ScaleMmaPipeline<ADataType_, BD
     CK_TILE_DEVICE static void
     execImpl(ATensor& a, BTensor& b, CTensor& c, ScaleADataType& scale_A, ScaleBDataType& scale_B)
     {
-        static_assert(
-            detail::is_similiar_distributed_tensor_v<remove_cvref_t<CTensor>, CWarpTensor> &&
-            detail::is_similiar_distributed_tensor_v<remove_cvref_t<ATensor>, AWarpTensor> &&
-            detail::is_similiar_distributed_tensor_v<remove_cvref_t<BTensor>, BWarpTensor>);
+        // Thread_buffer types allow us to select the ext_vectors for individual MmaOp calls.
+        using AThreadBufType = thread_buffer<typename MmaOp::AVecType, FragsM * FragsK>;
+        using BThreadBufType = thread_buffer<typename MmaOp::BVecType, FragsN * FragsK>;
+        using CThreadBufType = thread_buffer<typename MmaOp::CVecType, FragsM * FragsN>;
 
         auto& a_buf = reinterpret_cast<const AThreadBufType&>(a);
         auto& b_buf = reinterpret_cast<const BThreadBufType&>(b);
