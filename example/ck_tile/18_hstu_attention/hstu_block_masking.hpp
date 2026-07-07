@@ -194,7 +194,7 @@ struct HstuCrossAttentionBlockMaskWithLocal
         };
     }
 
-    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col)
+    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
     {
         int row_id;
         int col_id;
@@ -441,7 +441,7 @@ struct HstuSelfAttentionBlockMaskWithLocal
         };
     }
 
-    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col)
+    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
     {
         int row_id;
         int col_id;
@@ -593,7 +593,7 @@ struct HstuCrossAttentionBlockMaskNoLocal
         };
     }
 
-    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col)
+    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
     {
         int row_id;
         int col_id;
@@ -729,7 +729,7 @@ struct HstuSelfAttentionBlockMaskNoLocal
         };
     }
 
-    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col)
+    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
     {
         int row_id;
         int col_id;
