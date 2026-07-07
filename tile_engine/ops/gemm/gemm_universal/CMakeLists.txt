@@ -10,6 +10,11 @@ option(ENABLE_CCACHE_GEMM_UNIVERSAL "Enable ccache for GEMM Universal ops compil
 # Store the directory path for use in functions
 set(GEMM_UNIVERSAL_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
 
+# Sweep config JSONs live at the op root (shared single source of truth with
+# the dispatcher GEMM bridge). Old-TE reads the same files the bridge sweeps.
+set(GEMM_UNIVERSAL_CONFIG_DIR "${CMAKE_CURRENT_LIST_DIR}/../configs"
+    CACHE PATH "Directory holding gemm sweep config JSONs")
+
 # Function to create individual GEMM Universal targets
 function(create_individual_gemm_universal_target datatype layout trait tile_config config_json)
     # Use the parent scope GEMM_UNIVERSAL_GPU_TARGETS_INDIVIDUAL variable
@@ -125,15 +130,15 @@ function(build_individual_gemm_universal_targets datatype layout)
     # Check environment variable first
     if(DEFINED ENV{GEMM_UNIVERSAL_CONFIG_FILE} AND NOT "$ENV{GEMM_UNIVERSAL_CONFIG_FILE}" STREQUAL "")
         set(config_filename "$ENV{GEMM_UNIVERSAL_CONFIG_FILE}")
-        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${config_filename}")
+        set(json_blob "${GEMM_UNIVERSAL_CONFIG_DIR}/${config_filename}")
         message(VERBOSE "  Using config from environment variable: ${config_filename}")
     elseif(NOT "${GEMM_UNIVERSAL_CONFIG_FILE}" STREQUAL "")
         # Use CMake variable if set
-        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${GEMM_UNIVERSAL_CONFIG_FILE}")
+        set(json_blob "${GEMM_UNIVERSAL_CONFIG_DIR}/${GEMM_UNIVERSAL_CONFIG_FILE}")
         message(VERBOSE "  Using custom config: ${GEMM_UNIVERSAL_CONFIG_FILE}")
     else()
         # Use default config for all layouts
-        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
+        set(json_blob "${GEMM_UNIVERSAL_CONFIG_DIR}/default_config.json")
         message(VERBOSE "  Using default config for layout ${layout}")
     endif()
 

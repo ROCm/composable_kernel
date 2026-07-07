@@ -1073,7 +1073,7 @@ def _generate_single_kernel_subprocess(args: dict) -> Tuple[bool, Optional[str],
             "--config",
             config_file,
             "--variants",
-            "standard",
+            args.get("variant", "standard"),
         ]
 
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=300)

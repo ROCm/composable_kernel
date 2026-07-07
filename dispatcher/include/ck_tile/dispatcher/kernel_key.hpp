@@ -373,6 +373,11 @@ inline Scheduler string_to_scheduler(const std::string& str)
 {
     if(str == "auto")
         return Scheduler::Auto;
+    // Preshuffle kernels emit "default"; the codegen maps it to Scheduler::Auto
+    // (see codegen_common.py SCHEDULER_TO_DISPATCHER), so mirror that here
+    // instead of silently falling through to Intrawave.
+    if(str == "default")
+        return Scheduler::Auto;
     if(str == "intrawave")
         return Scheduler::Intrawave;
     if(str == "interwave")

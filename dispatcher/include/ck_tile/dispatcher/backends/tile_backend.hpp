@@ -29,27 +29,37 @@ class TileKernelInstance : public KernelInstance
 
     bool supports(const Problem& problem) const override
     {
-        // Check dimension divisibility if padding not enabled
+        // Tile-divisibility gate, layout-aware to match
+        // ck_tile::GemmKernel::IsSupportedArgument (see generated_tile_backend.hpp
+        // for the full rationale). A dimension is only constrained when an operand
+        // whose inner axis is that dimension participates and its padding is off:
+        //   RowMajor A->K, ColMajor A->M; RowMajor B->N, ColMajor B->K;
+        //   RowMajor C->N, ColMajor C->M.
         constexpr bool pad_m = SelectedKernel::kPadM;
         constexpr bool pad_n = SelectedKernel::kPadN;
         constexpr bool pad_k = SelectedKernel::kPadK;
 
-        if(pad_m && pad_n && pad_k)
-        {
-            // Padding enabled - supports any size
-            return true;
-        }
-
-        // Check divisibility
         constexpr int tile_m = SelectedKernel::TileM;
         constexpr int tile_n = SelectedKernel::TileN;
         constexpr int tile_k = SelectedKernel::TileK;
 
-        if(!pad_m && problem.M % tile_m != 0)
+        const auto is_row = [](LayoutTag l) { return l == LayoutTag::RowMajor; };
+        const bool row_a  = is_row(key_.signature.layout_a);
+        const bool row_b  = is_row(key_.signature.layout_b);
+        const bool row_c  = is_row(key_.signature.layout_c);
+
+        const bool require_m = (!row_a) || (!row_c);
+        const bool require_n = row_b || row_c;
+        const bool require_k = row_a || (!row_b);
+
+        const std::int64_t k_grain =
+            static_cast<std::int64_t>(tile_k) * (problem.k_batch > 0 ? problem.k_batch : 1);
+
+        if(require_m && !pad_m && problem.M % tile_m != 0)
             return false;
-        if(!pad_n && problem.N % tile_n != 0)
+        if(require_n && !pad_n && problem.N % tile_n != 0)
             return false;
-        if(!pad_k && problem.K % tile_k != 0)
+        if(require_k && !pad_k && problem.K % k_grain != 0)
             return false;
 
         // Check shared memory budget if specified
