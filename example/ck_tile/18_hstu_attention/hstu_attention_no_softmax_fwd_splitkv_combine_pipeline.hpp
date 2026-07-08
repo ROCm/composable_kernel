@@ -48,8 +48,6 @@ struct HstuAttentionNoSoftmaxFwdSplitKVCombinePipeline
         }
     }();
 
-    static constexpr const char* name = "hstu_no_softmax_fwd_splitkv_combine";
-
     CK_TILE_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
