@@ -102,8 +102,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         }
     }();
 
-    static constexpr const char* name = "qr_hstu";
-
     using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
 
     CK_TILE_DEVICE static constexpr ck_tile::index_t GetSmemSize()
