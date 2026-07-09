@@ -398,6 +398,113 @@ def _bf16_u16_to_fp32(u16: np.ndarray) -> np.ndarray:
     return (u16.astype(np.uint32) << 16).view(np.float32)
 
 
+# ---------------------------------------------------------------------------
+# fp8 (E4M3) / bf8 (E5M2) -- FNUZ ("NANOO") encoding used by gfx942/MI300.
+#
+# numpy has no native 8-bit float, and the C ABI only cares about the 1-byte
+# memory layout (sizeof(fp8_t) == sizeof(bf8_t) == 1). We carry the value as a
+# uint8 bit pattern. As with bf16, the DECODE is the load-bearing half: it must
+# return the exact value the device's fp8_t/bf8_t represents for a byte, so the
+# NumPy reference multiplies bit-for-bit what the GPU multiplies. The ENCODE only
+# needs to land on the nearest representable byte.
+#
+# FNUZ format (gfx942): bias = 2^(exp_bits-1); the all-1s exponent is a normal
+# number (no Inf), the sole NaN is the sign=1/exp=0/mant=0 byte (0x80), and there
+# is no negative zero. gfx950/MI350 uses the OCP fp8 format instead; this codec
+# targets the gfx942 default and the OCP path needs separate handling.
+# ---------------------------------------------------------------------------
+
+
+@functools.lru_cache(maxsize=None)
+def _fnuz_decode_table(exp_bits: int, mant_bits: int) -> np.ndarray:
+    """Build the 256-entry byte -> fp32 value table for an 8-bit FNUZ float.
+
+    The table is a pure function of (exp_bits, mant_bits), so it is cached; the
+    returned array is marked read-only because callers share the one instance.
+    """
+    bias = (1 << (exp_bits - 1))
+    mant_max = 1 << mant_bits
+    sign_shift = exp_bits + mant_bits
+    exp_mask = (1 << exp_bits) - 1
+    table = np.zeros(256, dtype=np.float32)
+    for b in range(256):
+        sign = (b >> sign_shift) & 1
+        exp = (b >> mant_bits) & exp_mask
+        mant = b & (mant_max - 1)
+        if exp == 0 and mant == 0:
+            # +0 (0x00); the negative-zero slot (0x80) is the lone NaN.
+            table[b] = np.float32(np.nan) if sign else np.float32(0.0)
+            continue
+        if exp == 0:
+            val = (mant / mant_max) * (2.0 ** (1 - bias))  # subnormal
+        else:
+            val = (1.0 + mant / mant_max) * (2.0 ** (exp - bias))  # normal
+        table[b] = np.float32(-val if sign else val)
+    table.flags.writeable = False  # shared cached instance -- do not mutate
+    return table
+
+
+def _fnuz_encode(x: np.ndarray, exp_bits: int, mant_bits: int) -> np.ndarray:
+    """Encode fp32 -> nearest 8-bit FNUZ float, returned as a uint8 bit pattern."""
+    table = _fnuz_decode_table(exp_bits, mant_bits)
+    sign_byte = np.uint8(1 << (exp_bits + mant_bits))  # 0x80
+
+    # Positive half (bytes 0..127) holds every non-negative magnitude, sorted.
+    # Compare in float64: for very large inputs the gap between the two top
+    # magnitudes is below fp32 resolution, which would tie and mis-saturate.
+    pos_mag = table[: int(sign_byte)].astype(np.float64)
+    order = np.argsort(pos_mag)
+    sorted_mag = pos_mag[order]
+    sorted_byte = order.astype(np.uint8)
+
+    xf = np.ascontiguousarray(x, dtype=np.float32)
+    ax = np.abs(xf).astype(np.float64)
+    # Both neighbours come from the raw insertion point: raw==size saturates to
+    # the top magnitude (lo==hi), raw==0 pins to zero, otherwise compare the two.
+    raw = np.searchsorted(sorted_mag, ax)
+    hi = np.clip(raw, 0, sorted_mag.size - 1)
+    lo = np.clip(raw - 1, 0, sorted_mag.size - 1)
+    pick_lo = np.abs(sorted_mag[lo] - ax) <= np.abs(sorted_mag[hi] - ax)
+    chosen = np.where(pick_lo, lo, hi)
+    out = sorted_byte[chosen]
+
+    # Apply sign, but never the 0x80 (-0 == NaN) slot: zeros stay +0.
+    is_zero = sorted_mag[chosen] == 0
+    out = np.where((xf < 0) & ~is_zero, out | sign_byte, out)
+    out = np.where(np.isnan(xf), sign_byte, out)  # NaN inputs -> NaN byte
+    return out.astype(np.uint8).reshape(np.shape(x))
+
+
+def _fp32_to_fp8_u8(x: np.ndarray) -> np.ndarray:
+    """Encode fp32 -> fp8 E4M3 (FNUZ) bit pattern in a uint8 array."""
+    return _fnuz_encode(x, exp_bits=4, mant_bits=3)
+
+
+def _fp8_u8_to_fp32(u8: np.ndarray) -> np.ndarray:
+    """Decode an fp8 E4M3 (FNUZ) bit pattern back to fp32."""
+    return _fnuz_decode_table(4, 3)[u8.astype(np.intp)]
+
+
+def _fp32_to_bf8_u8(x: np.ndarray) -> np.ndarray:
+    """Encode fp32 -> bf8 E5M2 (FNUZ) bit pattern in a uint8 array."""
+    return _fnuz_encode(x, exp_bits=5, mant_bits=2)
+
+
+def _bf8_u8_to_fp32(u8: np.ndarray) -> np.ndarray:
+    """Decode a bf8 E5M2 (FNUZ) bit pattern back to fp32."""
+    return _fnuz_decode_table(5, 2)[u8.astype(np.intp)]
+
+
+# Output (C) element dtype for an A/B element dtype, mirroring the codegen's
+# CommonTypeMappings.get_output_dtype: fp8/bf8 accumulate into fp16, int8 into
+# int32, everything else stores in its own dtype.
+_OUTPUT_DTYPE = {"fp8": "fp16", "bf8": "fp16", "int8": "int32"}
+
+
+def _output_dtype(dtype: str) -> str:
+    return _OUTPUT_DTYPE.get(dtype, dtype)
+
+
 def _dtype_from_kernel_name(name: str) -> str:
     """Extract the dtype token from a kernel name like ``gemm_<dtype>_<layout>_...``."""
     parts = name.split("_")
@@ -459,20 +566,47 @@ class GpuGemmRunner:
         B_lay = B if lb == "r" else B.T
         C_shape = (M, N) if lc == "r" else (N, M)
 
+        # Build A/B host buffers in the kernel's element dtype. The encode
+        # helpers (bf16/fp8/bf8) already force a contiguous float32 source, so an
+        # outer ascontiguousarray would only add a redundant copy; the native
+        # numpy dtypes (fp16/int8) still need it.
         if dtype == "bf16":
-            # _fp32_to_bf16_u16 already forces a contiguous float32 buffer, so
-            # an outer ascontiguousarray here would only add a redundant copy.
             A_h = _fp32_to_bf16_u16(A_lay)
             B_h = _fp32_to_bf16_u16(B_lay)
-            C_h = np.zeros(C_shape, dtype=np.uint16)
+        elif dtype == "fp8":
+            A_h = _fp32_to_fp8_u8(A_lay)
+            B_h = _fp32_to_fp8_u8(B_lay)
+        elif dtype == "bf8":
+            A_h = _fp32_to_bf8_u8(A_lay)
+            B_h = _fp32_to_bf8_u8(B_lay)
+        elif dtype == "int8":
+            A_h = np.ascontiguousarray(A_lay, dtype=np.int8)
+            B_h = np.ascontiguousarray(B_lay, dtype=np.int8)
         else:  # fp16 (default)
             A_h = np.ascontiguousarray(A_lay, dtype=np.float16)
             B_h = np.ascontiguousarray(B_lay, dtype=np.float16)
-            C_h = np.zeros(C_shape, dtype=np.float16)
+
+        # The C buffer's element size must equal sizeof(CDataType): fp8/bf8
+        # accumulate into fp16, int8 into int32, otherwise the input dtype.
+        out_dtype = _output_dtype(dtype)
+        _C_NP = {"fp16": np.float16, "bf16": np.uint16, "int32": np.int32}
+        if out_dtype not in _C_NP:
+            # A silent fp16 fallback would size the host C buffer wrong for an
+            # unrecognized dtype (sizeof(CDataType) mismatch -> corrupt results
+            # across the C ABI). Fail loudly so a new dtype is added here.
+            raise ValueError(
+                f"unsupported C dtype {out_dtype!r} (from input dtype {dtype!r}); "
+                "add it to _C_NP so the host buffer matches sizeof(CDataType)"
+            )
+        C_h = np.zeros(C_shape, dtype=_C_NP[out_dtype])
 
         status, time_ms = self.lib.run(A_h, B_h, C_h, M, N, K)
 
-        C_dec = _bf16_u16_to_fp32(C_h) if dtype == "bf16" else C_h
+        # Decode the output back to a comparable numeric array.
+        if out_dtype == "bf16":
+            C_dec = _bf16_u16_to_fp32(C_h)
+        else:  # fp16 / int32 are already directly comparable
+            C_dec = C_h
         C_out = C_dec if lc == "r" else C_dec.T
 
         tflops = (problem.flops / (time_ms * 1e-3)) / 1e12 if time_ms > 0 else 0.0
@@ -859,7 +993,8 @@ def expand_sweep(
         c = GemmKernelConfig(
             dtype_a=dtype,
             dtype_b=dtype,
-            dtype_c=dtype,
+            dtype_c=_output_dtype(dtype),
+            dtype_acc=("int32" if dtype == "int8" else "fp32"),
             layout_a=_LAYOUT_WORD[la],
             layout_b=_LAYOUT_WORD[lb],
             layout_c=_LAYOUT_WORD[lc],

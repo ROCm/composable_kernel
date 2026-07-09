@@ -8,6 +8,9 @@
 Locks in the bit-level helpers that the TE -> Dispatcher GEMM bridge relies on:
   * bf16 <-> uint16 encoding (round-to-nearest-even), since numpy has no native
     bf16 and the runner carries bf16 as a uint16 bit pattern.
+  * fp8 (E4M3) / bf8 (E5M2) FNUZ <-> uint8 encoding, used for the gfx942 8-bit
+    float surface. The decode must be exact to the device format; the encode
+    only needs to land on the nearest representable byte.
   * dtype / layout parsing from the compiled kernel name, which drives how the
     runner lays out host buffers.
 
@@ -29,6 +32,12 @@ from gemm_utils import (  # noqa: E402
     GemmKernelConfig,
     _fp32_to_bf16_u16,
     _bf16_u16_to_fp32,
+    _fp32_to_fp8_u8,
+    _fp8_u8_to_fp32,
+    _fp32_to_bf8_u8,
+    _bf8_u8_to_fp32,
+    _fnuz_decode_table,
+    _output_dtype,
     _dtype_from_kernel_name,
     _layout_from_kernel_name,
 )
@@ -78,6 +87,70 @@ class TestBf16Encoding(unittest.TestCase):
         self.assertEqual(u16.itemsize, 2)  # must match sizeof(bf16_t) on device
 
 
+class TestFp8Bf8Encoding(unittest.TestCase):
+    """fp8 E4M3 / bf8 E5M2 in the FNUZ format used by gfx942.
+
+    The decode is the load-bearing half (it must equal the device value for a
+    byte); the encode must land on the nearest representable byte and saturate.
+    """
+
+    def test_format_ranges(self):
+        # FNUZ maxima: E4M3 -> 2^7 * 1.875 = 240; E5M2 -> 2^15 * 1.75 = 57344.
+        t43 = _fnuz_decode_table(4, 3)
+        t52 = _fnuz_decode_table(5, 2)
+        self.assertEqual(float(np.nanmax(t43)), 240.0)
+        self.assertEqual(float(np.nanmin(t43)), -240.0)
+        self.assertEqual(float(np.nanmax(t52)), 57344.0)
+        self.assertEqual(float(np.nanmin(t52)), -57344.0)
+
+    def test_zero_and_nan_slots(self):
+        # 0x00 is +0; the negative-zero slot 0x80 is the lone NaN (FNUZ).
+        for tab in (_fnuz_decode_table(4, 3), _fnuz_decode_table(5, 2)):
+            self.assertEqual(float(tab[0x00]), 0.0)
+            self.assertTrue(np.isnan(tab[0x80]))
+
+    def test_exactly_representable_roundtrip(self):
+        exact = np.array([0.0, 0.5, 1.0, -1.0, 2.0, -2.0, 1.5, -0.25, 4.0, 8.0],
+                         dtype=np.float32)
+        np.testing.assert_array_equal(
+            _fp8_u8_to_fp32(_fp32_to_fp8_u8(exact)), exact)
+        np.testing.assert_array_equal(
+            _bf8_u8_to_fp32(_fp32_to_bf8_u8(exact)), exact)
+
+    def test_decode_is_consistent_with_encode(self):
+        # The parity contract: ref multiplies decode(encode(x)), so the pair must
+        # be self-consistent and every encoded byte must decode finite.
+        rng = np.random.default_rng(1)
+        x = (rng.standard_normal(5000) * 0.1).astype(np.float32)
+        for enc, dec in ((_fp32_to_fp8_u8, _fp8_u8_to_fp32),
+                         (_fp32_to_bf8_u8, _bf8_u8_to_fp32)):
+            d = dec(enc(x))
+            self.assertTrue(np.all(np.isfinite(d)))
+
+    def test_saturates_no_inf(self):
+        # FNUZ has no infinity: huge magnitudes clamp to the finite max.
+        big = np.array([1e30, -1e30], dtype=np.float32)
+        self.assertEqual(float(_fp8_u8_to_fp32(_fp32_to_fp8_u8(big))[0]), 240.0)
+        self.assertEqual(float(_bf8_u8_to_fp32(_fp32_to_bf8_u8(big))[1]), -57344.0)
+
+    def test_dtype_and_size(self):
+        for enc in (_fp32_to_fp8_u8, _fp32_to_bf8_u8):
+            u8 = enc(np.zeros(4, dtype=np.float32))
+            self.assertEqual(u8.dtype, np.uint8)
+            self.assertEqual(u8.itemsize, 1)  # must match sizeof(fp8_t/bf8_t)
+
+
+class TestOutputDtype(unittest.TestCase):
+    """Output (C) element dtype must mirror the codegen's get_output_dtype."""
+
+    def test_mapping(self):
+        self.assertEqual(_output_dtype("fp16"), "fp16")
+        self.assertEqual(_output_dtype("bf16"), "bf16")
+        self.assertEqual(_output_dtype("fp8"), "fp16")
+        self.assertEqual(_output_dtype("bf8"), "fp16")
+        self.assertEqual(_output_dtype("int8"), "int32")
+
+
 class TestKernelNameParsing(unittest.TestCase):
     """The runner reads dtype + layout straight from the compiled .so name."""
 
@@ -114,13 +187,14 @@ class TestConfigNameContract(unittest.TestCase):
     codegen -> runtime; parsing it back must recover dtype and layout."""
 
     def test_name_roundtrips_through_parsers(self):
-        for dtype in ("fp16", "bf16"):
+        for dtype in ("fp16", "bf16", "fp8", "bf8", "int8"):
             for la, lb, lc in (("row", "col", "row"),
                                ("row", "row", "row"),
                                ("col", "col", "row"),
                                ("col", "row", "row")):
                 cfg = GemmKernelConfig(
-                    dtype_a=dtype, dtype_b=dtype, dtype_c=dtype,
+                    dtype_a=dtype, dtype_b=dtype, dtype_c=_output_dtype(dtype),
+                    dtype_acc=("int32" if dtype == "int8" else "fp32"),
                     layout_a=la, layout_b=lb, layout_c=lc,
                 )
                 name = cfg.name
