@@ -108,7 +108,16 @@ class GeneratedTileKernelInstance : public KernelInstance
     {
         (void)d_ptrs; // Not used in basic GEMM
 
-        // Create arguments using constructor (correct order!)
+        // Leading dimensions depend on each operand's layout, NOT a fixed
+        // rcr assumption: RowMajor A/B/C -> inner axis is K/N/N; ColMajor ->
+        // M/K/M. Hard-coding {K, K, N} only happens to be right for rcr and for
+        // square problems (M==N==K); it corrupts every non-square rrr/ccr/crr
+        // launch. Derive each stride from the kernel's real layout instead.
+        const auto is_row   = [](LayoutTag l) { return l == LayoutTag::RowMajor; };
+        const auto stride_a = is_row(key_.signature.layout_a) ? problem.K : problem.M;
+        const auto stride_b = is_row(key_.signature.layout_b) ? problem.N : problem.K;
+        const auto stride_c = is_row(key_.signature.layout_c) ? problem.N : problem.M;
+
         // Order from GemmHostArgs constructor: a_ptr, b_ptr, e_ptr, k_batch, M, N, K, stride_A,
         // stride_B, stride_E
         ck_tile::GemmHostArgs args(a_ptr,           // a_ptr
@@ -118,9 +127,9 @@ class GeneratedTileKernelInstance : public KernelInstance
                                    problem.M,       // M
                                    problem.N,       // N
                                    problem.K,       // K
-                                   problem.K,       // stride_A (row-major A: stride = K)
-                                   problem.K,       // stride_B (column-major B: stride = K)
-                                   problem.N        // stride_E/C (row-major C: stride = N)
+                                   stride_a,        // stride_A
+                                   stride_b,        // stride_B
+                                   stride_c         // stride_E/C
         );
 
         const bool bench = this->benchmarking_;

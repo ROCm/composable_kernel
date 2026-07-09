@@ -44,21 +44,27 @@ from gemm_utils import (  # noqa: E402
     setup_multiple_gemm_dispatchers,
     _fp32_to_bf16_u16,
     _bf16_u16_to_fp32,
+    _fp32_to_fp8_u8,
+    _fp8_u8_to_fp32,
+    _fp32_to_bf8_u8,
+    _bf8_u8_to_fp32,
+    _output_dtype,
 )
 from ctypes_utils import detect_gpu_arch, get_build_dir  # noqa: E402
 
 # (dtype, layout) surface the regular bridge supports. Column-major C is rejected
 # by ck_tile's universal GEMM at build, so every layout keeps row-major C, which
-# leaves exactly the four A/B combinations below. Both dtypes cover all four.
+# leaves exactly the four A/B combinations below. Every dtype covers all four.
+#
+# fp16/bf16 are the PR #8479 surface; fp8 (E4M3), bf8 (E5M2) and int8 are the
+# remaining dtypes TE's plain GEMM has MFMA warp tiles for (fp8/bf8 -> fp16 out,
+# int8 -> int32 out). int8 only has warp tiles on gfx942; on other arches its
+# kernels simply fail to build and the case skips (handled below).
+_FLOAT_DTYPES = ("fp16", "bf16", "fp8", "bf8")
+_INT_DTYPES = ("int8",)
+_LAYOUTS = ("rcr", "rrr", "ccr", "crr")
 _CASES = [
-    ("fp16", "rcr"),
-    ("fp16", "rrr"),
-    ("fp16", "ccr"),
-    ("fp16", "crr"),
-    ("bf16", "rcr"),
-    ("bf16", "rrr"),
-    ("bf16", "ccr"),
-    ("bf16", "crr"),
+    (dt, lay) for dt in (*_FLOAT_DTYPES, *_INT_DTYPES) for lay in _LAYOUTS
 ]
 
 # Padded default algorithm: pad_* all True so M/N need not divide the tile, which
@@ -81,25 +87,72 @@ _SHAPES = [
     ("awkward", 257, 129, 512),
 ]
 
-# Global-relative-error gates. fp16 measured ~3-4e-4 and bf16 ~8e-3 on gfx942;
-# these leave headroom without masking a real regression.
-_TOL = {"fp16": 2e-3, "bf16": 1.5e-2}
+# Global-relative-error gates. fp16 measured ~3-4e-4 and bf16 ~8e-3 on gfx942.
+# fp8/bf8 are far coarser (3- and 2-bit mantissa) so their gates are looser; int8
+# is an exact integer accumulation so it must match bit-for-bit. The fp8/bf8
+# gates are first-cut headroom values and may want tightening once measured on a
+# GPU.
+_TOL = {
+    "fp16": 2e-3,
+    "bf16": 1.5e-2,
+    "fp8": 1.5e-1,
+    "bf8": 3.0e-1,
+    "int8": 0.0,
+}
 
 _LAYOUT_WORD = {"r": "row", "c": "col"}
 
 
-def _emulate(x: np.ndarray, dtype: str) -> np.ndarray:
-    """Round fp32 to the kernel's storage dtype so the CPU reference matches what
-    the GPU actually multiplies (and stores)."""
+def _emulate_input(x: np.ndarray, dtype: str) -> np.ndarray:
+    """Round an fp32 operand to the kernel's storage dtype so the CPU reference
+    multiplies exactly what the GPU does. int8 inputs are already integral."""
     if dtype == "bf16":
         return _bf16_u16_to_fp32(_fp32_to_bf16_u16(x))
+    if dtype == "fp8":
+        return _fp8_u8_to_fp32(_fp32_to_fp8_u8(x))
+    if dtype == "bf8":
+        return _bf8_u8_to_fp32(_fp32_to_bf8_u8(x))
+    if dtype == "int8":
+        return x.astype(np.float64)  # exact; widened to avoid product overflow
     return x.astype(np.float16).astype(np.float32)
+
+
+def _emulate_output(c: np.ndarray, out_dtype: str) -> np.ndarray:
+    """Round the fp32 accumulator to the kernel's C storage dtype."""
+    if out_dtype == "bf16":
+        return _bf16_u16_to_fp32(_fp32_to_bf16_u16(c))
+    if out_dtype == "int32":
+        return c  # integer accumulation is exact
+    return c.astype(np.float16).astype(np.float32)  # fp16
+
+
+def _make_inputs(dtype, M, N, K, rng):
+    """Random A (MxK), B (KxN) for a dtype: floats for the float dtypes, small
+    integers for int8 (kept small so the int32 accumulation cannot overflow)."""
+    if dtype == "int8":
+        A = rng.integers(-4, 5, size=(M, K)).astype(np.float32)
+        B = rng.integers(-4, 5, size=(K, N)).astype(np.float32)
+        return A, B
+    A = (rng.standard_normal((M, K)) * 0.1).astype(np.float32)
+    B = (rng.standard_normal((K, N)) * 0.1).astype(np.float32)
+    return A, B
+
+
+def _reference(A, B, dtype):
+    """NumPy reference matching the kernel: round inputs to the storage dtype,
+    accumulate (fp32 for floats / exact int for int8), then round to C dtype."""
+    out_dtype = _output_dtype(dtype)
+    acc = _emulate_input(A, dtype) @ _emulate_input(B, dtype)
+    ref = _emulate_output(acc, out_dtype)
+    return ref.astype(np.int32) if out_dtype == "int32" else ref
 
 
 def _config(dtype: str, layout: str, arch: str) -> GemmKernelConfig:
     la, lb, lc = layout
     return GemmKernelConfig(
-        dtype_a=dtype, dtype_b=dtype, dtype_c=dtype,
+        dtype_a=dtype, dtype_b=dtype,
+        dtype_c=_output_dtype(dtype),
+        dtype_acc=("int32" if dtype == "int8" else "fp32"),
         layout_a=_LAYOUT_WORD[la], layout_b=_LAYOUT_WORD[lb], layout_c=_LAYOUT_WORD[lc],
         gfx_arch=arch, **_ALGO,
     )
@@ -161,17 +214,13 @@ class GemmBridgeParity(unittest.TestCase):
         _, M, N, K = shape
         problem = GemmProblem(M=M, N=N, K=K)
         rng = np.random.default_rng(42)
-        A = (rng.standard_normal((M, K)) * 0.1).astype(np.float32)
-        B = (rng.standard_normal((K, N)) * 0.1).astype(np.float32)
+        A, B = _make_inputs(dtype, M, N, K, rng)
 
         runner = GpuGemmRunner(lib_path=so)
         # The .so is the contract endpoint: the name it reports must be the config
-        # name that drove codegen + the force-include build.
-        self.assertEqual(runner.kernel_name, GemmKernelConfig(
-            dtype_a=dtype, dtype_b=dtype, dtype_c=dtype,
-            layout_a=_LAYOUT_WORD[layout[0]], layout_b=_LAYOUT_WORD[layout[1]],
-            layout_c=_LAYOUT_WORD[layout[2]], gfx_arch=self.arch, **_ALGO,
-        ).name)
+        # name that drove codegen + the force-include build. The kernel name keys
+        # off the input dtype (dtype_a), not the C/acc dtype.
+        self.assertEqual(runner.kernel_name, _config(dtype, layout, self.arch).name)
 
         result = runner.run(A, B, problem)
         self.assertTrue(
@@ -179,8 +228,8 @@ class GemmBridgeParity(unittest.TestCase):
             f"{dtype}/{layout} {shape[0]} run failed (status {result.status})",
         )
 
-        ref = _emulate(_emulate(A, dtype) @ _emulate(B, dtype), dtype)
-        max_rel = _max_rel(result.output, ref)
+        ref = _reference(A, B, dtype)
+        max_rel = _max_rel(result.output.astype(np.float64), ref.astype(np.float64))
         self.assertLessEqual(
             max_rel, _TOL[dtype],
             f"{dtype}/{layout} {shape[0]} max_rel={max_rel:.2e} > {_TOL[dtype]:.0e}",
@@ -237,14 +286,13 @@ def _main() -> int:
         for sname, M, N, K in _SHAPES:
             total += 1
             problem = GemmProblem(M=M, N=N, K=K)
-            A = (rng.standard_normal((M, K)) * 0.1).astype(np.float32)
-            B = (rng.standard_normal((K, N)) * 0.1).astype(np.float32)
+            A, B = _make_inputs(dtype, M, N, K, rng)
             result = runner.run(A, B, problem)
             if not result.success:
                 print(f"  {tag:<12} {sname:<12} {'RUN FAILED':>9} status={result.status}")
                 continue
-            ref = _emulate(_emulate(A, dtype) @ _emulate(B, dtype), dtype)
-            mr = _max_rel(result.output, ref)
+            ref = _reference(A, B, dtype)
+            mr = _max_rel(result.output.astype(np.float64), ref.astype(np.float64))
             ok = mr <= _TOL[dtype]
             passed += ok
             print(f"  {tag:<12} {sname:<12} {result.tflops:>9.1f} "
