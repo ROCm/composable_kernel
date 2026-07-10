@@ -303,6 +303,13 @@ struct BlockGemmARegBRegCRegEightWavesV1
                     merge_sequences(c_iter_idx{}, c_warp_y_index_zeros),
                     merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
                     c_warp_tensor.get_thread_buffer());
+
+                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0);
+                if constexpr(nIter == 0 && mIter == MIterPerWarp - 1 && kIter == 0)
+                {
+                    s_waitcnt_lgkm<4>();
+                    __builtin_amdgcn_sched_barrier(0);
+                }
             });
         });
     }

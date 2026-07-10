@@ -97,7 +97,11 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     using AQuantGroupSize           = QuantGroupSize;
     using BQuantGroupSize           = SafeTupleElement_t<Tuple, 11, QuantGroupSize>;
     using BQLayout                  = SafeTupleElement_t<Tuple, 12, AQLayout>;
+    using DsDataType                = SafeTupleElement_t<Tuple, 13, ck_tile::tuple<>>;
+    using DsLayout                  = SafeTupleElement_t<Tuple, 14, ck_tile::tuple<>>;
     using AccDataType               = float; // accumulate always in float
+
+    static_assert(DsDataType::size() == DsLayout::size());
 
     // Get the quant-type specific data types from traits
     using QuantTraits     = QuantTypeTraits<QuantType>;
@@ -139,7 +143,8 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     void TearDown() override { static_cast<Derived*>(this)->TearDownQuantTypeSpecific(); }
 
     // Common test execution logic
-    void invoke_quant_gemm(const ck_tile::QuantGemmHostArgs& args,
+    template <typename HostArgs>
+    void invoke_quant_gemm(const HostArgs& args,
                            const ck_tile::stream_config& s,
                            bool allow_runtime_splitk_tail = false)
     {
