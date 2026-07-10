@@ -1402,7 +1402,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                 ave_time += RunMultiDGemm<InMemoryDataOperationEnum::Set>(arg, stream_config);
             }
 
-            arg.Print();
+            if(stream_config.log_level_ > 0)
+            {
+                arg.Print();
+            }
 
             // Transpose from NHWGC to NGCHW
             if constexpr(NeedTransposeKernel)

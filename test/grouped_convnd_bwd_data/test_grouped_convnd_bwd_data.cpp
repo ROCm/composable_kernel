@@ -139,7 +139,6 @@ TYPED_TEST(TestGroupedConvndBwdData2d, Test2D)
     this->conv_params.push_back({2, 1, 1, 1, 32, {8, 8}, {16, 16}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back({2, 1, 1, 64, 3, {8, 8}, {16, 16}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back({2, 1, 1, 1, 1, {8, 8}, {16, 16}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-
     // G=1, stride>1, 2D, no D-tensors. gemms_count in {4, 9, 36}.
     this->conv_params.push_back(
         {2, 1, 16, 256, 128, {5, 5}, {40, 175}, {2, 2}, {1, 1}, {1, 1}, {1, 1}});
