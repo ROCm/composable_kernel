@@ -507,11 +507,8 @@ struct GemmPipelineAgBgCrEightWavesImplBase : public GemmPipelineAgBgCrImplBase<
         if constexpr(HasHotLoop && TailNum == TailNumber::Even)
         {
             asm volatile(";; Even Tail Start ;;");
-            __builtin_amdgcn_s_barrier();
             main_body(I0, I1);
-            __builtin_amdgcn_s_barrier();
             asm volatile(";; Even Tail End ;;");
-            __builtin_amdgcn_s_barrier();
         }
 
         constexpr int tic = HasHotLoop ? (TailNum == TailNumber::Odd ? 0 : 1) : 1 - N_LOOP % 2;
