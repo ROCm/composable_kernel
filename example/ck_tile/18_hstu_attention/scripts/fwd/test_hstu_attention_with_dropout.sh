@@ -1,7 +1,7 @@
 #!/bin/bash
 
 BUILD=build
-EXE=$BUILD/bin/tile_example_hstu_attention
+EXE="$BUILD/bin/tile_example_hstu_attention_fwd -p_drop=0.2"
 
 attn_scale=0
 if [ $# -ge 1 ]; then

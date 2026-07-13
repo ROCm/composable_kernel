@@ -1,9 +1,7 @@
 #!/bin/bash
 
 BUILD=build
-Training=${TEST_HSTU_FWD_TRAINING:-0}
-
-EXE="$BUILD/bin/tile_example_hstu_attention -softmax=1 -training=$Training -p_drop=0.2"
+EXE="$BUILD/bin/tile_example_hstu_attention_fwd -p_drop=0.2"
 
 ndist=0
 

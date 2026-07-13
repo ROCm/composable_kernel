@@ -8,9 +8,9 @@ if [ $# -ge 1 ]; then
 fi
 
 if [ $USE_SOFTMAX -eq 1 ]; then
-    EXE="$BUILD/bin/tile_example_hstu_attention -v=0 -perf=1 -softmax=1"
+    EXE="$BUILD/bin/tile_example_hstu_attention_fwd -v=0 -perf=1 -softmax=1"
 else
-    EXE="$BUILD/bin/tile_example_hstu_attention -v=0 -perf=1"
+    EXE="$BUILD/bin/tile_example_hstu_attention_fwd -v=0 -perf=1"
 fi
 
 set -x 

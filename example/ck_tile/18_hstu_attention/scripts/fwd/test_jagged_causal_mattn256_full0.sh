@@ -11,7 +11,7 @@ BUILD=build
 
 Training=${TEST_HSTU_FWD_TRAINING:-0}
 
-EXE="$BUILD/bin/tile_example_hstu_attention -training=$Training"
+EXE="$BUILD/bin/tile_example_hstu_attention_fwd -training=$Training"
 
 dtype="bf16"
 
