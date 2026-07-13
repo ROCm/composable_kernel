@@ -10,9 +10,9 @@ fi
 Training=${TEST_HSTU_FWD_TRAINING:-0}
 
 if [ $USE_SOFTMAX -eq 1 ]; then
-    EXE="$BUILD/bin/tile_example_hstu_attention -softmax=1 -training=$Training -p_drop=0.2"
+    EXE="$BUILD/bin/tile_example_hstu_attention_fwd -softmax=1 -training=$Training"
 else
-    EXE="$BUILD/bin/tile_example_hstu_attention -training=$Training -p_drop=0.2"
+    EXE="$BUILD/bin/tile_example_hstu_attention_fwd -training=$Training"
 fi
 
 for T in "fp16" "bf16"; do

@@ -2,7 +2,7 @@
 ## This script can be used the verifying the using of WarpGemm 32x32x16 which is used by hdim64 + softmax
 
 BUILD=build
-EXE="$BUILD/bin/tile_example_hstu_attention -softmax=0 -p_drop=0.2"
+EXE="$BUILD/bin/tile_example_hstu_attention_fwd -softmax=0"
 
 attn_scale=1.0
 ndist=1

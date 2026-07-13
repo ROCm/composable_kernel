@@ -10,9 +10,9 @@ if [ $# -ge 1 ]; then
 fi
 
 if [ $USE_SOFTMAX -eq 1 ]; then
-    EXE="$BUILD/bin/tile_example_hstu_attention -softmax=1"
+    EXE="$BUILD/bin/tile_example_hstu_attention_fwd -softmax=1"
 else
-    EXE="$BUILD/bin/tile_example_hstu_attention"
+    EXE="$BUILD/bin/tile_example_hstu_attention_fwd"
 fi
 
 for dtype in "fp16" "bf16"; do

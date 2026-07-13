@@ -1,9 +1,7 @@
 #!/bin/bash
 
 BUILD=build
-Training=${TEST_HSTU_FWD_TRAINING:-0}
-
-EXE="$BUILD/bin/tile_example_hstu_attention -softmax=1 -training=$Training"
+EXE=$BUILD/bin/tile_example_hstu_attention_fwd
 
 attn_scale=0
 if [ $# -ge 1 ]; then
