@@ -1351,6 +1351,14 @@ struct impl::ext_vector<pk_fp6x16_t, 2>
 };
 
 template <>
+struct impl::ext_vector<pk_fp6x16_t, 4>
+{
+    static constexpr index_t N = 4;
+    using value_type           = f6x16xN_tt<4, f6_kind::fp6>;
+    using type                 = f6x16xN_tt<4, f6_kind::fp6>;
+};
+
+template <>
 struct impl::ext_vector<pk_bf6x16_t, 1>
 {
     static constexpr index_t N = 1;
@@ -1359,20 +1367,19 @@ struct impl::ext_vector<pk_bf6x16_t, 1>
 };
 
 template <>
+struct impl::ext_vector<pk_bf6x16_t, 4>
+{
+    static constexpr index_t N = 4;
+    using value_type           = f6x16xN_tt<4, f6_kind::bf6>;
+    using type                 = f6x16xN_tt<4, f6_kind::bf6>;
+};
+
+template <>
 struct impl::ext_vector<pk_bf6x16_t, 2>
 {
     static constexpr index_t N = 2;
     using value_type           = f6x16xN_tt<2, f6_kind::bf6>;
     using type                 = f6x16xN_tt<2, f6_kind::bf6>;
-};
-
-// Used as AVecType / BVecType for the gfx1250 16x16x128 mx-scale wmma kernel
-template <>
-struct impl::ext_vector<pk_fp6x16_t, 4>
-{
-    static constexpr index_t N = 4;
-    using value_type           = f6x16xN_tt<4, f6_kind::fp6>;
-    using type                 = f6x16xN_tt<4, f6_kind::fp6>;
 };
 
 // Arithmetic operations using float conversion

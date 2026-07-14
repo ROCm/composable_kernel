@@ -95,7 +95,7 @@ struct MmaOpTraits<amdgcn_mma<ADataType_,
     constexpr static bool IsWmma   = is_mma_op_wmma_v<MmaOp>;
     constexpr static bool IsDense  = OpFamily_ == MmaOpFamily::DENSE;
     constexpr static bool IsSparse = OpFamily_ == MmaOpFamily::SPARSE;
-    constexpr static bool IsScale  = OpFamily_ == MmaOpFamily::SCALE;
+    constexpr static bool IsScale  = is_scale_op_family(OpFamily_);
     constexpr static bool IsSupported =
         is_mma_op_supported_v<MmaOp> && OpFamily_ != MmaOpFamily::UNDEFINED;
 };
