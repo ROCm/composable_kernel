@@ -39,7 +39,7 @@
 #include "ck_tile/core/arch/mma/scale/scale_selector.hpp"
 #include "ck_tile/core/arch/mma/scale/scale_traits.hpp"
 #include "ck_tile/core/arch/mma/scale/scale_transforms.hpp"
-#include "ck_tile/core/arch/mma/scale/wmma/scale_gfx12.hpp"
+#include "ck_tile/core/arch/mma/scale/wmma/scale_gfx125.hpp"
 #include "ck_tile/core/arch/mma/scale/wmma/selector.hpp"
 #include "ck_tile/core/arch/mma/sparse/mfma/selector.hpp"
 #include "ck_tile/core/arch/mma/sparse/mfma/sparse_gfx9.hpp"

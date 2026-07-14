@@ -3,33 +3,37 @@
 
 #pragma once
 
-#include "ck_tile/core/numeric/float8.hpp"
+#include "ck_tile/core/arch/mma/mma_data_format.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
-#include "ck_tile/core/numeric/pk_f6.hpp"
 #include "ck_tile/core/numeric/pk_fp4.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_params.hpp"
 
-namespace ck_tile::core::arch::mma {
-namespace scale::detail {
+#include <type_traits>
 
-// Utility for converting the datatype of the A or B input matrix in a scale intrinsics to the
-// appropriate datatype flag. Note that this is not the same as the flag indicating the scale
-// datatype, see ScaleDataTypeToEnum.
-template <typename T>
-inline constexpr int32_t ScaleDataTypeToFlag_v = [] {
-    // sizeof(T) trick to only trigger the static assert for unsupported datatypes.
-    static_assert(sizeof(T) == 0, "Unsupported scale data type");
-    return -1;
-}();
-template <>
-inline constexpr int32_t ScaleDataTypeToFlag_v<fp8_t> = 0; // e4m3
-template <>
-inline constexpr int32_t ScaleDataTypeToFlag_v<bf8_t> = 1; // e5m2
-template <>
-inline constexpr int32_t ScaleDataTypeToFlag_v<pk_fp6x16_t> = 2; // e2m3
-template <>
-inline constexpr int32_t ScaleDataTypeToFlag_v<pk_bf6x16_t> = 3; // e3m2
-template <>
-inline constexpr int32_t ScaleDataTypeToFlag_v<pk_fp4_t> = 4; // e2m1
+namespace ck_tile::core::arch::mma::scale::detail {
 
-} // namespace scale::detail
-} // namespace ck_tile::core::arch::mma
+template <typename DataType, int32_t ScaleFlag>
+inline constexpr bool is_valid_ScaleVecType()
+{
+    [[maybe_unused]] constexpr int32_t data_type_check = PackedDataTypeToFlag_v<DataType>;
+
+    if constexpr(std::is_same_v<DataType, pk_fp4_t>)
+    {
+        return ScaleFlag == static_cast<int32_t>(ScaleDataType::E8M0) ||
+               ScaleFlag == static_cast<int32_t>(ScaleDataType::E5M3) ||
+               ScaleFlag == static_cast<int32_t>(ScaleDataType::E4M3);
+    }
+    else
+    {
+        return ScaleFlag == static_cast<int32_t>(ScaleDataType::E8M0);
+    }
+}
+
+template <typename ADataType, typename BDataType, int32_t ScaleAFlag, int32_t ScaleBFlag>
+inline constexpr bool is_legal_combination =
+    is_valid_ScaleVecType<ADataType, ScaleAFlag>() &&
+    is_valid_ScaleVecType<BDataType, ScaleBFlag>() &&
+    (!(std::is_same_v<ADataType, pk_fp4_t> && std::is_same_v<BDataType, pk_fp4_t>) ||
+     ScaleAFlag == ScaleBFlag);
+
+} // namespace ck_tile::core::arch::mma::scale::detail

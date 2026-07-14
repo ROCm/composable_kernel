@@ -3,8 +3,11 @@
 
 #pragma once
 
-#include "ck_tile/core/numeric/e5m3.hpp"
 #include "ck_tile/core/numeric/e4m3.hpp"
+#include "ck_tile/core/numeric/e5m3.hpp"
+#include "ck_tile/core/numeric/e8m0.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/numeric/integral_constant.hpp"
 
 namespace ck_tile {
 

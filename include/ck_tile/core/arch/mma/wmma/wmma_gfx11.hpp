@@ -88,7 +88,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 16u, 16u, 16u, CompilerTarget, MmaOpFa
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec)
     {
-        return {__builtin_amdgcn_wmma_f32_16x16x16_bf16_w32(aVec, bVec, cVec)};
+        return {__builtin_amdgcn_wmma_f32_16x16x16_bf16_w32(
+            bit_cast<int16x16_t>(aVec), bit_cast<int16x16_t>(bVec), cVec)};
     }
 };
 

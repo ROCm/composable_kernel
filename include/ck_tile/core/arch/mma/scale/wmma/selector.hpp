@@ -4,17 +4,19 @@
 #pragma once
 
 #include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
+#include "ck_tile/core/arch/mma/mma_op_family.hpp"
 #include "ck_tile/core/arch/mma/mma_selector.hpp"
-#include "ck_tile/core/arch/mma/mma_traits.hpp"
-#include "ck_tile/core/arch/mma/scale/scale_traits.hpp"
-#include "ck_tile/core/arch/mma/scale/wmma/scale_gfx12.hpp"
+#include "ck_tile/core/arch/mma/scale/wmma/scale_gfx125.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
 
-#include <cstdint>
 #include <type_traits>
 
 namespace ck_tile::core::arch::mma {
 
+// TODO: We do not allow M / N composition for now, since it is not used in current CK Tile.
+// TODO: We do not allow K composition for now because that would require multiple scale values
+// per lane, which neither the calling code (CK Tile) nor our Mma pipeline code can handle right
+// now.
 /**
  * @struct MmaDefaultSelector
  * @brief Implements the RDNA default MMA selector strategy for scale WMMA on GFX1250.
@@ -31,13 +33,11 @@ namespace ck_tile::core::arch::mma {
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
-          std::uint32_t WaveTileM,
-          std::uint32_t WaveTileN,
-          std::uint32_t WaveTileK,
+          uint32_t WaveTileM,
+          uint32_t WaveTileN,
+          uint32_t WaveTileK,
           typename CompilerTarget,
-          MmaOpFamily OpFamily>
-// TODO: c++20 amdgcn_target_arch_id CompilerTarget>
-// TODO: c++20 requires
+          MmaOpFamily OpFamily> // TODO: c++20 amdgcn_target_arch_id CompilerTarget>
 struct MmaDefaultSelector<ADataType,
                           BDataType,
                           CDataType,
@@ -50,29 +50,14 @@ struct MmaDefaultSelector<ADataType,
                                         std::enable_if_t<OpFamily == MmaOpFamily::SCALE ||
                                                          OpFamily == MmaOpFamily::SCALE16>>>
 {
-    private:
-    // Candidate 16x16x128 scale WMMA operation
-    using CandidateOp16x16 =
-        amdgcn_mma<ADataType, BDataType, CDataType, 16u, 16u, 128u, CompilerTarget, OpFamily>;
-
-    // Fall back to the unsupported pass-through implementation.
-    using UnsupportedOp = amdgcn_mma<ADataType,
-                                     BDataType,
-                                     CDataType,
-                                     WaveTileM,
-                                     WaveTileN,
-                                     WaveTileK,
-                                     amdgcn_target<>,
-                                     MmaOpFamily::UNDEFINED>;
-
-    // Check if the candidate is supported for the given WaveTile sizes
-    static constexpr bool IsSupported16x16 =
-        MmaOpTraits<CandidateOp16x16>::IsSupported && (WaveTileM % CandidateOp16x16::kM == 0u) &&
-        (WaveTileN % CandidateOp16x16::kN == 0u) && (WaveTileK % CandidateOp16x16::kK == 0u);
-
-    public:
-    // Select the largest supported WMMA operation for the given WaveTile shape
-    using SelectedOp = std::conditional_t<IsSupported16x16, CandidateOp16x16, UnsupportedOp>;
+    using SelectedOp = amdgcn_mma<ADataType,
+                                  BDataType,
+                                  CDataType,
+                                  WaveTileM,
+                                  WaveTileN,
+                                  WaveTileK,
+                                  CompilerTarget,
+                                  OpFamily>;
 };
 
 } // namespace ck_tile::core::arch::mma
