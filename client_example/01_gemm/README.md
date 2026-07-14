@@ -139,8 +139,6 @@ Table of supported cases by instance factory with XDL instruction for Row/Row/Ro
 * **DeviceGemmMultipleDLayernorm** - GEMM fused with layernorm.
 * **DeviceGemmMultipleDMultipleR** - GEMM fused with reductions and custom global reductions operators.
 * **DeviceGemmReduce** - GEMM fused with reduction.
-* **DeviceGemm_Streamk_V2** - GEMM stream K implementation. Implementation allows to use reduction instead of AtomicAdd.
-* **DeviceGemmStreamK** - GEMM stream K implementation using AtomicAdd.
 
 ## How to Run
 
