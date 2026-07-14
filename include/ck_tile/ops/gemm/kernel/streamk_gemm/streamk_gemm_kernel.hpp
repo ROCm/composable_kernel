@@ -325,11 +325,11 @@ struct StreamKKernel
     }
 
     /**
-     * @brief Runs the main Stream - K algorithm.
-     * @param kargs Stream - K kernel arguments.
-     * @param cta_idx The current Stream - K workgroup's index.
+     * @brief Runs the main Stream-K algorithm.
+     * @param kargs Stream-K kernel arguments.
+     * @param cta_idx The current Stream-K workgroup's index.
      * @param smem_ptr_0 Pointer to LDS.
-     * @note It is assumed that the first Stream - K workgroup has a `cta_idx` of zero. If a
+     * @note It is assumed that the first Stream-K workgroup has a `cta_idx` of zero. If a
      * non-persistent data-parallel (DP) section is used, then a Stream-K workgroup's `cta_idx`
      * *should be something like `blockIdx.x` minus number of DP workgroups.
      */
@@ -374,8 +374,9 @@ struct StreamKKernel
             {
                 BaseGemm(kargs, tile_idx, num_loop_sk, i_k_a, i_k_b, k_size, smem_ptr_0);
             }
-            else if(TilePartitioner::ReductionStrategy == StreamKReductionStrategy::Linear ||
-                    TilePartitioner::ReductionStrategy == StreamKReductionStrategy::Tree)
+            else if constexpr(TilePartitioner::ReductionStrategy ==
+                                  StreamKReductionStrategy::Linear ||
+                              TilePartitioner::ReductionStrategy == StreamKReductionStrategy::Tree)
             {
                 const auto c_macro_tile_idx =
                     kargs.tile_partitioner.get_output_tile_index(tile_idx);
@@ -517,7 +518,7 @@ struct StreamKKernel
             else
             {
                 static_assert(
-                    "An implementation does not exist for the chosen reduction strategy.");
+                    false, "An implementation does not exist for the chosen reduction strategy.");
             }
 
             // Prepare for next Stream-K loop iteration.
