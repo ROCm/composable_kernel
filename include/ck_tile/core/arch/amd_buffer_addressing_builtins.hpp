@@ -3348,7 +3348,6 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
         auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_fp16x4_t*>(in_ptr_);
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4f16(lds_ptr));
 #elif defined(__gfx125__)
-        typedef __attribute__((__vector_size__(8 * sizeof(__fp16)))) __fp16 llvm_fp16x8_t;
         auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_fp16x8_t*>(in_ptr_);
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_load_tr16_b128_v8f16(lds_ptr));
 #else

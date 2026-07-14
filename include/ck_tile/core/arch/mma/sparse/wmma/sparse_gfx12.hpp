@@ -41,7 +41,8 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 16u, 32u, CompilerTarget, MmaOpFa
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx)
     {
-        return {__builtin_amdgcn_swmmac_f32_16x16x32_f16_w32(aVec, bVec, cVec, idx)};
+        return {__builtin_amdgcn_swmmac_f32_16x16x32_f16_w32(
+            bit_cast<llvm_fp16x8_t>(aVec), bit_cast<llvm_fp16x16_t>(bVec), cVec, idx)};
     }
 };
 
@@ -66,7 +67,8 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 16u, 16u, 32u, CompilerTarget, MmaOpFa
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx)
     {
-        return {__builtin_amdgcn_swmmac_f32_16x16x32_bf16_w32(aVec, bVec, cVec, idx)};
+        return {__builtin_amdgcn_swmmac_f32_16x16x32_bf16_w32(
+            bit_cast<int16x8_t>(aVec), bit_cast<int16x16_t>(bVec), cVec, idx)};
     }
 };
 
@@ -91,7 +93,11 @@ struct amdgcn_mma<fp16_t, fp16_t, fp16_t, 16u, 16u, 32u, CompilerTarget, MmaOpFa
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx)
     {
-        return {__builtin_amdgcn_swmmac_f16_16x16x32_f16_w32(aVec, bVec, cVec, idx)};
+        return bit_cast<CVecType>(
+            __builtin_amdgcn_swmmac_f16_16x16x32_f16_w32(bit_cast<llvm_fp16x8_t>(aVec),
+                                                         bit_cast<llvm_fp16x16_t>(bVec),
+                                                         bit_cast<llvm_fp16x8_t>(cVec),
+                                                         idx));
     }
 };
 
@@ -117,7 +123,8 @@ struct amdgcn_mma<bf16_t, bf16_t, bf16_t, 16u, 16u, 32u, CompilerTarget, MmaOpFa
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx)
     {
-        return {__builtin_amdgcn_swmmac_bf16_16x16x32_bf16_w32(aVec, bVec, cVec, idx)};
+        return bit_cast<CVecType>(__builtin_amdgcn_swmmac_bf16_16x16x32_bf16_w32(
+            bit_cast<int16x8_t>(aVec), bit_cast<int16x16_t>(bVec), bit_cast<int16x8_t>(cVec), idx));
     }
 };
 
@@ -175,7 +182,8 @@ struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 16u, 16u, 32u, CompilerTarget, MmaOpFami
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx)
     {
-        return {__builtin_amdgcn_swmmac_f32_16x16x32_fp8_fp8_w32(aVec, bVec, cVec, idx)};
+        return {__builtin_amdgcn_swmmac_f32_16x16x32_fp8_fp8_w32(
+            bit_cast<int32x2_t>(aVec), bit_cast<int32x4_t>(bVec), cVec, idx)};
     }
 };
 
@@ -201,7 +209,8 @@ struct amdgcn_mma<fp8_t, bf8_t, fp32_t, 16u, 16u, 32u, CompilerTarget, MmaOpFami
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx)
     {
-        return {__builtin_amdgcn_swmmac_f32_16x16x32_fp8_bf8_w32(aVec, bVec, cVec, idx)};
+        return {__builtin_amdgcn_swmmac_f32_16x16x32_fp8_bf8_w32(
+            bit_cast<int32x2_t>(aVec), bit_cast<int32x4_t>(bVec), cVec, idx)};
     }
 };
 
@@ -227,7 +236,8 @@ struct amdgcn_mma<bf8_t, fp8_t, fp32_t, 16u, 16u, 32u, CompilerTarget, MmaOpFami
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx)
     {
-        return {__builtin_amdgcn_swmmac_f32_16x16x32_bf8_fp8_w32(aVec, bVec, cVec, idx)};
+        return {__builtin_amdgcn_swmmac_f32_16x16x32_bf8_fp8_w32(
+            bit_cast<int32x2_t>(aVec), bit_cast<int32x4_t>(bVec), cVec, idx)};
     }
 };
 
@@ -253,7 +263,8 @@ struct amdgcn_mma<bf8_t, bf8_t, fp32_t, 16u, 16u, 32u, CompilerTarget, MmaOpFami
     CK_TILE_DEVICE static CVecType
     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec, int32_t idx)
     {
-        return {__builtin_amdgcn_swmmac_f32_16x16x32_bf8_bf8_w32(aVec, bVec, cVec, idx)};
+        return {__builtin_amdgcn_swmmac_f32_16x16x32_bf8_bf8_w32(
+            bit_cast<int32x2_t>(aVec), bit_cast<int32x4_t>(bVec), cVec, idx)};
     }
 };
 

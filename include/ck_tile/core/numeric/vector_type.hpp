@@ -69,6 +69,9 @@ using fp16x16_t = _Float16 __attribute__((ext_vector_type(16)));
 using fp16x32_t = _Float16 __attribute__((ext_vector_type(32)));
 using fp16x64_t = _Float16 __attribute__((ext_vector_type(64)));
 
+using llvm_fp16x8_t  = __fp16 __attribute__((ext_vector_type(8)));
+using llvm_fp16x16_t = __fp16 __attribute__((ext_vector_type(16)));
+
 // bf16
 // using bf16_t = ...
 using bf16x2_t  = bfloat16_t __attribute__((ext_vector_type(2)));
