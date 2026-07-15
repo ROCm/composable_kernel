@@ -520,6 +520,7 @@ struct BlockwiseGemmXdlops_pipeline_blockscale_bpreshuffle_v1<BlockGemmPipelineS
                         });
                     });
 
+                    __builtin_amdgcn_sched_barrier(0);
                     block_sync_lds();
 
                     static_ford<Sequence<MRepeat, KRepeat, KGroup>>{}([&](auto mkk) {

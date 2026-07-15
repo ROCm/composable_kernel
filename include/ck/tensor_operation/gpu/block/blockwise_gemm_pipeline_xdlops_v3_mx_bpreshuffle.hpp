@@ -478,6 +478,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
 
         // Global prefetch 1
         a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(I0));
+        __builtin_amdgcn_sched_barrier(0);
         b_blockwise_copy.Run(
             b_grid_desc, b_grid_buf, b_block_desc, b_block_origin_idx, b_thread_bufs(I0));
 
@@ -556,6 +557,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
 
         // Global prefetch 2
         a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_bufs(I1));
+        __builtin_amdgcn_sched_barrier(0);
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
 
         // Initialize C
@@ -733,6 +735,7 @@ struct BlockwiseGemmXdlops_pipeline_v3_mx_bprehuffle<BlockGemmPipelineScheduler:
                                                  a_grid_buf,
                                                  a_block_desc,
                                                  a_block_bufs(scale_comp_buf));
+                            __builtin_amdgcn_sched_barrier(0);
                             a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                         }
 
