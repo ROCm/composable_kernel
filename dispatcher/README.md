@@ -4,6 +4,8 @@ A unified kernel dispatch system for AMD GPUs with C++ and Python frontends, sup
 
 **Validated Platform:** AMD Instinct MI300 series (gfx942)
 
+> **Stream-K GEMM:** see [STREAMK.md](STREAMK.md) for how to generate, build, run, and
+> test the Stream-K deep-core path (atomic/linear/tree reductions).
 
 ---
 
