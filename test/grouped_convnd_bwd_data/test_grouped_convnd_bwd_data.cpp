@@ -146,7 +146,6 @@ TYPED_TEST(TestGroupedConvndBwdData2d, Test2D)
         {2, 1, 4, 128, 64, {3, 3}, {28, 28}, {3, 3}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back(
         {2, 1, 2, 64, 64, {6, 6}, {28, 28}, {6, 6}, {1, 1}, {1, 1}, {1, 1}});
-
     this->template Run<2>();
 }
 
