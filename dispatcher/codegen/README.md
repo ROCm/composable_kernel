@@ -77,7 +77,7 @@ results = codegen.generate_all()
 | `--datatype` | `fp16`, `bf16`, `fp32`, `int8` | Data type |
 | `--layout` | `rcr`, `rrr`, `crr`, `ccr` | Matrix layouts |
 | `--gpu-target` | `gfx942`, `gfx90a`, `gfx950` | Target GPU |
-| `--variants` | `standard`, `preshuffle`, `multi_d` | Kernel variants |
+| `--variants` | `standard`, `preshuffle`, `multi_d`, `grouped` | Kernel variants |
 | `--preselected` | `fp16_rcr_essential`, etc. | Predefined kernel set |
 
 ### Layout Notation
@@ -98,6 +98,28 @@ Element-wise fusion: `C = op(A x B + D0 + D1 + ...)`
 
 Supported ops: `PassThrough`, `MultiDAdd`, `Relu`, `Gelu`, `Sigmoid`, `Tanh`
 
+### Grouped
+Batched GEMM over a list of independently-shaped groups in a single launch
+(`ck_tile::GroupedGemmKernel`). Brings the dispatcher to parity with the Tile Engine
+`grouped_gemm` op. The per-group argument vector is built with `MakeKargs`, copied to an
+internally-allocated `DeviceMem` workspace, and the device pointer + group count are passed
+to the kernel (the dispatcher workspace idiom — no external `kargs_ptr`).
+
+- Datatypes: `fp16`, `bf16`, `fp8`, `bf8` (matches the Tile Engine grouped runnable set;
+  `fp8`/`bf8` accumulate in `fp32` and emit an `fp16` C output).
+- Layouts: `rcr`, `rrr`, `ccr`, `crr` (C is always row-major).
+
+```bash
+python3 unified_gemm_codegen.py \
+    --datatype fp16 \
+    --layout rcr \
+    --variants grouped \
+    --gpu-target gfx942 \
+    --output-dir generated_kernels
+```
+
+Build and run end-to-end with [`examples/gemm/cpp/02_grouped_gemm_driver.cpp`](../examples/gemm/cpp/README.md).
+
 ## Output Structure
 
 ```
@@ -105,6 +127,7 @@ generated_kernels/
 |---- gemm_fp16_rcr_compv4_..._128x128x32_....hpp          # GEMM kernels
 |---- gemm_fp16_rcr_compv4_..._preshuffle.hpp
 |---- gemm_fp16_rcr_compv4_..._multid_Relu_d1.hpp
+|---- gemm_fp16_rcr_compv3_..._128x128x64_..._grouped.hpp  # Grouped GEMM kernels
 |---- grouped_conv_fwd_fp16_nhwgc_..._128x128x32_....hpp   # Grouped conv kernels
 +---- ...
 ```

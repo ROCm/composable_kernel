@@ -8,6 +8,7 @@ This directory contains language bindings for the CK Tile Dispatcher.
 bindings/
 |---- ctypes/              # Python ctypes bindings (C API)
 |   |---- gemm_ctypes_lib.cpp      # GEMM dispatcher C API
+|   |---- grouped_gemm_ctypes_lib.cpp # Grouped (multi-problem) GEMM bridge C API -- see GROUPED_GEMM_BRIDGE.md
 |   |---- conv_ctypes_lib.cpp      # Grouped conv dispatcher C API (fwd + bwd_data)
 |   |---- conv_bwdw_ctypes_lib.cpp # Grouped conv backward weight C API (separate library)
 |   |---- fmha_ctypes_lib.cpp      # FMHA dispatcher C API (fwd + bwd)

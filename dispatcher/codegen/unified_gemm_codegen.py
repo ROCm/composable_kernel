@@ -202,6 +202,7 @@ class GemmVariant(Enum):
     STANDARD = "standard"
     PRESHUFFLE = "preshuffle"
     MULTI_D = "multi_d"
+    GROUPED = "grouped"
     # Stream-K. COVERAGE LIMITATION: the dispatcher does NOT yet emit the full
     # Old-TE Stream-K tile surface. The kernels generated here are driven by the
     # tile list passed to this codegen, which is narrower than tile_engine's:
@@ -367,6 +368,8 @@ class KernelNaming:
             name += "_preshuffle"
         elif config.variant == GemmVariant.MULTI_D:
             name += f"_multid_{config.elementwise_op}_d{config.num_d_tensors}"
+        elif config.variant == GemmVariant.GROUPED:
+            name += "_grouped"
         elif config.variant == GemmVariant.STREAM_K:
             name += "_streamk"
             # Atomic keeps the bare "_streamk" suffix for name parity with the
@@ -420,6 +423,15 @@ class CKTileKernelGenerator:
             includes += """
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "ck_tile/ops/gemm/kernel/gemm_multi_d_kernel.hpp"
+"""
+
+        if config.variant == GemmVariant.GROUPED:
+            includes += """
+#include <vector>
+#include <hip/hip_runtime.h>
+#include "ck_tile/host/device_memory.hpp"
+#include "ck_tile/host/hip_check_error.hpp"
+#include "ck_tile/ops/gemm/kernel/grouped_gemm_kernel.hpp"
 """
 
         if config.preshuffle:
@@ -604,6 +616,9 @@ using CLayout = {ns_name}::CLayout;
 #define GEMM_KEY_TRANSPOSE_C 0
 #define GEMM_KEY_GROUPED 0
 #define GEMM_KEY_SPLIT_K 1
+using ALayout = {ns_name}::ALayout;
+using BLayout = {ns_name}::BLayout;
+using CLayout = {ns_name}::CLayout;
 #endif // CK_TILE_SINGLE_KERNEL_INCLUDE
 """
 
@@ -629,6 +644,8 @@ using CLayout = {ns_name}::CLayout;
         """Generate launch function"""
         if config.variant == GemmVariant.MULTI_D:
             return self._launch_function_multi_d(config)
+        if config.variant == GemmVariant.GROUPED:
+            return self._launch_function_grouped(config)
         if config.variant == GemmVariant.STREAM_K:
             return self._launch_function_streamk(config)
         if config.preshuffle:
@@ -680,6 +697,69 @@ using CLayout = {ns_name}::CLayout;
         }};
 
         BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
+        return ave_time;
+    }}"""
+
+    def _launch_function_grouped(self, config: KernelConfig) -> str:
+        """Generate launch function for grouped GEMM.
+
+        Follows the dispatcher's workspace idiom (see grouped_conv stream-K launch in
+        unified_grouped_conv_codegen.py): signature is (args, stream); the device
+        workspace is allocated internally via DeviceMem rather than passed in. The
+        grouped kernel's per-group arg vector is built with MakeKargs, copied to the
+        workspace, and the device pointer + group count are passed to the kernel.
+        """
+        persistent = config.trait.persistent
+        grid_expr = (
+            "GemmKernel::MaxOccupancyGridSize(stream)"
+            if persistent
+            else "dim3(kargs.empty() ? 0 : kargs.back().block_end, 1, 1)"
+        )
+        return f"""
+    static float launch(const std::vector<ck_tile::GroupedGemmHostArgs<>>& gemm_descs,
+                        const stream_config& stream) {{
+        if(gemm_descs.empty()) return 0.0f;
+
+        float ave_time{{0}};
+
+        constexpr auto scheduler = {self.tm.SCHEDULER_TO_CK[config.trait.scheduler]};
+
+        using UniversalGemmProblem = UniversalGemmPipelineProblem<
+            ADataType, BDataType, AccDataType, TileShape,
+            TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                    ALayout, BLayout, CLayout, TransposeC,
+                                    UseStructuredSparsity, UsePersistentKernel,
+                                    NumWaveGroups, Preshuffle>,
+            scheduler>;
+
+        using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+        {self._epilogue_code(config)}
+
+        using GemmKernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+
+        auto kargs = GemmKernel::MakeKargs(gemm_descs);
+        if(!GemmKernel::IsSupportedArgument(kargs)) {{
+            throw std::runtime_error("Arguments not supported for grouped gemm kernel");
+        }}
+
+        // Workspace allocated internally (dispatcher idiom, mirrors grouped_conv stream-K).
+        const std::size_t ws_size = kargs.size() * sizeof(ck_tile::GemmTransKernelArg<>);
+        ck_tile::DeviceMem workspace_dev(ws_size);
+        HIP_CHECK_ERROR(hipMemcpyWithStream(workspace_dev.GetDeviceBuffer(),
+                                            kargs.data(),
+                                            ws_size,
+                                            hipMemcpyHostToDevice,
+                                            stream.stream_id_));
+
+        const dim3 grids  = {grid_expr};
+        const dim3 blocks = GemmKernel::BlockSize();
+
+        constexpr int kBlockPerCu = {config.k_block_per_cu};
+        ave_time = launch_kernel(stream,
+            make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0,
+                cast_pointer_to_constant_address_space(workspace_dev.GetDeviceBuffer()),
+                kargs.size()));
+
         return ave_time;
     }}"""
 
@@ -985,7 +1065,7 @@ using CLayout = {ns_name}::CLayout;
             tuple<>, CLayout, element_wise::PassThrough,
             TilePartitioner::MPerBlock, TilePartitioner::NPerBlock,
             WarpPerBlock_M, WarpPerBlock_N, WarpTileM, WarpTileN, WarpTileK,
-            TransposeC, NumWaveGroups>;
+            TransposeC, NumWaveGroups, false, 1, 1, DoubleSmemBuffer>;
         using GemmEpilogue = CShuffleEpilogue<EpilogueProblem>;"""
         else:
             return """
@@ -1327,7 +1407,7 @@ class UnifiedGemmCodegen:
         """Get all configurations for a variant
 
         Args:
-            variant: GEMM variant (STANDARD, PRESHUFFLE, MULTI_D)
+            variant: GEMM variant (STANDARD, PRESHUFFLE, MULTI_D, GROUPED)
 
         Returns:
             List of valid kernel configurations for the variant
@@ -1427,6 +1507,11 @@ class UnifiedGemmCodegen:
                             d_layout=self.d_layout,  # Use extracted D layout
                         )
                     )
+
+            elif variant == GemmVariant.GROUPED:
+                # Grouped GEMM uses the same tile/trait configs as STANDARD —
+                # the only difference is the kernel type (GroupedGemmKernel vs GemmKernel)
+                configs.append(KernelConfig(tile=tile, trait=trait, variant=variant))
 
         return configs
 
@@ -1534,6 +1619,7 @@ class UnifiedGemmCodegen:
                 GemmVariant.STANDARD: OperatorType.GEMM,
                 GemmVariant.PRESHUFFLE: OperatorType.GEMM_PRESHUFFLE,
                 GemmVariant.MULTI_D: OperatorType.GEMM_MULTI_D,
+                GemmVariant.GROUPED: OperatorType.GEMM_GROUPED,
                 GemmVariant.STREAM_K: OperatorType.GEMM_STREAMK,
             }
             operator = variant_to_operator.get(variant, OperatorType.GEMM)
@@ -1784,7 +1870,7 @@ def main():
     parser.add_argument(
         "--variants",
         nargs="+",
-        choices=["standard", "preshuffle", "multi_d", "stream_k"],
+        choices=["standard", "preshuffle", "multi_d", "stream_k" ,"grouped"],
         default=["standard"],
         help="Variants to generate",
     )
