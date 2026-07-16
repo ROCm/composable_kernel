@@ -506,8 +506,9 @@ struct tile_window_with_static_distribution
         using SFC_Ys   = typename Traits::SFC_Ys;
         static constexpr index_t YElementSize =
             typename Base::TileDstr{}.get_ys_to_d_descriptor().get_element_space_size();
-        static_assert(YElementSize % Traits::ScalarPerVector == 0);
-        using vectorized_tbuf = array<vector_t, YElementSize / Traits::ScalarPerVector>;
+        static_assert(YElementSize % (Traits::PackedSize * Traits::ScalarPerVector) == 0);
+        using vectorized_tbuf =
+            array<vector_t, YElementSize / (Traits::PackedSize * Traits::ScalarPerVector)>;
 
         constexpr auto tile_dstr = typename Base::TileDstr{};
 
@@ -533,11 +534,10 @@ struct tile_window_with_static_distribution
                 constexpr index_t d =
                     tile_dstr.get_ys_to_d_descriptor().calculate_offset(idx_ys_start) /
                     Traits::PackedSize;
-                static_assert(Traits::ScalarPerVector % Traits::PackedSize == 0);
-                static_assert(d % (Traits::ScalarPerVector / Traits::PackedSize) == 0);
+                static_assert(d % Traits::ScalarPerVector == 0);
 
                 this->get_bottom_tensor_view().template get_vectorized_elements_raw<vector_t>(
-                    dst_vec_tbuf.template at<d / (Traits::ScalarPerVector / Traits::PackedSize)>(),
+                    dst_vec_tbuf.template at<d / Traits::ScalarPerVector>(),
                     bottom_tensor_thread_coord,
                     0 /**/,
                     bool_constant<oob_conditional_check>{},
