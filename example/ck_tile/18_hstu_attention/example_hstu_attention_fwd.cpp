@@ -715,6 +715,12 @@ bool run_group_hstu_forward(const ck_tile::ArgParser& arg_parser, int num_group)
     str_of_integers                                 = arg_parser.get_str("g_max_seqlens_kv");
     std::vector<int> group_input_max_uih_seqlens_kv = get_integers_from_string(str_of_integers);
 
+    // for self-attention, group_input_max_uih_seqlens_kv reuses group_input_max_uih_seqlens_q
+    if(!is_cross_attention)
+    {
+        group_input_max_uih_seqlens_kv = group_input_max_uih_seqlens_q;
+    };
+
     str_of_integers                           = arg_parser.get_str("g_context_lens");
     std::vector<int> group_contextual_seqlens = get_integers_from_string(str_of_integers);
 
