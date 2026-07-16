@@ -24,6 +24,13 @@ using KernelTypes = ::testing::Types<
     >;
 // clang-format on
 
-TYPED_TEST_SUITE(TestCkTileBatchedGemm, KernelTypes);
+template <typename Tuple>
+class TestCkTileBatchedGemmF16 : public TestCkTileBatchedGemm<Tuple>
+{
+};
+
+TYPED_TEST_SUITE(TestCkTileBatchedGemmF16, KernelTypes);
+
+#define TEST_CKTILE_BGEMM_SUITE_NAME TestCkTileBatchedGemmF16
 
 #include "test_batched_gemm_ut_cases.inc"

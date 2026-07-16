@@ -21,7 +21,7 @@ struct StrideConfig
     int batchStrideC;
 };
 
-TYPED_TEST(TestCkTileBatchedGemm, Basic)
+TYPED_TEST(TEST_CKTILE_BGEMM_SUITE_NAME, Basic)
 {
     std::vector<GemmParams> gemmParams{{256, 256, 256, 1},
                                        {256, 256, 256, 2},
