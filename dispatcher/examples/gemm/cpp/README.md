@@ -37,6 +37,7 @@ cd examples
 | [04_heuristics.cpp](04_heuristics.cpp) | Heuristic-based kernel selection |
 | [05_json_export.cpp](05_json_export.cpp) | Registry JSON export for external tools |
 | [06_multi_registry.cpp](06_multi_registry.cpp) | Multiple registries with named kernel sets |
+| [02_grouped_gemm_driver.cpp](02_grouped_gemm_driver.cpp) | Standalone grouped (batched) GEMM driver: builds per-group descriptors, launches `GroupedGemmKernel`, verifies each group |
 
 ## Example Details
 
@@ -112,6 +113,31 @@ Consolidated example combining performance benchmarking with correctness validat
 - CPU reference validation using `ck_tile::reference_gemm`
 - GPU reference validation using `ck_tile::reference_gemm_gpu`
 - Configurable tolerances
+
+### 02_grouped_gemm_driver.cpp - Grouped (Batched) GEMM
+Standalone driver for the `grouped` codegen variant. One generated grouped kernel header is
+injected on the command line (`-include <stem>_grouped.hpp -DCK_TILE_SINGLE_KERNEL_INCLUDE`);
+the driver reads the kernel's `ADataType/BDataType/CDataType/ALayout/BLayout/CLayout` so it
+works for any datatype/layout the kernel was generated for (no hardcoded `fp16`/`rcr`).
+
+```bash
+# Build against one generated grouped kernel
+hipcc -std=c++17 --offload-arch=gfx942 -O3 -DCK_TILE_SINGLE_KERNEL_INCLUDE \
+  -I ../../../include -I ../../../../include \
+  -I generated_kernels \
+  -include gemm_fp16_rcr_compv3_..._grouped.hpp \
+  02_grouped_gemm_driver.cpp -o gemm_02_grouped
+
+# Run: 8 groups, verify each group against the CPU reference
+./gemm_02_grouped --groups 8 --Ms 3840 --Ns 4096 --Ks 2048 \
+  --warmup 50 --repeat 100 --validate 1
+```
+
+**Features:**
+- Builds a vector of per-group `GroupedGemmHostArgs` descriptors (per-group M/N/K)
+- Layout-driven leading dimensions via `get_default_stride(is_row_major(Layout))`
+- Per-group correctness check using `ck_tile::reference_gemm`
+- Reports per-group PASS/FAIL plus aggregate TFLOPS
 
 ### 04_heuristics.cpp - Heuristic Selection
 Demonstrates custom kernel selection based on problem characteristics:

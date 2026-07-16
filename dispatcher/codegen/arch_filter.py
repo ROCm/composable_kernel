@@ -50,6 +50,7 @@ class OperatorType(Enum):
     GEMM = "gemm"
     GEMM_PRESHUFFLE = "gemm_preshuffle"
     GEMM_MULTI_D = "gemm_multi_d"
+    GEMM_GROUPED = "gemm_grouped"
     GEMM_STREAMK = "gemm_streamk"
     CONV_FWD = "conv_fwd"
     CONV_BWD_DATA = "conv_bwd_data"
@@ -86,6 +87,7 @@ OPERATOR_TILE_CONSTRAINTS = {
         "tile_n_alignment": 16,
         "tile_k_alignment": 8,
     },
+    OperatorType.GEMM_GROUPED: {
     # NOTE: these are copied from plain GEMM and only gate tile *shape* validity.
     # They do NOT express Stream-K's real feasibility requirement -- that a problem
     # has enough output tiles to partition K-work across the CUs. That gate is
