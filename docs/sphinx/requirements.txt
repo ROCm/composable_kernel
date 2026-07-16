@@ -47,6 +47,8 @@ debugpy==1.8.21
     # via ipykernel
 decorator==5.3.1
     # via ipython
+defusedxml==0.7.1
+    # via sphinxcontrib-datatemplates
 docutils==0.21.2
     # via
     #   myst-parser
@@ -202,6 +204,7 @@ pyyaml==6.0.3
     #   pybtex
     #   rocm-docs-core
     #   sphinx-external-toc
+    #   sphinxcontrib-datatemplates
     #   sphinxcontrib-mermaid
 pyzmq==27.1.0
     # via
@@ -215,7 +218,7 @@ requests==2.34.2
     # via
     #   pygithub
     #   sphinx
-rocm-docs-core[api-reference]==1.31.3
+rocm-docs-core[api-reference]==1.38.0
     # via -r requirements.in
 rpds-py==0.30.0
     # via
@@ -243,7 +246,9 @@ sphinx==8.1.3
     #   sphinx-multitoc-numbering
     #   sphinx-notfound-page
     #   sphinxcontrib-bibtex
+    #   sphinxcontrib-datatemplates
     #   sphinxcontrib-mermaid
+    #   sphinxcontrib-runcmd
 sphinx-book-theme==1.1.4
     # via rocm-docs-core
 sphinx-copybutton==0.5.2
