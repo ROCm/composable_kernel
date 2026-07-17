@@ -88,6 +88,13 @@ OPERATOR_TILE_CONSTRAINTS = {
         "tile_k_alignment": 8,
     },
     OperatorType.GEMM_GROUPED: {
+        "min_tile_m": 16,
+        "min_tile_n": 16,
+        "min_tile_k": 8,
+        "tile_m_alignment": 16,
+        "tile_n_alignment": 16,
+        "tile_k_alignment": 8,
+    },
     # NOTE: these are copied from plain GEMM and only gate tile *shape* validity.
     # They do NOT express Stream-K's real feasibility requirement -- that a problem
     # has enough output tiles to partition K-work across the CUs. That gate is
