@@ -21,3 +21,11 @@ extern void hstu_generate_jagged_random_number_uint8(HstuGenerateRandUniformNumb
                                                      hipStream_t stream);
 extern void hstu_generate_jagged_random_number_uint16(HstuGenerateRandUniformNumbersParams& param,
                                                       hipStream_t stream);
+extern void hstu_attention_no_group_backward_fp16(HstuAttentionNoGroupBwdParams& param,
+                                                  hipStream_t stream);
+extern void hstu_attention_no_group_backward_bf16(HstuAttentionNoGroupBwdParams& param,
+                                                  hipStream_t stream);
+extern void hstu_attention_group_backward_fp16(HstuAttentionGroupBwdParams& param,
+                                               hipStream_t stream);
+extern void hstu_attention_group_backward_bf16(HstuAttentionGroupBwdParams& param,
+                                               hipStream_t stream);

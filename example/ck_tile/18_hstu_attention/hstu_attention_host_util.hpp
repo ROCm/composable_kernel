@@ -82,3 +82,31 @@ static inline bool is_almost_invariant_seqlen_q(HstuAttentionGroupFwdParams& par
 
     return res;
 };
+
+static inline bool is_almost_invariant_seqlen(HstuAttentionNoGroupBwdParams& param)
+{
+    float threshold = 0.7f;
+
+    if(param.is_jagged)
+    {
+        bool res = (static_cast<float>(param.min_seqlen_q) / param.max_seqlen_q) > threshold;
+        if(param.is_cross_attention)
+            res = res &&
+                  ((static_cast<float>(param.min_seqlen_kv) / param.max_seqlen_kv) > threshold);
+
+        return res;
+    }
+    else
+        return true;
+};
+
+static inline bool is_almost_invariant_seqlen(HstuAttentionGroupBwdParams& param)
+{
+    float threshold = 0.7f;
+
+    bool res = (static_cast<float>(param.min_seqlen_q) / param.max_seqlen_q) > threshold;
+    if(param.is_cross_attention)
+        res = res && ((static_cast<float>(param.min_seqlen_kv) / param.max_seqlen_kv) > threshold);
+
+    return res;
+};
