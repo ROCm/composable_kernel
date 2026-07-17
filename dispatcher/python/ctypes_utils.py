@@ -1389,7 +1389,7 @@ class KernelConfig:
     gfx_arch: str = "gfx942"
 
     # GEMM variant (affects arch filter validation)
-    # "standard", "preshuffle", or "multi_d"
+    # "standard", "preshuffle", "multi_d", or "stream_k"
     variant: str = "standard"
 
     @property
