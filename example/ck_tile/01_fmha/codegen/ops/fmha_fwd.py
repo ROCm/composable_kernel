@@ -355,18 +355,12 @@ class FmhaFwdApiTrait:
 
     @property
     def dcheck(self) -> str:
-        if self.pipeline_tag == "qr_async":
-            vec = int((32 * 4) / DTYPE_BITS[self.dtype])
-            if self.dpad == "t":
-                return f"a.hdim_q % {vec} == 0"
-            else:
-                assert False
-        elif self.pipeline_tag == "qr_hpad":
+        if self.pipeline_tag == "qr_hpad":
             if self.dpad == "t":
                 return "a.hdim_q % 8 == 0"
             else:
                 assert False
-        elif self.pipeline_tag in ["qr", "qs", "qr_async_trload", "qr_async_trload_v3"]:
+        elif self.pipeline_tag in ["qr", "qs", "qr_async", "qr_async_trload", "qr_async_trload_v3"]:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dpad == "t":
                 return f"true /*a.hdim_q % {bk0submax} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
@@ -377,18 +371,12 @@ class FmhaFwdApiTrait:
 
     @property
     def dvcheck(self) -> str:
-        if self.pipeline_tag == "qr_async":
-            vec = int((32 * 4) / DTYPE_BITS[self.dtype])
-            if self.dvpad == "t":
-                return f"a.hdim_v % {vec} == 0"
-            else:
-                assert False
-        elif self.pipeline_tag == "qr_hpad":
+        if self.pipeline_tag == "qr_hpad":
             if self.dvpad == "t":
                 return "a.hdim_v % 8 == 0"
             else:
                 assert False
-        elif self.pipeline_tag in ["qr", "qs", "qr_async_trload", "qr_async_trload_v3"]:
+        elif self.pipeline_tag in ["qr", "qs", "qr_async", "qr_async_trload", "qr_async_trload_v3"]:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dvpad == "t":
                 return f"true /*a.hdim_v % {bk0submax} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
@@ -1046,6 +1034,9 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                         pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
                         pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
                     else:
+                        # skpad=f + dpad=t/dvpad=t variant covers padded head dims (e.g. d=16, d=160)
+                        # when seqlen_k is divisible by bn0. Restored after #6526 changed it to
+                        # "f","f","f","f", which left those cases with no dispatchable qr_async kernel.
                         pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
                         pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, skip, "f", sink))  # fmt: skip
                     if receipt == 1 and bias != "bias":
@@ -1060,9 +1051,11 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                 ["f", "t"],
             ):
                 if hdim == 64:
-                    pipelines.append(FmhaFwdPipeline("qr", "row", "t", "f", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
                     pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
                 else:
+                    # skpad=f + dpad=t/dvpad=t variant covers padded head dims when seqlen_k is
+                    # divisible by bn0. Restored after #6526 changed it to "f","f","f","f".
                     pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
                     pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f", sink))  # fmt: skip
         return pipelines
@@ -1169,6 +1162,9 @@ class KernelComponentFactoryGfx950(
             ):
                 pipelines.append(FmhaFwdPipeline("qr", "col", "f", "f", "f", "f", logits, bias, lse, dropout, qscale, mask, "f", "f", sink))  # fmt: skip
                 pipelines.append(FmhaFwdPipeline("qr", "col", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, "f", "f", sink))  # fmt: skip
+                if hdim > 64 and dtype in cls._DT_MXFP8:
+                    pipelines.append(FmhaFwdPipeline("qr_async", "col", "f", "f", "f", "f", logits, bias, lse, dropout, qscale, mask, "f", "f", sink))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "t", "t", "t", logits, bias, lse, dropout, qscale, mask, "f", "f", sink))  # fmt: skip
         return pipelines
 
 

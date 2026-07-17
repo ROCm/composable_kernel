@@ -32,6 +32,14 @@ CDNA3_PLUS_ARCH = ArchTrait(
     preprocessor_check="defined(__gfx94__) || defined(__gfx950__)",
 )
 
+# Architecture trait for tiles that are only valid / only wanted on gfx942
+# (e.g. MI308). Used to gate a tile's device-side compilation so it is skipped
+# on other archs
+GFX942_ARCH = ArchTrait(
+    "gfx942",
+    preprocessor_check="defined(__gfx942__)",
+)
+
 DTYPE_BITS = {
     "fp32": 32,
     "fp16": 16,
@@ -547,6 +555,11 @@ class FmhaFwdTileSize:
     F_wk1: int  # gemm1 warp size along k
     F_occupancy: int  # occupancy, -1 will let pipeline decide the occupancy, other value will overwrite occupancy
     F_constraint: CppConstraint = field(default_factory=lambda: CppConstraint())
+    # Optional compile-time arch guard for this tile's device code. When set,
+    # the kernel body is only instantiated during the device pass for matching
+    # archs (host pass always keeps it so the host symbol still exists). This is
+    # independent from F_constraint, which is a runtime dispatch predicate.
+    F_arch: Optional[ArchTrait] = None
 
     @property
     def name(self) -> str:
@@ -619,10 +632,19 @@ class FmhaFwdKernel:
             F_page_size=self.F_page_size,
             F_sink=BOOL_MAP[self.F_pipeline.F_sink],
             F_kv_load_mode=KV_LOAD_MODE_ENUM_MAP[self.F_use_global_load],
-            F_arch_check=CDNA3_PLUS_ARCH.preprocessor_check
-            if self.F_use_global_load
-            else "true",
+            F_arch_check=self._arch_check(),
         )
+
+    def _arch_check(self) -> str:
+        # Combine any arch guards that apply to this kernel.
+        checks = []
+        if self.F_use_global_load:
+            checks.append(CDNA3_PLUS_ARCH.preprocessor_check)
+        if self.F_tile.F_arch is not None:
+            checks.append(self.F_tile.F_arch.preprocessor_check)
+        if not checks:
+            return "true"
+        return " && ".join(f"({c})" for c in checks)
 
     @property
     def name(self) -> str:
@@ -678,7 +700,7 @@ class KernelComponentFactory:
             return {
                 128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 256 : [
-                    FmhaFwdTileSize(128,  32, 16, 256, 16,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16, 2, CppConstraint("num_cus < 128")),
+                    FmhaFwdTileSize(128,  32, 16, 256, 16,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16, 2, CppConstraint("num_cus < 128"), GFX942_ARCH),
                     FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                 ],
             }  # fmt: skip
@@ -686,7 +708,7 @@ class KernelComponentFactory:
             return {
                 128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
                 256 : [
-                    FmhaFwdTileSize(128,  64, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  2, CppConstraint("num_cus < 128")),
+                    FmhaFwdTileSize(128,  64, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  2, CppConstraint("num_cus < 128"), GFX942_ARCH),
                     FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
                 ],
             }  # fmt: skip
