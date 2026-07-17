@@ -1528,18 +1528,10 @@ struct FmhaFwdKernel
             long_index_t batch_offset_q_descale = 0;
             long_index_t batch_offset_k_descale = 0;
             long_index_t batch_offset_v_descale = 0;
-            float sink_value                    = -numeric<float>::infinity();
-            if constexpr(kHasMask && !kHasSink)
-            {
-                sink_value = -numeric<float>::infinity();
-            }
-            else
-            {
-                sink_value =
-                    kargs.sink_ptr != nullptr
-                        ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
-                        : -numeric<float>::infinity();
-            }
+            const float sink_value =
+                kargs.sink_ptr != nullptr
+                    ? (*(static_cast<const float*>(kargs.sink_ptr) + i_nhead)) / kargs.scale_s
+                    : -numeric<float>::infinity();
 
             if constexpr(kIsGroupMode)
             {
