@@ -194,6 +194,18 @@ struct HstuCrossAttentionBlockMaskWithLocal
         };
     }
 
+    // to get the loop length along Y axis, return index:[start, end), end-start=length
+    // use this if need loop over Y axis tile by tile (eg. seqlen_q loop-over)
+    // i_x is the start offset of the current tile along the seqlen_k dimension
+    template <index_t XTile, index_t YTile>
+    CK_TILE_DEVICE constexpr auto
+    GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
+    {
+        std::ignore = i_x;
+
+        return ck_tile::make_tuple(0, seqlen_q);
+    }
+
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
     {
         int row_id;
@@ -441,6 +453,18 @@ struct HstuSelfAttentionBlockMaskWithLocal
         };
     }
 
+    // to get the loop length along Y axis, return index:[start, end), end-start=length
+    // use this if need loop over Y axis tile by tile (eg. seqlen_q loop-over)
+    // i_x is the start offset of the current tile along the seqlen_k dimension
+    template <index_t XTile, index_t YTile>
+    CK_TILE_DEVICE constexpr auto
+    GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
+    {
+        std::ignore = i_x;
+
+        return ck_tile::make_tuple(0, seqlen);
+    }
+
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
     {
         int row_id;
@@ -593,6 +617,18 @@ struct HstuCrossAttentionBlockMaskNoLocal
         };
     }
 
+    // to get the loop length along Y axis, return index:[start, end), end-start=length
+    // use this if need loop over Y axis tile by tile (eg. seqlen_q loop-over)
+    // i_x is the start offset of the current tile along the seqlen_k dimension
+    template <index_t XTile, index_t YTile>
+    CK_TILE_DEVICE constexpr auto
+    GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
+    {
+        std::ignore = i_x;
+
+        return ck_tile::make_tuple(0, seqlen_q);
+    }
+
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const
     {
         int row_id;
@@ -727,6 +763,18 @@ struct HstuSelfAttentionBlockMaskNoLocal
                 return ck_tile::make_tuple(0, x_end);
             };
         };
+    }
+
+    // to get the loop length along Y axis, return index:[start, end), end-start=length
+    // use this if need loop over Y axis tile by tile (eg. seqlen_q loop-over)
+    // i_x is the start offset of the current tile along the seqlen_k dimension
+    template <index_t XTile, index_t YTile>
+    CK_TILE_DEVICE constexpr auto
+    GetTileRangeAlongY(index_t i_x, number<XTile>, number<YTile>) const
+    {
+        std::ignore = i_x;
+
+        return ck_tile::make_tuple(0, seqlen);
     }
 
     CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col) const

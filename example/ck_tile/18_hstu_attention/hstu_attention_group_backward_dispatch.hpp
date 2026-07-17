@@ -1,0 +1,290 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
+
+#include <ck_tile/core/numeric/integer.hpp>
+#include <ck_tile/host/kernel_launch.hpp>
+#include <ck_tile/host/stream_config.hpp>
+#include <ck_tile/host/hip_check_error.hpp>
+#include <ck_tile/ops/epilogue.hpp>
+
+#include "hstu_attention_bool_switch.hpp"
+#include "hstu_attention_bwd_type_config.hpp"
+#include "hstu_attention_bwd_setting.hpp"
+#include "hstu_attention_bwd_helper.hpp"
+#include "hstu_attention_params.hpp"
+#include "hstu_attention_hdim_switch.hpp"
+#include "hstu_attention_pipeline_problem.hpp"
+#include "hstu_attention_traits.hpp"
+#include "hstu_attention_no_softmax_bwd_pipeline_dq.hpp"
+#include "hstu_attention_with_softmax_bwd_pipeline_dq_delta.hpp"
+#include "hstu_attention_no_softmax_bwd_pipeline_dk_dv.hpp"
+#include "hstu_attention_with_softmax_bwd_pipeline_dk_dv.hpp"
+#include "hstu_attention_bwd_kernel_1.hpp"
+#include "hstu_attention_bwd_kernel_2.hpp"
+#include "hstu_attention_epilogue.hpp"
+#include "hstu_attention_host_util.hpp"
+
+// Backward dispatch for group (multi-group jagged) mode.
+// Backward never uses split-kv: training always provides sufficient CU coverage.
+
+template <typename InOutDataType,
+          bool kUseCausal,
+          bool kUseSoftmax,
+          bool kHasBias,
+          bool kHasDropout,
+          ck_tile::index_t MaxK>
+struct group_backward_dispatch
+{
+    using HstuAttentionTileSettingForKernel1 =
+        typename HstuAttentionBwdTileSettingForKernel1<MaxK>::Type;
+    using HstuAttentionTileSettingForKernel2 =
+        typename HstuAttentionBwdTileSettingForKernel2<MaxK>::Type;
+
+    template <bool kIsCrossAttention>
+    using HstuBwdBaseProblemTemp = ck_tile::HstuAttentionBwdPipelineBaseProblem<
+        InOutDataType,
+        typename HstuAttentionBwdTypeConfig<InOutDataType>::GemmAccDataType,
+        typename HstuAttentionBwdTypeConfig<InOutDataType>::CompDataType,
+        kIsCrossAttention,
+        true, // kUseGroup
+        true, // kIsJagged
+        kHasBias,
+        kUseCausal,
+        kUseSoftmax,
+        kHasDropout>;
+
+    template <bool kIsCrossAttention>
+    using HstuBwdPipelineProblemForKernel1Temp = ck_tile::HstuAttentionBwdPipelineProblemForKernel1<
+        HstuBwdBaseProblemTemp<kIsCrossAttention>,
+        HstuAttentionTileSettingForKernel1>;
+
+    template <bool kIsCrossAttention>
+    using HstuBwdPipelineProblemForKernel2Temp = ck_tile::HstuAttentionBwdPipelineProblemForKernel2<
+        HstuBwdBaseProblemTemp<kIsCrossAttention>,
+        HstuAttentionTileSettingForKernel2>;
+
+    static void Run(HstuAttentionGroupBwdParams& param, hipStream_t stream)
+    {
+        BwdWorkspace ws;
+
+        constexpr ck_tile::index_t occupancy_k1 = -1;
+        constexpr ck_tile::index_t occupancy_k2 = -1;
+
+        const bool pad_headdim_qk =
+            !(param.hdim_qk % HstuAttentionTileSettingForKernel1::kQKHeaddim == 0);
+        const bool pad_headdim_v =
+            !(param.hdim_v % HstuAttentionTileSettingForKernel1::kVHeaddim == 0);
+
+        // seqlen_q is not along the fastest memory dim; OOB is handled by the buffer instructions.
+        // In group/jagged mode seqlen_k always requires padding since it varies per sample.
+        constexpr bool kPadSeqLenQ = false;
+        constexpr bool kPadSeqLenK = true;
+
+        BOOL_SWITCH_2(pad_headdim_qk, kPadHeadDimQK, pad_headdim_v, kPadHeadDimV, [&] {
+            using HstuTraits = ck_tile::HstuAttentionBwdTraits<kPadSeqLenQ,
+                                                               kPadSeqLenK,
+                                                               kPadHeadDimQK,
+                                                               kPadHeadDimV,
+                                                               occupancy_k1,
+                                                               occupancy_k2>;
+
+            using HstuEpilogue = ck_tile::NRepetitions2DEpilogue<ck_tile::Default2DEpilogueProblem<
+                typename HstuAttentionBwdTypeConfig<InOutDataType>::GemmAccDataType,
+                InOutDataType,
+                kPadSeqLenQ,
+                kPadHeadDimQK>>;
+
+            BOOL_SWITCH(param.is_cross_attention, kIsCrossAttention, [&] {
+                using HstuPipelineProblemForKernel1 =
+                    HstuBwdPipelineProblemForKernel1Temp<kIsCrossAttention>;
+                using HstuPipelineProblemForKernel2 =
+                    HstuBwdPipelineProblemForKernel2Temp<kIsCrossAttention>;
+
+                using HstuPipelineKernel1 =
+                    std::conditional_t<kUseSoftmax,
+                                       ck_tile::HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D<
+                                           HstuPipelineProblemForKernel1,
+                                           HstuTraits>,
+                                       ck_tile::HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ<
+                                           HstuPipelineProblemForKernel1,
+                                           HstuTraits>>;
+
+                using HstuPipelineKernel2 =
+                    std::conditional_t<kUseSoftmax,
+                                       ck_tile::HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV<
+                                           HstuPipelineProblemForKernel2,
+                                           HstuTraits>,
+                                       ck_tile::HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV<
+                                           HstuPipelineProblemForKernel2,
+                                           HstuTraits>>;
+
+                using HstuKernel1 =
+                    ck_tile::HstuAttentionBwdKernel1<HstuPipelineKernel1, HstuEpilogue>;
+                using HstuKernel2 =
+                    ck_tile::HstuAttentionBwdKernel2<HstuPipelineKernel2, HstuEpilogue>;
+
+                RunWithKernels<HstuKernel1, HstuKernel2>(param, ws, stream);
+            });
+        });
+    }
+
+    template <typename HstuKernel1, typename HstuKernel2>
+    static void
+    RunWithKernels(HstuAttentionGroupBwdParams& param, BwdWorkspace& ws, hipStream_t stream)
+    {
+        // Delta layout in group/jagged mode: flat over the sequence dimension, strided by head.
+        // seq_stride=1, nhead_stride=num_batch*max_seqlen_q -- no batch stride needed.
+        const ck_tile::index_t seq_stride_delta   = 1;
+        const ck_tile::index_t nhead_stride_delta = param.num_batch * param.max_seqlen_q;
+
+        if constexpr(kUseSoftmax)
+        {
+            const size_t delta_bytes = static_cast<size_t>(param.num_batch) *
+                                       static_cast<size_t>(param.num_head) *
+                                       static_cast<size_t>(param.max_seqlen_q) * sizeof(float);
+            HIP_CHECK_ERROR(hipMallocAsync(&ws.delta_ptr, delta_bytes, stream));
+        }
+
+        bool almost_invariant_seqlen = is_almost_invariant_seqlen(param);
+
+        // ---- Kernel 1: compute dQ (and delta = D[sq] for softmax path) ----
+        {
+            const auto kargs = [&] {
+                return HstuKernel1::MakeKargs(param.q_ptr,
+                                              param.k_ptr,
+                                              param.v_ptr,
+                                              param.bias_ptr,
+                                              param.o_ptr,
+                                              param.do_ptr,
+                                              param.dq_ptr,
+                                              param.lse_ptr,
+                                              ws.delta_ptr,
+                                              param.num_batch / param.num_group,
+                                              param.seq_q_offsets_ptr,
+                                              param.is_cross_attention ? param.seq_kv_offsets_ptr
+                                                                       : param.seq_q_offsets_ptr,
+                                              param.group_max_seqlen_q_ptr,
+                                              param.group_contextual_seqlen_ptr,
+                                              param.group_window_size_ptr,
+                                              param.group_min_full_attn_seqlen_ptr,
+                                              param.group_attn_scale_ptr,
+                                              param.hdim_qk,
+                                              param.hdim_v,
+                                              param.num_head,
+                                              param.scale_s,
+                                              almost_invariant_seqlen,
+                                              param.seq_stride_q,
+                                              param.seq_stride_k,
+                                              param.seq_stride_v,
+                                              param.seq_stride_o,
+                                              param.seq_stride_do,
+                                              param.seq_stride_dq,
+                                              param.seq_stride_lse,
+                                              seq_stride_delta,
+                                              param.seq_stride_bias,
+                                              param.nhead_stride_q,
+                                              param.nhead_stride_k,
+                                              param.nhead_stride_v,
+                                              param.nhead_stride_o,
+                                              param.nhead_stride_do,
+                                              param.nhead_stride_dq,
+                                              param.nhead_stride_lse,
+                                              nhead_stride_delta,
+                                              param.nhead_stride_bias,
+                                              param.num_targets_ptr,
+                                              param.p_drop,
+                                              param.philox_seed,
+                                              param.philox_offset);
+            }();
+
+            // Group kernel 1 always adds one sentinel tile for variable seqlen handling.
+            dim3 kGridSize = HstuKernel1::GridSize(
+                param.num_batch, param.num_head, param.max_seqlen_q, almost_invariant_seqlen);
+            dim3 kBlockSize                        = HstuKernel1::BlockSize();
+            constexpr ck_tile::index_t kBlockPerCu = HstuKernel1::kBlockPerCu;
+
+            (void)ck_tile::launch_kernel(
+                ck_tile::stream_config{stream, false},
+                ck_tile::make_kernel<kBlockPerCu>(HstuKernel1{}, kGridSize, kBlockSize, 0, kargs));
+        }
+
+        // ---- Kernel 2: compute dK and dV ----
+        {
+            const auto kargs = [&] {
+                return HstuKernel2::MakeKargs(param.q_ptr,
+                                              param.k_ptr,
+                                              param.v_ptr,
+                                              param.bias_ptr,
+                                              param.do_ptr,
+                                              param.dk_ptr,
+                                              param.dv_ptr,
+                                              param.lse_ptr,
+                                              ws.delta_ptr,
+                                              param.num_batch / param.num_group,
+                                              param.seq_q_offsets_ptr,
+                                              param.is_cross_attention ? param.seq_kv_offsets_ptr
+                                                                       : param.seq_q_offsets_ptr,
+                                              param.group_max_seqlen_q_ptr,
+                                              param.group_contextual_seqlen_ptr,
+                                              param.group_window_size_ptr,
+                                              param.group_min_full_attn_seqlen_ptr,
+                                              param.group_attn_scale_ptr,
+                                              param.hdim_qk,
+                                              param.hdim_v,
+                                              param.num_head,
+                                              param.scale_s,
+                                              almost_invariant_seqlen,
+                                              param.seq_stride_q,
+                                              param.seq_stride_k,
+                                              param.seq_stride_v,
+                                              param.seq_stride_do,
+                                              param.seq_stride_dk,
+                                              param.seq_stride_dv,
+                                              param.seq_stride_lse,
+                                              seq_stride_delta,
+                                              param.seq_stride_bias,
+                                              param.nhead_stride_q,
+                                              param.nhead_stride_k,
+                                              param.nhead_stride_v,
+                                              param.nhead_stride_do,
+                                              param.nhead_stride_dk,
+                                              param.nhead_stride_dv,
+                                              param.nhead_stride_lse,
+                                              nhead_stride_delta,
+                                              param.nhead_stride_bias,
+                                              param.num_targets_ptr,
+                                              param.p_drop,
+                                              param.philox_seed,
+                                              param.philox_offset);
+            }();
+
+            dim3 kGridSize = HstuKernel2::GridSize(
+                param.num_batch, param.num_head, param.max_seqlen_kv, almost_invariant_seqlen);
+            dim3 kBlockSize                        = HstuKernel2::BlockSize();
+            constexpr ck_tile::index_t kBlockPerCu = HstuKernel2::kBlockPerCu;
+
+            (void)ck_tile::launch_kernel(
+                ck_tile::stream_config{stream, false},
+                ck_tile::make_kernel<kBlockPerCu>(HstuKernel2{}, kGridSize, kBlockSize, 0, kargs));
+        }
+
+        if constexpr(kUseSoftmax)
+        {
+            HIP_CHECK_ERROR(hipFreeAsync(ws.delta_ptr, stream));
+        }
+    }
+};
+
+template <typename InOutDataType,
+          bool kUseCausal,
+          bool kUseSoftmax,
+          bool kHasBias,
+          bool kHasDropout,
+          ck_tile::index_t MaxK>
+void run_group_backward_dispatch(HstuAttentionGroupBwdParams& param, hipStream_t stream)
+{
+    group_backward_dispatch<InOutDataType, kUseCausal, kUseSoftmax, kHasBias, kHasDropout, MaxK>::
+        Run(param, stream);
+}

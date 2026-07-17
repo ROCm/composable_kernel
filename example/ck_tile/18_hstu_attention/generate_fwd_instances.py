@@ -189,11 +189,9 @@ if __name__ == "__main__":
     output_dir = Path(this_dir) / "instances"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # remove existing files in the directory
-    files = os.listdir(output_dir)
-    for ff in files:
-        file_path = os.path.join(output_dir, ff)
-        os.remove(file_path)
+    # remove existing forward files in the directory
+    for ff in output_dir.glob("*_forward_*"):
+        ff.unlink()
 
     create_forward_instances(output_dir, headdims_fwd)
     create_forward_instances_ref(output_dir, headdims_fwd)
