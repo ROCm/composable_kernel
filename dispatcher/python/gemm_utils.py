@@ -187,6 +187,9 @@ class GemmKernelConfig:
 
     gfx_arch: str = "gfx942"
     variant: str = "standard"
+    # Stream-K reduction strategy: "atomic" (default), "linear", or "tree".
+    # Only meaningful when variant == "stream_k".
+    reduction_strategy: str = "atomic"
 
     # ------------------------------------------------------------------ #
     # Derived string fragments
@@ -231,8 +234,12 @@ class GemmKernelConfig:
         )
         if self.variant == "preshuffle":
             name += "_preshuffle"
-        elif self.variant == "streamk":
+        elif self.variant == "stream_k":
             name += "_streamk"
+            # Atomic keeps the bare "_streamk" suffix (original parity); linear
+            # and tree are disambiguated, matching KernelNaming.generate.
+            if self.reduction_strategy != "atomic":
+                name += f"_{self.reduction_strategy}"
         elif self.variant == "grouped":
             name += "_grouped"
         return name
@@ -247,7 +254,7 @@ class GemmKernelConfig:
         triple ``warp_*`` and the MFMA triple ``warp_tile_*``. We translate
         from dispatcher semantics here so the mapping cannot drift.
         """
-        return {
+        cfg = {
             "tile_config": {
                 "tile_m": [self.tile_m],
                 "tile_n": [self.tile_n],
@@ -271,6 +278,11 @@ class GemmKernelConfig:
                 "persistent": [self.persistent],
             },
         }
+        # Pin the single reduction strategy so stream-K codegen emits exactly this
+        # kernel (the generator otherwise expands all strategies in its default).
+        if self.variant == "stream_k":
+            cfg["streamk_config"] = {"reduction_strategy": [self.reduction_strategy]}
+        return cfg
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -985,10 +997,16 @@ def _tile_engine_codegen_flags() -> Tuple[str, ...]:
 def _ctypes_source_name(config: GemmKernelConfig) -> str:
     """Pick the ctypes ABI source for a config's variant.
 
-    The grouped kernel has a multi-problem launch signature that the
-    single-problem ``gemm_ctypes_lib.cpp`` cannot express, so grouped configs
-    compile against the dedicated ``grouped_gemm_ctypes_lib.cpp``.
+    Variants whose launch ABI differs from the single-problem
+    ``dispatcher_run_gemm`` path need their own lib:
+      * stream_k keeps the single-problem C ABI (single A/B/C, M/N/K) but its
+        lib builds a ``StreamKHostArgs`` and calls ``SelectedKernel::launch``
+        directly instead of routing through the registry.
+      * grouped has a multi-problem launch signature the single-problem
+        ``gemm_ctypes_lib.cpp`` cannot express.
     """
+    if config.variant == "stream_k":
+        return "streamk_gemm_ctypes_lib.cpp"
     if config.variant == "grouped":
         return "grouped_gemm_ctypes_lib.cpp"
     return "gemm_ctypes_lib.cpp"
@@ -1007,6 +1025,29 @@ def _build_compile_jobs(
 
     lib_path = build_dir / "examples" / f"lib{config.name}.so"
     obj_file = lib_path.with_suffix(".o")
+    # The Stream-K path skips the cmake build that would normally create this
+    # directory, so ensure it exists before hipcc writes the object/.so here.
+    lib_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Per-variant AMDGPU codegen flags. The regular path matches Tile Engine's
+    # gemm_universal build via _tile_engine_codegen_flags(). Stream-K must instead
+    # match TE's gemm_streamk build EXACTLY for a fair A/B: -enable-post-misched=0
+    # is applied unconditionally (not persistent-gated) and it does NOT use
+    # -enable-noalias-to-md-conversion=0.
+    is_streamk = getattr(config, "variant", "") == "stream_k"
+    variant_flags = (
+        [
+            "-std=c++20",
+            "-fno-offload-uniform-block",
+            "-mllvm", "--lsr-drop-solution=1",
+            "-mllvm", "-enable-post-misched=0",
+            "-mllvm", "-amdgpu-early-inline-all=true",
+            "-mllvm", "-amdgpu-function-calls=false",
+            "--offload-compress",
+        ]
+        if is_streamk
+        else list(_tile_engine_codegen_flags())
+    )
 
     compile_cmd = [
         _resolve_hipcc(),
@@ -1022,13 +1063,13 @@ def _build_compile_jobs(
         "-D__HIP_PLATFORM_AMD__",
         f"--offload-arch={config.gfx_arch}",
         f'-DGFX_ARCH="{config.gfx_arch}"',
-        # Match Tile Engine's AMDGPU codegen flags exactly (see
+        # Match Tile Engine's AMDGPU codegen flags exactly (see variant_flags /
         # _tile_engine_codegen_flags). Without them the kernel is compiled with
         # different inlining/register allocation, which changes occupancy;
         # persistent kernels size their grid by occupancy
         # (UniversalGemmKernel::MaxOccupancyGridSize = #CUs x occupancy), so a
         # mismatch shows up as large perf gaps vs Tile Engine on persistent tiles.
-        *_tile_engine_codegen_flags(),
+        *variant_flags,
         "-Wno-undefined-func-template",
         "-Wno-float-equal",
         str(ctypes_source),
@@ -1042,7 +1083,10 @@ def _build_compile_jobs(
         f"--offload-arch={config.gfx_arch}",
         "--hip-link",
         str(obj_file),
-        str(static_lib),
+        # The Stream-K ctypes lib launches the force-included kernel directly and
+        # references no registry/dispatcher symbols, so its .so does not need the
+        # dispatcher static lib. The regular path still links it.
+        *([] if is_streamk else [str(static_lib)]),
         "-o",
         str(lib_path),
     ]
@@ -1086,7 +1130,11 @@ def setup_multiple_gemm_dispatchers(
     ctypes_dir = _cu.get_dispatcher_root() / "bindings" / "ctypes"
     needed_sources = {ctypes_dir / _ctypes_source_name(c) for c in configs}
     missing = [str(p) for p in needed_sources if not p.exists()]
-    if not static_lib.exists() or missing:
+    # Stream-K .so links only the force-included kernel (no registry/dispatcher
+    # symbols), so it does not need the dispatcher static lib; only the regular
+    # path requires it.
+    streamk_build = all(c.variant == "stream_k" for c in configs)
+    if (not streamk_build and not static_lib.exists()) or missing:
         raise FileNotFoundError(
             "Missing static lib or ctypes source required for compilation:\n"
             f"  {static_lib}\n  " + "\n  ".join(missing) + "\n"
@@ -1249,6 +1297,14 @@ def expand_sweep(
     pad_ks = _expand_values(tr.get("pad_k"), [False])
     persistents = _expand_values(tr.get("persistent"), [False])
 
+    # Stream-K only: sweep reduction strategies (atomic/linear/tree). Other
+    # variants keep a single dummy value so the product is unaffected.
+    if variant == "stream_k":
+        sk = cfg.get("streamk_config", {})
+        reductions = _expand_values(sk.get("reduction_strategy"), ["atomic"])
+    else:
+        reductions = ["atomic"]
+
     la, lb, lc = layout[0], layout[1], layout[2]
 
     configs: List[GemmKernelConfig] = []
@@ -1270,6 +1326,7 @@ def expand_sweep(
         pn,
         pk,
         persist,
+        red,
     ) in itertools.product(
         tile_ms,
         tile_ns,
@@ -1287,6 +1344,7 @@ def expand_sweep(
         pad_ns,
         pad_ks,
         persistents,
+        reductions,
     ):
         c = GemmKernelConfig(
             dtype_a=dtype,
@@ -1314,6 +1372,7 @@ def expand_sweep(
             persistent=bool(persist),
             gfx_arch=arch,
             variant=variant,
+            reduction_strategy=red,
         )
         if c.name in seen:
             continue
