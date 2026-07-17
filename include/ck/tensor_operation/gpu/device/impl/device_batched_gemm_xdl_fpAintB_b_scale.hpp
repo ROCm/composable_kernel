@@ -905,6 +905,10 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
         {
             return false;
         }
+        if(is_gfx12_supported() && arg.KBatch > 1)
+        {
+            return false;
+        }
         if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t> && arg.KBatch > 1)
         {
             return false;

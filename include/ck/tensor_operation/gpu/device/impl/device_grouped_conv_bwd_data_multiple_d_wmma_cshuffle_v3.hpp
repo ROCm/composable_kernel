@@ -1502,6 +1502,17 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             return false;
         }
 
+        if(ck::is_gfx12_supported() && arg.k_batch_ > 1)
+        {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "SplitK tests are not supported!" << " In " << __FILE__ << ":"
+                          << __LINE__ << ", in function: " << __func__ << std::endl;
+            }
+
+            return false;
+        }
+
         const index_t ConvG               = arg.b_g_k_c_xs_lengths_[0];
         const index_t ConvK               = arg.b_g_k_c_xs_lengths_[1];
         const index_t ConvC               = arg.b_g_k_c_xs_lengths_[2];
