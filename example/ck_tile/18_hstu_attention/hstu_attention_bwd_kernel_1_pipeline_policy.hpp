@@ -917,17 +917,32 @@ struct HstuAttentionBwdKernel1PipelinePolicy
                                   (WarpGemmM == 32 && (WarpGemmK == 8 || WarpGemmK == 16)),
                               "Not supported WarpGemm sizes!");
 #endif
-                return WarpGemmDispatcher<
-                    typename Problem::QKVDataType,
-                    typename Problem::QKVDataType,
-                    typename Problem::GemmAccDataType,
-                    Problem::HstuAttentionTileSetting::Gemm4WarpTile::at(number<0>{}),
-                    Problem::HstuAttentionTileSetting::Gemm4WarpTile::at(number<1>{}),
-                    Problem::HstuAttentionTileSetting::Gemm4WarpTile::at(number<2>{}),
-                    true,
-                    false,
-                    false,
-                    WGAttrNumAccessEnum::Single>{};
+
+                if constexpr((WarpGemmM == 16 && WarpGemmK == 32) ||
+                             (WarpGemmM == 32 && WarpGemmK == 16))
+                    return WarpGemmDispatcher<
+                        typename Problem::QKVDataType,
+                        typename Problem::QKVDataType,
+                        typename Problem::GemmAccDataType,
+                        Problem::HstuAttentionTileSetting::Gemm4WarpTile::at(number<0>{}),
+                        Problem::HstuAttentionTileSetting::Gemm4WarpTile::at(number<1>{}),
+                        Problem::HstuAttentionTileSetting::Gemm4WarpTile::at(number<2>{}),
+                        true,
+                        false,
+                        false,
+                        WGAttrNumAccessEnum::Double>{};
+                else
+                    return WarpGemmDispatcher<
+                        typename Problem::QKVDataType,
+                        typename Problem::QKVDataType,
+                        typename Problem::GemmAccDataType,
+                        Problem::HstuAttentionTileSetting::Gemm4WarpTile::at(number<0>{}),
+                        Problem::HstuAttentionTileSetting::Gemm4WarpTile::at(number<1>{}),
+                        Problem::HstuAttentionTileSetting::Gemm4WarpTile::at(number<2>{}),
+                        true,
+                        false,
+                        false,
+                        WGAttrNumAccessEnum::Single>{};
             }
             else
             {
