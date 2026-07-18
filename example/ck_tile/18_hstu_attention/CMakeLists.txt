@@ -1,24 +1,4 @@
-set(EXAMPLE_HSTU_ATTENTION_FWD "tile_example_hstu_attention_fwd")
-# not using add_example_executable() to add this target, since we don't want this to have
-# to be included in "make all/install/check"
-message("adding example ${EXAMPLE_HSTU_ATTENTION_FWD}")
-file(GLOB FWD_INSTANCE_SRCS instances/*_forward_*.cpp)
-set(FWD_INTERFACE_SRCS  hstu_attention_no_group_forward_bf16.cpp  hstu_attention_no_group_forward_fp16.cpp hstu_attention_group_forward_bf16.cpp hstu_attention_group_forward_fp16.cpp)
-file(GLOB OTHER_INTERFACE_SRCS "hstu_generate_*_random_number_*.cpp")
-add_executable(${EXAMPLE_HSTU_ATTENTION_FWD} EXCLUDE_FROM_ALL example_hstu_attention_fwd.cpp)
-target_include_directories(${EXAMPLE_HSTU_ATTENTION_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${EXAMPLE_HSTU_ATTENTION_FWD} PRIVATE ${FWD_INTERFACE_SRCS}  ${FWD_INSTANCE_SRCS} ${OTHER_INTERFACE_SRCS})
-
-set(EXAMPLE_HSTU_ATTENTION_BWD "tile_example_hstu_attention_bwd")
-# not using add_example_executable() to add this target, since we don't want this to have
-# to be included in "make all/install/check"
-message("adding example ${EXAMPLE_HSTU_ATTENTION_BWD}")
-file(GLOB BWD_INSTANCE_SRCS instances/*_backward_*.cpp)
-set(BWD_INTERFACE_SRCS  hstu_attention_no_group_backward_bf16.cpp  hstu_attention_no_group_backward_fp16.cpp hstu_attention_group_backward_bf16.cpp hstu_attention_group_backward_fp16.cpp)
-add_executable(${EXAMPLE_HSTU_ATTENTION_BWD} EXCLUDE_FROM_ALL example_hstu_attention_bwd.cpp)
-target_include_directories(${EXAMPLE_HSTU_ATTENTION_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${EXAMPLE_HSTU_ATTENTION_BWD} PRIVATE ${BWD_INTERFACE_SRCS} ${BWD_INSTANCE_SRCS} ${OTHER_INTERFACE_SRCS} ${FWD_INTERFACE_SRCS} ${FWD_INSTANCE_SRCS})
-
+# Common compile options shared by all targets (executables and libraries) below.
 set(EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS)
 
 list(APPEND EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
@@ -28,8 +8,45 @@ if(GPU_TARGETS MATCHES "gfx95" AND NOT GPU_TARGETS MATCHES "gfx94" AND NOT GPU_T
     list(APPEND EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS -DBUILD_HSTU_FOR_GFX95 -fno-slp-vectorize)
 endif()
 
+# Source lists for the forward path
+file(GLOB FWD_INSTANCE_SRCS instances/*_forward_*.cpp)
+set(FWD_INTERFACE_SRCS  hstu_attention_no_group_forward_bf16.cpp  hstu_attention_no_group_forward_fp16.cpp hstu_attention_group_forward_bf16.cpp hstu_attention_group_forward_fp16.cpp)
+
+# Source lists for the backward path
+file(GLOB BWD_INSTANCE_SRCS instances/*_backward_*.cpp)
+set(BWD_INTERFACE_SRCS  hstu_attention_no_group_backward_bf16.cpp  hstu_attention_no_group_backward_fp16.cpp hstu_attention_group_backward_bf16.cpp hstu_attention_group_backward_fp16.cpp)
+
+file(GLOB OTHER_INTERFACE_SRCS "hstu_generate_*_random_number_*.cpp")
+
+# Forward library: libhstufwd.so
+add_library(hstufwd SHARED EXCLUDE_FROM_ALL ${FWD_INTERFACE_SRCS} ${FWD_INSTANCE_SRCS})
+target_include_directories(hstufwd PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_compile_options(hstufwd PRIVATE ${EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS})
+
+# Backward library: libhstubwd.so
+add_library(hstubwd SHARED EXCLUDE_FROM_ALL ${BWD_INTERFACE_SRCS} ${BWD_INSTANCE_SRCS})
+target_include_directories(hstubwd PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_compile_options(hstubwd PRIVATE ${EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS})
+
+set(EXAMPLE_HSTU_ATTENTION_FWD "tile_example_hstu_attention_fwd")
+# not using add_example_executable() to add this target, since we don't want this to have
+# to be included in "make all/install/check"
+message("adding example ${EXAMPLE_HSTU_ATTENTION_FWD}")
+add_executable(${EXAMPLE_HSTU_ATTENTION_FWD} EXCLUDE_FROM_ALL example_hstu_attention_fwd.cpp)
+target_include_directories(${EXAMPLE_HSTU_ATTENTION_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_sources(${EXAMPLE_HSTU_ATTENTION_FWD} PRIVATE ${OTHER_INTERFACE_SRCS})
 target_compile_options(${EXAMPLE_HSTU_ATTENTION_FWD} PRIVATE ${EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS})
+target_link_libraries(${EXAMPLE_HSTU_ATTENTION_FWD} PRIVATE hstufwd)
+
+set(EXAMPLE_HSTU_ATTENTION_BWD "tile_example_hstu_attention_bwd")
+# not using add_example_executable() to add this target, since we don't want this to have
+# to be included in "make all/install/check"
+message("adding example ${EXAMPLE_HSTU_ATTENTION_BWD}")
+add_executable(${EXAMPLE_HSTU_ATTENTION_BWD} EXCLUDE_FROM_ALL example_hstu_attention_bwd.cpp)
+target_include_directories(${EXAMPLE_HSTU_ATTENTION_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_sources(${EXAMPLE_HSTU_ATTENTION_BWD} PRIVATE ${OTHER_INTERFACE_SRCS})
 target_compile_options(${EXAMPLE_HSTU_ATTENTION_BWD} PRIVATE ${EXAMPLE_HSTU_ATTENTION_COMPILE_OPTIONS})
+target_link_libraries(${EXAMPLE_HSTU_ATTENTION_BWD} PRIVATE hstufwd hstubwd)
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long
