@@ -339,6 +339,7 @@ struct amdgcn_mma<pk_int4_t, pk_int4_t, int32_t, 16u, 16u, 32u, CompilerTarget, 
 };
 
 // GFX1250
+#if defined(__gfx125__)
 
 /**
  * @struct amdgcn_mma
@@ -1082,5 +1083,7 @@ struct amdgcn_mma<fp16_t, fp16_t, fp16_t, 16u, 16u, 32u, CompilerTarget, MmaOpFa
                                                        0)}; // matrix_b_reuse
     }
 };
+
+#endif // __gfx125__
 
 } // namespace ck_tile::core::arch::mma
