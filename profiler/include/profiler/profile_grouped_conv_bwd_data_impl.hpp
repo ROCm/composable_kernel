@@ -18,7 +18,9 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_data_gpu.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_backward_data.hpp"
+#include "ck/library/utility/gpu_verification.hpp"
 
 namespace ck {
 namespace profiler {
@@ -86,9 +88,44 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     out_device_buf.ToDevice(out.mData.data());
     wei_device_buf.ToDevice(wei.mData.data());
 
+    // reset input to zero
+    in_device_buf.SetZero();
+
+    // Allocate GPU reference buffer (used only if do_verification == 2)
+    DeviceMem gpu_ref_in_buf(
+        do_verification == 2 ? sizeof(InDataType) * in_host.mDesc.GetElementSpaceSize() : 0);
+
     float max_accumulated_value = 0;
-    if(do_verification)
+    if(do_verification == 2)
     {
+        // Use GPU reference with GPU verification
+        std::cout << "Using GPU reference with GPU verification" << std::endl;
+
+        // Call GPU reference with ConvParam directly
+        ref::naive_conv_bwd_data<InLayout,
+                                 WeiLayout,
+                                 OutLayout,
+                                 InDataType,
+                                 WeiDataType,
+                                 OutDataType,
+                                 InElementOp,
+                                 WeiElementOp,
+                                 OutElementOp>(
+            reinterpret_cast<InDataType*>(gpu_ref_in_buf.GetDeviceBuffer()),
+            reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
+            conv_param,
+            in_element_op,
+            wei_element_op,
+            out_element_op);
+
+        // Compute max value on GPU for tolerance calculation (only 4 bytes transferred!)
+        max_accumulated_value = ck::profiler::gpu_reduce_max<InDataType>(
+            gpu_ref_in_buf.GetDeviceBuffer(), in_host.mDesc.GetElementSpaceSize());
+    }
+    else if(do_verification == 1)
+    {
+        // Use CPU reference for verification (default)
         auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
                                                                          InDataType,
                                                                          WeiDataType,
@@ -160,8 +197,58 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
                 best_split_k    = split_k_for_run;
             }
 
-            if(do_verification)
+            if(do_verification == 2)
             {
+                // GPU verification path
+                using ComputeType = std::conditional_t<sizeof(OutDataType) < sizeof(WeiDataType),
+                                                       OutDataType,
+                                                       WeiDataType>;
+                using AccDataType =
+                    std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
+
+                // Calculate number of accumulations accounting for split_k
+                const int num_accums = static_cast<int>(conv_param.K_ / split_k_for_run);
+
+                // Additional tolerance for split_k accumulation if needed
+                int total_accums = num_accums;
+                if(split_k_for_run > 1)
+                {
+                    total_accums = std::max(num_accums, static_cast<int>(split_k_for_run));
+                }
+
+                // Perform GPU verification (max value computed internally on GPU)
+                const std::size_t tensor_size = in_device.mDesc.GetElementSpaceSize();
+                auto gpu_result = ck::profiler::gpu_verify<InDataType, ComputeType, AccDataType>(
+                    in_device_buf.GetDeviceBuffer(),
+                    gpu_ref_in_buf.GetDeviceBuffer(),
+                    total_accums,
+                    tensor_size);
+
+                if(!gpu_result)
+                {
+                    // GPU verification failed - print detailed error summary
+                    gpu_result.print_error_summary();
+                    pass = false;
+
+                    if(do_log)
+                    {
+                        // Copy buffers to host for logging
+                        in_device_buf.FromDevice(in_device.mData.data());
+                        gpu_ref_in_buf.FromDevice(in_host.mData.data());
+
+                        LogRangeAsType<float>(std::cout << "output : ", out.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(std::cout << "weight: ", wei.mData, ",") << std::endl;
+                        LogRangeAsType<float>(std::cout << "in_host  : ", in_host.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(std::cout << "in_device: ", in_device.mData, ",")
+                            << std::endl;
+                    }
+                }
+            }
+            else if(do_verification == 1)
+            {
+                // CPU verification path (original behavior)
                 in_device_buf.FromDevice(in_device.mData.data());
 
                 using ComputeType = std::conditional_t<sizeof(OutDataType) < sizeof(WeiDataType),
@@ -226,16 +313,16 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
         DeviceOp>::GetInstances();
 
-    std::array<ck::index_t, NDimSpatial + 3> out_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> out_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> wei_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> wei_strides{};
-    std::array<ck::index_t, NDimSpatial + 3> in_lengths{};
-    std::array<ck::index_t, NDimSpatial + 3> in_strides{};
-    std::array<ck::index_t, NDimSpatial> conv_filter_strides{};
-    std::array<ck::index_t, NDimSpatial> conv_filter_dilations{};
-    std::array<ck::index_t, NDimSpatial> input_left_pads{};
-    std::array<ck::index_t, NDimSpatial> input_right_pads{};
+    std::array<ck::long_index_t, NDimSpatial + 3> out_lengths{};
+    std::array<ck::long_index_t, NDimSpatial + 3> out_strides{};
+    std::array<ck::long_index_t, NDimSpatial + 3> wei_lengths{};
+    std::array<ck::long_index_t, NDimSpatial + 3> wei_strides{};
+    std::array<ck::long_index_t, NDimSpatial + 3> in_lengths{};
+    std::array<ck::long_index_t, NDimSpatial + 3> in_strides{};
+    std::array<ck::long_index_t, NDimSpatial> conv_filter_strides{};
+    std::array<ck::long_index_t, NDimSpatial> conv_filter_dilations{};
+    std::array<ck::long_index_t, NDimSpatial> input_left_pads{};
+    std::array<ck::long_index_t, NDimSpatial> input_right_pads{};
 
     auto copy = [](const auto& x, auto& y) { ck::ranges::copy(x, y.begin()); };
 

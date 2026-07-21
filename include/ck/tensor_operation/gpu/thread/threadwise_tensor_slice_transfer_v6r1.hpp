@@ -33,7 +33,8 @@ template <typename SrcData,
           index_t ScalarPerVector,
           InMemoryDataOperationEnum DstInMemOp,
           bool SrcResetCoordinateAfterRun,
-          bool DstResetCoordinateAfterRun>
+          bool DstResetCoordinateAfterRun,
+          typename IndexType = index_t>
 struct ThreadwiseTensorSliceTransfer_v6r1
 {
     static constexpr index_t nDim = SliceLengths::Size();
@@ -41,7 +42,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1
     using Index = MultiIndex<nDim>;
 
     using SrcCoord = decltype(make_tensor_coordinate(SrcDesc{}, Index{}));
-    using DstCoord = decltype(make_tensor_coordinate(DstDesc{}, Index{}));
+    using DstCoord = decltype(make_tensor_coordinate<IndexType>(DstDesc{}, Index{}));
 
     static constexpr auto I0 = Number<0>{};
 
@@ -51,7 +52,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1
                                                             const Index& dst_slice_origin,
                                                             const ElementwiseOperation& element_op)
         : src_coord_(make_tensor_coordinate(src_desc, src_slice_origin)),
-          dst_coord_(make_tensor_coordinate(dst_desc, dst_slice_origin)),
+          dst_coord_(make_tensor_coordinate<IndexType>(dst_desc, dst_slice_origin)),
           element_op_(element_op)
     {
         static_assert(SliceLengths::At(Number<VectorDim>{}) % ScalarPerVector == 0,
@@ -65,7 +66,7 @@ struct ThreadwiseTensorSliceTransfer_v6r1
 
     __device__ void SetDstSliceOrigin(const DstDesc& dst_desc, const Index& dst_slice_origin_idx)
     {
-        dst_coord_ = make_tensor_coordinate(dst_desc, dst_slice_origin_idx);
+        dst_coord_ = make_tensor_coordinate<IndexType>(dst_desc, dst_slice_origin_idx);
     }
 
     template <typename SrcBuffer, typename DstBuffer>
@@ -116,9 +117,10 @@ struct ThreadwiseTensorSliceTransfer_v6r1
             const bool is_dst_valid =
                 coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_desc, dst_coord_);
 
+            const IndexType st_offset = dst_coord_.GetOffset();
             // copy data from dst_vector into dst_buf
             dst_buf.template Update<DstInMemOp, dst_vector_t>(
-                dst_coord_.GetOffset(),
+                st_offset,
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
 

@@ -108,8 +108,6 @@ struct BlockwiseGemmXdlops_pipeline_v4
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    static constexpr index_t WaveSize = get_warp_size();
-
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
     static constexpr index_t B_K0 = BTileDesc{}.GetLength(I0);
     static constexpr index_t A_K1 = ATileDesc{}.GetLength(I2);
@@ -121,8 +119,9 @@ struct BlockwiseGemmXdlops_pipeline_v4
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat    = KPerThread / KPack;
 
-    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr index_t MWaves   = MPerBlock / (MRepeat * MPerXDL);
+    static constexpr index_t NWaves   = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     using HotLoopInstList = BlockwiseGemmXdlops_pipeline_hotloop_inst<BlockSize,
                                                                       MPerBlock,

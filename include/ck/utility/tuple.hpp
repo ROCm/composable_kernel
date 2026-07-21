@@ -7,6 +7,7 @@
 #include "ck/utility/sequence.hpp"
 #include "ck/utility/type.hpp"
 #include "ck/utility/enable_if.hpp"
+#include <tuple>
 
 namespace ck {
 
@@ -202,6 +203,13 @@ struct tuple_element
 {
     // type should keep the cv/ref qualifier of original tuple element
     using type = decltype(detail::get_tuple_element_data<detail::TupleElementKey<I>>(TTuple{}));
+};
+
+// Specialization for std::tuple to allow ck::tuple_element_t to work with std::tuple<...>
+template <index_t I, typename... Xs>
+struct tuple_element<I, std::tuple<Xs...>>
+{
+    using type = typename std::tuple_element<I, std::tuple<Xs...>>::type;
 };
 
 template <index_t I, typename TTuple>

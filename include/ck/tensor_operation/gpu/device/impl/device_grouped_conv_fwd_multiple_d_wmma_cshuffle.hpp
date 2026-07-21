@@ -23,6 +23,7 @@
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #include "ck/host_utility/io.hpp"
+#include "ck/tensor_operation/gpu/device/tensor_size_check.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -343,7 +344,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                  index_t N01,
                  const AElementwiseOperation& a_element_op,
                  const BElementwiseOperation& b_element_op,
-                 const CDEElementwiseOperation& cde_element_op)
+                 const CDEElementwiseOperation& cde_element_op,
+                 bool stride_overflow_in = false)
             : p_a_grid_{static_cast<const ADataType*>(p_a)},
               p_b_grid_{static_cast<const BDataType*>(p_b)},
               p_ds_grid_{},
@@ -371,6 +373,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op},
+              stride_overflow_{stride_overflow_in},
               a_g_n_c_wis_lengths_{a_g_n_c_wis_lengths},
               a_g_n_c_wis_strides_{a_g_n_c_wis_strides},
               b_g_k_c_xs_lengths_{b_g_k_c_xs_lengths},
@@ -471,6 +474,7 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CDEElementwiseOperation cde_element_op_;
+        bool stride_overflow_;
 
         // for checking IsSupportedArgument()
         std::array<index_t, NDimSpatial + 3> a_g_n_c_wis_lengths_;
@@ -574,6 +578,9 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        if(arg.stride_overflow_)
+            return false;
+
         namespace ctc = tensor_layout::convolution;
 
         // check device
@@ -824,6 +831,14 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         array_convert(input_left_pads_i32, input_left_pads);
         array_convert(input_right_pads_i32, input_right_pads);
 
+        bool ds_ovf = false;
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+            ds_ovf |= tensor_exceeds_2gb<DDataType>(ds_g_n_k_wos_lengths[i]);
+        });
+        const bool stride_ovf = tensor_exceeds_2gb<ADataType>(a_g_n_c_wis_lengths) ||
+                                tensor_exceeds_2gb<BDataType>(b_g_k_c_xs_lengths) ||
+                                tensor_exceeds_2gb<EDataType>(e_g_n_k_wos_lengths) || ds_ovf;
         return Argument{p_a,
                         p_b,
                         p_ds,
@@ -844,7 +859,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                         1,
                         a_element_op,
                         b_element_op,
-                        cde_element_op};
+                        cde_element_op,
+                        stride_ovf};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -945,6 +961,14 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
         array_convert(input_left_pads_i32, input_left_pads);
         array_convert(input_right_pads_i32, input_right_pads);
 
+        bool ds_ovf = false;
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+            ds_ovf |= tensor_exceeds_2gb<DDataType>(ds_g_n_k_wos_lengths[i]);
+        });
+        const bool stride_ovf = tensor_exceeds_2gb<ADataType>(a_g_n_c_wis_lengths) ||
+                                tensor_exceeds_2gb<BDataType>(b_g_k_c_xs_lengths) ||
+                                tensor_exceeds_2gb<EDataType>(e_g_n_k_wos_lengths) || ds_ovf;
         return std::make_unique<Argument>(p_a,
                                           p_b,
                                           p_ds,
@@ -965,7 +989,8 @@ struct DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
                                           1,
                                           a_element_op,
                                           b_element_op,
-                                          cde_element_op);
+                                          cde_element_op,
+                                          stride_ovf);
     }
 
     std::unique_ptr<BaseInvoker> MakeInvokerPointer() override
