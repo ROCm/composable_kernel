@@ -38,8 +38,6 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    static constexpr index_t WaveSize = get_warp_size();
-
     static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);
     static constexpr index_t NPerBlock = BK0NK1BlockDesc{}.GetLength(I1);
     static constexpr index_t KPerBlock =
@@ -54,8 +52,9 @@ struct BlockwiseGemmDpp_ak0mak1_bk0nbk1_m0n0m1n1m2n2
 
     static constexpr index_t KPerThread = KPerBlock / dpp_gemm.K0PerDpp;
 
-    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerDpp);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerDpp);
+    static constexpr index_t MWaves   = MPerBlock / (MRepeat * MPerDpp);
+    static constexpr index_t NWaves   = NPerBlock / (NRepeat * NPerDpp);
+    static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               AccDataType,

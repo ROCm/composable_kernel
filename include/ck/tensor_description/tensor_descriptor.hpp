@@ -9,7 +9,7 @@
 
 namespace ck {
 
-template <index_t NDimHidden, typename VisibleDimensionIds>
+template <index_t NDimHidden, typename VisibleDimensionIds, typename IndexType = index_t>
 struct TensorCoordinate;
 
 template <index_t NTransform, index_t NDimVisible, typename UpdateLowerIndexHack>
@@ -171,7 +171,7 @@ struct TensorDescriptor
     __host__ __device__ constexpr auto GetElementSpaceSize() const { return element_space_size_; }
 
     template <typename Idx>
-    __host__ __device__ constexpr index_t CalculateOffset(const Idx& idx) const
+    __host__ __device__ constexpr auto CalculateOffset(const Idx& idx) const
     {
         static_assert(Idx::Size() == GetNumOfDimension(), "wrong! inconsistent # of dimension");
 
@@ -231,13 +231,13 @@ struct TensorDescriptor
     ElementSpaceSize element_space_size_;
 };
 
-template <index_t NDimHidden, typename VisibleDimensionIds>
+template <index_t NDimHidden, typename VisibleDimensionIds, typename IndexType>
 struct TensorCoordinate
 {
     // TODO make these private
     static constexpr index_t ndim_visible_ = VisibleDimensionIds::Size();
 
-    using HiddenIndex  = MultiIndex<NDimHidden>;
+    using HiddenIndex  = MultiIndex<NDimHidden, IndexType>;
     using VisibleIndex = MultiIndex<ndim_visible_>;
 
     public:
@@ -250,7 +250,7 @@ struct TensorCoordinate
 
     __host__ __device__ constexpr auto GetIndex() const { return GetVisibleIndex(); }
 
-    __host__ __device__ constexpr index_t GetOffset() const { return idx_hidden_[Number<0>{}]; }
+    __host__ __device__ constexpr IndexType GetOffset() const { return idx_hidden_[Number<0>{}]; }
 
     // TODO make these private
     __host__ __device__ constexpr const auto& GetHiddenIndex() const { return idx_hidden_; }
@@ -403,7 +403,7 @@ transform_tensor_descriptor(const OldTensorDescriptor& old_tensor_desc,
                                                                        element_space_size};
 }
 
-template <typename TensorDesc, typename VisibleIndex>
+template <typename IndexType = index_t, typename TensorDesc, typename VisibleIndex>
 __host__ __device__ constexpr auto make_tensor_coordinate(const TensorDesc& tensor_desc,
                                                           const VisibleIndex& idx_visible)
 {
@@ -414,7 +414,7 @@ __host__ __device__ constexpr auto make_tensor_coordinate(const TensorDesc& tens
     constexpr index_t ndim_hidden  = TensorDesc::GetNumOfHiddenDimension();
     constexpr auto visible_dim_ids = TensorDesc::GetVisibleDimensionIds();
 
-    MultiIndex<ndim_hidden> idx_hidden;
+    MultiIndex<ndim_hidden, IndexType> idx_hidden;
 
     // initialize visible index
     set_container_subset(idx_hidden, visible_dim_ids, idx_visible);
@@ -428,14 +428,14 @@ __host__ __device__ constexpr auto make_tensor_coordinate(const TensorDesc& tens
 
         const auto idx_up = get_container_subset(idx_hidden, dims_up);
 
-        MultiIndex<dims_low.Size()> idx_low;
+        MultiIndex<dims_low.Size(), IndexType> idx_low;
 
         tran.CalculateLowerIndex(idx_low, idx_up);
 
         set_container_subset(idx_hidden, dims_low, idx_low);
     });
 
-    return TensorCoordinate<ndim_hidden, decltype(visible_dim_ids)>{idx_hidden};
+    return TensorCoordinate<ndim_hidden, decltype(visible_dim_ids), IndexType>{idx_hidden};
 }
 
 // UpdateLowerIndexHack: Sequence<...>
@@ -445,6 +445,8 @@ __host__ __device__ constexpr auto make_tensor_coordinate_step(const TensorDesc&
                                                                const VisibleIndex& idx_diff_visible,
                                                                UpdateLowerIndexHack)
 {
+    using IndexType = remove_cvref_t<decltype(idx_diff_visible[Number<0>{}])>;
+
     static_assert(TensorDesc::GetNumOfDimension() == VisibleIndex::Size(),
                   "wrong! # of dimension inconsistent");
 
@@ -460,7 +462,7 @@ __host__ __device__ constexpr auto make_tensor_coordinate_step(const TensorDesc&
     auto is_non_zero_diff = make_zero_multi_index<ndim_hidden>();
 
     // decide do_transform by checkout non-zero index diff components
-    MultiIndex<VisibleIndex::Size()> non_zero_diff_pick_visible;
+    MultiIndex<VisibleIndex::Size(), IndexType> non_zero_diff_pick_visible;
 
     static_for<0, ndim_visible, 1>{}(
         [&](auto i) { non_zero_diff_pick_visible(i) = (idx_diff_visible[i] != 0); });
@@ -473,7 +475,7 @@ __host__ __device__ constexpr auto make_tensor_coordinate_step(const TensorDesc&
 
         const auto non_zero_diff_pick_up = get_container_subset(is_non_zero_diff, dims_up);
 
-        MultiIndex<dims_low.Size()> non_zero_diff_pick_low;
+        MultiIndex<dims_low.Size(), IndexType> non_zero_diff_pick_low;
 
         // if any of upper index diff components is non-zero, then
         //   1) Need to do this transform
@@ -509,6 +511,8 @@ __host__ __device__ constexpr void move_tensor_coordinate(const TensorDesc& tens
                                                           TensorCoord& coord,
                                                           const TensorCoordStep& coord_step)
 {
+    using IndexType = remove_cvref_t<decltype(coord.GetOffset())>;
+
     constexpr index_t ndim_hidden = TensorDesc::GetNumOfHiddenDimension();
     constexpr index_t ntransform  = TensorDesc::GetNumOfTransform();
 
@@ -542,7 +546,7 @@ __host__ __device__ constexpr void move_tensor_coordinate(const TensorDesc& tens
             auto idx_low           = get_container_subset(idx_hidden, dims_low);
             const auto idx_diff_up = get_container_subset(idx_diff_hidden, dims_up);
 
-            MultiIndex<dims_low.Size()> idx_diff_low;
+            MultiIndex<dims_low.Size(), IndexType> idx_diff_low;
 
             // HACK: control UpdateLowerIndex for Merge using hack
             constexpr index_t Hack = decltype(coord_step.update_lower_index_hack_)::At(itran);
@@ -604,8 +608,8 @@ __host__ __device__ constexpr bool coordinate_has_valid_offset(const TensorDesc&
            coordinate_has_valid_offset_assuming_visible_index_is_valid(tensor_desc, coord);
 }
 
-template <typename TensorDesc>
-using TensorCoordinate_t = decltype(make_tensor_coordinate(
+template <typename TensorDesc, typename IndexType = index_t>
+using TensorCoordinate_t = decltype(make_tensor_coordinate<IndexType>(
     TensorDesc{}, MultiIndex<remove_cvref_t<TensorDesc>::GetNumOfDimension()>{}));
 
 template <typename TensorDesc>

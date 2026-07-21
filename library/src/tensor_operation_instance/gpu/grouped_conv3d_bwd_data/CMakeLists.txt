@@ -22,6 +22,11 @@ set(GROUPED_CONV3D_BWD_DATA
    xdl/device_grouped_conv3d_bwd_data_xdl_ngcdhw_gkczyx_ngkdhw_bf16_vec_transpose_instance.cpp
    xdl/device_grouped_conv3d_bwd_data_xdl_ngcdhw_gkczyx_ngkdhw_f32_vec_transpose_instance.cpp
 
+   # xdl_v3
+   xdl/device_grouped_conv3d_bwd_data_xdl_v3_ndhwgc_gkzyxc_ndhwgk_bf16_large_tensors_instance.cpp
+   xdl/device_grouped_conv3d_bwd_data_xdl_v3_ndhwgc_gkzyxc_ndhwgk_f16_large_tensors_instance.cpp
+   xdl/device_grouped_conv3d_bwd_data_xdl_v3_ndhwgc_gkzyxc_ndhwgk_f32_large_tensors_instance.cpp
+
    wmma/device_grouped_conv3d_bwd_data_wmma_gndhwc_gkzyxc_gndhwk_f16_instance.cpp
    wmma/device_grouped_conv3d_bwd_data_wmma_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
    wmma/device_grouped_conv3d_bwd_data_wmma_gndhwc_gkzyxc_gndhwk_i8_instance.cpp

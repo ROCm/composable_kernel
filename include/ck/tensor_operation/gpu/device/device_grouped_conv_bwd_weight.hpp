@@ -6,6 +6,7 @@
 #include <array>
 
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -39,6 +40,25 @@ struct DeviceGroupedConvBwdWeight : public BaseOperator
                         const std::array<ck::index_t, NDimSpatial>& conv_filter_dilations,
                         const std::array<ck::index_t, NDimSpatial>& input_left_pads,
                         const std::array<ck::index_t, NDimSpatial>& input_right_pads,
+                        InElementwiseOperation in_element_op,
+                        WeiElementwiseOperation wei_element_op,
+                        OutElementwiseOperation out_element_op,
+                        ck::index_t split_k) = 0;
+
+    virtual std::unique_ptr<BaseArgument>
+    MakeArgumentPointer(const void* p_in,
+                        void* p_wei,
+                        const void* p_out,
+                        const std::array<long_index_t, NDimSpatial + 3>& a_g_n_c_wis_lengths,
+                        const std::array<long_index_t, NDimSpatial + 3>& a_g_n_c_wis_strides,
+                        const std::array<long_index_t, NDimSpatial + 3>& b_g_k_c_xs_lengths,
+                        const std::array<long_index_t, NDimSpatial + 3>& b_g_k_c_xs_strides,
+                        const std::array<long_index_t, NDimSpatial + 3>& e_g_n_k_wos_lengths,
+                        const std::array<long_index_t, NDimSpatial + 3>& e_g_n_k_wos_strides,
+                        const std::array<long_index_t, NDimSpatial>& conv_filter_strides,
+                        const std::array<long_index_t, NDimSpatial>& conv_filter_dilations,
+                        const std::array<long_index_t, NDimSpatial>& input_left_pads,
+                        const std::array<long_index_t, NDimSpatial>& input_right_pads,
                         InElementwiseOperation in_element_op,
                         WeiElementwiseOperation wei_element_op,
                         OutElementwiseOperation out_element_op,
