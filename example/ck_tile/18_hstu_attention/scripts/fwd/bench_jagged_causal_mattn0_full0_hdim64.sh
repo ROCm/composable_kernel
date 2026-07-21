@@ -1,0 +1,103 @@
+#!/bin/bash
+
+set +x
+
+BUILD=build
+
+USE_SOFTMAX=0
+if [ $# -ge 1 ]; then
+    USE_SOFTMAX=$1
+fi
+
+Training=${TEST_HSTU_FWD_TRAINING:-0}
+
+if [ $USE_SOFTMAX -eq 1 ]; then
+    EXE="$BUILD/bin/tile_example_hstu_attention -softmax=1 -training=$Training"
+else
+    EXE="$BUILD/bin/tile_example_hstu_attention -training=$Training"
+fi
+
+dtype="bf16"
+
+set -x
+
+target8="10,10,14,17,16,12,14,9"
+
+## seqlen 1024
+$EXE -v=0 -prec=$dtype -b=8 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=1004 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target8 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 2048
+$EXE -v=0 -prec=$dtype -b=8 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=2028 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target8 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 3072
+$EXE -v=0 -prec=$dtype -b=8 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=3052 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target8 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 4096
+$EXE -v=0 -prec=$dtype -b=8 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=4076 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target8 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 8192
+$EXE -v=0 -prec=$dtype -b=8 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=8172 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target8 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 16384
+$EXE -v=0 -prec=$dtype -b=8 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=16364 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target8 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+target16="13,17,16,13,7,14,3,18,15,15,1,9,18,18,7,10"
+
+## seqlen 1024
+$EXE -v=0 -prec=$dtype -b=16 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=1004 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target16 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 2048
+$EXE -v=0 -prec=$dtype -b=16 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=2028 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target16 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 3072
+$EXE -v=0 -prec=$dtype -b=16 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=3052 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target16 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 4096
+$EXE -v=0 -prec=$dtype -b=16 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=4076 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target16 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 8192
+$EXE -v=0 -prec=$dtype -b=16 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=8172 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target16 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 16384
+$EXE -v=0 -prec=$dtype -b=16 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=16364 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target16 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+target32="13,17,16,13,7,14,3,18,15,15,1,9,18,18,7,10,11,0,4,8,2,10,20,14,11,7,4,6,9,7,14,17"
+
+## seqlen 1024
+$EXE -v=0 -prec=$dtype -b=32 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=1004 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target32 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 2048
+$EXE -v=0 -prec=$dtype -b=32 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=2028 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target32 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 3072
+$EXE -v=0 -prec=$dtype -b=32 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=3052 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target32 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 4096
+$EXE -v=0 -prec=$dtype -b=32 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=4076 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target32 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 8192
+$EXE -v=0 -prec=$dtype -b=32 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=8172 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target32 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+## seqlen 16384
+$EXE -v=0 -prec=$dtype -b=32 -jagged=1 -nhead=4 -hdim_qk=64 -hdim_v=64 -seqlens=16364 -causal=1 -local_len=0 -context_len=0 -minfull_len=0 -targets=$target32 -max_target=20 -perf=1 -alpha=2.0
+echo -e ""
+
+set +x
+
