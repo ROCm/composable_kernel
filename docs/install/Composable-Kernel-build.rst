@@ -6,41 +6,24 @@
 Build and install Composable Kernel from source
 ***********************************************
 
-To build Composable Kernel as part of the ROCm Core SDK, see `TheRock build
-instructions
-<https://github.com/ROCm/TheRock/blob/main/docs/development/README.md>`__.
-TheRock is the recommended way to build ROCm components from source.
+To build Composable Kernel (CK) as part of the ROCm Core SDK, see `TheRock build
+instructions <https://github.com/ROCm/TheRock/blob/main/docs/development/README.md>`__. TheRock is the recommended way to build ROCm components from source.
 
-Alternatively, you can build Composable Kernel standalone using the following
-instructions.
+Alternatively, you can build Composable Kernel standalone using the following instructions.
 
 Prerequisites
 =============
 
 The following prerequisites are required to build and install Composable Kernel:
 
-* cmake
-* hip-rocclr
-* iputils-ping
-* jq
-* libelf-dev
-* libncurses5-dev
-* libnuma-dev
-* libpthread-stubs0-dev
-* llvm-amdgpu
-* mpich
-* net-tools
-* python3
-* python3-dev
-* python3-pip
-* redis
-* rocm-llvm-dev
-* zlib1g-dev
-* libzstd-dev
-* openssh-server
-* clang-format-18
+* `CMake <https://cmake.org/>`_ 3.21 or later
+* `Python <https://www.python.org/>`_ 3.8 or later
+* `Git <https://git-scm.com/>`_
+* A C++ compiler from the ROCm install, typically ``/opt/rocm/llvm/bin/clang++`` or ``hipcc`` on Linux
 
-Docker images that include all the required prerequisites for building Composable Kernel are available on `Docker Hub <https://hub.docker.com/r/rocm/composable_kernel/tags>`_.
+Composable Kernel uses HIP to compile device code. Set ``CMAKE_PREFIX_PATH`` to the ROCm install prefix and ``CMAKE_CXX_COMPILER`` to the ROCm Clang or ``hipcc`` path when you configure the build.
+
+Pre-built Docker images that bundle ROCm, CMake, and the LLVM toolchain are on `Docker Hub <https://hub.docker.com/r/rocm/composable_kernel/tags>`_. 
 
 Build and install
 =================
@@ -81,30 +64,33 @@ Change directory to the ``build`` directory and generate the makefile using the 
 
 Other build options are:
 
-* ``DISABLE_DL_KERNELS``: Set this to "ON" to not build deep learning (DL) and data parallel primitive (DPP) instances. 
-
-  .. note::
-
-     DL and DPP instances are useful on architectures that don't support XDL or WMMA.
-
+* ``DISABLE_DL_KERNELS``: Set this to "ON" to not build deep learning (DL) and data parallel primitive (DPP) instances. DL and DPP instances are useful on architectures that don't support XDL or WMMA.
 * ``CK_USE_FP8_ON_UNSUPPORTED_ARCH``: Set to ``ON`` to build FP8 data type instances on gfx90a without native FP8 support.
-* ``GPU_TARGETS``: Target architectures. Target architectures in this list must all be different versions of the same architectures. Enclose the list of targets in quotation marks. Separate multiple targets with semicolons (``;``). For example, ``cmake -D GPU_TARGETS="gfx908;gfx90a"``. This option is required to build tests and examples.
-* ``GPU_ARCHS``: Target architectures. Target architectures in this list are not limited to different versions of the same architectures. Enclose the list of targets in quotation marks. Separate multiple targets with semicolons (``;``). For example, ``cmake -D GPU_TARGETS="gfx908;gfx1100"``.
-* ``CMAKE_BUILD_TYPE``: The build type. Can be ``None``, ``Release``, ``Debug``, ``RelWithDebInfo``, or ``MinSizeRel``. CMake will use ``Release`` by default.
+* ``GPU_TARGETS``: Target GPU architectures. The standard HIP variable. Composable Kernel forwards the list to HIP, so HIP's compatibility rules apply. List one architecture or a small set from the same family. Set this option to build the tests, examples, and tutorials. Enclose the list in quotation marks and separate entries with semicolons (``;``). For example, ``cmake -D GPU_TARGETS="gfx908;gfx90a"``.
+* ``GPU_ARCHS``: Target GPU architectures. Composable Kernel-specific. Use this option to build the Composable Kernel library for architectures from different families. If you set ``GPU_ARCHS``, Composable Kernel clears ``GPU_TARGETS`` before configuring HIP. Composable Kernel then builds only the library and skips the tests, examples, and tutorials. Enclose the list in quotation marks and separate entries with semicolons (``;``). For example, ``cmake -D GPU_ARCHS="gfx908;gfx1100"``.
+* ``CMAKE_BUILD_TYPE``: The build type. Can be ``None``, ``Release``, ``Debug``, ``RelWithDebInfo``, or ``MinSizeRel``. CMake uses ``Release`` by default.
 
 .. note::
 
-   If neither ``GPU_TARGETS`` nor ``GPU_ARCHS`` is specified, Composable Kernel will be built for all targets supported by the compiler.
+   When both ``GPU_TARGETS`` and ``GPU_ARCHS`` are set, Composable Kernel uses ``GPU_ARCHS`` and clears ``GPU_TARGETS``. When neither is set, Composable Kernel picks a default target list based on the detected HIP version. Composable Kernel drops the unsupported architectures ``gfx900``, ``gfx906``, and ``gfx90c``, along with any target the installed compiler can't build for.
 
-Build Composable Kernel using the generated makefile. This will build the library, the examples, and the tests, and save them to ``bin``.
+Build Composable Kernel using the generated makefile. With a default configuration, the build produces the Composable Kernel libraries, the ``ckProfiler`` benchmarking tool, the example binaries, the tutorial binaries, and the test binaries. The output is saved to ``build/lib/`` and ``build/bin/``. The Composable Kernel headers stay in the source tree until ``make install`` copies them to the install location.
+
+.. note::
+
+   A default Composable Kernel build can take an hour or more on a workstation. Most of the time goes to compiling operator instances, and build time scales with the number of GPU architectures you select. Limit ``GPU_TARGETS`` to your hardware to cut build time.
 
 .. code-block:: bash
 
    make -j20
 
-The ``-j`` option speeds up the build by using multiple threads in parallel. For example, ``-j20`` uses twenty threads in parallel. On average, each thread will use 2GB of memory. Make sure that the number of threads you use doesn't exceed the available memory in your system.
+The ``-j`` option runs build steps in parallel. For example, ``-j20`` runs up to twenty jobs at a time. Each parallel job can use several gigabytes of memory because Composable Kernel instance files expand large template instantiations, and link jobs use more memory than compile jobs. Pick a ``-j`` value that fits your available RAM, and lower it if compiles fail with out-of-memory errors.
 
-Using ``-j`` alone will launch an unlimited number of threads and is not recommended.
+.. note::
+
+   Don't run ``-j`` without a number. Bare ``-j`` launches an unbounded number of jobs and can exhaust memory.
+
+   With Ninja, set ``-D CK_PARALLEL_COMPILE_JOBS=N`` and ``-D CK_PARALLEL_LINK_JOBS=M`` at configure time to cap compile and link jobs separately. These options have no effect with Make.
 
 Install the Composable Kernel library:
 

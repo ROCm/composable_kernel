@@ -19,7 +19,6 @@ The Composable Kernel project is located in https://github.com/ROCm/rocm-librari
 
     * :doc:`Install Composable Kernel <./install/Composable-Kernel-install>`
     * :doc:`Build from source <./install/Composable-Kernel-build>`
-    * :doc:`Composable Kernel Docker images <./install/Composable-Kernel-Docker>`
 
   .. grid-item-card:: Conceptual
 
