@@ -224,7 +224,11 @@ INSTANTIATE_TEST_SUITE_P(
                    std::tuple{3, 2, 1, -1, -1, 200, 520, -1, "t:128,30"},
                    std::tuple{2, 1, -1, -1, -1, 99, 32, -1, "b:4,35"},
                    std::tuple{1, 2, 1, -1, -1, 33, 0, -1, "2"},
-                   std::tuple{1, 2, 1, -1, -1, 1, 10, 32, "2"})));
+                   std::tuple{1, 2, 1, -1, -1, 1, 10, 32, "2"},
+                   // d=128 on gfx1250: seqlen<2048 selects the qr_tdm decode (b64) tile,
+                   // seqlen>=2048 the prefill (b128) tile
+                   std::tuple{1, 2, 1, 128, 128, 512, 512, -1, "0"},
+                   std::tuple{1, 2, 1, 128, 128, 2048, 2048, -1, "0"})));
 
 TEST_P(AllLong, DataTypeConfig)
 {

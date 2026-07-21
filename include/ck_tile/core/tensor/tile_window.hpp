@@ -1821,7 +1821,21 @@ struct tile_window_with_static_distribution
     }
 
     private:
-    // Cached computation for global strides
+    // Cached computation for global strides.
+    //
+    // Per top-level dimension i, the stride is the byte (or PackedSize-scaled
+    // element) offset produced by stepping idx[i] from 0 to 1 with all other
+    // components held at 0. Querying the descriptor with a unit vector lets
+    // calculate_offset traverse the full transform chain (embed/pad/etc.),
+    // so the resulting strides reflect the actual layout that the caller
+    // baked into the tensor view -- including non-packed cases such as
+    // multi-head Q where stride[0] = h_q * hdim_q rather than the packed-
+    // default hdim_q, and padded GEMM operands where stride_a > K.
+    //
+    // The previous implementation derived strides from get_lengths() using
+    // a packed reverse-inclusive-scan, which silently fabricated wrong byte
+    // offsets for any non-packed view. The single-path read here costs N
+    // calculate_offset() calls on first use only, then uses the cache.
     CK_TILE_DEVICE auto get_cached_global_strides() const
     {
         if(!tensor_cache_initialized_)
@@ -1829,10 +1843,14 @@ struct tile_window_with_static_distribution
             using Traits = typename Base::Traits;
             const auto& glb_tensor_descriptor =
                 this->get_bottom_tensor_view().get_tensor_descriptor();
-            cached_global_strides_ = to_array<index_t, Base::NDimBottomTensor>(
-                transform_tuples([](auto x) { return max(x / Traits::PackedSize, index_t{1}); },
-                                 tuple_reverse(container_reverse_inclusive_scan(
-                                     glb_tensor_descriptor.get_lengths(), multiplies<>{}, 1))));
+            cached_global_strides_ = generate_array(
+                [&](auto i) {
+                    auto unit_vec   = make_zero_multi_index<Base::NDimBottomTensor>();
+                    unit_vec(i)     = 1;
+                    const index_t s = glb_tensor_descriptor.calculate_offset(unit_vec);
+                    return max(s / Traits::PackedSize, index_t{1});
+                },
+                number<Base::NDimBottomTensor>{});
             tensor_cache_initialized_ = true;
         }
 
