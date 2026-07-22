@@ -7,8 +7,9 @@
 #include "ck/host_utility/hip_check_error.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include <hip/hip_runtime.h>
+#include <algorithm>
+#include <utility>
 #include <vector>
-
 namespace ck {
 namespace ref {
 
