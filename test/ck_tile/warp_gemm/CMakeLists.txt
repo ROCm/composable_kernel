@@ -3,6 +3,11 @@
 
 if(GPU_TARGETS MATCHES "gfx95")
     add_gtest_executable(test_ck_tile_wg_16x16x128_fp4 test_f32_16x16x128_fp4.cpp)
+    # Tests for asymmetric AttrNumAccess dispatcher specializations (fp8/bf8 MFMA).
+    # Covers the missing Dispatcher entries fixed in warp_gemm_dispatcher.hpp /
+    # warp_gemm.hpp that caused compile failures on develop for gfx950.
+    add_gtest_executable(test_ck_tile_wg_fp8_bf8_mfma_asymmetric_access
+                         test_fp8_bf8_mfma_asymmetric_access.cpp)
 endif()
 
 # Scale16 warp gemm tests for V_WMMA_SCALE16_F32_16X16X128_F8F6F4.

@@ -118,6 +118,7 @@ class CommonTypeMappings:
         "fp8": "fp8_t",
         "bf8": "bf8_t",
         "int8": "int8_t",
+        "int32": "int32_t",
     }
 
     DTYPE_TO_CK_QUALIFIED = {
@@ -127,6 +128,7 @@ class CommonTypeMappings:
         "fp8": "ck_tile::fp8_t",
         "bf8": "ck_tile::bf8_t",
         "int8": "int8_t",
+        "int32": "int32_t",
     }
 
     DTYPE_TO_DISPATCHER = {
@@ -136,6 +138,7 @@ class CommonTypeMappings:
         "fp8": "DataType::FP8",
         "bf8": "DataType::BF8",
         "int8": "DataType::INT8",
+        "int32": "DataType::INT32",
     }
 
     # GEMM-specific layout mappings ("r"/"c" for row/column major).
@@ -202,8 +205,26 @@ class CommonTypeMappings:
 
     @staticmethod
     def get_output_dtype(dtype: str) -> str:
-        """Get output datatype (fp8/bf8 -> fp16)."""
-        return "fp16" if dtype in ("fp8", "bf8") else dtype
+        """Get output (C) datatype for an A/B element dtype.
+
+        Low-precision float inputs accumulate into and store as fp16
+        (fp8/bf8 -> fp16); int8 stores its int32 accumulator (int8 -> int32).
+        Everything else stores in its own dtype.
+        """
+        if dtype in ("fp8", "bf8"):
+            return "fp16"
+        if dtype == "int8":
+            return "int32"
+        return dtype
+
+    @staticmethod
+    def get_acc_dtype(dtype: str) -> str:
+        """Get accumulator datatype for an A/B element dtype.
+
+        Integer GEMM accumulates in int32; every float dtype accumulates in
+        fp32.
+        """
+        return "int32" if dtype == "int8" else "fp32"
 
 
 # ============================================================================

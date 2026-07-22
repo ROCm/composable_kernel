@@ -21,9 +21,16 @@
 
 #pragma once
 
-#include <stdio.h>
-#include "ck_tile/core/tensor/tensor_descriptor.hpp"
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/container/array.hpp"
+#include "ck_tile/core/container/container_helper.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/tensor/tile_distribution.hpp"
+
+#include <array>
+#include <stdio.h>
 
 namespace ck_tile::core::arch::mma {
 

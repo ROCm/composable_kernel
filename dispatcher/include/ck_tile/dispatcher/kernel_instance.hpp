@@ -5,6 +5,7 @@
 
 #include "ck_tile/dispatcher/kernel_key.hpp"
 #include "ck_tile/dispatcher/problem.hpp"
+#include <cstddef>
 #include <memory>
 #include <string>
 
@@ -44,6 +45,30 @@ class KernelInstance
                                     const void** d_ptrs,
                                     const Problem& problem,
                                     void* stream = nullptr) const = 0;
+
+    /// Device workspace (in bytes) this kernel needs for `problem` (0 = none).
+    /// Non-zero only for Stream-K linear/tree reductions; the caller (Dispatcher)
+    /// sizes and owns the buffer and passes it to the workspace-aware run().
+    [[nodiscard]] virtual std::size_t get_workspace_size(const Problem& problem) const
+    {
+        (void)problem;
+        return 0;
+    }
+
+    /// Workspace-aware execution. Default forwards to the no-workspace run(), so
+    /// existing (non-Stream-K) kernels need no change; the Stream-K backend
+    /// overrides this to set the reduction workspace pointer before launch.
+    [[nodiscard]] virtual float run(const void* a_ptr,
+                                    const void* b_ptr,
+                                    void* c_ptr,
+                                    const void** d_ptrs,
+                                    void* workspace,
+                                    const Problem& problem,
+                                    void* stream = nullptr) const
+    {
+        (void)workspace;
+        return run(a_ptr, b_ptr, c_ptr, d_ptrs, problem, stream);
+    }
 
     /// Validate kernel output against reference implementation
     /// @param a_ptr Pointer to matrix A (device memory)

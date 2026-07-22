@@ -27,6 +27,19 @@ set_tests_properties(dispatcher_test_autocorrect PROPERTIES
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 
+# Operator tile-constraints table regression test
+add_test(
+    NAME dispatcher_test_arch_filter_constraints
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_arch_filter_constraints.py
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+
+set_tests_properties(dispatcher_test_arch_filter_constraints PROPERTIES
+    LABELS "dispatcher;python;validation"
+    TIMEOUT 60
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
 # Verbose version of the test
 add_test(
     NAME dispatcher_test_autocorrect_verbose
@@ -123,6 +136,36 @@ add_test(
 set_tests_properties(dispatcher_test_fmha_parity PROPERTIES
     LABELS "dispatcher;python;fmha;parity;gpu"
     TIMEOUT 600
+    ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
+)
+
+# Stream-K deep-core registry test (requires GPU + hipcc; SKIPs otherwise).
+# Pass the gfx target CMake already configured with so the test does not have to
+# detect it at runtime (no rocminfo dependency); it falls back to ROCm env vars
+# / amdgpu-arch if none is set here.
+set(_streamk_test_arch "")
+if(GPU_TARGETS)
+    list(GET GPU_TARGETS 0 _streamk_test_arch)
+elseif(CMAKE_HIP_ARCHITECTURES)
+    list(GET CMAKE_HIP_ARCHITECTURES 0 _streamk_test_arch)
+elseif(AMDGPU_TARGETS)
+    list(GET AMDGPU_TARGETS 0 _streamk_test_arch)
+endif()
+set(_streamk_arch_arg "")
+if(_streamk_test_arch)
+    set(_streamk_arch_arg --arch ${_streamk_test_arch})
+endif()
+
+add_test(
+    NAME dispatcher_test_streamk_registry
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_streamk_registry.py ${_streamk_arch_arg}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
+
+set_tests_properties(dispatcher_test_streamk_registry PROPERTIES
+    LABELS "dispatcher;python;streamk;gpu"
+    TIMEOUT 900
+    SKIP_RETURN_CODE 77
     ENVIRONMENT "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/../python:${CMAKE_CURRENT_SOURCE_DIR}/../codegen:${CMAKE_CURRENT_SOURCE_DIR}/../scripts"
 )
 

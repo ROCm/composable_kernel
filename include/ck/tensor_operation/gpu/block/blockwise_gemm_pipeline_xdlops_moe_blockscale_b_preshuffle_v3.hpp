@@ -679,6 +679,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_v3<
 
                         if constexpr(m0.value == (MRepeat - 2))
                         {
+                            __builtin_amdgcn_sched_barrier(0);
                             block_sync_lds();
 
                             static_ford<Sequence<KRepeat, KGroup>>{}([&](auto kk) {

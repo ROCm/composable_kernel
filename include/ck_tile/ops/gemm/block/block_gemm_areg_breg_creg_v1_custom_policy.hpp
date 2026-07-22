@@ -12,8 +12,8 @@ template <typename AType_,
           typename CType_,
           typename BlockWarps_,
           typename WarpGemm_,
-          index_t KSubTileNum_ = 1> // this variable is used for split K into multiple subtiles in
-                                    // order to reduce register usage per wave>
+          index_t KSubTileNum_ = 1, // this variable is used for split K into multiple subtiles in
+          bool PackMNIter_     = false> // order to reduce register usage per wave>
 struct BlockGemmARegBRegCRegV1CustomPolicy
 {
     using AType = remove_cvref_t<AType_>;
@@ -29,6 +29,7 @@ struct BlockGemmARegBRegCRegV1CustomPolicy
     using WarpGemm = remove_cvref_t<WarpGemm_>;
 
     static constexpr index_t KSubTileNum = KSubTileNum_;
+    static constexpr bool PackMNIter     = PackMNIter_;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetWarpGemmMWarpNWarp()

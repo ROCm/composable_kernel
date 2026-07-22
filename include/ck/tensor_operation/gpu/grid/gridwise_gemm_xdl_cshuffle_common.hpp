@@ -30,8 +30,27 @@ enum Activation
 {
     gelu_and_mul       = 0,
     silu_and_mul       = 1,
-    swiglustep_and_mul = 2
+    swiglustep_and_mul = 2,
+    swiglu_oai_and_mul = 3
 };
+
+// OAI / gpt-oss SwiGLU activation: gate * sigmoid(alpha * gate) * (up + 1), with a
+// pre-activation clamp (gate upper-bounded to limit, up symmetric in [-limit, limit]).
+// Defaults limit = 7.0, alpha = 1.702 per gpt-oss. Same math as ck_tile::moe::Swiglu, but
+// the sigmoid here uses a plain fp32 division (not __builtin_amdgcn_rcpf), so results match
+// to ~1e-6 rather than bit-exact. Single source of truth shared by the MoE kernel epilogue
+// (swiglu_oai_and_mul) and its host unit test.
+// Not constexpr: it always calls math::exp (non-constexpr), so it can never be evaluated in a
+// constant expression. inline keeps it ODR-safe in this header. The kernel epilogue and the host
+// unit test only call it at runtime.
+__host__ __device__ inline float
+swiglu_oai(float gate, float up, float limit = 7.0f, float alpha = 1.702f)
+{
+    gate            = math::min(gate, limit);                   // gate <= limit
+    up              = math::min(math::max(up, -limit), limit);  // up in [-limit, limit]
+    const float sig = 1.0f / (1.0f + math::exp(alpha * -gate)); // sigmoid(alpha * gate)
+    return gate * sig * (up + 1.0f);                            // OAI form
+}
 
 template <typename ALayout,
           typename BLayout,

@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include "profiler/profile_grouped_conv_fwd_impl.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 static ck::index_t param_mask     = 0xffffff;
@@ -30,6 +31,8 @@ class TestGroupedConvndFwd : public ::testing::Test
 #else
     static constexpr int verify_ = 2; // GPU reference
 #endif
+    // On gfx1250, the naive GPU reference kernel can hang. Always use CPU reference.
+    int get_verify() const { return (ck::is_gfx125_supported() && verify_ == 2) ? 1 : verify_; }
     template <ck::index_t NDimSpatial>
     void Run()
     {
@@ -54,10 +57,10 @@ class TestGroupedConvndFwd : public ::testing::Test
                                                                               DataType,
                                                                               IndexType,
                                                                               Clamp>(
-                               verify_, // do_verification: 2 = GPU reference
-                               1,       // init_method: integer value
-                               false,   // do_log
-                               false,   // time_kernel
+                               get_verify(), // do_verification: 2 = GPU reference
+                               1,            // init_method: integer value
+                               false,        // do_log
+                               false,        // time_kernel
                                param,
                                out_element_op,
                                instance_index);

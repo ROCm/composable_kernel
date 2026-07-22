@@ -39,6 +39,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 #else
     static constexpr int verify_ = 2; // GPU reference
 #endif
+    // On gfx1250, the naive GPU reference kernel can hang. Always use CPU reference.
+    int get_verify() const { return (ck::is_gfx125_supported() && verify_ == 2) ? 1 : verify_; }
     bool skip_case(const ck::index_t split_k)
     {
         // 1d NWGC is only supported by DL kernel
@@ -116,10 +118,10 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                                                                            InDataType,
                                                                            WeiDataType,
                                                                            OutDataType>(
-                            verify_, // do_verification
-                            1,       // init_method: integer value
-                            false,   // do_log
-                            false,   // time_kernel
+                            get_verify(), // do_verification
+                            1,            // init_method: integer value
+                            false,        // do_log
+                            false,        // time_kernel
                             param,
                             std::to_string(split_k),
                             instance_index);

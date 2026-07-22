@@ -271,7 +271,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size() * sizeof(ADataType));
         ck_tile::DeviceMem aq_m_aqk_dev_buf(aq_m_aqk.get_element_space_size() * sizeof(QDataType));
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
-        ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
+        ck_tile::DeviceMem c_m_n_dev_buf(static_cast<size_t>(M) * N * sizeof(CDataType));
 
         // Copy to device
         if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
@@ -513,7 +513,7 @@ class TestCkTileGemmAQuantMem
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size() * sizeof(ADataType));
         ck_tile::DeviceMem aq_m_aqk_dev_buf(aq_m_aqk.get_element_space_size() * sizeof(QDataType));
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
-        ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
+        ck_tile::DeviceMem c_m_n_dev_buf(static_cast<size_t>(M) * N * sizeof(CDataType));
         // Copy to device
         if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
         {
@@ -758,7 +758,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
         ck_tile::DeviceMem bq_bqk_bqn_dev_buf(bq_bqk_bqn.get_element_space_size() *
                                               sizeof(QDataType));
-        ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
+        ck_tile::DeviceMem c_m_n_dev_buf(static_cast<size_t>(M) * N * sizeof(CDataType));
 
         // Zero C buffer - required for split-K atomic_add accumulation
         c_m_n_dev_buf.SetZero();
@@ -1093,7 +1093,7 @@ class TestCkTileGemmABQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGe
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
         ck_tile::DeviceMem bq_bqk_bqn_dev_buf(bq_bqk_bqn.get_element_space_size() *
                                               sizeof(QDataType));
-        ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
+        ck_tile::DeviceMem c_m_n_dev_buf(static_cast<size_t>(M) * N * sizeof(CDataType));
 
         // Copy to device
         if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
@@ -1414,10 +1414,13 @@ class TestCkTileGemmRowColQuant
     using typename Base::CDataType;
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
+    using typename Base::DsDataType;
+    using typename Base::DsLayout;
     using typename Base::QDataType;
-    using typename Base::QuantGroupSize;
 
     static constexpr auto QuantType = Base::QuantType;
+
+    static constexpr ck_tile::index_t NumDTensor = DsDataType::size();
 
     protected:
     void SetUpQuantTypeSpecific() {}
@@ -1456,7 +1459,7 @@ class TestCkTileGemmRowColQuant
                                               sizeof(QDataType));
         ck_tile::DeviceMem col_scales_dev_buf(col_scales_n.get_element_space_size() *
                                               sizeof(QDataType));
-        ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
+        ck_tile::DeviceMem c_m_n_dev_buf(static_cast<size_t>(M) * N * sizeof(CDataType));
 
         // Copy to device
         a_m_k_dev_buf.ToDevice(a_m_k.data());
@@ -1464,10 +1467,34 @@ class TestCkTileGemmRowColQuant
         row_scales_dev_buf.ToDevice(row_scales_m.data());
         col_scales_dev_buf.ToDevice(col_scales_n.data());
 
+        auto ds_m_n = ck_tile::generate_tuple(
+            [&](auto i) {
+                using DiLayout = ck_tile::remove_cvref_t<std::tuple_element_t<i.value, DsLayout>>;
+                using DiDataType =
+                    ck_tile::remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
+                ck_tile::HostTensor<DiDataType> d_m_n(ck_tile::host_tensor_descriptor(
+                    M, N, stride_C, this->is_row_major(DiLayout{})));
+                ck_tile::FillUniformDistribution<DiDataType>{-10.0f, 10.0f}(d_m_n);
+                return d_m_n;
+            },
+            ck_tile::number<NumDTensor>{});
+
+        std::array<ck_tile::DeviceMem, NumDTensor> ds_m_n_dev_buf;
+        std::array<const void*, NumDTensor> ds_ptr_buf;
+        std::array<ck_tile::index_t, NumDTensor> stride_Ds;
+
+        ck_tile::static_for<0, NumDTensor, 1>{}([&](auto i) {
+            ds_m_n_dev_buf[i].Realloc(ds_m_n[i].get_element_space_size_in_bytes());
+            ds_m_n_dev_buf[i].ToDevice(ds_m_n[i].data());
+            ds_ptr_buf[i] = ds_m_n_dev_buf[i].GetDeviceBuffer();
+            stride_Ds[i]  = stride_C;
+        });
+
         // Create args for kernel execution
-        ck_tile::QuantGemmHostArgs args{
+        ck_tile::QuantGemmMultiDHostArgs<NumDTensor> args{
             a_m_k_dev_buf.GetDeviceBuffer(),      // a_ptr
             b_k_n_dev_buf.GetDeviceBuffer(),      // b_ptr
+            ds_ptr_buf,                           // ds_ptr
             c_m_n_dev_buf.GetDeviceBuffer(),      // c_ptr
             row_scales_dev_buf.GetDeviceBuffer(), // aq_ptr (row scales)
             col_scales_dev_buf.GetDeviceBuffer(), // bq_ptr (col scales)
@@ -1479,6 +1506,7 @@ class TestCkTileGemmRowColQuant
             1, // QK_B (col scales)
             stride_A,
             stride_B,
+            stride_Ds,
             stride_C,
             stride_row_scales,
             stride_col_scales // strides
@@ -1489,9 +1517,9 @@ class TestCkTileGemmRowColQuant
         this->invoke_quant_gemm(args, stream_config);
 
         // Validation using reference implementation
-        ck_tile::HostTensor<CDataType> c_m_n_host_ref(
+        ck_tile::HostTensor<AccDataType> c_m_n_host_ref0(
             ck_tile::host_tensor_descriptor(M, N, stride_C, this->is_row_major(CLayout{})));
-        c_m_n_host_ref.SetZero();
+        c_m_n_host_ref0.SetZero();
 
         // Run reference RowColQuant implementation
         ck_tile::reference_gemm_rowcol_quant<ADataType,
@@ -1499,8 +1527,21 @@ class TestCkTileGemmRowColQuant
                                              BDataType,
                                              QDataType,
                                              AccDataType,
-                                             CDataType>(
-            a_m_k, row_scales_m, b_k_n, col_scales_n, c_m_n_host_ref);
+                                             AccDataType>(
+            a_m_k, row_scales_m, b_k_n, col_scales_n, c_m_n_host_ref0);
+
+        ck_tile::static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DiDataType = ck_tile::remove_cvref_t<std::tuple_element_t<i.value, DsDataType>>;
+
+            auto op = [](const auto& v0, const auto& v1) {
+                return v0 + ck_tile::type_convert<AccDataType>(v1);
+            };
+            ck_tile::
+                reference_binary_elementwise<AccDataType, DiDataType, AccDataType, AccDataType>(
+                    c_m_n_host_ref0, ds_m_n[i], c_m_n_host_ref0, op);
+        });
+
+        auto c_m_n_host_ref = c_m_n_host_ref0.template CopyAsType<CDataType>();
 
         // Get device result
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(
@@ -1536,7 +1577,7 @@ class TestCkTileGemmRowColQuant
     private:
     // RowColQuant-specific pipeline implementation
     template <typename CodegenGemmShape, typename TilePartitioner, typename CodegenGemmTraits>
-    void run_quant_gemm_impl(const ck_tile::QuantGemmHostArgs& args,
+    void run_quant_gemm_impl(const ck_tile::QuantGemmMultiDHostArgs<NumDTensor>& args,
                              const ck_tile::stream_config& s)
     {
         using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<ADataType,
@@ -1579,12 +1620,12 @@ class TestCkTileGemmRowColQuant
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
-                                                 ck_tile::tuple<>,
+                                                 DsDataType,
                                                  AccDataType,
                                                  CDataType,
-                                                 ck_tile::tuple<>,
+                                                 DsLayout,
                                                  CLayout,
-                                                 ck_tile::element_wise::PassThrough,
+                                                 ck_tile::element_wise::MultiDAdd,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
                                                  Base::M_Warp,
@@ -1594,10 +1635,10 @@ class TestCkTileGemmRowColQuant
                                                  Base::K_Warp_Tile,
                                                  transpose_c>>;
 
-            using Kernel = ck_tile::QuantGemmKernel<TilePartitioner,
-                                                    GemmPipeline,
-                                                    GemmEpilogue,
-                                                    ck_tile::QuantType::RowColQuant>;
+            using Kernel = ck_tile::QuantGemmMultiDKernel<TilePartitioner,
+                                                          GemmPipeline,
+                                                          GemmEpilogue,
+                                                          ck_tile::QuantType::RowColQuant>;
 
             auto kargs        = Kernel::MakeKernelArgs(args);
             const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
@@ -1674,7 +1715,7 @@ class TestCkTileGemmTensorQuant
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
         ck_tile::DeviceMem scale_a_dev_buf(scale_a.get_element_space_size() * sizeof(QDataType));
         ck_tile::DeviceMem scale_b_dev_buf(scale_b.get_element_space_size() * sizeof(QDataType));
-        ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
+        ck_tile::DeviceMem c_m_n_dev_buf(static_cast<size_t>(M) * N * sizeof(CDataType));
 
         // Copy to device
         a_m_k_dev_buf.ToDevice(a_m_k.data());

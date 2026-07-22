@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <string>
 
+#include "ck_tile/dispatcher/kernel_key.hpp" // ReductionStrategy
+
 namespace ck_tile {
 namespace dispatcher {
 
@@ -58,6 +60,10 @@ struct Problem
     // Validation control
     bool enable_validation; // Enable output validation against reference
 
+    // Stream-K request: which reduction strategy the caller wants (None = non-Stream-K)
+    bool streamk                         = false;
+    ReductionStrategy reduction_strategy = ReductionStrategy::None;
+
     /// Default constructor with sensible defaults
     Problem()
         : M(0),
@@ -66,7 +72,9 @@ struct Problem
           k_batch(1),
           smem_budget(0),
           prefer_persistent(false),
-          enable_validation(false)
+          enable_validation(false),
+          streamk(false),
+          reduction_strategy(ReductionStrategy::None)
     {
     }
 
@@ -78,7 +86,9 @@ struct Problem
           k_batch(1),
           smem_budget(0),
           prefer_persistent(false),
-          enable_validation(false)
+          enable_validation(false),
+          streamk(false),
+          reduction_strategy(ReductionStrategy::None)
     {
     }
 
@@ -290,6 +300,14 @@ class ProblemBuilder
     ProblemBuilder& validate(bool enable = true)
     {
         problem_.enable_validation = enable;
+        return *this;
+    }
+
+    /// Request a Stream-K kernel with a given reduction strategy
+    ProblemBuilder& stream_k(ReductionStrategy strategy = ReductionStrategy::Atomic)
+    {
+        problem_.streamk            = true;
+        problem_.reduction_strategy = strategy;
         return *this;
     }
 

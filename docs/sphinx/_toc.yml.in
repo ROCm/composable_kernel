@@ -9,8 +9,6 @@ subtrees:
     title: Install Composable Kernel
   - file: install/Composable-Kernel-build.rst
     title: Build from source
-  - file: install/Composable-Kernel-Docker.rst
-    title: Docker images
 
 - caption: Conceptual
   entries:

@@ -1,14 +1,15 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include <cstdio>
-#include <type_traits>
-#include <tuple>
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/mma.hpp"
-#include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_register_mapper.hpp"
 #include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_calculator.hpp"
+#include "ck_tile/core/arch/mma/utility/tile_distribution_encoding_register_mapper.hpp"
 #include "ck_tile/core/container/tuple.hpp"
+
+#include <cstdio>
+#include <tuple>
+#include <type_traits>
 
 using namespace ck_tile;
 using namespace ck_tile::core::arch;

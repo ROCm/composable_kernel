@@ -1278,6 +1278,13 @@ llvm_amdgcn_raw_buffer_store_ui16x4(uint16x4_t vdata,
                                     index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v4i16");
 
 CK_TILE_DEVICE_EXTERN void
+llvm_amdgcn_raw_buffer_store_i16x8(int16x8_t vdata,
+                                   int32x4_t rsrc,
+                                   index_t voffset,
+                                   index_t soffset,
+                                   index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.store.v8i16");
+
+CK_TILE_DEVICE_EXTERN void
 llvm_amdgcn_raw_buffer_store_i32x2(int32x2_t vdata,
                                    int32x4_t rsrc,
                                    index_t voffset,
@@ -2001,7 +2008,7 @@ CK_TILE_DEVICE void amd_async_buffer_load(CK_TILE_LDS_ADDR T* smem,
                                              smem,
                                              bytes,
                                              v_offset,
-                                             src_wave_addr_offset,
+                                             amd_wave_read_first_lane(src_wave_addr_offset),
                                              /*imm*/ IMM,
                                              static_cast<index_t>(coherence));
 #ifdef __clang__
@@ -2246,19 +2253,11 @@ CK_TILE_DEVICE void amd_buffer_store_impl(const thread_buffer<T, N> src_thread_d
         }
         else if constexpr(N == 8)
         {
-            llvm_amdgcn_raw_buffer_store_i16x4(
-                src_thread_data.template get_as<int16x4_t>()[number<0>{}],
-                dst_wave_buffer_resource,
-                dst_thread_addr_offset,
-                dst_wave_addr_offset,
-                static_cast<index_t>(coherence));
-
-            llvm_amdgcn_raw_buffer_store_i16x4(
-                src_thread_data.template get_as<int16x4_t>()[number<1>{}],
-                dst_wave_buffer_resource,
-                dst_thread_addr_offset,
-                dst_wave_addr_offset + 4 * sizeof(bf16_t),
-                static_cast<index_t>(coherence));
+            llvm_amdgcn_raw_buffer_store_i16x8(bit_cast<int16x8_t>(src_thread_data),
+                                               dst_wave_buffer_resource,
+                                               dst_thread_addr_offset,
+                                               dst_wave_addr_offset,
+                                               static_cast<index_t>(coherence));
         }
     }
     else if constexpr(std::is_same<T, uint16_t>::value)
@@ -3349,7 +3348,6 @@ __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
         auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_fp16x4_t*>(in_ptr_);
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4f16(lds_ptr));
 #elif defined(__gfx125__)
-        typedef __attribute__((__vector_size__(8 * sizeof(__fp16)))) __fp16 llvm_fp16x8_t;
         auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_fp16x8_t*>(in_ptr_);
         return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_load_tr16_b128_v8f16(lds_ptr));
 #else

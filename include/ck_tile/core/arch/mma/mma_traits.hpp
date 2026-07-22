@@ -2,11 +2,10 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
-#include "amdgcn_mma.hpp"
+#include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
 #include "ck_tile/core/arch/mma/mma_op_family.hpp"
 #include "ck_tile/core/config.hpp"
-#include "mfma/mfma_traits.hpp"
-#include "wmma/wmma_traits.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
 
 #include <stdio.h>
 #include <type_traits>
@@ -96,7 +95,7 @@ struct MmaOpTraits<amdgcn_mma<ADataType_,
     constexpr static bool IsWmma   = is_mma_op_wmma_v<MmaOp>;
     constexpr static bool IsDense  = OpFamily_ == MmaOpFamily::DENSE;
     constexpr static bool IsSparse = OpFamily_ == MmaOpFamily::SPARSE;
-    constexpr static bool IsScale  = OpFamily_ == MmaOpFamily::SCALE;
+    constexpr static bool IsScale  = is_scale_op_family(OpFamily_);
     constexpr static bool IsSupported =
         is_mma_op_supported_v<MmaOp> && OpFamily_ != MmaOpFamily::UNDEFINED;
 };

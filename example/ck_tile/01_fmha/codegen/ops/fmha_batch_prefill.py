@@ -32,6 +32,14 @@ CDNA3_PLUS_ARCH = ArchTrait(
     preprocessor_check="defined(__gfx94__) || defined(__gfx950__)",
 )
 
+# Architecture trait for tiles that are only valid / only wanted on gfx942
+# (e.g. MI308). Used to gate a tile's device-side compilation so it is skipped
+# on other archs
+GFX942_ARCH = ArchTrait(
+    "gfx942",
+    preprocessor_check="defined(__gfx942__)",
+)
+
 DTYPE_BITS = {
     "fp32": 32,
     "fp16": 16,
@@ -167,6 +175,7 @@ FMHA_FWD_API_FILENAME = "fmha_batch_prefill_api.cpp"
 FMHA_FWD_API = """
 #include <cstdint>
 #include <cstdio>
+#include <string>
 
 namespace {{
 bool get_num_cus(unsigned& num_cu) {{
@@ -206,6 +215,11 @@ float fmha_batch_prefill(fmha_batch_prefill_traits t, fmha_batch_prefill_args a,
         return r;
     }}
 
+    // Host-side arch identity, used to mirror device-only arch gates (e.g. tiles
+    // restricted via F_arch) in the host dispatch so we never select an
+    // arm whose device image was elided for this arch.
+    [[maybe_unused]] const std::string device_name = ck_tile::get_device_name();
+
     [[maybe_unused]] auto get_num_blocks = [&](unsigned kM0) {{
         return get_num_thread_blocks(a.batch, a.nhead_q, a.max_seqlen_q, kM0);
     }};
@@ -226,7 +240,7 @@ FMHA_FWD_API_PER_HDIM_CASE = """        {F_if} (t.hdim_q <= {F_hdim} && t.hdim_v
 """
 
 FMHA_FWD_API_INNER_DISPATCH = """            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.qscale_type == {F_qscale_check}) && (t.has_sink == {F_sink}) &&
-                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint}) && (t.kv_memory_layout == {F_kv_memory_layout}) && (t.kv_lookup_table == {F_kv_lookup_table}) && (t.page_size == {F_page_size}) && (fmha_batch_prefill_select_kv_load_mode(a.page_block_size, {F_bn0}, a.num_total_pages, a.batch_stride_k, kElementBytes) == {F_kv_load_mode})) {{
+                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint}) && ({F_arch_host}) && (t.kv_memory_layout == {F_kv_memory_layout}) && (t.kv_lookup_table == {F_kv_lookup_table}) && (t.page_size == {F_page_size}) && (fmha_batch_prefill_select_kv_load_mode(a.page_block_size, {F_bn0}, a.num_total_pages, a.batch_stride_k, a.batch_stride_v, kElementBytes, a.k_ptr, a.v_ptr) == {F_kv_load_mode})) {{
                 using trait_ = fmha_fwd_batch_prefill_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_qscale}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, false, false, {F_sink}, {F_page_size}, {F_kv_memory_layout}, {F_kv_lookup_table}, {F_kv_load_mode}>;
                 return fmha_batch_prefill_<trait_>(s, a);
             }}
@@ -277,6 +291,9 @@ class FmhaFwdApiTrait:
     kv_lookup_table: str
     page_size: int = 1  # page block size
     use_global_load: bool = False  # use global_load_lds_* for >2GB KV cache
+    # Host-side arch predicate mirroring a tile's device-only F_arch gate.
+    # "true" means arch-agnostic (no host restriction).
+    arch_host: str = "true"
 
     @property
     def name(self) -> str:
@@ -486,6 +503,7 @@ class FmhaFwdApiPool:
                         F_dcheck=trait.dcheck,
                         F_dvcheck=trait.dvcheck,
                         F_constraint=trait.constraint,
+                        F_arch_host=trait.arch_host,
                         F_spad=BOOL_MAP[trait.spad],
                         F_skpad=BOOL_MAP[trait.skpad],
                         F_dpad=BOOL_MAP[trait.dpad],
@@ -547,6 +565,11 @@ class FmhaFwdTileSize:
     F_wk1: int  # gemm1 warp size along k
     F_occupancy: int  # occupancy, -1 will let pipeline decide the occupancy, other value will overwrite occupancy
     F_constraint: CppConstraint = field(default_factory=lambda: CppConstraint())
+    # Optional compile-time arch guard for this tile's device code. When set,
+    # the kernel body is only instantiated during the device pass for matching
+    # archs (host pass always keeps it so the host symbol still exists). This is
+    # independent from F_constraint, which is a runtime dispatch predicate.
+    F_arch: Optional[ArchTrait] = None
 
     @property
     def name(self) -> str:
@@ -619,10 +642,19 @@ class FmhaFwdKernel:
             F_page_size=self.F_page_size,
             F_sink=BOOL_MAP[self.F_pipeline.F_sink],
             F_kv_load_mode=KV_LOAD_MODE_ENUM_MAP[self.F_use_global_load],
-            F_arch_check=CDNA3_PLUS_ARCH.preprocessor_check
-            if self.F_use_global_load
-            else "true",
+            F_arch_check=self._arch_check(),
         )
+
+    def _arch_check(self) -> str:
+        # Combine any arch guards that apply to this kernel.
+        checks = []
+        if self.F_use_global_load:
+            checks.append(CDNA3_PLUS_ARCH.preprocessor_check)
+        if self.F_tile.F_arch is not None:
+            checks.append(self.F_tile.F_arch.preprocessor_check)
+        if not checks:
+            return "true"
+        return " && ".join(f"({c})" for c in checks)
 
     @property
     def name(self) -> str:
@@ -668,6 +700,11 @@ class FmhaFwdKernel:
             kv_lookup_table=self.F_pipeline.F_kv_lookup_table,
             page_size=self.F_page_size,
             use_global_load=self.F_use_global_load,
+            arch_host=(
+                self.F_tile.F_arch.device_name_check
+                if self.F_tile.F_arch is not None
+                else "true"
+            ),
         )
 
 
@@ -678,7 +715,7 @@ class KernelComponentFactory:
             return {
                 128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 256 : [
-                    FmhaFwdTileSize(128,  32, 16, 256, 16,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16, 2, CppConstraint("num_cus < 128")),
+                    FmhaFwdTileSize(128,  32, 16, 256, 16,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16, 2, CppConstraint("num_cus < 128"), GFX942_ARCH),
                     FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                 ],
             }  # fmt: skip
@@ -686,7 +723,7 @@ class KernelComponentFactory:
             return {
                 128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
                 256 : [
-                    FmhaFwdTileSize(128,  64, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  2, CppConstraint("num_cus < 128")),
+                    FmhaFwdTileSize(128,  64, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  2, CppConstraint("num_cus < 128"), GFX942_ARCH),
                     FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
                 ],
             }  # fmt: skip

@@ -2,11 +2,9 @@
 // SPDX-License-Identifier: MIT
 
 #include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
-#include "ck_tile/core/arch/mma/mma_op_family.hpp"
-#include "ck_tile/core/arch/mma/mma_selector.hpp"
-#include "ck_tile/core/arch/mma/mma_traits.hpp"
+#include "ck_tile/core/arch/mma/mma.hpp"
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 #include "ck_tile/host/hip_check_error.hpp"
 
@@ -15,7 +13,6 @@
 #include <gtest/gtest.h>
 #include <hip/hip_runtime.h>
 
-#include <cstdint>
 #include <type_traits>
 
 using namespace ck_tile;

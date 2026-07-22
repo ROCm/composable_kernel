@@ -2,9 +2,14 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
+
 #include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
 #include "ck_tile/core/arch/mma/mma_op_family.hpp"
 #include "ck_tile/core/arch/mma/mma_traits.hpp"
+#include "ck_tile/core/numeric/integer.hpp"
+
+#include <type_traits>
 
 namespace ck_tile::core::arch::mma {
 
@@ -141,8 +146,3 @@ struct MmaKSearchSelector<ADataType,
 };
 
 } // namespace ck_tile::core::arch::mma
-
-// Include the implementations
-#include "wmma/wmma_selector.hpp"
-#include "mfma/mfma_selector.hpp"
-#include "sparse/sparse_selector.hpp"

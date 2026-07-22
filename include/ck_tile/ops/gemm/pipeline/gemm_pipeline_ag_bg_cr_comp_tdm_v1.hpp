@@ -138,6 +138,10 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+    static constexpr index_t MXdlPackEff = 1;
+    static constexpr index_t NXdlPackEff = 1;
+    static constexpr index_t KXdlPackEff = 4;
+
     static constexpr bool UseClusterLaunch = Policy::template isClusterLaunch<Problem>();
 
     // for these three functions, we always return 1 since TDM handles vectorization internally

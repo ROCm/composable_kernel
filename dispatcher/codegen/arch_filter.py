@@ -50,6 +50,8 @@ class OperatorType(Enum):
     GEMM = "gemm"
     GEMM_PRESHUFFLE = "gemm_preshuffle"
     GEMM_MULTI_D = "gemm_multi_d"
+    GEMM_GROUPED = "gemm_grouped"
+    GEMM_STREAMK = "gemm_streamk"
     CONV_FWD = "conv_fwd"
     CONV_BWD_DATA = "conv_bwd_data"
     CONV_BWD_WEIGHT = "conv_bwd_weight"
@@ -78,6 +80,28 @@ OPERATOR_TILE_CONSTRAINTS = {
         "tile_k_alignment": 16,
     },
     OperatorType.GEMM_MULTI_D: {
+        "min_tile_m": 16,
+        "min_tile_n": 16,
+        "min_tile_k": 8,
+        "tile_m_alignment": 16,
+        "tile_n_alignment": 16,
+        "tile_k_alignment": 8,
+    },
+    OperatorType.GEMM_GROUPED: {
+        "min_tile_m": 16,
+        "min_tile_n": 16,
+        "min_tile_k": 8,
+        "tile_m_alignment": 16,
+        "tile_n_alignment": 16,
+        "tile_k_alignment": 8,
+    },
+    # NOTE: these are copied from plain GEMM and only gate tile *shape* validity.
+    # They do NOT express Stream-K's real feasibility requirement -- that a problem
+    # has enough output tiles to partition K-work across the CUs. That gate is
+    # runtime (StreamKKernel::IsSupportedArgument / the backend supports() check),
+    # which lets the dispatcher fall back to a non-Stream-K kernel for too-small
+    # problems instead of rejecting them at codegen time.
+    OperatorType.GEMM_STREAMK: {
         "min_tile_m": 16,
         "min_tile_n": 16,
         "min_tile_k": 8,

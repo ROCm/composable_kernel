@@ -49,6 +49,10 @@ struct TestConfigs
     static constexpr bool def_is_v_rowmajor = true;
     static constexpr auto init_method       = "uf";
     static int adjust_seqlen(int seqlen) { return seqlen; }
+    static int adjust_hdim(int hdim)
+    {
+        return hdim < 0 ? hdim : ck_tile::integer_least_multiple(hdim, 8);
+    }
 };
 
 template <>
@@ -67,6 +71,10 @@ struct TestConfigs<FmhaFwdFp8Bf16>
     // When there are no fp8 instances with padding, pad seqlen to avoid skipping most of the tests:
     // return ck_tile::integer_least_multiple(seqlen, 128);
     static int adjust_seqlen(int seqlen) { return seqlen; }
+    static int adjust_hdim(int hdim)
+    {
+        return hdim < 0 ? hdim : ck_tile::integer_least_multiple(hdim, 16);
+    }
 };
 
 template <>
@@ -82,6 +90,10 @@ struct TestConfigs<FmhaFwdMxFp8>
     static constexpr bool def_is_v_rowmajor  = false;
     static constexpr auto init_method        = "3";
     static int adjust_seqlen(int seqlen) { return seqlen; }
+    static int adjust_hdim(int hdim)
+    {
+        return hdim < 0 ? hdim : ck_tile::integer_least_multiple(hdim, 16);
+    }
 };
 
 template <>
@@ -99,6 +111,10 @@ struct TestConfigs<FmhaFwdMxFp4>
     static int adjust_seqlen(int seqlen)
     {
         return seqlen < 0 ? seqlen : ck_tile::integer_least_multiple(seqlen, 2);
+    }
+    static int adjust_hdim(int hdim)
+    {
+        return hdim < 0 ? hdim : ck_tile::integer_least_multiple(hdim, 32);
     }
 };
 
@@ -123,6 +139,7 @@ struct TestConfigs<FmhaFwdFp32>
     static constexpr bool def_is_v_rowmajor  = true;
     static constexpr auto init_method        = "uf";
     static int adjust_seqlen(int seqlen) { return seqlen; }
+    static int adjust_hdim(int hdim) { return hdim; }
 };
 
 static auto HDimValues           = ValuesIn(TestConfigs<DataTypeConfig>::HDimValues);
@@ -135,6 +152,7 @@ constexpr bool def_lse           = TestConfigs<DataTypeConfig>::def_lse;
 constexpr bool def_is_v_rowmajor = TestConfigs<DataTypeConfig>::def_is_v_rowmajor;
 constexpr auto init_method       = TestConfigs<DataTypeConfig>::init_method;
 int adjust_seqlen(int seqlen) { return TestConfigs<DataTypeConfig>::adjust_seqlen(seqlen); }
+int adjust_hdim(int hdim) { return TestConfigs<DataTypeConfig>::adjust_hdim(hdim); }
 
 // Random seed used for initializing input tensors. 0 for non-deterministic seed
 CK_TILE_DECLARE_ENV_VAR(CK_TILE_TEST_SEED, uint64_t, 123456)
@@ -206,7 +224,11 @@ INSTANTIATE_TEST_SUITE_P(
                    std::tuple{3, 2, 1, -1, -1, 200, 520, -1, "t:128,30"},
                    std::tuple{2, 1, -1, -1, -1, 99, 32, -1, "b:4,35"},
                    std::tuple{1, 2, 1, -1, -1, 33, 0, -1, "2"},
-                   std::tuple{1, 2, 1, -1, -1, 1, 10, 32, "2"})));
+                   std::tuple{1, 2, 1, -1, -1, 1, 10, 32, "2"},
+                   // d=128 on gfx1250: seqlen<2048 selects the qr_tdm decode (b64) tile,
+                   // seqlen>=2048 the prefill (b128) tile
+                   std::tuple{1, 2, 1, 128, 128, 512, 512, -1, "0"},
+                   std::tuple{1, 2, 1, 128, 128, 2048, 2048, -1, "0"})));
 
 TEST_P(AllLong, DataTypeConfig)
 {
@@ -244,6 +266,70 @@ TEST_P(AllLong, DataTypeConfig)
                                                p_drop,        // p_drop
                                                123,           // drop_seed
                                                1024,          // drop_offset
+                                               false,         // drop_prefs
+                                               mask_str,      // mask_str
+                                               qscale_str,
+                                               true, // is_rotary_interleaved
+                                               1,    // num_splits
+                                               COMMON_ARGS);
+    CHECK_RESULT(result);
+}
+
+class General
+    : public TestWithParam<std::tuple<std::tuple<int, int>,
+                                      bool,
+                                      bool,
+                                      mode_enum,
+                                      std::tuple<int, int, int, int, int, int, std::string>>>
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
+                         General,
+                         Combine(HDimValues,
+                                 Bool(),
+                                 IsVRowmajorValues,
+                                 ModeValues,
+                                 Values(std::tuple{2, 2, 1, 55, 256, -1, "0"},
+                                        std::tuple{1, 3, -1, 100, 51, -1, "0"},
+                                        std::tuple{2, 1, -1, 99, 256, -1, "1"},
+                                        std::tuple{1, 2, 1, 1024, 256, -1, "2"},
+                                        std::tuple{2, 1, -1, 3, 99, -1, "2"},
+                                        std::tuple{1, 2, 1, 33, 0, -1, "2"},
+                                        std::tuple{1, 2, 1, 1, 10, 32, "2"})));
+
+TEST_P(General, DataTypeConfig)
+{
+    auto [hdims, perm, is_v_rowmajor, mode, dims_mask]                      = GetParam();
+    auto [hdim_q, hdim_v]                                                   = hdims;
+    auto [batch, nhead, nhead_k, seqlen_q, seqlen_k, seqlen_kpad, mask_str] = dims_mask;
+
+    auto result = fmha_fwd_run<DataTypeConfig>(mode,
+                                               batch,
+                                               nhead,
+                                               nhead_k,
+                                               {adjust_seqlen(seqlen_q)},
+                                               {adjust_seqlen(seqlen_k)},
+                                               hdim_q,
+                                               hdim_v,
+                                               0,             // seqlen_knew
+                                               {-1},          // seqlen_qpads
+                                               {seqlen_kpad}, // seqlen_kpads
+                                               {},            // q_eff_lens_per_batch
+                                               {},            // kv_eff_lens_per_batch
+                                               0,             // rotary_dim
+                                               perm,          // i_perm
+                                               perm,          // o_perm
+                                               0,             // scale_s
+                                               0,             // logits_soft_cap
+                                               is_v_rowmajor, // is_v_rowmajor
+                                               def_lse,       // lse
+                                               0,             // page_block_size
+                                               false,         // use_cache_batch_idx
+                                               "n",           // bias_str
+                                               0.0f,          // p_drop
+                                               0,             // drop_seed
+                                               0,             // drop_offset
                                                false,         // drop_prefs
                                                mask_str,      // mask_str
                                                qscale_str,
@@ -430,8 +516,8 @@ TEST_P(HDimPadding, DataTypeConfig)
                                                nhead_k,
                                                {adjust_seqlen(seqlen_q)},
                                                {adjust_seqlen(seqlen_k)},
-                                               hdim_q,
-                                               hdim_v,
+                                               adjust_hdim(hdim_q),
+                                               adjust_hdim(hdim_v),
                                                0,             // seqlen_knew
                                                {-1},          // seqlen_qpads
                                                {seqlen_kpad}, // seqlen_kpads
@@ -1220,4 +1306,95 @@ TEST_P(PaddingCases, DataTypeConfig)
                                                1,    // num_splits
                                                COMMON_ARGS);
     CHECK_RESULT(result);
+}
+
+// ============================================================================
+// Host-only unit tests for fmha_batch_prefill_select_kv_load_mode() (in
+// fmha_fwd.hpp). Guards ROCm/aiter#3824: when page_block_size < kN0 the paged-KV
+// gather uses one SRD whose signed int32 voffset spans the whole K (or V) pool,
+// so base[31:0] + pool_bytes silently wraps once it crosses INT32_MAX (~2GB) -
+// even for sub-2GB pools placed high in the VA space.
+// ============================================================================
+
+namespace {
+
+using ck_tile::BlockAttentionKVCacheLoadModeEnum;
+
+constexpr auto kBuffer = BlockAttentionKVCacheLoadModeEnum::BUFFER_LOAD;
+constexpr auto kGlobal = BlockAttentionKVCacheLoadModeEnum::GLOBAL_LOAD_LDS;
+
+// The selector only reads the low 32 bits of the base VA; it never dereferences.
+const void* as_ptr(std::uint64_t va) { return reinterpret_cast<const void*>(va); }
+
+// Same low-32 base and single stride for both K and V.
+BlockAttentionKVCacheLoadModeEnum select(ck_tile::index_t page_block_size,
+                                         ck_tile::index_t kN0,
+                                         ck_tile::index_t num_total_pages,
+                                         ck_tile::index_t batch_stride,
+                                         ck_tile::index_t element_bytes,
+                                         std::uint64_t base_va)
+{
+    return fmha_batch_prefill_select_kv_load_mode(page_block_size,
+                                                  kN0,
+                                                  num_total_pages,
+                                                  batch_stride,
+                                                  batch_stride,
+                                                  element_bytes,
+                                                  as_ptr(base_va),
+                                                  as_ptr(base_va));
+}
+
+} // namespace
+
+// Fast path: page >= kN0 rebases the SRD per page, so BUFFER_LOAD is always safe
+// regardless of base VA or pool size.
+TEST(FmhaBatchPrefillKvLoadMode, PageGeKN0_AlwaysBufferLoad)
+{
+    const std::uint64_t high_base = 0xF000'0000ULL; // ~3.75GB low32
+    EXPECT_EQ(select(256, 128, 1'000'000, 256, 2, high_base), kBuffer);
+    EXPECT_EQ(select(128, 128, 1'000'000, 256, 2, high_base), kBuffer);
+}
+
+// Core boundary: base + pool == INT32_MAX stays BUFFER_LOAD (strictly-greater
+// comparison); one byte more flips to GLOBAL_LOAD_LDS.
+TEST(FmhaBatchPrefillKvLoadMode, ExactInt32MaxBoundary)
+{
+    // sum == INT32_MAX -> BUFFER_LOAD.
+    EXPECT_EQ(select(32, 128, 1, INT32_MAX, 1, 0x0ULL), kBuffer);
+    // sum == INT32_MAX + 1 -> GLOBAL_LOAD_LDS.
+    EXPECT_EQ(select(32, 128, 1, INT32_MAX, 1, 0x1ULL), kGlobal);
+}
+
+// The #3824 regression: a sub-2GB pool that is safe at a low base faults when
+// the allocator places it high in the VA space (the (2GB,4GB] danger band a
+// naive 0xFFFFFFFF/4GB check would miss).
+TEST(FmhaBatchPrefillKvLoadMode, SubTwoGiBPool_HighBaseTipsOverflow)
+{
+    const ck_tile::index_t pages = 500'000, stride = 256, ebytes = 2;
+    const auto pool = static_cast<std::uint64_t>(pages) * stride * ebytes; // ~244MB < 2GB
+    EXPECT_EQ(select(32, 128, pages, stride, ebytes, 0x0010'0000ULL), kBuffer);
+    const std::uint64_t high_base = 0x8000'0000ULL - pool / 2; // sum lands above 2GB
+    EXPECT_EQ(select(32, 128, pages, stride, ebytes, high_base), kGlobal);
+}
+
+// K and V are allocated independently: either one overflowing forces
+// GLOBAL_LOAD_LDS; neither overflowing stays BUFFER_LOAD.
+TEST(FmhaBatchPrefillKvLoadMode, PerTensorIndependence)
+{
+    const ck_tile::index_t pages = 500'000, ebytes = 2;
+    const std::uint64_t high = 0x8000'0000ULL - 0x0800'0000ULL; // near 2GB
+    const std::uint64_t low  = 0x0010'0000ULL;
+
+    // Only K overflows.
+    EXPECT_EQ(fmha_batch_prefill_select_kv_load_mode(
+                  32, 128, pages, 512, 1, ebytes, as_ptr(high), as_ptr(low)),
+              kGlobal);
+    // Only V overflows.
+    EXPECT_EQ(fmha_batch_prefill_select_kv_load_mode(
+                  32, 128, pages, 1, 512, ebytes, as_ptr(low), as_ptr(high)),
+              kGlobal);
+    // Neither overflows.
+    EXPECT_EQ(fmha_batch_prefill_select_kv_load_mode(
+                  32, 128, pages, 1, 1, ebytes, as_ptr(low), as_ptr(low)),
+              kBuffer);
 }

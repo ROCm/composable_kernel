@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 
 #include "profiler/profile_grouped_conv_bwd_data_impl.hpp"
+#include "ck/host_utility/device_prop.hpp"
 
 static ck::index_t param_mask     = 0xffffff;
 static ck::index_t instance_index = -1;
@@ -30,6 +31,8 @@ class TestGroupedConvndBwdData : public ::testing::Test
 #else
     static constexpr int verify_ = 2; // GPU reference
 #endif
+    // On gfx1250, the naive GPU reference kernel can hang. Always use CPU reference.
+    int get_verify() const { return (ck::is_gfx125_supported() && verify_ == 2) ? 1 : verify_; }
     template <ck::index_t NDimSpatial>
     void Run()
     {
@@ -51,10 +54,10 @@ class TestGroupedConvndBwdData : public ::testing::Test
                                                                                        DataType,
                                                                                        DataType,
                                                                                        DataType>(
-                                   verify_, // do_verification
-                                   1,       // init_method: integer value
-                                   false,   // do_log
-                                   false,   // time_kernel
+                                   get_verify(), // do_verification
+                                   1,            // init_method: integer value
+                                   false,        // do_log
+                                   false,        // time_kernel
                                    param,
                                    split_k,
                                    instance_index);
@@ -121,6 +124,7 @@ TYPED_TEST(TestGroupedConvndBwdData2d, Test2D)
     // GroupedGemmGroupsNum = 32, ZTilde * YTilde * XTilde = 32, MaxGroupedGemmGroupsNum = 32
     this->conv_params.push_back(
         {2, 2, 2, 16, 16, {4, 8}, {28, 28}, {4, 8}, {1, 1}, {1, 1}, {1, 1}});
+    this->conv_params.push_back({2, 1, 1, 1, 1, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back(
         {2, 2, 2, 192, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back(
@@ -138,7 +142,6 @@ TYPED_TEST(TestGroupedConvndBwdData2d, Test2D)
     this->conv_params.push_back({2, 1, 1, 1, 32, {8, 8}, {16, 16}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back({2, 1, 1, 64, 3, {8, 8}, {16, 16}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back({2, 1, 1, 1, 1, {8, 8}, {16, 16}, {1, 1}, {1, 1}, {1, 1}, {1, 1}});
-
     // G=1, stride>1, 2D, no D-tensors. gemms_count in {4, 9, 36}.
     this->conv_params.push_back(
         {2, 1, 16, 256, 128, {5, 5}, {40, 175}, {2, 2}, {1, 1}, {1, 1}, {1, 1}});
@@ -146,7 +149,6 @@ TYPED_TEST(TestGroupedConvndBwdData2d, Test2D)
         {2, 1, 4, 128, 64, {3, 3}, {28, 28}, {3, 3}, {1, 1}, {1, 1}, {1, 1}});
     this->conv_params.push_back(
         {2, 1, 2, 64, 64, {6, 6}, {28, 28}, {6, 6}, {1, 1}, {1, 1}, {1, 1}});
-
     this->template Run<2>();
 }
 

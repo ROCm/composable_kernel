@@ -1280,8 +1280,18 @@ struct UniversalGemmKernel
 
         std::array<const BDataType*, NumBTensor> bs_ptr;
         static_for<0, NumBTensor, 1>{}([&](auto i) {
-            bs_ptr[i] = static_cast<const BDataType*>(kargs.bs_ptr[i]) +
-                        splitk_batch_offset.bs_k_split_offset[i] / BPackedSize;
+            if constexpr(GemmPipeline::Preshuffle)
+            {
+                // The preshuffle (flat-B) path applies the per-split K offset to the flat
+                // window origin in when creating the window; bs_k_split_offset is derived from
+                // the logical B stride and would mis-offset the flat buffer.
+                bs_ptr[i] = static_cast<const BDataType*>(kargs.bs_ptr[i]);
+            }
+            else
+            {
+                bs_ptr[i] = static_cast<const BDataType*>(kargs.bs_ptr[i]) +
+                            splitk_batch_offset.bs_k_split_offset[i] / BPackedSize;
+            }
         });
 
         // Calculate output offset from tile partitioner and apply to output pointer

@@ -20,46 +20,45 @@ namespace ck_tile {
 #if USE_NEW_UNIFIED_FRAMEWORK
 // fp16 named WarpGemms (no WMMA or StructuredSparsity)
 // clang-format off
+// NOTE: The dispatcher params are:                                       TypeA, TypeB, TypeC, M, N, K, TransposeC, SwizzleFactor, UseStructuredSparsity, AttrNumAccessA, AttrNumAccessB, IsScale16.                                                                                          
 template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmMfmaF16F16F32M32N32K16                                  = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32, 16, false, false, false, NumAccess>::Type;
+using WarpGemmMfmaF16F16F32M32N32K16                                  = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32, 16, false, 1, false, NumAccess>::Type;
 template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution           = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32, 16, true, false, false, NumAccess>::Type;
+using WarpGemmMfmaF16F16F32M32N32K16TransposedCDistribution           = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32, 16, true, 1, false, NumAccess>::Type;
 template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmMfmaF16F16F32M16N16K32                                  = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 16, 16, 32, false, false, false, NumAccess>::Type;
+using WarpGemmMfmaF16F16F32M16N16K32                                  = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 16, 16, 32, false, 1, false, NumAccess>::Type;
 template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution           = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 16, 16, 32, true, false, false, NumAccess>::Type;
+using WarpGemmMfmaF16F16F32M16N16K32TransposedCDistribution           = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 16, 16, 32, true, 1, false, NumAccess>::Type;
 using WarpGemmMfmaF16F16F32M32N32K8                                   = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32,  8, false>::Type;
 using WarpGemmMfmaF16F16F32M32N32K8TransposedCDistribution            = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32,  8,  true>::Type;
 using WarpGemmMfmaF16F16F32M4N64K16                                   = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float,  4, 64, 16, false>::Type;
 using WarpGemmMfmaF16F16F32M64N4K16                                   = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 64,  4, 16, false>::Type;
 using WarpGemmMfmaF16F16F32M16N16K16                                  = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 16, 16, 16, false>::Type;
 using WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution           = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 16, 16, 16,  true>::Type;
-// using WarpGemmMfmaF16F16F32M32N32K8SwizzleA                           = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32,  8, false, true>::Type;
-// using WarpGemmMfmaF16F16F32M32N32K16SwizzleA                          = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32, 16, false, true>::Type;
-// using WarpGemmMfmaF16F16F32M32N32K8SwizzleBTransposedCDistribution    = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32,  8,  true, true>::Type;
-// using WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution   = typename impl::warp_gemm_dispatcher::UnificationDispatcher<half_t, half_t, float, 32, 32, 16,  true, true>::Type;
 
 // bf16 named WarpGemms (no WMMA or StructuredSparsity)
 using WarpGemmMfmaBf16Bf16F32M32N32K8                                 = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32,  8, false>::Type;
 using WarpGemmMfmaBf16Bf16F32M32N32K8TransposedCDistribution          = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32,  8,  true>::Type;
 template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmMfmaBf16Bf16F32M32N32K16                                = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32, 16, false, false, false, NumAccess>::Type;
+using WarpGemmMfmaBf16Bf16F32M32N32K16                                = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32, 16, false, 1, false, NumAccess>::Type;
 template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution         = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32, 16,  true, false, false, NumAccess>::Type;
+using WarpGemmMfmaBf16Bf16F32M32N32K16TransposedCDistribution         = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32, 16,  true, 1, false, NumAccess>::Type;
 template<WGAttrNumAccessEnum NumAccessA = WGAttrNumAccessEnum::Single, WGAttrNumAccessEnum NumAccessB = WGAttrNumAccessEnum::Single>
-using WarpGemmMfmaBf16Bf16F32M16N16K32                                = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 32, false, false, false, NumAccessA, NumAccessB>::Type;
+using WarpGemmMfmaBf16Bf16F32M16N16K32                                = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 32, false, 1, false, NumAccessA, NumAccessB>::Type;
 template<WGAttrNumAccessEnum NumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution         = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 32,  true, false, false, NumAccess>::Type;
+using WarpGemmMfmaBf16Bf16F32M16N16K32TransposedCDistribution         = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 32,  true, 1, false, NumAccess>::Type;
 template<WGAttrNumAccessEnum NumAccessA = WGAttrNumAccessEnum::Single, WGAttrNumAccessEnum NumAccessB = WGAttrNumAccessEnum::Single>
-using WarpGemmMfmaBf16Bf16F32M16N16K64                                = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 64, false, false, false, NumAccessA, NumAccessB>::Type;
+using WarpGemmMfmaBf16Bf16F32M16N16K64                                = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 64, false, 1, false, NumAccessA, NumAccessB>::Type;
 using WarpGemmMfmaBf16Bf16F32M4N64K16                                 = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float,  4, 64, 16, false>::Type;
 using WarpGemmMfmaBf16Bf16F32M64N4K16                                 = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 64,  4, 16, false>::Type;
 using WarpGemmMfmaBf16Bf16F32M16N16K16                                = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 16, false>::Type;
 using WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution         = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 16, 16, 16,  true>::Type;
-// using WarpGemmMfmaBf16Bf16F32M32N32K8SwizzleA                         = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32,  8, false, true>::Type;
-// using WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleA                        = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32, 16, false, true>::Type;
-// using WarpGemmMfmaBf16Bf16F32M32N32K8SwizzleBTransposedCDistribution  = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32,  8,  true, true>::Type;
-// using WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution = typename impl::warp_gemm_dispatcher::UnificationDispatcher<bf16_t, bf16_t, float, 32, 32, 16,  true, true>::Type;
+
+// Other named WarpGemms
+template <index_t swizzle_factor = 2>
+using WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution = typename impl::warp_gemm_dispatcher::UnificationDispatcher<fp8_t, fp8_t, float, 32, 32, 32, true, swizzle_factor>::Type;
+template <index_t swizzle_factor = 2>
+using WarpGemmMfmaI8I8I32M32N32K32SwizzleBTransposedCDistribution = typename impl::warp_gemm_dispatcher::UnificationDispatcher<int8_t, int8_t, int32_t, 32, 32, 32, true, swizzle_factor>::Type;
 //clang-format on
 
 #else // #if USE_NEW_UNIFIED_FRAMEWORK
@@ -298,7 +297,8 @@ template <WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Single,
 using WarpGemmMfmaBf16Bf16F32M16N16K32 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
     WarpGemmAttributeMfmaImplBf16Bf16F32M16N16K16<WGAttrCtlEnum::Default_>,
     2,
-    AttrNumAccessA>>;
+    AttrNumAccessA,
+    AttrNumAccessB>>;
 
 template <WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Single,
           WGAttrNumAccessEnum AttrNumAccessB = AttrNumAccessA>
@@ -381,11 +381,13 @@ using WarpGemmMfmaBf16Bf16F32M64N4K16 = WarpGemmImpl<WarpGemmAttributeMfmaIterat
 
 // fp8
 #if defined(__gfx950__)
-template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+template <WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Single,
+          WGAttrNumAccessEnum AttrNumAccessB = AttrNumAccessA>
 using WarpGemmMfma_f32_32x32x32_fp8_fp8 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
     WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_fp8<WGAttrCtlEnum::Default_>,
     2,
-    AttrNumAccess>>;
+    AttrNumAccessA,
+    AttrNumAccessB>>;
 #else
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfma_f32_32x32x32_fp8_fp8 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
@@ -394,11 +396,13 @@ using WarpGemmMfma_f32_32x32x32_fp8_fp8 = WarpGemmImpl<WarpGemmAttributeMfmaIter
 #endif
 
 #if defined(__gfx950__)
-template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+template <WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Single,
+          WGAttrNumAccessEnum AttrNumAccessB = AttrNumAccessA>
 using WarpGemmMfma_f32_16x16x64_fp8_fp8 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
     WarpGemmAttributeMfmaImpl_f32_16x16x32_fp8_fp8<WGAttrCtlEnum::Default_>,
     2,
-    AttrNumAccess>>;
+    AttrNumAccessA,
+    AttrNumAccessB>>;
 #else
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfma_f32_16x16x64_fp8_fp8 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
@@ -407,11 +411,13 @@ using WarpGemmMfma_f32_16x16x64_fp8_fp8 = WarpGemmImpl<WarpGemmAttributeMfmaIter
 #endif
 
 #if defined(__gfx950__)
-template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+template <WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Single,
+          WGAttrNumAccessEnum AttrNumAccessB = AttrNumAccessA>
 using WarpGemmMfma_f32_32x32x32_bf8_bf8 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
     WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_bf8<WGAttrCtlEnum::Default_>,
     2,
-    AttrNumAccess>>;
+    AttrNumAccessA,
+    AttrNumAccessB>>;
 #else
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfma_f32_32x32x32_bf8_bf8 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
@@ -462,9 +468,13 @@ using WarpGemmMfma_f32_16x16x32_bf8_bf8_CTransposed =
     WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
         WarpGemmAttributeMfmaImpl_f32_16x16x32_bf8_bf8<WGAttrCtlEnum::Default_>>>;
 
+template <WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Single,
+          WGAttrNumAccessEnum AttrNumAccessB = AttrNumAccessA>
 using WarpGemmMfma_f32_16x16x64_bf8_bf8 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
     WarpGemmAttributeMfmaImpl_f32_16x16x32_bf8_bf8<WGAttrCtlEnum::Default_>,
-    2>>;
+    2,
+    AttrNumAccessA,
+    AttrNumAccessB>>;
 
 using WarpGemmMfma_f32_16x16x64_fp8_fp8_CTransposed =
     WarpGemmImpl<WarpGemmAttributeMfmaIterateKAndTransposedCDistribution<
@@ -602,12 +612,6 @@ using WarpGemmMfma_i32_16x16x64_i8_i8_CTransposed =
 using WarpGemmMfma_i32_16x16x32_i8_i8_CTransposed =
     WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
         WarpGemmAttributeMfmaImpl_i32_16x16x32_i8<WGAttrCtlEnum::Default_>>>;
-
-template <WGAttrNumAccessEnum AttrNumAccess>
-using WarpGemmMfma_i32_16x16x64_i8_i8_CTransposed =
-    WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution<
-        WarpGemmAttributeMfmaImpl_i32_16x16x64_i8<WGAttrCtlEnum::Default_>,
-        AttrNumAccess>>;
 
 template <index_t swizzle_factor = 2>
 using WarpGemmMfmaI8I8I32M32N32K32SwizzleBTransposedCDistribution =

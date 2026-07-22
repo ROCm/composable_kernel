@@ -1073,7 +1073,7 @@ def _generate_single_kernel_subprocess(args: dict) -> Tuple[bool, Optional[str],
             "--config",
             config_file,
             "--variants",
-            "standard",
+            args.get("variant", "standard"),
         ]
 
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
@@ -1389,7 +1389,7 @@ class KernelConfig:
     gfx_arch: str = "gfx942"
 
     # GEMM variant (affects arch filter validation)
-    # "standard", "preshuffle", or "multi_d"
+    # "standard", "preshuffle", "multi_d", or "stream_k"
     variant: str = "standard"
 
     @property

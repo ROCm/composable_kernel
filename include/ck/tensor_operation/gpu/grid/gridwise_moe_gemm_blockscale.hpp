@@ -1140,6 +1140,9 @@ struct GridwiseMoeGemmBlockScale
                                BElementwiseOperation b_element_op,
                                CElementwiseOperation c_element_op)
     {
+        static_assert(ActivationOperation != Activation::swiglu_oai_and_mul,
+                      "gridwise_moe_gemm_blockscale does not support swiglu_oai_and_mul; use the "
+                      "non-blockscale gridwise_moe_gemm.");
 #if defined(__gfx942__) || defined(__gfx950__)
         constexpr auto b_coherence_flag = NonTemporalLoadB
                                               ? AmdBufferCoherenceEnum::WAVE_NT1
@@ -1694,6 +1697,9 @@ struct GridwiseMoeGemmBlockScale
                                     BElementwiseOperation b_element_op,
                                     CElementwiseOperation c_element_op)
     {
+        static_assert(ActivationOperation != Activation::swiglu_oai_and_mul,
+                      "gridwise_moe_gemm_blockscale does not support swiglu_oai_and_mul; use the "
+                      "non-blockscale gridwise_moe_gemm.");
 #if defined(__gfx942__) || defined(__gfx950__)
         constexpr auto b_coherence_flag = NonTemporalLoadB
                                               ? AmdBufferCoherenceEnum::WAVE_NT1

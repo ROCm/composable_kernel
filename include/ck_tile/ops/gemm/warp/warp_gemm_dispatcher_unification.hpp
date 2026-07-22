@@ -131,7 +131,7 @@ template <typename AType,
           index_t NPerWave,
           index_t KPerWave,
           bool TransposeC,
-          bool SwizzleA                      = false,
+          index_t SwizzleFactor              = 1,
           bool UseStructuredSparsity         = false,
           WGAttrNumAccessEnum AttrNumAccessA = WGAttrNumAccessEnum::Single,
           WGAttrNumAccessEnum AttrNumAccessB = AttrNumAccessA,
@@ -148,22 +148,18 @@ struct UnificationDispatcher
     static constexpr bool IsMx =
         (IsMxSized && std::is_same_v<AccType, float> && UseStructuredSparsity == false);
 
-    // General checks. Swizzle not supported yet. Structured sparsity Mma pipeline not adapted to
-    // UnificationDispatcher yet since we have no sparse tests or examples in CK Tile.
-    static_assert(SwizzleA == false);
+    // General checks. Structured sparsity Mma pipeline not adapted to UnificationDispatcher yet
+    // since we have no sparse tests or examples in CK Tile.
     static_assert(UseStructuredSparsity == false);
 
     // Scale checks.
     // TODO: Add the tiny types after those are merged.
-    static_assert(!IsMx || (std::is_same_v<AType, fp8_t> || std::is_same_v<AType, bf8_t> ||
-                            std::is_same_v<AType, pk_fp4_t>));
+    static_assert(!IsMx ||
+                  (std::is_same_v<AType, fp8_t> || std::is_same_v<AType, bf8_t> ||
+                   std::is_same_v<AType, pk_fp4_t>) ||
+                  std::is_same_v<AType, pk_fp6x16_t>);
     static_assert(!IsMx || (std::is_same_v<BType, fp8_t> || std::is_same_v<BType, bf8_t> ||
-                            std::is_same_v<BType, pk_fp4_t>));
-
-    // Convert SwizzleA bool to SwizzleFactor. This used to be hardcoded in a number of places in
-    // the original dispatcher / warpgemms, generally using a factor of 2 if swizzling was
-    // requested but not always. TODO: Check original usage for correct swizzle factors.
-    static constexpr index_t SwizzleFactor = SwizzleA ? 2 : 1;
+                            std::is_same_v<BType, pk_fp4_t> || std::is_same_v<BType, pk_fp6x16_t>));
 
     // Convert WGAttrNumAccessEnums to index_t values. Default value sent to 1 for now, but needs a
     // better implementation TODO.

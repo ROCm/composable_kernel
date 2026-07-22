@@ -18,7 +18,16 @@ enum struct MmaOpFamily
     DENSE,
     SPARSE,
     SCALE,
+    SCALE16,
 };
+
+/**
+ * @brief Helper to check if an op family is any of the scale families.
+ */
+CK_TILE_HOST_DEVICE constexpr bool is_scale_op_family(MmaOpFamily f)
+{
+    return f == MmaOpFamily::SCALE || f == MmaOpFamily::SCALE16;
+}
 
 /**
  * @class is_ctrl_fis_mma_op_of_familylag_of_family
@@ -58,6 +67,7 @@ CK_TILE_HOST_DEVICE constexpr const char* to_string(MmaOpFamily opFamily)
     case MmaOpFamily::DENSE: return "DENSE";
     case MmaOpFamily::SPARSE: return "SPARSE";
     case MmaOpFamily::SCALE: return "SCALE";
+    case MmaOpFamily::SCALE16: return "SCALE16";
     }
     __builtin_unreachable();
 }

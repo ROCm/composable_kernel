@@ -200,7 +200,9 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                              is_same<ALayout, tensor_layout::gemm::RowMajor>::value;
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
-                row_major &= is_same<DLayout, tensor_layout::gemm::RowMajor>::value;
+                // Also allow ColumnMajor vector with broadcasting (quant scales)
+                row_major &=
+                    is_same<DLayout, tensor_layout::gemm::RowMajor>::value || StrideDs[i] == 0;
             });
 
             bool is_B_descriptor_smaller_than_2GB =
@@ -265,9 +267,18 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
 
             const auto ds_grid_right_ptr = generate_tuple(
                 [&](auto i) {
-                    const long_index_t ds_right_offset =
-                        static_cast<long_index_t>(m_left) * StrideDs[i];
-                    return p_ds_grid_left(i) + ds_right_offset;
+                    using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+                    if constexpr(is_same<DLayout, tensor_layout::gemm::RowMajor>::value)
+                    {
+                        const long_index_t ds_right_offset =
+                            static_cast<long_index_t>(m_left) * StrideDs[i];
+                        return p_ds_grid_left(i) + ds_right_offset;
+                    }
+                    else
+                    {
+                        // Also allow ColumnMajor vector with broadcasting (quant scales)
+                        return p_ds_grid_left(i) + m_left;
+                    }
                 },
                 Number<NumDTensor>{});
 

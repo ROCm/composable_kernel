@@ -1,9 +1,11 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 #pragma once
+
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_params.hpp"
+#include "ck_tile/core/tensor/static_distributed_tensor.hpp"
 
 #include "amdgcn_mma.hpp"
 #include "mma_selector.hpp"
@@ -14,6 +16,11 @@
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wlifetime-safety-intra-tu-suggestions"
 #endif
+
+#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
+#include <concepts>
+#endif
+
 namespace ck_tile::core::arch::mma {
 
 /**
@@ -55,7 +62,8 @@ struct MmaPipelineBase
                 decltype(auto) a_transformed = Derived::ATransform::exec(b);
                 decltype(auto) b_transformed = Derived::BTransform::exec(a);
                 decltype(auto) c_transformed = Derived::CTransform::exec(accum);
-                Derived::template execImpl<Params...>(a_transformed, b_transformed, c_transformed);
+                Derived::template execImpl<Params..., SwapReuse_<true>>(
+                    a_transformed, b_transformed, c_transformed);
                 return Derived::DTransform::exec(c_transformed);
             }
             else
@@ -78,10 +86,15 @@ struct MmaPipelineBase
     }
 
     // Entry point for dense and sparse operations. TODO: Add c_vec = a_vec * b_vec variant.
-    // TODO: Parse params with WarpGemmParamsParser<>
     template <typename... Params, typename CTensor, typename ATensor, typename BTensor>
     CK_TILE_DEVICE void operator()(CTensor& c, ATensor& a, const BTensor& b) const
     {
+        static_assert(detail::is_similiar_distributed_tensor_v<remove_cvref_t<CTensor>,
+                                                               typename Derived::CWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<remove_cvref_t<ATensor>,
+                                                               typename Derived::AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<remove_cvref_t<BTensor>,
+                                                               typename Derived::BWarpTensor>);
         exec<Params...>(a, b, c);
     }
 
@@ -108,7 +121,7 @@ struct MmaPipelineBase
                 decltype(auto) b_transformed = Derived::BTransform::exec(a);
                 decltype(auto) c_transformed = Derived::CTransform::exec(accum);
                 Derived::template execImpl<Params...>(
-                    a_transformed, b_transformed, c_transformed, scale_A, scale_B);
+                    a_transformed, b_transformed, c_transformed, scale_B, scale_A);
                 return Derived::DTransform::exec(c_transformed);
             }
             else
@@ -130,7 +143,6 @@ struct MmaPipelineBase
     // Entry point for scale operations. TODO: Add c_vec = a_vec * b_vec variant (+ scaleless
     // variant?)
     // TODO: Add support for other scale types.
-    // TODO: Parse params with WarpGemmParamsParser<>
     template <typename... Params, typename CTensor, typename ATensor, typename BTensor>
     CK_TILE_DEVICE void operator()(CTensor& c,
                                    const ATensor& a,
@@ -138,13 +150,17 @@ struct MmaPipelineBase
                                    const int32_t& a_scale,
                                    const int32_t& b_scale) const
     {
+        static_assert(detail::is_similiar_distributed_tensor_v<remove_cvref_t<CTensor>,
+                                                               typename Derived::CWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<remove_cvref_t<ATensor>,
+                                                               typename Derived::AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<remove_cvref_t<BTensor>,
+                                                               typename Derived::BWarpTensor>);
         exec<Params...>(a, b, c, a_scale, b_scale);
     }
 };
 
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-
-#include <concepts>
 
 /**
  * @concept MmaPipelineI

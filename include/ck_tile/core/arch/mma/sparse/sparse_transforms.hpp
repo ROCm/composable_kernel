@@ -3,12 +3,17 @@
 
 #pragma once
 
-#include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/mma_op_family.hpp"
 #include "ck_tile/core/arch/mma/mma_transforms.hpp"
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/ext_vector_base.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
-#include <cstdint>
+#include "ck_tile/core/utility/bit_cast.hpp"
+#include "ck_tile/core/utility/functional.hpp"
+
+#include <tuple>
+#include <type_traits>
 
 namespace ck_tile::core::arch::mma {
 

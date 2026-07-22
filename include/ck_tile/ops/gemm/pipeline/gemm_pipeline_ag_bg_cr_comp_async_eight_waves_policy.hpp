@@ -389,30 +389,85 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     static constexpr auto ATileAccessPattern = tile_distribution_pattern::warp_raked;
     static constexpr auto BTileAccessPattern = tile_distribution_pattern::warp_raked;
 
-    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
+    // Scale part
+    static constexpr int BlockScaleSize = 32;
+
+    // XdlPack: how many e8m0_t scale values are packed into one int32_t per dimension
+    // Host packs MXdlPack * KXdlPack e8m0_t into one int32_t for A scales
+    // Host packs NXdlPack * KXdlPack e8m0_t into one int32_t for B scales
+    static constexpr int MXdlPack = 2;
+    static constexpr int NXdlPack = 2;
+    static constexpr int KXdlPack = 2;
+
+    // Compute effective XdlPack sizes (fall back to 1 when iter count < pack)
+    static constexpr index_t KPerXdl      = WarpTile::at(I2);
+    static constexpr index_t KIterPerWarp = KPerBlock / KPerXdl;
+
+    static constexpr index_t MXdlPackEff =
+        (MIterPerWarp >= MXdlPack && MIterPerWarp % MXdlPack == 0) ? MXdlPack : 1;
+    static constexpr index_t NXdlPackEff =
+        (NIterPerWarp >= NXdlPack && NIterPerWarp % NXdlPack == 0) ? NXdlPack : 1;
+    static constexpr index_t KXdlPackEff =
+        (KIterPerWarp >= KXdlPack && KIterPerWarp % KXdlPack == 0) ? KXdlPack : 1;
+
+    static constexpr index_t KPerBlockScale = KPerBlock / BlockScaleSize / KXdlPackEff;
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetMXdlPackEff() { return MXdlPackEff; }
+    CK_TILE_HOST_DEVICE static constexpr auto GetNXdlPackEff() { return NXdlPackEff; }
+    CK_TILE_HOST_DEVICE static constexpr auto GetKXdlPackEff() { return KXdlPackEff; }
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetKStepAQ() { return KPerBlockScale; }
+    CK_TILE_HOST_DEVICE static constexpr auto GetKStepBQ() { return KPerBlockScale; }
+
+    CK_TILE_HOST_DEVICE static constexpr auto GetInstCountAQ()
     {
-        // TODO: Fix for transpose
-        constexpr auto wg_attr_num_access = WGAccess;
+        return (MIterPerWarp / MXdlPackEff) * (KIterPerWarp / KXdlPackEff);
+    }
 
-        using WarpGemm = WarpGemmDispatcher<typename Problem::AComputeDataType,
-                                            typename Problem::BComputeDataType,
-                                            typename Problem::CDataType,
-                                            WarpTile::at(I0),
-                                            WarpTile::at(I1),
-                                            WarpTile::at(I2),
-                                            Problem::TransposeC,
-                                            false,
-                                            false,
-                                            wg_attr_num_access>;
+    CK_TILE_HOST_DEVICE static constexpr auto GetInstCountBQ()
+    {
+        return (NIterPerWarp / NXdlPackEff) * (KIterPerWarp / KXdlPackEff);
+    }
 
-        using BlockGemmPolicy =
-            BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::AComputeDataType,
-                                                typename Problem::BComputeDataType,
-                                                typename Problem::CDataType,
-                                                BlockWarps,
-                                                WarpGemm>;
+    CK_TILE_HOST_DEVICE static constexpr auto MakeAQBlockDistribution()
+    {
+        constexpr index_t K_Lane = get_warp_size() / WarpTileM;
 
-        return BlockGemmARegBRegCRegEightWavesV1<Problem, BlockGemmPolicy>{};
+        constexpr index_t KPerLane = WarpTileK / BlockScaleSize / K_Lane;
+
+        constexpr index_t MIterPerWarp_packed = MIterPerWarp / MXdlPackEff;
+        constexpr index_t KIterPerWarp_packed = KIterPerWarp / KXdlPackEff;
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<NWarps>,                                       // repeat over MWarps
+                tuple<sequence<MWarps, MIterPerWarp_packed, WarpTileM>, // M dimension (first)
+                      sequence<KIterPerWarp_packed, K_Lane, KPerLane>>, // K dimension (second)
+                tuple<sequence<0, 1>, sequence<2, 1>>, // <MWarps, NWarps>, <K_Lane, WarpTileM>
+                tuple<sequence<0, 0>, sequence<1, 2>>,
+                sequence<2, 1, 2>, // <KIterPerWarp, MIterPerWarp, KPerLane>
+                sequence<0, 1, 2>>{});
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBQBlockDistribution()
+    {
+        constexpr index_t K_Lane = get_warp_size() / WarpTileN;
+
+        constexpr index_t KPerLane = WarpTileK / BlockScaleSize / K_Lane;
+
+        constexpr index_t NIterPerWarp_packed = NIterPerWarp / NXdlPackEff;
+        constexpr index_t KIterPerWarp_packed = KIterPerWarp / KXdlPackEff;
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<MWarps>,                                              // repeat over MWarps
+                tuple<sequence<2, NIterPerWarp_packed, NWarps / 2, WarpTileN>, // N dimension
+                                                                               // (first)
+                      sequence<KIterPerWarp_packed, K_Lane, KPerLane>>, // K dimension (second)
+                tuple<sequence<1, 0, 1>, sequence<2, 1>>, // <MWarps, NWarps>, <K_Lane, MPerXdl>
+                tuple<sequence<0, 0, 2>, sequence<1, 3>>,
+                sequence<2, 1, 2>, // <KIterPerWarp, NIterPerWarp, KPerLane>
+                sequence<0, 1, 2>>{});
     }
 };
 } // namespace detail
@@ -447,8 +502,61 @@ struct GemmPipelineAgBgCrCompAsyncEightWavesPolicy
     FORWARD_METHOD_(GetSmemPackA);
     FORWARD_METHOD_(GetSmemPackB);
     FORWARD_METHOD_(IsPreshuffle);
+    // Scale part
+    FORWARD_METHOD_(MakeAQBlockDistribution);
+    FORWARD_METHOD_(MakeBQBlockDistribution);
+    FORWARD_METHOD_(GetKStepAQ);
+    FORWARD_METHOD_(GetKStepBQ);
+    FORWARD_METHOD_(GetInstCountAQ);
+    FORWARD_METHOD_(GetInstCountBQ);
+    FORWARD_METHOD_(GetMXdlPackEff);
+    FORWARD_METHOD_(GetNXdlPackEff);
+    FORWARD_METHOD_(GetKXdlPackEff);
 
 #undef FORWARD_METHOD_
+
+    template <typename Problem, bool IsPackMNIter = false>
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
+    {
+        using BlockGemmShape = typename Problem::BlockGemmShape;
+        using BlockWarps     = typename BlockGemmShape::BlockWarps;
+        using WarpTile       = typename BlockGemmShape::WarpTile;
+
+        using AComputeDataType = remove_cvref_t<typename Problem::AComputeDataType>;
+        using BComputeDataType = remove_cvref_t<typename Problem::BComputeDataType>;
+        static_assert(std::is_same_v<AComputeDataType, BComputeDataType>);
+        using ComputeDataType = AComputeDataType;
+
+        constexpr auto WGAccess =
+            std::is_same_v<ComputeDataType, fp8_t> || std::is_same_v<ComputeDataType, bf8_t>
+                ? WGAttrNumAccessEnum::Double
+                : WGAttrNumAccessEnum::Single;
+
+        // TODO: Fix for transpose
+        constexpr auto wg_attr_num_access = WGAccess;
+
+        using WarpGemm = WarpGemmDispatcher<typename Problem::AComputeDataType,
+                                            typename Problem::BComputeDataType,
+                                            typename Problem::CDataType,
+                                            WarpTile::at(number<0>{}),
+                                            WarpTile::at(number<1>{}),
+                                            WarpTile::at(number<2>{}),
+                                            Problem::TransposeC,
+                                            false,
+                                            false,
+                                            wg_attr_num_access>;
+
+        using BlockGemmPolicy =
+            BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::AComputeDataType,
+                                                typename Problem::BComputeDataType,
+                                                typename Problem::CDataType,
+                                                BlockWarps,
+                                                WarpGemm,
+                                                1, // KSubTileNum
+                                                IsPackMNIter>;
+
+        return BlockGemmARegBRegCRegEightWavesV1<Problem, BlockGemmPolicy>{};
+    }
 };
 
 } // namespace ck_tile

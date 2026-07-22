@@ -1,7 +1,11 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 #pragma once
+#include <algorithm>
+#include <cmath>
+#include <numeric>
 #include <sstream>
+#include <type_traits>
 #include <gtest/gtest.h>
 
 #include "ck_tile/core.hpp"
@@ -261,9 +265,23 @@ class TestCkTileBatchedGemm : public ::testing::Test
         ck_tile::reference_batched_gemm<ADataType, BDataType, AccDataType, CDataType>(
             a_m_k, b_n_k, c_m_n_host_ref);
 
-        constexpr double rtol = 2e-3;
-        constexpr double atol = 2e-3;
-        pass                  = ck_tile::check_err(
+        using ComputeType =
+            std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+
+        constexpr ck_tile::index_t kbatch = 1;
+
+        const float max_accumulated_value = std::accumulate(
+            c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end(), 0.0f, [](float acc, auto v) {
+                return std::max(acc, std::abs(static_cast<float>(v)));
+            });
+
+        const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
+            ck_tile::integer_divide_ceil(K, kbatch));
+        const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
+            static_cast<double>(max_accumulated_value > 0 ? max_accumulated_value : 1.0f) / kbatch,
+            ck_tile::integer_divide_ceil(K, kbatch));
+
+        pass = ck_tile::check_err(
             c_m_n_dev_result, c_m_n_host_ref, "Error: Incorrect results!", rtol, atol);
         EXPECT_TRUE(pass);
     }
