@@ -68,14 +68,14 @@ inline auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-void repeat_once_if_verify(Setting& setting)
+void repeat_once_if_verify(Settings& setting)
 {
     // The output buffer will be reset after each run, which means the gemm result will be
     // accumulated in the output buffer. So limit the repeat to 1 if verify is true.
-    if(setting.verify_)
+    if(setting.verify)
     {
-        setting.n_repeat_ = 1;
-        setting.n_warmup_ = 0;
+        setting.n_repeat = 1;
+        setting.n_warmup = 0;
     }
 }
 
@@ -110,17 +110,17 @@ void benchmark_gemm_single(const ck_tile::ArgParser& arg_parser)
                              layout_c,
                              arg_parser.get_bool("structured_sparsity")};
 
-    // Create Setting struct
-    Setting setting{arg_parser.get_int("warmup"),
-                    arg_parser.get_int("repeat"),
-                    arg_parser.get_bool("timer"),
-                    arg_parser.get_int("verify"),
-                    arg_parser.get_int("init"),
-                    arg_parser.get_bool("log"),
-                    arg_parser.get_str("csv_filename"),
-                    arg_parser.get_bool("flush_cache"),
-                    arg_parser.get_int("rotating_count"),
-                    arg_parser.get_bool("json_output")};
+    // Create Settings struct
+    Settings setting{arg_parser.get_int("warmup"),
+                     arg_parser.get_int("repeat"),
+                     arg_parser.get_bool("timer"),
+                     arg_parser.get_int("verify"),
+                     arg_parser.get_int("init"),
+                     arg_parser.get_bool("log"),
+                     arg_parser.get_str("csv_filename"),
+                     arg_parser.get_bool("flush_cache"),
+                     arg_parser.get_int("rotating_count"),
+                     arg_parser.get_bool("json_output")};
 
     repeat_once_if_verify(setting);
 
