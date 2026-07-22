@@ -394,7 +394,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
     __device__ static void Run(const ABDataType* __restrict__ p_a_grid,
                                const ABDataType* __restrict__ p_b_grid,
                                EDataType* __restrict__ p_e_grid,
-                               void* __restrict__ p_shared,
+                               void* p_shared, /*FIXME: Reinstate __restrict__ qualifier*/
                                const AElementwiseOperation& a_element_op,
                                const BElementwiseOperation& b_element_op,
                                const EElementwiseOperation& e_element_op,
