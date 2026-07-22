@@ -293,15 +293,19 @@ bool run_no_group_hstu_forward_backward(const ck_tile::ArgParser& arg_parser, bo
 
     long total_flops = 0;
 
-    // estimate the total flops occurred, ignoring the scaling and SiLu
+    // estimate the total flops occurred, ignoring the scaling and SILU/softmax
     if(is_jagged)
     {
         for(int i = 0; i < num_batch; i++)
         {
             int len_q  = seq_offsets_q[i + 1] - seq_offsets_q[i];
             int len_kv = seq_offsets_kv[i + 1] - seq_offsets_kv[i];
-            total_flops += (static_cast<long>(len_q) * len_kv * hdim_qk +
-                            static_cast<long>(len_q) * hdim_v * len_kv) *
+            total_flops += (static_cast<long>(len_q) * len_kv * hdim_qk /* Gemm for S */ +
+                            static_cast<long>(len_q) * len_kv * hdim_v /* Gemm for dP */ +
+                            static_cast<long>(len_q) * hdim_qk * len_kv /* Gemm for dQ */ +
+                            static_cast<long>(len_kv) * hdim_qk * len_q /* Gemm for dK */ +
+                            static_cast<long>(len_kv) * hdim_v * len_q /* Gemm for dV */
+                            ) *
                            2;
         };
 
@@ -310,8 +314,11 @@ bool run_no_group_hstu_forward_backward(const ck_tile::ArgParser& arg_parser, bo
     else
     {
         total_flops = static_cast<long>(num_batch) * num_head *
-                      (static_cast<long>(phy_seqlen_q) * phy_seqlen_kv * hdim_qk +
-                       static_cast<long>(phy_seqlen_q) * hdim_v * phy_seqlen_kv) *
+                      (static_cast<long>(phy_seqlen_q) * phy_seqlen_kv * hdim_qk /* Gemm for S */ +
+                       static_cast<long>(phy_seqlen_q) * phy_seqlen_kv * hdim_v /* Gemm for dP */ +
+                       static_cast<long>(phy_seqlen_q) * hdim_qk * phy_seqlen_kv /* Gemm for dQ */ +
+                       static_cast<long>(phy_seqlen_kv) * hdim_qk * phy_seqlen_q /* Gemm for dK */ +
+                       static_cast<long>(phy_seqlen_kv) * hdim_v * phy_seqlen_q /* Gemm for dV */) *
                       2;
     };
 
@@ -1051,13 +1058,17 @@ bool run_group_hstu_forward_backward(const ck_tile::ArgParser& arg_parser, int n
 
     long total_flops = 0;
 
-    // estimate the total flops occurred, ignoring the scaling and SILu
+    // estimate the total flops occurred, ignoring the scaling and SILU/softmax
     for(int i = 0; i < num_batch; i++)
     {
         int len_q  = seq_offsets_q[i + 1] - seq_offsets_q[i];
         int len_kv = seq_offsets_kv[i + 1] - seq_offsets_kv[i];
-        total_flops += (static_cast<long>(len_q) * len_kv * hdim_qk +
-                        static_cast<long>(len_q) * hdim_v * len_kv) *
+        total_flops += (static_cast<long>(len_q) * len_kv * hdim_qk /* Gemm for S */ +
+                        static_cast<long>(len_q) * len_kv * hdim_v /* Gemm for dP */ +
+                        static_cast<long>(len_q) * hdim_qk * len_kv /* Gemm for dQ */ +
+                        static_cast<long>(len_kv) * hdim_qk * len_q /* Gemm for dK */ +
+                        static_cast<long>(len_kv) * hdim_v * len_q /* Gemm for dV */
+                        ) *
                        2;
     };
 
