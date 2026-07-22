@@ -80,10 +80,10 @@ inline auto create_args(int argc, char* argv[])
 void benchmark_single(const ck_tile::ArgParser& arg_parser)
 {
     // Use DataTypeTraits to get the actual type names from the generated header
-    std::string dtype_a   = DataTypeTraits<ADataType>::name;
-    std::string dtype_b   = DataTypeTraits<BDataType>::name;
-    std::string dtype_acc = DataTypeTraits<AccDataType>::name;
-    std::string dtype_c   = DataTypeTraits<CDataType>::name;
+    std::string dtype_a   = ck_tile::DataTypeTraits<ADataType>::name;
+    std::string dtype_b   = ck_tile::DataTypeTraits<BDataType>::name;
+    std::string dtype_acc = ck_tile::DataTypeTraits<AccDataType>::name;
+    std::string dtype_c   = ck_tile::DataTypeTraits<CDataType>::name;
 
     // Layout names from the layout types
     std::string layout_a = ALayout::name;
@@ -140,17 +140,17 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
                                layout_b,
                                layout_c};
 
-    // Create Setting struct
-    Setting setting{arg_parser.get_int("warmup"),
-                    arg_parser.get_int("repeat"),
-                    arg_parser.get_bool("timer"),
-                    arg_parser.get_int("verify"),
-                    arg_parser.get_int("init"),
-                    arg_parser.get_bool("log"),
-                    arg_parser.get_str("csv_filename"),
-                    arg_parser.get_bool("flush_cache"),
-                    arg_parser.get_int("rotating_count"),
-                    arg_parser.get_bool("json_output")};
+    // Create Settings struct
+    Settings setting{arg_parser.get_int("warmup"),
+                     arg_parser.get_int("repeat"),
+                     arg_parser.get_bool("timer"),
+                     arg_parser.get_int("verify"),
+                     arg_parser.get_int("init"),
+                     arg_parser.get_bool("log"),
+                     arg_parser.get_str("csv_filename"),
+                     arg_parser.get_bool("flush_cache"),
+                     arg_parser.get_int("rotating_count"),
+                     arg_parser.get_bool("json_output")};
 
     // Get the profiler instance
     auto& profiler = GroupedGemmProfiler::instance(setting);

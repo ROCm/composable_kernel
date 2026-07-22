@@ -15,7 +15,9 @@
 class GroupedGemmProfiler
 {
     public:
-    static GroupedGemmProfiler& instance(Setting setting)
+    using GroupedInstance = KernelInstance<GroupedGemmProblem>;
+
+    static GroupedGemmProfiler& instance(Settings setting)
     {
         static GroupedGemmProfiler instance{setting};
         return instance;
@@ -98,17 +100,17 @@ class GroupedGemmProfiler
             c_dev_results.push_back(ck_tile::HostTensor<CDataType>(ck_tile::host_tensor_descriptor(
                 M, N, problem.stride_Cs_[i], is_row_major(layout_c))));
 
-            if(setting_.init_method_ == 0)
+            if(setting_.init_method == 0)
             {
                 ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_tensors[i]);
                 ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_tensors[i]);
             }
-            else if(setting_.init_method_ == 1)
+            else if(setting_.init_method == 1)
             {
                 ck_tile::FillMonotonicSeq<ADataType>{}(a_tensors[i]);
                 ck_tile::FillMonotonicSeq<BDataType>{}(b_tensors[i]);
             }
-            else if(setting_.init_method_ == 2)
+            else if(setting_.init_method == 2)
             {
                 ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_tensors[i]);
                 ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_tensors[i]);
@@ -154,7 +156,7 @@ class GroupedGemmProfiler
 
         // Compute host reference for verification
         std::vector<ck_tile::HostTensor<CDataType>> c_host_results;
-        if(setting_.verify_)
+        if(setting_.verify)
         {
             c_host_results.reserve(group_count);
             for(int i = 0; i < group_count; ++i)
@@ -165,7 +167,7 @@ class GroupedGemmProfiler
                                                     problem.stride_Cs_[i],
                                                     is_row_major(layout_c))));
             }
-            gemm_host_reference_grouped(setting_.verify_,
+            gemm_host_reference_grouped(setting_.verify,
                                         problem,
                                         a_tensors,
                                         b_tensors,
@@ -179,12 +181,12 @@ class GroupedGemmProfiler
             auto kernel_run_result = callable(gemm_descs,
                                               ck_tile::stream_config{nullptr,
                                                                      true,
-                                                                     setting_.log_,
-                                                                     setting_.n_warmup_,
-                                                                     setting_.n_repeat_,
-                                                                     setting_.is_gpu_timer_,
-                                                                     setting_.flush_cache_,
-                                                                     setting_.rotating_count_},
+                                                                     setting_.log,
+                                                                     setting_.n_warmup,
+                                                                     setting_.n_repeat,
+                                                                     setting_.is_gpu_timer,
+                                                                     setting_.flush_cache,
+                                                                     setting_.rotating_count},
                                               workspace.GetDeviceBuffer());
             process_result(problem, c_dev_bufs, c_host_results, c_dev_results, kernel_run_result);
         }
@@ -198,7 +200,7 @@ class GroupedGemmProfiler
     {
         auto [name, avg_time] = kernel_run_result;
 
-        KernelInstance kernel_instance{name, problem, {-1.0f, -1.0f, -1.0f}};
+        GroupedInstance kernel_instance{name, problem, {-1.0f, -1.0f, -1.0f}};
 
         // Compute performance metrics (sum across all groups)
         std::size_t flop     = 0;
@@ -216,7 +218,7 @@ class GroupedGemmProfiler
         kernel_instance.perf_result_.tflops_    = static_cast<float>(flop) / 1.E9 / avg_time;
         kernel_instance.perf_result_.bandwidth_ = num_byte / 1.E6 / avg_time;
 
-        if(setting_.log_ > 0 && !setting_.json_output_)
+        if(setting_.log > 0 && !setting_.json_output)
         {
             std::cout << kernel_instance << std::endl;
         }
@@ -228,7 +230,7 @@ class GroupedGemmProfiler
         }
 
         bool verified_correct =
-            !setting_.verify_ || compare_grouped(name, problem, c_dev_results, c_host_results);
+            !setting_.verify || compare_grouped(name, problem, c_dev_results, c_host_results);
 
         if(verified_correct)
         {
@@ -247,7 +249,7 @@ class GroupedGemmProfiler
         }
     }
 
-    KernelInstance select_best_instance(Metric metric)
+    GroupedInstance select_best_instance(Metric metric)
     {
         if(kernel_instances_.empty())
             throw std::runtime_error("Empty instances");
@@ -259,7 +261,7 @@ class GroupedGemmProfiler
                                                          b.perf_result_, a.perf_result_, metric);
                                                  });
 
-        if(setting_.json_output_)
+        if(setting_.json_output)
         {
             // Output clean JSON only
             std::cout << kernel_instance << std::endl;
@@ -272,9 +274,9 @@ class GroupedGemmProfiler
             std::cout << "**********************************" << std::endl;
         }
 
-        if(!setting_.csv_filename_.empty())
+        if(!setting_.csv_filename.empty())
         {
-            std::ofstream file(setting_.csv_filename_ + ".csv", std::ios::app);
+            std::ofstream file(setting_.csv_filename + ".csv", std::ios::app);
 
             if(!file.is_open())
             {
@@ -318,9 +320,9 @@ class GroupedGemmProfiler
 
     private:
     ~GroupedGemmProfiler() { kernel_instances_.clear(); }
-    GroupedGemmProfiler(Setting setting) : setting_(setting) {}
+    GroupedGemmProfiler(Settings setting) : setting_(setting) {}
 
-    Setting setting_;
+    Settings setting_;
 
-    std::vector<KernelInstance> kernel_instances_;
+    std::vector<GroupedInstance> kernel_instances_;
 };

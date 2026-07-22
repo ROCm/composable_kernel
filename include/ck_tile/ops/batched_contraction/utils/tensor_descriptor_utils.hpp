@@ -42,9 +42,9 @@ struct TensorDescriptorUtils
     /// @return Flattened tensor descriptor: [M_total, K_total] for GEMM computation
     /// @details Removes batch dimensions and flattens M and K dimensions for efficient GEMM
     /// execution
-    CK_TILE_HOST static constexpr auto
-    Make_A_GridDescriptor_M_K(const std::vector<ck_tile::index_t>& A_dims    = {},
-                              const std::vector<ck_tile::index_t>& A_strides = {})
+    template <typename ADims, typename AStrides>
+    CK_TILE_HOST static constexpr auto Make_A_GridDescriptor_M_K(const ADims& A_dims,
+                                                                 const AStrides& A_strides)
     {
         const auto to_tuple = [&](auto& vec, auto start, auto end) {
             return generate_tuple([&](auto i) { return vec[start + i]; }, number<end - start>{});
@@ -86,9 +86,9 @@ struct TensorDescriptorUtils
     /// @return Flattened tensor descriptor: [N_total, K_total] for GEMM computation
     /// @details Removes batch dimensions and flattens N and K dimensions for efficient GEMM
     /// execution
-    CK_TILE_HOST static constexpr auto
-    Make_B_GridDescriptor_N_K(const std::vector<ck_tile::index_t>& B_dims    = {},
-                              const std::vector<ck_tile::index_t>& B_strides = {})
+    template <typename BDims, typename BStrides>
+    CK_TILE_HOST static constexpr auto Make_B_GridDescriptor_N_K(const BDims& B_dims,
+                                                                 const BStrides& B_strides)
     {
         const auto to_tuple = [&](auto& vec, auto start, auto end) {
             return generate_tuple([&](auto i) { return vec[start + i]; }, number<end - start>{});
@@ -130,9 +130,9 @@ struct TensorDescriptorUtils
     /// @return Flattened tensor descriptor: [M_total, N_total] for GEMM computation
     /// @details Removes batch dimensions and flattens M and N dimensions for efficient GEMM
     /// execution
-    CK_TILE_HOST static constexpr auto
-    Make_E_GridDescriptor_M_N(const std::vector<ck_tile::index_t>& E_dims    = {},
-                              const std::vector<ck_tile::index_t>& E_strides = {})
+    template <typename EDims, typename EStrides>
+    CK_TILE_HOST static constexpr auto Make_E_GridDescriptor_M_N(const EDims& E_dims,
+                                                                 const EStrides& E_strides)
     {
         const auto to_tuple = [&](auto& vec, auto start, auto end) {
             return generate_tuple([&](auto i) { return vec[start + i]; }, number<end - start>{});

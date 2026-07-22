@@ -14,7 +14,7 @@
 class GemmProfiler
 {
     public:
-    static GemmProfiler& instance(Setting setting)
+    static GemmProfiler& instance(Settings setting)
     {
         static GemmProfiler instance{setting};
         return instance;
@@ -61,17 +61,17 @@ class GemmProfiler
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(ck_tile::host_tensor_descriptor(
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
 
-        if(setting_.init_method_ == 0)
+        if(setting_.init_method == 0)
         {
             ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
             ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
         }
-        else if(setting_.init_method_ == 1)
+        else if(setting_.init_method == 1)
         {
             ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
             ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
         }
-        else if(setting_.init_method_ == 2)
+        else if(setting_.init_method == 2)
         {
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m_k);
             ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1)}(b_k_n);
@@ -121,9 +121,9 @@ class GemmProfiler
         ck_tile::HostTensor<CDataType> c_m_n_host_result(ck_tile::host_tensor_descriptor(
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
 
-        if(setting_.verify_)
+        if(setting_.verify)
         {
-            gemm_host_reference(setting_.verify_,
+            gemm_host_reference(setting_.verify,
                                 a_m_k,
                                 b_k_n,
                                 c_m_n_host_result,
@@ -142,12 +142,12 @@ class GemmProfiler
             auto kernel_run_result = callable(gemm_args,
                                               ck_tile::stream_config{nullptr,
                                                                      true,
-                                                                     setting_.log_,
-                                                                     setting_.n_warmup_,
-                                                                     setting_.n_repeat_,
-                                                                     setting_.is_gpu_timer_,
-                                                                     setting_.flush_cache_,
-                                                                     setting_.rotating_count_});
+                                                                     setting_.log,
+                                                                     setting_.n_warmup,
+                                                                     setting_.n_repeat,
+                                                                     setting_.is_gpu_timer,
+                                                                     setting_.flush_cache,
+                                                                     setting_.rotating_count});
             process_result(gemm_problem,
                            c_m_n_dev_buf,
                            c_m_n_host_result,
@@ -173,8 +173,8 @@ class GemmProfiler
                 ? "Linear"
                 : "Tree";
 
-        KernelInstance kernel_instance{
-            name, dp_persistent, reduction_strategy, gemm_problem, {-1.0f, -1.0f, -1.0f}};
+        StreamKKernelInstance kernel_instance{
+            {name, gemm_problem, {-1.0f, -1.0f, -1.0f}}, dp_persistent, reduction_strategy};
 
         // compute performance metric
         std::size_t flop     = std::size_t(2) * gemm_problem.m_ * gemm_problem.n_ * gemm_problem.k_;
@@ -187,7 +187,7 @@ class GemmProfiler
         kernel_instance.perf_result_.tflops_    = static_cast<float>(flop) / 1.E9 / avg_time;
         kernel_instance.perf_result_.bandwidth_ = num_byte / 1.E6 / avg_time;
 
-        if(setting_.log_ > 0 && !setting_.json_output_)
+        if(setting_.log > 0 && !setting_.json_output)
         {
             std::cout << kernel_instance << std::endl;
         }
@@ -195,7 +195,7 @@ class GemmProfiler
         // verify result
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool verified_correct =
-            !setting_.verify_ ||
+            !setting_.verify ||
             compare(name, gemm_problem.k_, num_wgs_per_tile, c_m_n_dev_result, c_m_n_host_result);
 
         if(verified_correct)
@@ -212,7 +212,7 @@ class GemmProfiler
         c_m_n_dev_result.SetZero();
     }
 
-    KernelInstance select_best_instance(Metric metric)
+    StreamKKernelInstance select_best_instance(Metric metric)
     {
         if(kernel_instances_.empty())
             throw std::runtime_error("Empty instances");
@@ -224,7 +224,7 @@ class GemmProfiler
                                                          b.perf_result_, a.perf_result_, metric);
                                                  });
 
-        if(setting_.json_output_)
+        if(setting_.json_output)
         {
             // Output clean JSON only
             std::cout << kernel_instance << std::endl;
@@ -237,9 +237,9 @@ class GemmProfiler
             std::cout << "**********************************" << std::endl;
         }
 
-        if(!setting_.csv_filename_.empty())
+        if(!setting_.csv_filename.empty())
         {
-            std::ofstream file(setting_.csv_filename_ + ".csv", std::ios::app);
+            std::ofstream file(setting_.csv_filename + ".csv", std::ios::app);
 
             if(!file.is_open())
             {
@@ -290,9 +290,9 @@ class GemmProfiler
 
     private:
     ~GemmProfiler() { kernel_instances_.clear(); }
-    GemmProfiler(Setting setting) : setting_(setting) {}
+    GemmProfiler(Settings setting) : setting_(setting) {}
 
-    Setting setting_;
+    Settings setting_;
 
-    std::vector<KernelInstance> kernel_instances_;
+    std::vector<StreamKKernelInstance> kernel_instances_;
 };

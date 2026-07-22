@@ -11,11 +11,11 @@
 #include "gemm/gemm_common.hpp"
 
 // Structure to hold kernel traits for dispatcher
-struct PreshuffleKernelTraits : KernelTraits
+struct PreshuffleKernelTraits : GemmKernelTraits
 {
 
     // Constructor with defaults
-    PreshuffleKernelTraits() : KernelTraits() { this->pipeline = "preshufflev2"; }
+    PreshuffleKernelTraits() : GemmKernelTraits() { this->pipeline = "preshufflev2"; }
 };
 
 // Helper to extract traits from kernel name
