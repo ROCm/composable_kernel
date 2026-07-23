@@ -14,7 +14,6 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "ck_tile/ops/common/utils.hpp"
 
 // Helper function to determine if a layout is row-major
 template <typename Layout>
@@ -73,8 +72,8 @@ struct KernelInstance
 };
 
 template <typename Problem>
-inline std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
-                                const KernelInstance<Problem>& obj)
+std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
+                         const KernelInstance<Problem>& obj)
 {
     os << "{\n"
        << " \"name\": \"" << obj.name_ << "\",\n"
@@ -84,8 +83,7 @@ inline std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
     return os;
 }
 
-inline std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os,
-                                const PerformanceResult& result)
+std::ostream& operator<<([[clang::lifetimebound]] std::ostream& os, const PerformanceResult& result)
 {
     os << "{\n"
        << "   \"latency(ms)\": " << std::fixed << std::setprecision(2) << result.latency_ << ",\n"
@@ -107,21 +105,6 @@ struct Settings
     bool flush_cache;
     int rotating_count;
     bool json_output;
-};
-
-struct ContractionKernelTraits
-{
-    std::string pipeline  = "compv3";    // compv3, compv4, mem
-    std::string scheduler = "intrawave"; // intrawave, interwave
-    std::string epilogue  = "cshuffle";  // cshuffle, default
-    bool pad_m            = false;
-    bool pad_n            = false;
-    bool pad_k            = false;
-};
-
-struct GemmKernelTraits : ContractionKernelTraits
-{
-    bool persistent = false;
 };
 
 inline std::string get_rocm_version()
