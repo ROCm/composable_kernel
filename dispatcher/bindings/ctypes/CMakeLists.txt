@@ -277,6 +277,91 @@ else()
 endif()
 
 # =============================================================================
+# TileEngine -> Dispatcher Bridge ctypes Libraries (append-only shared block)
+# =============================================================================
+#
+# The bridge PRs (#9305 gemm_multi_abd, #9306 batched_gemm, #9328
+# batched_contraction) each add a registry-bypass ctypes .so target. To keep the
+# branches mutually conflict-proof, this block is BYTE-IDENTICAL on every branch
+# that touches this file. Each target is doubly guarded:
+#   (1) on its generated kernel-header glob, AND
+#   (2) on if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/<op>_ctypes_lib.cpp)
+# so a branch that does not ship a given <op>_ctypes_lib.cpp simply skips that
+# target at configure time (no error). The Python bridges build these .so files
+# at runtime via hipcc; these CMake targets exist for CMake-driven / CI builds.
+
+# --- GEMM Multi-ABD (registry-bypass, array-pointer ABI) ---------------------
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gemm_multi_abd_ctypes_lib.cpp)
+    file(GLOB GEMM_MULTI_ABD_KERNEL_HEADERS
+        "${CMAKE_BINARY_DIR}/generated_kernels/gemm_*_multiabd_*.hpp")
+    if(GEMM_MULTI_ABD_KERNEL_HEADERS)
+        list(SORT GEMM_MULTI_ABD_KERNEL_HEADERS)
+        list(GET GEMM_MULTI_ABD_KERNEL_HEADERS 0 GEMM_MULTI_ABD_KERNEL_HEADER)
+        message(STATUS "Found GEMM Multi-ABD kernel for ctypes lib: ${GEMM_MULTI_ABD_KERNEL_HEADER}")
+        add_ctypes_library(dispatcher_gemm_multi_abd_lib
+            gemm_multi_abd_ctypes_lib.cpp
+            KERNEL_HEADER ${GEMM_MULTI_ABD_KERNEL_HEADER}
+        )
+        target_compile_definitions(dispatcher_gemm_multi_abd_lib PRIVATE
+            CK_TILE_SINGLE_KERNEL_INCLUDE)
+    else()
+        message(STATUS
+            "No GEMM Multi-ABD kernel found for ctypes lib - skipping dispatcher_gemm_multi_abd_lib "
+            "(built at runtime by the Python bridge once a kernel header exists)")
+    endif()
+endif()
+
+# --- Batched GEMM (registry-bypass, batch_count + per-batch strides ABI) ------
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/batched_gemm_ctypes_lib.cpp)
+    file(GLOB BATCHED_GEMM_KERNEL_HEADERS "${CMAKE_BINARY_DIR}/generated_kernels/gemm_*_batched.hpp")
+    if(BATCHED_GEMM_KERNEL_HEADERS)
+        list(SORT BATCHED_GEMM_KERNEL_HEADERS)
+        list(GET BATCHED_GEMM_KERNEL_HEADERS 0 BATCHED_GEMM_KERNEL_HEADER)
+        message(STATUS "Found Batched GEMM kernel for ctypes lib: ${BATCHED_GEMM_KERNEL_HEADER}")
+        add_library(dispatcher_batched_gemm_lib SHARED batched_gemm_ctypes_lib.cpp)
+        target_include_directories(dispatcher_batched_gemm_lib PRIVATE
+            ${PROJECT_SOURCE_DIR}/include
+            ${PROJECT_SOURCE_DIR}/dispatcher/include
+        )
+        target_link_libraries(dispatcher_batched_gemm_lib PRIVATE hip::device)
+        target_compile_options(dispatcher_batched_gemm_lib PRIVATE
+            -include ${BATCHED_GEMM_KERNEL_HEADER}
+        )
+        target_compile_definitions(dispatcher_batched_gemm_lib PRIVATE CK_TILE_SINGLE_KERNEL_INCLUDE)
+        set_target_properties(dispatcher_batched_gemm_lib PROPERTIES
+            POSITION_INDEPENDENT_CODE ON
+            CXX_STANDARD 17
+        )
+    else()
+        message(STATUS "No Batched GEMM kernel found for ctypes lib - skipping dispatcher_batched_gemm_lib")
+    endif()
+endif()
+
+# --- Batched-Contraction (registry-bypass, force-included kernel) ------------
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/batched_contraction_ctypes_lib.cpp)
+    file(GLOB BC_KERNEL_HEADERS "${CMAKE_BINARY_DIR}/generated_kernels/batched_contraction_*.hpp")
+    if(BC_KERNEL_HEADERS)
+        list(SORT BC_KERNEL_HEADERS)
+        list(GET BC_KERNEL_HEADERS 0 BC_KERNEL_HEADER)
+        message(STATUS "Found batched-contraction kernel for ctypes lib: ${BC_KERNEL_HEADER}")
+        add_ctypes_library(dispatcher_batched_contraction_lib
+            batched_contraction_ctypes_lib.cpp
+            KERNEL_HEADER ${BC_KERNEL_HEADER}
+        )
+        # The generated header only exports SelectedKernel/KERNEL_NAME/CONTRACTION_KEY_*
+        # under this define, so the force-include path requires it.
+        target_compile_definitions(dispatcher_batched_contraction_lib PRIVATE
+            CK_TILE_SINGLE_KERNEL_INCLUDE
+        )
+    else()
+        message(STATUS
+            "No batched-contraction kernel found for ctypes lib - skipping "
+            "dispatcher_batched_contraction_lib (built at runtime by the Python "
+            "bridge once a kernel header exists)")
+    endif()
+endif()
+
+# =============================================================================
 # GPU Helper Executable
 # =============================================================================
 

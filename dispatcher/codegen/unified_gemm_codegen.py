@@ -202,6 +202,7 @@ class GemmVariant(Enum):
     STANDARD = "standard"
     PRESHUFFLE = "preshuffle"
     MULTI_D = "multi_d"
+    MULTI_ABD = "multi_abd"
     GROUPED = "grouped"
     # Stream-K. COVERAGE LIMITATION: the dispatcher does NOT yet emit the full
     # Old-TE Stream-K tile surface. The kernels generated here are driven by the
@@ -246,6 +247,15 @@ class KernelConfig:
     # Stream-K reduction strategy: "atomic" (partials atomic-add into C),
     # "linear", or "tree" (partials accumulate through a device workspace).
     reduction_strategy: str = "atomic"
+
+    # Multi-ABD variant: arrays of A/B tensors and per-group element-wise ops.
+    # These are behavior-affecting and MUST participate in key_name() so distinct
+    # tensor counts / elementwise ops never alias to the same kernel.
+    num_a_tensors: int = 1
+    num_b_tensors: int = 1
+    a_elementwise_op: str = "PassThrough"
+    b_elementwise_op: str = "PassThrough"
+    cde_elementwise_op: str = "PassThrough"
 
     # Fixed parameters
     block_size: int = 256
@@ -308,6 +318,17 @@ class KernelConfig:
             parts.append(f"nd{self.num_d_tensors}")
             parts.append(f"dly_{self.d_layout}")
 
+        # Multi-ABD variant: include per-group tensor counts, all three
+        # element-wise ops, and the D layout. Every one of these changes the
+        # generated kernel's types, so they must be in the unique key.
+        if self.variant == GemmVariant.MULTI_ABD:
+            parts.append(f"na{self.num_a_tensors}")
+            parts.append(f"nb{self.num_b_tensors}")
+            parts.append(f"nd{self.num_d_tensors}")
+            parts.append(f"aew_{self.a_elementwise_op}")
+            parts.append(f"bew_{self.b_elementwise_op}")
+            parts.append(f"cdew_{self.cde_elementwise_op}")
+            parts.append(f"dly_{self.d_layout}")
         # Stream-K variant: reduction strategy distinguishes otherwise-identical
         # kernels (each strategy is a separate compiled binary).
         if self.variant == GemmVariant.STREAM_K:
@@ -348,8 +369,10 @@ class KernelNaming:
         t = config.tile
         tr = config.trait
 
-        # For multi-d, use 4-char layout (abcd), otherwise use 3-char layout (abc)
-        if config.variant == GemmVariant.MULTI_D:
+        # For multi-d / multi-abd, use 4-char layout (abcd), otherwise 3-char (abc).
+        # For multi-abd the 4th char is the D layout (A,B,E,D convention); the
+        # incoming ``layout`` is the 3-char A,B,E slice.
+        if config.variant in (GemmVariant.MULTI_D, GemmVariant.MULTI_ABD):
             full_layout = layout + config.d_layout  # e.g., "rcr" + "r" = "rcrr"
         else:
             full_layout = layout
@@ -368,6 +391,15 @@ class KernelNaming:
             name += "_preshuffle"
         elif config.variant == GemmVariant.MULTI_D:
             name += f"_multid_{config.elementwise_op}_d{config.num_d_tensors}"
+        elif config.variant == GemmVariant.MULTI_ABD:
+            # Encode every behavior-affecting multi-abd parameter so distinct
+            # tensor counts / elementwise ops get distinct kernel names.
+            name += (
+                f"_multiabd_a{config.num_a_tensors}_b{config.num_b_tensors}"
+                f"_d{config.num_d_tensors}"
+                f"_{config.a_elementwise_op}_{config.b_elementwise_op}"
+                f"_{config.cde_elementwise_op}"
+            )
         elif config.variant == GemmVariant.GROUPED:
             name += "_grouped"
         elif config.variant == GemmVariant.STREAM_K:
@@ -423,6 +455,14 @@ class CKTileKernelGenerator:
             includes += """
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "ck_tile/ops/gemm/kernel/gemm_multi_d_kernel.hpp"
+"""
+
+        if config.variant == GemmVariant.MULTI_ABD:
+            includes += """
+#include <array>
+#include <tuple>
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+#include "ck_tile/ops/gemm/kernel/gemm_multi_abd_kernel.hpp"
 """
 
         if config.variant == GemmVariant.GROUPED:
@@ -498,6 +538,72 @@ static constexpr index_t NumDTensor = {config.num_d_tensors};
 using GemmMultiDArgs = GemmMultiDHostArgs<NumDTensor>;
 """
 
+    def _multi_abd_types(self, config: KernelConfig) -> str:
+        """Generate multi-ABD type definitions (inside namespace to avoid conflicts).
+
+        Multi-ABD uses tuples of A, B and D tensors (each group homogeneous in
+        dtype/layout here, matching the Tile Engine op) plus three separate
+        element-wise functions (A, B, CDE). The layouts mirror the TE builder's
+        4-char ``rcrr`` convention: A=layout[0], B=layout[1], E(=C)=layout[2],
+        D=config.d_layout.
+        """
+        if config.variant != GemmVariant.MULTI_ABD:
+            return ""
+
+        a_layout_ck = self.tm.LAYOUT_TO_CK[self.layout[0]]
+        b_layout_ck = self.tm.LAYOUT_TO_CK[self.layout[1]]
+        e_layout_ck = self.tm.LAYOUT_TO_CK[self.layout[2]]
+        d_layout_ck = self.tm.LAYOUT_TO_CK[config.d_layout]
+
+        a_types = ", ".join(["ADataType"] * config.num_a_tensors)
+        b_types = ", ".join(["BDataType"] * config.num_b_tensors)
+        d_types = ", ".join(["CDataType"] * config.num_d_tensors)
+        a_layouts = ", ".join([a_layout_ck] * config.num_a_tensors)
+        b_layouts = ", ".join([b_layout_ck] * config.num_b_tensors)
+        d_layouts = ", ".join([d_layout_ck] * config.num_d_tensors)
+
+        return f"""
+// Multi-ABD types (defined in namespace to avoid conflicts).
+// EDataType is the output type (aliased to CDataType by the standard path).
+using EDataType = CDataType;
+using AsDataType = tuple<{a_types}>;
+using BsDataType = tuple<{b_types}>;
+using DsDataType = tuple<{d_types}>;
+using AsLayout = tuple<{a_layouts}>;
+using BsLayout = tuple<{b_layouts}>;
+using ELayout = {e_layout_ck};
+using DsLayout = tuple<{d_layouts}>;
+static constexpr index_t NumATensors = {config.num_a_tensors};
+static constexpr index_t NumBTensors = {config.num_b_tensors};
+static constexpr index_t NumDTensors = {config.num_d_tensors};
+using AElementWiseFn = element_wise::{config.a_elementwise_op};
+using BElementWiseFn = element_wise::{config.b_elementwise_op};
+using CDEElementWiseFn = element_wise::{config.cde_elementwise_op};
+using GemmMultiABDArgs =
+    GemmMultiABDHostArgs<NumATensors, NumBTensors, NumDTensors>;
+"""
+
+    def _multi_abd_global_exports(self, config: KernelConfig, ns_name: str) -> str:
+        """Re-export the multi-ABD tensor counts to the global namespace.
+
+        The gemm_multi_abd ctypes lib is registry-bypass: it force-includes this
+        header and constructs GemmMultiABDHostArgs<NumATensors, NumBTensors,
+        NumDTensors> at global scope. Those counts live inside the kernel's
+        namespace, so under CK_TILE_SINGLE_KERNEL_INCLUDE we surface them (and a
+        few convenience macros) globally. Empty for non-multi-abd variants.
+        """
+        if config.variant != GemmVariant.MULTI_ABD:
+            return ""
+        return f"""
+// Multi-ABD tensor counts (re-exported for the registry-bypass ctypes lib).
+constexpr index_t NumATensors = {ns_name}::NumATensors;
+constexpr index_t NumBTensors = {ns_name}::NumBTensors;
+constexpr index_t NumDTensors = {ns_name}::NumDTensors;
+#define GEMM_MULTI_ABD_NUM_A {config.num_a_tensors}
+#define GEMM_MULTI_ABD_NUM_B {config.num_b_tensors}
+#define GEMM_MULTI_ABD_NUM_D {config.num_d_tensors}
+"""
+
     def _selected_kernel_struct(self, config: KernelConfig, kernel_name: str) -> str:
         """Generate SelectedKernel struct with unique name in unique namespace"""
         t = config.tile
@@ -510,7 +616,7 @@ using GemmMultiDArgs = GemmMultiDHostArgs<NumDTensor>;
         # Create valid C++ namespace name (replace invalid chars)
         ns_name = "ns_" + kernel_name.replace("-", "_")
 
-        multi_d_types = self._multi_d_types(config)
+        multi_d_types = self._multi_d_types(config) + self._multi_abd_types(config)
 
         return f"""
 namespace {ns_name} {{
@@ -576,6 +682,7 @@ using ADataType = {self.tm.DTYPE_TO_CK_QUALIFIED[self.datatype]};
 using BDataType = {self.tm.DTYPE_TO_CK_QUALIFIED[self.datatype]};
 using CDataType = {self.tm.DTYPE_TO_CK_QUALIFIED[output_dtype]};
 using AccDataType = {self.tm.DTYPE_TO_CK_QUALIFIED[acc_dtype]};
+{self._multi_abd_global_exports(config, ns_name)}
 using ALayout = {ns_name}::ALayout;
 using BLayout = {ns_name}::BLayout;
 using CLayout = {ns_name}::CLayout;
@@ -642,6 +749,8 @@ using CLayout = {ns_name}::CLayout;
 
     def _launch_function(self, config: KernelConfig) -> str:
         """Generate launch function"""
+        if config.variant == GemmVariant.MULTI_ABD:
+            return self._launch_function_multi_abd(config)
         if config.variant == GemmVariant.MULTI_D:
             return self._launch_function_multi_d(config)
         if config.variant == GemmVariant.GROUPED:
@@ -891,6 +1000,51 @@ using CLayout = {ns_name}::CLayout;
         return launch(multi_d_args, stream);
     }}"""
 
+    def _launch_function_multi_abd(self, config: KernelConfig) -> str:
+        """Generate launch function for Multi-ABD GEMM.
+
+        Mirrors the Tile Engine gemm_multi_abd instance builder's ``launch``:
+        tuple A/B/E layouts in the traits, tuple A/B dtypes plus the A and B
+        element-wise functions in the pipeline problem, and GemmKernelMultiABD
+        as the kernel. Multi-ABD supports only k_batch = 1, so it launches the
+        kernel directly (no hot-loop tail handler, matching Old-TE).
+        """
+        return f"""
+    // Multi-ABD launch function - takes GemmMultiABDHostArgs with tuple A/B/D.
+    static float launch(const GemmMultiABDArgs& args, const stream_config& stream) {{
+        float ave_time{{0}};
+
+        constexpr auto scheduler = {self.tm.SCHEDULER_TO_CK[config.trait.scheduler]};
+
+        // Traits use tuple layouts for multi-abd (AsLayout/BsLayout/ELayout).
+        using Traits = TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                                               AsLayout, BsLayout, ELayout, TransposeC>;
+
+        using UniversalGemmProblem = UniversalGemmPipelineProblem<
+            AsDataType, BsDataType, AccDataType, TileShape, Traits, scheduler,
+            AElementWiseFn, BElementWiseFn>;
+
+        using GemmPipeline = {self.tm.PIPELINE_TO_CK[config.trait.pipeline]}<UniversalGemmProblem>;
+        {self._epilogue_code(config)}
+
+        using GemmKernel = ck_tile::GemmKernelMultiABD<TilePartitioner, GemmPipeline, GemmEpilogue>;
+
+        auto kargs = GemmKernel::MakeKernelArgs(args);
+
+        if (!GemmKernel::IsSupportedArgument(kargs)) {{
+            throw std::runtime_error("Arguments not supported! Multi-ABD only supports k_batch = 1");
+        }}
+
+        const dim3 grids = GemmKernel::GridSize(args.M, args.N, args.k_batch);
+        const dim3 blocks = GemmKernel::BlockSize();
+
+        constexpr int kBlockPerCu = {config.k_block_per_cu};
+        ave_time = launch_kernel(stream,
+            make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
+
+        return ave_time;
+    }}"""
+
     def _launch_function_streamk(self, config: KernelConfig) -> str:
         """Generate launch function for Stream-K GEMM (the dispatcher way).
 
@@ -1049,6 +1203,18 @@ using CLayout = {ns_name}::CLayout;
 
     def _epilogue_code(self, config: KernelConfig) -> str:
         """Generate epilogue code"""
+        if config.variant == GemmVariant.MULTI_ABD:
+            # Multi-ABD epilogue: tuple A/B/D dtypes and D layouts, EDataType as
+            # output, and the CDE element-wise function. Matches the TE builder's
+            # CShuffleEpilogueProblem for gemm_multi_abd.
+            return """
+        using EpilogueProblem = CShuffleEpilogueProblem<
+            AsDataType, BsDataType, DsDataType, AccDataType, EDataType,
+            DsLayout, ELayout, CDEElementWiseFn,
+            TilePartitioner::MPerBlock, TilePartitioner::NPerBlock,
+            WarpPerBlock_M, WarpPerBlock_N, WarpTileM, WarpTileN, WarpTileK,
+            TransposeC>;
+        using GemmEpilogue = CShuffleEpilogue<EpilogueProblem>;"""
         if config.variant == GemmVariant.MULTI_D:
             return """
         using EpilogueProblem = CShuffleEpilogueProblem<
@@ -1301,6 +1467,16 @@ class UnifiedGemmCodegen:
                 "elementwise_ops": ["MultiDAdd", "MultiDMultiply"],
                 "num_d_tensors": [1, 2],
             },
+            "multi_abd_config": {
+                # Match the Tile Engine gemm_multi_abd instance builder defaults:
+                # 2 A tensors, 2 B tensors, 2 D tensors, all PassThrough ops.
+                "num_a_tensors": 2,
+                "num_b_tensors": 2,
+                "num_d_tensors": 2,
+                "a_elementwise_op": "PassThrough",
+                "b_elementwise_op": "PassThrough",
+                "cde_elementwise_op": "PassThrough",
+            },
             "streamk_config": {
                 # Each reduction strategy compiles to a separate kernel binary.
                 "reduction_strategy": ["atomic", "linear", "tree"],
@@ -1508,6 +1684,34 @@ class UnifiedGemmCodegen:
                         )
                     )
 
+            elif variant == GemmVariant.MULTI_ABD:
+                # Multi-ABD always uses the CShuffle epilogue (it fuses the D
+                # tensors + CDE elementwise through LDS), so the CShuffle-store
+                # power-of-two repeat correctness gate always applies.
+                if not self._cshuffle_repeat_ok(tile):
+                    continue
+                multi_abd = self.config.get("multi_abd_config", {})
+                num_a = multi_abd.get("num_a_tensors", 2)
+                num_b = multi_abd.get("num_b_tensors", 2)
+                num_d = multi_abd.get("num_d_tensors", 2)
+                a_ew = multi_abd.get("a_elementwise_op", "PassThrough")
+                b_ew = multi_abd.get("b_elementwise_op", "PassThrough")
+                cde_ew = multi_abd.get("cde_elementwise_op", "PassThrough")
+                configs.append(
+                    KernelConfig(
+                        tile=tile,
+                        trait=trait,
+                        variant=variant,
+                        num_a_tensors=num_a,
+                        num_b_tensors=num_b,
+                        num_d_tensors=num_d,
+                        a_elementwise_op=a_ew,
+                        b_elementwise_op=b_ew,
+                        cde_elementwise_op=cde_ew,
+                        d_layout=self.d_layout,
+                    )
+                )
+
             elif variant == GemmVariant.GROUPED:
                 # Grouped GEMM uses the same tile/trait configs as STANDARD —
                 # the only difference is the kernel type (GroupedGemmKernel vs GemmKernel)
@@ -1619,6 +1823,10 @@ class UnifiedGemmCodegen:
                 GemmVariant.STANDARD: OperatorType.GEMM,
                 GemmVariant.PRESHUFFLE: OperatorType.GEMM_PRESHUFFLE,
                 GemmVariant.MULTI_D: OperatorType.GEMM_MULTI_D,
+                # Multi-ABD shares Multi-D's XDL/tile constraints (same
+                # UniversalGemm pipeline + CShuffle epilogue), so validate it
+                # against the GEMM_MULTI_D operator rules.
+                GemmVariant.MULTI_ABD: OperatorType.GEMM_MULTI_D,
                 GemmVariant.GROUPED: OperatorType.GEMM_GROUPED,
                 GemmVariant.STREAM_K: OperatorType.GEMM_STREAMK,
             }
@@ -1870,7 +2078,14 @@ def main():
     parser.add_argument(
         "--variants",
         nargs="+",
-        choices=["standard", "preshuffle", "multi_d", "stream_k" ,"grouped"],
+        choices=[
+            "standard",
+            "preshuffle",
+            "multi_d",
+            "stream_k",
+            "multi_abd",
+            "grouped",
+        ],
         default=["standard"],
         help="Variants to generate",
     )
