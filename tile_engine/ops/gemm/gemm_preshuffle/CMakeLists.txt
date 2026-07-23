@@ -258,14 +258,10 @@ else()
 
     # Enable compiler cache if available and explicitly requested
     # Disabled by default due to permission issues in CI environments
-    set(_PREV_CXX_LAUNCHER "${CMAKE_CXX_COMPILER_LAUNCHER}")
-    set(_CCACHE_APPLIED FALSE)
-
     if(ENABLE_CCACHE_GEMM_PRESHUFFLE)
         find_program(CCACHE_PROGRAM ccache)
         if(CCACHE_PROGRAM)
             set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-            set(_CCACHE_APPLIED TRUE)
             message(VERBOSE "Using ccache for faster compilation")
         else()
             message(WARNING "ccache requested but not found")
@@ -332,10 +328,4 @@ else()
             build_individual_gemm_preshuffle_targets(${dt} ${l})
         endforeach()
     endforeach()
-
-    if(_CCACHE_APPLIED)
-        set(CMAKE_CXX_COMPILER_LAUNCHER "${_PREV_CXX_LAUNCHER}")
-    endif()
-    unset(_PREV_CXX_LAUNCHER)
-    unset(_CCACHE_APPLIED)
 endif()

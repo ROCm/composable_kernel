@@ -11,7 +11,6 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "common/utils.hpp"
 #include "gemm_streamk_common.hpp"
 #include "utility/validation.hpp"
 
@@ -75,28 +74,85 @@ struct GemmProblem
     }
 };
 
-// Stream-K extends the canonical KernelInstance with two op-specific fields.
-struct StreamKKernelInstance : KernelInstance<GemmProblem>
+struct PerformanceResult
 {
-    std::string dp_persistent_;
-    std::string reduction_strategy_;
+    double latency_;
+    double tflops_;
+    double bandwidth_;
 
-    static bool compare(const StreamKKernelInstance& a, const StreamKKernelInstance& b, Metric m)
+    static bool compare(const PerformanceResult& a, const PerformanceResult& b, Metric m)
     {
-        return PerformanceResult::compare(a.perf_result_, b.perf_result_, m);
+        switch(m)
+        {
+        case Metric::LATENCY: return a.latency_ < b.latency_;
+        case Metric::TFLOPS: return a.tflops_ > b.tflops_;
+        case Metric::BANDWIDTH: return a.bandwidth_ > b.bandwidth_;
+        default: throw std::invalid_argument("Unsupported metric type");
+        }
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const PerformanceResult& result)
+    {
+        os << "{\n"
+           << "   \"latency(ms)\": " << std::fixed << std::setprecision(2) << result.latency_
+           << ",\n"
+           << "   \"tflops(TFlops)\": " << result.tflops_ << ",\n"
+           << "   \"bandwidth(GB/s)\": " << result.bandwidth_ << "\n"
+           << "}";
+        return os;
     }
 };
 
-inline std::ostream& operator<<(std::ostream& os, const StreamKKernelInstance& obj)
+struct KernelInstance
 {
-    os << "{\n"
-       << " \"name\": \"" << obj.name_ << "\",\n"
-       << " \"dp_persistent\": \"" << obj.dp_persistent_ << "\",\n"
-       << " \"reduction_strategy\": \"" << obj.reduction_strategy_ << "\",\n"
-       << " \"problem\": " << obj.problem_ << ",\n"
-       << " \"perf_result\": " << obj.perf_result_ << "\n"
-       << "}";
-    return os;
+    std::string name_;
+    std::string dp_persistent_;
+    std::string reduction_strategy_;
+    GemmProblem problem_;
+    PerformanceResult perf_result_;
+
+    static bool compare(const KernelInstance& a, const KernelInstance& b, Metric m)
+    {
+        return PerformanceResult::compare(a.perf_result_, b.perf_result_, m);
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const KernelInstance& obj)
+    {
+        os << "{\n"
+           << " \"name\": \"" << obj.name_ << "\",\n"
+           << " \"dp_persistent\": \"" << obj.dp_persistent_ << "\",\n"
+           << " \"reduction_strategy\": \"" << obj.reduction_strategy_ << "\",\n"
+           << " \"problem\": " << obj.problem_ << ",\n"
+           << " \"perf_result\": " << obj.perf_result_ << "\n"
+           << "}";
+        return os;
+    }
+};
+
+struct Setting
+{
+    int n_warmup_;
+    int n_repeat_;
+    bool is_gpu_timer_;
+    int verify_;
+    int init_method_;
+    bool log_;
+    std::string csv_filename_;
+    bool flush_cache_;
+    int rotating_count_;
+    bool json_output_;
+};
+
+inline std::string get_rocm_version()
+{
+    std::ifstream version_file("/opt/rocm/.info/version");
+    if(version_file.is_open())
+    {
+        std::string version;
+        std::getline(version_file, version);
+        return version;
+    }
+    return "Unknown";
 }
 
 /// @brief Function to get the kernel output with reference implementation on CPU/GPU
