@@ -144,7 +144,13 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           typename LDSTypeA                           = ADataType,
           typename LDSTypeB                           = BDataType,
-          bool LargeTensors                           = false>
+          bool LargeTensors                           = false,
+          // When true, skip the logical M*K/N*K/M*N <= 2GB validity check below.
+          // Callers that address memory via non-trivial grid descriptors (e.g. the
+          // implicit-GEMM view of a convolution) validate the actual descriptor span
+          // separately (AreDescriptorsSmallerThan2GB); for them the logical GEMM matrix
+          // size (im2col) far exceeds the real footprint and must not gate int32 support.
+          bool SkipGemmSizeCheck                      = false>
 struct GridwiseGemmMultiD_xdl_cshuffle_v3
 {
     static constexpr auto I0 = Number<0>{};
@@ -1209,7 +1215,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             }
         }
 
-        if constexpr(!LargeTensors)
+        if constexpr(!LargeTensors && !SkipGemmSizeCheck)
         {
             constexpr long_index_t TwoGB = (long_index_t{1} << 31);
             if(!(karg.M * karg.K * sizeof(ADataType) <= TwoGB &&

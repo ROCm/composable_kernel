@@ -473,7 +473,14 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         AComputeDataType, BComputeDataType, AComputeDataType, BComputeDataType, LargeTensors
 
     // Use appropriate gridwise gemm
-    using GridwiseGemm = GridwiseGemmMultiD_xdl_cshuffle_v3<GridwiseGemmV3TemplateParams>;
+    // Skip the logical M*K/N*K/M*N <= 2GB check in GridwiseGemm::CheckValidity for the
+    // convolution path: the implicit-GEMM (im2col) matrix size vastly exceeds the real
+    // tensor footprint, and actual memory is validated separately via
+    // conv_to_gemm_transformer_.AreDescriptorsSmallerThan2GB(). Leaving it on wrongly
+    // rejects the fast int32 instances (incl. the v4 pipeline) for shapes whose real
+    // memory fits int32 (ROCM-27526 perf regression).
+    using GridwiseGemm =
+        GridwiseGemmMultiD_xdl_cshuffle_v3<GridwiseGemmV3TemplateParams, /*SkipGemmSizeCheck=*/true>;
 
     using DsGridDesc_M_N = typename GridwiseGemm::DsGridDesc_M_N;
 
