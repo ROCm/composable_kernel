@@ -161,27 +161,27 @@ KV dimension across multiple work-groups and uses a separate combine pass
 │   ├── hstu_attention_{batched,group,jagged}_forward_{fp16,bf16}_*.cpp
 │   └── hstu_attention_{batched,group,jagged}_forward_{fp16,bf16}_instances_ref.hpp
 │
-├── scripts/                                    # Test and benchmark shell scripts
-│   ├── test_hstu_attention.sh
-│   ├── test_hstu_softmax_attention.sh
-│   ├── test_group_hstu_attention.sh
-│   ├── test_group_hstu_softmax_attention.sh
-│   ├── test_hstu_cross_attention.sh
-│   ├── test_hstu_attention_hdim96_hdim64.sh
-│   ├── test_hstu_softmax_attention_hdim96_hdim64.sh
-│   ├── test_ck_hstu_mask.sh
-│   ├── test_cross_attention_with_sparsity.sh
-│   ├── test_jagged_causal_mattn0_full0.sh
-│   ├── test_jagged_causal_mattn256_full0.sh
-│   ├── test_jagged_causal_mattn256_full256.sh
-│   ├── bench_batched_causal.sh
-│   ├── bench_jagged_causal.sh
-│   ├── bench_jagged_causal_local.sh
-│   ├── bench_jagged_causal_mattn0_full0.sh
-│   ├── bench_jagged_causal_mattn256_full256.sh
-│   ├── bench_jagged_causal_mattn256_full256_sparsity_90.sh
-│   ├── bench_cross_attention_with_sparsity.sh
-│   └── benchmark_hstu_attention.sh
+├── scripts/                                    # Test and benchmark Python scripts
+│   ├── test_hstu_attention.py
+│   ├── test_hstu_softmax_attention.py
+│   ├── test_group_hstu_attention.py
+│   ├── test_group_hstu_softmax_attention.py
+│   ├── test_hstu_cross_attention.py
+│   ├── test_hstu_attention_hdim96_hdim64.py
+│   ├── test_hstu_softmax_attention_hdim96_hdim64.py
+│   ├── test_ck_hstu_mask.py
+│   ├── test_cross_attention_with_sparsity.py
+│   ├── test_jagged_causal_mattn0_full0.py
+│   ├── test_jagged_causal_mattn256_full0.py
+│   ├── test_jagged_causal_mattn256_full256.py
+│   ├── bench_batched_causal.py
+│   ├── bench_jagged_causal.py
+│   ├── bench_jagged_causal_local.py
+│   ├── bench_jagged_causal_mattn0_full0.py
+│   ├── bench_jagged_causal_mattn256_full256.py
+│   ├── bench_jagged_causal_mattn256_full256_sparsity_90.py
+│   ├── bench_cross_attention_with_sparsity.py
+│   └── benchmark_hstu_attention.py
 │
 ├── test_pytorch_hstu_mask.py                   # PyTorch mask validation script
 └── test_pytorch_hstu_mask_v2.py
@@ -225,16 +225,16 @@ build/bin/tile_example_hstu_attention \
     -causal=1 -local_len=5 -context_len=6 -minfull_len=6
 
 # Run the full standard test suite
-. example/ck_tile/18_hstu_attention/scripts/test_hstu_attention.sh
+python3 example/ck_tile/18_hstu_attention/scripts/test_hstu_attention.py
 
 # Softmax variant
-. example/ck_tile/18_hstu_attention/scripts/test_hstu_softmax_attention.sh
+python3 example/ck_tile/18_hstu_attention/scripts/test_hstu_softmax_attention.py
 
 # Cross-attention
-. example/ck_tile/18_hstu_attention/scripts/test_hstu_cross_attention.sh
+python3 example/ck_tile/18_hstu_attention/scripts/test_hstu_cross_attention.py
 
 # Asymmetric head dims (hdim_qk=96, hdim_v=64)
-. example/ck_tile/18_hstu_attention/scripts/test_hstu_attention_hdim96_hdim64.sh
+python3 example/ck_tile/18_hstu_attention/scripts/test_hstu_attention_hdim96_hdim64.py
 ```
 
 ### Group HSTU (per-group masking parameters)
@@ -253,7 +253,7 @@ build/bin/tile_example_hstu_attention \
     -g_attn_scales=0.0,0.1,0.0
 
 # Run the full group test suite
-. example/ck_tile/18_hstu_attention/scripts/test_group_hstu_attention.sh
+python3 example/ck_tile/18_hstu_attention/scripts/test_group_hstu_attention.py
 ```
 
 ---
@@ -305,13 +305,13 @@ build/bin/tile_example_hstu_attention \
 
 ```bash
 # Batched causal
-. example/ck_tile/18_hstu_attention/scripts/bench_batched_causal.sh
+python3 example/ck_tile/18_hstu_attention/scripts/bench_batched_causal.py
 
 # Jagged causal
-. example/ck_tile/18_hstu_attention/scripts/bench_jagged_causal.sh
+python3 example/ck_tile/18_hstu_attention/scripts/bench_jagged_causal.py
 
 # Jagged causal + local window
-. example/ck_tile/18_hstu_attention/scripts/bench_jagged_causal_local.sh
+python3 example/ck_tile/18_hstu_attention/scripts/bench_jagged_causal_local.py
 
 # With -perf=1 flag directly:
 build/bin/tile_example_hstu_attention -v=0 -perf=1 -prec=bf16 \
