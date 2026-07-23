@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
-"""Run the HSTU attention backward correctness tests for hdim 96 and 64.
+"""Run the HSTU attention forward hdim96/hdim64 correctness tests.
 
-Python port of test_hstu_attention_hdim96_hdim64_bwd.sh, keeping the same
-functionality.
+Merges the former test_hstu_attention_hdim96_hdim64.py and
+test_hstu_softmax_attention_hdim96_hdim64.py into a single script:
 
-The script takes no command-line arguments; attn_scale, norm_dist, and dtype are
-hardcoded to match the original shell script. The 14 cases run once for hdim=96
-then again for hdim=64.
+    test_hstu_attention_hdim96_hdim64.py [use_softmax]
+
+This script can be used for verifying the use of WarpGemm 32x32x16 which is
+used by hdim64 + softmax.
+
+The optional positional argument defaults to 0. When use_softmax is 1, the
+executable is invoked with -softmax=1. The attention scale, norm dist
+and dtype are hardcoded to match the original shell scripts. The training flag
+is read from the TEST_HSTU_FWD_TRAINING environment variable (default 0). The
+body sweeps hdim over 96 then 64, running the 14 test cases for each.
 """
 
 import argparse
+import os
 import subprocess
 import sys
 
@@ -17,11 +25,12 @@ BUILD = "build"
 EXE = f"{BUILD}/bin/tile_example_hstu_attention_bwd"
 
 
-def run(exe, dtype, hdim, attn_scale, ndist, **kwargs):
+def run(exe_flags, dtype, attn_scale, ndist, hdim, **kwargs):
     """Build and execute a single test case, echoing the command (like set -x)."""
-    # Argument layout mirrors the original shell script, one option per case.
     cmd = (
-        [exe, "-softmax=0", "-v=1", f"-prec={dtype}", "-b=10"]
+        [EXE]
+        + exe_flags
+        + ["-v=1", f"-prec={dtype}", "-b=10"]
         + [f"-jagged={kwargs['jagged']}"]
         + ["-nhead=4", f"-hdim_qk={hdim}", f"-hdim_v={hdim}"]
         + [f"-seqlens={kwargs['seqlens']}"]
@@ -40,12 +49,20 @@ def run(exe, dtype, hdim, attn_scale, ndist, **kwargs):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run HSTU attention backward correctness tests for "
-                    "hdim 96 and 64.")
-    parser.parse_args()
+        description="Run HSTU attention forward hdim96/hdim64 correctness "
+                    "tests.")
+    parser.add_argument("use_softmax", nargs="?", type=int, default=0,
+                        help="use softmax (default: 0)")
+    args = parser.parse_args()
 
-    attn_scale = 1.0
-    ndist = 1
+    # EXE-level flags applied right after the binary path (see original .sh).
+    if args.use_softmax == 1:
+        exe_flags = ["-softmax=1"]
+    else:
+        exe_flags = ["-softmax=0"]
+
+    attn_scale = "1.0"
+    ndist = "1"
     dtype = "fp16"
 
     seqlens_jagged = "300,300,290,280,310"
@@ -99,7 +116,7 @@ def main():
     rc = 0
     for hdim in (96, 64):
         for case in cases:
-            ret = run(EXE, dtype, hdim, attn_scale, ndist, **case)
+            ret = run(exe_flags, dtype, attn_scale, ndist, hdim, **case)
             if ret != 0:
                 rc = ret
 

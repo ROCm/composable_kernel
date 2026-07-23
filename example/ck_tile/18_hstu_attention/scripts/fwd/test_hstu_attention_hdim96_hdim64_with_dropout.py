@@ -1,31 +1,35 @@
 #!/usr/bin/env python3
-"""Run the HSTU attention forward hdim96/hdim64 tests with dropout.
+"""Run the HSTU attention forward hdim96/hdim64 correctness tests.
 
-Python port of test_hstu_attention_hdim96_hdim64_with_dropout.sh, keeping the
-same functionality. This script can be used for verifying the use of WarpGemm
-32x32x16 which is used by hdim64 + softmax.
+Merges the former test_hstu_attention_hdim96_hdim64.py and
+test_hstu_softmax_attention_hdim96_hdim64.py into a single script:
 
-It takes no command-line arguments; the attention scale, norm dist and dtype
-are hardcoded to match the original shell script. The body sweeps hdim over
-96 then 64, running the 14 test cases for each.
+    test_hstu_attention_hdim96_hdim64.py [use_softmax]
+
+This script can be used for verifying the use of WarpGemm 32x32x16 which is
+used by hdim64 + softmax.
+
+The optional positional argument defaults to 0. When use_softmax is 1, the
+executable is invoked with -softmax=1. The attention scale, norm dist
+and dtype are hardcoded to match the original shell scripts. The training flag
+is read from the TEST_HSTU_FWD_TRAINING environment variable (default 0). The
+body sweeps hdim over 96 then 64, running the 14 test cases for each.
 """
 
 import argparse
+import os
 import subprocess
 import sys
 
 BUILD = "build"
 EXE = f"{BUILD}/bin/tile_example_hstu_attention_fwd"
 
-# EXE-level flags applied right after the binary path (see original .sh).
-EXE_FLAGS = ["-softmax=0", "-p_drop=0.2"]
 
-
-def run(dtype, attn_scale, ndist, hdim, **kwargs):
+def run(exe_flags, dtype, attn_scale, ndist, hdim, **kwargs):
     """Build and execute a single test case, echoing the command (like set -x)."""
     cmd = (
         [EXE]
-        + EXE_FLAGS
+        + exe_flags
         + ["-v=1", f"-prec={dtype}", "-b=10"]
         + [f"-jagged={kwargs['jagged']}"]
         + ["-nhead=4", f"-hdim_qk={hdim}", f"-hdim_v={hdim}"]
@@ -45,9 +49,19 @@ def run(dtype, attn_scale, ndist, hdim, **kwargs):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run HSTU attention forward hdim96/hdim64 tests with "
-                    "dropout.")
-    parser.parse_args()
+        description="Run HSTU attention forward hdim96/hdim64 correctness "
+                    "tests.")
+    parser.add_argument("use_softmax", nargs="?", type=int, default=0,
+                        help="use softmax (default: 0)")
+    args = parser.parse_args()
+
+    training = os.environ.get("TEST_HSTU_FWD_TRAINING", "0")
+
+    # EXE-level flags applied right after the binary path (see original .sh).
+    if args.use_softmax == 1:
+        exe_flags = ["-p_drop=0.2", "-softmax=1", f"-training={training}"]
+    else:
+        exe_flags = ["-p_drop=0.2", "-softmax=0"]
 
     attn_scale = "1.0"
     ndist = "1"
@@ -104,7 +118,7 @@ def main():
     rc = 0
     for hdim in (96, 64):
         for case in cases:
-            ret = run(dtype, attn_scale, ndist, hdim, **case)
+            ret = run(exe_flags, dtype, attn_scale, ndist, hdim, **case)
             if ret != 0:
                 rc = ret
 

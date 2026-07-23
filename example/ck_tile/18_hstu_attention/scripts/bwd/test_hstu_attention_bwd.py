@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Run the HSTU attention backward correctness tests.
 
-Python port of test_hstu_attention_bwd.sh, keeping the same functionality and
-argument list:
+Merges the former test_hstu_attention_bwd.py and
+test_hstu_softmax_attention_bwd.py into a single script:
 
-    test_hstu_attention_bwd.py [attn_scale] [norm_dist]
+    test_hstu_attention_bwd.py [use_softmax] [attn_scale] [norm_dist]
 
-Both arguments are optional positional arguments and default to 0, matching the
-original shell script.
+All arguments are optional positional arguments and default to 0. When
+use_softmax is 1, the executable is invoked with -softmax=1.
 """
 
 import argparse
@@ -18,11 +18,12 @@ BUILD = "build"
 EXE = f"{BUILD}/bin/tile_example_hstu_attention_bwd"
 
 
-def run(exe, dtype, attn_scale, ndist, **kwargs):
+def run(exe_prefix, dtype, attn_scale, ndist, **kwargs):
     """Build and execute a single test case, echoing the command (like set -x)."""
     # Argument layout mirrors the original shell script, one option per case.
     cmd = (
-        [exe, "-v=1", f"-prec={dtype}", "-b=10"]
+        list(exe_prefix)
+        + ["-v=1", f"-prec={dtype}", "-b=10"]
         + [f"-jagged={kwargs['jagged']}"]
         + ["-nhead=4", "-hdim_qk=128", "-hdim_v=128"]
         + [f"-seqlens={kwargs['seqlens']}"]
@@ -42,6 +43,8 @@ def run(exe, dtype, attn_scale, ndist, **kwargs):
 def main():
     parser = argparse.ArgumentParser(
         description="Run HSTU attention backward correctness tests.")
+    parser.add_argument("use_softmax", nargs="?", type=int, default=0,
+                        help="use softmax (default: 0)")
     parser.add_argument("attn_scale", nargs="?", default=0,
                         help="attention scale (default: 0)")
     parser.add_argument("norm_dist", nargs="?", default=0,
@@ -50,6 +53,11 @@ def main():
 
     attn_scale = args.attn_scale
     ndist = args.norm_dist
+
+    if args.use_softmax == 1:
+        exe_prefix = [EXE, "-softmax=1"]
+    else:
+        exe_prefix = [EXE]
 
     seqlens_jagged = "300,300,290,280,310"
 
@@ -102,7 +110,7 @@ def main():
     rc = 0
     for dtype in ("fp16", "bf16"):
         for case in cases:
-            ret = run(EXE, dtype, attn_scale, ndist, **case)
+            ret = run(exe_prefix, dtype, attn_scale, ndist, **case)
             if ret != 0:
                 rc = ret
 
