@@ -43,7 +43,7 @@ struct scales
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
 template <typename Scale>
-scales(Scale)->scales<Scale>;
+__host__ __device__ scales(Scale)->scales<Scale>;
 
 template <typename Left = void, typename Right = Left>
 struct plus
@@ -67,7 +67,7 @@ struct plus<void, void>
 };
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
-plus()->plus<void, void>;
+__host__ __device__ plus()->plus<void, void>;
 
 template <typename Left = void, typename Right = Left>
 struct minus
@@ -91,7 +91,7 @@ struct minus<void, void>
 };
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
-minus()->minus<void, void>;
+__host__ __device__ minus()->minus<void, void>;
 
 template <typename Left = void, typename Right = Left>
 struct multiplies
@@ -115,7 +115,7 @@ struct multiplies<void, void>
 };
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
-multiplies()->multiplies<void, void>;
+__host__ __device__ multiplies()->multiplies<void, void>;
 
 template <typename T>
 struct maximize
@@ -346,7 +346,7 @@ struct equal<void, void>
 };
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
-equal()->equal<void, void>;
+__host__ __device__ equal()->equal<void, void>;
 
 template <>
 struct equal<float, float>
@@ -388,7 +388,7 @@ struct less<void, void>
 };
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
-less()->less<void, void>;
+__host__ __device__ less()->less<void, void>;
 
 template <typename Left = void, typename Right = Left>
 struct less_equal
@@ -412,7 +412,7 @@ struct less_equal<void, void>
 };
 
 /// FIXME: create macro to replace '__host__ __device__' and nothing more
-less_equal()->less_equal<void, void>;
+__host__ __device__ less_equal()->less_equal<void, void>;
 
 template <>
 struct less_equal<float, float>
