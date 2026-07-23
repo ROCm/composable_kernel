@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 """Run the HSTU attention forward correctness tests.
 
-Python port of test_hstu_attention.sh, keeping the same functionality and
-argument list:
+Merges the former test_hstu_attention.py and test_hstu_softmax_attention.py
+into a single script:
 
-    test_hstu_attention.py [attn_scale] [norm_dist]
+    test_hstu_attention.py [use_softmax] [attn_scale] [norm_dist]
 
-Both arguments are optional positional arguments and default to 0, matching the
-original shell script.
+All arguments are optional positional arguments and default to 0. When
+use_softmax is 1, the executable is invoked with -softmax=1 (matching the
+former test_hstu_softmax_attention.py).
+
+The training mode is read from the TEST_HSTU_FWD_TRAINING environment variable
+(default 0), matching the original shell scripts.
 """
 
 import argparse
+import os
 import subprocess
 import sys
 
@@ -43,6 +48,8 @@ def run(exe_prefix, dtype, attn_scale, ndist, **kwargs):
 def main():
     parser = argparse.ArgumentParser(
         description="Run HSTU attention forward correctness tests.")
+    parser.add_argument("use_softmax", nargs="?", type=int, default=0,
+                        help="use softmax (default: 0)")
     parser.add_argument("attn_scale", nargs="?", default=0,
                         help="attention scale (default: 0)")
     parser.add_argument("norm_dist", nargs="?", default=0,
@@ -52,7 +59,12 @@ def main():
     attn_scale = args.attn_scale
     ndist = args.norm_dist
 
-    exe_prefix = [EXE]
+    training = os.environ.get("TEST_HSTU_FWD_TRAINING", "0")
+
+    if args.use_softmax == 1:
+        exe_prefix = [EXE, "-softmax=1", f"-training={training}"]
+    else:
+        exe_prefix = [EXE, f"-training=0"]
 
     seqlens_jagged = "300,300,290,280,310"
 

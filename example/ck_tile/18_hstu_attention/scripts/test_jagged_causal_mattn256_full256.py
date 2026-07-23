@@ -67,7 +67,7 @@ def main():
     if args.use_softmax == 1:
         exe = [BIN, "-softmax=1", f"-training={training}"]
     else:
-        exe = [BIN, f"-training={training}"]
+        exe = [BIN, f"-training=0"]
 
     dtype = "bf16"
 

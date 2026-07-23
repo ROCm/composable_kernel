@@ -47,7 +47,7 @@ def main():
     if args.use_softmax == 1:
         exe_prefix = [binary, "-softmax=1", f"-training={training}"]
     else:
-        exe_prefix = [binary, f"-training={training}"]
+        exe_prefix = [binary, f"-training=0"]
 
     dtype = "bf16"
 
