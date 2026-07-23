@@ -1,19 +1,19 @@
 {
     "tile_config": {
         "tile_m": {
-            "max": 256,
-            "min": 64,
-            "step": 256
+            "values": [
+                128
+            ]
         },
         "tile_n": {
-            "max": 256,
-            "min": 64,
-            "step": 256
+            "values": [
+                128
+            ]
         },
         "tile_k": {
-            "max": 256,
-            "min": 64,
-            "step": 256
+            "values": [
+                64
+            ]
         },
         "warp_m": {
             "values": [
@@ -42,7 +42,7 @@
         },
         "warp_tile_k": {
             "values": [
-                64
+                16
             ]
         }
     },
@@ -85,6 +85,20 @@
             "values": [
                 false,
                 true
+            ]
+        }
+    },
+    "multi_d_config": {
+        "elementwise_ops": {
+            "values": [
+                "MultiDAdd",
+                "MultiDMultiply"
+            ]
+        },
+        "num_d_tensors": {
+            "values": [
+                1,
+                2
             ]
         }
     },

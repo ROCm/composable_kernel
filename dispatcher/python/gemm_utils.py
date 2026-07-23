@@ -621,8 +621,9 @@ class GemmDispatcherLib:
         self._path = Path(so_path)
         self._lib = ctypes.CDLL(str(self._path))
         self._has_indexed = hasattr(self._lib, "dispatcher_get_kernel_name_at")
-        self._has_grouped = hasattr(self._lib, "dispatcher_run_grouped_gemm")
         self._has_single = hasattr(self._lib, "dispatcher_run_gemm")
+        self._has_grouped = hasattr(self._lib, "dispatcher_run_grouped_gemm")
+        self._has_multi_d = hasattr(self._lib, "dispatcher_run_multi_d_gemm")
         self._setup_functions()
 
     def _setup_functions(self) -> None:
@@ -645,7 +646,9 @@ class GemmDispatcherLib:
             ]
             lib.dispatcher_get_kernel_name_at.restype = ctypes.c_int
 
-        # Single-problem ABI (regular GEMM .so). Absent on grouped libs.
+        # Regular single-problem GEMM ABI (gemm_ctypes_lib.cpp). Absent on the
+        # grouped and multi_d libs, which expose dispatcher_run_grouped_gemm /
+        # dispatcher_run_multi_d_gemm instead.
         if self._has_single:
             lib.dispatcher_run_gemm.argtypes = [
                 ctypes.c_void_p,  # A (host)
@@ -671,6 +674,24 @@ class GemmDispatcherLib:
                 ctypes.POINTER(ctypes.c_float),  # time_ms
             ]
             lib.dispatcher_run_grouped_gemm.restype = ctypes.c_int
+
+        # Multi-D ABI: extra D-pointer array + count (multi_d_gemm_ctypes_lib.cpp).
+        if self._has_multi_d:
+            lib.dispatcher_run_multi_d_gemm.argtypes = [
+                ctypes.c_void_p,  # A (host)
+                ctypes.c_void_p,  # B (host)
+                ctypes.POINTER(ctypes.c_void_p),  # D_ptrs[] (host)
+                ctypes.c_int,  # num_d
+                ctypes.c_void_p,  # C (host)
+                ctypes.c_int64,  # M
+                ctypes.c_int64,  # N
+                ctypes.c_int64,  # K
+                ctypes.POINTER(ctypes.c_float),  # time_ms
+            ]
+            lib.dispatcher_run_multi_d_gemm.restype = ctypes.c_int
+            if hasattr(lib, "dispatcher_get_num_d_tensors"):
+                lib.dispatcher_get_num_d_tensors.argtypes = []
+                lib.dispatcher_get_num_d_tensors.restype = ctypes.c_int
 
         lib.dispatcher_cleanup.argtypes = []
         lib.dispatcher_cleanup.restype = None
@@ -704,10 +725,62 @@ class GemmDispatcherLib:
     def run(
         self, A: np.ndarray, B: np.ndarray, C: np.ndarray, M: int, N: int, K: int
     ) -> Tuple[int, float]:
+        if not self._has_single:
+            raise RuntimeError(
+                f"{self._path} does not expose dispatcher_run_gemm; this is not a "
+                f"regular GEMM .so (grouped/multi_d libs use run_grouped/run_multi_d)"
+            )
         time_ms = ctypes.c_float(0.0)
         status = self._lib.dispatcher_run_gemm(
             A.ctypes.data_as(ctypes.c_void_p),
             B.ctypes.data_as(ctypes.c_void_p),
+            C.ctypes.data_as(ctypes.c_void_p),
+            M,
+            N,
+            K,
+            ctypes.byref(time_ms),
+        )
+        return status, time_ms.value
+
+    @property
+    def has_multi_d(self) -> bool:
+        return self._has_multi_d
+
+    def num_d_tensors(self) -> int:
+        """Number of D tensors baked into this multi_d .so (0 if not multi_d)."""
+        if self._has_multi_d and hasattr(self._lib, "dispatcher_get_num_d_tensors"):
+            return int(self._lib.dispatcher_get_num_d_tensors())
+        return 0
+
+    def run_multi_d(
+        self,
+        A: np.ndarray,
+        B: np.ndarray,
+        Ds: List[np.ndarray],
+        C: np.ndarray,
+        M: int,
+        N: int,
+        K: int,
+    ) -> Tuple[int, float]:
+        """Run a multi_d GEMM: E = elementwise_op(A@B, D0, D1, ...).
+
+        ``Ds`` is a list of ``num_d_tensors`` host arrays (each MxN, same element
+        type as C). Pointers are collected into a ctypes ``c_void_p`` array; the
+        .so owns all device memory.
+        """
+        if not self._has_multi_d:
+            raise RuntimeError(
+                f"{self._path} does not expose dispatcher_run_multi_d_gemm"
+            )
+        num_d = len(Ds)
+        d_arr_t = ctypes.c_void_p * max(num_d, 1)
+        d_arr = d_arr_t(*[d.ctypes.data_as(ctypes.c_void_p) for d in Ds])
+        time_ms = ctypes.c_float(0.0)
+        status = self._lib.dispatcher_run_multi_d_gemm(
+            A.ctypes.data_as(ctypes.c_void_p),
+            B.ctypes.data_as(ctypes.c_void_p),
+            d_arr,
+            num_d,
             C.ctypes.data_as(ctypes.c_void_p),
             M,
             N,
@@ -1099,6 +1172,75 @@ class GpuGroupedGemmRunner:
 
 
 # ============================================================================
+# Multi-D GEMM problem / result / runner
+# ============================================================================
+
+
+@dataclass
+class MultiDGemmProblem:
+    """A multi_d GEMM problem: E[MxN] = op(A[MxK] @ B[KxN], D0, D1, ...).
+
+    ``num_d`` D tensors, each MxN and stored in the output (C) element dtype.
+    """
+
+    M: int
+    N: int
+    K: int
+    num_d: int = 2
+
+    @property
+    def flops(self) -> float:
+        # 2*M*N*K for the GEMM; the element-wise D fuse is negligible and matches
+        # how Old-TE reports multi_d TFLOPs.
+        return 2.0 * self.M * self.N * self.K
+
+
+@dataclass
+class MultiDGemmResult:
+    output: np.ndarray
+    time_ms: float
+    status: int
+    tflops: float
+    kernel_name: str
+
+    @property
+    def success(self) -> bool:
+        return self.status == 0
+
+
+def _multi_d_layout_from_kernel_name(name: str) -> str:
+    """Extract the 4-char layout (e.g. 'rcrr') from a multi_d kernel name.
+
+    Name format is ``gemm_<dtype>_<layout4>_...``; each char is 'r'/'c' for
+    operands A, B, C, D. Falls back to 'rcrr' if not found.
+    """
+    parts = name.split("_")
+    if len(parts) > 2 and len(parts[2]) == 4 and set(parts[2]) <= {"r", "c"}:
+        return parts[2]
+    return "rcrr"
+
+
+class GpuMultiDGemmRunner:
+    """High-level runner for the multi_d bridge .so.
+
+    Constructed from a .so path; call ``run(A, B, Ds, problem)`` with logical
+    row-major A (MxK), B (KxN) and a list of row-major D tensors (each MxN). The
+    kernel's compiled dtype/layout (from its name) dictates operand memory
+    layout; the C ABI owns all device memory. fp16-only for now (the TE multi_d
+    op supports only fp16).
+    """
+
+    def __init__(self, lib_path: Path):
+        self.lib = GemmDispatcherLib(lib_path)
+        if not self.lib.initialize():
+            raise RuntimeError(f"Failed to initialize multi_d .so: {lib_path}")
+        if not self.lib.has_multi_d:
+            raise RuntimeError(
+                f"{lib_path} is not a multi_d .so (no dispatcher_run_multi_d_gemm)"
+            )
+        names = self.lib.kernel_names
+        self._kernel_name = names[0] if names else "unknown"
+        self._num_d = self.lib.num_d_tensors()
 # Multi-ABD ctypes ABI wrapper + runner (divergent, array-pointer ABI)
 # ============================================================================
 
@@ -1362,6 +1504,50 @@ class GpuMultiABDRunner:
     def kernel_name(self) -> str:
         return self._kernel_name
 
+    @property
+    def num_d_tensors(self) -> int:
+        return self._num_d
+
+    def run(
+        self,
+        A: np.ndarray,
+        B: np.ndarray,
+        Ds: List[np.ndarray],
+        problem: MultiDGemmProblem,
+    ) -> MultiDGemmResult:
+        M, N, K = problem.M, problem.N, problem.K
+        dtype = _dtype_from_kernel_name(self._kernel_name)
+        layout4 = _multi_d_layout_from_kernel_name(self._kernel_name)
+        la, lb, lc, ld = layout4[0], layout4[1], layout4[2], layout4[3]
+
+        if dtype != "fp16":
+            raise ValueError(f"multi_d bridge currently supports fp16 only, got {dtype}")
+        if len(Ds) != self._num_d:
+            raise ValueError(
+                f"kernel expects {self._num_d} D tensors, got {len(Ds)}"
+            )
+
+        # A/B host buffers, transposed for column-major operands (see GpuGemmRunner).
+        A_lay = A if la == "r" else A.T
+        B_lay = B if lb == "r" else B.T
+        A_h = np.ascontiguousarray(A_lay, dtype=np.float16)
+        B_h = np.ascontiguousarray(B_lay, dtype=np.float16)
+
+        # C and D are row-major (last two layout chars are 'r' for the TE
+        # multi_d builder); keep them MxN contiguous.
+        C_shape = (M, N) if lc == "r" else (N, M)
+        C_h = np.zeros(C_shape, dtype=np.float16)
+        D_h = []
+        for d in Ds:
+            d_lay = d if ld == "r" else d.T
+            D_h.append(np.ascontiguousarray(d_lay, dtype=np.float16))
+
+        status, time_ms = self.lib.run_multi_d(A_h, B_h, D_h, C_h, M, N, K)
+
+        C_out = C_h if lc == "r" else C_h.T
+        tflops = (problem.flops / (time_ms * 1e-3)) / 1e12 if time_ms > 0 else 0.0
+        return MultiDGemmResult(
+            output=C_out,
     def _parse_layout4(self) -> str:
         """Fallback: 4-char (A,B,E,D) layout from ``gemm_<dtype>_<layout>_...``."""
         parts = self._kernel_name.split("_")
@@ -1581,6 +1767,8 @@ def _ctypes_source_name(config: GemmKernelConfig) -> str:
         directly instead of routing through the registry.
       * grouped has a multi-problem launch signature the single-problem
         ``gemm_ctypes_lib.cpp`` cannot express.
+      * multi_d fuses extra D operands and exposes a GemmMultiDArgs launch
+        signature, so it compiles against its dedicated ctypes source.
       * multi_abd has a divergent (array-pointer) ABI
         (dispatcher_run_multi_abd) that the single-problem
         ``gemm_ctypes_lib.cpp`` cannot express.
@@ -1589,6 +1777,8 @@ def _ctypes_source_name(config: GemmKernelConfig) -> str:
         return "streamk_gemm_ctypes_lib.cpp"
     if config.variant == "grouped":
         return "grouped_gemm_ctypes_lib.cpp"
+    if config.variant == "multi_d":
+        return "multi_d_gemm_ctypes_lib.cpp"
     if config.variant == "multi_abd":
         return "gemm_multi_abd_ctypes_lib.cpp"
     return "gemm_ctypes_lib.cpp"
@@ -1786,6 +1976,7 @@ def setup_multiple_gemm_dispatchers(
                 "codegen_script": str(codegen_script),
                 "output_dir": str(output_dir),
                 "dtype": c.dtype_a,
+                "layout": c.codegen_layout,
                 # Multi-ABD codegen expects the 4-char (A,B,E,D) layout so it can
                 # split off the D layout; every other variant uses 3-char.
                 "layout": c.layout4 if c.variant == "multi_abd" else c.layout,
