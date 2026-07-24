@@ -551,7 +551,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                                                          Number<0>,
                                                          Number<var>,
                                                          index_expression::Ik>{
-                                    b_thread_vec, b_thread_bufs_up[mfma_reg_buf]};
+                                    b_thread_vec_up, b_thread_bufs_up[mfma_reg_buf]};
 
                             static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA, loadB, loadBUp));
 
@@ -747,7 +747,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                                                             Number<0>,
                                                             Number<var>,
                                                             index_expression::Ik>{
-                        b_thread_vec, b_thread_bufs_up[I0]};
+                        b_thread_vec_up, b_thread_bufs_up[I0]};
 
                     static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA, loadB, loadBUp));
 
@@ -875,7 +875,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                                                             Number<0>,
                                                             Number<var>,
                                                             index_expression::Ik>{
-                        b_thread_vec, b_thread_bufs_up[I1]};
+                        b_thread_vec_up, b_thread_bufs_up[I1]};
 
                     static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA, loadB, loadBUp));
 
@@ -973,7 +973,7 @@ struct BlockwiseGemmXdlops_pipeline_moe_blockscale_bpreshuffle_gufusion_v1<
                                                             Number<0>,
                                                             Number<var>,
                                                             index_expression::Ik>{
-                        b_thread_vec, b_thread_bufs_up[I0]};
+                        b_thread_vec_up, b_thread_bufs_up[I0]};
 
                     static_for<0, KPack, 1>{}(MakeFunctorInvoker(loadA, loadB, loadBUp));
 
