@@ -7,11 +7,8 @@ Validation utilities for GEMM kernel generation.
 Extracted from tile_engine_develop for consistency.
 """
 
-import subprocess
-import re
-from functools import lru_cache
 import logging
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 
 # Element size mapping for different data types
 ELEMENT_SIZE_MAP = {
@@ -35,6 +32,25 @@ def get_warp_size_for_gpu(gpu_target: str) -> int:
     if gpu_target.startswith("gfx9"):
         return 64  # CDNA - WAVE64
     return 32  # RDNA and others - WAVE32
+
+# Supported warp combinations for different GPU architectures and data types
+WARP_SUPPORTED_COMBINATIONS = {
+    "gfx90a": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1],
+    ],
+    "gfx942": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1],
+    ],
+    "gfx950": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1],
+    ],
+}
 
 # Supported warp tile combinations for different GPU architectures and data types
 WARP_TILE_SUPPORTED_COMBINATIONS = {
@@ -125,85 +141,6 @@ def element_size(data_type: str) -> float:
         raise ValueError(f"Unsupported data type: {data_type}")
     return ELEMENT_SIZE_MAP[data_type]
 
-
-GPU_NAME_PATTERN = re.compile(r"Name:\s*(gfx\d+\w*)")
-
-# Module-level storage for configured GPU targets (fallback for when rocminfo fails)
-_configured_gpu_targets: List[str] = []
-
-
-def set_gpu_targets(targets: List[str]) -> None:
-    """
-    Set the fallback GPU targets list (from CMake SUPPORTED_GPU_TARGETS).
-    
-    This list will be used as a fallback when rocminfo fails to detect GPU.
-    
-    Args:
-        targets: List of GPU target strings (e.g., ["gfx90a", "gfx942:xnack+", "gfx950"])
-    """
-    global _configured_gpu_targets
-    _configured_gpu_targets = list(targets)
-
-
-def get_configured_gpu_targets() -> List[str]:
-    """
-    Get the configured GPU targets list.
-    
-    Returns:
-        List of configured GPU target strings
-    """
-    return _configured_gpu_targets
-
-
-@lru_cache(maxsize=1)
-def get_gpu_name_by_id(gpu_id: int = 0) -> str:
-    """
-    Retrieve GPU name (e.g. gfx90a) by device ID.
-    
-    First attempts to query the GPU using rocminfo. If that fails, falls back
-    to using the first supported gfx target from the configured GPU targets list
-    (set via set_gpu_targets()).
-    
-    Args:
-        gpu_id: Device ID to query (default: 0)
-        
-    Returns:
-        GPU architecture name (e.g., "gfx90a") or empty string if detection fails
-    """
-    # Try rocminfo first
-    try:
-        output = subprocess.check_output(
-            ["rocminfo"], text=True, stderr=subprocess.PIPE, timeout=5
-        )
-        if matches := GPU_NAME_PATTERN.finditer(output):
-            gpu_list = [m.group(1) for m in matches]
-            if gpu_id < len(gpu_list):
-                return gpu_list[gpu_id]
-
-    except subprocess.CalledProcessError as e:
-        logging.debug(f"GPU query failed (exit {e.returncode}): {e.stderr.strip()}")
-    except FileNotFoundError:
-        logging.debug("ROCm tools not installed (requires rocminfo)")
-    except subprocess.TimeoutExpired:
-        logging.debug("GPU query timeout (5s)")
-    except Exception as e:
-        logging.debug(f"GPU detection error: {str(e)}")
-
-    # Fallback to configured GPU targets from CMake
-    if _configured_gpu_targets:
-        target = _configured_gpu_targets[0]
-        # Extract base gfx name (e.g., "gfx90a" from "gfx90a:xnack+")
-        match = re.match(r'(gfx\d+\w*)', target)
-        if match:
-            gpu_name = match.group(1)
-            logging.debug(f"rocminfo failed, using fallback GPU target: {gpu_name}")
-            return gpu_name
-        else:
-            logging.debug(f"Failed to parse GPU target: {target}")
-
-    return ""
-
-
 def is_trait_combination_valid(
     pipeline: str, epilogue: str, scheduler: str, reduction_strategy: str
 ) -> bool:
@@ -216,10 +153,26 @@ def is_trait_combination_valid(
     ) not in TRAIT_UNSUPPORTED_COMBINATIONS
 
 
-def validate_warp_configuration(warp_m: int, warp_n: int, warp_k: int) -> bool:
+def validate_warp_configuration(
+    warp_m: int,
+    warp_n: int,
+    warp_k: int,
+    gpu_name: str,
+) -> bool:
     """Validate warp configuration."""
-    return (warp_m, warp_n, warp_k) in [(1, 4, 1), (2, 2, 1), (4, 1, 1)]
+    base_gpu_name = gpu_name.split(":")[0] if gpu_name else gpu_name
+    current_combination = [warp_m, warp_n, warp_k]
 
+    allowed_combinations = WARP_SUPPORTED_COMBINATIONS.get(base_gpu_name)
+    if not allowed_combinations:
+        logging.debug(f"No warp_[m/n/k] combinations found for GPU: {base_gpu_name}; using defaults")
+        allowed_combinations = [[1, 4, 1], [2, 2, 1], [4, 1, 1]]
+
+    # Check if current combination is in the allowed list
+    if current_combination not in allowed_combinations:
+        return False
+
+    return True
 
 def validate_dimension_alignment(
     tile_m: int,
@@ -250,6 +203,13 @@ def validate_dimension_alignment(
 
     return len(alignment_issues) == 0, alignment_issues
 
+LDS_SIZE_MAP = {
+    "gfx90a": 2**16,   # 64KB
+    "gfx942": 2**16,   # 64KB
+    "gfx950": 160 * 1024,  # 160KB
+}
+
+DEFAULT_LDS_SIZE = 2**16  # 64KB
 
 def validate_lds_capacity(
     tile_m: int,
@@ -258,25 +218,29 @@ def validate_lds_capacity(
     a_datatype: str,
     b_datatype: str,
     pipeline: str,
+    gpu_target: str = "",
 ) -> Tuple[bool, str]:
     """Validate LDS capacity requirements."""
     matrix_a_size = (tile_m * tile_k) * element_size(a_datatype)
     matrix_b_size = (tile_n * tile_k) * element_size(b_datatype)
     total_tile_in_lds = matrix_a_size + matrix_b_size
 
-    max_tile_size = 2**15 if pipeline == "compv4" else 2**16
+    base_gpu_target = gpu_target.split(":")[0] if gpu_target else gpu_target
+    hw_lds_size = LDS_SIZE_MAP.get(base_gpu_target, DEFAULT_LDS_SIZE)
+    double_buffer = pipeline in ["compv4"]
+    max_tile_size = hw_lds_size // 2 if double_buffer else hw_lds_size
 
     if total_tile_in_lds > max_tile_size:
         error_msg = (
             f"LDS capacity exceeded: Total required {total_tile_in_lds:,}B ({total_tile_in_lds / 1024:.1f}KB) > "
-            f"maximum allowed {max_tile_size:,}B ({max_tile_size / 1024}KB). Breakdown:\n"
+            f"maximum allowed {max_tile_size:,}B ({max_tile_size / 1024}KB) "
+            f"[{base_gpu_target}, {'double' if double_buffer else 'single'} buffer]. Breakdown:\n"
             f"- Matrix A ({a_datatype}): {tile_m}x{tile_k} = {matrix_a_size:,}B\n"
             f"- Matrix B ({b_datatype}): {tile_n}x{tile_k} = {matrix_b_size:,}B"
         )
         return False, error_msg
 
     return True, ""
-
 
 def validate_warp_tile_combination(
     warp_tile_m: int,
@@ -285,22 +249,20 @@ def validate_warp_tile_combination(
     a_datatype: str,
     b_datatype: str,
     c_datatype: str,
-    gpu_name: str = None,
+    gpu_name: str,
 ) -> Tuple[bool, str]:
     """Validate warp tile combination against GPU-specific supported combinations."""
-    # This is likely going to need to change to support multiple targets, not just a single one:
-    if gpu_name is None:
-        gpu_name = get_gpu_name_by_id(0)
+    base_gpu_name = gpu_name.split(":")[0] if gpu_name else gpu_name
 
     # Construct the key for looking up supported combinations
     warp_tile_key = f"{a_datatype}_{b_datatype}_{c_datatype}"
     current_combination = [warp_tile_m, warp_tile_n, warp_tile_k]
 
     # Check if we have GPU-specific combinations
-    gpu_warp_tile_combinations = WARP_TILE_SUPPORTED_COMBINATIONS.get(gpu_name, {})
+    gpu_warp_tile_combinations = WARP_TILE_SUPPORTED_COMBINATIONS.get(base_gpu_name, {})
     if not gpu_warp_tile_combinations:
         # If GPU not recognized, try to be permissive but log warning
-        logging.warning(f"No warp tile combinations found for GPU: {gpu_name}")
+        logging.warning(f"No warp tile combinations found for GPU: {base_gpu_name}")
         return True, ""
 
     # Check if we have combinations for this data type combination
@@ -316,7 +278,7 @@ def validate_warp_tile_combination(
     if current_combination not in allowed_combinations:
         error_msg = (
             f"Invalid warp tile combination: {current_combination} not in allowed list. "
-            f"Valid combinations for '{warp_tile_key}' on {gpu_name}: {allowed_combinations}"
+            f"Valid combinations for '{warp_tile_key}' on {base_gpu_name}: {allowed_combinations}"
         )
         return False, error_msg
 
@@ -338,7 +300,7 @@ def is_tile_config_valid(
     c_datatype: str,
     pipeline: str,
     layout: str,
-    trait_name: str = None,
+    gpu_target: str,
 ) -> bool:
     """
     Comprehensive tile configuration validation.
@@ -361,7 +323,7 @@ def is_tile_config_valid(
         return False
 
     # Validate warp configuration
-    if not validate_warp_configuration(warp_m, warp_n, warp_k):
+    if not validate_warp_configuration(warp_m, warp_n, warp_k, gpu_target):
         logging.debug(
             f"Invalid warp configuration: warp_m({warp_m}), warp_n({warp_n}), warp_k({warp_k})"
         )
@@ -389,7 +351,7 @@ def is_tile_config_valid(
 
     # Validate LDS capacity
     lds_valid, lds_error = validate_lds_capacity(
-        tile_m, tile_n, tile_k, a_datatype, b_datatype, pipeline
+        tile_m, tile_n, tile_k, a_datatype, b_datatype, pipeline, gpu_target
     )
     if not lds_valid:
         logging.debug(f"LDS validation failed: {lds_error}")
@@ -401,6 +363,7 @@ def is_tile_config_valid(
         warp_tile_m, warp_tile_n, warp_tile_k,
         a_datatype, b_datatype, c_datatype,
         pipeline, layout,
+        gpu_target,
     )
     if not gemm_valid:
         logging.debug(f"GEMM validation failed: {gemm_error}")
@@ -408,7 +371,8 @@ def is_tile_config_valid(
 
     # Validate warp tile combination
     warp_tile_valid, warp_tile_error = validate_warp_tile_combination(
-        warp_tile_m, warp_tile_n, warp_tile_k, a_datatype, b_datatype, c_datatype
+        warp_tile_m, warp_tile_n, warp_tile_k, a_datatype, b_datatype, c_datatype,
+        gpu_target,
     )
     if not warp_tile_valid:
         logging.debug(f"Warp tile validation failed: {warp_tile_error}")
@@ -668,10 +632,10 @@ def validate_gemm(
     c_datatype: str,
     pipeline: str,
     layout: str,
+    gpu_target: str,
     trait_name: str = None,
-) -> bool:
+) -> Tuple[bool, str]:
     # GEMM Validation
-    gpu_target = get_gpu_name_by_id(0)
     warp_size = get_warp_size_for_gpu(gpu_target)
 
     # Validate whole workgroup cover configuration

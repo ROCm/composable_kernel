@@ -15,7 +15,6 @@ from typing import Optional
 from gemm_streamk_validation_utils import (
     is_tile_config_valid,
     is_trait_combination_valid,
-    set_gpu_targets,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -28,7 +27,8 @@ class GemmKernelBuilder:
         datatype,
         layout,
         config_json=None,
-        gpu_target=None,
+        gpu_target="",
+        validation_gpu_target=None,
         max_instances=None,
         seed=None,
         tier=None,
@@ -39,6 +39,11 @@ class GemmKernelBuilder:
         self.layout = layout
         self.config_json = config_json
         self.gpu_target = gpu_target
+        if validation_gpu_target is None:
+            validation_gpu_target = (
+                gpu_target.split(";")[0].split(":")[0] if gpu_target else ""
+            )
+        self.validation_gpu_target = validation_gpu_target
         self.max_instances = max_instances
         self.seed = seed
         self.tier = tier
@@ -363,7 +368,8 @@ class GemmKernelBuilder:
                 b_datatype,
                 c_datatype,
                 pipeline,
-                self.layout
+                self.layout,
+                self.validation_gpu_target
             )
 
     def _generate_trait_combinations(self):
@@ -961,11 +967,6 @@ def main():
         help="Semicolon-separated list of GPU targets from CMake (e.g., 'gfx90a;gfx942;gfx950')",
     )
     parser.add_argument(
-        "--gpu_target",
-        default=None,
-        help="Single GPU target for sampling seed derivation (e.g., 'gfx942')",
-    )
-    parser.add_argument(
         "--max-instances",
         type=int,
         default=None,
@@ -990,19 +991,26 @@ def main():
 
     args = parser.parse_args()
 
-    # Configure GPU targets for fallback if provided
-    if args.gpu_targets:
-        targets = [t.strip() for t in args.gpu_targets.split(';') if t.strip()]
-        set_gpu_targets(targets)
-        logging.debug(f"Configured GPU targets: {targets}")
+    gpu_target = args.gpu_targets or ""
+    validation_gpu_target = ""
+    if gpu_target:
+        targets = [t.strip() for t in gpu_target.split(';') if t.strip()]
+        if targets:
+            validation_gpu_target = targets[0].split(":")[0]  # e.g., "gfx90a" from "gfx90a:xnack+"
+            if len(targets) > 1:
+                logging.warning(
+                    f"Multiple GPU targets provided ({targets}), "
+                    f"using first target '{validation_gpu_target}' for validation"
+                )
+        logging.debug(f"Using validation GPU target: {validation_gpu_target}")
 
-    # Create builder
     builder = GemmKernelBuilder(
         args.working_path,
         args.datatype,
         args.layout,
         args.config_json,
-        gpu_target=args.gpu_target,
+        gpu_target=gpu_target,
+        validation_gpu_target=validation_gpu_target,
         max_instances=args.max_instances,
         seed=args.seed,
         tier=args.tier,
