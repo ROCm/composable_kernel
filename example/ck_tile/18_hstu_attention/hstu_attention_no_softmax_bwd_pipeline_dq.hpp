@@ -488,6 +488,8 @@ struct HstuAttentionNoSoftmaxBwdPipelineQRKSVS_dQ
 
             seqlen_k_curr += kN0;
 
+            // ensure LDS access of K^T finished in Gemm4 before it being stored at next itertion
+            block_sync_lds();
         } while(seqlen_k_curr < seqlen_k_end);
 
         // Apply alpha scaling to accumulated dQ
