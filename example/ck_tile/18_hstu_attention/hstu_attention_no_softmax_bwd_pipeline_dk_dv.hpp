@@ -92,7 +92,12 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
         if constexpr(Traits::kBlockPerCuForKernel2 != -1)
             return Traits::kBlockPerCuForKernel2;
         else
-            return 1;
+        {
+            if constexpr(kQKHeaddim <= 128)
+                return 2;
+            else
+                return 1;
+        }
     }();
 
     // Kernel-2's Gemm0 uses an M-major warp layout (block-warps <1,4,1>), producing a P tile whose
