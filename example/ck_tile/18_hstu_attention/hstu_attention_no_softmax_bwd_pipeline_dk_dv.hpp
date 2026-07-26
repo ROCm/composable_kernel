@@ -615,6 +615,9 @@ struct HstuAttentionNoSoftmaxBwdPipelineKRVRQS_dK_dV
 
             seqlen_q_curr += kM0;
 
+            // ensure LDS access finished in gemm_1 and gemm_3 before it being stored at next
+            // iteration
+            block_sync_lds();
         } while(seqlen_q_curr < seqlen_q_end);
 
         // Apply alpha scaling to accumulated dK
