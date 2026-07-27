@@ -39,7 +39,6 @@ import csv
 import json
 import os
 import queue
-import re
 import subprocess
 import sys
 import threading
@@ -47,11 +46,14 @@ import time
 from pathlib import Path
 
 _THIS_DIR = Path(__file__).resolve().parent
+_COMMON_DIR = _THIS_DIR.parent / "common"
 _DISPATCHER_ROOT = _THIS_DIR.parents[2] / "dispatcher"
 sys.path.insert(0, str(_DISPATCHER_ROOT / "python"))
+sys.path.insert(0, str(_COMMON_DIR))
 sys.path.insert(0, str(_THIS_DIR))
 
 from gemm_utils import setup_multiple_gemm_dispatchers, expand_sweep  # noqa: E402
+from smi_utils import detect_gpu_ids  # noqa: E402
 
 # Config layout. The bridged regular-GEMM path (gemm_universal) keeps its sweep
 # configs in this op's flat ``configs/`` directory (matching the fmha/grouped_conv
@@ -93,32 +95,7 @@ SUPPORTED_LAYOUTS = ("rcr", "rrr", "crr", "ccr", "rcrr", "rrrr", "crrr", "ccrr")
 
 def detect_devices():
     """Return a list of visible GPU id strings (best-effort)."""
-    env = os.environ.get("HIP_VISIBLE_DEVICES") or os.environ.get(
-        "CUDA_VISIBLE_DEVICES"
-    )
-    if env:
-        ids = [d.strip() for d in env.split(",") if d.strip() != ""]
-        if ids:
-            return ids
-    try:
-        out = subprocess.check_output(
-            ["rocm-smi", "--showid"], stderr=subprocess.DEVNULL, text=True
-        )
-        ids = sorted(set(re.findall(r"GPU\[(\d+)\]", out)), key=int)
-        if ids:
-            return ids
-    except Exception:
-        pass
-    try:
-        out = subprocess.check_output(
-            ["amd-smi", "list"], stderr=subprocess.DEVNULL, text=True
-        )
-        ids = re.findall(r"^GPU:\s*(\d+)", out, re.MULTILINE)
-        if ids:
-            return ids
-    except Exception:
-        pass
-    return ["0"]
+    return detect_gpu_ids()
 
 
 def resolve_devices(spec):
@@ -143,7 +120,9 @@ def resolve_devices(spec):
         # do not invent additional ids beyond what's visible.
         if len(detected) >= n:
             return detected[:n]
-        if os.environ.get("HIP_VISIBLE_DEVICES") or os.environ.get("CUDA_VISIBLE_DEVICES"):
+        if os.environ.get("HIP_VISIBLE_DEVICES") or os.environ.get(
+            "CUDA_VISIBLE_DEVICES"
+        ):
             return detected
         return [str(i) for i in range(n)]
     return [spec]
@@ -221,7 +200,9 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
             try:
                 result = json.loads(line)
             except json.JSONDecodeError:
-                lines.append(f"  [gpu{device_id}] Warning: bad result line: {line[:50]}")
+                lines.append(
+                    f"  [gpu{device_id}] Warning: bad result line: {line[:50]}"
+                )
                 n_fail += 1
                 continue
             bidx = result.get("idx", 0)
@@ -236,9 +217,7 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
                     else:
                         status = "MISMATCH"
                         mismatch = True
-                extra = (
-                    f" rel={result['max_rel']:.2e}" if "max_rel" in result else ""
-                )
+                extra = f" rel={result['max_rel']:.2e}" if "max_rel" in result else ""
                 lines.append(
                     f"  [gpu{device_id}] {cfg.name:<58} {result['ms']:>10.3f} "
                     f"{result['tflops']:>10.2f} {status:>8}{extra}"
@@ -295,7 +274,9 @@ def _run_batch_on_device(device_id, unit, args, worker_path, base_env):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="GEMM Benchmark Sweep (via Dispatcher)")
+    parser = argparse.ArgumentParser(
+        description="GEMM Benchmark Sweep (via Dispatcher)"
+    )
     parser.add_argument(
         "configs",
         nargs="*",

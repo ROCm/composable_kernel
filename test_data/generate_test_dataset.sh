@@ -8,6 +8,10 @@
 set -e  # Exit on error
 set +x  # Disable command echo (even if called with bash -x)
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../script/tools/common.sh
+source "${SCRIPT_DIR}/../script/tools/common.sh"
+
 # Trap to kill all background jobs on script exit/interruption
 cleanup() {
     echo ""
@@ -115,7 +119,7 @@ done
 # Setup GPU array if GPUs are requested
 if [ $NUM_GPUS -gt 0 ]; then
     # Auto-detect available GPUs
-    AVAILABLE_GPUS_COUNT=$(rocm-smi --showid 2>/dev/null | grep -oP 'GPU\[\K[0-9]+' | wc -l)
+    AVAILABLE_GPUS_COUNT=$(ck_smi_count_gpus 2>/dev/null || echo 0)
     if [ "$AVAILABLE_GPUS_COUNT" -gt 0 ]; then
         MAX_AVAILABLE=$AVAILABLE_GPUS_COUNT
     else
@@ -175,27 +179,27 @@ fi
 
 
 # Check if running on GPU
-if ! command -v rocm-smi &> /dev/null; then
-    echo "ERROR: ROCm not detected. Cannot generate MIOpen commands without GPU."
-    echo "This script requires an AMD GPU with ROCm installed."
+if ! ck_smi_check_gpu_available; then
+    echo "ERROR: ROCm GPU not accessible. Cannot generate MIOpen commands without GPU."
+    echo "This script requires an AMD GPU with ROCm installed (rocm-smi or amd-smi)."
     echo "Creating empty CSV files as placeholder..."
     echo "# 2D Convolution Test Cases (No GPU available)" > conv_test_set_2d_dataset.csv
     echo "# 3D Convolution Test Cases (No GPU available)" > conv_test_set_3d_dataset.csv
     exit 1
 fi
 
-# Check if GPU is actually accessible
-if ! rocm-smi &> /dev/null; then
-    echo "ERROR: rocm-smi failed. GPU may not be accessible."
+echo "GPU detected. Driver / ROCm info:"
+ck_smi_show_version || true
+
+# Confirm at least one GPU is accessible via SMI before running workloads
+GPU_COUNT=$(ck_smi_count_gpus 2>/dev/null || echo 0)
+if [ "${GPU_COUNT}" -le 0 ] || ! ck_smi_check_gpu_available; then
+    echo "ERROR: GPU not accessible. Cannot generate MIOpen commands without a working GPU."
     echo "Creating empty CSV files as placeholder..."
     echo "# 2D Convolution Test Cases (GPU not accessible)" > conv_test_set_2d_dataset.csv
     echo "# 3D Convolution Test Cases (GPU not accessible)" > conv_test_set_3d_dataset.csv
     exit 1
 fi
-
-echo "GPU detected. ROCm version:"
-rocm-smi --showdriverversion || true
-
 
 echo ""
 echo "Step 2: Running 2D/3D models and capturing MIOpen commands"

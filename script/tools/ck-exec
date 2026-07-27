@@ -36,14 +36,15 @@ Environment:
   CK_CONTAINER_NAME - Override default container name
 
 Examples:
-  ck-exec rocm-smi                      # Run rocm-smi
+  ck-exec ck_smi_show_gpu_info            # GPU info (prefers amd-smi; falls back to rocm-smi)
   ck-exec rocminfo                      # Run rocminfo
   ck-exec ls -la build/bin              # List build binaries
   ck-exec -w /workspace/build ninja -t commands # Run ninja commands
   ck-exec --interactive python3         # Interactive Python session
 
 Common Commands:
-  ck-exec rocm-smi                      # Check GPU status
+  ck-exec ck_smi_show_gpu_info            # GPU status via SMI wrapper
+  ck-exec ck_smi_count_gpus               # Check GPU count via SMI wrapper
   ck-exec rocminfo \| grep gfx           # Check GPU architecture
   ck-exec hipcc --version               # Check HIP compiler version
   ck-exec cmake --version               # Check CMake version
@@ -102,6 +103,11 @@ cmd_string=""
 for arg in "${command_args[@]}"; do
     cmd_string="${cmd_string} $(printf '%q' "$arg")"
 done
+
+# Source common.sh inside the container (when the project is mounted) so that
+# ck_smi_* and other shell helper functions are available to the command.
+common_sh="/workspace/script/tools/common.sh"
+cmd_string="if [ -f ${common_sh} ]; then source ${common_sh}; fi;${cmd_string}"
 
 # Auto-detect Python commands and enable unbuffered output for live streaming
 env_flags=""
