@@ -37,8 +37,8 @@ __global__ void kernel_with_prefetch(KernelArgs<T> args)
 
     uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-    // Calculate number of 32B cachelines needed to cover num_scalars elements
-    constexpr index_t cachelineSize              = 32;
+    // Calculate number of 128B cachelines needed to cover num_scalars elements
+    constexpr index_t cachelineSize              = 128;
     constexpr index_t elements_per_cachelineSize = cachelineSize / sizeof(T);
     constexpr unsigned int cachelinesNeeded =
         (NUM_SCALARS + elements_per_cachelineSize - 1) / elements_per_cachelineSize;
@@ -86,8 +86,8 @@ __global__ void kernel_with_prefetch_and_shared_mem(KernelArgs<T> args)
 
     uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-    // Calculate number of 32B cachelines needed to cover num_scalars elements
-    constexpr index_t cachelineSize              = 32;
+    // Calculate number of 128B cachelines needed to cover num_scalars elements
+    constexpr index_t cachelineSize              = 128;
     constexpr index_t elements_per_cachelineSize = cachelineSize / sizeof(T);
     constexpr unsigned int cachelinesNeeded =
         (NUM_SCALARS + elements_per_cachelineSize - 1) / elements_per_cachelineSize;
