@@ -22,6 +22,8 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
+#include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd_gpu.hpp"
+#include "ck/library/utility/gpu_verification.hpp"
 
 namespace ck {
 namespace profiler {
@@ -92,6 +94,17 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << host_output.mDesc << std::endl;
 
+    // Get element space sizes for allocation
+    const auto input_size  = in_g_n_c_wis_desc.GetElementSpaceSize();
+    const auto weight_size = wei_g_k_c_xs_desc.GetElementSpaceSize();
+    const auto output_size = out_g_n_k_wos_desc.GetElementSpaceSize();
+
+    // Allocate GPU memory
+    DeviceMem in_device_buf(sizeof(InDataType) * input_size);
+    DeviceMem wei_device_buf(sizeof(WeiDataType) * weight_size);
+    DeviceMem out_device_buf(sizeof(OutDataType) * output_size);
+
+    // Initialize tensors on CPU then upload to GPU
     switch(init_method)
     {
     case 0: break;
@@ -104,15 +117,39 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         weight.GenerateTensorValue(GeneratorTensor_3<WeiDataType>{-0.5, 0.5});
     }
 
-    DeviceMem in_device_buf(sizeof(InDataType) * input.mDesc.GetElementSpaceSize());
-    DeviceMem wei_device_buf(sizeof(WeiDataType) * weight.mDesc.GetElementSpaceSize());
-    DeviceMem out_device_buf(sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize());
+    if(init_method != 0)
+    {
+        in_device_buf.ToDevice(input.mData.data());
+        wei_device_buf.ToDevice(weight.mData.data());
+    }
 
-    in_device_buf.ToDevice(input.mData.data());
-    wei_device_buf.ToDevice(weight.mData.data());
+    // Allocate GPU reference buffer (used only if do_verification == 2)
+    DeviceMem gpu_ref_out_buf(
+        do_verification == 2 ? sizeof(OutDataType) * device_output.mDesc.GetElementSpaceSize() : 0);
 
     // run reference op
-    if(do_verification)
+    if(do_verification == 2)
+    {
+        std::cout << "Using GPU reference with GPU verification" << std::endl;
+
+        ref::naive_conv_fwd<InLayout,
+                            WeiLayout,
+                            OutLayout,
+                            InDataType,
+                            WeiDataType,
+                            OutDataType,
+                            InElementOp,
+                            WeiElementOp,
+                            OutElementOp>(
+            reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<OutDataType*>(gpu_ref_out_buf.GetDeviceBuffer()),
+            conv_param,
+            in_element_op,
+            wei_element_op,
+            out_element_op);
+    }
+    else if(do_verification == 1)
     {
         auto ref_conv = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
                                                                      InDataType,
@@ -134,9 +171,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                                                   wei_element_op,
                                                   out_element_op);
 
-        // init host output to zero
         host_output.SetZero();
-
         ref_invoker.Run(ref_argument);
     }
 
@@ -181,7 +216,47 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
                 best_gb_per_sec = gb_per_sec;
             }
 
-            if(do_verification)
+            if(do_verification == 2)
+            {
+                // GPU verification path
+                std::size_t filter_spatial_size = 1;
+                for(auto len : conv_param.filter_spatial_lengths_)
+                {
+                    filter_spatial_size *= len;
+                }
+                const int num_accums = static_cast<int>(conv_param.C_ * filter_spatial_size);
+
+                const std::size_t tensor_size = device_output.mDesc.GetElementSpaceSize();
+                auto gpu_result = ck::profiler::gpu_verify<OutDataType, AComputeType, OutDataType>(
+                    out_device_buf.GetDeviceBuffer(),
+                    gpu_ref_out_buf.GetDeviceBuffer(),
+                    num_accums,
+                    tensor_size);
+
+                if(!gpu_result)
+                {
+                    gpu_result.print_error_summary();
+                    pass = false;
+
+                    if(do_log)
+                    {
+                        out_device_buf.FromDevice(device_output.mData.data());
+                        gpu_ref_out_buf.FromDevice(host_output.mData.data());
+
+                        LogRangeAsType<float>(std::cout << "input : ", input.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(std::cout << "weight: ", weight.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(
+                            std::cout << "host_output  : ", host_output.mData, ",")
+                            << std::endl;
+                        LogRangeAsType<float>(
+                            std::cout << "device_output: ", device_output.mData, ",")
+                            << std::endl;
+                    }
+                }
+            }
+            else if(do_verification == 1)
             {
                 out_device_buf.FromDevice(device_output.mData.data());
 
