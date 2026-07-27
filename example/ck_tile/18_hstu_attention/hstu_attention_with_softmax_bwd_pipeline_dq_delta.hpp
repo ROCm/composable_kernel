@@ -66,10 +66,15 @@ struct HstuAttentionWithSoftmaxBwdPipelineQRKSVS_dQ_D
         Policy::template GetSGradKTBlockGemmSingleRepN<Problem>();
 
     static constexpr index_t kBlockPerCu = []() {
-        if constexpr(Traits::kBlockPerCuForKernel1 != -1)
-            return Traits::kBlockPerCuForKernel1;
+        if constexpr(Traits::kBlockPerCuForKernel2 != -1)
+            return Traits::kBlockPerCuForKernel2;
         else
-            return 1;
+        {
+            if constexpr(kQKHeaddim <= 128)
+                return 2;
+            else
+                return 1;
+        }
     }();
 
     using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
