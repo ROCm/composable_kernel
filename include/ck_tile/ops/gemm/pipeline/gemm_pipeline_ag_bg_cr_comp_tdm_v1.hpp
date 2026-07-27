@@ -1255,8 +1255,8 @@ struct GemmPipelineAgBgCrCompTDMV1 : public BaseGemmPipelineAgBgCrCompTDM<Proble
 
             // NOTE: this is used only for data cache prefetch in current implementation when
             // enabled. Maybe move it somewhere else
-            bool data_cache_prefetch_a = false;
-            bool data_cache_prefetch_b = false;
+            bool data_cache_prefetch_a = Policy::DataCachePrefetchA != DataCachePrefetchKind::None;
+            bool data_cache_prefetch_b = Policy::DataCachePrefetchB != DataCachePrefetchKind::None;
 
             if constexpr(UseClusterLaunch)
             {
