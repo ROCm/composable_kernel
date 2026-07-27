@@ -602,9 +602,10 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
 
             auto p_gemm_tile = cast_tile<QKVDataType>(pcomp_tile);
 
-            Policy::template PTFromGemm0CToGemm1A<Problem,
-                                                  decltype(pt_tile),
-                                                  decltype(p_gemm_tile)>(pt_tile, p_gemm_tile);
+            Policy::template PTFromGemm0CToGemm1A<
+                Problem,
+                Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<2>{}) == 32>(
+                pt_tile, p_gemm_tile);
 
             block_sync_lds();
 
@@ -626,10 +627,10 @@ struct HstuAttentionWithSoftmaxBwdPipelineKRVRQS_dK_dV
 
             auto ds_gemm_tile = cast_tile<QKVDataType>(dscomp_tile);
 
-            Policy::template SGradTFromGemm2CToGemm3A<Problem,
-                                                      decltype(dst_tile),
-                                                      decltype(ds_gemm_tile)>(dst_tile,
-                                                                              ds_gemm_tile);
+            Policy::template SGradTFromGemm2CToGemm3A<
+                Problem,
+                Problem::HstuAttentionTileSetting::Gemm3WarpTile::at(number<2>{}) == 32>(
+                dst_tile, ds_gemm_tile);
 
             // =======================================================================
             // Loop 4: Gemm3  dK += dS^T @ Q^T

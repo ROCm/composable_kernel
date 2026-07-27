@@ -689,7 +689,14 @@ struct HstuAttentionBwdKernel2PipelinePolicy
         return GetQKBlockGemm<Problem>();
     }
 
-    template <typename Problem, typename PTOutTensor, typename PInTensor>
+    // is_target_warptile_16_32 == true selects the 16x16x32 (native mfma, WGAttrNumAccessEnum::
+    // Double) A operand for Gemm1. Its per-lane A register count is twice that of the incoming
+    // 16x16 C fragment, so each K=32 A tile is assembled from two consecutive 16x16 C sub-tiles.
+    // is_target_warptile_16_32 == false keeps the original 16x16x16 (1:1) transpose-free reuse.
+    template <typename Problem,
+              bool is_target_warptile_16_32,
+              typename PTOutTensor,
+              typename PInTensor>
     CK_TILE_DEVICE static constexpr void PTFromGemm0CToGemm1A(PTOutTensor& pt_out,
                                                               const PInTensor& p_in)
     {
@@ -726,23 +733,59 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
             constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-            static_ford<sequence<KIterPerWarp, MIterPerWarp>>{}([&](auto km) {
-                constexpr auto kIter              = number<km[number<0>{}]>{};
-                constexpr auto mIter              = number<km[number<1>{}]>{};
-                p_warp_tensor.get_thread_buffer() = p_in.get_y_sliced_thread_data(
-                    merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
-                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+            if constexpr(is_target_warptile_16_32)
+            {
+                // Number of 16x16 C sub-tiles packed along K into one 16x16x32 A tile (== 2), and
+                // the per-lane register count of a single 16x16 fragment (== C fragment size).
+                constexpr index_t NumKSub = WarpGemm::kK / 16;
+                constexpr index_t kSubPerThread =
+                    CWarpDstr{}.get_ys_to_d_descriptor().get_element_space_size();
+
+                static_ford<sequence<KIterPerWarp, MIterPerWarp>>{}([&](auto km) {
+                    constexpr auto kIter = number<km[number<0>{}]>{};
+                    constexpr auto mIter = number<km[number<1>{}]>{};
+
+                    static_for<0, NumKSub, 1>{}([&](auto kSub) {
+                        p_warp_tensor.get_thread_buffer() = p_in.get_y_sliced_thread_data(
+                            merge_sequences(sequence<kIter * NumKSub + kSub, mIter>{},
+                                            c_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+                        // C->A transpose is the register identity for one 16x16 fragment; place it
+                        // into sub-access kSub of the K=32 A tile (Double packs the accesses as
+                        // [sub0(kSubPerThread), sub1(kSubPerThread)] in the thread buffer).
+                        static_for<0, kSubPerThread, 1>{}([&](auto i) {
+                            pt_warp_tensor.get_thread_buffer()(number<kSub * kSubPerThread + i>{}) =
+                                p_warp_tensor.get_thread_buffer()(number<i>{});
+                        });
+                    });
+
+                    pt_out.set_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
+                        pt_warp_tensor.get_thread_buffer());
+                });
+            }
+            else
+            {
+                static_ford<sequence<KIterPerWarp, MIterPerWarp>>{}([&](auto km) {
+                    constexpr auto kIter              = number<km[number<0>{}]>{};
+                    constexpr auto mIter              = number<km[number<1>{}]>{};
+                    p_warp_tensor.get_thread_buffer() = p_in.get_y_sliced_thread_data(
+                        merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
 #if defined(__gfx11__)
-                PermuteWarpGemmCToA(pt_warp_tensor, p_warp_tensor);
+                    PermuteWarpGemmCToA(pt_warp_tensor, p_warp_tensor);
 #else
-                pt_warp_tensor.get_thread_buffer() = p_warp_tensor.get_thread_buffer();
+                    pt_warp_tensor.get_thread_buffer() = p_warp_tensor.get_thread_buffer();
 #endif
-                pt_out.set_y_sliced_thread_data(
-                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
-                    pt_warp_tensor.get_thread_buffer());
-            });
+                    pt_out.set_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
+                        pt_warp_tensor.get_thread_buffer());
+                });
+            }
         }
         else
         {
@@ -751,7 +794,11 @@ struct HstuAttentionBwdKernel2PipelinePolicy
 #endif // defined(__gfx125__)
     }
 
-    template <typename Problem, typename SGradTOutTensor, typename SGradInTensor>
+    // is_target_warptile_16_32 has the same meaning as in PTFromGemm0CToGemm1A, but for Gemm3.
+    template <typename Problem,
+              bool is_target_warptile_16_32,
+              typename SGradTOutTensor,
+              typename SGradInTensor>
     CK_TILE_DEVICE static constexpr void SGradTFromGemm2CToGemm3A(SGradTOutTensor& dst_out,
                                                                   const SGradInTensor& ds_in)
     {
@@ -788,23 +835,58 @@ struct HstuAttentionBwdKernel2PipelinePolicy
             constexpr auto a_warp_y_index_zeros = uniform_sequence_gen_t<AWarpDstr::NDimY, 0>{};
             constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-            static_ford<sequence<KIterPerWarp, MIterPerWarp>>{}([&](auto km) {
-                constexpr auto kIter               = number<km[number<0>{}]>{};
-                constexpr auto mIter               = number<km[number<1>{}]>{};
-                ds_warp_tensor.get_thread_buffer() = ds_in.get_y_sliced_thread_data(
-                    merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
-                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+            if constexpr(is_target_warptile_16_32)
+            {
+                constexpr index_t NumKSub = WarpGemm::kK / 16;
+                constexpr index_t kSubPerThread =
+                    CWarpDstr{}.get_ys_to_d_descriptor().get_element_space_size();
+
+                static_ford<sequence<KIterPerWarp, MIterPerWarp>>{}([&](auto km) {
+                    constexpr auto kIter = number<km[number<0>{}]>{};
+                    constexpr auto mIter = number<km[number<1>{}]>{};
+
+                    static_for<0, NumKSub, 1>{}([&](auto kSub) {
+                        ds_warp_tensor.get_thread_buffer() = ds_in.get_y_sliced_thread_data(
+                            merge_sequences(sequence<kIter * NumKSub + kSub, mIter>{},
+                                            c_warp_y_index_zeros),
+                            merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+                        // C->A transpose is the register identity for one 16x16 fragment; place it
+                        // into sub-access kSub of the K=32 A tile (Double packs the accesses as
+                        // [sub0(kSubPerThread), sub1(kSubPerThread)] in the thread buffer).
+                        static_for<0, kSubPerThread, 1>{}([&](auto i) {
+                            dst_warp_tensor.get_thread_buffer()(
+                                number<kSub * kSubPerThread + i>{}) =
+                                ds_warp_tensor.get_thread_buffer()(number<i>{});
+                        });
+                    });
+
+                    dst_out.set_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
+                        dst_warp_tensor.get_thread_buffer());
+                });
+            }
+            else
+            {
+                static_ford<sequence<KIterPerWarp, MIterPerWarp>>{}([&](auto km) {
+                    constexpr auto kIter               = number<km[number<0>{}]>{};
+                    constexpr auto mIter               = number<km[number<1>{}]>{};
+                    ds_warp_tensor.get_thread_buffer() = ds_in.get_y_sliced_thread_data(
+                        merge_sequences(sequence<kIter, mIter>{}, c_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
 
 #if defined(__gfx11__)
-                PermuteWarpGemmCToA(dst_warp_tensor, ds_warp_tensor);
+                    PermuteWarpGemmCToA(dst_warp_tensor, ds_warp_tensor);
 #else
-                dst_warp_tensor.get_thread_buffer() = ds_warp_tensor.get_thread_buffer();
+                    dst_warp_tensor.get_thread_buffer() = ds_warp_tensor.get_thread_buffer();
 #endif
-                dst_out.set_y_sliced_thread_data(
-                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
-                    dst_warp_tensor.get_thread_buffer());
-            });
+                    dst_out.set_y_sliced_thread_data(
+                        merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                        merge_sequences(sequence<1, 1>{}, a_warp_y_lengths),
+                        dst_warp_tensor.get_thread_buffer());
+                });
+            }
         }
         else
         {
@@ -861,17 +943,31 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                                   (WarpGemmM == 32 && (WarpGemmK == 8 || WarpGemmK == 16)),
                               "Not supported WarpGemm sizes!");
 #endif
-                return WarpGemmDispatcher<
-                    typename Problem::QKVDataType,
-                    typename Problem::QKVDataType,
-                    typename Problem::GemmAccDataType,
-                    Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<0>{}),
-                    Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<1>{}),
-                    Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<2>{}),
-                    true,
-                    false,
-                    false,
-                    WGAttrNumAccessEnum::Single>{};
+                if constexpr((WarpGemmM == 16 && WarpGemmK == 32) ||
+                             (WarpGemmM == 32 && WarpGemmK == 16))
+                    return WarpGemmDispatcher<
+                        typename Problem::QKVDataType,
+                        typename Problem::QKVDataType,
+                        typename Problem::GemmAccDataType,
+                        Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<0>{}),
+                        Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<1>{}),
+                        Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<2>{}),
+                        true,
+                        false,
+                        false,
+                        WGAttrNumAccessEnum::Double>{};
+                else
+                    return WarpGemmDispatcher<
+                        typename Problem::QKVDataType,
+                        typename Problem::QKVDataType,
+                        typename Problem::GemmAccDataType,
+                        Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<0>{}),
+                        Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<1>{}),
+                        Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<2>{}),
+                        true,
+                        false,
+                        false,
+                        WGAttrNumAccessEnum::Single>{};
             }
             else
             {
@@ -938,17 +1034,31 @@ struct HstuAttentionBwdKernel2PipelinePolicy
                                   (WarpGemmM == 32 && (WarpGemmK == 8 || WarpGemmK == 16)),
                               "Not supported WarpGemm sizes!");
 #endif
-                return WarpGemmDispatcher<
-                    typename Problem::QKVDataType,
-                    typename Problem::QKVDataType,
-                    typename Problem::GemmAccDataType,
-                    Problem::HstuAttentionTileSetting::Gemm3WarpTile::at(number<0>{}),
-                    Problem::HstuAttentionTileSetting::Gemm3WarpTile::at(number<1>{}),
-                    Problem::HstuAttentionTileSetting::Gemm3WarpTile::at(number<2>{}),
-                    true,
-                    false,
-                    false,
-                    WGAttrNumAccessEnum::Single>{};
+                if constexpr((WarpGemmM == 16 && WarpGemmK == 32) ||
+                             (WarpGemmM == 32 && WarpGemmK == 16))
+                    return WarpGemmDispatcher<
+                        typename Problem::QKVDataType,
+                        typename Problem::QKVDataType,
+                        typename Problem::GemmAccDataType,
+                        Problem::HstuAttentionTileSetting::Gemm3WarpTile::at(number<0>{}),
+                        Problem::HstuAttentionTileSetting::Gemm3WarpTile::at(number<1>{}),
+                        Problem::HstuAttentionTileSetting::Gemm3WarpTile::at(number<2>{}),
+                        true,
+                        false,
+                        false,
+                        WGAttrNumAccessEnum::Double>{};
+                else
+                    return WarpGemmDispatcher<
+                        typename Problem::QKVDataType,
+                        typename Problem::QKVDataType,
+                        typename Problem::GemmAccDataType,
+                        Problem::HstuAttentionTileSetting::Gemm3WarpTile::at(number<0>{}),
+                        Problem::HstuAttentionTileSetting::Gemm3WarpTile::at(number<1>{}),
+                        Problem::HstuAttentionTileSetting::Gemm3WarpTile::at(number<2>{}),
+                        true,
+                        false,
+                        false,
+                        WGAttrNumAccessEnum::Single>{};
             }
             else
             {
