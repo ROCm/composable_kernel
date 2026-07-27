@@ -317,7 +317,7 @@ struct HstuAttentionBwdBlockTileForKernel2<128>
 template <>
 struct HstuAttentionBwdBlockTileForKernel2<256>
 {
-    using type             = ck_tile::sequence<64, 64, 32, 32, 256>;
+    using type             = ck_tile::sequence<64, 128, 32, 32, 256>;
     using gemm0gemm2_warps = ck_tile::sequence<1, 4, 1>;
     using gemm1_warps      = ck_tile::sequence<4, 1, 1>;
     using gemm3_warps      = ck_tile::sequence<4, 1, 1>;
@@ -334,9 +334,9 @@ struct HstuAttentionBwdTileSettingForKernel2<64>
         typename HstuAttentionBwdBlockTileForKernel2<64>::gemm0gemm2_warps,
         WarpTile_16x16x32,
         typename HstuAttentionBwdBlockTileForKernel2<64>::gemm1_warps,
-        WarpTile_16x16x16,
+        WarpTile_16x16x32,
         typename HstuAttentionBwdBlockTileForKernel2<64>::gemm3_warps,
-        WarpTile_16x16x16>;
+        WarpTile_16x16x32>;
 };
 
 template <>
@@ -347,9 +347,9 @@ struct HstuAttentionBwdTileSettingForKernel2<96>
         typename HstuAttentionBwdBlockTileForKernel2<96>::gemm0gemm2_warps,
         WarpTile_16x16x32,
         typename HstuAttentionBwdBlockTileForKernel2<96>::gemm1_warps,
-        WarpTile_16x16x16,
+        WarpTile_16x16x32,
         typename HstuAttentionBwdBlockTileForKernel2<96>::gemm3_warps,
-        WarpTile_16x16x16>;
+        WarpTile_16x16x32>;
 };
 
 template <>
@@ -360,9 +360,9 @@ struct HstuAttentionBwdTileSettingForKernel2<128>
         typename HstuAttentionBwdBlockTileForKernel2<128>::gemm0gemm2_warps,
         WarpTile_16x16x32,
         typename HstuAttentionBwdBlockTileForKernel2<128>::gemm1_warps,
-        WarpTile_16x16x16,
+        WarpTile_16x16x32,
         typename HstuAttentionBwdBlockTileForKernel2<128>::gemm3_warps,
-        WarpTile_16x16x16>;
+        WarpTile_16x16x32>;
 };
 
 template <>
@@ -373,8 +373,8 @@ struct HstuAttentionBwdTileSettingForKernel2<256>
         typename HstuAttentionBwdBlockTileForKernel2<256>::gemm0gemm2_warps,
         WarpTile_16x16x32,
         typename HstuAttentionBwdBlockTileForKernel2<256>::gemm1_warps,
-        WarpTile_16x16x16,
+        WarpTile_16x16x32,
         typename HstuAttentionBwdBlockTileForKernel2<256>::gemm3_warps,
-        WarpTile_16x16x16>;
+        WarpTile_16x16x32>;
 };
 #endif
