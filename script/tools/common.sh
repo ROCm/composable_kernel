@@ -179,3 +179,40 @@ list_cmake_presets() {
         sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$presets_file" | grep -v '^use-'
     fi
 }
+
+# ============================================================================
+# GPU SMI wrappers (delegate to tile_engine/ops/common/smi_cli.py)
+# ============================================================================
+
+_ck_smi_cli() {
+    local project_root
+    project_root="$(get_project_root "$(dirname "${BASH_SOURCE[0]}")")"
+    PYTHONPATH="${project_root}/tile_engine/ops/common:${PYTHONPATH:-}" \
+        python3 "${project_root}/tile_engine/ops/common/smi_cli.py" "$@"
+}
+
+ck_smi_list_gpu_ids()  { _ck_smi_cli list-ids; }
+ck_smi_count_gpus()    { _ck_smi_cli count; }
+ck_smi_show_gpu_info() { _ck_smi_cli show-info --head "${1:-10}"; }
+ck_smi_check_gpu_available() { _ck_smi_cli check; }
+ck_smi_show_version()  { _ck_smi_cli show-version; }
+
+# Run ck_smi_show_gpu_info inside a Docker container (project mounted at /workspace)
+ck_smi_show_gpu_info_in_container() {
+    local container="$1"
+    local head="${2:-10}"
+
+    # Prevent command injection via the bash -c string.
+    if ! [[ "${head}" =~ ^[0-9]+$ ]]; then
+        head=10
+    fi
+
+    docker exec "${container}" bash -c '
+        if [ -f /workspace/script/tools/common.sh ]; then
+            source /workspace/script/tools/common.sh
+            ck_smi_show_gpu_info "$1" 2>/dev/null || echo "No GPU detected"
+        else
+            echo "No GPU detected (project not mounted at /workspace)"
+        fi
+    ' -- "${head}"
+}

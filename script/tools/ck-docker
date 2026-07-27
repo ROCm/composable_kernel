@@ -159,7 +159,7 @@ cmd_status() {
             docker ps --filter "name=^${name}$" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
             echo ""
             echo "GPU Information:"
-            docker exec "${name}" bash -c "rocm-smi --showproductname 2>/dev/null | head -10 || echo 'No GPU detected'"
+            ck_smi_show_gpu_info_in_container "${name}" 10
         elif container_exists "${name}"; then
             echo "Container '${name}' exists but is STOPPED"
             echo "Start with: ck-docker start ${name}"
